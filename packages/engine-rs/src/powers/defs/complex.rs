@@ -29,6 +29,32 @@ fn hook_noop(
     _state: &mut EffectState,
 ) {}
 
+fn hook_discipline(
+    engine: &mut CombatEngine,
+    owner: EffectOwner,
+    event: &GameEvent,
+    state: &mut EffectState,
+) {
+    if owner != EffectOwner::PlayerPower {
+        return;
+    }
+    match event.kind {
+        Trigger::TurnEnd => {
+            if engine.state.energy > 0 {
+                state.set(0, engine.state.energy);
+            }
+        }
+        Trigger::TurnStart => {
+            let draw = state.get(0);
+            if draw > 0 {
+                state.set(0, 0);
+                engine.draw_cards(draw);
+            }
+        }
+        _ => {}
+    }
+}
+
 fn hook_time_warp(
     engine: &mut CombatEngine,
     owner: EffectOwner,
@@ -72,6 +98,33 @@ fn player_power_amount(engine: &CombatEngine, owner: EffectOwner, status_id: cra
         _ => 0,
     }
 }
+
+// Discipline — remember unspent energy at turn end, draw that many next turn.
+// Java: powers/deprecated/DEPRECATEDDisciplinePower.java.
+static DISCIPLINE_EFFECTS: [crate::effects::declarative::Effect; 0] = [];
+static DISCIPLINE_TRIGGERS: [TriggeredEffect; 2] = [
+    TriggeredEffect {
+        trigger: Trigger::TurnEnd,
+        condition: TriggerCondition::Always,
+        effects: &DISCIPLINE_EFFECTS,
+        counter: None,
+    },
+    TriggeredEffect {
+        trigger: Trigger::TurnStart,
+        condition: TriggerCondition::Always,
+        effects: &DISCIPLINE_EFFECTS,
+        counter: None,
+    },
+];
+
+pub static DEF_DISCIPLINE: EntityDef = EntityDef {
+    id: "discipline",
+    name: "Discipline",
+    kind: EntityKind::Power,
+    triggers: &DISCIPLINE_TRIGGERS,
+    complex_hook: Some(hook_discipline),
+    status_guard: Some(sid::DISCIPLINE),
+};
 
 fn hook_thousand_cuts(
     engine: &mut CombatEngine,

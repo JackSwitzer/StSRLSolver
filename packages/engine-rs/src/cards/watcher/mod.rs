@@ -21,6 +21,7 @@ mod deceivereality;
 mod deusexmachina;
 mod devaform;
 mod devotion;
+mod discipline;
 mod emptybody;
 mod emptyfist;
 mod emptymind;
@@ -107,6 +108,7 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
     deusexmachina::register(cards);
     devaform::register(cards);
     devotion::register(cards);
+    discipline::register(cards);
     emptybody::register(cards);
     emptyfist::register(cards);
     emptymind::register(cards);

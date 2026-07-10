@@ -167,7 +167,8 @@ pub static DEF_BATTLE_HYMN: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Devotion — TurnStart: gain mantra equal to stacks
+// Devotion — TurnStartPostDraw: gain mantra equal to stacks
+// Java: powers/watcher/DevotionPower.java atStartOfTurnPostDraw().
 // ===========================================================================
 
 static DEVOTION_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::GainMantra(
@@ -175,7 +176,7 @@ static DEVOTION_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::GainMantra(
 ))];
 
 static DEVOTION_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnStart,
+    trigger: Trigger::TurnStartPostDraw,
     condition: TriggerCondition::Always,
     effects: &DEVOTION_EFFECTS,
     counter: None,
@@ -218,21 +219,20 @@ pub static DEF_WRAITH_FORM: EntityDef = EntityDef {
 
 // ===========================================================================
 // Deva Form — TurnStart: gain energy (escalating)
-// NOTE: Deva Form escalates each turn (amt, then amt+1, etc.).
-// The escalation is a side-effect mutation, so this is approximated
-// here as gaining energy = current stacks. The actual escalation
-// (incrementing the status value) needs complex_hook or engine support.
+// Java DevaPower keeps amount and energyGainAmount separate: recharge grants
+// energyGainAmount, then increments it by amount.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/DevaPower.java
 // ===========================================================================
 
 static DEVA_FORM_EFFECTS: [Effect; 2] = [
     Effect::Simple(SimpleEffect::GainEnergy(
-        AmountSource::StatusValue(sid::DEVA_FORM),
+        AmountSource::StatusValue(sid::DEVA_FORM_ENERGY),
     )),
-    // Escalate: increment status so next turn grants more energy
+    // Escalate the hidden energy counter by the stable visible stack amount.
     Effect::Simple(SimpleEffect::AddStatus(
         Target::Player,
-        sid::DEVA_FORM,
-        AmountSource::Fixed(1),
+        sid::DEVA_FORM_ENERGY,
+        AmountSource::StatusValue(sid::DEVA_FORM),
     )),
 ];
 
@@ -532,7 +532,7 @@ mod tests {
         let defs = [
             &DEF_DEMON_FORM, &DEF_NOXIOUS_FUMES, &DEF_BRUTALITY,
             &DEF_BERSERK, &DEF_INFINITE_BLADES, &DEF_BATTLE_HYMN,
-            &DEF_DEVOTION, &DEF_WRAITH_FORM, &DEF_DEVA_FORM,
+            &DEF_WRAITH_FORM, &DEF_DEVA_FORM,
             &DEF_HELLO_WORLD, &DEF_MAGNETISM,
             &DEF_DOPPELGANGER_DRAW, &DEF_DOPPELGANGER_ENERGY,
         ];
@@ -541,6 +541,7 @@ mod tests {
             assert!(!def.triggers.is_empty());
             assert_eq!(def.triggers[0].trigger, Trigger::TurnStart);
         }
+        assert_eq!(DEF_DEVOTION.triggers[0].trigger, Trigger::TurnStartPostDraw);
     }
 
     #[test]

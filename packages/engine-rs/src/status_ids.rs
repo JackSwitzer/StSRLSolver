@@ -310,6 +310,7 @@ pub mod sid {
     pub const SIMMERING_FURY: StatusId = StatusId(248);
     pub const FROST_CHANNELED: StatusId = StatusId(249);
     pub const CLAW_BONUS: StatusId = StatusId(250);
+    pub const DISCIPLINE: StatusId = StatusId(251);
     pub const STEAM_BARRIER_LOSS: StatusId = StatusId(252);
 
     /// Mirrors Java's `AbstractPower.justApplied` for enemy-applied debuffs.
@@ -610,7 +611,7 @@ static STATUS_NAMES: &[&str] = &[
     "SimmeringFury",      // 248
     "FrostChanneled",     // 249
     "ClawBonus",          // 250
-    "PendingDraw",        // 251
+    "DisciplinePower",    // 251
     "SteamBarrierLoss",   // 252
     "WeakenedJustApplied", // 253
     "VulnerableJustApplied", // 254

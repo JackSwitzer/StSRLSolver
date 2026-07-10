@@ -82,7 +82,10 @@ fn watcher_wave4_registry_exports_surface_declared_block_stance_and_power_instal
         .expect("Deva Form should be registered");
     assert_eq!(
         deva_form.effect_data,
-        &[E::Simple(SE::AddStatus(T::Player, sid::DEVA_FORM, A::Magic))]
+        &[
+            E::Simple(SE::AddStatus(T::Player, sid::DEVA_FORM, A::Magic)),
+            E::Simple(SE::AddStatus(T::Player, sid::DEVA_FORM_ENERGY, A::Magic)),
+        ]
     );
     assert!(deva_form.runtime_traits().ethereal);
 }
@@ -126,7 +129,8 @@ fn watcher_wave4_battle_hymn_devotion_and_deva_form_trigger_after_install() {
     assert_eq!(deva_form.state.player.status(sid::DEVA_FORM), 1);
     end_turn(&mut deva_form);
     assert_eq!(deva_form.state.energy, 4);
-    assert_eq!(deva_form.state.player.status(sid::DEVA_FORM), 2);
+    assert_eq!(deva_form.state.player.status(sid::DEVA_FORM), 1);
+    assert_eq!(deva_form.state.player.status(sid::DEVA_FORM_ENERGY), 2);
 }
 
 #[test]

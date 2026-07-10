@@ -1,6 +1,10 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+    // Devotion.java applies 2 stacks (3 upgraded); DevotionPower.java gains
+    // that much Mantra at start-of-turn post-draw.
+    // decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Devotion.java
+    // decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/DevotionPower.java
     // ---- Rare: Devotion ---- (cost 1, power, gain 2 Mantra at start of each turn; +1 magic upgrade)
     insert(cards, CardDef {
         id: "Devotion", name: "Devotion", card_type: CardType::Power,

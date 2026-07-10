@@ -100,6 +100,7 @@ pub static POWER_DEFS: &[&EntityDef] = &[
     &complex::DEF_ELECTRODYNAMICS,
     &complex::DEF_TIME_WARP,
     &complex::DEF_STATIC_DISCHARGE,
+    &complex::DEF_DISCIPLINE,
 ];
 
 /// Power defs that are executed by the owner-aware runtime today.
@@ -139,6 +140,7 @@ pub static RUNTIME_PLAYER_POWER_DEFS: &[&EntityDef] = &[
     &complex::DEF_THOUSAND_CUTS,
     &complex::DEF_PANACHE,
     &complex::DEF_SADISTIC_NATURE,
+    &complex::DEF_DISCIPLINE,
     &exhaust::DEF_FEEL_NO_PAIN,
     &exhaust::DEF_DARK_EMBRACE,
     &stance::DEF_MENTAL_FORTRESS,

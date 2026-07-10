@@ -2130,8 +2130,11 @@ mod effect_handler_tests {
         // Turn 2: should have 3 (base) + 1 (DevaForm) = 4 energy
         assert_eq!(e.state.energy, 4,
             "DevaForm should grant 1 extra energy on turn 2");
-        // Status should have increased for next turn
-        assert_eq!(e.state.player.status(sid::DEVA_FORM), 2);
+        // DevaPower.java keeps its visible amount stable and advances a
+        // separate energyGainAmount after recharge.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/DevaPower.java
+        assert_eq!(e.state.player.status(sid::DEVA_FORM), 1);
+        assert_eq!(e.state.player.status(sid::DEVA_FORM_ENERGY), 2);
     }
 
     // ===== 25. Install Power: Fasting =====

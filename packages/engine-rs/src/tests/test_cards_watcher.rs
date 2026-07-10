@@ -1070,6 +1070,23 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.mantra, 2);
         }
     );
+    // Source-derived (verify card/Devotion): DevotionPower fires post-draw.
+    // Ten stacks with no existing Mantra enter Divinity, which must remain
+    // active for the new turn rather than being cleared by pre-draw auto-exit.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Devotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/DevotionPower.java
+    #[test]
+    fn devotion_source_enters_divinity_after_draw_and_keeps_it_for_the_turn() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.player.set_status(sid::DEVOTION, 10);
+        engine.rebuild_effect_runtime();
+        engine.state.draw_pile = make_deck(&["Strike"; 5]);
+        end_turn(&mut engine);
+
+        assert_eq!(engine.state.hand.len(), 5);
+        assert_eq!(engine.state.stance, Stance::Divinity);
+        assert_eq!(engine.state.mantra, 0);
+    }
     watcher_test!(
         deva_form_java_parity,
         base = ("DevaForm", "Deva Form", 3, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, ["ethereal"]),
@@ -1080,6 +1097,50 @@ mod watcher_card_java_parity_tests {
             play_self(&mut engine, "DevaForm");
             end_turn(&mut engine);
             assert_eq!(engine.state.energy, 4);
+        }
+    );
+    // Source-derived (verify card/DevaForm): DevaPower.stackPower increments
+    // both amount and energyGainAmount; recharge grants energyGainAmount and
+    // then increments it by amount. Two copies therefore grant 2, then 4.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/DevaForm.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/DevaPower.java
+    #[test]
+    fn deva_form_source_keeps_stacks_separate_from_escalating_energy() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.energy = 6;
+        engine.state.hand = make_deck(&["DevaForm", "DevaForm"]);
+        play_self(&mut engine, "DevaForm");
+        play_self(&mut engine, "DevaForm");
+        assert_eq!(engine.state.player.status(sid::DEVA_FORM), 2);
+        assert_eq!(engine.state.player.status(sid::DEVA_FORM_ENERGY), 2);
+
+        end_turn(&mut engine);
+        assert_eq!(engine.state.energy, 5);
+        assert_eq!(engine.state.player.status(sid::DEVA_FORM), 2);
+        assert_eq!(engine.state.player.status(sid::DEVA_FORM_ENERGY), 4);
+
+        end_turn(&mut engine);
+        assert_eq!(engine.state.energy, 7);
+        assert_eq!(engine.state.player.status(sid::DEVA_FORM_ENERGY), 6);
+    }
+    // Source-derived (verify card/Discipline): the deprecated power records
+    // positive unspent energy at end of turn, then draws that many cards at
+    // the next turn start and resets its stored amount.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Discipline.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/deprecated/DEPRECATEDDisciplinePower.java
+    watcher_test!(
+        discipline_java_parity,
+        base = ("Discipline", "Discipline", 2, -1, -1, -1, CardType::Power, CardTarget::SelfTarget, false, None, []),
+        plus = ("Discipline+", "Discipline+", 1, -1, -1, -1, CardType::Power, CardTarget::SelfTarget, false, None, []),
+        {
+            let mut engine = one_enemy_engine("JawWorm", 50, 0);
+            engine.state.draw_pile = make_deck(&["Strike"; 10]);
+            ensure_in_hand(&mut engine, "Discipline+");
+            play_self(&mut engine, "Discipline+");
+            assert_eq!(engine.state.energy, 2);
+            assert_eq!(engine.state.player.status(sid::DISCIPLINE), 1);
+            end_turn(&mut engine);
+            assert_eq!(engine.state.hand.len(), 7);
         }
     );
     watcher_test!(

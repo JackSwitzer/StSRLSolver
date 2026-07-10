@@ -576,9 +576,9 @@ pub fn apply_deva_form(entity: &mut EntityState) -> i32 {
     if deva <= 0 {
         return 0;
     }
-    let energy_counter = entity.status(sid::DEVA_FORM_ENERGY) + 1;
-    entity.set_status(sid::DEVA_FORM_ENERGY, energy_counter);
-    energy_counter
+    let energy_gain = entity.status(sid::DEVA_FORM_ENERGY).max(deva);
+    entity.set_status(sid::DEVA_FORM_ENERGY, energy_gain + deva);
+    energy_gain
 }
 
 // ---------------------------------------------------------------------------

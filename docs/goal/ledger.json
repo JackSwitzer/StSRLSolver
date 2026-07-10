@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-10T17:11:46.991868+00:00",
+ "updated": "2026-07-10T17:18:56.045160+00:00",
  "status_counts": {
-  "unverified": 645,
-  "verified": 22
+  "unverified": 642,
+  "verified": 25
  },
  "rows": [
   {
@@ -1062,8 +1062,8 @@
    "class": "DevaForm",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/DevaForm.java",
    "methods_ref": "reference/extracted/methods/card/DevaForm.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -1072,8 +1072,8 @@
    "class": "Devotion",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Devotion.java",
    "methods_ref": "reference/extracted/methods/card/Devotion.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -1102,8 +1102,8 @@
    "class": "Discipline",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Discipline.java",
    "methods_ref": "reference/extracted/methods/card/Discipline.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
