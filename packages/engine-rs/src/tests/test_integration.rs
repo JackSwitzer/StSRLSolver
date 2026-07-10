@@ -127,7 +127,7 @@ mod engine_integration_tests {
         assert!(!e.state.hand.is_empty(), "New hand should be drawn after Conclude");
     }
 
-    // ---- CutThroughFate draws cards ----
+    // ---- CutThroughFate Scrys, then draws exactly one ----
     #[test] fn cut_through_fate_draws() {
         let mut e = engine_with(
             make_deck(&["CutThroughFate", "Strike", "Strike", "Strike", "Defend", "Strike", "Strike"]),
@@ -136,8 +136,13 @@ mod engine_integration_tests {
         ensure_in_hand(&mut e, "CutThroughFate");
         let hand_before = e.state.hand.len();
         play(&mut e, "CutThroughFate");
-        // Played 1, drew 2 = net +1
-        assert_eq!(e.state.hand.len(), hand_before + 1);
+        assert_eq!(e.phase, CombatPhase::AwaitingChoice);
+        let option_count = e.choice.as_ref().unwrap().options.len();
+        for i in 0..option_count {
+            e.execute_action(&Action::Choose(i));
+        }
+        e.execute_action(&Action::ConfirmSelection);
+        assert_eq!(e.state.hand.len(), hand_before);
     }
 
     // ---- WheelKick draws 2 ----

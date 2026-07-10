@@ -592,6 +592,7 @@ impl CombatEngine {
     }
 
     fn resolve_scry(&mut self, ctx: ChoiceContext) {
+        let post_choice_draw = ctx.post_choice_draw;
         // Selected indices are cards to discard from the revealed set.
         // The revealed cards were taken from top of draw pile and stored as options.
         // Non-selected go back on top of draw pile, selected go to discard.
@@ -636,6 +637,12 @@ impl CombatEngine {
             if self.state.hand.len() < 10 {
                 self.state.hand.push(card);
             }
+        }
+
+        // CutThroughFate.java queues DrawCardAction(1) after ScryAction, so the
+        // draw cannot occur until this choice has finished resolving.
+        if post_choice_draw > 0 {
+            self.draw_cards(post_choice_draw);
         }
     }
 

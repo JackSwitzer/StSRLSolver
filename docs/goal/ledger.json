@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-10T16:53:07.794262+00:00",
+ "updated": "2026-07-10T17:01:56.922778+00:00",
  "status_counts": {
-  "unverified": 650,
-  "verified": 17
+  "unverified": 648,
+  "verified": 19
  },
  "rows": [
   {
@@ -842,8 +842,8 @@
    "class": "CrushJoints",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/CrushJoints.java",
    "methods_ref": "reference/extracted/methods/card/CrushJoints.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -862,8 +862,8 @@
    "class": "CutThroughFate",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/CutThroughFate.java",
    "methods_ref": "reference/extracted/methods/card/CutThroughFate.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

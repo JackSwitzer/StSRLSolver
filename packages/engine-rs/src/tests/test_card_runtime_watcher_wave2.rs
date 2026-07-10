@@ -106,15 +106,15 @@ fn cut_through_fate_third_eye_and_wheel_kick_cover_draw_and_scry_amounts() {
     let mut cut_through_fate = one_enemy_engine("JawWorm", 50, 0);
     cut_through_fate.state.draw_pile = make_deck(&["Strike", "Defend", "Worship", "Protect"]);
     ensure_in_hand(&mut cut_through_fate, "CutThroughFate");
-    let hand_before = cut_through_fate.state.hand.len();
     assert!(play_on_enemy(&mut cut_through_fate, "CutThroughFate", 0));
     assert_eq!(cut_through_fate.phase, CombatPhase::AwaitingChoice);
+    assert!(cut_through_fate.state.hand.is_empty());
     assert_eq!(cut_through_fate.choice.as_ref().unwrap().options.len(), 2);
     for i in 0..2 {
         cut_through_fate.execute_action(&Action::Choose(i));
     }
     cut_through_fate.execute_action(&Action::ConfirmSelection);
-    assert_eq!(cut_through_fate.state.hand.len(), hand_before + 1);
+    assert_eq!(cut_through_fate.state.hand.len(), 1);
 
     let mut third_eye = one_enemy_engine("JawWorm", 50, 0);
     third_eye.state.draw_pile = make_deck(&["Strike", "Defend", "Worship", "Protect"]);

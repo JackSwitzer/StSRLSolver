@@ -334,6 +334,11 @@ mod watcher_card_java_parity_tests {
         assert_eq!((base.cost, base.base_damage), (1, 7));
         assert_eq!((plus.cost, plus.base_damage), (1, 10));
     }
+    // Source-derived (verify card/CrushJoints): CrushJointsAction.java inspects
+    // the card at cardsPlayedThisCombat[size - 2], so only a preceding Skill
+    // applies Vulnerable. CrushJoints.java upgrades damage 8 -> 10 and magic 1 -> 2.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/CrushJoints.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/CrushJointsAction.java
     watcher_test!(
         crush_joints_java_parity,
         base = ("CrushJoints", "Crush Joints", 1, 8, -1, 1, CardType::Attack, CardTarget::Enemy, false, None, ["vuln_if_last_skill"]),
@@ -345,8 +350,19 @@ mod watcher_card_java_parity_tests {
             play_self(&mut engine, "Defend");
             play_on_enemy(&mut engine, "CrushJoints", 0);
             assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 1);
+
+            let mut after_attack = one_enemy_engine("JawWorm", 50, 0);
+            ensure_in_hand(&mut after_attack, "FlurryOfBlows");
+            ensure_in_hand(&mut after_attack, "CrushJoints");
+            play_on_enemy(&mut after_attack, "FlurryOfBlows", 0);
+            play_on_enemy(&mut after_attack, "CrushJoints", 0);
+            assert_eq!(after_attack.state.enemies[0].entity.status(sid::VULNERABLE), 0);
         }
     );
+    // Source-derived (verify card/CutThroughFate): CutThroughFate.java queues
+    // damage, Scry(magicNumber), then exactly one draw. The draw therefore occurs
+    // only after the Scry selection resolves, and the upgrade changes Scry 2 -> 3.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/CutThroughFate.java
     watcher_test!(
         cut_through_fate_java_parity,
         base = ("CutThroughFate", "Cut Through Fate", 1, 7, -1, 2, CardType::Attack, CardTarget::Enemy, false, None, ["scry", "draw"]),
@@ -355,9 +371,17 @@ mod watcher_card_java_parity_tests {
             let mut engine = one_enemy_engine("JawWorm", 50, 0);
             engine.state.draw_pile = make_deck(&["Strike", "Defend", "Worship"]);
             ensure_in_hand(&mut engine, "CutThroughFate");
-            let hand_before = engine.state.hand.len();
             play_on_enemy(&mut engine, "CutThroughFate", 0);
-            assert_eq!(engine.state.hand.len(), hand_before + 1);
+            assert_eq!(engine.state.enemies[0].entity.hp, 43);
+            assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+            assert!(engine.state.hand.is_empty(), "draw must wait for Scry");
+            assert_eq!(engine.choice.as_ref().unwrap().options.len(), 2);
+            engine.execute_action(&Action::Choose(1));
+            engine.execute_action(&Action::ConfirmSelection);
+            assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+            assert_eq!(engine.state.hand.len(), 1, "Cut Through Fate draws exactly one");
+            assert_eq!(hand_count(&engine, "Defend"), 1);
+            assert_eq!(discard_prefix_count(&engine, "Worship"), 1);
         }
     );
     watcher_test!(
