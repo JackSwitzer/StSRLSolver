@@ -31,6 +31,30 @@ fn relic_wave15_pure_water_adds_one_miracle_at_combat_start() {
     assert_eq!(discard_prefix_count(&engine, "Miracle"), 0);
 }
 
+// Source-derived (verify relic/PureWater):
+// PureWater.java atBattleStartPreDraw() -> MakeTempCardInHandAction(new Miracle(), 1, false).
+// The hook is Pre-Draw: exactly one un-upgraded Miracle sits in hand alongside the
+// full 5-card opening draw (it neither consumes a draw slot nor lands in draw/discard).
+#[test]
+fn relic_wave15_pure_water_miracle_is_added_before_the_opening_draw() {
+    let mut engine = engine_without_start(
+        make_deck_n("Strike", 5),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    engine.state.relics.push("PureWater".to_string());
+
+    engine.start_combat();
+
+    assert_eq!(hand_count(&engine, "Miracle"), 1);
+    assert_eq!(hand_count(&engine, "Strike"), 5);
+    assert_eq!(engine.state.hand.len(), 6);
+    assert_eq!(draw_prefix_count(&engine, "Miracle"), 0);
+    assert_eq!(discard_prefix_count(&engine, "Miracle"), 0);
+    // MakeTempCardInHandAction receives `new Miracle()` (no upgrade call): un-upgraded.
+    assert_eq!(hand_count(&engine, "Miracle+"), 0);
+}
+
 #[test]
 fn relic_wave15_holy_water_fills_hand_then_spills_overflow_to_discard() {
     let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
