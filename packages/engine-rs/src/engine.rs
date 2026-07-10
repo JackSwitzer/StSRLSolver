@@ -1248,12 +1248,16 @@ impl CombatEngine {
             }
         }
 
-        // Collect: add Miracle cards to hand before draw, matching Java onEnergyRecharge timing.
+        // CollectPower.onEnergyRecharge: add exactly one upgraded Miracle before
+        // draw, then decrement the turn-based power by one.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/CollectPower.java
         {
             let miracles = self.state.player.status(sid::COLLECT_MIRACLES);
             if miracles > 0 {
-                self.add_temp_cards_to_hand("Miracle", miracles);
-                self.state.player.set_status(sid::COLLECT_MIRACLES, 0);
+                self.add_temp_cards_to_hand("Miracle+", 1);
+                self.state
+                    .player
+                    .set_status(sid::COLLECT_MIRACLES, miracles - 1);
             }
         }
 

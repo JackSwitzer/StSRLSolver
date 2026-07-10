@@ -576,6 +576,23 @@ mod watcher_card_java_parity_tests {
             assert_eq!(hand_count(&engine, "Smite"), 1);
         }
     );
+
+    // Source-derived (verify card/CarveReality): CarveReality.java deals 6
+    // damage, then creates one Smite in hand; upgrade() changes damage to 10.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/CarveReality.java
+    #[test]
+    fn carve_reality_source_deals_damage_then_adds_one_smite() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        ensure_in_hand(&mut engine, "CarveReality");
+        play_on_enemy(&mut engine, "CarveReality", 0);
+        assert_eq!(engine.state.enemies[0].entity.hp, 44);
+        assert_eq!(hand_count(&engine, "Smite"), 1);
+
+        let base = reg().get("CarveReality").expect("CarveReality registered");
+        let plus = reg().get("CarveReality+").expect("CarveReality+ registered");
+        assert_eq!((base.cost, base.base_damage), (1, 6));
+        assert_eq!((plus.cost, plus.base_damage), (1, 10));
+    }
     watcher_test!(
         deceive_reality_java_parity,
         base = ("DeceiveReality", "Deceive Reality", 1, -1, 4, -1, CardType::Skill, CardTarget::SelfTarget, false, None, ["add_safety_to_hand"]),
@@ -889,6 +906,23 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.enemies[0].entity.hp, 45);
         }
     );
+
+    // Source-derived (verify card/Brilliance): Brilliance.java adds the total
+    // mantra gained this combat to base damage; upgrade() adds 4 base damage.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Brilliance.java
+    #[test]
+    fn brilliance_source_scales_with_total_mantra_gained() {
+        let mut engine = one_enemy_engine("JawWorm", 60, 0);
+        engine.gain_mantra(7);
+        ensure_in_hand(&mut engine, "Brilliance");
+        play_on_enemy(&mut engine, "Brilliance", 0);
+        assert_eq!(engine.state.enemies[0].entity.hp, 41); // 60 - (12 + 7)
+
+        let base = reg().get("Brilliance").expect("Brilliance registered");
+        let plus = reg().get("Brilliance+").expect("Brilliance+ registered");
+        assert_eq!((base.cost, base.base_damage), (1, 12));
+        assert_eq!((plus.cost, plus.base_damage), (1, 16));
+    }
     watcher_test!(
         conclude_java_parity,
         base = ("Conclude", "Conclude", 1, 12, -1, -1, CardType::Attack, CardTarget::AllEnemy, false, None, ["end_turn"]),
@@ -1058,6 +1092,35 @@ mod watcher_card_java_parity_tests {
             assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "ClearTheMind"));
         }
     );
+
+    // Source-derived (verify card/ClearTheMind): Tranquility.java (ID
+    // ClearTheMind) is self-retaining, enters Calm, and exhausts when played;
+    // upgrade() changes only cost 1 -> 0.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Tranquility.java
+    #[test]
+    fn tranquility_source_retains_unplayed_and_plus_enters_calm_for_zero() {
+        let mut retained = one_enemy_engine("JawWorm", 50, 0);
+        retained.state.hand = make_deck(&["ClearTheMind"]);
+        retained.state.draw_pile.clear();
+        retained.state.discard_pile.clear();
+        end_turn(&mut retained);
+        assert_eq!(hand_count(&retained, "ClearTheMind"), 1);
+
+        let mut played = one_enemy_engine("JawWorm", 50, 0);
+        set_stance(&mut played, Stance::Wrath);
+        ensure_in_hand(&mut played, "ClearTheMind+");
+        let energy_before = played.state.energy;
+        play_self(&mut played, "ClearTheMind+");
+        assert_eq!(played.state.stance, Stance::Calm);
+        assert_eq!(played.state.energy, energy_before);
+        assert_eq!(exhaust_prefix_count(&played, "ClearTheMind+"), 1);
+
+        let base = reg().get("ClearTheMind").expect("ClearTheMind registered");
+        let plus = reg().get("ClearTheMind+").expect("ClearTheMind+ registered");
+        assert_eq!((base.cost, plus.cost), (1, 0));
+        assert!(base.runtime_traits().retain);
+        assert!(plus.runtime_traits().retain);
+    }
     watcher_test!(
         wish_java_parity,
         base = ("Wish", "Wish", 3, 3, 6, 25, CardType::Skill, CardTarget::None, true, None, ["wish"]),
@@ -1083,6 +1146,55 @@ mod watcher_card_java_parity_tests {
         plus = ("Collect+", "Collect+", -1, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, true, None, []),
         {}
     );
+
+    // Source-derived (verify card/Collect): CollectAction.java applies a
+    // stackable X-turn CollectPower (+1 upgraded). CollectPower.java creates
+    // exactly one upgraded Miracle per energy recharge and decrements by one.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/CollectAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/CollectPower.java
+    #[test]
+    fn collect_source_stacks_and_generates_one_upgraded_miracle_per_turn() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.energy = 2;
+        ensure_in_hand(&mut engine, "Collect");
+        play_self(&mut engine, "Collect");
+        assert_eq!(engine.state.player.status(sid::COLLECT_MIRACLES), 2);
+        assert_eq!(engine.state.energy, 0);
+
+        engine.state.energy = 1;
+        engine
+            .state
+            .hand
+            .push(engine.card_registry.make_card("Collect+").set_free(true));
+        play_self(&mut engine, "Collect+");
+        assert_eq!(engine.state.player.status(sid::COLLECT_MIRACLES), 4);
+        assert_eq!(engine.state.energy, 1);
+
+        end_turn(&mut engine);
+        assert_eq!(hand_count(&engine, "Miracle+"), 1);
+        assert_eq!(hand_count(&engine, "Miracle"), 0);
+        assert_eq!(engine.state.player.status(sid::COLLECT_MIRACLES), 3);
+
+        end_turn(&mut engine);
+        assert_eq!(engine.state.player.status(sid::COLLECT_MIRACLES), 2);
+
+        let base = reg().get("Collect").expect("Collect registered");
+        let plus = reg().get("Collect+").expect("Collect+ registered");
+        assert_eq!((base.cost, base.exhaust), (-1, true));
+        assert_eq!((plus.cost, plus.exhaust), (-1, true));
+    }
+
+    // Source-derived (verify card/Collect): CollectPower.stackPower caps the
+    // turn counter at 999.
+    #[test]
+    fn collect_source_caps_stacked_turns_at_999() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.player.set_status(sid::COLLECT_MIRACLES, 998);
+        engine.state.energy = 3;
+        ensure_in_hand(&mut engine, "Collect+");
+        play_self(&mut engine, "Collect+");
+        assert_eq!(engine.state.player.status(sid::COLLECT_MIRACLES), 999);
+    }
     watcher_test!(
         deus_ex_machina_java_parity,
         base = ("DeusExMachina", "Deus Ex Machina", -2, -1, -1, 2, CardType::Skill, CardTarget::SelfTarget, true, None, ["unplayable", "deus_ex_machina"]),

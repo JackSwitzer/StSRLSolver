@@ -836,7 +836,14 @@ fn set_status(
 }
 
 fn add_player_status(engine: &mut CombatEngine, status: StatusId, amount: i32) {
-    engine.state.player.add_status(status, amount);
+    if status == sid::COLLECT_MIRACLES {
+        // Java CollectPower.stackPower() caps the turn counter at 999.
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/CollectPower.java
+        let next = (engine.state.player.status(status) + amount).min(999);
+        engine.state.player.set_status(status, next);
+    } else {
+        engine.state.player.add_status(status, amount);
+    }
     if status == sid::ORB_SLOTS && amount > 0 {
         for _ in 0..amount {
             engine.state.orb_slots.add_slot();

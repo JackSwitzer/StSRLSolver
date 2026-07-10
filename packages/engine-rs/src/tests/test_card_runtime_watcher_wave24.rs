@@ -22,14 +22,14 @@ fn watcher_wave24_registry_exports_match_typed_surface() {
     let collect = registry.get("Collect").expect("Collect should exist");
     assert_eq!(
         collect.effect_data,
-        &[E::Simple(SE::SetStatus(T::SelfEntity, sid::COLLECT_MIRACLES, A::XCostPlus(0)))]
+        &[E::Simple(SE::AddStatus(T::SelfEntity, sid::COLLECT_MIRACLES, A::XCostPlus(0)))]
     );
     assert!(collect.complex_hook.is_none());
 
     let collect_plus = registry.get("Collect+").expect("Collect+ should exist");
     assert_eq!(
         collect_plus.effect_data,
-        &[E::Simple(SE::SetStatus(T::SelfEntity, sid::COLLECT_MIRACLES, A::XCostPlus(1)))]
+        &[E::Simple(SE::AddStatus(T::SelfEntity, sid::COLLECT_MIRACLES, A::XCostPlus(1)))]
     );
     assert!(collect_plus.complex_hook.is_none());
 
@@ -170,7 +170,8 @@ fn watcher_wave24_collect_resolves_miracles_before_next_turn_draw() {
 
     end_turn(&mut engine);
 
-    assert_eq!(hand_count(&engine, "Miracle"), 1);
+    assert_eq!(hand_count(&engine, "Miracle+"), 1);
+    assert_eq!(engine.state.player.status(sid::COLLECT_MIRACLES), 0);
     assert_eq!(hand_count(&engine, "Strike"), 0);
     assert_eq!(engine.state.draw_pile.len(), 1);
     assert_eq!(

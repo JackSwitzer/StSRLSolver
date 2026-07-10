@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-10T16:45:05.336128+00:00",
+ "updated": "2026-07-10T16:50:07.232882+00:00",
  "status_counts": {
-  "unverified": 658,
-  "verified": 9
+  "unverified": 654,
+  "verified": 13
  },
  "rows": [
   {
@@ -442,8 +442,8 @@
    "class": "Brilliance",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Brilliance.java",
    "methods_ref": "reference/extracted/methods/card/Brilliance.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -552,8 +552,8 @@
    "class": "CarveReality",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/CarveReality.java",
    "methods_ref": "reference/extracted/methods/card/CarveReality.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -622,8 +622,8 @@
    "class": "Tranquility",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Tranquility.java",
    "methods_ref": "reference/extracted/methods/card/Tranquility.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -682,8 +682,8 @@
    "class": "Collect",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Collect.java",
    "methods_ref": "reference/extracted/methods/card/Collect.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
