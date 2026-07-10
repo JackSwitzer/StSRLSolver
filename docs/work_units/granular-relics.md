@@ -1,3 +1,5 @@
+> **Superseded (2026-07-06):** the Python engine is archived under archive/2026-07-python-engine/; active spec is docs/goal/GOAL.md.
+
 ---
 status: active
 priority: P2
