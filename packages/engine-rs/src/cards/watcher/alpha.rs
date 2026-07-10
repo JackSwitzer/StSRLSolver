@@ -1,5 +1,9 @@
 use crate::cards::prelude::*;
 
+// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Alpha.java
+//   ctor: cost 1 SKILL targeting NONE, exhausts, and previews Beta.
+//   use(): adds one stat-equivalent Beta to a random position in the draw pile.
+//   upgrade(): makes Alpha innate; cost and effect stay unchanged.
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Rare: Alpha ---- (cost 1, skill, exhaust, shuffle Beta into draw; upgrade: innate)
     insert(cards, CardDef {

@@ -174,6 +174,38 @@ mod watcher_card_java_parity_tests {
         }
     );
 
+    // Source-derived (verify card/Alpha): Alpha.java exhausts and queues one
+    // stat-equivalent Beta into the draw pile. upgrade() changes only isInnate.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Alpha.java
+    #[test]
+    fn alpha_source_adds_one_beta_exhausts_and_upgrade_is_innate_only() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.draw_pile.clear();
+        engine.state.discard_pile.clear();
+        ensure_in_hand(&mut engine, "Alpha");
+        let energy_before = engine.state.energy;
+        play_self(&mut engine, "Alpha");
+
+        assert_eq!(draw_prefix_count(&engine, "Beta"), 1);
+        assert_eq!(engine.state.energy, energy_before - 1);
+        assert_eq!(
+            engine
+                .state
+                .exhaust_pile
+                .iter()
+                .filter(|card| engine.card_registry.card_name(card.def_id) == "Alpha")
+                .count(),
+            1
+        );
+
+        let base = reg().get("Alpha").expect("Alpha registered");
+        let plus = reg().get("Alpha+").expect("Alpha+ registered");
+        assert_eq!((base.cost, base.exhaust), (1, true));
+        assert_eq!((plus.cost, plus.exhaust), (1, true));
+        assert!(!base.runtime_traits().innate);
+        assert!(plus.runtime_traits().innate);
+    }
+
     // Common cards.
     watcher_test!(
         bowling_bash_java_parity,
@@ -396,6 +428,27 @@ mod watcher_card_java_parity_tests {
             assert_eq!(hand_count(&engine, "Smite"), 1);
         }
     );
+
+    // Source-derived (verify card/BattleHymn): BattleHymn.java applies one
+    // BattleHymnPower stack, and upgrade() changes only isInnate. The installed
+    // power therefore creates one Smite at the following turn start.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/BattleHymn.java
+    #[test]
+    fn battle_hymn_source_applies_one_stack_and_upgrade_is_innate_only() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        ensure_in_hand(&mut engine, "BattleHymn");
+        play_self(&mut engine, "BattleHymn");
+        assert_eq!(engine.state.player.status(sid::BATTLE_HYMN), 1);
+        end_turn(&mut engine);
+        assert_eq!(hand_count(&engine, "Smite"), 1);
+
+        let base = reg().get("BattleHymn").expect("BattleHymn registered");
+        let plus = reg().get("BattleHymn+").expect("BattleHymn+ registered");
+        assert_eq!((base.cost, base.base_magic), (1, 1));
+        assert_eq!((plus.cost, plus.base_magic), (1, 1));
+        assert!(!base.runtime_traits().innate);
+        assert!(plus.runtime_traits().innate);
+    }
     watcher_test!(
         carve_reality_java_parity,
         base = ("CarveReality", "Carve Reality", 1, 6, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, ["add_smite_to_hand"]),
@@ -565,6 +618,25 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.hand.len(), hand_before + 1); // Eruption played (-1) + Rushdown draws 2 on Wrath entry
         }
     );
+
+    // Source-derived (verify card/Adaptation): Rushdown.java (ID Adaptation)
+    // applies RushdownPower with magicNumber 2. Its upgrade changes only the
+    // cost from 1 to 0; the amount remains 2.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Rushdown.java
+    #[test]
+    fn adaptation_source_applies_two_rushdown_and_upgrade_only_reduces_cost() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        ensure_in_hand(&mut engine, "Adaptation");
+        let energy_before = engine.state.energy;
+        play_self(&mut engine, "Adaptation");
+        assert_eq!(engine.state.player.status(sid::RUSHDOWN), 2);
+        assert_eq!(engine.state.energy, energy_before - 1);
+
+        let base = reg().get("Adaptation").expect("Adaptation registered");
+        let plus = reg().get("Adaptation+").expect("Adaptation+ registered");
+        assert_eq!((base.cost, base.base_magic), (1, 2));
+        assert_eq!((plus.cost, plus.base_magic), (0, 2));
+    }
     watcher_test!(
         scrawl_java_parity,
         base = ("Scrawl", "Scrawl", 1, -1, -1, -1, CardType::Skill, CardTarget::None, true, None, ["draw_to_ten"]),

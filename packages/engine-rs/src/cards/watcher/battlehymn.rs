@@ -1,5 +1,9 @@
 use crate::cards::prelude::*;
 
+// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/BattleHymn.java
+//   ctor: cost 1 POWER targeting SELF with magicNumber 1.
+//   use(): applies BattleHymnPower for magicNumber (1) stack.
+//   upgrade(): makes the card innate; cost and power amount stay unchanged.
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // ---- Uncommon: Battle Hymn ---- (cost 1, power, add Smite to hand each turn; upgrade: innate)
     insert(cards, CardDef {
