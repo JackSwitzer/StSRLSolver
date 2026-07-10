@@ -2533,6 +2533,38 @@ impl CombatEngine {
     // Damage Dealing / Taking
     // =======================================================================
 
+    /// Kill a target without routing through ordinary damage modifiers.
+    ///
+    /// Java's InstantKillAction sets currentHealth to zero, then calls
+    /// damage(0, HP_LOSS) so monster death hooks run. Block, Flight, Slow,
+    /// Invincible, and on-attacked powers do not modify the kill, and the
+    /// removed HP is not counted as dealt damage.
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/InstantKillAction.java
+    pub(crate) fn instant_kill_enemy(&mut self, enemy_idx: usize) -> bool {
+        if enemy_idx >= self.state.enemies.len()
+            || self.state.enemies[enemy_idx].entity.hp <= 0
+            || self.state.enemies[enemy_idx].is_escaping
+        {
+            return false;
+        }
+
+        let hp_before = self.state.enemies[enemy_idx].entity.hp;
+        self.state.enemies[enemy_idx].entity.hp = 0;
+
+        // Awakened One's damage override intercepts its first death and starts
+        // the rebirth sequence even for InstantKillAction.
+        let awakened_phase_one = matches!(
+            self.state.enemies[enemy_idx].id.as_str(),
+            "AwakenedOne" | "Awakened One"
+        ) && self.state.enemies[enemy_idx].entity.status(sid::PHASE) == 1;
+        if awakened_phase_one {
+            combat_hooks::on_enemy_damaged(self, enemy_idx, hp_before);
+        } else {
+            self.finalize_enemy_death(enemy_idx);
+        }
+        true
+    }
+
     pub fn deal_damage_to_enemy(&mut self, enemy_idx: usize, damage: i32) {
         let enemy = &mut self.state.enemies[enemy_idx];
 

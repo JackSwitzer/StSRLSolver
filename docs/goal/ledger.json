@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-10T17:42:41.608907+00:00",
+ "updated": "2026-07-10T17:48:04.946619+00:00",
  "status_counts": {
-  "unverified": 630,
-  "verified": 37
+  "unverified": 627,
+  "verified": 40
  },
  "rows": [
   {
@@ -1882,8 +1882,8 @@
    "class": "Indignation",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Indignation.java",
    "methods_ref": "reference/extracted/methods/card/Indignation.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -1932,8 +1932,8 @@
    "class": "InnerPeace",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/InnerPeace.java",
    "methods_ref": "reference/extracted/methods/card/InnerPeace.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -1992,8 +1992,8 @@
    "class": "Judgement",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Judgement.java",
    "methods_ref": "reference/extracted/methods/card/Judgement.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

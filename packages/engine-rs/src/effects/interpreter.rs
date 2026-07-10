@@ -610,9 +610,9 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                 if engine.state.enemies[tidx].entity.hp <= threshold
                     && engine.state.enemies[tidx].is_alive()
                 {
-                    let lethal =
-                        engine.state.enemies[tidx].entity.hp + engine.state.enemies[tidx].entity.block;
-                    engine.deal_damage_to_enemy(tidx, lethal);
+                    if engine.instant_kill_enemy(tidx) {
+                        ctx.enemy_killed = true;
+                    }
                 }
             }
         }

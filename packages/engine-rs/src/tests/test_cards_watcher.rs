@@ -960,6 +960,56 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.hand.len(), hand_before + 2);
         }
     );
+    // Source-derived (verify card/Indignation): IndignationAction branches on
+    // current stance. In Wrath it applies Vulnerable to all monsters through
+    // ApplyPowerAction (so Artifact can block it); otherwise it only enters
+    // Wrath.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Indignation.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/IndignationAction.java
+    #[test]
+    fn indignation_source_branches_between_wrath_and_artifact_aware_vulnerable() {
+        let mut entering = two_enemy_engine(("JawWorm", 50, 0), ("Cultist", 50, 0));
+        ensure_in_hand(&mut entering, "Indignation");
+        play_self(&mut entering, "Indignation");
+        assert_eq!(entering.state.stance, Stance::Wrath);
+        assert_eq!(entering.state.enemies[0].entity.status(sid::VULNERABLE), 0);
+        assert_eq!(entering.state.enemies[1].entity.status(sid::VULNERABLE), 0);
+
+        let mut debuffing = two_enemy_engine(("JawWorm", 50, 0), ("Cultist", 50, 0));
+        set_stance(&mut debuffing, Stance::Wrath);
+        debuffing.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+        ensure_in_hand(&mut debuffing, "Indignation+");
+        play_self(&mut debuffing, "Indignation+");
+        assert_eq!(debuffing.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+        assert_eq!(debuffing.state.enemies[0].entity.status(sid::VULNERABLE), 0);
+        assert_eq!(debuffing.state.enemies[1].entity.status(sid::VULNERABLE), 5);
+    }
+
+    // Source-derived (verify card/InnerPeace): InnerPeaceAction draws only when
+    // already in Calm. Its other branch enters Calm without drawing, while the
+    // Calm branch never exits the stance or activates Violet Lotus.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/InnerPeace.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/InnerPeaceAction.java
+    #[test]
+    fn inner_peace_source_draws_only_when_already_calm() {
+        let mut entering = one_enemy_engine("JawWorm", 50, 0);
+        entering.state.draw_pile = make_deck(&["Strike", "Defend", "Worship", "Protect"]);
+        ensure_in_hand(&mut entering, "InnerPeace+");
+        play_self(&mut entering, "InnerPeace+");
+        assert_eq!(entering.state.stance, Stance::Calm);
+        assert!(entering.state.hand.is_empty());
+        assert_eq!(entering.state.draw_pile.len(), 4);
+
+        let mut drawing = one_enemy_engine("JawWorm", 50, 0);
+        set_stance(&mut drawing, Stance::Calm);
+        drawing.state.relics.push("Violet Lotus".to_string());
+        drawing.state.draw_pile = make_deck(&["Strike", "Defend", "Worship", "Protect"]);
+        ensure_in_hand(&mut drawing, "InnerPeace+");
+        play_self(&mut drawing, "InnerPeace+");
+        assert_eq!(drawing.state.stance, Stance::Calm);
+        assert_eq!(drawing.state.hand.len(), 4);
+        assert_eq!(drawing.state.energy, 2);
+    }
     watcher_test!(
         like_water_java_parity,
         base = ("LikeWater", "Like Water", 1, -1, -1, 5, CardType::Power, CardTarget::None, false, None, []),
@@ -1445,6 +1495,26 @@ mod watcher_card_java_parity_tests {
             assert!(engine.state.enemies[0].entity.is_dead());
         }
     );
+    // Source-derived (verify card/Judgement): JudgementAction queues
+    // InstantKillAction, which sets HP to zero before a zero-damage HP_LOSS
+    // callback. Block and Flight remain untouched and no dealt-damage total is
+    // added.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/JudgementAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/InstantKillAction.java
+    #[test]
+    fn judgement_source_instant_kill_bypasses_block_flight_and_damage_totals() {
+        let mut engine = one_enemy_engine("JawWorm", 30, 0);
+        engine.state.enemies[0].entity.block = 999;
+        engine.state.enemies[0].entity.set_status(sid::FLIGHT, 3);
+        let damage_before = engine.state.total_damage_dealt;
+        ensure_in_hand(&mut engine, "Judgement");
+        play_on_enemy(&mut engine, "Judgement", 0);
+
+        assert!(engine.state.enemies[0].entity.is_dead());
+        assert_eq!(engine.state.enemies[0].entity.block, 999);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::FLIGHT), 3);
+        assert_eq!(engine.state.total_damage_dealt, damage_before);
+    }
     watcher_test!(
         lesson_learned_java_parity,
         base = ("LessonLearned", "Lesson Learned", 2, 10, -1, -1, CardType::Attack, CardTarget::Enemy, true, None, ["lesson_learned"]),

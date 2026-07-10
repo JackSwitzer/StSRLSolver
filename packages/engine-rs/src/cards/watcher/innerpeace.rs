@@ -1,5 +1,9 @@
 use crate::cards::prelude::*;
 
+// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/InnerPeace.java
+// Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/InnerPeaceAction.java
+// Calm draws the magic number; every other stance changes to Calm and draws
+// nothing.
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Uncommon Watcher Cards ----
     insert(cards, CardDef {
