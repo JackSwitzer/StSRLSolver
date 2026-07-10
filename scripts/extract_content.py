@@ -206,8 +206,10 @@ def walk(dirs_or_dir, parser, kind, failures):
 
 def seed_ledger(ledger_path: Path, tables):
     existing = {}
+    existing_rows = None
     if ledger_path.exists():
-        for row in json.loads(ledger_path.read_text())["rows"]:
+        existing_rows = json.loads(ledger_path.read_text())["rows"]
+        for row in existing_rows:
             existing[row["id"]] = row
     rows = []
     for kind, records in tables.items():
@@ -224,6 +226,10 @@ def seed_ledger(ledger_path: Path, tables):
     counts = {}
     for row in rows:
         counts[row["status"]] = counts.get(row["status"], 0) + 1
+    if rows == existing_rows:
+        # Nothing changed — don't rewrite (the timestamp bump would dirty the
+        # committed ledger on every fresh-worktree scripts/extract.sh run).
+        return counts, len(rows)
     ledger_path.write_text(json.dumps(
         {"v": 1, "updated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
          "status_counts": counts, "rows": rows}, indent=1) + "\n")

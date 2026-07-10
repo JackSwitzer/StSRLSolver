@@ -1,6 +1,6 @@
 # UNITS — Tier-1 Work Queue
 
-System-level units in dependency order. Tier-2 (per-item burn-down) lives in `ledger.json` once U07 generates it. **env**: `sandbox` = any agent, offline; `game` = needs the real game, human-attended (not agent-loop work).
+System-level units in dependency order. Tier-2 (per-item burn-down) lives in `docs/goal/ledger.json` (seeded by `scripts/extract.sh`, 667 rows) and is worked via the verification sweep in `AGENTS.md` — this queue is the infra/support track. **env**: `sandbox` = any agent, offline; `game` = needs the real game, human-attended (not agent-loop work).
 
 Update the Status column in place as work lands (`ready` → `in-progress` → `done`, or `blocked(reason)`).
 
@@ -10,9 +10,9 @@ Update the Status column in place as work lands (`ready` → `in-progress` → `
 | U01 | Clean room: archive legacy, fix stale docs | sandbox | — | done (PR #152) |
 | U02 | Trace schema module (`trace.rs`) | sandbox | — | done (PR #151) |
 | U03 | Sim-core boundaries + `check-arch` | sandbox | — | ready |
-| U04 | TraceLab mod + `trace_java.sh` | game | U02 | done — B0 proven (PR on `claude/u04-tracelab`) |
-| U05 | `trace_replay` bin + differ + `trace_diff.sh` | sandbox | U02, one U04 golden | done (PR #153) |
-| U0X | Content extraction tooling (data tables + method index) | sandbox | — | in progress |
+| U04 | TraceLab mod + `trace_java.sh` | game | U02 | done — B0 proven (PR #155) |
+| U05 | `trace_replay` bin + differ + `trace_diff.sh` | sandbox | U02, one U04 golden | done (merged with #155) |
+| U0X | Content extraction tooling (data tables + method index + ledger) | sandbox | — | done (merged with #155) |
 | U06 | Mint A0 corpus + oracle test | game | U04, U05 | ready (1 golden minted; expand corpus) |
 | U07 | Ledger generator + coverage (`goal.sh`) | sandbox | U05, U0X | ready |
 | U08 | Enemy roll parity vs decompiled getMove (see FINDINGS F1/F3) | sandbox | — | ready — RNG threading already done; verify/fix per-enemy logic + `ai` counter |
@@ -46,8 +46,8 @@ Per TOOLING T3/T4. **Accept**: exits 0 on a combat the engine already matches; o
 ## U06 — Mint A0 corpus (game)
 Per TOOLING T5: ~10 coverage-maximizing A0 seeds + golden run `1776347657` action-script reconstruction (source its decisions from the .run file + EVTracker logs where available). Commit goldens + scripts. **Accept**: every script has a golden; `test_trace_oracle.rs` covers all; divergences at this point are *expected* (they are U08+'s backlog) and each gets a tracking line in `parity-status.md`.
 
-## U07 — Ledger + coverage
-Per TOOLING T6. **Accept**: `goal.sh ledger` emits rows for all Watcher-reachable content with `java_ref`s; `goal.sh coverage` stamps corpus coverage; `goal.sh status` prints the dashboard; reachable-but-uncovered items listed (feeds corpus additions).
+## U07 — `goal.sh` coverage + status tooling
+Per TOOLING T6 (ledger generation itself already exists: `scripts/extract.sh`). **Accept**: `goal.sh coverage` stamps corpus coverage on ledger rows; `goal.sh status` prints the dashboard (verified/unverified/quarantined counts + next item); reachable-but-uncovered items listed (feeds corpus additions).
 
 ## U08 — Enemy AI RNG, Act 1 (audit §1.1)
 Thread `aiRng` through Act 1 enemy intent rolls per `decompiled/java-src/.../monsters/**` (`getMove(int roll)`, `aiRng.random(99)` semantics, move-history constraints; `docs/vault/enemy-ai-patterns.md`). **Accept**: Act-1 corpus combats reach `match` through their combats (or masked DEV); `rng.ai` counters track Java exactly; lib suite green (existing deterministic-intent tests updated with Java citations).

@@ -42,6 +42,16 @@ smoke-neow-floor1 (seed 57554006466, choice 1): Java → maxHP 79, gold 99; Rust
 
 Java emits `"Potion Slot"` for an empty potion slot; Rust emits `""`. Normalize one side (recommend Rust emit the same placeholder, or the differ treat both as empty) so it stops appearing as a divergence. Trivial; do with F2.
 
+## F6 — Differ blind spots: powers, move_history, relic counters not compared
+
+`trace.rs` `record_field_diffs` compares rng/player scalars/enemy scalars+intent/piles/relic *ids*/potions — but **not** `player.powers`, `enemies[].powers`, `enemies[].move_history`, `player.orbs`, or `relics[].counter` (GOAL DoD 1 explicitly names relic counters). A divergence confined to those fields reports `match`. Both sides already emit the data (TraceWriter.java + `build_post_state`), so this is compare-side only. Two pre-requisites before enabling: (a) Rust `build_post_state` hardcodes `counter: -1` for every relic — engine relic-counter tracking must land first or every counting relic diverges on noise; (b) power id vocabularies must be reconciled (Java `AbstractPower.ID` e.g. `"Vigor"` vs Rust `status_name`). Enable field-by-field as each becomes clean, rng-first order preserved.
+
+## F7 — Java/Rust harness contract nits (flagged, not yet biting)
+
+- `TraceWriter.putCounter` emits `-1` for a null RNG stream; Rust `PostState.rng` is `BTreeMap<String, u64>`, so such a golden would hard-fail deserialization with an unhelpful error. All streams are initialized once a run starts, so today's goldens are safe — but a pre-run/menu record would poison a trace.
+- `Script.Action.choice` is `Integer` in the Java harness, while the Rust `TraceAction::Campfire` and the TOOLING T2 example use a string (`"REST"`). CAMPFIRE isn't implemented in the harness yet (`execute()` rejects it); whoever adds it must reconcile the type first.
+- Rust `ScriptStopCondition.max_actions` has no Java-side counterpart; scripts relying on it will produce longer Java goldens than Rust replays. Use `max_floor` (semantics: stop once floor *exceeds* max_floor — actions on the max floor still run) or trim the action list.
+
 ---
 
 ## Resolved

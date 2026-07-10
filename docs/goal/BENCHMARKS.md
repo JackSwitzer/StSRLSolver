@@ -29,7 +29,7 @@ Every corpus script matches through its Act 1 segment (floors 1-16 or script end
 
 ## B4 — Coverage complete (DoD 2)
 
-`scripts/goal.sh coverage` reports zero `red`/`unknown` ledger rows: every Watcher-reachable card, relic, potion, enemy, event, boss is `green` (exercised ≥1 time by the corpus and exact) or `quarantined` (DEV-documented). If reachable content is never exercised, the fix is a new corpus script, not a status flip.
+Zero `unverified` ledger rows on the Watcher-reachable set: every Watcher-reachable card, relic, potion, enemy, event, boss is `verified` or `quarantined` (DEV-documented). Command today: `jq '[.rows[] | select(.status=="unverified")] | length' docs/goal/ledger.json` (scoped to Watcher-reachable once U07's `goal.sh coverage` exists). If reachable content is never exercised by the corpus, the fix is a new corpus script, not a status flip.
 
 ## B5 — Regression frozen (DoD 3 + 4)
 
@@ -37,7 +37,7 @@ The whole ladder is enforced inside the offline suite, so it can never silently 
 
 ```bash
 ./scripts/test_engine_rs.sh test --lib     # 2251+ green, includes test_trace_oracle over all committed goldens
-scripts/goal.sh check-arch                 # sim-core dependency direction holds
+scripts/goal.sh check-arch                 # sim-core dependency direction holds (future tool — U03/U07)
 uv run pytest tests/training -q            # training stack untouched
 ```
 
@@ -50,20 +50,19 @@ Already partially live: `test_trace_oracle.rs` runs synthetic fixtures today and
 | B0 mint | real game, window pops | Claude + Jack, attended |
 | B1-B5 | offline, cargo + bash | any agent (Codex `/goal`, Claude, CI) |
 
-## Status snapshot (2026-07-06)
+## Status snapshot (2026-07-10)
 
 | Unit | State | Where |
 |---|---|---|
 | Spec + AGENTS.md | merged | PR #149 |
-| U00 viz ship | PR open | #150 |
-| U01 clean room | PR open | #152 (legacy already deleted in git by old PR #136; PR banners docs, adds provenance README) |
-| U02 trace schema | PR open | #151 (suite 2219→2247) |
-| U05 replay + differ | PR open, stacked on #151 | #153 (suite 2251; exit codes 0/1/2/3 verified) |
-| U04 TraceLab | ~85%, in progress | branch `claude/u04-tracelab` — launch fixed (see vault addendum), seeded run + NEOW record proven; event multi-step, map transition, combat feed, A/B remaining |
-| U06 corpus | blocked on U04 | — |
-| U07 ledger/goal.sh | blocked on #153 merge | — |
-| U08-U12 parity grind | specs ready, blocked on B1 | UNITS.md |
-| U13 ParityView | blocked on #150 + #153 | — |
+| U00 viz ship | merged | PR #150 |
+| U01 clean room | merged | PR #152 |
+| U02 trace schema | merged | PR #151 |
+| U05 replay + differ | merged | main (exit codes 0/1/2/3 verified) |
+| U04 TraceLab | merged — B0 proven | PR #155 |
+| U0X extraction + ledger | merged | main (667-row ledger, `scripts/extract.sh`) |
+| U06 corpus | 1 golden minted (smoke-neow-floor1); expand | data/traces/ |
+| U07 goal.sh tooling | ready | — |
+| U08-U12 parity grind | verification sweep open (AGENTS.md loop) | ledger.json |
+| U13 ParityView | ready | — |
 | U14 A20 | deferred | — |
-
-Merge order for the open PRs: #151 → #153, then #152 and #150 (independent).
