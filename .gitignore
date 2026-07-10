@@ -97,3 +97,6 @@ packages/viz/.vite/
 !data/traces/scripts/**
 !data/traces/java/
 !data/traces/java/**
+
+# Derived decompilation artifacts (regenerate: scripts/extract.sh)
+reference/extracted/
