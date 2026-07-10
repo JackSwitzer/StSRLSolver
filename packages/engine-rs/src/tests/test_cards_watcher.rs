@@ -136,6 +136,31 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.enemies[0].entity.hp, 32);
         }
     );
+    // Source-derived (verify card/Eruption): Eruption.java use() queues
+    // DamageAction BEFORE ChangeStanceAction("Wrath"), so from Neutral the hit
+    // is the unmodified 9 (not Wrath-doubled), and the player ends in Wrath.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Eruption.java
+    #[test]
+    fn eruption_source_order_damage_resolves_before_wrath() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        ensure_in_hand(&mut engine, "Eruption");
+        assert_eq!(engine.state.stance, Stance::Neutral);
+        play_on_enemy(&mut engine, "Eruption", 0);
+        // 50 - 9 = 41; a damage-after-stance bug would give 50 - 18 = 32.
+        assert_eq!(engine.state.enemies[0].entity.hp, 41);
+        assert_eq!(engine.state.stance, Stance::Wrath);
+    }
+
+    // Source-derived (verify card/Eruption): upgrade() only calls
+    // upgradeBaseCost(1); baseDamage stays 9 for both versions.
+    #[test]
+    fn eruption_upgrade_only_reduces_cost() {
+        let base = reg().get("Eruption").expect("Eruption registered");
+        let plus = reg().get("Eruption+").expect("Eruption+ registered");
+        assert_eq!((base.cost, base.base_damage), (2, 9));
+        assert_eq!((plus.cost, plus.base_damage), (1, 9));
+    }
+
     watcher_test!(
         vigilance_java_parity,
         base = ("Vigilance", "Vigilance", 2, -1, 8, -1, CardType::Skill, CardTarget::SelfTarget, false, Some("Calm"), []),

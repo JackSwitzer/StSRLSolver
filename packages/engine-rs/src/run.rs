@@ -1244,6 +1244,17 @@ impl RunEngine {
             })
             .collect();
 
+        // Java Cultist.java: ctor sets ritualAmount = ascensionLevel >= 2 ? 4 : 3;
+        // takeTurn() case 3 (INCANTATION) applies RitualPower(ritualAmount + 1)
+        // at ascensionLevel >= 17, else RitualPower(ritualAmount).
+        // create_enemy seeds the base-3 value; patch it here where ascension is known.
+        if self.run_state.ascension >= 2 {
+            let ritual = if self.run_state.ascension >= 17 { 5 } else { 4 };
+            for enemy in enemy_states.iter_mut().filter(|e| e.id == "Cultist") {
+                enemy.add_effect(crate::combat_types::mfx::RITUAL, ritual);
+            }
+        }
+
         // Sentry stagger: middle sentry starts on Beam, others on Bolt
         if expanded.len() == 3
             && expanded.iter().all(|id| id == "Sentry")
@@ -1287,7 +1298,11 @@ impl RunEngine {
                 (hp, hp)
             }
             "Cultist" => {
-                let hp = if a20 { 50 } else { 48 };
+                // Java Cultist.java ctor: setHp(50, 56) at ascension >= 7,
+                // setHp(48, 54) below — a uniform inclusive roll, not a fixed
+                // value (AbstractMonster.setHp -> monsterHpRng.random(min, max)).
+                let base = if a20 { 50 } else { 48 };
+                let hp = base + self.rng.gen_range(0..=6);
                 (hp, hp)
             }
             "FuzzyLouseNormal" | "FuzzyLouseDefensive" | "RedLouse" | "GreenLouse" => {

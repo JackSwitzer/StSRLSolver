@@ -405,6 +405,11 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::JW_CHOMP, 11, 1, 0);
         }
         "Cultist" => {
+            // Java Cultist.java: getMove() firstMove -> INCANTATION (BUFF);
+            // takeTurn() case 3 applies RitualPower(ritualAmount), where the
+            // ctor sets ritualAmount = ascension >= 2 ? 4 : 3 and takeTurn adds
+            // +1 at ascension >= 17. Base 3 here = ascension 0/1; the run layer
+            // (run.rs enter_specific_combat) patches 4/5 for ascension >= 2/17.
             enemy.set_move(move_ids::CULT_INCANTATION, 0, 0, 0);
             enemy.add_effect(mfx::RITUAL, 3);
         }
