@@ -17,16 +17,27 @@ For the next `unverified` row (prefer: Watcher cards → Act 1 monsters → Watc
 3. Confirm or fix the Rust — cite the Java file in a comment. Match RNG consumption exactly (every `aiRng.randomBoolean(p)` etc. consumes a counter tick; the trace oracle diffs counters).
 4. Replace/extend the item's test with a **source-derived** one (expected values re-derived from the Java you just read, not from existing tests or engine output).
 5. Run `./scripts/test_engine_rs.sh test --lib` (must stay green) and, when a relevant golden exists, `./scripts/trace_diff.sh data/traces/scripts/<script>.json`.
-6. Flip the ledger row: `status: "verified"`, `verified_by: "<branch/commit>"`. Genuinely blocked after 2 real attempts → `status: "quarantined"`, `dev: "DEV-NNN"` + register entry per `docs/goal/GOAL.md` Edge-Case Policy.
+6. Flip the ledger row with the helper (never hand-edit the JSON): `scripts/ledger.sh flip <row-id> <branch>`, or after 2 failed real attempts `scripts/ledger.sh quarantine <row-id> <branch> DEV-NNN` + register entry per `docs/goal/GOAL.md` Edge-Case Policy. `scripts/ledger.sh status` shows counts + next rows.
 7. Commit (`verify(<kind>/<Id>): <what changed>`), batch related items per commit sensibly. Repeat.
+
+## Practical notes (read once — saves real tokens)
+
+- **Ledger ids are Java class names or ID strings** (`relic/Pure Water` → class `PureWater`); the engine sometimes checks both spaced and unspaced forms (`"Violet Lotus" || "VioletLotus"`) — grep both.
+- **An item's existing tests are scattered** across several files (wave files, `test_enemies.rs`, `test_cards_*.rs`); grep broadly for the id before writing a new test, and extend/replace in place.
+- **Base-class ground truth** lives at `reference/extracted/methods/base/` (e.g. `AbstractMonster.java` `rollMove` = the one-aiRng-tick-per-turn contract). Check it before reasoning about RNG consumption.
+- **RNG fidelity by layer**: in-combat streams (`ai`, `shuffle`, `cardRandom`…) must match Java tick-for-tick. Run-level generation (`RunEngine`) currently uses one shared stream, unlike Java's split streams — run-level tick-count parity is **not yet achievable**; verify run-level behavior semantically and do NOT quarantine rows over run-level tick counts (stream-splitting is a queued infra unit).
+- **Ascension-dependent stats**: `create_enemy(id, hp, max_hp)` takes no ascension — patch at the spawn site in `run.rs::enter_specific_combat` (precedent: Sentry stagger, Cultist ritual). Do not re-plumb `create_enemy`.
+- **The trace oracle is dormant until goldens land**: one smoke golden exists; `trace_diff.sh` only applies to rows a committed golden exercises. Smart source-derived tests are the per-row oracle — don't burn attempts on the trace step elsewhere.
+- Exemplar commits to imitate: PR #157 (`verify(card/Eruption)`, `verify(monster/Cultist)`, `verify(relic/Pure Water)`).
 
 **Escalation, never workaround**: if source reading is ambiguous and you need real-game evidence, write the desired action script to `data/traces/requests/<name>.json` and continue with other rows — a human mints goldens (`scripts/trace_java.sh` launches the actual game; agents never do).
 
 ## Verify commands
 
 ```bash
-./scripts/test_engine_rs.sh test --lib          # 2251+, only goes up
+./scripts/test_engine_rs.sh test --lib          # green, count only goes up (2255+ as of 2026-07-10)
 scripts/trace_diff.sh data/traces/scripts/<s>.json   # offline parity oracle (needs committed golden)
+scripts/ledger.sh status                        # loop state
 uv run pytest tests/training -q                 # only if you touched anything near training (don't)
 ```
 

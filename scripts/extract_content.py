@@ -204,6 +204,62 @@ def walk(dirs_or_dir, parser, kind, failures):
     return records, method_index
 
 
+BASE_CLASSES = {
+    "monsters/AbstractMonster.java": [r'rollMove', r'setMove', r'lastMove', r'lastTwoMoves',
+                                      r'createIntent', r'getIntentDmg'],
+    "cards/AbstractCard.java": [r'calculateCardDamage', r'applyPowers', r'upgradeDamage',
+                                r'upgradeBlock', r'upgradeMagicNumber', r'upgradeBaseCost'],
+    "relics/AbstractRelic.java": [r'flash', r'counterUp', r'setCounter'],
+    "characters/AbstractPlayer.java": [r'useCard', r'draw'],
+}
+
+
+def extract_base_classes():
+    """Shared superclass logic every per-item verification needs (e.g.
+    AbstractMonster.rollMove is where the one-aiRng-tick-per-turn contract
+    lives). Emitted to methods/base/."""
+    out = {}
+    for rel_path, patterns in BASE_CLASSES.items():
+        path = SRC / rel_path
+        if not path.is_file():
+            continue
+        methods = extract_methods(read(path), patterns)
+        if not methods:
+            continue
+        bdir = OUT / "methods" / "base"
+        bdir.mkdir(parents=True, exist_ok=True)
+        bfile = bdir / path.name
+        header = f"// extracted from {rel(path)} — shared base-class ground truth\n"
+        bfile.write_text(header + "\n\n".join(methods.values()), encoding="utf-8")
+        out[f"base/{path.stem}"] = {"file": rel(bfile), "methods": sorted(methods.keys()),
+                                    "source": rel(path)}
+    return out
+
+
+def flip_ledger_row(ledger_path: Path, row_id: str, status: str, by: str, dev: str):
+    """Flip one ledger row in place, recomputing status_counts and keeping the
+    indent=1 formatting stable. Bash-facing entry point: scripts/ledger.sh."""
+    data = json.loads(ledger_path.read_text())
+    match = [r for r in data["rows"] if r["id"] == row_id]
+    if not match:
+        near = [r["id"] for r in data["rows"]
+                if row_id.split("/")[-1].lower() in r["id"].lower()][:5]
+        sys.exit(f"no ledger row '{row_id}'" + (f"; close matches: {near}" if near else ""))
+    row = match[0]
+    if status == "quarantined" and not (dev or "").startswith("DEV-"):
+        sys.exit("quarantined requires --dev DEV-NNN (see GOAL.md Edge-Case Policy)")
+    row["status"] = status
+    row["verified_by"] = by
+    row["dev"] = dev
+    counts = {}
+    for r in data["rows"]:
+        counts[r["status"]] = counts.get(r["status"], 0) + 1
+    data["status_counts"] = counts
+    data["updated"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    ledger_path.write_text(json.dumps(data, indent=1) + "\n")
+    print(f"{row_id} -> {status} (by {by}) counts={counts}")
+
+
 def seed_ledger(ledger_path: Path, tables):
     existing = {}
     existing_rows = None
@@ -240,7 +296,19 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ledger", type=Path, default=None,
                     help="also seed/refresh the committed verification ledger (merge-preserving)")
+    ap.add_argument("--flip", metavar="ROW_ID",
+                    help="flip one ledger row and exit (use with --ledger, --by)")
+    ap.add_argument("--status", default="verified",
+                    choices=["verified", "unverified", "quarantined"])
+    ap.add_argument("--by", default=None, help="verified_by value (branch/commit)")
+    ap.add_argument("--dev", default=None, help="DEV-NNN register id (quarantine only)")
     args = ap.parse_args()
+
+    if args.flip:
+        if not args.ledger or not args.by:
+            sys.exit("--flip requires --ledger and --by")
+        flip_ledger_row(args.ledger, args.flip, args.status, args.by, args.dev)
+        return
 
     if not SRC.is_dir():
         sys.exit(f"decompiled source missing at {SRC} — run scripts/decompile_java.sh first")
@@ -258,6 +326,7 @@ def main():
         index.update(mindex)
         (OUT / f"{kind}s.json").write_text(json.dumps(records, indent=1) + "\n")
 
+    index.update(extract_base_classes())
     (OUT / "methods" / "index.json").write_text(json.dumps(index, indent=1) + "\n")
     summary = {"generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                "counts": {k: len(v) for k, v in tables.items()},
