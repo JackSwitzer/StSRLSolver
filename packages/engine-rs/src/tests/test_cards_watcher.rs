@@ -124,6 +124,21 @@ mod watcher_card_java_parity_tests {
         plus = ("Defend+", "Defend+", 1, -1, 8, -1, CardType::Skill, CardTarget::SelfTarget, false, None, []),
         {}
     );
+    // Source-derived (verify card/Defend_P): Defend_Watcher.java has cost 1,
+    // block 5, and upgradeBlock(3). Non-debug use queues GainBlockAction(block).
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Defend_Watcher.java
+    #[test]
+    fn defend_p_source_grants_five_block_and_upgrade_grants_eight() {
+        let mut base = one_enemy_engine("JawWorm", 50, 0);
+        ensure_in_hand(&mut base, "Defend");
+        play_self(&mut base, "Defend");
+        assert_eq!(base.state.player.block, 5);
+
+        let mut plus = one_enemy_engine("JawWorm", 50, 0);
+        ensure_in_hand(&mut plus, "Defend+");
+        play_self(&mut plus, "Defend+");
+        assert_eq!(plus.state.player.block, 8);
+    }
     watcher_test!(
         eruption_java_parity,
         base = ("Eruption", "Eruption", 2, 9, -1, -1, CardType::Attack, CardTarget::Enemy, false, Some("Wrath"), []),
@@ -674,6 +689,23 @@ mod watcher_card_java_parity_tests {
             assert_eq!(hand_count(&engine, "Safety"), 1);
         }
     );
+    // Source-derived (verify card/DeceiveReality): DeceiveReality.java queues
+    // GainBlockAction(block), then creates one stat-equivalent Safety. Its only
+    // upgrade is +3 block. MakeTempCardInHandAction honors Master Reality.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/DeceiveReality.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
+    #[test]
+    fn deceive_reality_source_gains_block_then_creates_one_safety() {
+        let mut base = one_enemy_engine("JawWorm", 50, 0);
+        base.state.player.set_status(sid::MASTER_REALITY, 1);
+        ensure_in_hand(&mut base, "DeceiveReality");
+        play_self(&mut base, "DeceiveReality");
+        assert_eq!(base.state.player.block, 4);
+        assert_eq!(hand_count(&base, "Safety+"), 1);
+
+        let plus = reg().get("DeceiveReality+").expect("DeceiveReality+ registered");
+        assert_eq!((plus.cost, plus.base_block), (1, 7));
+    }
     watcher_test!(
         empty_mind_java_parity,
         base = ("EmptyMind", "Empty Mind", 1, -1, -1, 2, CardType::Skill, CardTarget::SelfTarget, false, Some("Neutral"), ["draw", "exit_stance"]),
@@ -1317,6 +1349,24 @@ mod watcher_card_java_parity_tests {
         plus = ("DeusExMachina+", "Deus Ex Machina+", -2, -1, -1, 3, CardType::Skill, CardTarget::SelfTarget, true, None, ["unplayable", "deus_ex_machina"]),
         {}
     );
+    // Source-derived (verify card/DeusExMachina): triggerWhenDrawn queues
+    // exhaustion before MakeTempCardInHandAction(magicNumber). The action sends
+    // generated cards beyond the ten-card hand limit to the discard pile.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/DeusExMachina.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
+    #[test]
+    fn deus_ex_machina_plus_source_exhausts_then_spills_miracle_overflow() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.hand = make_deck(&["Strike"; 9]);
+        engine.state.draw_pile = make_deck(&["DeusExMachina+"]);
+        engine.draw_cards(1);
+
+        assert_eq!(engine.state.hand.len(), 10);
+        assert_eq!(hand_count(&engine, "Miracle"), 1);
+        assert_eq!(discard_prefix_count(&engine, "Miracle"), 2);
+        assert_eq!(exhaust_prefix_count(&engine, "DeusExMachina+"), 1);
+        assert_eq!(hand_count(&engine, "DeusExMachina+"), 0);
+    }
     watcher_test!(
         foresight_java_parity,
         base = ("Wireheading", "Foresight", 1, -1, -1, 3, CardType::Power, CardTarget::None, false, None, []),

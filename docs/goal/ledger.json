@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-10T17:01:56.922778+00:00",
+ "updated": "2026-07-10T17:11:46.991868+00:00",
  "status_counts": {
-  "unverified": 648,
-  "verified": 19
+  "unverified": 645,
+  "verified": 22
  },
  "rows": [
   {
@@ -962,8 +962,8 @@
    "class": "DeceiveReality",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/DeceiveReality.java",
    "methods_ref": "reference/extracted/methods/card/DeceiveReality.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -1002,8 +1002,8 @@
    "class": "Defend_Watcher",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Defend_Watcher.java",
    "methods_ref": "reference/extracted/methods/card/Defend_Watcher.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -1052,8 +1052,8 @@
    "class": "DeusExMachina",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/DeusExMachina.java",
    "methods_ref": "reference/extracted/methods/card/DeusExMachina.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

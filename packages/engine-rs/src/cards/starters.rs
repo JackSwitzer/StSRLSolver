@@ -23,6 +23,10 @@ use crate::cards::prelude::*;
 mod test_card_runtime_defect_wave6;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+    // Watcher ground truth: Defend_Watcher.java uses cost 1, base block 5,
+    // and upgradeBlock(3). The runtime intentionally shares this identical
+    // behavior under the unified Defend/Defend+ starter definitions.
+    // decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Defend_Watcher.java
     insert(
         cards,
         CardDef {

@@ -1,6 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+        // Java: DeceiveReality.java gains 4 block and creates one Safety in
+        // hand; upgradeBlock(3) raises only its block to 7.
+        // decompiled/java-src/com/megacrit/cardcrawl/cards/purple/DeceiveReality.java
         // ---- Uncommon: Deceive Reality ---- (cost 1, 4 block, add Safety to hand; +3 block upgrade)
     insert(cards, CardDef {
                 id: "DeceiveReality", name: "Deceive Reality", card_type: CardType::Skill,

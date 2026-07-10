@@ -22,18 +22,16 @@ pub fn hook_deus_ex_machina_on_draw(engine: &mut CombatEngine, card_inst: CardIn
     let card_def = engine.card_registry.card_def_by_id(card_inst.def_id);
     let miracle_count = card_def.base_magic.max(1);
 
-    // Remove this card from hand (it was just drawn) and exhaust it
+    // DeusExMachina.java adds the exhaust action to the top after adding the
+    // creation action to the top, so exhaustion resolves first.
     if let Some(pos) = engine.state.hand.iter().rposition(|c| c.def_id == card_inst.def_id) {
         let removed = engine.state.hand.remove(pos);
         engine.state.exhaust_pile.push(removed);
-        engine.trigger_on_exhaust();
+        engine.trigger_card_on_exhaust(removed);
     }
 
-    // Add Miracles to hand
-    for _ in 0..miracle_count {
-        if engine.state.hand.len() < 10 {
-            let miracle = engine.temp_card("Miracle");
-            engine.state.hand.push(miracle);
-        }
-    }
+    // MakeTempCardInHandAction sends generated cards beyond the hand limit to
+    // discard rather than deleting them.
+    // decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
+    engine.add_temp_cards_to_hand("Miracle", miracle_count);
 }
