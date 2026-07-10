@@ -164,6 +164,20 @@ impl CombatEngine {
         self.effect_runtime.rebuild_from_state(&self.state);
     }
 
+    /// RNG stream counters currently tracked by this combat, keyed by the
+    /// vault's canonical short names (`docs/vault/rng-system-analysis.md`).
+    /// Used by `bin/trace_replay.rs` (U05) to populate `trace::PostState::rng`.
+    /// Only `card` (catch-all combat RNG) and `ai` (enemy-intent RNG,
+    /// `AbstractDungeon.aiRng`) are tracked as distinct streams today; other
+    /// canonical keys are simply absent until threaded (schema tolerates
+    /// this via `BTreeMap`).
+    pub fn rng_counters(&self) -> std::collections::BTreeMap<String, u64> {
+        let mut counters = std::collections::BTreeMap::new();
+        counters.insert("card".to_string(), self.rng.counter as u64);
+        counters.insert("ai".to_string(), self.ai_rng.counter as u64);
+        counters
+    }
+
     pub fn load_persisted_effects(
         &mut self,
         states: Vec<crate::effects::runtime::PersistedEffectState>,

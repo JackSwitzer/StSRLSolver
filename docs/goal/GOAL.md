@@ -53,13 +53,6 @@ Other characters' parity; A20 corpus (stretch, U14); strategic/pathing training 
 
 ## How to Work the Goal
 
-```
-scripts/goal.sh status      # where things stand; next actionable unit
-# pick next ready unit from docs/goal/UNITS.md (or red ledger row within an open unit)
-# implement smallest complete increment, citing Java
-./scripts/test_engine_rs.sh test --lib          # stays green
-./scripts/trace_diff.sh data/traces/scripts/<relevant>.json   # oracle
-# update UNITS.md status / ledger, commit "uNN: <what>", stack a PR
-# stuck past effort cap -> quarantine protocol above
-# repeat until scripts/goal.sh status reports Definition of Done
-```
+**Primary loop — the verification sweep** (binding contract in `AGENTS.md`): the existing engine and its tests are an **unverified draft**; `docs/goal/ledger.json` (667 rows, seeded by `scripts/extract.sh`) is the loop state. Per row: read the item's decompiled logic (`reference/extracted/methods/`), confirm-or-fix the Rust with a citation, replace the test with a source-derived one, flip the row to `verified`. Tests may be rewritten only with a contradicting source citation. Effort-capped quarantine per the Edge-Case Policy above. Golden traces are the escalation path (`data/traces/requests/`) and the integration gate (`scripts/trace_diff.sh`), not the per-row oracle.
+
+`docs/goal/UNITS.md` remains the infra/support queue (corpus minting, ledger tooling, viz) — secondary to the sweep.

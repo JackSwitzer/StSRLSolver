@@ -101,3 +101,10 @@ grep -A5 "Mod list:" game_stdout.log
 - Check mod IDs match exactly (case-sensitive)
 - Verify mods are in `mods/` directory
 - Check ModTheSpire version: look for "ModTheSpire (3.30.3)" in output
+
+## macOS 26.1 addendum (2026-07-06, TraceLab bring-up)
+
+- MTS CLI launches (`--mods ...`) now die **silently** at "Launching application..." unless you pass `-Djava.awt.headless=false`. MTS's CLI path leaves AWT headless, and macOS 26.1 refuses LWJGL2 window/GL-context creation without headful AWT. Vanilla `desktop-1.0.jar` is unaffected.
+- Do **not** combine `--close-when-finished` with `-D` flags: MTS spawns a child JVM that does not inherit them (the headless fix silently vanishes). TraceLab calls `Gdx.app.exit()` itself, so the flag is unnecessary.
+- `--package` is broken in MTS 3.30.3 (ZipException in `PackageJar` on native libs). `--out-jar` produces an overlay jar that *does* boot on the main thread, but lacks MTS runtime-generated classes (`patches/HandleCrash`) and `Loader` static state, so BaseMod dies in `create()` — dead end unless you replicate Loader init.
+- Canonical working invocation: `scripts/trace_java.sh` (repo).

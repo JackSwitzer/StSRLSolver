@@ -6,21 +6,24 @@ Update the Status column in place as work lands (`ready` → `in-progress` → `
 
 | id | title | env | depends | status |
 |----|-------|-----|---------|--------|
-| U00 | Ship viz source from worktree | local | — | ready |
-| U01 | Clean room: archive legacy, fix stale docs | sandbox | — | done |
-| U02 | Trace schema module (`trace.rs`) | sandbox | — | ready |
+| U00 | Ship viz source from worktree | local | — | done (PR #150) |
+| U01 | Clean room: archive legacy, fix stale docs | sandbox | — | done (PR #152) |
+| U02 | Trace schema module (`trace.rs`) | sandbox | — | done (PR #151) |
 | U03 | Sim-core boundaries + `check-arch` | sandbox | — | ready |
-| U04 | TraceLab mod + `trace_java.sh` | game | U02 | ready |
-| U05 | `trace_replay` bin + differ + `trace_diff.sh` | sandbox | U02, one U04 golden | ready |
-| U06 | Mint A0 corpus + oracle test | game | U04, U05 | blocked(U04) |
-| U07 | Ledger generator + coverage (`goal.sh`) | sandbox | U05 | blocked(U05) |
-| U08 | Enemy AI RNG — Act 1 | sandbox | U06 | blocked(U06) |
-| U09 | Run-layer smalls (energy/Neow/first-turn) | sandbox | U06 | blocked(U06) |
-| U10 | Enemy AI RNG — Acts 2-4 Watcher path | sandbox | U08 | blocked(U08) |
-| U11 | complex_hook burn-down (Watcher-relevant) | sandbox | U06 | blocked(U06) |
+| U04 | TraceLab mod + `trace_java.sh` | game | U02 | done — B0 proven (PR on `claude/u04-tracelab`) |
+| U05 | `trace_replay` bin + differ + `trace_diff.sh` | sandbox | U02, one U04 golden | done (PR #153) |
+| U0X | Content extraction tooling (data tables + method index) | sandbox | — | in progress |
+| U06 | Mint A0 corpus + oracle test | game | U04, U05 | ready (1 golden minted; expand corpus) |
+| U07 | Ledger generator + coverage (`goal.sh`) | sandbox | U05, U0X | ready |
+| U08 | Enemy roll parity vs decompiled getMove (see FINDINGS F1/F3) | sandbox | — | ready — RNG threading already done; verify/fix per-enemy logic + `ai` counter |
+| U09 | Run-layer smalls (Neow blessing F4, rng_counters F2, potion-slot F5) | sandbox | — | ready |
+| U10 | Enemy roll parity — Acts 2-4 Watcher path | sandbox | U08 | blocked(U08) |
+| U11 | complex_hook burn-down (Watcher-relevant) | sandbox | U0X | ready |
 | U12 | Acts 2-4 content burn-down (ledger-driven) | sandbox | U07, U10 | blocked |
-| U13 | Viz ParityView | sandbox | U00, U05 | blocked |
+| U13 | Viz ParityView | sandbox | U00, U05 | ready |
 | U14 | A20 corpus (stretch) | game | DoD 1-5 at A0 | deferred |
+
+**Oracle model (two-tier, per session decision):** per-unit work is verified by **offline smart tests** derived from `decompiled/java-src` (seed the relevant RNG, assert the sequence/values against the decompiled logic — cheap, no game) using the U0X method index; the **full-run trace corpus** (U06, `trace_diff.sh`) is the periodic end-to-end integration gate. See `docs/goal/BENCHMARKS.md` and `docs/goal/FINDINGS.md`. Note: existing hand-written parity tests may encode *wrong* expected values (see F1) — re-derive from source, not from the current tests.
 
 ## U00 — Ship viz source
 Merge branch `claude/wonderful-tharp`'s `packages/viz/` src, `scripts/viz.sh`, `.claude/launch.json` to main via PR (safety commit already pushed on that branch). **Accept**: `packages/viz/src/sprites/index.tsx` on main; `bun install && bun run build` succeeds in `packages/viz`.

@@ -48,7 +48,13 @@ mod/*.jar
 
 # Data files (large/generated)
 vod_data/
-data/
+data/*
+# Parity oracle corpus: track action scripts + minted goldens (derived state
+# snapshots for specific seeds, not source). decompiled/ stays ignored.
+!data/traces/
+data/traces/*
+!data/traces/scripts/
+!data/traces/java/
 
 # VOD extraction outputs (generated)
 vod/verify_ui/extractions.json
@@ -83,3 +89,14 @@ checkpoints/
 
 # Vite cache
 packages/viz/.vite/
+
+# Parity oracle corpus: track action scripts + minted goldens (derived state
+# snapshots, not source). decompiled/ stays ignored.
+!data/traces/
+!data/traces/scripts/
+!data/traces/scripts/**
+!data/traces/java/
+!data/traces/java/**
+
+# Derived decompilation artifacts (regenerate: scripts/extract.sh)
+reference/extracted/

@@ -1,0 +1,10 @@
+{
+  "modid": "tracelab",
+  "name": "TraceLab",
+  "author_list": ["JackSwitzer", "Claude"],
+  "description": "Scripted seeded runs with per-action JSONL state traces for engine-rs parity oracle (docs/goal/TOOLING.md T2).",
+  "version": "0.1.0",
+  "sts_version": "12-18-2022",
+  "mts_version": "3.30.3",
+  "dependencies": ["basemod"]
+}

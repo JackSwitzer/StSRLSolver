@@ -1,0 +1,45 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>sts.tracelab</groupId>
+    <artifactId>TraceLab</artifactId>
+    <version>0.1.0</version>
+    <packaging>jar</packaging>
+
+    <properties>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <sts.dir>/Users/jackswitzer/Library/Application Support/Steam/steamapps/common/SlayTheSpire/SlayTheSpire.app/Contents/Resources</sts.dir>
+    </properties>
+
+    <build>
+        <finalName>TraceLab</finalName>
+    </build>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.megacrit.cardcrawl</groupId>
+            <artifactId>desktop</artifactId>
+            <version>1.0</version>
+            <scope>system</scope>
+            <systemPath>${sts.dir}/desktop-1.0.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>basemod</groupId>
+            <artifactId>basemod</artifactId>
+            <version>5.56.0</version>
+            <scope>system</scope>
+            <systemPath>${sts.dir}/mods/BaseMod.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>modthespire</groupId>
+            <artifactId>modthespire</artifactId>
+            <version>3.30.3</version>
+            <scope>system</scope>
+            <systemPath>${sts.dir}/ModTheSpire.jar</systemPath>
+        </dependency>
+    </dependencies>
+</project>

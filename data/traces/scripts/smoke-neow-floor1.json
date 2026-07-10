@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "seed": "57554006466",
+  "character": "WATCHER",
+  "ascension": 0,
+  "stop": { "max_floor": 2 },
+  "actions": [
+    { "type": "NEOW", "choice": 1 },
+    { "type": "PATH", "choice": 0 },
+    { "type": "END_TURN" },
+    { "type": "END_TURN" },
+    { "type": "END_TURN" }
+  ]
+}

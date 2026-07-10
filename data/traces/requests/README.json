@@ -1,0 +1,1 @@
+{"note": "agents drop action-script mint requests here; humans run scripts/trace_java.sh and commit goldens to data/traces/java/"}
