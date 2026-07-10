@@ -1,5 +1,11 @@
 use crate::cards::prelude::*;
 
+// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Eruption.java
+//   ctor: cost 2, baseDamage = 9, ATTACK / PURPLE / BASIC, target ENEMY
+//   use(): addToBot(DamageAction(m, this.damage)) THEN addToBot(ChangeStanceAction("Wrath"))
+//          -> damage resolves before the stance change, so Eruption itself is
+//          not doubled by the Wrath it enters.
+//   upgrade(): upgradeBaseCost(1) only — damage stays 9, cost 2 -> 1.
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     insert(cards, CardDef {
         id: "Eruption", name: "Eruption", card_type: CardType::Attack,
