@@ -168,6 +168,13 @@ fn replays_committed_goldens_if_any_exist() {
             serde_json::from_str(header_line).expect("golden header must parse");
         header.check_version().expect("golden header version must be supported");
         let java_records: Vec<crate::trace::TraceRecord> = lines
+            // Skip meta records: header/end sentinels carry a `kind`, data records do not.
+            .filter(|line| {
+                serde_json::from_str::<serde_json::Value>(line)
+                    .ok()
+                    .and_then(|v| v.get("kind").cloned())
+                    .is_none()
+            })
             .map(|line| serde_json::from_str(line).expect("golden record must parse"))
             .collect();
 
