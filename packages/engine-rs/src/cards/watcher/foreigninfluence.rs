@@ -1,6 +1,10 @@
 use crate::cards::prelude::*;
 use crate::effects::declarative::{Effect as E, GeneratedCardPool, GeneratedCostRule};
 
+// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/ForeignInfluence.java
+// Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/ForeignInfluenceAction.java
+// The action offers three unique, rarity-weighted attacks. Its upgrade changes
+// only the selected copy's costForTurn and both versions exhaust.
 static FOREIGN_INFLUENCE: [E; 1] = [E::GenerateDiscoveryChoice {
     pool: GeneratedCardPool::AnyColorAttackRarityWeighted,
     option_count: 3,

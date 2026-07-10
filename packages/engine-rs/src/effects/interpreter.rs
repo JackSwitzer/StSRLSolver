@@ -1897,6 +1897,7 @@ fn weighted_any_color_attack_ids(engine: &CombatEngine) -> Vec<&'static str> {
         .all_card_defs()
         .iter()
         .filter(|def| !def.id.ends_with('+'))
+        .filter(|def| !foreign_influence_excludes_healing_attack(def.id))
         .filter(|def| {
             matches!(
                 generated_card_meta(def.id),
@@ -1921,6 +1922,7 @@ fn weighted_any_color_attack_bucket(
         .all_card_defs()
         .iter()
         .filter(|def| !def.id.ends_with('+'))
+        .filter(|def| !foreign_influence_excludes_healing_attack(def.id))
         .filter(|def| {
             matches!(
                 generated_card_meta(def.id),
@@ -1934,8 +1936,18 @@ fn weighted_any_color_attack_bucket(
         .collect()
 }
 
+fn foreign_influence_excludes_healing_attack(card_id: &str) -> bool {
+    // CardLibrary.getAnyColorCard(type, rarity) rejects CardTags.HEALING.
+    // These are the normal-rarity attacks carrying that tag in the Java card
+    // library; Bite is SPECIAL and is already excluded by the rarity filter.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/{red/Feed.java,red/Reaper.java,purple/LessonLearned.java}
+    matches!(card_id, "Feed" | "Reaper" | "LessonLearned")
+}
+
 fn roll_generated_attack_rarity(engine: &mut CombatEngine) -> GeneratedPoolRarity {
-    let roll = engine.rng_gen_range(0..100);
+    // ForeignInfluenceAction.generateCardChoices uses cardRandomRng.random(99).
+    let roll = engine.card_random_rng.random(99) as usize;
     if roll < 55 {
         GeneratedPoolRarity::Common
     } else if roll < 85 {
@@ -1953,8 +1965,17 @@ fn generate_weighted_any_color_attack_card(
     if bucket.is_empty() {
         return None;
     }
-    let idx = engine.rng_gen_range(0..bucket.len());
-    Some(engine.temp_card(bucket[idx]))
+    // CardLibrary.getAnyColorCard first shuffles with a seed obtained from
+    // cardRandomRng.randomLong(), then getRandomCard(true, rarity) sorts by
+    // cardID and selects with cardRng. The shuffle therefore changes no card
+    // ordering, but its RNG tick is observable and must still be consumed.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
+    let _shuffle_seed = engine.card_random_rng.random_long();
+    let idx = engine.rng.random((bucket.len() - 1) as i32) as usize;
+    // Foreign Influence presents base copies. Master Reality upgrades only the
+    // selected copy when it is added to hand/discard.
+    Some(engine.card_registry.make_card(bucket[idx]))
 }
 
 fn generate_unique_weighted_any_color_attack_cards(
@@ -1968,24 +1989,14 @@ fn generate_unique_weighted_any_color_attack_cards(
     let target = option_count.min(total_pool.len());
     let mut picked = Vec::with_capacity(target);
     let mut seen = HashSet::new();
-    let mut fallback_pool: Vec<&'static str> = total_pool;
 
     while picked.len() < target {
         if let Some(card) = generate_weighted_any_color_attack_card(engine) {
             let card_name = engine.card_registry.card_name(card.def_id);
             if seen.insert(card_name) {
                 picked.push(card);
-                continue;
             }
         }
-        fallback_pool.retain(|card_id| !seen.contains(card_id));
-        if fallback_pool.is_empty() {
-            break;
-        }
-        let idx = engine.rng_gen_range(0..fallback_pool.len());
-        let card_id = fallback_pool.remove(idx);
-        seen.insert(card_id);
-        picked.push(engine.temp_card(card_id));
     }
 
     picked

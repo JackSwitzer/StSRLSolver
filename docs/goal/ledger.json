@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-10T17:33:39.940731+00:00",
+ "updated": "2026-07-10T17:42:41.608907+00:00",
  "status_counts": {
-  "unverified": 633,
-  "verified": 34
+  "unverified": 630,
+  "verified": 37
  },
  "rows": [
   {
@@ -1582,8 +1582,8 @@
    "class": "FollowUp",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/FollowUp.java",
    "methods_ref": "reference/extracted/methods/card/FollowUp.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -1612,8 +1612,8 @@
    "class": "ForeignInfluence",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/ForeignInfluence.java",
    "methods_ref": "reference/extracted/methods/card/ForeignInfluence.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -1732,8 +1732,8 @@
    "class": "Halt",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Halt.java",
    "methods_ref": "reference/extracted/methods/card/Halt.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

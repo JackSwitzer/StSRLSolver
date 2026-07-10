@@ -5,7 +5,7 @@
 mod watcher_card_java_parity_tests {
     use crate::cards::{CardRegistry, CardTarget, CardType};
     use crate::status_ids::sid;
-    use crate::engine::{CombatEngine, CombatPhase};
+    use crate::engine::{ChoiceOption, CombatEngine, CombatPhase};
     use crate::actions::Action;
     use crate::state::Stance;
     use crate::tests::support::*;
@@ -505,6 +505,129 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.player.block, 12);
         }
     );
+    // Source-derived (verify card/FollowUp): FollowUpAction checks the card at
+    // cardsPlayedThisCombat[size - 2], so only an immediately preceding Attack
+    // refunds the one energy Follow-Up spends.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/FollowUp.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/FollowUpAction.java
+    #[test]
+    fn follow_up_source_checks_the_immediately_previous_played_card() {
+        let mut after_attack = one_enemy_engine("JawWorm", 50, 0);
+        after_attack.state.hand = make_deck(&["Strike", "FollowUp+"]);
+        play_on_enemy(&mut after_attack, "Strike", 0);
+        let energy_after_attack = after_attack.state.energy;
+        play_on_enemy(&mut after_attack, "FollowUp+", 0);
+        assert_eq!(after_attack.state.energy, energy_after_attack);
+        assert_eq!(after_attack.state.enemies[0].entity.hp, 33);
+
+        let mut after_skill = one_enemy_engine("JawWorm", 50, 0);
+        after_skill.state.hand = make_deck(&["Defend", "FollowUp"]);
+        play_self(&mut after_skill, "Defend");
+        let energy_after_skill = after_skill.state.energy;
+        play_on_enemy(&mut after_skill, "FollowUp", 0);
+        assert_eq!(after_skill.state.energy, energy_after_skill - 1);
+        assert_eq!(after_skill.state.enemies[0].entity.hp, 43);
+    }
+
+    // Source-derived (verify card/Halt): Halt.applyPowers calculates the normal
+    // and Wrath components separately. Dexterity therefore applies to both;
+    // Frail floors both before HaltAction adds them together.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Halt.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/HaltAction.java
+    #[test]
+    fn halt_source_modifies_both_wrath_block_components_independently() {
+        let mut dexterity = one_enemy_engine("JawWorm", 50, 0);
+        set_stance(&mut dexterity, Stance::Wrath);
+        dexterity.state.player.set_status(sid::DEXTERITY, 2);
+        ensure_in_hand(&mut dexterity, "Halt+");
+        play_self(&mut dexterity, "Halt+");
+        assert_eq!(dexterity.state.player.block, 22); // (4 + 2) + (14 + 2)
+
+        let mut frail = one_enemy_engine("JawWorm", 50, 0);
+        set_stance(&mut frail, Stance::Wrath);
+        frail.state.player.set_status(sid::FRAIL, 1);
+        ensure_in_hand(&mut frail, "Halt");
+        play_self(&mut frail, "Halt");
+        assert_eq!(frail.state.player.block, 8); // floor(3*.75) + floor(9*.75)
+    }
+
+    // Source-derived (verify card/ForeignInfluence): every candidate attempt
+    // consumes cardRandomRng.random(99), cardRandomRng.randomLong() inside the
+    // library shuffle, and cardRng.random(bucket_size - 1). Duplicate IDs retry
+    // all three calls. CardTags.HEALING attacks are excluded.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/ForeignInfluenceAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
+    #[test]
+    fn foreign_influence_source_uses_split_rng_ticks_and_unique_non_healing_attacks() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        ensure_in_hand(&mut engine, "ForeignInfluence");
+        let card_random_before = engine.card_random_rng.counter;
+        let card_before = engine.rng.counter;
+        play_self(&mut engine, "ForeignInfluence");
+
+        let choice = engine.choice.as_ref().expect("Foreign Influence choice");
+        assert_eq!(choice.options.len(), 3);
+        let mut ids = Vec::new();
+        for option in &choice.options {
+            let ChoiceOption::GeneratedCard(card) = option else {
+                panic!("Foreign Influence must offer generated cards");
+            };
+            let def = engine.card_registry.card_def_by_id(card.def_id);
+            assert_eq!(def.card_type, CardType::Attack);
+            assert!(!matches!(def.id, "Feed" | "Reaper" | "LessonLearned"));
+            assert!(!ids.contains(&def.id));
+            ids.push(def.id);
+        }
+
+        let card_attempts = engine.rng.counter - card_before;
+        let card_random_ticks = engine.card_random_rng.counter - card_random_before;
+        assert!(card_attempts >= 3);
+        assert_eq!(card_random_ticks, card_attempts * 2);
+    }
+
+    // ForeignInfluenceAction sends the selected copy to discard if the hand is
+    // full when the choice resolves. The upgrade sets costForTurn(0), leaving
+    // the selected card's permanent base cost intact.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/ForeignInfluenceAction.java
+    #[test]
+    fn foreign_influence_source_spills_selected_zero_this_turn_copy_to_discard() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        ensure_in_hand(&mut engine, "ForeignInfluence+");
+        play_self(&mut engine, "ForeignInfluence+");
+        let choice = engine.choice.as_ref().expect("Foreign Influence+ choice");
+        let selected = choice
+            .options
+            .iter()
+            .position(|option| match option {
+                ChoiceOption::GeneratedCard(card) => {
+                    engine.card_registry.card_def_by_id(card.def_id).cost > 0
+                }
+                _ => false,
+            })
+            .expect("seeded choices should contain a positive-cost attack");
+        let selected_card = match choice.options[selected] {
+            ChoiceOption::GeneratedCard(card) => card,
+            _ => unreachable!(),
+        };
+        while engine.state.hand.len() < 10 {
+            engine.state.hand.push(engine.card_registry.make_card("Defend"));
+        }
+
+        engine.execute_action(&Action::Choose(selected));
+        assert_eq!(engine.state.hand.len(), 10);
+        let generated = engine
+            .state
+            .discard_pile
+            .iter()
+            .find(|card| card.def_id == selected_card.def_id)
+            .expect("full-hand selection should spill to discard");
+        assert_eq!(generated.cost, 0);
+        assert_eq!(
+            generated.base_cost as i32,
+            engine.card_registry.card_def_by_id(generated.def_id).cost
+        );
+    }
     watcher_test!(
         prostrate_java_parity,
         base = ("Prostrate", "Prostrate", 0, -1, 4, 2, CardType::Skill, CardTarget::SelfTarget, false, None, ["mantra"]),
