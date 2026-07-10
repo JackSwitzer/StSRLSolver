@@ -459,6 +459,25 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.enemies[1].entity.hp, 15);
         }
     );
+
+    // Source-derived (verify card/Consecrate): Consecrate.java is a zero-cost
+    // 5-damage AoE; upgrade() adds 3 damage and changes nothing else.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Consecrate.java
+    #[test]
+    fn consecrate_source_hits_every_enemy_for_zero_energy() {
+        let mut engine = two_enemy_engine(("JawWorm", 30, 0), ("Cultist", 30, 0));
+        ensure_in_hand(&mut engine, "Consecrate");
+        let energy_before = engine.state.energy;
+        play_on_enemy(&mut engine, "Consecrate", 0);
+        assert_eq!(engine.state.enemies[0].entity.hp, 25);
+        assert_eq!(engine.state.enemies[1].entity.hp, 25);
+        assert_eq!(engine.state.energy, energy_before);
+
+        let base = reg().get("Consecrate").expect("Consecrate registered");
+        let plus = reg().get("Consecrate+").expect("Consecrate+ registered");
+        assert_eq!((base.cost, base.base_damage), (0, 5));
+        assert_eq!((plus.cost, plus.base_damage), (0, 8));
+    }
     watcher_test!(
         crescendo_java_parity,
         base = ("Crescendo", "Crescendo", 1, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, true, Some("Wrath"), ["retain"]),
@@ -471,6 +490,33 @@ mod watcher_card_java_parity_tests {
             assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Crescendo"));
         }
     );
+
+    // Source-derived (verify card/Crescendo): Crescendo.java is self-retaining,
+    // enters Wrath, and exhausts; upgrade() only changes cost 1 -> 0.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Crescendo.java
+    #[test]
+    fn crescendo_source_retains_unplayed_and_plus_enters_wrath_for_zero() {
+        let mut retained = one_enemy_engine("JawWorm", 50, 0);
+        retained.state.hand = make_deck(&["Crescendo"]);
+        retained.state.draw_pile.clear();
+        retained.state.discard_pile.clear();
+        end_turn(&mut retained);
+        assert_eq!(hand_count(&retained, "Crescendo"), 1);
+
+        let mut played = one_enemy_engine("JawWorm", 50, 0);
+        ensure_in_hand(&mut played, "Crescendo+");
+        let energy_before = played.state.energy;
+        play_self(&mut played, "Crescendo+");
+        assert_eq!(played.state.stance, Stance::Wrath);
+        assert_eq!(played.state.energy, energy_before);
+        assert_eq!(exhaust_prefix_count(&played, "Crescendo+"), 1);
+
+        let base = reg().get("Crescendo").expect("Crescendo registered");
+        let plus = reg().get("Crescendo+").expect("Crescendo+ registered");
+        assert_eq!((base.cost, plus.cost), (1, 0));
+        assert!(base.runtime_traits().retain);
+        assert!(plus.runtime_traits().retain);
+    }
     watcher_test!(
         just_lucky_java_parity,
         base = ("JustLucky", "Just Lucky", 0, 3, 2, 1, CardType::Attack, CardTarget::Enemy, false, None, ["scry"]),
@@ -937,6 +983,25 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.enemies[1].entity.hp, 38);
         }
     );
+
+    // Source-derived (verify card/Conclude): Conclude.java deals 12 to all
+    // enemies before pressing the end-turn button; upgrade() adds 4 damage.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Conclude.java
+    #[test]
+    fn conclude_source_hits_all_enemies_then_ends_turn() {
+        let mut engine = two_enemy_engine(("JawWorm", 40, 0), ("Cultist", 40, 0));
+        ensure_in_hand(&mut engine, "Conclude");
+        let turn_before = engine.state.turn;
+        play_on_enemy(&mut engine, "Conclude", 0);
+        assert_eq!(engine.state.enemies[0].entity.hp, 28);
+        assert_eq!(engine.state.enemies[1].entity.hp, 28);
+        assert_eq!(engine.state.turn, turn_before + 1);
+
+        let base = reg().get("Conclude").expect("Conclude registered");
+        let plus = reg().get("Conclude+").expect("Conclude+ registered");
+        assert_eq!((base.cost, base.base_damage), (1, 12));
+        assert_eq!((plus.cost, plus.base_damage), (1, 16));
+    }
     watcher_test!(
         devotion_java_parity,
         base = ("Devotion", "Devotion", 1, -1, -1, 2, CardType::Power, CardTarget::None, false, None, []),
@@ -1194,6 +1259,33 @@ mod watcher_card_java_parity_tests {
         ensure_in_hand(&mut engine, "Collect+");
         play_self(&mut engine, "Collect+");
         assert_eq!(engine.state.player.status(sid::COLLECT_MIRACLES), 999);
+    }
+
+    // Source-derived (verify card/ConjureBlade): ConjureBladeAction.java stamps
+    // Expunger with X hits, adds Chemical X's +2, and the upgrade adds one more.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/ConjureBladeAction.java
+    #[test]
+    fn conjure_blade_source_stamps_x_chemical_x_and_upgrade_hits() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.energy = 2;
+        engine.state.relics.push("Chemical X".to_string());
+        ensure_in_hand(&mut engine, "ConjureBlade+");
+        play_self(&mut engine, "ConjureBlade+");
+
+        let expunger = engine
+            .state
+            .draw_pile
+            .iter()
+            .find(|card| engine.card_registry.card_name(card.def_id) == "Expunger")
+            .expect("Conjure Blade+ should create Expunger");
+        assert_eq!(expunger.misc, 5); // X=2 + Chemical X=2 + upgrade=1
+        assert_eq!(engine.state.energy, 0);
+        assert_eq!(exhaust_prefix_count(&engine, "ConjureBlade+"), 1);
+
+        let base = reg().get("ConjureBlade").expect("ConjureBlade registered");
+        let plus = reg().get("ConjureBlade+").expect("ConjureBlade+ registered");
+        assert_eq!((base.cost, base.exhaust), (-1, true));
+        assert_eq!((plus.cost, plus.exhaust), (-1, true));
     }
     watcher_test!(
         deus_ex_machina_java_parity,

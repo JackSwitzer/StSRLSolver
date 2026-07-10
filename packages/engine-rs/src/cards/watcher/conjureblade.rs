@@ -1,5 +1,9 @@
 use crate::cards::prelude::*;
 
+// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/ConjureBlade.java
+// Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/ConjureBladeAction.java
+//   X-cost creates one Expunger in the draw pile with X hits (+2 Chemical X).
+//   upgrade() adds one hit without changing cost or exhaust.
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Rare: Conjure Blade ---- (cost X, skill, exhaust, create Expunger with X hits; upgrade: X+1 hits)
     insert(cards, CardDef {

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-10T16:50:07.232882+00:00",
+ "updated": "2026-07-10T16:53:07.794262+00:00",
  "status_counts": {
-  "unverified": 654,
-  "verified": 13
+  "unverified": 650,
+  "verified": 17
  },
  "rows": [
   {
@@ -722,8 +722,8 @@
    "class": "Conclude",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Conclude.java",
    "methods_ref": "reference/extracted/methods/card/Conclude.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -732,8 +732,8 @@
    "class": "ConjureBlade",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/ConjureBlade.java",
    "methods_ref": "reference/extracted/methods/card/ConjureBlade.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -742,8 +742,8 @@
    "class": "Consecrate",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Consecrate.java",
    "methods_ref": "reference/extracted/methods/card/Consecrate.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -822,8 +822,8 @@
    "class": "Crescendo",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Crescendo.java",
    "methods_ref": "reference/extracted/methods/card/Crescendo.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
