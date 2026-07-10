@@ -2,7 +2,7 @@
 
 Six levels, B0→B5. Each level is a command (or short command set) that exits 0, so "where are we" is never a judgment call. Levels B1+ are fully offline — any agent can run them; only B0 minting needs the real game (human-attended). `docs/goal/GOAL.md` Definition of Done = B3+B4+B5 held simultaneously.
 
-**Current level: B0 in progress** (2026-07-06 — launch chain solved, seeded run + first trace record proven; action feed through map/combat remaining).
+**Current level: B0 achieved, B1 in progress** (2026-07-06 — full seeded run Neow→map→JawWorm combat→END_TURN traces byte-identically across runs; `trace_diff.sh` produces honest divergence reports. First real gaps catalogued in `docs/goal/FINDINGS.md`: enemy roll logic F1, rng-counter exposure F2, Neow mapping F4. Next: fix F2 so combat RNG parity is visible, then work F1 to reach B1.)
 
 ## B0 — Oracle online (infra proof, game-side)
 
