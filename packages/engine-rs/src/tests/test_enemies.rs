@@ -87,6 +87,27 @@ mod enemy_tests {
         let e = create_enemy("Cultist", 50, 50);
         assert_eq!(e.effect(mfx::RITUAL).unwrap(), 3);
     }
+    // Source-derived (verify monster/Cultist), from decompiled
+    // monsters/exordium/Cultist.java:
+    //   getMove: firstMove -> INCANTATION (BUFF, no damage); every later roll
+    //   -> DARK_STRIKE with damage.get(0).base = 6 (ctor: damage.add(DamageInfo(this, 6))).
+    //   AbstractMonster.rollMove() (AbstractMonster.java:465-466) consumes exactly
+    //   one aiRng.random(99) tick per roll even though Cultist ignores `num`.
+    #[test] fn cult_source_pattern_and_ai_rng_ticks() {
+        let mut e = create_enemy("Cultist", 50, 50);
+        assert_eq!(e.move_id, CULT_INCANTATION);
+        assert_eq!(e.move_damage(), 0);
+        assert_eq!(e.effect(mfx::RITUAL).unwrap(), 3);
+
+        let mut ai_rng = crate::seed::StsRandom::new(1234);
+        for turn in 1..=8 {
+            roll_next_move(&mut e, &mut ai_rng);
+            assert_eq!(e.move_id, CULT_DARK_STRIKE, "turn {turn}");
+            assert_eq!(e.move_damage(), 6, "turn {turn}");
+            assert_eq!(e.move_hits(), 1, "turn {turn}");
+            assert_eq!(ai_rng.counter, turn, "one aiRng tick per roll (turn {turn})");
+        }
+    }
 
     // ========== FungiBeast ==========
 

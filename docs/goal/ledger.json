@@ -2,8 +2,8 @@
  "v": 1,
  "updated": "2026-07-10T15:10:17.985538+00:00",
  "status_counts": {
-  "unverified": 665,
-  "verified": 2
+  "unverified": 664,
+  "verified": 3
  },
  "rows": [
   {
@@ -3872,8 +3872,8 @@
    "class": "Cultist",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/exordium/Cultist.java",
    "methods_ref": "reference/extracted/methods/monster/Cultist.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "claude/verify-exemplar",
    "dev": null
   },
   {

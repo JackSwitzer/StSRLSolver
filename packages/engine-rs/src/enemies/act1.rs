@@ -28,6 +28,12 @@ pub(super) fn roll_jaw_worm(enemy: &mut EnemyCombatState, num: i32) {
     }
 }
 
+// Java Cultist.getMove(int num) (decompiled monsters/exordium/Cultist.java):
+//   firstMove -> INCANTATION (byte 3, BUFF)   [handled at create_enemy]
+//   otherwise -> DARK_STRIKE (byte 1, ATTACK, damage.get(0).base = 6), forever.
+// `num` is ignored by the Java switch, but AbstractMonster.rollMove()
+// (AbstractMonster.java:465-466) still consumes one aiRng.random(99) tick per
+// roll — our caller roll_next_move() does the same, keeping counters in sync.
 pub(super) fn roll_cultist(enemy: &mut EnemyCombatState, _num: i32) {
     enemy.set_move(move_ids::CULT_DARK_STRIKE, 6, 1, 0);
 }

@@ -805,15 +805,21 @@ mod enemy_ai_java_parity_tests {
 
     #[test]
     fn run_engine_exposes_ascension_hp_tables() {
+        // Rewritten per Cultist.java ctor (verify monster/Cultist): setHp(48, 54)
+        // below ascension 7, setHp(50, 56) at 7+ — a uniform roll, not a fixed
+        // value. The old assertions (hp == 48 / == 50) baked in the pre-fix
+        // fixed-HP behavior.
         let act1_weak = enter_forced_combat(1, 0, RoomType::Monster, 0);
         let combat = act1_weak.get_combat_engine().expect("combat engine");
         assert_eq!(combat.state.enemies[0].id, "Cultist");
-        assert_eq!(combat.state.enemies[0].entity.hp, 48);
+        assert!((48..=54).contains(&combat.state.enemies[0].entity.hp));
 
         let act1_weak_a20 = enter_forced_combat(1, 20, RoomType::Monster, 0);
         let combat = act1_weak_a20.get_combat_engine().expect("combat engine");
         assert_eq!(combat.state.enemies[0].id, "Cultist");
-        assert_eq!(combat.state.enemies[0].entity.hp, 50);
+        assert!((50..=56).contains(&combat.state.enemies[0].entity.hp));
+        // Cultist.java: ritualAmount = asc >= 2 ? 4 : 3, +1 applied at asc >= 17.
+        assert_eq!(combat.state.enemies[0].effect(mfx::RITUAL), Some(5));
 
         let act1_strong = enter_forced_combat(1, 0, RoomType::Monster, 3);
         let combat = act1_strong.get_combat_engine().expect("combat engine");
