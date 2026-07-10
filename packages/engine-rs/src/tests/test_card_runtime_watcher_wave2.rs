@@ -64,6 +64,23 @@ fn bowling_bash_and_empty_fist_export_declarative_effect_data() {
     );
 }
 
+// Source-derived (verify card/EmptyFist): EmptyFist.java queues its 9-damage
+// hit before ChangeStanceAction(Neutral), so Wrath still doubles the hit to 18.
+// upgradeDamage(5) changes the upgraded base damage to 14.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/EmptyFist.java
+#[test]
+fn empty_fist_source_deals_wrath_damage_before_exiting_stance() {
+    let mut engine = one_enemy_engine("JawWorm", 50, 0);
+    set_stance(&mut engine, Stance::Wrath);
+    ensure_in_hand(&mut engine, "EmptyFist");
+    assert!(play_on_enemy(&mut engine, "EmptyFist", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp, 32);
+    assert_eq!(engine.state.stance, Stance::Neutral);
+
+    let plus = global_registry().get("EmptyFist+").expect("EmptyFist+ registered");
+    assert_eq!((plus.cost, plus.base_damage), (1, 14));
+}
+
 #[test]
 fn bowling_bash_hits_once_per_living_enemy_and_empty_fist_exits_stance() {
     let mut bowling_bash = two_enemy_engine(("JawWorm", 50, 0), ("Cultist", 50, 0));

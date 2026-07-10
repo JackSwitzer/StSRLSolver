@@ -412,6 +412,19 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.stance, Stance::Neutral);
         }
     );
+    // Source-derived (verify card/EmptyBody): GainBlockAction(block) precedes
+    // ChangeStanceAction(Neutral); upgradeBlock(3) changes 7 -> 10.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/EmptyBody.java
+    #[test]
+    fn empty_body_source_blocks_then_exits_calm() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        set_stance(&mut engine, Stance::Calm);
+        ensure_in_hand(&mut engine, "EmptyBody+");
+        play_self(&mut engine, "EmptyBody+");
+        assert_eq!(engine.state.player.block, 10);
+        assert_eq!(engine.state.stance, Stance::Neutral);
+        assert_eq!(engine.state.energy, 4);
+    }
     watcher_test!(
         flurry_of_blows_java_parity,
         base = ("FlurryOfBlows", "Flurry of Blows", 0, 4, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, []),
@@ -721,6 +734,21 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.hand.len(), hand_before + 1);
         }
     );
+    // Source-derived (verify card/EmptyMind): DrawCardAction(magicNumber)
+    // precedes ChangeStanceAction(Neutral); upgradeMagicNumber(1) changes 2 -> 3.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/EmptyMind.java
+    #[test]
+    fn empty_mind_source_draws_then_exits_calm() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        set_stance(&mut engine, Stance::Calm);
+        engine.state.draw_pile = make_deck(&["Strike", "Defend"]);
+        ensure_in_hand(&mut engine, "EmptyMind");
+        play_self(&mut engine, "EmptyMind");
+        assert_eq!(engine.state.hand.len(), 2);
+        assert_eq!(engine.state.draw_pile.len(), 0);
+        assert_eq!(engine.state.stance, Stance::Neutral);
+        assert_eq!(engine.state.energy, 4);
+    }
     watcher_test!(
         fear_no_evil_java_parity,
         base = ("FearNoEvil", "Fear No Evil", 1, 8, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, ["calm_if_enemy_attacking"]),

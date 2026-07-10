@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-10T17:18:56.045160+00:00",
+ "updated": "2026-07-10T17:20:51.825302+00:00",
  "status_counts": {
-  "unverified": 642,
-  "verified": 25
+  "unverified": 639,
+  "verified": 28
  },
  "rows": [
   {
@@ -1252,8 +1252,8 @@
    "class": "EmptyBody",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/EmptyBody.java",
    "methods_ref": "reference/extracted/methods/card/EmptyBody.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -1262,8 +1262,8 @@
    "class": "EmptyFist",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/EmptyFist.java",
    "methods_ref": "reference/extracted/methods/card/EmptyFist.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -1272,8 +1272,8 @@
    "class": "EmptyMind",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/EmptyMind.java",
    "methods_ref": "reference/extracted/methods/card/EmptyMind.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
