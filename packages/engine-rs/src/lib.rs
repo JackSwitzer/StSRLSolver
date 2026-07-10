@@ -34,6 +34,7 @@ pub mod seed;
 pub mod state;
 pub mod status_effects;
 pub mod status_ids;
+pub mod trace;
 pub mod training_contract;
 
 #[cfg(test)]
