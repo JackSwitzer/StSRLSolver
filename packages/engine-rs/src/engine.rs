@@ -3057,8 +3057,8 @@ impl CombatEngine {
             }
         }
         for &i in flurry_indices.iter().rev() {
-            let card = self.state.discard_pile.remove(i);
             if self.state.hand.len() < 10 {
+                let card = self.state.discard_pile.remove(i);
                 self.state.hand.push(card);
             }
         }

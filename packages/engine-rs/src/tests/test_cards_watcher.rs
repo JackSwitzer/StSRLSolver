@@ -438,10 +438,24 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.enemies[0].entity.hp, 36);
         }
     );
+    // Source-derived (verify card/FlurryOfBlows): stance changes queue
+    // DiscardToHandAction, which checks hand size before removing the card.
+    // A full hand therefore leaves Flurry in discard rather than deleting it.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/FlurryOfBlows.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/DiscardToHandAction.java
+    #[test]
+    fn flurry_of_blows_source_stays_in_discard_when_hand_is_full() {
+        let mut engine = one_enemy_engine("JawWorm", 40, 0);
+        engine.state.hand = make_deck(&["Strike"; 10]);
+        engine.state.discard_pile = make_deck(&["FlurryOfBlows+"]);
+        engine.change_stance(Stance::Wrath);
+        assert_eq!(engine.state.hand.len(), 10);
+        assert_eq!(discard_prefix_count(&engine, "FlurryOfBlows+"), 1);
+    }
     watcher_test!(
         flying_sleeves_java_parity,
-        base = ("FlyingSleeves", "Flying Sleeves", 1, 4, -1, 2, CardType::Attack, CardTarget::Enemy, false, None, ["multi_hit", "retain"]),
-        plus = ("FlyingSleeves+", "Flying Sleeves+", 1, 6, -1, 2, CardType::Attack, CardTarget::Enemy, false, None, ["multi_hit", "retain"]),
+        base = ("FlyingSleeves", "Flying Sleeves", 1, 4, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, ["multi_hit", "retain"]),
+        plus = ("FlyingSleeves+", "Flying Sleeves+", 1, 6, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, ["multi_hit", "retain"]),
         {
             let mut engine = one_enemy_engine("JawWorm", 60, 0);
             ensure_in_hand(&mut engine, "FlyingSleeves");
@@ -449,6 +463,22 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.enemies[0].entity.hp, 52);
         }
     );
+    // Source-derived (verify card/FlyingSleeves): use() queues two independent
+    // DamageActions and the constructor sets selfRetain. No magicNumber exists.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/FlyingSleeves.java
+    #[test]
+    fn flying_sleeves_source_has_fixed_two_hits_and_self_retain() {
+        let mut attack = one_enemy_engine("JawWorm", 40, 0);
+        ensure_in_hand(&mut attack, "FlyingSleeves+");
+        play_on_enemy(&mut attack, "FlyingSleeves+", 0);
+        assert_eq!(attack.state.enemies[0].entity.hp, 28);
+
+        let mut retained = one_enemy_engine("JawWorm", 40, 0);
+        ensure_in_hand(&mut retained, "FlyingSleeves");
+        end_turn(&mut retained);
+        assert_eq!(hand_count(&retained, "FlyingSleeves"), 1);
+        assert_eq!(reg().get("FlyingSleeves").unwrap().base_magic, -1);
+    }
     watcher_test!(
         follow_up_java_parity,
         base = ("FollowUp", "Follow-Up", 1, 7, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, ["energy_if_last_attack"]),
@@ -760,6 +790,24 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.stance, Stance::Calm);
         }
     );
+    // Source-derived (verify card/FearNoEvil): FearNoEvilAction recognizes only
+    // attacking intent variants, deals damage, then enters Calm. Upgrade is +3 damage.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/FearNoEvil.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/FearNoEvilAction.java
+    #[test]
+    fn fear_no_evil_source_enters_calm_only_for_attacking_intents() {
+        let mut attacking = one_enemy_engine("JawWorm", 40, 8);
+        ensure_in_hand(&mut attacking, "FearNoEvil+");
+        play_on_enemy(&mut attacking, "FearNoEvil+", 0);
+        assert_eq!(attacking.state.enemies[0].entity.hp, 29);
+        assert_eq!(attacking.state.stance, Stance::Calm);
+
+        let mut passive = one_enemy_engine("JawWorm", 40, 0);
+        ensure_in_hand(&mut passive, "FearNoEvil");
+        play_on_enemy(&mut passive, "FearNoEvil", 0);
+        assert_eq!(passive.state.enemies[0].entity.hp, 32);
+        assert_eq!(passive.state.stance, Stance::Neutral);
+    }
     watcher_test!(
         foreign_influence_java_parity,
         base = ("ForeignInfluence", "Foreign Influence", 0, -1, -1, -1, CardType::Skill, CardTarget::None, true, None, ["foreign_influence"]),

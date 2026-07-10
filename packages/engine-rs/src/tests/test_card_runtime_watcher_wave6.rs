@@ -43,7 +43,7 @@ fn watcher_wave6_registry_exports_match_declared_runtime_surface() {
 
     let flying_sleeves = registry.get("FlyingSleeves").expect("FlyingSleeves should be registered");
     assert!(flying_sleeves.has_test_marker("retain"));
-    assert_eq!(flying_sleeves.declared_extra_hits(), Some(A::Magic));
+    assert_eq!(flying_sleeves.declared_extra_hits(), Some(A::Fixed(2)));
 
     let vigilance = registry.get("Vigilance").expect("Vigilance should be registered");
     assert_eq!(vigilance.enter_stance, Some("Calm"));

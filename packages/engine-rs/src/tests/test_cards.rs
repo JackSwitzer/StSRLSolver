@@ -155,7 +155,7 @@ mod card_registry_tests {
     fn flying_sleeves_base() {
         let c = reg().get("FlyingSleeves").unwrap().clone();
         assert_eq!(c.base_damage, 4);
-        assert_eq!(c.base_magic, 2);
+        assert_eq!(c.base_magic, -1);
         assert!(c.has_test_marker("multi_hit"));
     }
 
@@ -163,7 +163,7 @@ mod card_registry_tests {
     fn flying_sleeves_upgraded() {
         let c = reg().get("FlyingSleeves+").unwrap().clone();
         assert_eq!(c.base_damage, 6);
-        assert_eq!(c.base_magic, 2);
+        assert_eq!(c.base_magic, -1);
     }
 
     #[test]
@@ -526,4 +526,3 @@ mod card_registry_tests {
 // =============================================================================
 // Damage calculation exhaustive tests
 // =============================================================================
-
