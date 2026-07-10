@@ -206,6 +206,94 @@ mod watcher_card_java_parity_tests {
         assert!(plus.runtime_traits().innate);
     }
 
+    // Source-derived (verify card/Beta): Beta.java exhausts and queues one
+    // stat-equivalent Omega into the draw pile; upgrade() only changes cost 2 -> 1.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Beta.java
+    #[test]
+    fn beta_source_adds_one_omega_exhausts_and_upgrade_only_reduces_cost() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.draw_pile.clear();
+        engine.state.discard_pile.clear();
+        ensure_in_hand(&mut engine, "Beta");
+        let energy_before = engine.state.energy;
+        play_self(&mut engine, "Beta");
+
+        assert_eq!(draw_prefix_count(&engine, "Omega"), 1);
+        assert_eq!(engine.state.energy, energy_before - 2);
+        assert_eq!(exhaust_prefix_count(&engine, "Beta"), 1);
+
+        let base = reg().get("Beta").expect("Beta registered");
+        let plus = reg().get("Beta+").expect("Beta+ registered");
+        assert_eq!((base.cost, base.exhaust), (2, true));
+        assert_eq!((plus.cost, plus.exhaust), (1, true));
+    }
+
+    // Source-derived (verify card/Blasphemy): Blasphemy.java enters Divinity,
+    // applies EndTurnDeathPower, and exhausts. upgrade() changes only selfRetain.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Blasphemy.java
+    #[test]
+    fn blasphemy_source_enters_divinity_sets_delayed_death_and_upgrade_retains() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        ensure_in_hand(&mut engine, "Blasphemy");
+        let energy_before = engine.state.energy;
+        play_self(&mut engine, "Blasphemy");
+
+        assert_eq!(engine.state.stance, Stance::Divinity);
+        assert_eq!(engine.state.energy, energy_before - 1 + 3);
+        assert!(engine.state.blasphemy_active);
+        assert_eq!(exhaust_prefix_count(&engine, "Blasphemy"), 1);
+
+        let base = reg().get("Blasphemy").expect("Blasphemy registered");
+        let plus = reg().get("Blasphemy+").expect("Blasphemy+ registered");
+        assert!(!base.runtime_traits().retain);
+        assert!(plus.runtime_traits().retain);
+        assert_eq!((base.cost, plus.cost), (1, 1));
+    }
+
+    // Source-derived (verify card/Blasphemy): EndTurnDeathPower.java uses
+    // LoseHPAction(99999), and AbstractPlayer.damage() caps HP_LOSS to 1 under
+    // Intangible before Buffer can reduce it to 0.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/EndTurnDeathPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+    #[test]
+    fn blasphemy_delayed_hp_loss_respects_intangible_and_buffer() {
+        let mut intangible = one_enemy_engine("JawWorm", 50, 0);
+        ensure_in_hand(&mut intangible, "Blasphemy");
+        play_self(&mut intangible, "Blasphemy");
+        intangible.state.player.set_status(sid::INTANGIBLE, 2);
+        let hp_before = intangible.state.player.hp;
+        end_turn(&mut intangible);
+        assert_eq!(intangible.state.player.hp, hp_before - 1);
+        assert!(!intangible.state.combat_over);
+
+        let mut buffer = one_enemy_engine("JawWorm", 50, 0);
+        ensure_in_hand(&mut buffer, "Blasphemy");
+        play_self(&mut buffer, "Blasphemy");
+        buffer.state.player.set_status(sid::BUFFER, 1);
+        let hp_before = buffer.state.player.hp;
+        end_turn(&mut buffer);
+        assert_eq!(buffer.state.player.hp, hp_before);
+        assert_eq!(buffer.state.player.status(sid::BUFFER), 0);
+        assert!(!buffer.state.combat_over);
+    }
+
+    // Source-derived (verify card/Blasphemy): the delayed LoseHPAction follows
+    // AbstractPlayer.damage(), where Mark of the Bloom prevents Fairy/Lizard revival.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+    #[test]
+    fn blasphemy_mark_of_bloom_blocks_fairy_revival() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.potions[0] = "FairyPotion".to_string();
+        engine.state.player.set_status(sid::HAS_MARK_OF_BLOOM, 1);
+        ensure_in_hand(&mut engine, "Blasphemy");
+        play_self(&mut engine, "Blasphemy");
+        end_turn(&mut engine);
+
+        assert_eq!(engine.state.player.hp, 0);
+        assert!(engine.state.combat_over);
+        assert_eq!(engine.state.potions[0], "FairyPotion");
+    }
+
     // Common cards.
     watcher_test!(
         bowling_bash_java_parity,
@@ -218,6 +306,34 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.enemies[0].entity.hp, 36);
         }
     );
+
+    // Source-derived (verify card/BowlingBash): BowlingBash.java queues one
+    // hit on the selected target per monster that is not dead or escaped.
+    // With two living monsters and one dead monster, base Bowling Bash deals 2 * 7.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/BowlingBash.java
+    #[test]
+    fn bowling_bash_source_counts_only_living_non_escaped_monsters() {
+        let mut dead = enemy("Cultist", 1, 50, 1, 0, 1);
+        dead.entity.hp = 0;
+        let mut engine = engine_without_start(
+            vec![],
+            vec![
+                enemy("JawWorm", 50, 50, 1, 0, 1),
+                enemy("Cultist", 50, 50, 1, 0, 1),
+                dead,
+            ],
+            3,
+        );
+        force_player_turn(&mut engine);
+        ensure_in_hand(&mut engine, "BowlingBash");
+        play_on_enemy(&mut engine, "BowlingBash", 0);
+        assert_eq!(engine.state.enemies[0].entity.hp, 36);
+
+        let base = reg().get("BowlingBash").expect("BowlingBash registered");
+        let plus = reg().get("BowlingBash+").expect("BowlingBash+ registered");
+        assert_eq!((base.cost, base.base_damage), (1, 7));
+        assert_eq!((plus.cost, plus.base_damage), (1, 10));
+    }
     watcher_test!(
         crush_joints_java_parity,
         base = ("CrushJoints", "Crush Joints", 1, 8, -1, 1, CardType::Attack, CardTarget::Enemy, false, None, ["vuln_if_last_skill"]),

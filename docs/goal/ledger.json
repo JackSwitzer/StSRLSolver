@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-10T16:39:34.830754+00:00",
+ "updated": "2026-07-10T16:45:05.336128+00:00",
  "status_counts": {
-  "unverified": 661,
-  "verified": 6
+  "unverified": 658,
+  "verified": 9
  },
  "rows": [
   {
@@ -292,8 +292,8 @@
    "class": "Beta",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Beta.java",
    "methods_ref": "reference/extracted/methods/card/Beta.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -332,8 +332,8 @@
    "class": "Blasphemy",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Blasphemy.java",
    "methods_ref": "reference/extracted/methods/card/Blasphemy.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -432,8 +432,8 @@
    "class": "BowlingBash",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/BowlingBash.java",
    "methods_ref": "reference/extracted/methods/card/BowlingBash.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

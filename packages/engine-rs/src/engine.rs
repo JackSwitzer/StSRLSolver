@@ -1101,15 +1101,28 @@ impl CombatEngine {
         self.phase = CombatPhase::PlayerTurn;
         self.rebuild_effect_runtime();
 
-        // Blasphemy: die at start of turn
+        // Blasphemy delayed death.
+        // Java: powers/watcher/EndTurnDeathPower.java queues LoseHPAction(99999),
+        // which runs through AbstractPlayer.damage(HP_LOSS): Intangible caps to
+        // 1, Buffer can reduce that to 0, Tungsten Rod applies to remaining HP
+        // loss, and ordinary death/revival hooks still run.
         if self.state.blasphemy_active {
             self.state.blasphemy_active = false;
-            self.state.player.hp = 0;
-            self.state.combat_over = true;
-            self.state.player_won = false;
-            self.phase = CombatPhase::CombatOver;
-            self.choice = None;
-            return;
+            let intangible = self.state.player.status(sid::INTANGIBLE) > 0;
+            let after_intangible = damage::apply_hp_loss(99_999, intangible, false);
+            let buffer = self.state.player.status(sid::BUFFER);
+            let hp_loss = if after_intangible > 0 && buffer > 0 {
+                self.state.player.set_status(sid::BUFFER, buffer - 1);
+                0
+            } else {
+                let tungsten = self.state.has_relic("Tungsten Rod")
+                    || self.state.has_relic("TungstenRod");
+                damage::apply_hp_loss(after_intangible, false, tungsten)
+            };
+            self.player_lose_hp(hp_loss);
+            if self.state.combat_over {
+                return;
+            }
         }
 
         // Reset energy — Ice Cream preserves unspent energy
@@ -2454,15 +2467,24 @@ impl CombatEngine {
     /// Check and apply revive effects (Fairy in a Bottle, Lizard Tail).
     fn check_fairy_revive(&mut self) {
         if self.state.player.hp <= 0 {
+            // Java: AbstractPlayer.damage() does not invoke Fairy in a Bottle
+            // or Lizard Tail while Mark of the Bloom is present.
+            // Source: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+            let healing_blocked = self.state.player.status(sid::HAS_MARK_OF_BLOOM) > 0;
             // Fairy in a Bottle (potion)
-            let revive_hp = potions::check_fairy_revive(&self.state);
+            let revive_hp = if healing_blocked {
+                0
+            } else {
+                potions::check_fairy_revive(&self.state)
+            };
             if revive_hp > 0 {
                 potions::consume_fairy(&mut self.state);
                 self.state.player.hp = revive_hp;
                 return;
             }
             // Lizard Tail (relic): revive at 50% max HP, once per run
-            if (self.state.has_relic("Lizard Tail") || self.state.has_relic("LizardTail"))
+            if !healing_blocked
+                && (self.state.has_relic("Lizard Tail") || self.state.has_relic("LizardTail"))
                 && self.state.player.status(sid::LIZARD_TAIL_USED) == 0
             {
                 self.state.player.set_status(sid::LIZARD_TAIL_USED, 1);
