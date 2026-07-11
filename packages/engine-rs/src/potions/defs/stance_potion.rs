@@ -1,6 +1,9 @@
 use super::prelude::*;
 use crate::effects::declarative::{AmountSource as A, NamedOptionKind, ScaledNamedOption};
 
+// Java: decompiled/java-src/com/megacrit/cardcrawl/potions/StancePotion.java
+// use() builds ChooseWrath then ChooseCalm and queues one ChooseOneAction.
+
 static STANCE_OPTIONS: [ScaledNamedOption; 2] = [
     ScaledNamedOption {
         label: "Wrath",

@@ -212,6 +212,41 @@ fn bottled_miracle_scales_with_bark_master_reality_and_hand_overflow() {
 }
 
 #[test]
+fn stance_potion_preserves_java_choice_order_and_uses_stance_hooks() {
+    // Source-derived (verify potion/StancePotion): Java offers ChooseWrath then
+    // ChooseCalm. Potency is zero, so Sacred Bark cannot alter either branch.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike", "Defend", "Bash"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.relics = vec!["VioletLotus".to_string(), "SacredBark".to_string()];
+    engine.state.stance = Stance::Calm;
+    engine.state.energy = 0;
+    engine.state.potions = vec![String::new(); 3];
+    equip_potion(&mut engine, 0, "StancePotion");
+
+    use_potion(&mut engine, 0, -1);
+
+    assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+    let choice = engine.choice.as_ref().expect("Stance Potion choice");
+    let labels: Vec<_> = choice
+        .options
+        .iter()
+        .filter_map(|option| match option {
+            ChoiceOption::Named(label) => Some(*label),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(labels, vec!["Wrath", "Calm"]);
+    assert!(engine.state.potions[0].is_empty());
+
+    engine.execute_action(&Action::Choose(0));
+    assert_eq!(engine.state.stance, Stance::Wrath);
+    assert_eq!(engine.state.energy, 3);
+}
+
+#[test]
 fn random_generation_potions_pick_the_right_card_families() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike", "Defend", "Bash"]),
