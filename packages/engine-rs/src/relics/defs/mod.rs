@@ -230,6 +230,7 @@ pub mod shovel;
 pub mod unceasing_top;
 pub mod tiny_chest;
 pub mod omamori;
+pub mod runic_dome;
 pub mod runic_pyramid;
 
 // ===========================================================================
@@ -399,6 +400,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &unceasing_top::DEF,
     &tiny_chest::DEF,
     &omamori::DEF,
+    &runic_dome::DEF,
     &runic_pyramid::DEF,
 ];
 

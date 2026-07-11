@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T19:53:29.549537+00:00",
+ "updated": "2026-07-11T19:57:55.342139+00:00",
  "status_counts": {
-  "unverified": 416,
-  "verified": 251
+  "unverified": 415,
+  "verified": 252
  },
  "rows": [
   {
@@ -6152,8 +6152,8 @@
    "class": "RunicDome",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/RunicDome.java",
    "methods_ref": "reference/extracted/methods/relic/RunicDome.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -155,6 +155,74 @@ fn runic_pyramid_is_reachable_from_the_watcher_boss_relic_pool() {
 }
 
 #[test]
+fn runic_dome_grants_energy_and_hides_intents_from_the_rl_surface() {
+    // Sources: RunicDome.java is BOSS tier and increments energyMaster once;
+    // AbstractMonster.java::render/renderTip suppress all intent presentation
+    // while the player owns canonical ID "Runic Dome".
+    assert!(crate::gameplay::global_registry()
+        .relic("Runic Dome")
+        .is_some());
+    let offered = (0..128).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_boss_reward_screen();
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0].choices.iter().any(|choice| {
+                matches!(choice, RewardChoice::Named { label, .. } if label == "Runic Dome")
+            })
+        })
+    });
+    assert!(offered);
+
+    let mut engine = RunEngine::new(42, 0);
+    engine.debug_set_reward_screen(relic_choice_reward_screen(&["Runic Dome"]));
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(engine
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+
+    let combat = engine.get_combat_engine().expect("combat should start");
+    assert_eq!(combat.state.max_energy, 4);
+    assert_eq!(combat.state.energy, 4);
+    assert!(combat.state.enemies[0].move_damage() > 0);
+
+    let training = crate::training_contract::combat_training_state_from_run(
+        &engine,
+        &crate::training_contract::RestrictionPolicyV1::default(),
+        crate::encode_combat_action,
+    )
+    .expect("run combat observation");
+    let observed = &training.observation.enemies[0];
+    assert_eq!(observed.intent, "Hidden");
+    assert_eq!(
+        (observed.intent_damage, observed.intent_hits, observed.intent_block),
+        (0, 0, 0)
+    );
+
+    // RunicDome.java::onUnequip decrements energyMaster. RunEngine derives the
+    // next combat's master energy from current ownership, so removal restores 3.
+    engine.run_state.relics.retain(|relic| relic != "Runic Dome");
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    assert_eq!(
+        engine
+            .get_combat_engine()
+            .expect("replacement combat should start")
+            .state
+            .max_energy,
+        3
+    );
+}
+
+#[test]
 fn black_star_is_reachable_from_the_watcher_boss_relic_pool() {
     // Sources: RelicLibrary.java registers BlackStar and BlackStar.java
     // constructs it at BOSS tier with canonical ID "Black Star".

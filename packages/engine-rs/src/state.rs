@@ -423,6 +423,12 @@ impl CombatState {
         self.relics.iter().any(|r| r == relic_id)
     }
 
+    /// Java keeps enemy moves internally but suppresses their presentation
+    /// while Runic Dome is owned (AbstractMonster.java::render/renderTip).
+    pub fn enemy_intents_visible(&self) -> bool {
+        !self.has_relic("Runic Dome") && !self.has_relic("RunicDome")
+    }
+
     /// Centralized healing: checks Mark of the Bloom (blocks) and Magic Flower (1.5x).
     pub fn heal_player(&mut self, amount: i32) {
         if amount <= 0 {

@@ -830,6 +830,7 @@ fn combat_execution_ids_for_allowed_actions(
 
 fn build_combat_observation(engine: &CombatEngine) -> CombatObservationSchemaV1 {
     let state = &engine.state;
+    let intents_visible = state.enemy_intents_visible();
     CombatObservationSchemaV1 {
         schema_version: COMBAT_OBSERVATION_SCHEMA_VERSION,
         caps: CombatObservationCapsV1::default(),
@@ -893,10 +894,17 @@ fn build_combat_observation(engine: &CombatEngine) -> CombatObservationSchemaV1 
                 alive: enemy.is_alive(),
                 targetable: enemy.is_targetable(),
                 back_attack: enemy.has_back_attack(),
-                intent: intent_name(enemy.intent),
-                intent_damage: enemy.move_damage(),
-                intent_hits: enemy.move_hits(),
-                intent_block: enemy.move_block(),
+                // AbstractMonster.java hides intent rendering with Runic Dome.
+                // Preserve the real move in CombatState/snapshots, but do not
+                // leak it through the policy observation.
+                intent: if intents_visible {
+                    intent_name(enemy.intent)
+                } else {
+                    "Hidden".to_string()
+                },
+                intent_damage: if intents_visible { enemy.move_damage() } else { 0 },
+                intent_hits: if intents_visible { enemy.move_hits() } else { 0 },
+                intent_block: if intents_visible { enemy.move_block() } else { 0 },
             })
             .collect(),
         player_effects: collect_status_tokens(&state.player.statuses),

@@ -1905,7 +1905,8 @@ impl RunEngine {
             }
         }
         // BustedCrown.java, CoffeeDripper.java, CursedKey.java, Ectoplasm.java,
-        // and FusionHammer.java each increment energyMaster once in onEquip.
+        // FusionHammer.java, and RunicDome.java each increment energyMaster
+        // once in onEquip.
         let combat_energy = 3
             + i32::from(
                 self.run_state
@@ -1931,6 +1932,11 @@ impl RunEngine {
                 self.run_state
                     .relic_flags
                     .has(crate::relic_flags::flag::FUSION_HAMMER),
+            )
+            + i32::from(
+                self.run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::RUNIC_DOME),
             );
         // DuVuDoll.java::onEquip/onMasterDeckChange counts every card whose
         // type is CURSE; atBattleStart grants that counter as Strength.
@@ -4259,6 +4265,9 @@ impl RunEngine {
             "Ectoplasm",
             "Fusion Hammer",
             "Philosopher's Stone",
+            // RunicDome.java constructs canonical ID "Runic Dome" at BOSS
+            // tier and increments energyMaster on equip.
+            "Runic Dome",
             // RunicPyramid.java constructs canonical ID "Runic Pyramid" at
             // BOSS tier; DiscardAtEndOfTurnAction.java supplies its behavior.
             "Runic Pyramid",

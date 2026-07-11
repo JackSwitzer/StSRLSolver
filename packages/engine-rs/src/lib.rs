@@ -942,6 +942,7 @@ impl StSEngine {
                     combat.set_item("player_statuses", statuses)?;
 
                     let enemies_list = PyList::empty_bound(py);
+                    let intents_visible = cs.enemy_intents_visible();
                     for e in &cs.enemies {
                         let ed = PyDict::new_bound(py);
                         ed.set_item("id", &e.id)?;
@@ -950,10 +951,25 @@ impl StSEngine {
                         ed.set_item("max_hp", e.entity.max_hp)?;
                         ed.set_item("block", e.entity.block)?;
                         ed.set_item("alive", e.is_alive())?;
-                        ed.set_item("move_damage", e.move_damage())?;
-                        ed.set_item("move_hits", e.move_hits())?;
-                        ed.set_item("move_block", e.move_block())?;
-                        ed.set_item("intent_damage", e.total_incoming_damage())?;
+                        // AbstractMonster.java hides all intent presentation
+                        // while Runic Dome is owned; the internal move remains
+                        // intact so enemy execution and replay stay exact.
+                        ed.set_item(
+                            "move_damage",
+                            if intents_visible { e.move_damage() } else { 0 },
+                        )?;
+                        ed.set_item(
+                            "move_hits",
+                            if intents_visible { e.move_hits() } else { 0 },
+                        )?;
+                        ed.set_item(
+                            "move_block",
+                            if intents_visible { e.move_block() } else { 0 },
+                        )?;
+                        ed.set_item(
+                            "intent_damage",
+                            if intents_visible { e.total_incoming_damage() } else { 0 },
+                        )?;
                         let es = PyDict::new_bound(py);
                         for (i, &val) in e.entity.statuses.iter().enumerate() {
                             if val != 0 {

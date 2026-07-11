@@ -42,6 +42,7 @@ pub mod flag {
     pub const BUSTED_CROWN: u64     = 1 << 35;  // +1 energy, -2 card reward choices
     pub const DARKSTONE_PERIAPT: u64 = 1 << 36; // +6 max HP when a curse is obtained
     pub const ETERNAL_FEATHER: u64 = 1 << 37; // Heal per five cards on rest-room entry
+    pub const RUNIC_DOME: u64 = 1 << 38; // +1 energy; enemy intents are hidden
 }
 
 /// Counter indices for cross-combat persistent counters.
@@ -122,6 +123,7 @@ impl RelicFlags {
                 "Busted Crown" | "BustedCrown" => flag::BUSTED_CROWN,
                 "Darkstone Periapt" | "DarkstonePeriapt" => flag::DARKSTONE_PERIAPT,
                 "Eternal Feather" | "EternalFeather" => flag::ETERNAL_FEATHER,
+                "Runic Dome" | "RunicDome" => flag::RUNIC_DOME,
                 _ => 0,
             };
             self.flags |= f;
