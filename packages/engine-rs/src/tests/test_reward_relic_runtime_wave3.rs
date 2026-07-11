@@ -1410,6 +1410,50 @@ fn medical_kit_is_reachable_only_from_the_shop_relic_slot() {
 }
 
 #[test]
+fn clockwork_souvenir_is_reachable_only_from_the_shop_relic_slot() {
+    // ClockworkSouvenir.java declares canonical ID "ClockworkSouvenir" and
+    // constructs RelicTier.SHOP.
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "ClockworkSouvenir")
+        }));
+    }
+
+    let offered_seed = (0..512)
+        .find(|seed| {
+            let mut engine = RunEngine::new(*seed, 0);
+            engine.debug_enter_shop();
+            engine.get_shop().is_some_and(|shop| {
+                shop.relics
+                    .iter()
+                    .any(|(relic, _)| relic == "ClockworkSouvenir")
+            })
+        })
+        .expect("ClockworkSouvenir should be reachable from the SHOP-tier slot");
+
+    let mut engine = RunEngine::new(offered_seed, 0);
+    engine.run_state.gold = 999;
+    engine.debug_enter_shop();
+    let idx = engine
+        .get_shop()
+        .expect("shop")
+        .relics
+        .iter()
+        .position(|(relic, _)| relic == "ClockworkSouvenir")
+        .expect("ClockworkSouvenir offer");
+    assert!(engine
+        .step_with_result(&RunAction::ShopBuyRelic(idx))
+        .action_accepted);
+    assert!(engine
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == "ClockworkSouvenir"));
+}
+
+#[test]
 fn melange_is_reachable_only_from_the_shop_relic_slot() {
     // Melange.java constructs RelicTier.SHOP. ShopScreen.java::initRelics
     // reserves its third relic offer for that tier.

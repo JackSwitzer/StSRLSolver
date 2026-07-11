@@ -52,7 +52,7 @@ fn combat_start_bundle_applies_simple_java_relic_effects_on_runtime_path() {
             "Anchor",
             "Akabeko",
             "Bronze Scales",
-            "Clockwork Souvenir",
+            "ClockworkSouvenir",
             "FossilizedHelix",
             "Data Disk",
         ],

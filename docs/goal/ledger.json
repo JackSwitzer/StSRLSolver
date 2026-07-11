@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T18:24:26.703212+00:00",
+ "updated": "2026-07-11T18:26:36.149988+00:00",
  "status_counts": {
-  "unverified": 447,
-  "verified": 220
+  "unverified": 446,
+  "verified": 221
  },
  "rows": [
   {
@@ -5152,8 +5152,8 @@
    "class": "ClockworkSouvenir",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/ClockworkSouvenir.java",
    "methods_ref": "reference/extracted/methods/relic/ClockworkSouvenir.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

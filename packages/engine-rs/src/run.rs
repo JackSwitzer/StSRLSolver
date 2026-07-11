@@ -4202,7 +4202,7 @@ impl RunEngine {
             relics.push((relic, final_price));
         }
         const SHOP_RELICS: &[&str] = &[
-            "TheAbacus", "Brimstone", "HandDrill", "Lee's Waffle", "Medical Kit", "Melange",
+            "TheAbacus", "Brimstone", "ClockworkSouvenir", "HandDrill", "Lee's Waffle", "Medical Kit", "Melange",
             "Membership Card",
             "OrangePellets", "Runic Capacitor", "Sling", "Strange Spoon",
             "TwistedFunnel",
@@ -5341,7 +5341,6 @@ impl RunEngine {
             "Bottled Flame",
             "Bottled Lightning",
             "Bottled Tornado",
-            "ClockworkSouvenir",
             "DataDisk",
             // OrnamentalFan.java declares canonical ID "Ornamental Fan".
             "Ornamental Fan",
