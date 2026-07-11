@@ -1573,10 +1573,16 @@ mod combat_engine_p0_p1_regression {
             "Plated Armor should NOT decrement when damage is fully blocked");
     }
 
-    // ===== P1-7: TalkToTheHand Only Grants Block on HP Damage =====
+    // ===== P1-7: TalkToTheHand Grants Block on Ordinary Attack Hits =====
+
+    // Source-derived: AbstractMonster.damage calls BlockReturnPower.onAttacked
+    // after decrementBlock even when damageAmount is zero, and BlockReturn has
+    // no positive-damage guard.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/AbstractMonster.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/BlockReturnPower.java
 
     #[test]
-    fn talk_to_the_hand_no_block_when_enemy_blocks() {
+    fn talk_to_the_hand_grants_block_when_enemy_blocks() {
         let deck: Vec<CardInstance> = make_deck_n("Strike", 10);
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
@@ -1590,9 +1596,9 @@ mod combat_engine_p0_p1_regression {
         play_card(&mut e, "Strike", 0);
         let block_after = e.state.player.block;
 
-        // Strike does 6 damage, enemy has 50 block -> 0 HP damage -> no BlockReturn
-        assert_eq!(block_after, block_before,
-            "TalkToTheHand should NOT grant block when hit deals no HP damage (enemy blocked)");
+        // Strike is fully blocked, but BlockReturn still sees an ordinary attack.
+        assert_eq!(block_after, block_before + 3,
+            "TalkToTheHand should grant block even when the attack is fully blocked");
     }
 
     #[test]

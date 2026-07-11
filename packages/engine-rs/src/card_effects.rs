@@ -149,13 +149,9 @@ pub(crate) fn execute_primary_attack(
                     false,
                     enemy_intangible,
                 );
-                let block_return = engine.state.enemies[tidx].entity.status(sid::BLOCK_RETURN);
                 for _ in 0..hits {
                     let hp_dmg = engine.deal_player_attack_hit_to_enemy(tidx, dmg);
                     total_unblocked_damage += hp_dmg;
-                    if block_return > 0 && hp_dmg > 0 {
-                        engine.gain_block_player(block_return);
-                    }
                     if engine.state.enemies[tidx].entity.is_dead() {
                         enemy_killed = true;
                         break;
@@ -183,13 +179,9 @@ pub(crate) fn execute_primary_attack(
                     false,
                     enemy_intangible,
                 );
-                let block_return = engine.state.enemies[enemy_idx].entity.status(sid::BLOCK_RETURN);
                 for _ in 0..hits {
                     let hp_dmg = engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
                     total_unblocked_damage += hp_dmg;
-                    if block_return > 0 && hp_dmg > 0 {
-                        engine.gain_block_player(block_return);
-                    }
                     if engine.state.enemies[enemy_idx].entity.is_dead() {
                         enemy_killed = true;
                         break;
@@ -219,12 +211,8 @@ pub(crate) fn execute_primary_attack(
                     false,
                     enemy_intangible,
                 );
-                let block_return = engine.state.enemies[enemy_idx].entity.status(sid::BLOCK_RETURN);
-                let hp_dmg = engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
-                total_unblocked_damage += hp_dmg;
-                if block_return > 0 && hp_dmg > 0 {
-                    engine.gain_block_player(block_return);
-                }
+            let hp_dmg = engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
+            total_unblocked_damage += hp_dmg;
                 if engine.state.enemies[enemy_idx].entity.is_dead() {
                     enemy_killed = true;
                 }
@@ -394,15 +382,9 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
                         false, // flight
                         enemy_intangible,
                     );
-                    // Talk to the Hand: player gains block per hit ONLY on HP damage
-                    let block_return = engine.state.enemies[tidx].entity.status(sid::BLOCK_RETURN);
                     for _ in 0..hits {
                         let hp_dmg = engine.deal_player_attack_hit_to_enemy(tidx, dmg);
                         total_unblocked_damage += hp_dmg;
-                        // BlockReturn only triggers on actual HP damage
-                        if block_return > 0 && hp_dmg > 0 {
-                            engine.gain_block_player(block_return);
-                        }
                         if engine.state.enemies[tidx].entity.is_dead() {
                             enemy_killed = true;
                             break;
@@ -430,13 +412,9 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
                         false, // flight
                         enemy_intangible,
                     );
-                    let block_return = engine.state.enemies[enemy_idx].entity.status(sid::BLOCK_RETURN);
                     for _ in 0..hits {
                         let hp_dmg = engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
                         total_unblocked_damage += hp_dmg;
-                        if block_return > 0 && hp_dmg > 0 {
-                            engine.gain_block_player(block_return);
-                        }
                         if engine.state.enemies[enemy_idx].entity.is_dead() {
                             enemy_killed = true;
                             break;

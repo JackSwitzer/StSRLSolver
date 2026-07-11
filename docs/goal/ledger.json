@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T01:19:26.304424+00:00",
+ "updated": "2026-07-11T01:26:07.766661+00:00",
  "status_counts": {
-  "unverified": 603,
-  "verified": 64
+  "unverified": 600,
+  "verified": 67
  },
  "rows": [
   {
@@ -3152,8 +3152,8 @@
    "class": "Strike_Purple",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Strike_Purple.java",
    "methods_ref": "reference/extracted/methods/card/Strike_Purple.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -3262,8 +3262,8 @@
    "class": "TalkToTheHand",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/TalkToTheHand.java",
    "methods_ref": "reference/extracted/methods/card/TalkToTheHand.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -3272,8 +3272,8 @@
    "class": "Tantrum",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Tantrum.java",
    "methods_ref": "reference/extracted/methods/card/Tantrum.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

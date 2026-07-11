@@ -23,6 +23,10 @@ use crate::cards::prelude::*;
 mod test_card_runtime_defect_wave6;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+    // Watcher ground truth: Strike_Purple.java uses cost 1, base damage 6,
+    // upgradeDamage(3), and an ordinary single-target DamageAction. The
+    // runtime intentionally shares this identical behavior under Strike.
+    // decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Strike_Purple.java
     // Watcher ground truth: Defend_Watcher.java uses cost 1, base block 5,
     // and upgradeBlock(3). The runtime intentionally shares this identical
     // behavior under the unified Defend/Defend+ starter definitions.

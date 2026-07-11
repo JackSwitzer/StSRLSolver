@@ -1,6 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/TalkToTheHand.java
+    // Damage resolves before the stacking BlockReturnPower debuff is applied.
     insert(cards, CardDef {
                 id: "TalkToTheHand", name: "Talk to the Hand", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 5, base_block: -1,

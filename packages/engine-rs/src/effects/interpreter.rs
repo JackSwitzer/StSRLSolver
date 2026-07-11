@@ -160,11 +160,7 @@ fn execute_scaled_attack_damage(
                     false,
                     enemy_intangible,
                 );
-                let block_return = engine.state.enemies[tidx].entity.status(sid::BLOCK_RETURN);
-                let hp_dmg = engine.deal_player_attack_hit_to_enemy(tidx, dmg);
-                if block_return > 0 && hp_dmg > 0 {
-                    engine.gain_block_player(block_return);
-                }
+                engine.deal_player_attack_hit_to_enemy(tidx, dmg);
             }
         }
         Target::AllEnemies => {
@@ -187,11 +183,7 @@ fn execute_scaled_attack_damage(
                     false,
                     enemy_intangible,
                 );
-                let block_return = engine.state.enemies[enemy_idx].entity.status(sid::BLOCK_RETURN);
-                let hp_dmg = engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
-                if block_return > 0 && hp_dmg > 0 {
-                    engine.gain_block_player(block_return);
-                }
+                engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
             }
         }
         Target::RandomEnemy => {
@@ -221,11 +213,7 @@ fn execute_scaled_attack_damage(
                     false,
                     enemy_intangible,
                 );
-                let block_return = engine.state.enemies[enemy_idx].entity.status(sid::BLOCK_RETURN);
-                let hp_dmg = engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
-                if block_return > 0 && hp_dmg > 0 {
-                    engine.gain_block_player(block_return);
-                }
+                engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
             }
         }
         Target::Player | Target::SelfEntity => {

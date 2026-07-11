@@ -2324,8 +2324,20 @@ impl CombatEngine {
             // purgeOnUse copies disappear after their effects. Power cards are
             // consumed by the normal power-play path regardless of exhaust.
         } else if post_play_dest == crate::effects::types::PostPlayDestination::ShuffleIntoDraw {
-            self.state.draw_pile.push(card_inst);
-            self.shuffle_draw_pile();
+            // Tantrum's UseCardAction calls hand.moveToDeck(card, true), which
+            // delegates to CardGroup.addToRandomSpot and cardRandomRng. It does
+            // not shuffle the existing draw pile.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
+            if self.state.draw_pile.is_empty() {
+                self.state.draw_pile.push(card_inst);
+            } else {
+                let idx = self
+                    .card_random_rng
+                    .random_range(0, (self.state.draw_pile.len() - 1) as i32)
+                    as usize;
+                self.state.draw_pile.insert(idx, card_inst);
+            }
         } else if card.exhaust
             || card_inst.flags & CardInstance::FLAG_EXHAUST_ON_USE != 0
             || (card.card_type == CardType::Skill && self.state.player.status(sid::CORRUPTION) > 0)
@@ -2855,6 +2867,14 @@ impl CombatEngine {
             return 0;
         }
 
+        // BlockReturnPower.onAttacked runs after block is decremented but does
+        // not require positive HP damage; every ordinary player attack hit
+        // queues its block, including a fully blocked or zero-damage hit.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/AbstractMonster.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/BlockReturnPower.java
+        let block_return = self.state.enemies[enemy_idx]
+            .entity
+            .status(sid::BLOCK_RETURN);
         let enemy_block_before = self.state.enemies[enemy_idx].entity.block;
         let mut hit_damage = damage;
         // D26 parity fix: Boot bumps RAW damage to 5 when raw < 5 (pre-block).
@@ -2874,6 +2894,10 @@ impl CombatEngine {
         let hp_before = self.state.enemies[enemy_idx].entity.hp;
 
         self.deal_damage_to_enemy(enemy_idx, hit_damage);
+
+        if block_return > 0 {
+            self.gain_block_player(block_return);
+        }
 
         let hp_damage = (hp_before - self.state.enemies[enemy_idx].entity.hp).max(0);
         if hp_damage > 0 {

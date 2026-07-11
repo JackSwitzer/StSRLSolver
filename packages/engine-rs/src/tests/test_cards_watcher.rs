@@ -118,6 +118,19 @@ mod watcher_card_java_parity_tests {
         plus = ("Strike+", "Strike+", 1, 9, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, []),
         {}
     );
+    // Source-derived (verify card/Strike_P): the non-debug Watcher Strike is a
+    // one-cost, six-damage single-target attack and upgradeDamage(3) makes nine.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Strike_Purple.java
+    #[test]
+    fn strike_p_source_uses_six_damage_and_plus_three_upgrade() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.hand = make_deck(&["Strike", "Strike+"]);
+        engine.state.energy = 2;
+        assert!(play_on_enemy(&mut engine, "Strike", 0));
+        assert_eq!(engine.state.enemies[0].entity.hp, 44);
+        assert!(play_on_enemy(&mut engine, "Strike+", 0));
+        assert_eq!(engine.state.enemies[0].entity.hp, 35);
+    }
     watcher_test!(
         defend_p_java_parity,
         base = ("Defend", "Defend", 1, -1, 5, -1, CardType::Skill, CardTarget::SelfTarget, false, None, []),
@@ -652,6 +665,35 @@ mod watcher_card_java_parity_tests {
             assert!(engine.state.draw_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Tantrum"));
         }
     );
+    // Source-derived (verify card/Tantrum): three (four upgraded) three-damage
+    // actions resolve before Wrath. UseCardAction then moveToDeck(..., true)
+    // inserts Tantrum with one cardRandomRng tick without shuffling existing cards.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Tantrum.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
+    #[test]
+    fn tantrum_source_randomly_inserts_without_shuffling_after_pre_wrath_hits() {
+        let mut engine = one_enemy_engine("JawWorm", 100, 0);
+        engine.state.draw_pile = make_deck(&["Strike", "Defend", "Worship"]);
+        engine.state.hand = make_deck(&["Tantrum+"]);
+        let card_random_before = engine.card_random_rng.counter;
+        let shuffle_before = engine.rng.counter;
+        assert!(play_on_enemy(&mut engine, "Tantrum+", 0));
+        assert_eq!(engine.state.enemies[0].entity.hp, 88);
+        assert_eq!(engine.state.stance, Stance::Wrath);
+        assert_eq!(engine.card_random_rng.counter, card_random_before + 1);
+        assert_eq!(engine.rng.counter, shuffle_before);
+        let existing: Vec<_> = engine
+            .state
+            .draw_pile
+            .iter()
+            .filter_map(|card| {
+                let name = engine.card_registry.card_name(card.def_id);
+                (name != "Tantrum+").then_some(name)
+            })
+            .collect();
+        assert_eq!(existing, vec!["Strike", "Defend", "Worship"]);
+    }
     watcher_test!(
         consecrate_java_parity,
         base = ("Consecrate", "Consecrate", 0, 5, -1, -1, CardType::Attack, CardTarget::AllEnemy, false, None, []),
@@ -1581,6 +1623,25 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.player.block, 2); // BlockReturn=2 triggered by Strike hit
         }
     );
+    // Source-derived (verify card/TalkToTheHand): BlockReturnPower is applied
+    // after the card's damage, stacks by amount, and onAttacked queues block for
+    // every ordinary attack even if decrementBlock reduced damage to zero.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/TalkToTheHand.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/BlockReturnPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/AbstractMonster.java
+    #[test]
+    fn talk_to_the_hand_source_triggers_on_a_fully_blocked_attack() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.enemies[0].entity.block = 50;
+        engine.state.hand = make_deck(&["TalkToTheHand+", "Strike"]);
+        engine.state.energy = 2;
+        assert!(play_on_enemy(&mut engine, "TalkToTheHand+", 0));
+        assert_eq!(engine.state.enemies[0].entity.status(sid::BLOCK_RETURN), 3);
+        assert_eq!(engine.state.player.block, 0);
+        assert!(play_on_enemy(&mut engine, "Strike", 0));
+        assert_eq!(engine.state.enemies[0].entity.hp, 50);
+        assert_eq!(engine.state.player.block, 3);
+    }
     watcher_test!(
         vault_java_parity,
         base = ("Vault", "Vault", 3, -1, -1, -1, CardType::Skill, CardTarget::None, true, None, ["skip_enemy_turn", "end_turn"]),
