@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T19:35:53.108177+00:00",
+ "updated": "2026-07-11T19:37:47.939494+00:00",
  "status_counts": {
-  "unverified": 420,
-  "verified": 247
+  "unverified": 419,
+  "verified": 248
  },
  "rows": [
   {
@@ -6672,8 +6672,8 @@
    "class": "Duality",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Duality.java",
    "methods_ref": "reference/extracted/methods/relic/Duality.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   }
  ]

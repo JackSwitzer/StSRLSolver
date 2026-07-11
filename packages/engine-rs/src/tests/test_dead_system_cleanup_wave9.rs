@@ -159,4 +159,7 @@ fn dead_cleanup_wave9_runtime_card_play_families_match_canonical_runtime() {
     yang.state.hand = make_deck_n("Defend", 1);
     assert!(play_self(&mut yang, "Defend"));
     assert_eq!(yang.state.player.dexterity(), 1);
+    crate::tests::support::end_turn(&mut yang);
+    assert_eq!(yang.state.player.dexterity(), 0);
+    assert_eq!(yang.state.player.status(sid::LOSE_DEXTERITY), 0);
 }

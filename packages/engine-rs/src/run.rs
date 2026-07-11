@@ -3633,6 +3633,7 @@ impl RunEngine {
             "Shuriken",
             "Sundial",
             "Toxic Egg 2",
+            "Yang",
         ];
         const RARE: &[&str] = &[
             "Bird Faced Urn",
@@ -4010,6 +4011,8 @@ impl RunEngine {
             "Shuriken",
             // Sundial.java uses canonical ID "Sundial" and UNCOMMON tier.
             "Sundial",
+            // Duality.java declares canonical ID "Yang" and UNCOMMON tier.
+            "Yang",
             // PenNib.java uses canonical ID "Pen Nib" and COMMON tier.
             "Pen Nib",
             // Pear.java uses canonical ID "Pear" and UNCOMMON tier.
