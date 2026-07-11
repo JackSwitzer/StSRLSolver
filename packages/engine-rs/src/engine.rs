@@ -290,6 +290,17 @@ impl CombatEngine {
         self.effect_runtime.hidden_value(def_id, owner, slot)
     }
 
+    pub(crate) fn set_hidden_effect_value(
+        &mut self,
+        def_id: &str,
+        owner: crate::effects::runtime::EffectOwner,
+        slot: usize,
+        value: i32,
+    ) -> bool {
+        self.effect_runtime
+            .set_hidden_value(def_id, owner, slot, value)
+    }
+
     // =======================================================================
     // Core API
     // =======================================================================
@@ -301,6 +312,18 @@ impl CombatEngine {
         }
 
         self.rebuild_effect_runtime();
+
+        // Source: reference/extracted/methods/relic/PenNib.java
+        // Pen Nib's relic counter persists between combats; counter 9 applies
+        // its double-damage power at the next battle start.
+        if let Some(slot) = self.state.relics.iter().position(|id| id == "Pen Nib") {
+            let counter = self.hidden_effect_value(
+                "Pen Nib",
+                crate::effects::runtime::EffectOwner::PlayerRelic { slot: slot as u16 },
+                0,
+            );
+            self.state.player.set_status(sid::PEN_NIB_COUNTER, counter);
+        }
 
         // Source: extracted FungiBeast/LouseNormal/LouseDefensive methods and
         // methods/base/AbstractMonster.java (`init` -> `rollMove`). These

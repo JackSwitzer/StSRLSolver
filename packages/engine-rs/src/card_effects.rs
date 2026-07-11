@@ -11,18 +11,24 @@ use crate::effects::types::DamageModifier;
 use crate::status_ids::sid;
 
 fn consume_pen_nib_for_attack(engine: &mut CombatEngine) -> bool {
-    if !engine.state.has_relic("Pen Nib") {
+    let Some(relic_slot) = engine.state.relics.iter().position(|id| id == "Pen Nib") else {
         return false;
-    }
-
-    let counter = engine.state.player.status(sid::PEN_NIB_COUNTER);
+    };
+    let owner = crate::effects::runtime::EffectOwner::PlayerRelic {
+        slot: relic_slot as u16,
+    };
+    // Source: reference/extracted/methods/relic/PenNib.java
+    // AbstractRelic.counter persists across fights. Counter 9 means the next
+    // ATTACK has PenNibPower; playing it resets the relic counter to zero.
+    let counter = engine
+        .hidden_effect_value("Pen Nib", owner, 0)
+        .max(engine.state.player.status(sid::PEN_NIB_COUNTER));
+    let next = if counter >= 9 { 0 } else { counter + 1 };
+    let _ = engine.set_hidden_effect_value("Pen Nib", owner, 0, next);
+    engine.state.player.set_status(sid::PEN_NIB_COUNTER, next);
     if counter >= 9 {
-        engine.state.player.set_status(sid::PEN_NIB_COUNTER, 0);
         true
     } else {
-        engine.state
-            .player
-            .set_status(sid::PEN_NIB_COUNTER, counter + 1);
         false
     }
 }

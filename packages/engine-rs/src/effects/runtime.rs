@@ -1832,7 +1832,9 @@ fn seed_hidden_relic_state(
 
 fn default_persistence_for(def_id: &str) -> PersistenceScope {
     match def_id {
-        "Nunchaku" | "InkBottle" | "Happy Flower" | "Incense Burner" | "Sundial" => PersistenceScope::Run,
+        // PenNib.java stores progress in AbstractRelic.counter, including the
+        // armed value 9 that atBattleStart turns into PenNibPower.
+        "Pen Nib" | "Nunchaku" | "InkBottle" | "Happy Flower" | "Incense Burner" | "Sundial" => PersistenceScope::Run,
         _ => PersistenceScope::Combat,
     }
 }

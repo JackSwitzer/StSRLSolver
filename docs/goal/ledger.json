@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T09:42:31.391426+00:00",
+ "updated": "2026-07-11T09:45:36.666396+00:00",
  "status_counts": {
-  "unverified": 460,
-  "verified": 207
+  "unverified": 459,
+  "verified": 208
  },
  "rows": [
   {
@@ -5982,8 +5982,8 @@
    "class": "PenNib",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/PenNib.java",
    "methods_ref": "reference/extracted/methods/relic/PenNib.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

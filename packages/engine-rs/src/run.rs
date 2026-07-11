@@ -3679,6 +3679,8 @@ impl RunEngine {
             // OrnamentalFan.java uses canonical ID "Ornamental Fan" and
             // UNCOMMON tier.
             "Ornamental Fan",
+            // PenNib.java uses canonical ID "Pen Nib" and COMMON tier.
+            "Pen Nib",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
