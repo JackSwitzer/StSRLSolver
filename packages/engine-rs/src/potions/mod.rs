@@ -516,8 +516,7 @@ pub(crate) fn apply_potion_scaled(
             true
         }
         "SkillPotion" => {
-            let registry = crate::cards::global_registry();
-            if state.hand.len() < 10 { state.hand.push(registry.make_card("Defend")); }
+            // Production opens DiscoveryAction's interactive random choice.
             true
         }
         "PowerPotion" => {

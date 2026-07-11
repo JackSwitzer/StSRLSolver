@@ -2900,6 +2900,7 @@ impl RunEngine {
             "SpeedPotion",
             "SteroidPotion",
             "PowerPotion",
+            "SkillPotion",
         ];
 
         let registry = gameplay_registry();
