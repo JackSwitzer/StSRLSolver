@@ -691,6 +691,9 @@ pub struct RunEngine {
 
 impl RunEngine {
     fn compute_shop_remove_price(&self) -> i32 {
+        // ShopScreen.java assigns Smiling Mask's flat cost after all other
+        // purge-price discounts, so it always wins.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/shop/ShopScreen.java
         if self.run_state.relic_flags.has(crate::relic_flags::flag::SMILING_MASK) {
             return 50;
         }
@@ -3403,6 +3406,7 @@ impl RunEngine {
             .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
             .filter(|id| *id != "Ancient Tea Set" || self.run_state.floor <= 48)
             .filter(|id| *id != "Old Coin" || self.run_state.floor <= 48)
+            .filter(|id| *id != "Smiling Mask" || self.run_state.floor <= 48)
             .filter(|id| *id != "Bottled Flame" || self.can_spawn_bottled_flame())
             .filter(|id| *id != "Bottled Lightning" || self.can_spawn_bottled_lightning())
             .filter(|id| *id != "Bottled Tornado" || self.can_spawn_bottled_tornado())
@@ -3427,6 +3431,7 @@ impl RunEngine {
             "Blood Vial",
             "Boot",
             "Bronze Scales",
+            "Smiling Mask",
             // Vajra.java uses canonical ID "Vajra" and COMMON tier.
             "Vajra",
         ];
@@ -3645,6 +3650,14 @@ impl RunEngine {
     }
 
     fn roll_reward_relic_id(&mut self) -> String {
+        self.roll_reward_relic_id_with_shop_exclusions(false)
+    }
+
+    fn roll_shop_reward_relic_id(&mut self) -> String {
+        self.roll_reward_relic_id_with_shop_exclusions(true)
+    }
+
+    fn roll_reward_relic_id_with_shop_exclusions(&mut self, in_shop: bool) -> String {
         const RELIC_REWARD_POOL: &[&str] = &[
             // RelicLibrary.java registers Ancient Tea Set at COMMON tier;
             // AncientTeaSet.java::canSpawn excludes floors after 48.
@@ -3720,6 +3733,9 @@ impl RunEngine {
             // OldCoin.java uses canonical ID "Old Coin", RARE tier, and
             // canSpawn excludes non-endless runs after floor 48.
             "Old Coin",
+            // SmilingMask.java uses canonical ID "Smiling Mask", COMMON tier,
+            // and canSpawn excludes non-endless runs after floor 48.
+            "Smiling Mask",
             // Matryoshka.java uses canonical ID "Matryoshka", UNCOMMON tier,
             // and canSpawn excludes non-endless runs after floor 40.
             "Matryoshka",
@@ -3803,6 +3819,10 @@ impl RunEngine {
             .filter(|relic| *relic != "MealTicket" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Meat on the Bone" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Old Coin" || self.run_state.floor <= 48)
+            .filter(|relic| *relic != "Smiling Mask" || self.run_state.floor <= 48)
+            .filter(|relic| {
+                !in_shop || !matches!(*relic, "Old Coin" | "Smiling Mask")
+            })
             .filter(|relic| *relic != "Juzu Bracelet" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Question Card" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Prayer Wheel" || self.run_state.floor <= 48)
@@ -3835,6 +3855,10 @@ impl RunEngine {
                     .filter(|relic| *relic != "MealTicket" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Meat on the Bone" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Old Coin" || self.run_state.floor <= 48)
+                    .filter(|relic| *relic != "Smiling Mask" || self.run_state.floor <= 48)
+                    .filter(|relic| {
+                        !in_shop || !matches!(*relic, "Old Coin" | "Smiling Mask")
+                    })
                     .filter(|relic| *relic != "Juzu Bracelet" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Question Card" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Prayer Wheel" || self.run_state.floor <= 48)
@@ -4201,7 +4225,7 @@ impl RunEngine {
         // the visible slot semantics and purchase path match Java.
         let mut relics = Vec::new();
         for _ in 0..2 {
-            let relic = self.roll_reward_relic_id();
+            let relic = self.roll_shop_reward_relic_id();
             let price = self.rng.gen_range(143..=158);
             let final_price = if self
                 .run_state

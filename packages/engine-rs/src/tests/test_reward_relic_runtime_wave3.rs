@@ -894,6 +894,14 @@ fn old_coin_is_rare_reachable_through_floor_forty_eight_only() {
             screen.items.iter().all(|item| item.label != "Old Coin")
         }));
     }
+
+    for seed in 0..256 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_enter_shop();
+        assert!(engine.get_shop().is_some_and(|shop| {
+            shop.relics.iter().all(|(relic, _)| relic != "Old Coin")
+        }));
+    }
 }
 
 #[test]
@@ -925,6 +933,65 @@ fn old_coin_on_equip_gains_exactly_three_hundred_gold_unless_ectoplasm_blocks_it
         .step_with_result(&RunAction::SelectRewardItem(0))
         .action_accepted);
     assert_eq!(blocked.run_state.gold, 123);
+}
+
+#[test]
+fn smiling_mask_is_common_reachable_through_floor_forty_eight_but_not_in_shops() {
+    // SmilingMask.java constructs a COMMON relic; canSpawn permits non-endless
+    // runs through floor 48 and explicitly excludes ShopRoom.
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 48;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Smiling Mask"
+            })
+        })
+    });
+    assert!(offered);
+
+    for seed in 0..256 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 49;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Smiling Mask")
+        }));
+
+        engine.debug_enter_shop();
+        assert!(engine.get_shop().is_some_and(|shop| {
+            shop.relics
+                .iter()
+                .all(|(relic, _)| relic != "Smiling Mask")
+        }));
+    }
+}
+
+#[test]
+fn smiling_mask_keeps_card_removal_at_fifty_after_other_discounts_and_ramp() {
+    // ShopScreen.java applies Courier and Membership Card first, then assigns
+    // Smiling Mask's actualPurgeCost = 50; purgeCard restores 50 after ramping.
+    let mut engine = RunEngine::new(53, 0);
+    engine.run_state.gold = 999;
+    engine.run_state.purge_cost = 125;
+    engine.run_state.relics.extend([
+        "The Courier".to_string(),
+        "Membership Card".to_string(),
+        "Smiling Mask".to_string(),
+    ]);
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
+    engine.debug_enter_shop();
+
+    assert_eq!(engine.get_shop().expect("shop").remove_price, 50);
+    assert!(engine
+        .step_with_result(&RunAction::ShopRemoveCard(0))
+        .action_accepted);
+    assert_eq!(engine.run_state.purge_cost, 150);
+    assert_eq!(engine.get_shop().expect("shop").remove_price, 50);
 }
 
 #[test]
