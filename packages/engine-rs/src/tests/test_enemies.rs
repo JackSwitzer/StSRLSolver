@@ -418,6 +418,40 @@ mod enemy_tests {
         assert_eq!(e.effect(mfx::SLIMED).unwrap(), 2);
     }
 
+    #[test] fn acid_l_initial_windows_and_a17_thresholds_match_java() {
+        // Source: reference/extracted/methods/monster/AcidSlime_L.java.
+        for (num, move_id) in [(29, AS_CORROSIVE_SPIT), (30, AS_TACKLE), (70, AS_LICK)] {
+            let mut e = create_enemy("AcidSlime_L", 65, 65);
+            roll_initial_move_with_num_and_rng(
+                &mut e, num, &mut crate::seed::StsRandom::new(1));
+            assert_eq!(e.move_id, move_id);
+        }
+        for (num, move_id) in [(39, AS_CORROSIVE_SPIT), (40, AS_TACKLE), (70, AS_LICK)] {
+            let mut e = create_enemy("AcidSlime_L", 65, 65);
+            e.entity.set_status(sid::BLOCK_AMT, 17);
+            roll_initial_move_with_num_and_rng(
+                &mut e, num, &mut crate::seed::StsRandom::new(1));
+            assert_eq!(e.move_id, move_id);
+        }
+    }
+
+    #[test] fn acid_l_a17_repeated_wound_uses_point_six_draw() {
+        let seed_for = |expected: bool| (1..10_000).find(|&seed| {
+            let mut rng = crate::seed::StsRandom::new(seed);
+            (rng.random_float() < 0.6) == expected
+        }).unwrap();
+        for (value, expected) in [(true, AS_TACKLE), (false, AS_LICK)] {
+            let mut e = create_enemy("AcidSlime_L", 65, 65);
+            e.entity.set_status(sid::BLOCK_AMT, 17);
+            e.move_history.push(AS_CORROSIVE_SPIT);
+            e.set_move(AS_CORROSIVE_SPIT, 11, 1, 0);
+            let mut rng = crate::seed::StsRandom::new(seed_for(value));
+            roll_next_move_with_num_and_rng(&mut e, 0, &mut rng);
+            assert_eq!(e.move_id, expected);
+            assert_eq!(rng.counter, 1);
+        }
+    }
+
     // ========== Spike Slime S ==========
 
     #[test] fn spike_s_tackle_only() {

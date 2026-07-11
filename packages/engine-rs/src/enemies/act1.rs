@@ -252,16 +252,50 @@ pub(super) fn roll_acid_slime_m(
     }
 }
 
-pub(super) fn roll_acid_slime_l(enemy: &mut EnemyCombatState, _num: i32) {
-    // Cycle: Tackle -> Spit -> Lick -> Tackle -> ...
-    if last_move(enemy, move_ids::AS_TACKLE) {
-        enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 11, 1, 0);
+pub(super) fn roll_acid_slime_l(
+    enemy: &mut EnemyCombatState,
+    num: i32,
+    ai_rng: &mut StsRandom,
+) {
+    // Source: reference/extracted/methods/monster/AcidSlime_L.java (`getMove`).
+    let wound_damage = enemy.entity.status(sid::STARTING_DMG).max(11);
+    let normal_damage = enemy.entity.status(sid::STR_AMT).max(16);
+    let a17 = enemy.entity.status(sid::BLOCK_AMT) >= 17;
+    let wound = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::AS_CORROSIVE_SPIT, wound_damage, 1, 0);
         enemy.add_effect(mfx::SLIMED, 2);
-    } else if last_move(enemy, move_ids::AS_CORROSIVE_SPIT) {
+    };
+    let normal = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::AS_TACKLE, normal_damage, 1, 0);
+    };
+    let lick = |enemy: &mut EnemyCombatState| {
         enemy.set_move(move_ids::AS_LICK, 0, 0, 0);
         enemy.add_effect(mfx::WEAK, 2);
+    };
+    if a17 {
+        if num < 40 {
+            if last_two_moves(enemy, move_ids::AS_CORROSIVE_SPIT) {
+                if ai_rng.random_float() < 0.6 { normal(enemy); } else { lick(enemy); }
+            } else { wound(enemy); }
+        } else if num < 70 {
+            if last_two_moves(enemy, move_ids::AS_TACKLE) {
+                if ai_rng.random_float() < 0.6 { wound(enemy); } else { lick(enemy); }
+            } else { normal(enemy); }
+        } else if last_move(enemy, move_ids::AS_LICK) {
+            if ai_rng.random_float() < 0.4 { wound(enemy); } else { normal(enemy); }
+        } else { lick(enemy); }
+    } else if num < 30 {
+        if last_two_moves(enemy, move_ids::AS_CORROSIVE_SPIT) {
+            if ai_rng.random_boolean() { normal(enemy); } else { lick(enemy); }
+        } else { wound(enemy); }
+    } else if num < 70 {
+        if last_move(enemy, move_ids::AS_TACKLE) {
+            if ai_rng.random_float() < 0.4 { wound(enemy); } else { lick(enemy); }
+        } else { normal(enemy); }
+    } else if last_two_moves(enemy, move_ids::AS_LICK) {
+        if ai_rng.random_float() < 0.4 { wound(enemy); } else { normal(enemy); }
     } else {
-        enemy.set_move(move_ids::AS_TACKLE, 16, 1, 0);
+        lick(enemy);
     }
 }
 

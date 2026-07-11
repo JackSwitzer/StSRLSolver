@@ -282,21 +282,13 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::AS_LICK, 0, 0, 0, &[(mfx::WEAK, 1)]);
 
         let mut e = make("AcidSlime_L", 65);
-        expect_one_of(&e, &[move_ids::AS_CORROSIVE_SPIT, move_ids::AS_TACKLE, move_ids::AS_LICK]);
-
-        e.move_id = move_ids::AS_TACKLE;
-        e.move_history = vec![move_ids::AS_TACKLE, move_ids::AS_TACKLE];
-        roll_times(&mut e, 1);
-        assert_ne!(e.move_id, move_ids::AS_TACKLE, "AcidSlime_L should not use Normal Tackle three times in a row");
-
-        e.move_id = move_ids::AS_CORROSIVE_SPIT;
-        e.move_history = vec![move_ids::AS_CORROSIVE_SPIT, move_ids::AS_CORROSIVE_SPIT];
-        roll_times(&mut e, 1);
-        assert_ne!(
-            e.move_id,
-            move_ids::AS_CORROSIVE_SPIT,
-            "AcidSlime_L should not use Corrosive Spit three times in a row"
-        );
+        roll_initial_move_with_num_and_rng(
+            &mut e, 0, &mut crate::seed::StsRandom::new(1));
+        expect_move(&e, move_ids::AS_CORROSIVE_SPIT, 11, 1, 0, &[(mfx::SLIMED, 2)]);
+        roll_with_num(&mut e, 40);
+        expect_move(&e, move_ids::AS_TACKLE, 16, 1, 0, &[]);
+        roll_with_num(&mut e, 70);
+        expect_move(&e, move_ids::AS_LICK, 0, 0, 0, &[(mfx::WEAK, 2)]);
 
         let mut e = make("SpikeSlime_M", 28);
         roll_times(&mut e, 1);

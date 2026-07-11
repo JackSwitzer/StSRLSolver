@@ -482,6 +482,9 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         }
     }
 
+    let acid_large_split = engine.state.enemies[enemy_idx].id == "AcidSlime_L"
+        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::AS_SPLIT;
+
     // Spawn minions for boss spawn moves
     {
         use crate::enemies::move_ids;
@@ -514,8 +517,28 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 thief.is_minion = true;
                 engine.state.enemies.push(thief);
             }
+            ("AcidSlime_L", x) if x == move_ids::AS_SPLIT => {
+                // AcidSlime_L.takeTurn spawns two AcidSlime_M at current HP.
+                let hp = engine.state.enemies[enemy_idx].entity.hp;
+                let upgraded = engine.state.enemies[enemy_idx]
+                    .entity.status(sid::STARTING_DMG) >= 12;
+                let a17 = engine.state.enemies[enemy_idx].entity.status(sid::BLOCK_AMT) >= 17;
+                engine.state.enemies[enemy_idx].entity.hp = 0;
+                for _ in 0..2 {
+                    let mut child = enemies::create_enemy("AcidSlime_M", hp, hp);
+                    child.entity.set_status(sid::STARTING_DMG, if upgraded { 8 } else { 7 });
+                    child.entity.set_status(sid::STR_AMT, if upgraded { 12 } else { 10 });
+                    child.entity.set_status(sid::BLOCK_AMT, if a17 { 17 } else { 0 });
+                    enemies::roll_initial_move(&mut child, &mut engine.ai_rng);
+                    engine.state.enemies.push(child);
+                }
+            }
             _ => {}
         }
+    }
+
+    if acid_large_split {
+        return;
     }
 
     // AcidSlime_S.java sets its opposite move directly in takeTurn and does not
@@ -554,6 +577,20 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
         "SlimeBoss" => {
             if enemies::slime_boss_should_split(&engine.state.enemies[enemy_idx]) {
                 do_slime_boss_split(engine, enemy_idx);
+            }
+        }
+        "AcidSlime_L" => {
+            let enemy = &mut engine.state.enemies[enemy_idx];
+            if enemy.entity.hp > 0
+                && enemy.entity.hp * 2 <= enemy.entity.max_hp
+                && enemy.move_id != enemies::move_ids::AS_SPLIT
+                && enemy.entity.status(sid::THRESHOLD_REACHED) == 0
+            {
+                // AcidSlime_L.damage interrupts the current intent immediately.
+                enemy.entity.set_status(sid::THRESHOLD_REACHED, 1);
+                enemy.move_history.push(enemies::move_ids::AS_SPLIT);
+                enemy.set_move(enemies::move_ids::AS_SPLIT, 0, 0, 0);
+                enemy.move_effects.clear();
             }
         }
         "AwakenedOne" | "Awakened One" => {

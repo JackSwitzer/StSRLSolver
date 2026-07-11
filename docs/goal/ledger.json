@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T02:21:53.870386+00:00",
+ "updated": "2026-07-11T02:26:44.516042+00:00",
  "status_counts": {
-  "unverified": 579,
-  "verified": 88
+  "unverified": 578,
+  "verified": 89
  },
  "rows": [
   {
@@ -3712,8 +3712,8 @@
    "class": "AcidSlime_L",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/exordium/AcidSlime_L.java",
    "methods_ref": "reference/extracted/methods/monster/AcidSlime_L.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
