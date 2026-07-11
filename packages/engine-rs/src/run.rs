@@ -3646,6 +3646,7 @@ impl RunEngine {
             "Shovel",
             "Torii",
             "Turnip",
+            "Unceasing Top",
             // ThreadAndNeedle.java constructs a RARE relic.
             "Thread and Needle",
             "Tough Bandages",
@@ -3952,6 +3953,8 @@ impl RunEngine {
             "Torii",
             // Turnip.java uses canonical ID "Turnip" and RARE tier.
             "Turnip",
+            // UnceasingTop.java uses canonical ID "Unceasing Top" and RARE tier.
+            "Unceasing Top",
             // TungstenRod.java uses canonical ID "TungstenRod" and RARE tier.
             "TungstenRod",
             // Matryoshka.java uses canonical ID "Matryoshka", UNCOMMON tier,

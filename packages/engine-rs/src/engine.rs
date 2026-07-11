@@ -2451,8 +2451,12 @@ impl CombatEngine {
             return;
         }
 
-        while (self.state.has_relic("Unceasing Top") || self.state.has_relic("UnceasingTop"))
+        // UnceasingTop.java::onRefreshHand queues one draw only when drawing is
+        // allowed; in particular, No Draw suppresses the trigger entirely.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/UnceasingTop.java
+        if (self.state.has_relic("Unceasing Top") || self.state.has_relic("UnceasingTop"))
             && self.state.hand.is_empty()
+            && self.state.player.status(sid::NO_DRAW) <= 0
             && (!self.state.draw_pile.is_empty() || !self.state.discard_pile.is_empty())
         {
             self.draw_cards(1);

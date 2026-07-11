@@ -257,3 +257,26 @@ fn strange_spoon_uses_one_boolean_roll_and_sends_saved_exhaust_to_discard() {
     assert!(saw_discard, "sampled seeds must exercise the Spoon save");
     assert!(saw_exhaust, "sampled seeds must exercise normal exhaustion");
 }
+
+#[test]
+// Java oracle:
+// decompiled/java-src/com/megacrit/cardcrawl/relics/UnceasingTop.java
+fn unceasing_top_does_not_draw_or_retry_while_no_draw_is_active() {
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    engine.state.relics.push("Unceasing Top".to_string());
+    engine.state.player.set_status(sid::NO_DRAW, 1);
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Defend"]);
+    engine.state.draw_pile = make_deck_n("Strike", 3);
+    engine.state.discard_pile.clear();
+
+    assert!(play_self(&mut engine, "Defend"));
+
+    assert!(engine.state.hand.is_empty());
+    assert_eq!(engine.state.draw_pile.len(), 3);
+    assert_eq!(engine.state.discard_pile.len(), 1);
+}
