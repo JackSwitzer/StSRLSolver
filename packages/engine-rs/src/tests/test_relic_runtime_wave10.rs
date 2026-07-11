@@ -125,6 +125,39 @@ fn relic_wave10_turn_end_runtime_relics_match_java_timing() {
 }
 
 #[test]
+fn cloak_clasp_counts_the_current_hand_before_discard() {
+    // Source: reference/extracted/methods/relic/CloakClasp.java
+    // (`onPlayerEndTurn` gains exactly hand.group.size() Block when nonempty).
+    let mut four_state = combat_state_with(
+        make_deck_n("Defend", 5),
+        vec![enemy("JawWorm", 60, 60, 1, 5, 1)],
+        3,
+    );
+    four_state.relics.push("CloakClasp".to_string());
+    let mut four = engine_with_state(four_state);
+    four.state.hand = make_deck_n("Defend", 4);
+    four.state.draw_pile.clear();
+    let hp_before = four.state.player.hp;
+    end_turn(&mut four);
+    assert_eq!(four.state.player.hp, hp_before - 1,
+        "four held cards grant four Block before the five-damage attack");
+
+    let mut empty_state = combat_state_with(
+        make_deck_n("Defend", 5),
+        vec![enemy("JawWorm", 60, 60, 1, 5, 1)],
+        3,
+    );
+    empty_state.relics.push("CloakClasp".to_string());
+    let mut empty = engine_with_state(empty_state);
+    empty.state.hand.clear();
+    empty.state.draw_pile.clear();
+    let hp_before = empty.state.player.hp;
+    end_turn(&mut empty);
+    assert_eq!(empty.state.player.hp, hp_before - 5,
+        "an empty hand queues no block");
+}
+
+#[test]
 fn relic_wave10_turn_progression_relics_follow_runtime_path() {
     let mut art_state = combat_state_with(
         make_deck_n("Defend", 5),
