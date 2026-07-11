@@ -20,6 +20,9 @@ pub mod act4;
 /// than the full game database, and provides a stable registry surface for the
 /// universal gameplay export.
 pub fn known_enemy_ids() -> &'static [(&'static str, &'static str)] {
+    // Sources: HexaghostBody.java implements Disposable and HexaghostOrb.java
+    // is a plain visual helper. Neither extends AbstractMonster, so neither is
+    // a targetable gameplay entity in this registry.
     &[
         ("Cultist", "Cultist"),
         ("JawWorm", "Jaw Worm"),

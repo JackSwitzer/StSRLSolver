@@ -5844,6 +5844,20 @@ mod tests {
     }
 
     #[test]
+    fn hexaghost_visual_helpers_are_not_targetable_combat_entities() {
+        // Sources: decompiled/java-src/com/megacrit/cardcrawl/monsters/
+        // exordium/HexaghostBody.java and HexaghostOrb.java. They are rendering
+        // helpers owned by Hexaghost, not AbstractMonster subclasses.
+        let mut engine = RunEngine::new(42, 0);
+        engine.enter_specific_combat(vec!["Hexaghost".to_string()]);
+        let combat = engine.combat_engine.as_ref().unwrap();
+        assert_eq!(combat.state.enemies.len(), 1);
+        assert_eq!(combat.state.enemies[0].id, "Hexaghost");
+        assert!(!crate::enemies::known_enemy_ids().iter().any(|(id, _)|
+            matches!(*id, "HexaghostBody" | "HexaghostOrb")));
+    }
+
+    #[test]
     fn slime_boss_stats_direct_cycle_delayed_split_and_child_order_match_java() {
         // Source: reference/extracted/methods/monster/SlimeBoss.java
         // (constructor, `getMove`, `takeTurn`, and `damage`).

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T03:59:10.399974+00:00",
+ "updated": "2026-07-11T04:01:33.146614+00:00",
  "status_counts": {
-  "unverified": 563,
-  "verified": 104
+  "unverified": 561,
+  "verified": 106
  },
  "rows": [
   {
@@ -4062,8 +4062,8 @@
    "class": "HexaghostBody",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/exordium/HexaghostBody.java",
    "methods_ref": "reference/extracted/methods/monster/HexaghostBody.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -4072,8 +4072,8 @@
    "class": "HexaghostOrb",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/exordium/HexaghostOrb.java",
    "methods_ref": "reference/extracted/methods/monster/HexaghostOrb.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
