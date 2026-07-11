@@ -354,6 +354,8 @@ fn default_purge_cost() -> i32 {
 
 fn adjust_run_gold_state(run_state: &mut RunState, amount: i32) {
     if amount > 0 {
+        // AbstractPlayer.java::gainGold returns immediately while Ectoplasm is
+        // owned. loseGold is a separate path, so negative adjustments remain valid.
         if run_state
             .relic_flags
             .has(crate::relic_flags::flag::ECTOPLASM)
@@ -1778,8 +1780,8 @@ impl RunEngine {
                 card.flags |= crate::combat_types::CardInstance::FLAG_INNATE;
             }
         }
-        // BustedCrown.java, CoffeeDripper.java, and CursedKey.java each
-        // increment energyMaster exactly once in onEquip.
+        // BustedCrown.java, CoffeeDripper.java, CursedKey.java, and
+        // Ectoplasm.java each increment energyMaster exactly once in onEquip.
         let combat_energy = 3
             + i32::from(
                 self.run_state
@@ -1795,6 +1797,11 @@ impl RunEngine {
                 self.run_state
                     .relic_flags
                     .has(crate::relic_flags::flag::CURSED_KEY),
+            )
+            + i32::from(
+                self.run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::ECTOPLASM),
             );
         let mut combat_state = CombatState::new(
             self.run_state.current_hp,
@@ -3599,6 +3606,7 @@ impl RunEngine {
             "Calling Bell",
             "Coffee Dripper",
             "Cursed Key",
+            "Ectoplasm",
             "Philosopher's Stone",
             "Velvet Choker",
             "Snecko Eye",
@@ -3618,7 +3626,11 @@ impl RunEngine {
             .relics
             .iter()
             .any(|owned| owned == "PureWater");
-        let can_spawn = |id: &&str| *id != "HolyWater" || has_pure_water;
+        let act = self.run_state.act;
+        let can_spawn = |id: &&str| {
+            (*id != "HolyWater" || has_pure_water)
+                && (*id != "Ectoplasm" || act <= 1)
+        };
         let mut candidates: Vec<&str> = BOSS_RELIC_POOL
             .iter()
             .copied()
@@ -7237,6 +7249,20 @@ mod tests {
         // CursedKey.java::onEquip increments energyMaster exactly once.
         let mut engine = RunEngine::new(41, 0);
         engine.run_state.relics.push("Cursed Key".to_string());
+        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+
+        engine.enter_specific_combat(vec!["JawWorm".to_string()]);
+        let combat = engine.combat_engine.as_ref().expect("combat should start");
+        assert_eq!(combat.state.max_energy, 4);
+        assert_eq!(combat.state.energy, 4);
+    }
+
+    #[test]
+    fn ectoplasm_increases_watcher_master_energy_for_combat() {
+        // Source-derived (verify relic/Ectoplasm):
+        // Ectoplasm.java::onEquip increments energyMaster exactly once.
+        let mut engine = RunEngine::new(43, 0);
+        engine.run_state.relics.push("Ectoplasm".to_string());
         engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
 
         engine.enter_specific_combat(vec!["JawWorm".to_string()]);

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T08:03:26.877746+00:00",
+ "updated": "2026-07-11T08:07:33.988482+00:00",
  "status_counts": {
-  "unverified": 493,
-  "verified": 174
+  "unverified": 492,
+  "verified": 175
  },
  "rows": [
   {
@@ -5282,8 +5282,8 @@
    "class": "Ectoplasm",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Ectoplasm.java",
    "methods_ref": "reference/extracted/methods/relic/Ectoplasm.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

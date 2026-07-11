@@ -25,6 +25,7 @@ pub mod coffee_dripper;
 pub mod cursed_key;
 pub mod darkstone_periapt;
 pub mod dream_catcher;
+pub mod ectoplasm;
 pub mod clockwork_souvenir;
 pub mod fossilized_helix;
 pub mod blood_vial;
@@ -232,6 +233,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &cursed_key::DEF,
     &darkstone_periapt::DEF,
     &dream_catcher::DEF,
+    &ectoplasm::DEF,
     &clockwork_souvenir::DEF,
     &fossilized_helix::DEF,
     &blood_vial::DEF,

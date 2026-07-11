@@ -24,6 +24,25 @@ fn single_relic_reward_screen(label: &str) -> RewardScreen {
     }
 }
 
+fn single_gold_reward_screen(amount: i32) -> RewardScreen {
+    RewardScreen {
+        source: RewardScreenSource::Event,
+        ordered: true,
+        active_item: None,
+        items: vec![RewardItem {
+            index: 0,
+            kind: RewardItemKind::Gold,
+            state: RewardItemState::Available,
+            label: amount.to_string(),
+            claimable: true,
+            active: false,
+            skip_allowed: false,
+            skip_label: None,
+            choices: Vec::new(),
+        }],
+    }
+}
+
 fn relic_choice_reward_screen(labels: &[&str]) -> RewardScreen {
     RewardScreen {
         source: RewardScreenSource::Combat,
@@ -431,6 +450,64 @@ fn dream_catcher_is_reachable_and_opens_a_card_reward_only_after_resting() {
         .action_accepted);
     assert_eq!(upgrade.current_phase(), RunPhase::MapChoice);
     assert!(upgrade.current_reward_screen().is_none());
+}
+
+#[test]
+fn ectoplasm_is_act_one_only_blocks_gold_gains_and_still_allows_spending() {
+    // Ectoplasm.java constructs a BOSS relic, increments energyMaster, and can
+    // spawn only in Act 1. AbstractPlayer.java::gainGold returns immediately
+    // with Ectoplasm, while loseGold remains unchanged.
+    let offered = (0..128).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.act = 1;
+        engine.debug_build_boss_reward_screen();
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0].choices.iter().any(|choice| {
+                matches!(choice, RewardChoice::Named { label, .. } if label == "Ectoplasm")
+            })
+        })
+    });
+    assert!(offered);
+
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.act = 2;
+        engine.debug_build_boss_reward_screen();
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0].choices.iter().all(|choice| {
+                !matches!(choice, RewardChoice::Named { label, .. } if label == "Ectoplasm")
+            })
+        }));
+    }
+
+    let mut engine = RunEngine::new(61, 0);
+    engine.debug_set_reward_screen(relic_choice_reward_screen(&["Ectoplasm"]));
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(engine
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+
+    engine.run_state.gold = 100;
+    engine.debug_set_reward_screen(single_gold_reward_screen(75));
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert_eq!(engine.run_state.gold, 100);
+
+    engine.debug_set_shop_state(ShopState {
+        cards: vec![("Strike".to_string(), 40)],
+        remove_price: 75,
+        removal_used: false,
+    });
+    assert!(engine
+        .step_with_result(&RunAction::ShopBuyCard(0))
+        .action_accepted);
+    assert_eq!(engine.run_state.gold, 60);
 }
 
 #[test]
