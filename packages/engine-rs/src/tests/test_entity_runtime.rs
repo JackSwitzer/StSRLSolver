@@ -564,7 +564,9 @@ fn boot_raises_small_unblocked_damage_on_engine_path() {
     assert!(play_on_enemy(&mut engine, "Shiv", 0));
 
     assert_eq!(engine.state.enemies[0].entity.block, 0);
-    assert_eq!(hp_before - engine.state.enemies[0].entity.hp, 3); // D26: Boot -> raw=5, 5-2 block = 3
+    // AbstractMonster.damage decrements Block before Boot.java receives
+    // damageAmount, so 4 - 2 leaves 2 and Boot raises the HP damage to 5.
+    assert_eq!(hp_before - engine.state.enemies[0].entity.hp, 5);
 }
 
 #[test]
@@ -599,7 +601,9 @@ fn sword_boomerang_uses_boot_and_hand_drill_on_custom_multi_hit_path() {
 
     assert_eq!(engine.state.enemies[0].entity.block, 0);
     assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 2);
-    assert_eq!(hp_before - engine.state.enemies[0].entity.hp, 13); // D26: Boot bumps first hit raw=5 (not post-block), later hits unchanged
+    // AbstractMonster.damage calls Boot.java after Block on every hit: the
+    // first 3-damage hit leaves 1 after Block and all three hits become 5.
+    assert_eq!(hp_before - engine.state.enemies[0].entity.hp, 15);
 }
 
 #[test]

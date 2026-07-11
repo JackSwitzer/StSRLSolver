@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T07:08:52.314906+00:00",
+ "updated": "2026-07-11T07:12:57.867222+00:00",
  "status_counts": {
-  "unverified": 507,
-  "verified": 160
+  "unverified": 506,
+  "verified": 161
  },
  "rows": [
   {
@@ -4952,8 +4952,8 @@
    "class": "Boot",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Boot.java",
    "methods_ref": "reference/extracted/methods/relic/Boot.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -2810,6 +2810,7 @@ impl CombatEngine {
         pure_matrix: bool,
     ) {
         let hp_before = self.state.enemies[enemy_idx].entity.hp;
+        let has_boot = self.state.has_relic("Boot");
         let enemy = &mut self.state.enemies[enemy_idx];
 
         // Slow: enemies with Slow take 10% more damage per card played this turn
@@ -2829,13 +2830,17 @@ impl CombatEngine {
             damage_after_slow
         };
 
-        // Invincible: cap total HP loss per turn (Heart, Donu, Deca)
-        let capped_damage =
-            powers::apply_invincible_cap_tracked(&mut enemy.entity, effective_damage);
-
-        let blocked = enemy.entity.block.min(capped_damage);
-        let hp_damage = capped_damage - blocked;
+        let blocked = enemy.entity.block.min(effective_damage);
+        let mut hp_damage = effective_damage - blocked;
         enemy.entity.block -= blocked;
+        // AbstractMonster.damage decrements Block before invoking player relic
+        // onAttackToChangeDamage hooks. Boot.java therefore raises positive
+        // post-block NORMAL damage below 5 to exactly 5.
+        if has_boot && hp_damage > 0 && hp_damage < 5 {
+            hp_damage = 5;
+        }
+        // InvinciblePower.onAttackedToChangeDamage runs after player relics.
+        hp_damage = powers::apply_invincible_cap_tracked(&mut enemy.entity, hp_damage);
         enemy.entity.hp -= hp_damage;
         self.state.total_damage_dealt += hp_damage;
 
@@ -2982,18 +2987,7 @@ impl CombatEngine {
             .entity
             .status(sid::BLOCK_RETURN);
         let enemy_block_before = self.state.enemies[enemy_idx].entity.block;
-        let mut hit_damage = damage;
-        // D26 parity fix: Boot bumps RAW damage to 5 when raw < 5 (pre-block).
-        // Pre-fix Rust checked post-block `unblocked < 5`, which both
-        // (a) fired Boot on high-damage-against-high-block (e.g. 10 vs 8
-        // block -> unblocked=2 -> Boot wrongly triggered) and
-        // (b) mis-computed post-block HP loss when Boot did fire
-        // (damage 4 vs 3 block: Java deals 2 HP, old Rust dealt 5).
-        // Java oracle: `relics/Boot.java` onAttackToChangeDamage sets
-        // `damageAmount = 5` when `damageAmount < 5` (raw input).
-        if self.state.has_relic("Boot") && damage > 0 && damage < 5 {
-            hit_damage = 5;
-        }
+        let hit_damage = damage;
         let block_broken = self.state.has_relic("HandDrill")
             && enemy_block_before > 0
             && hit_damage > enemy_block_before;

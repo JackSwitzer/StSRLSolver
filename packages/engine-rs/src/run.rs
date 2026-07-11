@@ -3031,6 +3031,8 @@ impl RunEngine {
             "Blood Vial",
             // BlueCandle.java uses this canonical ID and UNCOMMON tier.
             "Blue Candle",
+            // Boot.java uses canonical ID "Boot" and COMMON tier.
+            "Boot",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
