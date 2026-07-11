@@ -262,7 +262,8 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         false
     };
 
-    // ---- Vigor (consumed on first attack hit) ----
+    // ---- Vigor (applies to the full next Attack, then is consumed) ----
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/VigorPower.java
     let vigor = if card.card_type == CardType::Attack {
         let v = engine.state.player.status(sid::VIGOR);
         if v > 0 {

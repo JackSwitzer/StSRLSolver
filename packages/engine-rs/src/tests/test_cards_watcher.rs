@@ -1852,6 +1852,26 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.player.status(sid::VIGOR), 5);
         }
     );
+    // Source-derived (verify card/WreathOfFlame): ApplyPowerAction stacks
+    // Vigor, atDamageGive adds the full amount to normal attack damage, and
+    // onUseCard removes it after the next Attack. Tantrum's three DamageActions
+    // therefore each use the same stacked 13-point Vigor bonus.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/WreathOfFlame.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/VigorPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Tantrum.java
+    #[test]
+    fn wreath_of_flame_source_stacks_for_every_hit_of_the_next_attack() {
+        let mut engine = one_enemy_engine("JawWorm", 100, 0);
+        engine.state.hand = make_deck(&[
+            "WreathOfFlame", "WreathOfFlame+", "Tantrum",
+        ]);
+        assert!(play_self(&mut engine, "WreathOfFlame"));
+        assert!(play_self(&mut engine, "WreathOfFlame+"));
+        assert_eq!(engine.state.player.status(sid::VIGOR), 13);
+        assert!(play_on_enemy(&mut engine, "Tantrum", 0));
+        assert_eq!(engine.state.enemies[0].entity.hp, 52);
+        assert_eq!(engine.state.player.status(sid::VIGOR), 0);
+    }
 
     // Rare cards and watcher-specific mechanics.
     watcher_test!(
