@@ -7878,8 +7878,9 @@ mod tests {
         assert!(actions.contains(&RunAction::CampfireRest));
 
         engine.step(&RunAction::CampfireRest);
-        // Should heal 30% of 72 = 21.6 -> 22
-        assert_eq!(engine.run_state.current_hp, 72); // 50 + 22 = 72 (capped at max)
+        // Source: CampfireSleepEffect.java casts maxHealth * 0.3f to int,
+        // so 72 max HP heals 21 rather than rounding 21.6 up to 22.
+        assert_eq!(engine.run_state.current_hp, 71);
     }
 
     #[test]
