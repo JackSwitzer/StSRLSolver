@@ -492,6 +492,8 @@ pub struct RunEngine {
 
     // Ordered reward screen state (when in CardReward phase).
     reward_screen: Option<RewardScreen>,
+    pending_astrolabe_selection: bool,
+    pending_astrolabe_removed: Vec<String>,
 
     // Canonical stack of active decisions.
     decision_stack: DecisionStack,
@@ -559,6 +561,8 @@ impl RunEngine {
             rng,
             combat_engine: None,
             reward_screen: None,
+            pending_astrolabe_selection: false,
+            pending_astrolabe_removed: Vec::new(),
             decision_stack: DecisionStack::new(),
             current_event: None,
             pending_event_combat: None,
@@ -2477,10 +2481,21 @@ impl RunEngine {
             return;
         };
         let kind = choice_frame.item_kind;
+        let chose_astrolabe =
+            matches!(&choice, RewardChoice::Named { label, .. } if label == "Astrolabe");
+        let astrolabe_card_pick = item_label == "deck_selection_astrolabe";
 
         match (kind, choice) {
             (RewardItemKind::CardChoice, RewardChoice::Card { card_id, .. }) => {
-                if !self.resolve_event_deck_selection_choice(&item_label, &choice_frame, choice_index)
+                if astrolabe_card_pick {
+                    if let Some(RewardChoice::Card { index, .. }) =
+                        choice_frame.choices.get(choice_index)
+                    {
+                        if let Some(removed) = self.remove_master_deck_card(*index) {
+                            self.pending_astrolabe_removed.push(removed);
+                        }
+                    }
+                } else if !self.resolve_event_deck_selection_choice(&item_label, &choice_frame, choice_index)
                 {
                     self.add_card_reward(card_id);
                 }
@@ -2507,6 +2522,18 @@ impl RunEngine {
             Self::refresh_reward_screen(screen);
         }
         self.decision_stack.pop();
+
+        if astrolabe_card_pick {
+            if self.pending_astrolabe_removed.len() == 3 {
+                let originals = std::mem::take(&mut self.pending_astrolabe_removed);
+                self.astrolabe_transform_cards(originals);
+                self.pending_astrolabe_selection = false;
+            } else {
+                self.build_astrolabe_selection_screen();
+            }
+        } else if chose_astrolabe && self.pending_astrolabe_selection {
+            self.build_astrolabe_selection_screen();
+        }
     }
 
     fn resolve_event_deck_selection_choice(
@@ -2734,6 +2761,7 @@ impl RunEngine {
         self.run_state.relic_flags.init_relic_counter(relic_id);
 
         match relic_id {
+            "Astrolabe" => self.prepare_astrolabe_on_equip(),
             "Whetstone" => self.upgrade_random_cards_by_type(crate::cards::CardType::Attack, 2),
             "WarPaint" => self.upgrade_random_cards_by_type(crate::cards::CardType::Skill, 2),
             // D27 partial fix: Pandora's Box. Java replaces all Strikes and Defends
@@ -2751,6 +2779,111 @@ impl RunEngine {
             }
             _ => {}
         }
+    }
+
+    fn astrolabe_transform_cards(&mut self, originals: Vec<String>) {
+        // AbstractDungeon.transformCard(card, true, miscRng) selects from the
+        // character's available rarity pools and upgrades the result.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+        let registry = crate::cards::global_registry();
+        for original in originals {
+            let original = original.trim_end_matches('+');
+            let colors: &[EventCardColor] = if self
+                .run_state
+                .relic_flags
+                .has(crate::relic_flags::flag::PRISMATIC_SHARD)
+            {
+                &[
+                    EventCardColor::Red,
+                    EventCardColor::Green,
+                    EventCardColor::Blue,
+                    EventCardColor::Purple,
+                ]
+            } else {
+                &[EventCardColor::Purple]
+            };
+            let mut candidates = Vec::new();
+            for color in colors {
+                for rarity in [
+                    EventCardRarity::Common,
+                    EventCardRarity::Uncommon,
+                    EventCardRarity::Rare,
+                ] {
+                    candidates.extend(matching_event_cards(*color, rarity));
+                }
+            }
+            candidates.retain(|candidate| {
+                !candidate.ends_with('+')
+                    && candidate != original
+                    && registry.get(candidate).is_some()
+            });
+            if candidates.is_empty() {
+                continue;
+            }
+            let transformed = &candidates[self.rng.gen_range(0..candidates.len())];
+            let upgraded = format!("{transformed}+");
+            self.run_state.deck.push(if registry.get(&upgraded).is_some() {
+                upgraded
+            } else {
+                transformed.clone()
+            });
+        }
+    }
+
+    fn prepare_astrolabe_on_equip(&mut self) {
+        let purgeable: Vec<usize> = self
+            .run_state
+            .deck
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, card)| Self::is_purgeable_master_deck_card(card).then_some(idx))
+            .collect();
+        self.pending_astrolabe_removed.clear();
+        if purgeable.is_empty() {
+            self.pending_astrolabe_selection = false;
+        } else if purgeable.len() <= 3 {
+            let mut originals = Vec::with_capacity(purgeable.len());
+            for idx in purgeable.into_iter().rev() {
+                originals.push(self.run_state.deck.remove(idx));
+            }
+            originals.reverse();
+            self.astrolabe_transform_cards(originals);
+            self.pending_astrolabe_selection = false;
+        } else {
+            self.pending_astrolabe_selection = true;
+        }
+    }
+
+    fn build_astrolabe_selection_screen(&mut self) {
+        let choices = self
+            .run_state
+            .deck
+            .iter()
+            .enumerate()
+            .filter(|(_, card)| Self::is_purgeable_master_deck_card(card))
+            .map(|(index, card_id)| RewardChoice::Card {
+                index,
+                card_id: card_id.clone(),
+            })
+            .collect();
+        let mut screen = RewardScreen {
+            source: RewardScreenSource::BossCombat,
+            ordered: true,
+            active_item: None,
+            items: vec![RewardItem {
+                index: 0,
+                kind: RewardItemKind::CardChoice,
+                state: RewardItemState::Available,
+                label: "deck_selection_astrolabe".to_string(),
+                claimable: true,
+                active: false,
+                skip_allowed: false,
+                skip_label: None,
+                choices,
+            }],
+        };
+        Self::refresh_reward_screen(&mut screen);
+        self.reward_screen = Some(screen);
     }
 
     fn remove_relic_reward(&mut self, relic_id: &str) {
@@ -2939,6 +3072,7 @@ impl RunEngine {
             "Snecko Eye",
             "HolyWater",
             "VioletLotus",
+            "Astrolabe",
         ];
 
         let registry = gameplay_registry();

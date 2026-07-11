@@ -244,7 +244,17 @@ fn boss_reward_screen_requires_relic_choice_and_ends_run_after_resolution() {
     assert!(screen.items[0].claimable);
     assert!(!screen.items[0].skip_allowed);
 
-    let chosen_relic = match &screen.items[0].choices[1] {
+    // Astrolabe.java::onEquip opens a required three-card selection when more
+    // than three purgeable cards exist, so this generic immediate-completion
+    // test deliberately chooses a boss relic without a nested decision.
+    let choice_index = screen.items[0]
+        .choices
+        .iter()
+        .position(|choice| {
+            matches!(choice, RewardChoice::Named { label, .. } if label != "Astrolabe")
+        })
+        .expect("boss screen should include a non-Astrolabe choice");
+    let chosen_relic = match &screen.items[0].choices[choice_index] {
         RewardChoice::Named { label, .. } => label.clone(),
         other => panic!("expected named boss relic choice, got {other:?}"),
     };
@@ -272,7 +282,7 @@ fn boss_reward_screen_requires_relic_choice_and_ends_run_after_resolution() {
 
     let choose = engine.step_with_result(&RunAction::ChooseRewardOption {
         item_index: 0,
-        choice_index: 1,
+        choice_index,
     });
     assert!(choose.action_accepted);
     assert!(engine.run_state.relics.iter().any(|relic| relic == &chosen_relic));

@@ -117,6 +117,92 @@ fn violet_lotus_is_reachable_from_the_watcher_boss_relic_pool() {
 }
 
 #[test]
+fn astrolabe_is_reachable_and_transforms_three_selected_cards_upgraded() {
+    // Source-derived (verify relic/Astrolabe): Astrolabe.java is BOSS tier,
+    // selects exactly three purgeable cards when more than three are eligible,
+    // removes them, and transforms each with autoUpgrade=true.
+    let offered = (0..128).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_boss_reward_screen();
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0]
+                .choices
+                .iter()
+                .any(|choice| matches!(choice, RewardChoice::Named { label, .. } if label == "Astrolabe"))
+        })
+    });
+    assert!(offered);
+
+    let mut engine = RunEngine::new(42, 0);
+    let original_len = engine.run_state.deck.len();
+    engine.debug_set_reward_screen(relic_choice_reward_screen(&["Astrolabe"]));
+    assert!(engine.step_with_result(&RunAction::SelectRewardItem(0)).action_accepted);
+    assert!(engine
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+
+    for _ in 0..3 {
+        assert!(engine.step_with_result(&RunAction::SelectRewardItem(0)).action_accepted);
+        assert!(engine
+            .step_with_result(&RunAction::ChooseRewardOption {
+                item_index: 0,
+                choice_index: 0,
+            })
+            .action_accepted);
+    }
+
+    assert_eq!(engine.run_state.deck.len(), original_len);
+    assert_eq!(
+        engine
+            .run_state
+            .deck
+            .iter()
+            .filter(|card| card.ends_with('+'))
+            .count(),
+        3
+    );
+    assert!(engine.run_state.relics.iter().any(|relic| relic == "Astrolabe"));
+
+    // Java skips the grid when at most three purgeable cards exist and gives
+    // those transforms immediately; unpurgeable curses are not candidates.
+    let mut automatic = RunEngine::new(7, 0);
+    automatic.run_state.deck = vec![
+        "Necronomicurse".to_string(),
+        "Strike".to_string(),
+        "Defend".to_string(),
+        "Eruption".to_string(),
+    ];
+    automatic.debug_set_reward_screen(relic_choice_reward_screen(&["Astrolabe"]));
+    assert!(automatic
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(automatic
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+    assert_eq!(automatic.run_state.deck.len(), 4);
+    assert!(automatic
+        .run_state
+        .deck
+        .iter()
+        .any(|card| card == "Necronomicurse"));
+    assert_eq!(
+        automatic
+            .run_state
+            .deck
+            .iter()
+            .filter(|card| card.ends_with('+'))
+            .count(),
+        3
+    );
+}
+
+#[test]
 fn akabeko_is_reachable_from_watcher_relic_rewards() {
     // Sources: RelicLibrary.java registers Akabeko and Akabeko.java constructs
     // it at COMMON tier; AbstractDungeon.java::populateRelicPool places common

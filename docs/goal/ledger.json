@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T06:45:30.035704+00:00",
+ "updated": "2026-07-11T06:53:35.238845+00:00",
  "status_counts": {
-  "unverified": 515,
-  "verified": 152
+  "unverified": 514,
+  "verified": 153
  },
  "rows": [
   {
@@ -4862,8 +4862,8 @@
    "class": "Astrolabe",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Astrolabe.java",
    "methods_ref": "reference/extracted/methods/relic/Astrolabe.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
