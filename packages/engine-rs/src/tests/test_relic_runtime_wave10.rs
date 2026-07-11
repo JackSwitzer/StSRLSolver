@@ -12,6 +12,7 @@
 
 use crate::effects::runtime::EffectOwner;
 use crate::engine::CombatPhase;
+use crate::state::Stance;
 use crate::status_ids::sid;
 use crate::tests::support::{
     combat_state_with, end_turn, enemy, enemy_no_intent, engine_with_state, make_deck, make_deck_n,
@@ -78,6 +79,29 @@ fn captains_wheel_resolves_before_turn_three_draw_and_foresight_choice() {
         "Captain's Wheel resolves before Foresight's post-draw scry choice");
     assert_eq!(engine.hidden_effect_value(
         "CaptainsWheel", EffectOwner::PlayerRelic { slot: 0 }, 0), -1);
+}
+
+#[test]
+fn damaru_gains_mantra_and_enters_divinity_before_post_draw_choices() {
+    // Source: reference/extracted/methods/relic/Damaru.java (`atTurnStart`
+    // queues exactly one Mantra before GameActionManager queues the draw).
+    let mut state = combat_state_with(
+        make_deck_n("Defend", 20),
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+    state.relics.push("Damaru".to_string());
+    let mut engine = engine_with_state(state);
+    assert_eq!(engine.state.mantra, 1);
+
+    engine.state.mantra = 9;
+    engine.state.player.set_status(sid::FORESIGHT, 1);
+    end_turn(&mut engine);
+    assert_eq!(engine.state.turn, 2);
+    assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+    assert_eq!(engine.state.mantra, 0);
+    assert_eq!(engine.state.stance, Stance::Divinity,
+        "Damaru's tenth Mantra resolves before Foresight pauses after draw");
 }
 
 #[test]
