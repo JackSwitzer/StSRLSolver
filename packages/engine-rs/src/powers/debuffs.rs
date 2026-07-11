@@ -189,20 +189,20 @@ pub fn decrement_lock_on(entity: &mut EntityState) {
 /// Reset Invincible at end of round (Champ).
 
 pub fn apply_debuff(entity: &mut EntityState, status: StatusId, amount: i32) -> bool {
+    // ApplyPowerAction checks Ginger and Turnip before Artifact. Their exact
+    // immunities therefore block without consuming an Artifact stack.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ApplyPowerAction.java
+    if status == sid::WEAKENED && entity.status(sid::HAS_GINGER) > 0 {
+        return false;
+    }
+    if status == sid::FRAIL && entity.status(sid::HAS_TURNIP) > 0 {
+        return false;
+    }
+
     let artifact = entity.status(sid::ARTIFACT);
     if artifact > 0 {
         // Artifact blocks the debuff and decrements
         entity.set_status(sid::ARTIFACT, artifact - 1);
-        return false;
-    }
-
-    // Ginger blocks Weak
-    if status == sid::WEAKENED && entity.status(sid::HAS_GINGER) > 0 {
-        return false;
-    }
-
-    // Turnip blocks Frail
-    if status == sid::FRAIL && entity.status(sid::HAS_TURNIP) > 0 {
         return false;
     }
 
@@ -301,4 +301,3 @@ pub fn apply_mode_shift_damage(entity: &mut EntityState, damage: i32) -> bool {
     }
     false
 }
-

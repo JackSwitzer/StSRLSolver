@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T19:14:47.171946+00:00",
+ "updated": "2026-07-11T19:17:22.668731+00:00",
  "status_counts": {
-  "unverified": 429,
-  "verified": 238
+  "unverified": 428,
+  "verified": 239
  },
  "rows": [
   {
@@ -6552,8 +6552,8 @@
    "class": "Turnip",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Turnip.java",
    "methods_ref": "reference/extracted/methods/relic/Turnip.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
