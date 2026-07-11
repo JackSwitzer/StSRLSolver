@@ -3648,6 +3648,7 @@ impl RunEngine {
             "Pocketwatch",
             "Shovel",
             "StoneCalendar",
+            "Tingsha",
             "Torii",
             "Turnip",
             "Unceasing Top",
@@ -3958,6 +3959,8 @@ impl RunEngine {
             "Pocketwatch",
             // StoneCalendar.java uses canonical ID "StoneCalendar" and RARE tier.
             "StoneCalendar",
+            // Tingsha.java uses canonical ID "Tingsha" and RARE tier.
+            "Tingsha",
             // Torii.java uses canonical ID "Torii" and RARE tier.
             "Torii",
             // Turnip.java uses canonical ID "Turnip" and RARE tier.

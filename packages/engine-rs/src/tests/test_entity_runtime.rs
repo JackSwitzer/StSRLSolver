@@ -127,6 +127,35 @@ fn tough_bandages_grants_three_block_only_for_manual_discards() {
 }
 
 #[test]
+fn tingsha_uses_one_card_random_tick_and_hits_exactly_one_enemy_for_three() {
+    // Tingsha.java queues DamageRandomEnemyAction(3, THORNS), which selects via
+    // cardRandomRng even when only one candidate exists.
+    let mut state = combat_state_with(
+        make_deck(&["Defend"]),
+        vec![
+            enemy_no_intent("JawWorm", 40, 40),
+            enemy_no_intent("Cultist", 40, 40),
+        ],
+        3,
+    );
+    state.relics.push("Tingsha".to_string());
+    let mut engine = engine_with_state(state);
+    let before = engine.rng_counters()["cardRandom"];
+
+    engine.on_card_discarded(engine.card_registry.make_card("Defend"));
+
+    assert_eq!(engine.rng_counters()["cardRandom"], before + 1);
+    let losses: Vec<i32> = engine
+        .state
+        .enemies
+        .iter()
+        .map(|enemy| 40 - enemy.entity.hp)
+        .collect();
+    assert_eq!(losses.iter().sum::<i32>(), 3);
+    assert_eq!(losses.iter().filter(|loss| **loss == 3).count(), 1);
+}
+
+#[test]
 fn block_potion_runtime_keeps_flat_potion_block() {
     let mut state = combat_state_with(make_deck(&["Strike"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.potions[0] = "Block Potion".to_string();
