@@ -17,6 +17,8 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/VioletLotus.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/Torii.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/TungstenRod.java
+// - decompiled/java-src/com/megacrit/cardcrawl/relics/Ginger.java
+// - decompiled/java-src/com/megacrit/cardcrawl/actions/common/ApplyPowerAction.java
 
 use crate::effects::runtime::EffectOwner;
 use crate::state::Stance;
@@ -302,6 +304,29 @@ fn bronze_scales_grants_three_thorns_that_retaliates_through_full_block() {
 
     assert_eq!(engine.state.player.hp, player_hp);
     assert_eq!(engine.state.enemies[0].entity.hp, 57);
+}
+
+#[test]
+fn ginger_runtime_install_blocks_enemy_weak_application() {
+    // Source-derived (verify relic/Ginger): Ginger.java is the owned relic and
+    // ApplyPowerAction.java refuses Weakened when its target is that player.
+    let mut engine = engine_without_start_with_relics(
+        &["Ginger"],
+        &["Strike", "Strike", "Defend", "Defend", "Vigilance"],
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        3,
+    );
+    engine.start_combat();
+
+    assert_eq!(engine.state.player.status(sid::HAS_GINGER), 1);
+    let applied = crate::powers::apply_debuff_from_enemy(
+        &mut engine.state.player,
+        sid::WEAKENED,
+        2,
+    );
+    assert!(!applied);
+    assert_eq!(engine.state.player.status(sid::WEAKENED), 0);
+    assert_eq!(engine.state.player.status(sid::WEAKENED_JUST_APPLIED), 0);
 }
 
 #[test]

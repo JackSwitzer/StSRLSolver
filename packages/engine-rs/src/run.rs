@@ -3290,6 +3290,7 @@ impl RunEngine {
             "Bird Faced Urn",
             "Calipers",
             "Du-Vu Doll",
+            "Ginger",
             "Ice Cream",
             "Incense Burner",
             "Tough Bandages",
@@ -3525,6 +3526,8 @@ impl RunEngine {
             "Du-Vu Doll",
             // EternalFeather.java uses this canonical ID and UNCOMMON tier.
             "Eternal Feather",
+            // Ginger.java uses this canonical ID and RARE tier.
+            "Ginger",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
