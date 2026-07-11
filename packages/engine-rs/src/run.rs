@@ -3433,7 +3433,6 @@ impl RunEngine {
             "Frozen Egg 2",
             "Molten Egg 2",
             "Ornamental Fan",
-            "Thread and Needle",
             "Toxic Egg 2",
         ];
         const RARE: &[&str] = &[
@@ -3444,6 +3443,8 @@ impl RunEngine {
             "Ginger",
             "Ice Cream",
             "Incense Burner",
+            // ThreadAndNeedle.java constructs a RARE relic.
+            "Thread and Needle",
             "Tough Bandages",
             "Tungsten Rod",
         ];
@@ -3765,6 +3766,9 @@ impl RunEngine {
             "Singing Bowl",
             // Strawberry.java uses canonical ID "Strawberry" and COMMON tier.
             "Strawberry",
+            // ThreadAndNeedle.java uses canonical ID "Thread and Needle" and
+            // RARE tier.
+            "Thread and Needle",
             // Whetstone.java uses canonical ID "Whetstone" and COMMON tier.
             "Whetstone",
             // WarPaint.java uses canonical ID "War Paint" and COMMON tier.
@@ -3856,7 +3860,7 @@ impl RunEngine {
             "Blue Candle", "Bottled Flame", "Bottled Lightning", "Bottled Tornado",
             "Darkstone Periapt", "Eternal Feather", "Frozen Egg 2", "InkBottle",
             "Kunai", "Letter Opener", "Matryoshka", "Molten Egg 2",
-            "Ornamental Fan", "Thread and Needle", "Toxic Egg 2",
+            "Ornamental Fan", "Toxic Egg 2",
         ];
 
         let pool = if self.rng.gen_bool(0.75) { COMMON } else { UNCOMMON };
@@ -5341,7 +5345,6 @@ impl RunEngine {
             "DataDisk",
             // OrnamentalFan.java declares canonical ID "Ornamental Fan".
             "Ornamental Fan",
-            "ThreadAndNeedle",
         ];
 
         let registry = gameplay_registry();
@@ -5378,6 +5381,9 @@ impl RunEngine {
             "Calipers",
             "Ice Cream",
             "Incense Burner",
+            // ThreadAndNeedle.java declares canonical ID "Thread and Needle"
+            // and RARE tier.
+            "Thread and Needle",
             "Tough Bandages",
             "Tungsten Rod",
         ];

@@ -97,6 +97,21 @@ fn vajra_applies_exactly_one_strength_at_combat_start() {
 }
 
 #[test]
+fn thread_and_needle_applies_exactly_four_plated_armor_at_combat_start() {
+    // Source: reference/extracted/methods/relic/ThreadAndNeedle.java
+    let mut engine = engine_without_start_with_relics(
+        &["Thread and Needle"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        3,
+    );
+
+    engine.start_combat();
+
+    assert_eq!(engine.state.player.status(sid::PLATED_ARMOR), 4);
+}
+
+#[test]
 fn akabeko_vigor_survives_skills_then_buffs_every_hit_of_the_first_attack() {
     // Source-derived (verify relic/Akabeko): Akabeko.java::atBattleStart
     // applies 8 Vigor. VigorPower.java adds that amount to NORMAL damage and

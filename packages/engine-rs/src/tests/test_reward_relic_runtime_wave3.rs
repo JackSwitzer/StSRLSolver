@@ -2985,6 +2985,44 @@ fn vajra_is_reachable_from_common_watcher_relic_rewards() {
 }
 
 #[test]
+fn thread_and_needle_is_reachable_as_rare_and_never_calling_bell_uncommon() {
+    // ThreadAndNeedle.java constructs a RARE shared relic under canonical ID
+    // "Thread and Needle".
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Thread and Needle"
+            })
+        })
+    });
+    assert!(offered);
+
+    let mut saw_calling_bell_thread = false;
+    for seed in 0..512 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_set_reward_screen(relic_choice_reward_screen(&["Calling Bell"]));
+        assert!(engine
+            .step_with_result(&RunAction::SelectRewardItem(0))
+            .action_accepted);
+        assert!(engine
+            .step_with_result(&RunAction::ChooseRewardOption {
+                item_index: 0,
+                choice_index: 0,
+            })
+            .action_accepted);
+        let screen = engine.current_reward_screen().expect("Calling Bell rewards");
+        assert_ne!(screen.items[2].label, "Thread and Needle");
+        if screen.items[3].label == "Thread and Needle" {
+            saw_calling_bell_thread = true;
+            break;
+        }
+    }
+    assert!(saw_calling_bell_thread);
+}
+
+#[test]
 fn choosing_black_star_from_relic_choice_doubles_future_elite_relic_rewards() {
     // Source-derived (verify relic/Black Star): BlackStar.java is active for
     // elite rooms; AbstractRoom's elite victory rewards therefore include the

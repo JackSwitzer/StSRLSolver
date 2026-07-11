@@ -228,7 +228,7 @@ fn matryoshka_extra_chest_reward_uses_only_common_or_uncommon_tiers() {
         "Blue Candle", "Bottled Flame", "Bottled Lightning", "Bottled Tornado",
         "Darkstone Periapt", "Eternal Feather", "Frozen Egg 2", "InkBottle", "Kunai",
         "Letter Opener", "Matryoshka", "Molten Egg 2", "Ornamental Fan",
-        "Thread and Needle", "Toxic Egg 2",
+        "Toxic Egg 2",
     ];
     let mut saw_common = false;
     let mut saw_uncommon = false;
