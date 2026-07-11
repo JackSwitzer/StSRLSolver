@@ -278,6 +278,61 @@ fn velvet_choker_is_boss_reachable_and_grants_exactly_one_energy() {
 }
 
 #[test]
+fn philosophers_stone_is_boss_reachable_and_grants_exactly_one_energy() {
+    // Source: PhilosopherStone.java constructs a BOSS relic, increments
+    // energyMaster on equip, and decrements it on unequip.
+    let offered = (0..128).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_boss_reward_screen();
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0].choices.iter().any(|choice| {
+                matches!(choice, RewardChoice::Named { label, .. } if label == "Philosopher's Stone")
+            })
+        })
+    });
+    assert!(offered);
+
+    let mut engine = RunEngine::new(42, 0);
+    engine.debug_set_reward_screen(relic_choice_reward_screen(&["Philosopher's Stone"]));
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(engine
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    assert_eq!(
+        engine
+            .get_combat_engine()
+            .expect("combat should start")
+            .state
+            .max_energy,
+        4
+    );
+
+    engine
+        .run_state
+        .relics
+        .retain(|relic| relic != "Philosopher's Stone");
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    assert_eq!(
+        engine
+            .get_combat_engine()
+            .expect("replacement combat should start")
+            .state
+            .max_energy,
+        3
+    );
+}
+
+#[test]
 fn black_star_is_reachable_from_the_watcher_boss_relic_pool() {
     // Sources: RelicLibrary.java registers BlackStar and BlackStar.java
     // constructs it at BOSS tier with canonical ID "Black Star".

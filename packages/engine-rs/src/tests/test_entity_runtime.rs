@@ -446,10 +446,15 @@ fn philosophers_stone_buffs_all_enemies_at_combat_start() {
     );
     state.relics.push("Philosopher's Stone".to_string());
 
-    let engine = engine_with_state(state);
+    let mut engine = engine_with_state(state);
 
     assert_eq!(engine.state.enemies[0].entity.strength(), 1);
     assert_eq!(engine.state.enemies[1].entity.strength(), 1);
+
+    // PhilosopherStone.java::onSpawnMonster applies the same +1 to enemies
+    // created after atBattleStart (summons and slime splits).
+    engine.add_spawned_enemy(enemy_no_intent("TorchHead", 6, 6));
+    assert_eq!(engine.state.enemies[2].entity.strength(), 1);
 }
 
 #[test]

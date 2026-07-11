@@ -1905,8 +1905,8 @@ impl RunEngine {
             }
         }
         // BustedCrown.java, CoffeeDripper.java, CursedKey.java, Ectoplasm.java,
-        // FusionHammer.java, RunicDome.java, and VelvetChoker.java each
-        // increment energyMaster once in onEquip.
+        // FusionHammer.java, RunicDome.java, VelvetChoker.java, and
+        // PhilosopherStone.java each increment energyMaster once in onEquip.
         let combat_energy = 3
             + i32::from(
                 self.run_state
@@ -1942,6 +1942,11 @@ impl RunEngine {
                 self.run_state
                     .relic_flags
                     .has(crate::relic_flags::flag::VELVET_CHOKER),
+            )
+            + i32::from(
+                self.run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::PHILOSOPHERS_STONE),
             );
         // DuVuDoll.java::onEquip/onMasterDeckChange counts every card whose
         // type is CURSE; atBattleStart grants that counter as Strength.

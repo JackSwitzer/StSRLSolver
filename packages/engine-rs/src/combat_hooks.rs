@@ -556,29 +556,29 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         match (eid, mid) {
             ("TheCollector" | "Collector", x) if x == move_ids::COLL_SPAWN => {
                 for _ in 0..2 {
-                    engine.state.enemies.push(enemies::create_enemy("TorchHead", 6, 6));
+                    engine.add_spawned_enemy(enemies::create_enemy("TorchHead", 6, 6));
                 }
             }
             ("BronzeAutomaton" | "Bronze Automaton", x) if x == move_ids::BA_SPAWN_ORBS => {
                 for _ in 0..2 {
-                    engine.state.enemies.push(enemies::create_enemy("BronzeOrb", 52, 52));
+                    engine.add_spawned_enemy(enemies::create_enemy("BronzeOrb", 52, 52));
                 }
             }
             ("Reptomancer", x) if x == move_ids::REPTO_SPAWN => {
                 for _ in 0..2 {
                     let mut minion = enemies::create_enemy("SnakeDagger", 22, 22);
                     minion.is_minion = true;
-                    engine.state.enemies.push(minion);
+                    engine.add_spawned_enemy(minion);
                 }
             }
             ("GremlinLeader" | "Gremlin Leader", x) if x == move_ids::GL_RALLY => {
                 // Deterministic MCTS: fixed gremlin types
                 let mut warrior = enemies::create_enemy("GremlinWarrior", 20, 20);
                 warrior.is_minion = true;
-                engine.state.enemies.push(warrior);
+                engine.add_spawned_enemy(warrior);
                 let mut thief = enemies::create_enemy("GremlinThief", 28, 28);
                 thief.is_minion = true;
-                engine.state.enemies.push(thief);
+                engine.add_spawned_enemy(thief);
             }
             ("AcidSlime_L", x) if x == move_ids::AS_SPLIT => {
                 // AcidSlime_L.takeTurn spawns two AcidSlime_M at current HP.
@@ -593,7 +593,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                     child.entity.set_status(sid::STR_AMT, if upgraded { 12 } else { 10 });
                     child.entity.set_status(sid::BLOCK_AMT, if a17 { 17 } else { 0 });
                     enemies::roll_initial_move(&mut child, &mut engine.ai_rng);
-                    engine.state.enemies.push(child);
+                    engine.add_spawned_enemy(child);
                 }
             }
             ("SpikeSlime_L", x) if x == move_ids::SS_SPLIT => {
@@ -609,7 +609,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                     child.entity.set_status(sid::STARTING_DMG, if upgraded { 10 } else { 8 });
                     child.entity.set_status(sid::BLOCK_AMT, if a17 { 17 } else { 0 });
                     enemies::roll_initial_move(&mut child, &mut engine.ai_rng);
-                    engine.state.enemies.push(child);
+                    engine.add_spawned_enemy(child);
                 }
             }
             _ => {}
@@ -816,6 +816,6 @@ fn do_slime_boss_split(engine: &mut CombatEngine, boss_idx: usize) {
     acid.entity.set_status(sid::BLOCK_AMT, if a17 { 17 } else { 0 });
     enemies::roll_initial_move(&mut acid, &mut engine.ai_rng);
 
-    engine.state.enemies.push(spike);
-    engine.state.enemies.push(acid);
+    engine.add_spawned_enemy(spike);
+    engine.add_spawned_enemy(acid);
 }

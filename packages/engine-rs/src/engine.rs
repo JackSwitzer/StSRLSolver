@@ -3111,6 +3111,17 @@ impl CombatEngine {
         }
     }
 
+    pub(crate) fn add_spawned_enemy(&mut self, mut enemy: crate::state::EnemyCombatState) {
+        // Source: PhilosopherStone.java::onSpawnMonster grants the newly
+        // spawned monster exactly 1 Strength before combat continues.
+        if self.state.has_relic("Philosopher's Stone")
+            || self.state.has_relic("PhilosopherStone")
+        {
+            enemy.entity.add_status(sid::STRENGTH, 1);
+        }
+        self.state.enemies.push(enemy);
+    }
+
     fn deal_thorns_damage_to_player(&mut self, damage: i32) {
         // DamageInfo.THORNS still passes through final-receive powers, block,
         // Buffer, and Tungsten Rod. Torii and reactive Thorns/Flame Barrier

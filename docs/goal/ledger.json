@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T20:01:41.205599+00:00",
+ "updated": "2026-07-11T20:04:03.882552+00:00",
  "status_counts": {
-  "unverified": 414,
-  "verified": 253
+  "unverified": 413,
+  "verified": 254
  },
  "rows": [
   {
@@ -5992,8 +5992,8 @@
    "class": "PhilosopherStone",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/PhilosopherStone.java",
    "methods_ref": "reference/extracted/methods/relic/PhilosopherStone.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

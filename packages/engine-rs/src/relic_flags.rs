@@ -44,6 +44,7 @@ pub mod flag {
     pub const ETERNAL_FEATHER: u64 = 1 << 37; // Heal per five cards on rest-room entry
     pub const RUNIC_DOME: u64 = 1 << 38; // +1 energy; enemy intents are hidden
     pub const VELVET_CHOKER: u64 = 1 << 39; // +1 energy; at most six cards per turn
+    pub const PHILOSOPHERS_STONE: u64 = 1 << 40; // +1 energy; spawned enemies gain Strength
 }
 
 /// Counter indices for cross-combat persistent counters.
@@ -126,6 +127,7 @@ impl RelicFlags {
                 "Eternal Feather" | "EternalFeather" => flag::ETERNAL_FEATHER,
                 "Runic Dome" | "RunicDome" => flag::RUNIC_DOME,
                 "Velvet Choker" | "VelvetChoker" => flag::VELVET_CHOKER,
+                "Philosopher's Stone" | "PhilosopherStone" => flag::PHILOSOPHERS_STONE,
                 _ => 0,
             };
             self.flags |= f;
