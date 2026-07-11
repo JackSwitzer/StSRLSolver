@@ -413,6 +413,12 @@ pub(super) fn roll_gremlin_fat(enemy: &mut EnemyCombatState) {
     }
 }
 
+pub(super) fn roll_gremlin_thief(enemy: &mut EnemyCombatState) {
+    // Source: reference/extracted/methods/monster/GremlinThief.java (`getMove`).
+    let damage = enemy.entity.status(sid::STARTING_DMG).max(9);
+    enemy.set_move(move_ids::GREMLIN_ATTACK, damage, 1, 0);
+}
+
 pub(super) fn roll_gremlin_wizard(enemy: &mut EnemyCombatState) {
     if last_move(enemy, move_ids::GREMLIN_PROTECT) {
         // Ultimate Blast after charging

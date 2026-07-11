@@ -504,7 +504,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.add_effect(mfx::WEAK, 1);
         }
         "GremlinThief" => {
-            // Puncture: 9 damage
+            enemy.entity.set_status(sid::STARTING_DMG, 9);
             enemy.set_move(move_ids::GREMLIN_ATTACK, 9, 1, 0);
         }
         "GremlinWarrior" => {
@@ -932,7 +932,7 @@ fn select_move(
         "SpikeSlime_L" => act1::roll_spike_slime_l(enemy, num),
         "Looter" => act1::roll_looter(enemy, num),
         "GremlinFat" => act1::roll_gremlin_fat(enemy),
-        "GremlinThief" => act1::roll_gremlin_simple(enemy, 9, 0),
+        "GremlinThief" => act1::roll_gremlin_thief(enemy),
         "GremlinWarrior" => act1::roll_gremlin_simple(enemy, 4, 0),
         "GremlinWizard" => act1::roll_gremlin_wizard(enemy),
         "GremlinTsundere" | "GremlinSneaky" => { /* Does nothing each turn */ }

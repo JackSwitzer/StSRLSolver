@@ -1398,6 +1398,13 @@ impl RunEngine {
             }
         }
 
+        // Source: reference/extracted/methods/monster/GremlinThief.java.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "GremlinThief") {
+            let damage = if self.run_state.ascension >= 2 { 10 } else { 9 };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, damage);
+            enemy.set_move(crate::enemies::move_ids::GREMLIN_ATTACK, damage, 1, 0);
+        }
+
         // The boss passes ascension-derived large-slime constructor values to
         // its children when its split resolves.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "SlimeBoss") {
@@ -1527,6 +1534,11 @@ impl RunEngine {
             }
             "GremlinFat" => {
                 let base = if a20 { 14 } else { 13 };
+                let hp = base + self.rng.gen_range(0..=4);
+                (hp, hp)
+            }
+            "GremlinThief" => {
+                let base = if a20 { 11 } else { 10 };
                 let hp = base + self.rng.gen_range(0..=4);
                 (hp, hp)
             }
@@ -4972,6 +4984,50 @@ mod tests {
         let mut group = RunEngine::new(42, 0);
         group.enter_specific_combat(vec!["GremlinFat".to_string(),
             "GremlinThief".to_string()]);
+        let combat = group.combat_engine.as_mut().unwrap();
+        combat.state.enemies[1].entity.hp = 1;
+        combat.deal_damage_to_enemy(1, 1);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::GREMLIN_ESCAPE);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert!(combat.state.enemies[0].is_escaping);
+        assert_eq!(combat.state.enemies[0].entity.hp, 0);
+    }
+
+    #[test]
+    fn gremlin_thief_stats_direct_repeat_and_ally_death_escape_match_java() {
+        // Source: reference/extracted/methods/monster/GremlinThief.java and the
+        // full source's `deathReact`/`takeTurn` escape case.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("GremlinThief").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("GremlinThief").0);
+        }
+        assert_eq!(low_hp, (10..=14).collect());
+        assert_eq!(high_hp, (11..=15).collect());
+
+        for (ascension, damage) in [(0, 9), (2, 10)] {
+            let mut engine = RunEngine::new(42, ascension);
+            engine.enter_specific_combat(vec!["GremlinThief".to_string()]);
+            let combat = engine.combat_engine.as_ref().unwrap();
+            assert_eq!(combat.state.enemies[0].move_damage(), damage);
+            assert_eq!(combat.ai_rng.counter, 1);
+
+            engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+            let combat = engine.combat_engine.as_ref().unwrap();
+            assert_eq!(combat.state.enemies[0].move_id,
+                crate::enemies::move_ids::GREMLIN_ATTACK);
+            assert_eq!(combat.state.enemies[0].move_damage(), damage);
+            assert_eq!(combat.ai_rng.counter, 1,
+                "Puncture sets Puncture directly without RollMoveAction");
+        }
+
+        let mut group = RunEngine::new(42, 0);
+        group.enter_specific_combat(vec!["GremlinThief".to_string(),
+            "GremlinWarrior".to_string()]);
         let combat = group.combat_engine.as_mut().unwrap();
         combat.state.enemies[1].entity.hp = 1;
         combat.deal_damage_to_enemy(1, 1);
