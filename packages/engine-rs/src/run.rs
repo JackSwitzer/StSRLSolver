@@ -2791,6 +2791,7 @@ impl RunEngine {
             "CultistPotion",
             "DistilledChaos",
             "DuplicationPotion",
+            "EntropicBrew",
         ];
 
         let registry = gameplay_registry();

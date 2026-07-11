@@ -147,7 +147,7 @@ fn wave8_ambrosia_entropic_darkness_capacity_and_gamblers_brew_use_runtime_path(
     use_potion(&mut engine, 0, -1);
     assert_eq!(engine.state.player.status(sid::ORB_SLOTS), 2);
     use_potion(&mut engine, 1, -1);
-    assert!(engine.state.potions[1].is_empty());
+    assert!(!engine.state.potions[1].is_empty());
     assert!(!engine.state.potions[2].is_empty());
 }
 

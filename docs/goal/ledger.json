@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T05:20:15.992237+00:00",
+ "updated": "2026-07-11T05:25:47.602170+00:00",
  "status_counts": {
-  "unverified": 539,
-  "verified": 128
+  "unverified": 538,
+  "verified": 129
  },
  "rows": [
   {
@@ -4542,8 +4542,8 @@
    "class": "EntropicBrew",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/EntropicBrew.java",
    "methods_ref": "reference/extracted/methods/potion/EntropicBrew.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

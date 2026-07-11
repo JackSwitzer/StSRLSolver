@@ -138,6 +138,8 @@ pub struct CombatEngine {
     /// Java's `AbstractDungeon.cardRandomRng`, used by random card placement
     /// and card-owned random choices. RunEngine seeds this with seed + floor.
     pub(crate) card_random_rng: crate::seed::StsRandom,
+    /// Java's `AbstractDungeon.potionRng`, used by random potion generation.
+    pub(crate) potion_rng: crate::seed::StsRandom,
     /// Java's `AbstractDungeon.miscRng`, used by Lesson Learned and event-style
     /// miscellaneous selections. It is also seeded with seed + floor.
     pub(crate) misc_rng: crate::seed::StsRandom,
@@ -180,6 +182,7 @@ impl CombatEngine {
             card_registry: crate::cards::global_registry(),
             rng: crate::seed::StsRandom::new(seed),
             card_random_rng: crate::seed::StsRandom::new(card_random_seed),
+            potion_rng: crate::seed::StsRandom::new(card_random_seed),
             misc_rng: crate::seed::StsRandom::new(card_random_seed),
             // ai_rng seeded distinctly so it is not perturbed by re-seeds of `rng`
             // when callers replay a snapshot. Mirrors Java's separate dungeon-level
@@ -215,6 +218,7 @@ impl CombatEngine {
             "cardRandom".to_string(),
             self.card_random_rng.counter as u64,
         );
+        counters.insert("potion".to_string(), self.potion_rng.counter as u64);
         counters.insert("misc".to_string(), self.misc_rng.counter as u64);
         counters.insert("ai".to_string(), self.ai_rng.counter as u64);
         counters
@@ -472,6 +476,7 @@ impl CombatEngine {
             card_registry: self.card_registry, // &'static ref — zero-cost copy
             rng: self.rng.clone(),
             card_random_rng: self.card_random_rng.clone(),
+            potion_rng: self.potion_rng.clone(),
             misc_rng: self.misc_rng.clone(),
             ai_rng: self.ai_rng.clone(),
             choice: self.choice.clone(),
@@ -2489,8 +2494,15 @@ impl CombatEngine {
                 replay_window: false,
             });
 
-            // Consume the potion slot
-            self.state.potions[potion_idx] = String::new();
+            // Entropic Brew destroys itself before its queued ObtainPotionActions
+            // resolve, so its own slot can already contain a replacement here.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/panels/PotionPopUp.java
+            // and actions/common/ObtainPotionAction.java
+            let entropic_refilled_own_slot = matches!(potion_id.as_str(), "EntropicBrew" | "Entropic Brew")
+                && !self.state.has_relic("Sozu");
+            if !entropic_refilled_own_slot {
+                self.state.potions[potion_idx] = String::new();
+            }
             self.rebuild_effect_runtime();
 
             // Consume potion draw (Swift Potion, etc.)

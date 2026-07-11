@@ -270,7 +270,13 @@ fn liquid_memories_returns_discard_cards_via_action_path() {
 }
 
 #[test]
-fn entropic_brew_fills_other_empty_slots_and_then_consumes_itself() {
+fn entropic_brew_rolls_for_every_slot_and_refills_its_consumed_slot() {
+    // Source-derived (verify potion/EntropicBrew): combat use rolls one limited
+    // random potion per potion slot before queued ObtainPotionActions resolve.
+    // The UI destroys the brew first, so its own slot is available to refill.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/EntropicBrew.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/panels/PotionPopUp.java
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike", "Defend", "Strike", "Defend", "Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -279,12 +285,36 @@ fn entropic_brew_fills_other_empty_slots_and_then_consumes_itself() {
     engine.state.potions = vec![String::new(); 3];
     engine.state.potions[0] = "EntropicBrew".to_string();
     engine.state.potions[2] = "Fire Potion".to_string();
+    let potion_rng_before = engine.potion_rng.counter;
 
     use_potion(&mut engine, 0, -1);
 
-    assert!(engine.state.potions[0].is_empty(), "used slot should be consumed after resolution");
-    assert_eq!(engine.state.potions[1], "Block Potion");
+    assert!(engine.state.potions.iter().all(|potion| !potion.is_empty()));
     assert_eq!(engine.state.potions[2], "Fire Potion");
+    assert!(engine.state.potions[..2].iter().all(|potion| {
+        crate::potions::defs::entropic_brew::is_watcher_limited_potion(potion)
+    }));
+    assert!(engine.potion_rng.counter >= potion_rng_before + 9);
+}
+
+#[test]
+fn entropic_brew_rolls_but_sozu_blocks_every_obtain_action() {
+    // ObtainPotionAction checks Sozu only when each already-rolled action
+    // resolves, so the brew is consumed and no replacement is obtained.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ObtainPotionAction.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.relics.push("Sozu".to_string());
+    engine.state.potions = vec!["EntropicBrew".to_string(), String::new(), String::new()];
+    let potion_rng_before = engine.potion_rng.counter;
+
+    use_potion(&mut engine, 0, -1);
+
+    assert!(engine.state.potions.iter().all(|potion| potion.is_empty()));
+    assert!(engine.potion_rng.counter >= potion_rng_before + 9);
 }
 
 #[test]

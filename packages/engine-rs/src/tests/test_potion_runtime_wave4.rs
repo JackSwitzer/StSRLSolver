@@ -167,10 +167,12 @@ fn distilled_chaos_and_entropic_brew_chain_through_runtime_slots() {
     engine.state.potions[2] = String::new();
     use_potion(&mut engine, 1, -1);
 
-    assert!(engine.state.potions[1].is_empty(), "used Entropic Brew slot should be consumed");
-    assert_eq!(engine.state.potions[0], "Block Potion");
-    assert_eq!(engine.state.potions[2], "Block Potion");
+    assert!(engine.state.potions.iter().all(|potion| !potion.is_empty()));
+    assert!(engine.state.potions.iter().all(|potion| {
+        crate::potions::defs::entropic_brew::is_watcher_limited_potion(potion)
+    }));
 
+    engine.state.potions[0] = "Block Potion".to_string();
     let legal = engine.get_legal_actions();
     assert!(legal.contains(&Action::UsePotion {
         potion_idx: 0,
