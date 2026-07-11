@@ -3663,6 +3663,9 @@ impl RunEngine {
             // JuzuBracelet.java uses canonical ID "Juzu Bracelet", COMMON tier,
             // and canSpawn excludes non-endless runs after floor 48.
             "Juzu Bracelet",
+            // MercuryHourglass.java uses canonical ID "Mercury Hourglass" and
+            // UNCOMMON tier.
+            "Mercury Hourglass",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",

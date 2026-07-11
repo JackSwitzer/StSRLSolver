@@ -457,7 +457,9 @@ mod tests {
 
     #[test]
     fn test_simple_defs_have_no_complex_hook() {
-        let simple_relics = ["Vajra", "Anchor", "Orichalcum", "Mercury Hourglass", "Kunai"];
+        // Mercury Hourglass intentionally uses a hook because Java resolves
+        // its pulse as THORNS rather than generic NORMAL damage.
+        let simple_relics = ["Vajra", "Anchor", "Orichalcum", "Kunai"];
         for name in simple_relics {
             let def = relic_def_by_id(name).unwrap();
             assert!(def.complex_hook.is_none(), "{} should not have a complex_hook", name);

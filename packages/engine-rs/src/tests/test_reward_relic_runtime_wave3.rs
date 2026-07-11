@@ -1106,6 +1106,22 @@ fn membership_card_purchase_immediately_rounds_all_visible_shop_prices_in_half()
 }
 
 #[test]
+fn mercury_hourglass_is_reachable_from_uncommon_watcher_relic_rewards() {
+    // MercuryHourglass.java constructs an UNCOMMON shared relic under
+    // canonical ID "Mercury Hourglass".
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Mercury Hourglass"
+            })
+        })
+    });
+    assert!(offered);
+}
+
+#[test]
 fn medical_kit_is_reachable_only_from_the_shop_relic_slot() {
     // MedicalKit.java constructs RelicTier.SHOP. ShopScreen.java::initRelics
     // makes its third relic slot SHOP-tier; ordinary combat rewards cannot offer it.

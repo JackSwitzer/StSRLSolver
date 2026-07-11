@@ -310,6 +310,24 @@ fn mercury_hourglass_hits_all_enemies_via_turn_start_engine_path() {
 }
 
 #[test]
+fn mercury_hourglass_uses_thorns_damage_ignoring_boot_slow_and_flight() {
+    // MercuryHourglass.java builds a pure three-damage matrix and resolves it
+    // as THORNS. Boot, SlowPower, and FlightPower explicitly ignore THORNS.
+    let mut slow = enemy_no_intent("JawWorm", 40, 40);
+    slow.entity.set_status(sid::SLOW, 3);
+    let mut flying = enemy_no_intent("Byrd", 40, 40);
+    flying.entity.set_status(sid::FLIGHT, 3);
+    let mut state = combat_state_with(Vec::new(), vec![slow, flying], 3);
+    state.relics = vec!["Mercury Hourglass".to_string(), "Boot".to_string()];
+
+    let engine = engine_with_state(state);
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 37);
+    assert_eq!(engine.state.enemies[1].entity.hp, 37);
+    assert_eq!(engine.state.enemies[1].entity.status(sid::FLIGHT), 3);
+}
+
+#[test]
 fn brimstone_buffs_player_and_all_enemies_on_turn_start() {
     let mut state = combat_state_with(
         Vec::new(),
