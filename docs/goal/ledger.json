@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T06:00:36.087551+00:00",
+ "updated": "2026-07-11T06:02:18.320331+00:00",
  "status_counts": {
-  "unverified": 529,
-  "verified": 138
+  "unverified": 528,
+  "verified": 139
  },
  "rows": [
   {
@@ -4722,8 +4722,8 @@
    "class": "RegenPotion",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/RegenPotion.java",
    "methods_ref": "reference/extracted/methods/potion/RegenPotion.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

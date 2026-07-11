@@ -194,6 +194,37 @@ fn liquid_bronze_keeps_three_potency_and_retaliates_per_attack_hit() {
 }
 
 #[test]
+fn regen_potion_keeps_five_potency_then_heals_and_decrements_each_turn() {
+    // Source-derived (verify potion/RegenPotion): getPotency always returns
+    // five; RegenPower queues RegenAction at player turn end, which heals the
+    // current amount before decrementing the power by one. Sacred Bark doubles
+    // the initial stack and Magic Flower modifies each heal.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/RegenPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RegenPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/RegenAction.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.player.hp = 20;
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.player.set_status(sid::HAS_MAGIC_FLOWER, 1);
+    engine.state.potions[0] = "Regen Potion".to_string();
+
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::REGENERATION), 10);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.hp, 35);
+    assert_eq!(engine.state.player.status(sid::REGENERATION), 9);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.hp, 48);
+    assert_eq!(engine.state.player.status(sid::REGENERATION), 8);
+}
+
+#[test]
 fn essence_of_steel_keeps_four_potency_and_targets_the_player() {
     // Source-derived (verify potion/EssenceOfSteel): Java overwrites target
     // with the player, applies four Plated Armor at every ascension, and

@@ -2860,6 +2860,7 @@ impl RunEngine {
             "GamblersBrew",
             "LiquidBronze",
             "LiquidMemories",
+            "Regen Potion",
         ];
 
         let registry = gameplay_registry();
