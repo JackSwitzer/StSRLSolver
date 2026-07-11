@@ -333,6 +333,70 @@ fn cursed_key_is_reachable_and_nonboss_chests_obtain_one_random_curse() {
 }
 
 #[test]
+fn omamori_is_reachable_through_floor_forty_eight_and_blocks_exactly_two_curses() {
+    // Sources: Omamori.java constructs a COMMON relic with counter 2 and
+    // excludes non-endless floors after 48. ShowCardAndObtainEffect.java calls
+    // Omamori.use only for CURSE cards while the counter is nonzero.
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 48;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Omamori"
+            })
+        })
+    });
+    assert!(offered);
+
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 49;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Omamori")
+        }));
+    }
+
+    let mut engine = RunEngine::new(42, 0);
+    engine.debug_set_reward_screen(single_relic_reward_screen("Omamori"));
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert_eq!(
+        engine.run_state.relic_flags.counters
+            [crate::relic_flags::counter::OMAMORI_USES],
+        2
+    );
+
+    let initial_deck_size = engine.run_state.deck.len();
+    for (card, expected_deck_size, expected_uses) in [
+        ("Wallop", initial_deck_size + 1, 2),
+        ("Regret", initial_deck_size + 1, 1),
+        ("Doubt", initial_deck_size + 1, 0),
+        ("Shame", initial_deck_size + 2, 0),
+    ] {
+        engine.debug_set_card_reward_screen(vec![card.to_string()]);
+        assert!(engine
+            .step_with_result(&RunAction::SelectRewardItem(0))
+            .action_accepted);
+        assert!(engine
+            .step_with_result(&RunAction::ChooseRewardOption {
+                item_index: 0,
+                choice_index: 0,
+            })
+            .action_accepted);
+        assert_eq!(engine.run_state.deck.len(), expected_deck_size);
+        assert_eq!(
+            engine.run_state.relic_flags.counters
+                [crate::relic_flags::counter::OMAMORI_USES],
+            expected_uses
+        );
+    }
+    assert!(engine.run_state.deck.iter().any(|card| card == "Shame"));
+}
+
+#[test]
 fn darkstone_periapt_is_reachable_and_an_obtained_curse_grants_six_max_hp() {
     // DarkstonePeriapt.java constructs an UNCOMMON relic, excludes floors
     // after 48, and calls increaseMaxHp(6, true) for an obtained CURSE card.

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T19:43:39.150912+00:00",
+ "updated": "2026-07-11T19:47:35.886491+00:00",
  "status_counts": {
-  "unverified": 418,
-  "verified": 249
+  "unverified": 417,
+  "verified": 250
  },
  "rows": [
   {
@@ -5872,8 +5872,8 @@
    "class": "Omamori",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Omamori.java",
    "methods_ref": "reference/extracted/methods/relic/Omamori.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

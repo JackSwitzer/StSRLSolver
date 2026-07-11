@@ -2612,7 +2612,7 @@ impl RunEngine {
         const COMMON: &[&str] = &[
             "Akabeko", "Anchor", "Art of War", "Bag of Marbles",
             "Bag of Preparation", "Blood Vial", "Boot", "Bronze Scales",
-            "Lantern", "Vajra",
+            "Lantern", "Omamori", "Vajra",
         ];
         const UNCOMMON: &[&str] = &[
             "Blue Candle", "Darkstone Periapt", "Eternal Feather", "InkBottle",
@@ -2637,6 +2637,7 @@ impl RunEngine {
             .copied()
             .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
             .filter(|id| *id != "Old Coin" || self.run_state.floor <= 48)
+            .filter(|id| *id != "Omamori" || self.run_state.floor <= 48)
             .filter(|id| !self.run_state.relics.iter().any(|owned| owned == id))
             .collect();
         if candidates.is_empty() {
@@ -3575,6 +3576,7 @@ impl RunEngine {
             .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
             .filter(|id| *id != "Ancient Tea Set" || self.run_state.floor <= 48)
             .filter(|id| *id != "Old Coin" || self.run_state.floor <= 48)
+            .filter(|id| *id != "Omamori" || self.run_state.floor <= 48)
             .filter(|id| *id != "Smiling Mask" || self.run_state.floor <= 48)
             .filter(|id| *id != "Tiny Chest" || self.run_state.floor <= 35)
             .filter(|id| {
@@ -3613,6 +3615,9 @@ impl RunEngine {
             "Blood Vial",
             "Boot",
             "Bronze Scales",
+            // Omamori.java constructs a COMMON relic and canSpawn excludes
+            // non-endless runs after floor 48.
+            "Omamori",
             "Smiling Mask",
             "Tiny Chest",
             "Toy Ornithopter",
@@ -3997,6 +4002,9 @@ impl RunEngine {
             "Mummified Hand",
             // Nunchaku.java uses canonical ID "Nunchaku" and COMMON tier.
             "Nunchaku",
+            // Omamori.java uses canonical ID "Omamori", COMMON tier, and
+            // canSpawn excludes non-endless runs after floor 48.
+            "Omamori",
             // OddlySmoothStone.java uses canonical ID "Oddly Smooth Stone"
             // and COMMON tier.
             "Oddly Smooth Stone",
@@ -4063,6 +4071,7 @@ impl RunEngine {
             .filter(|relic| *relic != "MealTicket" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Meat on the Bone" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Old Coin" || self.run_state.floor <= 48)
+            .filter(|relic| *relic != "Omamori" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Smiling Mask" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Tiny Chest" || self.run_state.floor <= 35)
             .filter(|relic| {
@@ -4112,6 +4121,7 @@ impl RunEngine {
                     .filter(|relic| *relic != "MealTicket" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Meat on the Bone" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Old Coin" || self.run_state.floor <= 48)
+                    .filter(|relic| *relic != "Omamori" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Smiling Mask" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Tiny Chest" || self.run_state.floor <= 35)
                     .filter(|relic| {
@@ -4164,7 +4174,7 @@ impl RunEngine {
         const COMMON: &[&str] = &[
             "Akabeko", "Anchor", "Ancient Tea Set", "Art of War",
             "Bag of Marbles", "Bag of Preparation", "Blood Vial", "Boot",
-            "Bronze Scales", "CeramicFish", "Dream Catcher", "Lantern", "Vajra",
+            "Bronze Scales", "CeramicFish", "Dream Catcher", "Lantern", "Omamori", "Vajra",
         ];
         const UNCOMMON: &[&str] = &[
             "Blue Candle", "Bottled Flame", "Bottled Lightning", "Bottled Tornado",
@@ -4179,6 +4189,7 @@ impl RunEngine {
             .iter()
             .copied()
             .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
+            .filter(|id| *id != "Omamori" || self.run_state.floor <= 48)
             .filter(|id| !self.run_state.relics.iter().any(|owned| owned == id))
             .collect();
         if candidates.is_empty() {
