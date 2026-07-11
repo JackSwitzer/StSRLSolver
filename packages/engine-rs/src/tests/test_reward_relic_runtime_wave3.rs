@@ -1262,6 +1262,44 @@ fn pear_is_reachable_and_increases_max_hp_by_ten_on_pickup() {
 }
 
 #[test]
+fn potion_belt_is_reachable_through_floor_forty_eight_and_adds_two_slots() {
+    // Source: PotionBelt.java constructs a COMMON relic, canSpawn excludes
+    // non-endless runs after floor 48, and onEquip appends two empty slots.
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 48;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Potion Belt"
+            })
+        })
+    });
+    assert!(offered);
+
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 49;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Potion Belt")
+        }));
+    }
+
+    let mut engine = RunEngine::new(42, 20);
+    engine.run_state.potions[0] = "Block Potion".to_string();
+    engine.debug_set_reward_screen(single_relic_reward_screen("Potion Belt"));
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert_eq!(engine.run_state.max_potions, 5);
+    assert_eq!(engine.run_state.potions.len(), 5);
+    assert_eq!(engine.run_state.potions[0], "Block Potion");
+    assert!(engine.run_state.potions[3].is_empty());
+    assert!(engine.run_state.potions[4].is_empty());
+}
+
+#[test]
 fn strawberry_is_reachable_and_increases_max_hp_by_seven_on_pickup() {
     // Source: Strawberry.java constructs a COMMON relic and onEquip calls
     // increaseMaxHp(7, true).

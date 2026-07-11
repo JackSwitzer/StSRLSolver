@@ -581,9 +581,11 @@ fn encode_reward_label_payload(
 // ---------------------------------------------------------------------------
 
 pub const COMBAT_DIM: usize = 298;
-pub const COMBAT_OBS_VERSION: u32 = 3;
+pub const COMBAT_OBS_VERSION: u32 = 4;
 pub const COMBAT_HIDDEN_COUNTER_DIM: usize = 18;
-pub const COMBAT_POTION_CONTEXT_DIM: usize = 12;
+// PotionBelt.java raises the player from three to five potion slots. Every
+// gameplay-significant slot must remain visible on the combat RL surface.
+pub const COMBAT_POTION_CONTEXT_DIM: usize = 20;
 pub const COMBAT_CHOICE_CONTEXT_DIM: usize = 24;
 pub const COMBAT_V2_EXTRA_DIM: usize =
     COMBAT_HIDDEN_COUNTER_DIM + COMBAT_POTION_CONTEXT_DIM + COMBAT_CHOICE_CONTEXT_DIM;
@@ -778,7 +780,8 @@ pub fn encode_combat_state_v2_from_combat(
     obs[off] = hidden_relic_value(combat, state, "Inserter", 0) as f32 / 2.0;
     off += 1;
 
-    for potion in state.potions.iter().take(3) {
+    for slot in 0..5 {
+        let potion = state.potions.get(slot).map(String::as_str).unwrap_or("");
         encode_potion_slot_features(potion, &mut obs, &mut off);
     }
 

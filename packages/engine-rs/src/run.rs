@@ -3156,6 +3156,14 @@ impl RunEngine {
                         (self.run_state.current_hp + 10).min(self.run_state.max_hp);
                 }
             }
+            "Potion Belt" | "PotionBelt" => {
+                // Source: reference/extracted/methods/relic/PotionBelt.java
+                // onEquip increments potionSlots by two and appends two empty
+                // PotionSlot entries without disturbing existing potions.
+                self.run_state.max_potions += 2;
+                self.run_state.potions.push(String::new());
+                self.run_state.potions.push(String::new());
+            }
             "Strawberry" => {
                 // Source: reference/extracted/methods/relic/Strawberry.java
                 // onEquip calls increaseMaxHp(7, true): max HP always rises,
@@ -3742,6 +3750,9 @@ impl RunEngine {
             // PrayerWheel.java uses canonical ID "Prayer Wheel", RARE tier,
             // and canSpawn excludes non-endless runs after floor 48.
             "Prayer Wheel",
+            // PotionBelt.java uses canonical ID "Potion Belt", COMMON tier,
+            // and canSpawn excludes non-endless runs after floor 48.
+            "Potion Belt",
             // RegalPillow.java uses canonical ID "Regal Pillow", COMMON tier,
             // and canSpawn excludes non-endless runs after floor 48.
             "Regal Pillow",
@@ -3775,6 +3786,7 @@ impl RunEngine {
             .filter(|relic| *relic != "Juzu Bracelet" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Question Card" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Prayer Wheel" || self.run_state.floor <= 48)
+            .filter(|relic| *relic != "Potion Belt" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Regal Pillow" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Singing Bowl" || self.run_state.floor <= 48)
             .filter(|relic| {
@@ -3804,6 +3816,7 @@ impl RunEngine {
                     .filter(|relic| *relic != "Juzu Bracelet" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Question Card" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Prayer Wheel" || self.run_state.floor <= 48)
+                    .filter(|relic| *relic != "Potion Belt" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Regal Pillow" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Singing Bowl" || self.run_state.floor <= 48)
                     .filter(|relic| {
