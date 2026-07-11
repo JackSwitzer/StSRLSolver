@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T02:00:05.296766+00:00",
+ "updated": "2026-07-11T02:04:32.043109+00:00",
  "status_counts": {
-  "unverified": 585,
-  "verified": 82
+  "unverified": 583,
+  "verified": 84
  },
  "rows": [
   {
@@ -3942,8 +3942,8 @@
    "class": "LouseDefensive",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/exordium/LouseDefensive.java",
    "methods_ref": "reference/extracted/methods/monster/LouseDefensive.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -3952,8 +3952,8 @@
    "class": "LouseNormal",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/exordium/LouseNormal.java",
    "methods_ref": "reference/extracted/methods/monster/LouseNormal.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

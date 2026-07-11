@@ -1265,6 +1265,28 @@ impl RunEngine {
             enemy.entity.set_status(crate::status_ids::sid::STR_AMT, strength);
         }
 
+        // Sources: reference/extracted/methods/monster/LouseNormal.java and
+        // LouseDefensive.java. HP is rolled separately below; constructor Bite
+        // and pre-battle Curl Up also use inclusive monsterHpRng ranges.
+        for enemy in enemy_states.iter_mut().filter(|e| matches!(e.id.as_str(),
+            "FuzzyLouseNormal" | "RedLouse" | "FuzzyLouseDefensive" | "GreenLouse")) {
+            let bite_base = if self.run_state.ascension >= 2 { 6 } else { 5 };
+            let bite_damage = bite_base + self.rng.gen_range(0..=2);
+            let (curl_base, curl_width) = if self.run_state.ascension >= 17 {
+                (9, 3)
+            } else if self.run_state.ascension >= 7 {
+                (4, 4)
+            } else {
+                (3, 4)
+            };
+            let curl_up = curl_base + self.rng.gen_range(0..=curl_width);
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, bite_damage);
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
+                if self.run_state.ascension >= 17 { 4 } else { 3 });
+            enemy.entity.set_status(crate::status_ids::sid::CURL_UP, curl_up);
+            enemy.set_move(crate::enemies::move_ids::LOUSE_BITE, bite_damage, 1, 0);
+        }
+
         // Java Cultist.java: ctor sets ritualAmount = ascensionLevel >= 2 ? 4 : 3;
         // takeTurn() case 3 (INCANTATION) applies RitualPower(ritualAmount + 1)
         // at ascensionLevel >= 17, else RitualPower(ritualAmount).
@@ -1335,9 +1357,14 @@ impl RunEngine {
                 let hp = base + self.rng.gen_range(0..=6);
                 (hp, hp)
             }
-            "FuzzyLouseNormal" | "FuzzyLouseDefensive" | "RedLouse" | "GreenLouse" => {
+            "FuzzyLouseNormal" | "RedLouse" => {
                 let base = if a20 { 11 } else { 10 };
                 let hp = base + self.rng.gen_range(0..=5);
+                (hp, hp)
+            }
+            "FuzzyLouseDefensive" | "GreenLouse" => {
+                let base = if a20 { 12 } else { 11 };
+                let hp = base + self.rng.gen_range(0..=6);
                 (hp, hp)
             }
             "AcidSlime_S" => {
@@ -4266,6 +4293,55 @@ mod tests {
                 crate::enemies::move_ids::FB_BITE | crate::enemies::move_ids::FB_GROW));
             assert_eq!(engine.combat_engine.as_ref().unwrap().ai_rng.counter, 1);
         }
+    }
+
+    #[test]
+    fn louse_constructor_rolls_and_a17_rules_match_java() {
+        // Sources: reference/extracted/methods/monster/LouseNormal.java and
+        // LouseDefensive.java.
+        let mut red_low_hp = std::collections::HashSet::new();
+        let mut red_high_hp = std::collections::HashSet::new();
+        let mut green_low_hp = std::collections::HashSet::new();
+        let mut green_high_hp = std::collections::HashSet::new();
+        let mut low_bites = std::collections::HashSet::new();
+        let mut low_curl = std::collections::HashSet::new();
+        let mut a17_bites = std::collections::HashSet::new();
+        let mut a17_curl = std::collections::HashSet::new();
+
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            red_low_hp.insert(low.roll_enemy_hp("FuzzyLouseNormal").0);
+            green_low_hp.insert(low.roll_enemy_hp("FuzzyLouseDefensive").0);
+            low.enter_specific_combat(vec!["FuzzyLouseNormal".to_string()]);
+            let enemy = &low.combat_engine.as_ref().unwrap().state.enemies[0];
+            low_bites.insert(enemy.entity.status(crate::status_ids::sid::STARTING_DMG));
+            low_curl.insert(enemy.entity.status(crate::status_ids::sid::CURL_UP));
+
+            let mut high = RunEngine::new(seed, 17);
+            red_high_hp.insert(high.roll_enemy_hp("FuzzyLouseNormal").0);
+            green_high_hp.insert(high.roll_enemy_hp("FuzzyLouseDefensive").0);
+            high.enter_specific_combat(vec!["FuzzyLouseDefensive".to_string()]);
+            let enemy = &high.combat_engine.as_ref().unwrap().state.enemies[0];
+            a17_bites.insert(enemy.entity.status(crate::status_ids::sid::STARTING_DMG));
+            a17_curl.insert(enemy.entity.status(crate::status_ids::sid::CURL_UP));
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), 4);
+            assert_eq!(high.combat_engine.as_ref().unwrap().ai_rng.counter, 1);
+        }
+
+        assert_eq!(red_low_hp, (10..=15).collect());
+        assert_eq!(red_high_hp, (11..=16).collect());
+        assert_eq!(green_low_hp, (11..=17).collect());
+        assert_eq!(green_high_hp, (12..=18).collect());
+        assert_eq!(low_bites, (5..=7).collect());
+        assert_eq!(a17_bites, (6..=8).collect());
+        assert_eq!(low_curl, (3..=7).collect());
+        assert_eq!(a17_curl, (9..=12).collect());
+
+        let mut a7 = RunEngine::new(42, 7);
+        a7.enter_specific_combat(vec!["FuzzyLouseNormal".to_string()]);
+        let curl = a7.combat_engine.as_ref().unwrap().state.enemies[0]
+            .entity.status(crate::status_ids::sid::CURL_UP);
+        assert!((4..=8).contains(&curl));
     }
 
     #[test]

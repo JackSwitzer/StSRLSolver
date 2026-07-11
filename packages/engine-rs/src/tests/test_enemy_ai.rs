@@ -228,15 +228,22 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::FB_BITE, 6, 1, 0, &[]);
 
         let mut e = make("RedLouse", 12);
-        roll_times(&mut e, 1);
+        // LouseNormal.java: initial num=25 selects Bite; after two Bites the
+        // >=25 branch forces Grow.
+        roll_initial_move_with_num_and_rng(
+            &mut e, 25, &mut crate::seed::StsRandom::new(0));
+        roll_with_num(&mut e, 25);
         expect_move(&e, move_ids::LOUSE_BITE, 6, 1, 0, &[]);
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 25);
         expect_move(&e, move_ids::LOUSE_GROW, 0, 0, 0, &[(mfx::STRENGTH, 3)]);
 
         let mut e = make("GreenLouse", 14);
-        roll_times(&mut e, 1);
+        // LouseDefensive.java has the same history rule, forcing Web instead.
+        roll_initial_move_with_num_and_rng(
+            &mut e, 25, &mut crate::seed::StsRandom::new(0));
+        roll_with_num(&mut e, 25);
         expect_move(&e, move_ids::LOUSE_BITE, 6, 1, 0, &[]);
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 25);
         expect_move(&e, move_ids::LOUSE_SPIT_WEB, 0, 0, 0, &[(mfx::WEAK, 2)]);
 
         let mut e = make("SlaverBlue", 46);

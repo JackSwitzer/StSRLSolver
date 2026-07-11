@@ -424,10 +424,15 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::SPORE_CLOUD, 2);
         }
         "FuzzyLouseNormal" | "RedLouse" => {
+            enemy.entity.set_status(sid::STARTING_DMG, 6);
+            enemy.entity.set_status(sid::STR_AMT, 3);
             enemy.set_move(move_ids::LOUSE_BITE, 6, 1, 0);
             enemy.entity.set_status(sid::CURL_UP, 5);
         }
         "FuzzyLouseDefensive" | "GreenLouse" => {
+            enemy.entity.set_status(sid::STARTING_DMG, 6);
+            // Also marks the A17 getMove rule at value 4 in the run layer.
+            enemy.entity.set_status(sid::STR_AMT, 3);
             enemy.set_move(move_ids::LOUSE_BITE, 6, 1, 0);
             enemy.entity.set_status(sid::CURL_UP, 5);
         }

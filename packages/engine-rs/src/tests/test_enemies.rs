@@ -146,9 +146,19 @@ mod enemy_tests {
 
     // ========== Red Louse ==========
 
-    #[test] fn red_louse_first_bite() {
-        let e = create_enemy("RedLouse", 12, 12);
-        assert_eq!(e.move_id, LOUSE_BITE);
+    #[test] fn red_louse_initial_roll_uses_java_25_percent_grow_split() {
+        // Source: reference/extracted/methods/monster/LouseNormal.java.
+        let mut grow = create_enemy("RedLouse", 12, 12);
+        roll_initial_move_with_num_and_rng(
+            &mut grow, 24, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(grow.move_id, LOUSE_GROW);
+        assert_eq!(grow.effect(mfx::STRENGTH), Some(3));
+        assert!(grow.move_history.is_empty());
+        let mut bite = create_enemy("RedLouse", 12, 12);
+        roll_initial_move_with_num_and_rng(
+            &mut bite, 25, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(bite.move_id, LOUSE_BITE);
+        assert_eq!(bite.move_damage(), 6);
     }
     #[test] fn red_louse_curl_up() {
         let e = create_enemy("RedLouse", 12, 12);
@@ -156,22 +166,31 @@ mod enemy_tests {
     }
     #[test] fn red_louse_no_three_bites() {
         let mut e = create_enemy("RedLouse", 12, 12);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut e, 99);
+        roll_next_move_with_num(&mut e, 99);
         assert_eq!(e.move_id, LOUSE_GROW);
     }
     #[test] fn red_louse_grow_str() {
         let mut e = create_enemy("RedLouse", 12, 12);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut e, 99);
+        roll_next_move_with_num(&mut e, 99);
         assert_eq!(e.effect(mfx::STRENGTH).unwrap(), 3);
     }
 
     // ========== Green Louse ==========
 
-    #[test] fn green_louse_first_bite() {
-        let e = create_enemy("GreenLouse", 14, 14);
-        assert_eq!(e.move_id, LOUSE_BITE);
+    #[test] fn green_louse_initial_roll_uses_java_25_percent_web_split() {
+        // Source: reference/extracted/methods/monster/LouseDefensive.java.
+        let mut web = create_enemy("GreenLouse", 14, 14);
+        roll_initial_move_with_num_and_rng(
+            &mut web, 24, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(web.move_id, LOUSE_SPIT_WEB);
+        assert_eq!(web.effect(mfx::WEAK), Some(2));
+        assert!(web.move_history.is_empty());
+        let mut bite = create_enemy("GreenLouse", 14, 14);
+        roll_initial_move_with_num_and_rng(
+            &mut bite, 25, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(bite.move_id, LOUSE_BITE);
     }
     #[test] fn green_louse_curl_up() {
         let e = create_enemy("GreenLouse", 14, 14);
@@ -179,10 +198,27 @@ mod enemy_tests {
     }
     #[test] fn green_louse_spit_web_weak() {
         let mut e = create_enemy("GreenLouse", 14, 14);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut e, 99);
+        roll_next_move_with_num(&mut e, 99);
         assert_eq!(e.move_id, LOUSE_SPIT_WEB);
         assert_eq!(e.effect(mfx::WEAK).unwrap(), 2);
+    }
+
+    #[test] fn louse_a17_prevents_consecutive_special_moves() {
+        // At lower ascension Java permits two Grow/Web moves; A17 changes the
+        // guard from lastTwoMoves to lastMove.
+        let mut low = create_enemy("RedLouse", 12, 12);
+        roll_initial_move_with_num_and_rng(
+            &mut low, 0, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut low, 0);
+        assert_eq!(low.move_id, LOUSE_GROW);
+
+        let mut a17 = create_enemy("RedLouse", 12, 12);
+        a17.entity.set_status(sid::STR_AMT, 4);
+        roll_initial_move_with_num_and_rng(
+            &mut a17, 0, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut a17, 0);
+        assert_eq!(a17.move_id, LOUSE_BITE);
     }
 
     // ========== Blue Slaver ==========

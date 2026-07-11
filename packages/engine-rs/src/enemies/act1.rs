@@ -74,25 +74,45 @@ pub(super) fn roll_fungi_beast(enemy: &mut EnemyCombatState, num: i32) {
     }
 }
 
-pub(super) fn roll_red_louse(enemy: &mut EnemyCombatState, _num: i32) {
-    if last_two_moves(enemy, move_ids::LOUSE_BITE) {
-        enemy.set_move(move_ids::LOUSE_GROW, 0, 0, 0);
-        enemy.add_effect(mfx::STRENGTH, 3);
-    } else if last_move(enemy, move_ids::LOUSE_GROW) {
-        enemy.set_move(move_ids::LOUSE_BITE, 6, 1, 0);
+pub(super) fn roll_red_louse(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/LouseNormal.java (`getMove`).
+    let bite_damage = match enemy.entity.status(sid::STARTING_DMG) {
+        value if value > 0 => value,
+        _ => 6,
+    };
+    let a17 = enemy.entity.status(sid::STR_AMT) >= 4;
+    let choose_grow = if num < 25 {
+        if a17 { !last_move(enemy, move_ids::LOUSE_GROW) }
+        else { !last_two_moves(enemy, move_ids::LOUSE_GROW) }
     } else {
-        enemy.set_move(move_ids::LOUSE_BITE, 6, 1, 0);
+        last_two_moves(enemy, move_ids::LOUSE_BITE)
+    };
+    if choose_grow {
+        enemy.set_move(move_ids::LOUSE_GROW, 0, 0, 0);
+        enemy.add_effect(mfx::STRENGTH, if a17 { 4 } else { 3 });
+    } else {
+        enemy.set_move(move_ids::LOUSE_BITE, bite_damage, 1, 0);
     }
 }
 
-pub(super) fn roll_green_louse(enemy: &mut EnemyCombatState, _num: i32) {
-    if last_two_moves(enemy, move_ids::LOUSE_BITE) {
+pub(super) fn roll_green_louse(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/LouseDefensive.java (`getMove`).
+    let bite_damage = match enemy.entity.status(sid::STARTING_DMG) {
+        value if value > 0 => value,
+        _ => 6,
+    };
+    let a17 = enemy.entity.status(sid::STR_AMT) >= 4;
+    let choose_web = if num < 25 {
+        if a17 { !last_move(enemy, move_ids::LOUSE_SPIT_WEB) }
+        else { !last_two_moves(enemy, move_ids::LOUSE_SPIT_WEB) }
+    } else {
+        last_two_moves(enemy, move_ids::LOUSE_BITE)
+    };
+    if choose_web {
         enemy.set_move(move_ids::LOUSE_SPIT_WEB, 0, 0, 0);
         enemy.add_effect(mfx::WEAK, 2);
-    } else if last_move(enemy, move_ids::LOUSE_SPIT_WEB) {
-        enemy.set_move(move_ids::LOUSE_BITE, 6, 1, 0);
     } else {
-        enemy.set_move(move_ids::LOUSE_BITE, 6, 1, 0);
+        enemy.set_move(move_ids::LOUSE_BITE, bite_damage, 1, 0);
     }
 }
 
