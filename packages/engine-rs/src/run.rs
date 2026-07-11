@@ -399,6 +399,30 @@ fn obtain_master_deck_card_state(run_state: &mut RunState, card_id: String) {
         return;
     }
     run_state.deck.push(card_id);
+    // DarkstonePeriapt.java calls increaseMaxHp(6, true) after an obtained
+    // curse. AbstractCreature.java increases max HP, then heals through the
+    // ordinary relic-modified healing path.
+    if is_curse
+        && run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::DARKSTONE_PERIAPT)
+    {
+        run_state.max_hp += 6;
+        if !run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::MARK_OF_BLOOM)
+        {
+            let heal = if run_state
+                .relic_flags
+                .has(crate::relic_flags::flag::MAGIC_FLOWER)
+            {
+                9
+            } else {
+                6
+            };
+            run_state.current_hp = (run_state.current_hp + heal).min(run_state.max_hp);
+        }
+    }
     // Sources: CeramicFish.java::onObtainCard gains 9 gold for every obtained
     // card; ShowCardAndObtainEffect.java and FastCardObtainEffect.java dispatch
     // that hook for rewards, shops, event gains, duplicates, and transforms.
@@ -3205,6 +3229,7 @@ impl RunEngine {
             "Bottled Flame",
             "Bottled Lightning",
             "Bottled Tornado",
+            "Darkstone Periapt",
             "Ornamental Fan",
             "Thread and Needle",
         ];
@@ -3436,6 +3461,9 @@ impl RunEngine {
             // CeramicFish.java uses canonical ID "CeramicFish", COMMON tier,
             // and canSpawn excludes non-endless runs after floor 48.
             "CeramicFish",
+            // DarkstonePeriapt.java uses this canonical ID, UNCOMMON tier, and
+            // canSpawn excludes non-endless runs after floor 48.
+            "Darkstone Periapt",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
@@ -3451,6 +3479,7 @@ impl RunEngine {
             .copied()
             .filter(|relic| *relic != "Ancient Tea Set" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "CeramicFish" || self.run_state.floor <= 48)
+            .filter(|relic| *relic != "Darkstone Periapt" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Bottled Flame" || self.can_spawn_bottled_flame())
             .filter(|relic| {
                 *relic != "Bottled Lightning" || self.can_spawn_bottled_lightning()
@@ -3465,6 +3494,7 @@ impl RunEngine {
                     .copied()
                     .filter(|relic| *relic != "Ancient Tea Set" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "CeramicFish" || self.run_state.floor <= 48)
+                    .filter(|relic| *relic != "Darkstone Periapt" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Bottled Flame" || self.can_spawn_bottled_flame())
                     .filter(|relic| {
                         *relic != "Bottled Lightning" || self.can_spawn_bottled_lightning()

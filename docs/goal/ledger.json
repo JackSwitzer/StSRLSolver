@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T07:57:15.267756+00:00",
+ "updated": "2026-07-11T08:00:17.547192+00:00",
  "status_counts": {
-  "unverified": 495,
-  "verified": 172
+  "unverified": 494,
+  "verified": 173
  },
  "rows": [
   {
@@ -5212,8 +5212,8 @@
    "class": "DarkstonePeriapt",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/DarkstonePeriapt.java",
    "methods_ref": "reference/extracted/methods/relic/DarkstonePeriapt.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

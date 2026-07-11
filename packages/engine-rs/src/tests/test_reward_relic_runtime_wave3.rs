@@ -314,6 +314,74 @@ fn cursed_key_is_reachable_and_nonboss_chests_obtain_one_random_curse() {
 }
 
 #[test]
+fn darkstone_periapt_is_reachable_and_an_obtained_curse_grants_six_max_hp() {
+    // DarkstonePeriapt.java constructs an UNCOMMON relic, excludes floors
+    // after 48, and calls increaseMaxHp(6, true) for an obtained CURSE card.
+    let offered = (0..1024).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 48;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Darkstone Periapt"
+            })
+        })
+    });
+    assert!(offered);
+
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 49;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Darkstone Periapt")
+        }));
+    }
+
+    let mut engine = RunEngine::new(47, 0);
+    engine.run_state.relics.push("Darkstone Periapt".to_string());
+    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine.run_state.current_hp = 40;
+    engine.debug_set_card_reward_screen(vec!["Regret".to_string()]);
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(engine
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+    assert_eq!(engine.run_state.max_hp, 78);
+    assert_eq!(engine.run_state.current_hp, 46);
+    assert_eq!(engine.run_state.deck.last().map(String::as_str), Some("Regret"));
+
+    let mut protected = RunEngine::new(49, 0);
+    protected.run_state.relics.extend([
+        "Darkstone Periapt".to_string(),
+        "Omamori".to_string(),
+    ]);
+    protected
+        .run_state
+        .relic_flags
+        .rebuild(&protected.run_state.relics);
+    protected.run_state.relic_flags.counters
+        [crate::relic_flags::counter::OMAMORI_USES] = 1;
+    protected.debug_set_card_reward_screen(vec!["Regret".to_string()]);
+    assert!(protected
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(protected
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+    assert_eq!(protected.run_state.max_hp, 72);
+    assert!(!protected.run_state.deck.iter().any(|card| card == "Regret"));
+}
+
+#[test]
 fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
     // Source-derived (verify relic/Calling Bell): CallingBell.java is BOSS tier,
     // confirms CurseOfTheBell, then opens COMMON, UNCOMMON, and RARE relic
