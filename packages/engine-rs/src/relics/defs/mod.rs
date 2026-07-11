@@ -213,6 +213,7 @@ pub mod mango;
 pub mod matryoshka;
 pub mod maw_bank;
 pub mod meal_ticket;
+pub mod juzu_bracelet;
 pub mod ancient_tea_set;
 pub mod astrolabe;
 pub mod medical_kit;
@@ -369,6 +370,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &matryoshka::DEF,
     &maw_bank::DEF,
     &meal_ticket::DEF,
+    &juzu_bracelet::DEF,
     &ancient_tea_set::DEF,
     &astrolabe::DEF,
     &medical_kit::DEF,

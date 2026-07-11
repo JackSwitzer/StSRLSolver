@@ -354,11 +354,23 @@ pub struct RunState {
     // LizardTail.java marks the relic used permanently after its one revive.
     #[serde(default)]
     pub lizard_tail_used: bool,
+
+    // EventHelper.java mystery-room odds, stored as integer percentages.
+    #[serde(default = "default_event_monster_chance")]
+    pub event_monster_chance: i32,
+    #[serde(default = "default_event_shop_chance")]
+    pub event_shop_chance: i32,
+    #[serde(default = "default_event_treasure_chance")]
+    pub event_treasure_chance: i32,
 }
 
 fn default_purge_cost() -> i32 {
     75
 }
+
+fn default_event_monster_chance() -> i32 { 10 }
+fn default_event_shop_chance() -> i32 { 3 }
+fn default_event_treasure_chance() -> i32 { 2 }
 
 fn adjust_run_gold_state(run_state: &mut RunState, amount: i32) {
     if amount > 0 {
@@ -523,6 +535,9 @@ impl RunState {
             relic_flags,
             persisted_effect_states: Vec::new(),
             lizard_tail_used: false,
+            event_monster_chance: default_event_monster_chance(),
+            event_shop_chance: default_event_shop_chance(),
+            event_treasure_chance: default_event_treasure_chance(),
         }
     }
 }
@@ -1352,7 +1367,7 @@ impl RunEngine {
                 self.enter_shop();
             }
             RoomType::Event => {
-                self.enter_event();
+                self.enter_mystery_room();
             }
             RoomType::Treasure => {
                 if self
@@ -3619,6 +3634,9 @@ impl RunEngine {
             "Meat on the Bone",
             // HappyFlower.java uses canonical ID "Happy Flower" and COMMON tier.
             "Happy Flower",
+            // JuzuBracelet.java uses canonical ID "Juzu Bracelet", COMMON tier,
+            // and canSpawn excludes non-endless runs after floor 48.
+            "Juzu Bracelet",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
@@ -3642,6 +3660,7 @@ impl RunEngine {
             .filter(|relic| *relic != "MawBank" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "MealTicket" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Meat on the Bone" || self.run_state.floor <= 48)
+            .filter(|relic| *relic != "Juzu Bracelet" || self.run_state.floor <= 48)
             .filter(|relic| {
                 !matches!(*relic, "Frozen Egg 2" | "Molten Egg 2" | "Toxic Egg 2")
                     || self.run_state.floor <= 48
@@ -3666,6 +3685,7 @@ impl RunEngine {
                     .filter(|relic| *relic != "MawBank" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "MealTicket" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Meat on the Bone" || self.run_state.floor <= 48)
+                    .filter(|relic| *relic != "Juzu Bracelet" || self.run_state.floor <= 48)
                     .filter(|relic| {
                         !matches!(*relic, "Frozen Egg 2" | "Molten Egg 2" | "Toxic Egg 2")
                             || self.run_state.floor <= 48
@@ -4443,6 +4463,80 @@ impl RunEngine {
                 });
                 self.sync_scrap_ooze_event();
             }
+        }
+    }
+
+    fn enter_mystery_room(&mut self) {
+        // EventHelper.java::roll fills a 100-entry table in this order:
+        // MONSTER, SHOP, TREASURE, then EVENT. (Elite entries require the
+        // Deadly Events modifier, which the standard run engine does not use.)
+        let roll = self.next_event_roll_100() as i32;
+        let monster_end = self.run_state.event_monster_chance.min(100);
+        let shop_end = (monster_end + self.run_state.event_shop_chance).min(100);
+        let treasure_end = (shop_end + self.run_state.event_treasure_chance).min(100);
+
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        enum MysteryResult { Monster, Shop, Treasure, Event }
+
+        let rolled = if roll < monster_end {
+            MysteryResult::Monster
+        } else if roll < shop_end {
+            MysteryResult::Shop
+        } else if roll < treasure_end {
+            MysteryResult::Treasure
+        } else {
+            MysteryResult::Event
+        };
+
+        // EventHelper resets MONSTER_CHANCE on a monster roll before Juzu
+        // converts that result to EVENT; other rolls ramp it by 10 points.
+        let result = if rolled == MysteryResult::Monster {
+            self.run_state.event_monster_chance = 10;
+            if self
+                .run_state
+                .relic_flags
+                .has(crate::relic_flags::flag::JUZU_BRACELET)
+            {
+                MysteryResult::Event
+            } else {
+                MysteryResult::Monster
+            }
+        } else {
+            self.run_state.event_monster_chance += 10;
+            rolled
+        };
+        self.run_state.event_shop_chance = if result == MysteryResult::Shop {
+            3
+        } else {
+            self.run_state.event_shop_chance + 3
+        };
+        self.run_state.event_treasure_chance = if result == MysteryResult::Treasure {
+            2
+        } else {
+            self.run_state.event_treasure_chance + 2
+        };
+
+        match result {
+            MysteryResult::Monster => self.enter_combat(false, false),
+            MysteryResult::Shop => self.enter_shop(),
+            MysteryResult::Treasure => {
+                if self
+                    .run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::MATRYOSHKA)
+                    && self.run_state.relic_flags.counters
+                        [crate::relic_flags::counter::MATRYOSHKA_USES]
+                        > 0
+                {
+                    self.build_treasure_reward_screen();
+                    self.phase = RunPhase::CardReward;
+                } else {
+                    let gold = self.rng.gen_range(50..=80);
+                    self.adjust_run_gold(gold);
+                    self.phase = RunPhase::MapChoice;
+                }
+            }
+            MysteryResult::Event => self.enter_event(),
         }
     }
 

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T09:18:36.650036+00:00",
+ "updated": "2026-07-11T09:22:56.930831+00:00",
  "status_counts": {
-  "unverified": 469,
-  "verified": 198
+  "unverified": 468,
+  "verified": 199
  },
  "rows": [
   {
@@ -5552,8 +5552,8 @@
    "class": "JuzuBracelet",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/JuzuBracelet.java",
    "methods_ref": "reference/extracted/methods/relic/JuzuBracelet.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

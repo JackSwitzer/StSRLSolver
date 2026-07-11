@@ -109,6 +109,34 @@ fn meal_ticket_heals_exactly_fifteen_on_shop_entry() {
 }
 
 #[test]
+fn juzu_bracelet_converts_a_mystery_monster_roll_into_an_event() {
+    // EventHelper.java rolls MONSTER first in the 100-slot mystery table,
+    // resets MONSTER_CHANCE, then Juzu Bracelet converts MONSTER to EVENT.
+    let mut baseline = RunEngine::new(51, 0);
+    resolve_opening_neow(&mut baseline);
+    set_first_reachable_room(&mut baseline, RoomType::Event);
+    baseline.debug_force_event_rolls(&[0]);
+    let enter = baseline.get_legal_actions()[0].clone();
+    assert!(baseline.step_with_result(&enter).action_accepted);
+    assert_eq!(baseline.current_phase(), RunPhase::Combat);
+    assert_eq!(baseline.run_state.event_monster_chance, 10);
+
+    let mut protected = RunEngine::new(51, 0);
+    protected.run_state.relics.push("Juzu Bracelet".to_string());
+    protected
+        .run_state
+        .relic_flags
+        .rebuild(&protected.run_state.relics);
+    resolve_opening_neow(&mut protected);
+    set_first_reachable_room(&mut protected, RoomType::Event);
+    protected.debug_force_event_rolls(&[0]);
+    let enter = protected.get_legal_actions()[0].clone();
+    assert!(protected.step_with_result(&enter).action_accepted);
+    assert_eq!(protected.current_phase(), RunPhase::Event);
+    assert_eq!(protected.run_state.event_monster_chance, 10);
+}
+
+#[test]
 fn matryoshka_treasure_room_builds_ordered_chest_reward_screen() {
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.relics.push("Matryoshka".to_string());

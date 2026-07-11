@@ -991,6 +991,32 @@ fn happy_flower_is_reachable_from_common_watcher_relic_rewards() {
 }
 
 #[test]
+fn juzu_bracelet_is_reachable_only_through_floor_forty_eight() {
+    // JuzuBracelet.java constructs a COMMON relic and canSpawn excludes
+    // non-endless runs after floor 48.
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 48;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Juzu Bracelet"
+            })
+        })
+    });
+    assert!(offered);
+
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 49;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Juzu Bracelet")
+        }));
+    }
+}
+
+#[test]
 fn medical_kit_is_reachable_only_from_the_shop_relic_slot() {
     // MedicalKit.java constructs RelicTier.SHOP. ShopScreen.java::initRelics
     // makes its third relic slot SHOP-tier; ordinary combat rewards cannot offer it.
