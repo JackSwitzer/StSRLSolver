@@ -787,6 +787,31 @@ pub fn advance_slime_boss_after_turn(enemy: &mut EnemyCombatState) {
     }
 }
 
+pub(super) fn roll_apology_slime(
+    enemy: &mut EnemyCombatState,
+    ai_rng: &mut crate::seed::StsRandom,
+) {
+    // Source: reference/extracted/methods/monster/ApologySlime.java (`getMove`).
+    if ai_rng.random_boolean() {
+        enemy.set_move(move_ids::APOLOGY_TACKLE, 3, 1, 0);
+    } else {
+        enemy.set_move(move_ids::APOLOGY_DEBUFF, 0, 0, 0);
+        enemy.add_effect(mfx::WEAK, 1);
+    }
+}
+
+pub fn advance_apology_slime_after_turn(enemy: &mut EnemyCombatState) {
+    // Source: ApologySlime.java `takeTurn`; both moves transition directly.
+    enemy.move_history.push(enemy.move_id);
+    enemy.move_effects.clear();
+    if enemy.move_id == move_ids::APOLOGY_TACKLE {
+        enemy.set_move(move_ids::APOLOGY_DEBUFF, 0, 0, 0);
+        enemy.add_effect(mfx::WEAK, 1);
+    } else {
+        enemy.set_move(move_ids::APOLOGY_TACKLE, 3, 1, 0);
+    }
+}
+
 /// Check if Slime Boss should split (HP <= 50%).
 pub fn slime_boss_should_split(enemy: &EnemyCombatState) -> bool {
     enemy.entity.hp > 0

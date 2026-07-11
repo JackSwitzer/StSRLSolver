@@ -675,6 +675,14 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     }
 
     if matches!(engine.state.enemies[enemy_idx].id.as_str(),
+        "Apology Slime" | "ApologySlime")
+    {
+        enemies::act1::advance_apology_slime_after_turn(
+            &mut engine.state.enemies[enemy_idx]);
+        return;
+    }
+
+    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
         "GremlinThief" | "GremlinWarrior")
     {
         // Sources: GremlinThief.java and GremlinWarrior.java. Their attacks

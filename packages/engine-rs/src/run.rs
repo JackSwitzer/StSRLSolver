@@ -1752,6 +1752,11 @@ impl RunEngine {
                 let hp = if self.run_state.ascension >= 9 { 150 } else { 140 };
                 (hp, hp)
             }
+            "Apology Slime" | "ApologySlime" => {
+                // Source: ApologySlime.java constructor: monsterHpRng.random(8, 12).
+                let hp = self.rng.gen_range(8..=12);
+                (hp, hp)
+            }
             // Act 2 enemies
             "Byrd" => {
                 let hp = if a20 { 28 } else { 25 };
@@ -5944,6 +5949,54 @@ mod tests {
         assert_eq!(combat.state.enemies[0].entity.hp, 0);
         assert_eq!(combat.state.enemies.len(), 1,
             "SlimeBoss.damage excludes lethal hits with !isDying");
+    }
+
+    #[test]
+    fn apology_slime_hp_opening_boolean_alternation_and_ai_ticks_match_java() {
+        // Source: reference/extracted/methods/monster/ApologySlime.java.
+        let mut hp_values = std::collections::HashSet::new();
+        let mut attack_seed = None;
+        let mut debuff_seed = None;
+        for seed in 1..=256 {
+            let mut engine = RunEngine::new(seed, 0);
+            engine.enter_specific_combat(vec!["Apology Slime".to_string()]);
+            let combat = engine.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            hp_values.insert(enemy.entity.hp);
+            assert_eq!(combat.ai_rng.counter, 2,
+                "rollMove and getMove.randomBoolean each consume one aiRng value");
+            match enemy.move_id {
+                crate::enemies::move_ids::APOLOGY_TACKLE => attack_seed.get_or_insert(seed),
+                crate::enemies::move_ids::APOLOGY_DEBUFF => debuff_seed.get_or_insert(seed),
+                move_id => panic!("unexpected Apology Slime opener {move_id}"),
+            };
+        }
+        assert_eq!(hp_values, (8..=12).collect());
+
+        let mut attack = RunEngine::new(attack_seed.expect("attack opener"), 0);
+        attack.enter_specific_combat(vec!["Apology Slime".to_string()]);
+        let combat = attack.combat_engine.as_mut().unwrap();
+        let hp_before = combat.state.player.hp;
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.hp, hp_before - 3);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::APOLOGY_DEBUFF);
+        assert_eq!(combat.state.enemies[0].effect(crate::combat_types::mfx::WEAK), Some(1));
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::WEAKENED), 1);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::APOLOGY_TACKLE);
+        assert_eq!(combat.ai_rng.counter, 2,
+            "the direct alternating cycle consumes no later aiRng values");
+
+        let mut debuff = RunEngine::new(debuff_seed.expect("debuff opener"), 0);
+        debuff.enter_specific_combat(vec!["Apology Slime".to_string()]);
+        let combat = debuff.combat_engine.as_mut().unwrap();
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::WEAKENED), 1);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::APOLOGY_TACKLE);
+        assert_eq!(combat.ai_rng.counter, 2);
     }
 
     #[test]

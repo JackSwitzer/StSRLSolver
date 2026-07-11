@@ -180,6 +180,10 @@ pub mod move_ids {
     pub const HEX_ACTIVATE: i32 = 5;
     pub const HEX_INFERNO: i32 = 6;
 
+    // Apology Slime
+    pub const APOLOGY_TACKLE: i32 = 1;
+    pub const APOLOGY_DEBUFF: i32 = 2;
+
     // Slime Boss
     pub const SB_SLAM: i32 = 1;
     pub const SB_PREP_SLAM: i32 = 2;
@@ -590,6 +594,9 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::SB_STICKY, 0, 0, 0);
             enemy.add_effect(mfx::SLIMED, 3);
         }
+        "Apology Slime" | "ApologySlime" => {
+            enemy.set_move(move_ids::APOLOGY_TACKLE, 3, 1, 0);
+        }
 
         // =================================================================
         // Act 2 — The City
@@ -971,6 +978,7 @@ fn select_move(
         "TheGuardian" => act1::roll_guardian(enemy),
         "Hexaghost" => act1::roll_hexaghost(enemy),
         "SlimeBoss" => act1::roll_slime_boss(enemy),
+        "Apology Slime" | "ApologySlime" => act1::roll_apology_slime(enemy, ai_rng),
         // Act 2
         "Chosen" => act2::roll_chosen(enemy, num),
         "Mugger" => act2::roll_mugger(enemy, num),
