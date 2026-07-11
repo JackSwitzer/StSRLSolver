@@ -148,6 +148,34 @@ fn pocketwatch_draws_three_extra_cards_after_a_short_previous_turn() {
 
 #[test]
 // Java oracle:
+// decompiled/java-src/com/megacrit/cardcrawl/relics/Pocketwatch.java
+fn pocketwatch_three_card_threshold_is_inclusive_and_four_cards_disable_bonus_draw() {
+    for (cards_played, expected_hand) in [(3, 8), (4, 5)] {
+        let mut engine = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 80, 80)],
+            10,
+        );
+        engine.state.relics.push("Pocketwatch".to_string());
+        force_player_turn(&mut engine);
+        engine.state.turn = 1;
+        engine.state.hand = make_deck_n("Defend", cards_played);
+        engine.state.draw_pile = make_deck_n("Strike", 12);
+        engine.state.discard_pile.clear();
+        engine.rebuild_effect_runtime();
+
+        for _ in 0..cards_played {
+            assert!(play_self(&mut engine, "Defend"));
+        }
+        end_turn(&mut engine);
+
+        assert_eq!(engine.state.turn, 2);
+        assert_eq!(engine.state.hand.len(), expected_hand);
+    }
+}
+
+#[test]
+// Java oracle:
 // decompiled/java-src/com/megacrit/cardcrawl/powers/EchoPower.java
 fn echo_form_replays_the_next_card_during_the_card_use_phase() {
     let mut engine = engine_with(make_deck_n("Strike", 6), 50, 0);

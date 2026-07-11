@@ -3629,6 +3629,7 @@ impl RunEngine {
             "Incense Burner",
             "Old Coin",
             "Peace Pipe",
+            "Pocketwatch",
             "Shovel",
             // ThreadAndNeedle.java constructs a RARE relic.
             "Thread and Needle",
@@ -3927,6 +3928,8 @@ impl RunEngine {
             // Shovel.java uses canonical ID "Shovel", RARE tier, and the same
             // floor and campfire-relic-count spawn gates as Peace Pipe.
             "Shovel",
+            // Pocketwatch.java uses canonical ID "Pocketwatch" and RARE tier.
+            "Pocketwatch",
             // Matryoshka.java uses canonical ID "Matryoshka", UNCOMMON tier,
             // and canSpawn excludes non-endless runs after floor 40.
             "Matryoshka",

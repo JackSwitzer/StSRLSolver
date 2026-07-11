@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T19:08:09.619207+00:00",
+ "updated": "2026-07-11T19:09:42.532224+00:00",
  "status_counts": {
-  "unverified": 433,
-  "verified": 234
+  "unverified": 432,
+  "verified": 235
  },
  "rows": [
   {
@@ -6002,8 +6002,8 @@
    "class": "Pocketwatch",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Pocketwatch.java",
    "methods_ref": "reference/extracted/methods/relic/Pocketwatch.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
