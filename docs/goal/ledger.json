@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T07:31:49.695466+00:00",
+ "updated": "2026-07-11T07:34:32.520332+00:00",
  "status_counts": {
-  "unverified": 502,
-  "verified": 165
+  "unverified": 501,
+  "verified": 166
  },
  "rows": [
   {
@@ -5022,8 +5022,8 @@
    "class": "BustedCrown",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/BustedCrown.java",
    "methods_ref": "reference/extracted/methods/relic/BustedCrown.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

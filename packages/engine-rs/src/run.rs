@@ -1707,12 +1707,19 @@ impl RunEngine {
                 card.flags |= crate::combat_types::CardInstance::FLAG_INNATE;
             }
         }
+        // BustedCrown.java::onEquip increments energyMaster once.
+        let combat_energy = 3
+            + i32::from(
+                self.run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::BUSTED_CROWN),
+            );
         let mut combat_state = CombatState::new(
             self.run_state.current_hp,
             self.run_state.max_hp,
             enemy_states,
             deck_instances,
-            3, // Watcher base energy
+            combat_energy,
         );
         combat_state.relics = self.run_state.relics.clone();
         combat_state.potions = self.run_state.potions.clone();
@@ -2316,15 +2323,27 @@ impl RunEngine {
         } else {
             1
         };
-        let card_choice_count = if self
+        let question_card_bonus = if self
             .run_state
             .relic_flags
             .has(crate::relic_flags::flag::QUESTION_CARD)
         {
-            4
+            1
         } else {
-            3
+            0
         };
+        // BustedCrown.java subtracts two through changeNumberOfCardsInReward;
+        // QuestionCard adds one through the same ordered relic callback chain.
+        let busted_crown_penalty = if self
+            .run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::BUSTED_CROWN)
+        {
+            2
+        } else {
+            0
+        };
+        let card_choice_count = (3 + question_card_bonus - busted_crown_penalty).max(1);
 
         for _ in 0..card_reward_count {
             items.push(RewardItem {
@@ -3314,6 +3333,7 @@ impl RunEngine {
 
     fn roll_boss_relic_choices(&mut self, count: usize) -> Vec<String> {
         const BOSS_RELIC_POOL: &[&str] = &[
+            "Busted Crown",
             "Philosopher's Stone",
             "Velvet Choker",
             "Snecko Eye",
@@ -6900,6 +6920,20 @@ mod tests {
             .hand
             .iter()
             .any(|card| combat.card_registry.card_name(card.def_id) == "Devotion"));
+    }
+
+    #[test]
+    fn busted_crown_increases_watcher_master_energy_for_combat() {
+        // Source-derived (verify relic/Busted Crown):
+        // BustedCrown.java::onEquip increments energyMaster exactly once.
+        let mut engine = RunEngine::new(31, 0);
+        engine.run_state.relics.push("Busted Crown".to_string());
+        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+
+        engine.enter_specific_combat(vec!["JawWorm".to_string()]);
+        let combat = engine.combat_engine.as_ref().expect("combat should start");
+        assert_eq!(combat.state.max_energy, 4);
+        assert_eq!(combat.state.energy, 4);
     }
 
     #[test]

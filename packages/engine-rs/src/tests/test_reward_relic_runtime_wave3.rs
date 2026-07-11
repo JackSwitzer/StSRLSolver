@@ -134,6 +134,68 @@ fn black_star_is_reachable_from_the_watcher_boss_relic_pool() {
 }
 
 #[test]
+fn busted_crown_is_reachable_and_subtracts_two_card_reward_choices() {
+    // Source-derived (verify relic/Busted Crown): BustedCrown.java is BOSS
+    // tier, adds one energy on equip, and changeNumberOfCardsInReward returns
+    // numberOfCards - 2. Question Card remains an additive +1 callback.
+    let offered = (0..128).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_boss_reward_screen();
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0]
+                .choices
+                .iter()
+                .any(|choice| matches!(choice, RewardChoice::Named { label, .. } if label == "Busted Crown"))
+        })
+    });
+    assert!(offered);
+
+    let mut engine = RunEngine::new(42, 0);
+    engine.debug_set_reward_screen(relic_choice_reward_screen(&["Busted Crown"]));
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(engine
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+    assert!(engine
+        .run_state
+        .relic_flags
+        .has(crate::relic_flags::flag::BUSTED_CROWN));
+
+    engine.debug_build_combat_reward_screen(RoomType::Monster);
+    let choices = engine
+        .current_reward_screen()
+        .and_then(|screen| {
+            screen
+                .items
+                .iter()
+                .find(|item| item.kind == RewardItemKind::CardChoice)
+                .map(|item| item.choices.len())
+        })
+        .expect("card reward should exist");
+    assert_eq!(choices, 1);
+
+    engine.run_state.relics.push("QuestionCard".to_string());
+    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine.debug_build_combat_reward_screen(RoomType::Monster);
+    let choices = engine
+        .current_reward_screen()
+        .and_then(|screen| {
+            screen
+                .items
+                .iter()
+                .find(|item| item.kind == RewardItemKind::CardChoice)
+                .map(|item| item.choices.len())
+        })
+        .expect("card reward should exist");
+    assert_eq!(choices, 2);
+}
+
+#[test]
 fn astrolabe_is_reachable_and_transforms_three_selected_cards_upgraded() {
     // Source-derived (verify relic/Astrolabe): Astrolabe.java is BOSS tier,
     // selects exactly three purgeable cards when more than three are eligible,
