@@ -297,6 +297,8 @@ pub struct RunState {
     pub relics: Vec<String>,
     pub potions: Vec<String>,
     pub max_potions: usize,
+    #[serde(default)]
+    pub bottled_flame_card: Option<String>,
 
     // Map state
     pub map_x: i32,   // -1 before first move
@@ -400,6 +402,7 @@ impl RunState {
             relics,
             potions: vec!["".to_string(); 3],
             max_potions: 3,
+            bottled_flame_card: None,
             map_x: -1,
             map_y: -1,
             has_ruby_key: false,
@@ -525,6 +528,7 @@ pub struct RunEngine {
     reward_screen: Option<RewardScreen>,
     pending_astrolabe_selection: bool,
     pending_astrolabe_removed: Vec<String>,
+    pending_bottled_flame_selection: bool,
 
     // Canonical stack of active decisions.
     decision_stack: DecisionStack,
@@ -594,6 +598,7 @@ impl RunEngine {
             reward_screen: None,
             pending_astrolabe_selection: false,
             pending_astrolabe_removed: Vec::new(),
+            pending_bottled_flame_selection: false,
             decision_stack: DecisionStack::new(),
             current_event: None,
             pending_event_combat: None,
@@ -1665,9 +1670,17 @@ impl RunEngine {
 
         // Create combat state — convert deck strings to CardInstance
         let registry = crate::cards::global_registry();
-        let deck_instances: Vec<crate::combat_types::CardInstance> = self.run_state.deck.iter()
+        let mut deck_instances: Vec<crate::combat_types::CardInstance> = self.run_state.deck.iter()
             .map(|name| registry.make_card(name))
             .collect();
+        if let Some(bottled) = self.run_state.bottled_flame_card.as_deref() {
+            if let Some(card) = deck_instances.iter_mut().find(|card| {
+                registry.card_name(card.def_id).trim_end_matches('+')
+                    == bottled.trim_end_matches('+')
+            }) {
+                card.flags |= crate::combat_types::CardInstance::FLAG_INNATE;
+            }
+        }
         let mut combat_state = CombatState::new(
             self.run_state.current_hp,
             self.run_state.max_hp,
@@ -2515,10 +2528,14 @@ impl RunEngine {
         let chose_astrolabe =
             matches!(&choice, RewardChoice::Named { label, .. } if label == "Astrolabe");
         let astrolabe_card_pick = item_label == "deck_selection_astrolabe";
+        let bottled_flame_card_pick = item_label == "deck_selection_bottled_flame";
 
         match (kind, choice) {
             (RewardItemKind::CardChoice, RewardChoice::Card { card_id, .. }) => {
-                if astrolabe_card_pick {
+                if bottled_flame_card_pick {
+                    self.run_state.bottled_flame_card = Some(card_id);
+                    self.pending_bottled_flame_selection = false;
+                } else if astrolabe_card_pick {
                     if let Some(RewardChoice::Card { index, .. }) =
                         choice_frame.choices.get(choice_index)
                     {
@@ -2695,6 +2712,7 @@ impl RunEngine {
         };
         let kind = item.kind;
         let label = item.label.clone();
+        let source = screen.source.clone();
 
         match kind {
             RewardItemKind::Relic => self.add_relic_reward(&label),
@@ -2712,6 +2730,9 @@ impl RunEngine {
                 item.state = RewardItemState::Claimed;
             }
             Self::refresh_reward_screen(screen);
+        }
+        if label == "Bottled Flame" && self.pending_bottled_flame_selection {
+            self.build_bottled_flame_selection_screen(source);
         }
     }
 
@@ -2793,6 +2814,9 @@ impl RunEngine {
 
         match relic_id {
             "Astrolabe" => self.prepare_astrolabe_on_equip(),
+            "Bottled Flame" => {
+                self.pending_bottled_flame_selection = !self.bottled_flame_choices().is_empty();
+            }
             "Whetstone" => self.upgrade_random_cards_by_type(crate::cards::CardType::Attack, 2),
             "WarPaint" => self.upgrade_random_cards_by_type(crate::cards::CardType::Skill, 2),
             // D27 partial fix: Pandora's Box. Java replaces all Strikes and Defends
@@ -2917,6 +2941,46 @@ impl RunEngine {
         self.reward_screen = Some(screen);
     }
 
+    fn bottled_flame_choices(&self) -> Vec<RewardChoice> {
+        let registry = crate::cards::global_registry();
+        self.run_state
+            .deck
+            .iter()
+            .enumerate()
+            .filter(|(_, card_id)| Self::is_purgeable_master_deck_card(card_id))
+            .filter(|(_, card_id)| {
+                registry
+                    .get(card_id)
+                    .is_some_and(|card| card.card_type == crate::cards::CardType::Attack)
+            })
+            .map(|(index, card_id)| RewardChoice::Card {
+                index,
+                card_id: card_id.clone(),
+            })
+            .collect()
+    }
+
+    fn build_bottled_flame_selection_screen(&mut self, source: RewardScreenSource) {
+        let mut screen = RewardScreen {
+            source,
+            ordered: true,
+            active_item: None,
+            items: vec![RewardItem {
+                index: 0,
+                kind: RewardItemKind::CardChoice,
+                state: RewardItemState::Available,
+                label: "deck_selection_bottled_flame".to_string(),
+                claimable: true,
+                active: false,
+                skip_allowed: false,
+                skip_label: None,
+                choices: self.bottled_flame_choices(),
+            }],
+        };
+        Self::refresh_reward_screen(&mut screen);
+        self.reward_screen = Some(screen);
+    }
+
     fn remove_relic_reward(&mut self, relic_id: &str) {
         let matches = |owned: &str| match relic_id {
             "Golden Idol" | "GoldenIdol" => matches!(owned, "Golden Idol" | "GoldenIdol"),
@@ -3007,6 +3071,16 @@ impl RunEngine {
         }
     }
 
+    fn can_spawn_bottled_flame(&self) -> bool {
+        let registry = crate::cards::global_registry();
+        self.run_state.deck.iter().any(|card_id| {
+            registry
+                .get(card_id)
+                .is_some_and(|card| card.card_type == crate::cards::CardType::Attack)
+                && event_card_rarity(card_id) != Some(EventCardRarity::Basic)
+        })
+    }
+
     fn roll_reward_relic_id(&mut self) -> String {
         const RELIC_REWARD_POOL: &[&str] = &[
             // RelicLibrary.java registers Ancient Tea Set at COMMON tier;
@@ -3033,6 +3107,8 @@ impl RunEngine {
             "Blue Candle",
             // Boot.java uses canonical ID "Boot" and COMMON tier.
             "Boot",
+            // BottledFlame.java uses this canonical ID and UNCOMMON tier.
+            "Bottled Flame",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
@@ -3047,6 +3123,7 @@ impl RunEngine {
             .iter()
             .copied()
             .filter(|relic| *relic != "Ancient Tea Set" || self.run_state.floor <= 48)
+            .filter(|relic| *relic != "Bottled Flame" || self.can_spawn_bottled_flame())
             .filter(|relic| !self.run_state.relics.iter().any(|owned| owned == relic))
             .collect();
         if candidates.is_empty() {
@@ -3054,7 +3131,8 @@ impl RunEngine {
                 RELIC_REWARD_POOL
                     .iter()
                     .copied()
-                    .filter(|relic| *relic != "Ancient Tea Set" || self.run_state.floor <= 48),
+                    .filter(|relic| *relic != "Ancient Tea Set" || self.run_state.floor <= 48)
+                    .filter(|relic| *relic != "Bottled Flame" || self.can_spawn_bottled_flame()),
             );
         }
 
@@ -4344,6 +4422,7 @@ impl RunEngine {
     fn roll_uncommon_event_relic_id(&mut self) -> String {
         const UNCOMMON_EVENT_RELIC_POOL: &[&str] = &[
             "Blue Candle",
+            "Bottled Flame",
             "ClockworkSouvenir",
             "DataDisk",
             "HappyFlower",
@@ -4357,6 +4436,7 @@ impl RunEngine {
             .iter()
             .copied()
             .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
+            .filter(|id| *id != "Bottled Flame" || self.can_spawn_bottled_flame())
             .filter(|id| !self.run_state.relics.iter().any(|owned| owned == id))
             .collect();
         if candidates.is_empty() {
@@ -4364,6 +4444,7 @@ impl RunEngine {
                 .iter()
                 .copied()
                 .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
+                .filter(|id| *id != "Bottled Flame" || self.can_spawn_bottled_flame())
                 .collect();
         }
         if candidates.is_empty() {
@@ -6605,6 +6686,36 @@ mod tests {
         engine.adjust_run_gold(50);
         assert_eq!(engine.run_state.gold, gold);
         assert_eq!(engine.run_state.current_hp, 45);
+    }
+
+    #[test]
+    fn bottled_flame_marks_one_selected_master_deck_card_innate_in_combat() {
+        // Source-derived (verify relic/Bottled Flame): the selected master-deck
+        // card has inBottleFlame=true and is therefore moved into the opening
+        // hand by AbstractPlayer.initializeStarterDeck.
+        let mut engine = RunEngine::new(17, 0);
+        engine.run_state.deck = vec![
+            "Strike".to_string(),
+            "Strike".to_string(),
+            "Strike".to_string(),
+            "Defend".to_string(),
+            "Defend".to_string(),
+            "Defend".to_string(),
+            "Defend".to_string(),
+            "Vigilance".to_string(),
+            "Eruption".to_string(),
+            "Wallop".to_string(),
+        ];
+        engine.run_state.relics.push("Bottled Flame".to_string());
+        engine.run_state.bottled_flame_card = Some("Wallop".to_string());
+
+        engine.enter_specific_combat(vec!["JawWorm".to_string()]);
+        let combat = engine.combat_engine.as_ref().expect("combat should start");
+        assert!(combat
+            .state
+            .hand
+            .iter()
+            .any(|card| combat.card_registry.card_name(card.def_id) == "Wallop"));
     }
 
     #[test]

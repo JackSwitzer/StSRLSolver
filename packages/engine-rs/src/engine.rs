@@ -347,7 +347,9 @@ impl CombatEngine {
         let mut innate_indices = Vec::new();
         for (i, card) in self.state.draw_pile.iter().enumerate() {
             let def = self.card_registry.card_def_by_id(card.def_id);
-            if def.runtime_traits().innate {
+            if def.runtime_traits().innate
+                || card.flags & CardInstance::FLAG_INNATE != 0
+            {
                 innate_indices.push(i);
             }
         }

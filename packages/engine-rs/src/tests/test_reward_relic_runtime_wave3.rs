@@ -401,6 +401,58 @@ fn boot_is_reachable_from_watcher_relic_rewards() {
 }
 
 #[test]
+fn bottled_flame_requires_a_nonbasic_attack_then_selects_any_purgeable_attack() {
+    // Source-derived (verify relic/Bottled Flame): BottledFlame.java::canSpawn
+    // requires at least one non-Basic Attack, while onEquip offers all
+    // purgeable Attacks and marks the single selected card inBottleFlame.
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Bottled Flame")
+        }));
+    }
+
+    let offered = (0..1024).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.deck.push("Wallop".to_string());
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| item.label == "Bottled Flame")
+        })
+    });
+    assert!(offered);
+
+    let mut engine = RunEngine::new(42, 0);
+    engine.run_state.deck.push("Wallop".to_string());
+    engine.debug_set_reward_screen(single_relic_reward_screen("Bottled Flame"));
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    let screen = engine
+        .current_reward_screen()
+        .expect("bottle selection should replace the relic reward");
+    assert!(screen.items[0].choices.iter().all(|choice| {
+        !matches!(choice, RewardChoice::Card { card_id, .. } if card_id == "Defend")
+    }));
+    let wallop_choice = screen.items[0]
+        .choices
+        .iter()
+        .position(|choice| matches!(choice, RewardChoice::Card { card_id, .. } if card_id == "Wallop"))
+        .expect("Wallop should be bottle-eligible");
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(engine
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: wallop_choice,
+        })
+        .action_accepted);
+    assert_eq!(engine.run_state.bottled_flame_card.as_deref(), Some("Wallop"));
+}
+
+#[test]
 fn ambrosia_is_reachable_from_watcher_potion_rewards() {
     // PotionHelper.getPotions(WATCHER, false) includes Ambrosia. White Beast
     // Statue guarantees a potion item here so the run reward path is sampled.

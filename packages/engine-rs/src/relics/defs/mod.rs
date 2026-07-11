@@ -168,6 +168,7 @@ pub mod teardrop_locket;
 // Damage modifiers (called inline, not via dispatch_trigger)
 // ===========================================================================
 pub mod boot;
+pub mod bottled_flame;
 pub mod torii;
 pub mod tungsten_rod;
 pub mod champion_belt;
@@ -309,6 +310,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &teardrop_locket::DEF,
     // Damage modifiers
     &boot::DEF,
+    &bottled_flame::DEF,
     &torii::DEF,
     &tungsten_rod::DEF,
     &champion_belt::DEF,
