@@ -325,6 +325,8 @@ pub struct CombatState {
     pub total_cards_played: i32,
     /// Gold earned during combat that should be synced back to RunState on resolution.
     pub pending_run_gold: i32,
+    /// Current run gold while combat is active (Looter/Mugger steal immediately).
+    pub run_gold: i32,
 
     // Relics (just IDs for checking effects)
     pub relics: Vec<String>,
@@ -378,6 +380,7 @@ impl CombatState {
             total_damage_taken: 0,
             total_cards_played: 0,
             pending_run_gold: 0,
+            run_gold: 0,
             relics: Vec::new(),
             retained_cards: Vec::new(),
             orb_slots: OrbSlots::new(0), // 0 slots by default (Watcher has no orbs)

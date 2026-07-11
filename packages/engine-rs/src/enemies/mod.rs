@@ -134,6 +134,7 @@ pub mod move_ids {
     pub const LOOTER_MUG: i32 = 1;
     pub const LOOTER_SMOKE_BOMB: i32 = 2;
     pub const LOOTER_ESCAPE: i32 = 3;
+    pub const LOOTER_LUNGE: i32 = 4;
 
     // Gremlin (Fat/Thief/Warrior/Wizard/Tsundere)
     pub const GREMLIN_ATTACK: i32 = 1;
@@ -488,7 +489,10 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.add_effect(mfx::SLIMED, 2);
         }
         "Looter" => {
-            // Mug -> Mug -> SmokeBomb -> Escape
+            enemy.entity.set_status(sid::STARTING_DMG, 10);
+            enemy.entity.set_status(sid::STR_AMT, 12);
+            enemy.entity.set_status(sid::BLOCK_AMT, 6);
+            enemy.entity.set_status(sid::TURN_COUNT, 15);
             enemy.set_move(move_ids::LOOTER_MUG, 10, 1, 0);
         }
         "GremlinFat" => {
@@ -1269,18 +1273,44 @@ mod tests {
 
     #[test]
     fn test_looter_escape() {
+        // Source: reference/extracted/methods/monster/Looter.java (`takeTurn`).
         let mut enemy = create_enemy("Looter", 44, 44);
         assert_eq!(enemy.move_id, move_ids::LOOTER_MUG);
+        let seed = (1..10_000).find(|&seed| {
+            let mut rng = crate::seed::StsRandom::new(seed);
+            let _ = rng.random_float();
+            rng.random_float() < 0.5
+        }).unwrap();
+        let mut rng = crate::seed::StsRandom::new(seed);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_looter_after_turn(&mut enemy, &mut rng);
         assert_eq!(enemy.move_id, move_ids::LOOTER_MUG);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_looter_after_turn(&mut enemy, &mut rng);
         assert_eq!(enemy.move_id, move_ids::LOOTER_SMOKE_BOMB);
+        assert_eq!(enemy.move_block(), 6);
+        assert_eq!(rng.counter, 2);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_looter_after_turn(&mut enemy, &mut rng);
         assert_eq!(enemy.move_id, move_ids::LOOTER_ESCAPE);
+        assert!(!enemy.is_escaping);
+        act1::advance_looter_after_turn(&mut enemy, &mut rng);
         assert!(enemy.is_escaping);
+        assert_eq!(enemy.entity.hp, 0);
+
+        let lunge_seed = (1..10_000).find(|&seed| {
+            let mut rng = crate::seed::StsRandom::new(seed);
+            let _ = rng.random_float();
+            rng.random_float() >= 0.5
+        }).unwrap();
+        let mut lunge = create_enemy("Looter", 44, 44);
+        let mut rng = crate::seed::StsRandom::new(lunge_seed);
+        act1::advance_looter_after_turn(&mut lunge, &mut rng);
+        act1::advance_looter_after_turn(&mut lunge, &mut rng);
+        assert_eq!(lunge.move_id, move_ids::LOOTER_LUNGE);
+        assert_eq!(lunge.move_damage(), 12);
+        act1::advance_looter_after_turn(&mut lunge, &mut rng);
+        assert_eq!(lunge.move_id, move_ids::LOOTER_SMOKE_BOMB);
     }
 
     // ----- Act 2 -----

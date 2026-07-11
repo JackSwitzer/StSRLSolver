@@ -123,12 +123,24 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         return;
     }
 
-    let enemy = &engine.state.enemies[enemy_idx];
-    if enemy.move_id == -1 {
+    if engine.state.enemies[enemy_idx].move_id == -1 {
         return;
     }
 
+    // Source: Looter.java plus DamageAction.java (`stealGold`): Mug and Lunge
+    // steal before their damage resolves, even when block prevents HP loss.
+    if engine.state.enemies[enemy_idx].id == "Looter"
+        && matches!(engine.state.enemies[enemy_idx].move_id,
+        enemies::move_ids::LOOTER_MUG | enemies::move_ids::LOOTER_LUNGE)
+    {
+        let amount = engine.state.enemies[enemy_idx].entity.status(sid::TURN_COUNT);
+        let stolen = amount.min(engine.state.run_gold);
+        engine.state.run_gold -= stolen;
+        engine.state.enemies[enemy_idx].entity.add_status(sid::COUNT, stolen);
+    }
+
     // Attack
+    let enemy = &engine.state.enemies[enemy_idx];
     let move_dmg = enemy.move_damage();
     if move_dmg > 0 {
         let enemy_strength = enemy.entity.strength();
@@ -558,10 +570,13 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         return;
     }
 
-    // AcidSlime_S.java sets its opposite move directly in takeTurn and does not
-    // queue RollMoveAction; every other verified monster advances through aiRng.
+    // These Java takeTurn methods set their next move directly and do not queue
+    // RollMoveAction.
     if engine.state.enemies[enemy_idx].id == "AcidSlime_S" {
         enemies::advance_acid_slime_s_after_turn(&mut engine.state.enemies[enemy_idx]);
+    } else if engine.state.enemies[enemy_idx].id == "Looter" {
+        enemies::act1::advance_looter_after_turn(
+            &mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
     } else {
         enemies::roll_next_move(&mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
     }

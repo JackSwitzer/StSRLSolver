@@ -313,12 +313,20 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::SS_LICK, 0, 0, 0, &[(mfx::FRAIL, 2)]);
 
         let mut e = make("Looter", 44);
-        roll_times(&mut e, 1);
+        let seed = (1..10_000).find(|&seed| {
+            let mut rng = crate::seed::StsRandom::new(seed);
+            let _ = rng.random_float();
+            rng.random_float() < 0.5
+        }).unwrap();
+        let mut rng = crate::seed::StsRandom::new(seed);
+        act1::advance_looter_after_turn(&mut e, &mut rng);
         expect_move(&e, move_ids::LOOTER_MUG, 10, 1, 0, &[]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::LOOTER_SMOKE_BOMB, 0, 0, 11, &[]);
-        roll_times(&mut e, 1);
+        act1::advance_looter_after_turn(&mut e, &mut rng);
+        expect_move(&e, move_ids::LOOTER_SMOKE_BOMB, 0, 0, 6, &[]);
+        act1::advance_looter_after_turn(&mut e, &mut rng);
         expect_move(&e, move_ids::LOOTER_ESCAPE, 0, 0, 0, &[]);
+        assert!(!e.is_escaping);
+        act1::advance_looter_after_turn(&mut e, &mut rng);
         assert!(e.is_escaping);
 
         let mut e = make("GremlinFat", 18);

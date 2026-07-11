@@ -1370,6 +1370,21 @@ impl RunEngine {
             enemy.add_effect(crate::combat_types::mfx::SLIMED, 2);
         }
 
+        // Source: reference/extracted/methods/monster/Looter.java.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "Looter") {
+            let (swipe, lunge) = if self.run_state.ascension >= 2 {
+                (11, 14)
+            } else {
+                (10, 12)
+            };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, swipe);
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT, lunge);
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT, 6);
+            enemy.entity.set_status(crate::status_ids::sid::TURN_COUNT,
+                if self.run_state.ascension >= 17 { 20 } else { 15 });
+            enemy.set_move(crate::enemies::move_ids::LOOTER_MUG, swipe, 1, 0);
+        }
+
         // The boss passes ascension-derived large-slime constructor values to
         // its children when its split resolves.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "SlimeBoss") {
@@ -1414,6 +1429,7 @@ impl RunEngine {
         combat_state.relics = self.run_state.relics.clone();
         combat_state.potions = self.run_state.potions.clone();
         combat_state.relic_counters = self.run_state.relic_flags.counters;
+        combat_state.run_gold = self.run_state.gold;
 
         let combat_seed = self.seed.wrapping_add(self.run_state.floor as u64 * 1000);
         // Java reseeds cardRandomRng to seed + floorNum on each floor.
@@ -1489,6 +1505,11 @@ impl RunEngine {
             "SpikeSlime_L" => {
                 let base = if a20 { 67 } else { 64 };
                 let hp = base + self.rng.gen_range(0..=6);
+                (hp, hp)
+            }
+            "Looter" => {
+                let base = if a20 { 46 } else { 44 };
+                let hp = base + self.rng.gen_range(0..=4);
                 (hp, hp)
             }
             "FungiBeast" => {
@@ -1657,6 +1678,7 @@ impl RunEngine {
             Some(e) => e,
             None => return 0.0,
         };
+
         let combat_enemy_ids: Vec<String> = engine
             .state
             .enemies
@@ -1667,6 +1689,7 @@ impl RunEngine {
         engine.clear_event_log();
         let hp_before = engine.state.player.hp;
         engine.execute_action(&combat_action);
+        self.run_state.gold = engine.state.run_gold;
 
         let mut reward = 0.0;
 
@@ -1683,6 +1706,12 @@ impl RunEngine {
 
                 // Update run state from combat result
                 self.run_state.current_hp = engine.state.player.hp;
+                let recovered_stolen_gold: i32 = engine.state.enemies.iter()
+                    .filter(|enemy| enemy.id == "Looter"
+                        && enemy.entity.hp <= 0 && !enemy.is_escaping)
+                    .map(|enemy| enemy.entity.status(crate::status_ids::sid::COUNT))
+                    .sum();
+                self.run_state.gold += recovered_stolen_gold;
                 self.run_state.potions = engine.state.potions.clone();
                 self.run_state.deck = engine
                     .state
@@ -4805,6 +4834,84 @@ mod tests {
         }
         assert_eq!(combat.ai_rng.counter, ticks_before + 2,
             "each spawned medium slime initializes with one aiRng roll");
+    }
+
+    #[test]
+    fn looter_stats_gold_theft_moves_and_ai_ticks_match_java() {
+        // Source: reference/extracted/methods/monster/Looter.java and
+        // decompiled/java-src/com/megacrit/cardcrawl/actions/common/DamageAction.java.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("Looter").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("Looter").0);
+        }
+        assert_eq!(low_hp, (44..=48).collect());
+        assert_eq!(high_hp, (46..=50).collect());
+
+        for (ascension, swipe, lunge, gold) in
+            [(0, 10, 12, 15), (2, 11, 14, 15), (17, 11, 14, 20)]
+        {
+            let mut engine = RunEngine::new(42, ascension);
+            engine.enter_specific_combat(vec!["Looter".to_string()]);
+            let combat = engine.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG), swipe);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), lunge);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::BLOCK_AMT), 6);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::TURN_COUNT), gold);
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        let seed = (1..10_000).find(|&seed| {
+            let mut rng = crate::seed::StsRandom::new(seed);
+            let _ = rng.random_float();
+            rng.random_float() < 0.5
+        }).unwrap();
+        let mut engine = RunEngine::new(42, 0);
+        engine.enter_specific_combat(vec!["Looter".to_string()]);
+        engine.combat_engine.as_mut().unwrap().ai_rng = crate::seed::StsRandom::new(seed);
+
+        engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        assert_eq!(engine.run_state.gold, 84);
+        {
+            let combat = engine.combat_engine.as_ref().unwrap();
+            assert_eq!(combat.state.enemies[0].move_id,
+                crate::enemies::move_ids::LOOTER_MUG);
+            assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::COUNT), 15);
+            assert_eq!(combat.ai_rng.counter, 1,
+                "first Mug consumes only its 0.6 dialogue boolean");
+        }
+
+        engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        assert_eq!(engine.run_state.gold, 69);
+        {
+            let combat = engine.combat_engine.as_ref().unwrap();
+            assert_eq!(combat.state.enemies[0].move_id,
+                crate::enemies::move_ids::LOOTER_SMOKE_BOMB);
+            assert_eq!(combat.state.enemies[0].move_block(), 6);
+            assert_eq!(combat.ai_rng.counter, 2,
+                "second Mug consumes only its 0.5 branch boolean");
+        }
+
+        engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        let combat = engine.combat_engine.as_ref().unwrap();
+        assert_eq!(combat.state.enemies[0].entity.block, 6);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::LOOTER_ESCAPE);
+        assert!(!combat.state.enemies[0].is_escaping,
+            "Smoke Bomb announces Escape; the following turn performs it");
+        assert_eq!(combat.ai_rng.counter, 2);
+
+        let mut refund = RunEngine::new(42, 0);
+        refund.enter_specific_combat(vec!["Looter".to_string()]);
+        refund.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        refund.combat_engine.as_mut().unwrap().state.enemies[0].entity.hp = 0;
+        refund.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        assert!((109..=119).contains(&refund.run_state.gold),
+            "death returns 15 stolen gold before the normal 10..=20 reward");
     }
 
     #[test]

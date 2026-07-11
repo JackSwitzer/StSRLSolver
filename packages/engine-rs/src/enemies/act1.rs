@@ -347,17 +347,52 @@ pub(super) fn roll_spike_slime_l(enemy: &mut EnemyCombatState, num: i32) {
 }
 
 pub(super) fn roll_looter(enemy: &mut EnemyCombatState, _num: i32) {
-    let turns = enemy.move_history.len();
-    if turns < 2 {
-        // Mug twice
-        enemy.set_move(move_ids::LOOTER_MUG, 10, 1, 0);
-    } else if turns == 2 {
-        // Smoke Bomb (block + prepare escape)
-        enemy.set_move(move_ids::LOOTER_SMOKE_BOMB, 0, 0, 11);
-    } else {
-        // Escape
-        enemy.set_move(move_ids::LOOTER_ESCAPE, 0, 0, 0);
-        enemy.is_escaping = true;
+    // Source: reference/extracted/methods/monster/Looter.java (`getMove`).
+    let swipe = enemy.entity.status(sid::STARTING_DMG).max(10);
+    enemy.set_move(move_ids::LOOTER_MUG, swipe, 1, 0);
+}
+
+pub fn advance_looter_after_turn(
+    enemy: &mut EnemyCombatState,
+    ai_rng: &mut crate::seed::StsRandom,
+) {
+    // Source: reference/extracted/methods/monster/Looter.java (`takeTurn`).
+    let current = enemy.move_id;
+    enemy.move_history.push(current);
+    enemy.move_effects.clear();
+    let swipe = enemy.entity.status(sid::STARTING_DMG).max(10);
+    let lunge = enemy.entity.status(sid::STR_AMT).max(12);
+    let escape_block = enemy.entity.status(sid::BLOCK_AMT).max(6);
+    match current {
+        move_ids::LOOTER_MUG => {
+            let slash_count = enemy.entity.status(sid::ATTACK_COUNT);
+            if slash_count == 0 {
+                let _ = ai_rng.random_float() < 0.6;
+            }
+            enemy.entity.set_status(sid::ATTACK_COUNT, slash_count + 1);
+            if slash_count + 1 == 2 {
+                if ai_rng.random_float() < 0.5 {
+                    enemy.set_move(move_ids::LOOTER_SMOKE_BOMB, 0, 0, escape_block);
+                } else {
+                    enemy.set_move(move_ids::LOOTER_LUNGE, lunge, 1, 0);
+                }
+            } else {
+                enemy.set_move(move_ids::LOOTER_MUG, swipe, 1, 0);
+            }
+        }
+        move_ids::LOOTER_LUNGE => {
+            enemy.entity.add_status(sid::ATTACK_COUNT, 1);
+            enemy.set_move(move_ids::LOOTER_SMOKE_BOMB, 0, 0, escape_block);
+        }
+        move_ids::LOOTER_SMOKE_BOMB => {
+            enemy.set_move(move_ids::LOOTER_ESCAPE, 0, 0, 0);
+        }
+        move_ids::LOOTER_ESCAPE => {
+            enemy.is_escaping = true;
+            enemy.entity.hp = 0;
+            enemy.set_move(move_ids::LOOTER_ESCAPE, 0, 0, 0);
+        }
+        _ => {}
     }
 }
 
