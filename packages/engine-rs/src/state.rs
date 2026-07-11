@@ -145,6 +145,8 @@ pub struct EnemyCombatState {
     pub name: String,
     /// Java BackAttack legality bit for Smoke Bomb and similar checks.
     pub back_attack: bool,
+    /// Whether this enemy currently carries Java's MinionPower.
+    pub is_minion: bool,
     /// Current intended move
     pub move_id: i32,
     pub intent: Intent,
@@ -162,6 +164,7 @@ impl EnemyCombatState {
             id: id.to_string(),
             name: id.to_string(),
             back_attack: false,
+            is_minion: false,
             move_id: -1,
             intent: Intent::Unknown,
             move_effects: SmallVec::new(),
@@ -288,6 +291,9 @@ pub struct CombatState {
     pub draw_pile: Vec<CardInstance>,
     pub discard_pile: Vec<CardInstance>,
     pub exhaust_pile: Vec<CardInstance>,
+    /// Persistent deck snapshot used by combat actions that mutate Java's
+    /// `AbstractPlayer.masterDeck` (not the combat draw/discard copies).
+    pub master_deck: Vec<CardInstance>,
 
     // Enemies
     pub enemies: Vec<EnemyCombatState>,
@@ -345,6 +351,7 @@ impl CombatState {
         deck: Vec<CardInstance>,
         energy: i32,
     ) -> Self {
+        let master_deck = deck.clone();
         Self {
             player: EntityState::new(player_hp, player_max_hp),
             energy,
@@ -354,6 +361,7 @@ impl CombatState {
             draw_pile: deck,
             discard_pile: Vec::new(),
             exhaust_pile: Vec::new(),
+            master_deck,
             enemies,
             potions: vec!["".to_string(); 3],
             turn: 0,

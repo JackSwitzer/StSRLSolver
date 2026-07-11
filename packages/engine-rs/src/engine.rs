@@ -82,6 +82,21 @@ pub struct NamedChoicePayload {
     pub amount: i32,
 }
 
+/// Card effects queued behind an interactive ScryAction. Java keeps later
+/// actions pending until the Scry choice resolves; Just Lucky uses block then
+/// damage in that order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DeferredScryCardEffects {
+    pub card_inst: CardInstance,
+    pub target_idx: i32,
+    pub x_value: i32,
+    pub pen_nib_active: bool,
+    pub vigor: i32,
+    pub hand_size_at_play: usize,
+    pub gain_block: bool,
+    pub deal_damage: bool,
+}
+
 /// Context for an in-progress player choice.
 #[derive(Debug, Clone)]
 pub struct ChoiceContext {
@@ -99,6 +114,8 @@ pub struct ChoiceContext {
     /// Optional post-choice draw handoff owned by the choice itself.
     /// Burning Pact uses this to draw after the exhaust choice resolves.
     pub post_choice_draw: i32,
+    /// Optional block/damage actions queued after a Scry choice.
+    pub deferred_scry_card_effects: Option<DeferredScryCardEffects>,
     /// Optional per-option payload for named choices like Wish.
     pub named_payloads: Option<Vec<NamedChoicePayload>>,
     /// Optional post-selection cost rule for generated-card choices.
@@ -119,6 +136,9 @@ pub struct CombatEngine {
     /// Java's `AbstractDungeon.cardRandomRng`, used by random card placement
     /// and card-owned random choices. RunEngine seeds this with seed + floor.
     pub(crate) card_random_rng: crate::seed::StsRandom,
+    /// Java's `AbstractDungeon.miscRng`, used by Lesson Learned and event-style
+    /// miscellaneous selections. It is also seeded with seed + floor.
+    pub(crate) misc_rng: crate::seed::StsRandom,
     /// Per-combat enemy AI RNG. Java uses `AbstractDungeon.aiRng` consumed once per
     /// `AbstractMonster.rollMove()` and passed as `num` to `getMove(int num)` for
     /// probabilistic intent branching (JawWorm, Chosen, ~20+ enemies). Kept separate
@@ -155,6 +175,7 @@ impl CombatEngine {
             card_registry: crate::cards::global_registry(),
             rng: crate::seed::StsRandom::new(seed),
             card_random_rng: crate::seed::StsRandom::new(card_random_seed),
+            misc_rng: crate::seed::StsRandom::new(card_random_seed),
             // ai_rng seeded distinctly so it is not perturbed by re-seeds of `rng`
             // when callers replay a snapshot. Mirrors Java's separate dungeon-level
             // `aiRng` distinct from `cardRandomRng`/`shuffleRng`.
@@ -179,10 +200,8 @@ impl CombatEngine {
     /// RNG stream counters currently tracked by this combat, keyed by the
     /// vault's canonical short names (`docs/vault/rng-system-analysis.md`).
     /// Used by `bin/trace_replay.rs` (U05) to populate `trace::PostState::rng`.
-    /// Only `card` (catch-all combat RNG) and `ai` (enemy-intent RNG,
-    /// `AbstractDungeon.aiRng`) are tracked as distinct streams today; other
-    /// canonical keys are simply absent until threaded (schema tolerates
-    /// this via `BTreeMap`).
+    /// The currently threaded card, cardRandom, misc, and enemy-AI streams are
+    /// reported independently; absent canonical streams remain schema-legal.
     pub fn rng_counters(&self) -> std::collections::BTreeMap<String, u64> {
         let mut counters = std::collections::BTreeMap::new();
         counters.insert("card".to_string(), self.rng.counter as u64);
@@ -190,6 +209,7 @@ impl CombatEngine {
             "cardRandom".to_string(),
             self.card_random_rng.counter as u64,
         );
+        counters.insert("misc".to_string(), self.misc_rng.counter as u64);
         counters.insert("ai".to_string(), self.ai_rng.counter as u64);
         counters
     }
@@ -429,6 +449,7 @@ impl CombatEngine {
             card_registry: self.card_registry, // &'static ref — zero-cost copy
             rng: self.rng.clone(),
             card_random_rng: self.card_random_rng.clone(),
+            misc_rng: self.misc_rng.clone(),
             ai_rng: self.ai_rng.clone(),
             choice: self.choice.clone(),
             effect_runtime: self.effect_runtime.clone(),
@@ -529,6 +550,7 @@ impl CombatEngine {
             aux_count,
             action,
             post_choice_draw: 0,
+            deferred_scry_card_effects: None,
             named_payloads: None,
             generated_selected_cost_rule: None,
             returned_card_cost_override: None,
@@ -610,6 +632,7 @@ impl CombatEngine {
 
     fn resolve_scry(&mut self, ctx: ChoiceContext) {
         let post_choice_draw = ctx.post_choice_draw;
+        let deferred_card_effects = ctx.deferred_scry_card_effects;
         // Selected indices are cards to discard from the revealed set.
         // The revealed cards were taken from top of draw pile and stored as options.
         // Non-selected go back on top of draw pile, selected go to discard.
@@ -660,6 +683,41 @@ impl CombatEngine {
         // draw cannot occur until this choice has finished resolving.
         if post_choice_draw > 0 {
             self.draw_cards(post_choice_draw);
+        }
+        if let Some(deferred) = deferred_card_effects {
+            self.resolve_deferred_scry_card_effects(deferred);
+        }
+    }
+
+    fn resolve_deferred_scry_card_effects(&mut self, deferred: DeferredScryCardEffects) {
+        let card = self
+            .card_registry
+            .card_def_by_id(deferred.card_inst.def_id)
+            .clone();
+        if deferred.gain_block && card.base_block >= 0 {
+            let dex = self.state.player.dexterity();
+            let frail = self.state.player.is_frail();
+            let block = crate::damage::calculate_block(card.base_block, dex, frail);
+            self.gain_block_player(block);
+        }
+        if deferred.deal_damage {
+            let mut ctx = crate::effects::types::CardPlayContext {
+                card: &card,
+                card_inst: deferred.card_inst,
+                target_idx: deferred.target_idx,
+                x_value: deferred.x_value,
+                pen_nib_active: deferred.pen_nib_active,
+                vigor: deferred.vigor,
+                total_unblocked_damage: 0,
+                enemy_killed: false,
+                hand_size_at_play: deferred.hand_size_at_play,
+                last_bulk_count: 0,
+            };
+            crate::card_effects::execute_primary_attack(
+                self,
+                &mut ctx,
+                crate::effects::declarative::Target::SelectedEnemy,
+            );
         }
     }
 
@@ -3104,6 +3162,33 @@ impl CombatEngine {
             self.state.mantra -= 10;
             self.change_stance(Stance::Divinity);
         }
+    }
+
+    /// Lesson Learned upgrades a random card in Java's persistent master deck,
+    /// not a combat pile copy. The eligible list preserves deck order and the
+    /// one selection consumes exactly one miscRng tick.
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/LessonLearnedAction.java
+    pub(crate) fn upgrade_random_master_deck_card(&mut self) -> Option<usize> {
+        let eligible: Vec<usize> = self
+            .state
+            .master_deck
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, card)| {
+                let id = self.card_registry.card_name(card.def_id);
+                (!card.is_upgraded()
+                    && self.card_registry.get(&format!("{id}+")).is_some())
+                .then_some(idx)
+            })
+            .collect();
+        if eligible.is_empty() {
+            return None;
+        }
+        let selected = self.misc_rng.random_range(0, (eligible.len() - 1) as i32) as usize;
+        let deck_idx = eligible[selected];
+        self.card_registry
+            .upgrade_card(&mut self.state.master_deck[deck_idx]);
+        Some(deck_idx)
     }
 
     // =======================================================================

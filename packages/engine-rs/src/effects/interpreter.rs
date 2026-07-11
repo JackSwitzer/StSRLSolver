@@ -727,8 +727,8 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
         SimpleEffect::FleeCombat => {
             engine.state.combat_over = true;
         }
-        SimpleEffect::UpgradeRandomCardFromPiles(piles) => {
-            upgrade_random_card_from_piles(engine, piles);
+        SimpleEffect::UpgradeRandomMasterDeckCard => {
+            engine.upgrade_random_master_deck_card();
         }
     }
 }
@@ -836,9 +836,11 @@ fn set_status(
 }
 
 fn add_player_status(engine: &mut CombatEngine, status: StatusId, amount: i32) {
-    if status == sid::COLLECT_MIRACLES {
-        // Java CollectPower.stackPower() caps the turn counter at 999.
-        // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/CollectPower.java
+    if matches!(status, sid::COLLECT_MIRACLES | sid::LIKE_WATER) {
+        // Java CollectPower.stackPower() and LikeWaterPower.stackPower() cap
+        // their amounts at 999.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/CollectPower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/LikeWaterPower.java
         let next = (engine.state.player.status(status) + amount).min(999);
         engine.state.player.set_status(status, next);
     } else {
@@ -1001,36 +1003,6 @@ pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &A
     }
 }
 
-fn upgrade_random_card_from_piles(engine: &mut CombatEngine, piles: &'static [Pile]) {
-    let mut eligible: Vec<(Pile, usize)> = Vec::new();
-    for pile in piles {
-        let cards = match pile {
-            Pile::Hand => &engine.state.hand,
-            Pile::Draw => &engine.state.draw_pile,
-            Pile::Discard => &engine.state.discard_pile,
-            Pile::Exhaust => &engine.state.exhaust_pile,
-        };
-        for (idx, card) in cards.iter().enumerate() {
-            if !card.is_upgraded() {
-                eligible.push((*pile, idx));
-            }
-        }
-    }
-    if eligible.is_empty() {
-        return;
-    }
-    let (pile, idx) = eligible[engine.rng_gen_range(0..eligible.len())];
-    let pile_vec = match pile {
-        Pile::Hand => &mut engine.state.hand,
-        Pile::Draw => &mut engine.state.draw_pile,
-        Pile::Discard => &mut engine.state.discard_pile,
-        Pile::Exhaust => &mut engine.state.exhaust_pile,
-    };
-    if idx < pile_vec.len() {
-        engine.card_registry.upgrade_card(&mut pile_vec[idx]);
-    }
-}
-
 // ===========================================================================
 // Deal flat damage (no strength/stance — used by relics, powers)
 // ===========================================================================
@@ -1177,6 +1149,17 @@ fn evaluate_condition(engine: &CombatEngine, ctx: &CardPlayContext, cond: &Condi
         Condition::NoBlock => engine.state.player.block == 0,
 
         Condition::EnemyKilled => ctx.enemy_killed,
+
+        Condition::EnemyKilledNonMinion => {
+            ctx.enemy_killed
+                && ctx.target_idx >= 0
+                && (ctx.target_idx as usize) < engine.state.enemies.len()
+                && !engine.state.enemies[ctx.target_idx as usize].is_minion
+                && engine.state.enemies[ctx.target_idx as usize]
+                    .entity
+                    .status(sid::REBIRTH_PENDING)
+                    == 0
+        }
 
         Condition::DiscardedThisTurn => {
             engine.state.player.status(sid::DISCARDED_THIS_TURN) > 0

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-10T17:48:04.946619+00:00",
+ "updated": "2026-07-11T00:27:29.865149+00:00",
  "status_counts": {
-  "unverified": 627,
-  "verified": 40
+  "unverified": 624,
+  "verified": 43
  },
  "rows": [
   {
@@ -2012,8 +2012,8 @@
    "class": "JustLucky",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/JustLucky.java",
    "methods_ref": "reference/extracted/methods/card/JustLucky.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -2042,8 +2042,8 @@
    "class": "LessonLearned",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/LessonLearned.java",
    "methods_ref": "reference/extracted/methods/card/LessonLearned.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -2052,8 +2052,8 @@
    "class": "LikeWater",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/LikeWater.java",
    "methods_ref": "reference/extracted/methods/card/LikeWater.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

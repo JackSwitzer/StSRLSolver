@@ -500,13 +500,19 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             }
             ("Reptomancer", x) if x == move_ids::REPTO_SPAWN => {
                 for _ in 0..2 {
-                    engine.state.enemies.push(enemies::create_enemy("SnakeDagger", 22, 22));
+                    let mut minion = enemies::create_enemy("SnakeDagger", 22, 22);
+                    minion.is_minion = true;
+                    engine.state.enemies.push(minion);
                 }
             }
             ("GremlinLeader" | "Gremlin Leader", x) if x == move_ids::GL_RALLY => {
                 // Deterministic MCTS: fixed gremlin types
-                engine.state.enemies.push(enemies::create_enemy("GremlinWarrior", 20, 20));
-                engine.state.enemies.push(enemies::create_enemy("GremlinThief", 28, 28));
+                let mut warrior = enemies::create_enemy("GremlinWarrior", 20, 20);
+                warrior.is_minion = true;
+                engine.state.enemies.push(warrior);
+                let mut thief = enemies::create_enemy("GremlinThief", 28, 28);
+                thief.is_minion = true;
+                engine.state.enemies.push(thief);
             }
             _ => {}
         }

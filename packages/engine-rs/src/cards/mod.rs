@@ -1175,7 +1175,7 @@ fn collect_simple_x_cost_amounts(effect: &SimpleEffect, amounts: &mut Vec<Amount
         | SimpleEffect::PlayTopCardOfDraw
         | SimpleEffect::ResolveFission { .. }
         | SimpleEffect::RemoveEnemyBlock(_)
-        | SimpleEffect::UpgradeRandomCardFromPiles(_)
+        | SimpleEffect::UpgradeRandomMasterDeckCard
         | SimpleEffect::FleeCombat => {}
         SimpleEffect::DrawRandomCardsFromPileToHand(_, _, source) => {
             if amount_uses_x_cost(source) {

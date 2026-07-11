@@ -11,15 +11,9 @@ use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, E
 use crate::engine::{ChoiceReason, CombatPhase};
 use crate::tests::support::{enemy_no_intent, engine_with, engine_without_start, force_player_turn, exhaust_prefix_count, hand_count, make_deck, play_self};
 
-static LESSON_LEARNED_UPGRADE_PILES: [crate::effects::declarative::Pile; 2] = [
-    crate::effects::declarative::Pile::Draw,
-    crate::effects::declarative::Pile::Discard,
-];
 static LESSON_LEARNED_KILL_BRANCH: [crate::effects::declarative::Effect; 1] = [
     crate::effects::declarative::Effect::Simple(
-        crate::effects::declarative::SimpleEffect::UpgradeRandomCardFromPiles(
-            &LESSON_LEARNED_UPGRADE_PILES,
-        ),
+        crate::effects::declarative::SimpleEffect::UpgradeRandomMasterDeckCard,
     ),
 ];
 
@@ -48,7 +42,7 @@ fn watcher_wave25_registry_exports_match_current_surface_for_blocked_cards() {
                 ),
             ),
             crate::effects::declarative::Effect::Conditional(
-                crate::effects::declarative::Condition::EnemyKilled,
+                crate::effects::declarative::Condition::EnemyKilledNonMinion,
                 &LESSON_LEARNED_KILL_BRANCH,
                 &[],
             ),

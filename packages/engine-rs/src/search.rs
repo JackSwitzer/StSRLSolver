@@ -1112,6 +1112,7 @@ pub(crate) fn combat_state_hash(engine: &CombatEngine) -> u64 {
     engine.state.draw_pile.hash(&mut hasher);
     engine.state.discard_pile.hash(&mut hasher);
     engine.state.exhaust_pile.hash(&mut hasher);
+    engine.state.master_deck.hash(&mut hasher);
     engine.state.potions.hash(&mut hasher);
     engine.state.relics.hash(&mut hasher);
     engine.state.relic_counters.hash(&mut hasher);
@@ -1132,6 +1133,7 @@ pub(crate) fn combat_state_hash(engine: &CombatEngine) -> u64 {
         enemy.move_history.hash(&mut hasher);
         enemy.first_turn.hash(&mut hasher);
         enemy.is_escaping.hash(&mut hasher);
+        enemy.is_minion.hash(&mut hasher);
         format!("{:?}", enemy.intent).hash(&mut hasher);
     }
     hasher.finish()

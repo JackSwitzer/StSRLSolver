@@ -129,6 +129,8 @@ pub enum Condition {
     NoBlock,
     /// An enemy was killed during the damage loop (from CardPlayContext).
     EnemyKilled,
+    /// The selected target died and is neither a minion nor half-dead.
+    EnemyKilledNonMinion,
     /// Player discarded a card this turn.
     DiscardedThisTurn,
 }
@@ -360,8 +362,8 @@ pub enum SimpleEffect {
     ModifyGold(AmountSource),
     /// End combat as a flee (player escapes).
     FleeCombat,
-    /// Upgrade a random eligible card from the supplied piles.
-    UpgradeRandomCardFromPiles(&'static [Pile]),
+    /// Upgrade one random upgradeable card in the persistent master deck.
+    UpgradeRandomMasterDeckCard,
 }
 
 /// A card's effect — can be simple, conditional, choice-based, or complex.

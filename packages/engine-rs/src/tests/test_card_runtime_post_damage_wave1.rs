@@ -7,13 +7,11 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/LessonLearned.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, Condition as Cond, Effect as E, Pile as P, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{AmountSource as A, Condition as Cond, Effect as E, SimpleEffect as SE, Target as T};
 use crate::tests::support::*;
 
-static LESSON_LEARNED_UPGRADE_PILES: [P; 2] = [P::Draw, P::Discard];
-static LESSON_LEARNED_KILL_BRANCH: [E; 1] = [E::Simple(SE::UpgradeRandomCardFromPiles(
-    &LESSON_LEARNED_UPGRADE_PILES,
-))];
+static LESSON_LEARNED_KILL_BRANCH: [E; 1] =
+    [E::Simple(SE::UpgradeRandomMasterDeckCard)];
 
 #[test]
 fn test_card_runtime_post_damage_wave1_registry_documents_the_typed_post_damage_surface() {
@@ -83,7 +81,7 @@ fn test_card_runtime_post_damage_wave1_registry_documents_the_typed_post_damage_
         &[
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::Conditional(
-                Cond::EnemyKilled,
+                Cond::EnemyKilledNonMinion,
                 &LESSON_LEARNED_KILL_BRANCH,
                 &[],
             ),

@@ -883,11 +883,13 @@ impl EffectRuntime {
                     EffectOwner::PotionSlot { .. } => {
                         engine.state.player.block += base;
                     }
-                    _ => {
-                        let dex = engine.state.player.dexterity();
-                        let frail = engine.state.player.is_frail();
-                        let block = crate::damage::calculate_block(base, dex, frail);
-                        engine.gain_block_player(block);
+                    EffectOwner::PlayerPower
+                    | EffectOwner::PlayerRelic { .. }
+                    | EffectOwner::RunEffect => {
+                        // Entity powers/relics queue GainBlockAction with their
+                        // already-resolved amount. Dexterity and Frail modify
+                        // card.block during applyPowers, not these actions.
+                        engine.gain_block_player(base);
                     }
                 }
             }
@@ -1178,8 +1180,8 @@ impl EffectRuntime {
             SimpleEffect::FleeCombat => {
                 engine.state.combat_over = true;
             }
-            SimpleEffect::UpgradeRandomCardFromPiles(piles) => {
-                self.upgrade_random_card_from_piles(engine, piles);
+            SimpleEffect::UpgradeRandomMasterDeckCard => {
+                engine.upgrade_random_master_deck_card();
             }
         }
     }
@@ -1324,6 +1326,17 @@ impl EffectRuntime {
             }
             crate::effects::declarative::Condition::NoBlock => engine.state.player.block == 0,
             crate::effects::declarative::Condition::EnemyKilled => engine.runtime_card_enemy_killed,
+            crate::effects::declarative::Condition::EnemyKilledNonMinion => {
+                let idx = event.target_idx;
+                engine.runtime_card_enemy_killed
+                    && idx >= 0
+                    && (idx as usize) < engine.state.enemies.len()
+                    && !engine.state.enemies[idx as usize].is_minion
+                    && engine.state.enemies[idx as usize]
+                        .entity
+                        .status(sid::REBIRTH_PENDING)
+                        == 0
+            }
             crate::effects::declarative::Condition::DiscardedThisTurn => {
                 engine.state.player.status(crate::status_ids::sid::DISCARDED_THIS_TURN) > 0
             }
@@ -1412,36 +1425,6 @@ impl EffectRuntime {
                 _ => 1,
             },
             AmountSource::TotalUnblockedDamage => engine.runtime_card_total_unblocked_damage.max(0),
-        }
-    }
-
-    fn upgrade_random_card_from_piles(&self, engine: &mut CombatEngine, piles: &'static [Pile]) {
-        let mut eligible: Vec<(Pile, usize)> = Vec::new();
-        for pile in piles {
-            let cards = match pile {
-                Pile::Hand => &engine.state.hand,
-                Pile::Draw => &engine.state.draw_pile,
-                Pile::Discard => &engine.state.discard_pile,
-                Pile::Exhaust => &engine.state.exhaust_pile,
-            };
-            for (idx, card) in cards.iter().enumerate() {
-                if !card.is_upgraded() {
-                    eligible.push((*pile, idx));
-                }
-            }
-        }
-        if eligible.is_empty() {
-            return;
-        }
-        let (pile, idx) = eligible[engine.rng_gen_range(0..eligible.len())];
-        let pile_vec = match pile {
-            Pile::Hand => &mut engine.state.hand,
-            Pile::Draw => &mut engine.state.draw_pile,
-            Pile::Discard => &mut engine.state.discard_pile,
-            Pile::Exhaust => &mut engine.state.exhaust_pile,
-        };
-        if idx < pile_vec.len() {
-            engine.card_registry.upgrade_card(&mut pile_vec[idx]);
         }
     }
 

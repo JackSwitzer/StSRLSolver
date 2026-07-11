@@ -376,4 +376,49 @@ mod run_java_parity_tests {
             engine.run_state.gold - gold_before
         );
     }
+
+    // LessonLearnedAction upgrades AbstractDungeon.player.masterDeck during
+    // combat. The selected permanent upgrade must survive combat resolution.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/LessonLearnedAction.java
+    #[test]
+    fn lesson_learned_master_deck_upgrade_syncs_into_run_state() {
+        let mut engine = RunEngine::new(42, 0);
+        engine.run_state.deck = vec![
+            "LessonLearned+".to_string(),
+            "Wallop".to_string(),
+            "Strike+".to_string(),
+        ];
+        resolve_opening_neow(&mut engine);
+        set_first_reachable_room(&mut engine, RoomType::Monster);
+        let action = engine.get_legal_actions()[0].clone();
+        engine.step(&action);
+
+        {
+            let combat = engine.debug_combat_engine_mut();
+            combat.state.enemies[0].entity.hp = 13;
+            combat.state.enemies[0].entity.block = 0;
+        }
+        let lesson_idx = engine
+            .get_combat_engine()
+            .expect("combat active")
+            .state
+            .hand
+            .iter()
+            .position(|card| {
+                engine
+                    .get_combat_engine()
+                    .expect("combat active")
+                    .card_registry
+                    .card_name(card.def_id)
+                    == "LessonLearned+"
+            })
+            .expect("Lesson Learned+ drawn");
+        engine.step(&RunAction::CombatAction(Action::PlayCard {
+            card_idx: lesson_idx,
+            target_idx: 0,
+        }));
+
+        assert!(engine.run_state.deck.iter().any(|card| card == "Wallop+"));
+        assert!(!engine.run_state.deck.iter().any(|card| card == "Wallop"));
+    }
 }

@@ -2326,11 +2326,15 @@ mod effect_handler_tests {
         play_card(&mut e, "LessonLearned", 0);
         // Should have killed the 5 HP enemy (10 dmg)
         assert!(e.state.enemies[0].entity.is_dead());
-        // Should have upgraded a card
-        let upgraded_count = e.state.draw_pile.iter().chain(e.state.discard_pile.iter())
+        // LessonLearnedAction upgrades the persistent masterDeck, not a combat pile.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/LessonLearnedAction.java
+        let upgraded_count = e.state.master_deck.iter()
             .filter(|c| e.card_registry.card_name(c.def_id).ends_with('+')).count();
         assert_eq!(upgraded_count, 1,
-            "Lesson Learned should upgrade exactly 1 card when killing an enemy");
+            "Lesson Learned should upgrade exactly 1 master-deck card on kill");
+        assert!(e.state.draw_pile.iter().chain(e.state.discard_pile.iter())
+            .all(|c| !e.card_registry.card_name(c.def_id).ends_with('+')),
+            "combat pile copies must remain unchanged");
     }
 
     // ===== 36. Wave of the Hand =====

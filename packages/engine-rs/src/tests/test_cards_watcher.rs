@@ -728,6 +728,24 @@ mod watcher_card_java_parity_tests {
         plus = ("JustLucky+", "Just Lucky+", 0, 4, 3, 2, CardType::Attack, CardTarget::Enemy, false, None, ["scry"]),
         {}
     );
+    // Source-derived (verify card/JustLucky): Java queues ScryAction before its
+    // GainBlockAction and DamageAction. An interactive Scry therefore pauses
+    // both later actions until the selection resolves.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/JustLucky.java
+    #[test]
+    fn just_lucky_source_defers_block_and_damage_until_after_scry() {
+        let mut engine = one_enemy_engine("JawWorm", 40, 0);
+        engine.state.draw_pile = make_deck(&["Strike"]);
+        ensure_in_hand(&mut engine, "JustLucky");
+        play_on_enemy(&mut engine, "JustLucky", 0);
+
+        assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+        assert_eq!(engine.state.player.block, 0);
+        assert_eq!(engine.state.enemies[0].entity.hp, 40);
+        engine.execute_action(&Action::ConfirmSelection);
+        assert_eq!(engine.state.player.block, 2);
+        assert_eq!(engine.state.enemies[0].entity.hp, 37);
+    }
     watcher_test!(
         pressure_points_java_parity,
         base = ("PathToVictory", "Pressure Points", 1, -1, -1, 8, CardType::Skill, CardTarget::Enemy, false, None, ["pressure_points"]),
@@ -1021,6 +1039,29 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.player.status(sid::LIKE_WATER), 5);
         }
     );
+    // Source-derived (verify card/LikeWater): LikeWaterPower stacks to a 999
+    // cap and its end-turn GainBlockAction uses the raw power amount. Card block
+    // modifiers such as Dexterity and Frail do not alter it.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/LikeWater.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/LikeWaterPower.java
+    #[test]
+    fn like_water_source_caps_stacks_and_grants_raw_block_in_calm() {
+        let mut dexterity = one_enemy_engine("JawWorm", 60, 12);
+        set_stance(&mut dexterity, Stance::Calm);
+        dexterity.state.player.set_status(sid::DEXTERITY, 5);
+        ensure_in_hand(&mut dexterity, "LikeWater");
+        play_self(&mut dexterity, "LikeWater");
+        end_turn(&mut dexterity);
+        assert_eq!(dexterity.state.player.hp, 73); // 12 incoming - raw 5 block
+
+        let mut frail = one_enemy_engine("JawWorm", 60, 12);
+        set_stance(&mut frail, Stance::Calm);
+        frail.state.player.set_status(sid::FRAIL, 1);
+        frail.state.player.set_status(sid::LIKE_WATER, 995);
+        ensure_in_hand(&mut frail, "LikeWater+");
+        play_self(&mut frail, "LikeWater+");
+        assert_eq!(frail.state.player.status(sid::LIKE_WATER), 999);
+    }
     watcher_test!(
         meditate_java_parity,
         base = ("Meditate", "Meditate", 1, -1, -1, 1, CardType::Skill, CardTarget::None, false, Some("Calm"), ["meditate", "end_turn"]),
@@ -1522,11 +1563,41 @@ mod watcher_card_java_parity_tests {
         {
             let mut engine = one_enemy_engine("JawWorm", 10, 0);
             engine.state.draw_pile = make_deck(&["Evaluate"]);
+            engine.state.master_deck = make_deck(&["Evaluate"]);
             ensure_in_hand(&mut engine, "LessonLearned");
             play_on_enemy(&mut engine, "LessonLearned", 0);
-            assert!(engine.state.draw_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Evaluate+"));
+            assert!(engine.state.master_deck.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Evaluate+"));
+            assert!(engine.state.draw_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Evaluate"));
         }
     );
+    // Source-derived (verify card/LessonLearned): a qualifying kill chooses one
+    // upgradeable card from masterDeck with exactly one miscRng call. Combat
+    // copies stay unchanged, and MinionPower/half-dead targets do not qualify.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/LessonLearned.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/LessonLearnedAction.java
+    #[test]
+    fn lesson_learned_source_upgrades_master_deck_with_misc_rng_and_skips_minions() {
+        let mut normal = one_enemy_engine("JawWorm", 10, 0);
+        normal.state.draw_pile = make_deck(&["Wallop"]);
+        normal.state.master_deck = make_deck(&["Wallop", "Strike+", "AscendersBane"]);
+        ensure_in_hand(&mut normal, "LessonLearned");
+        let misc_before = normal.misc_rng.counter;
+        let card_before = normal.rng.counter;
+        play_on_enemy(&mut normal, "LessonLearned", 0);
+        assert_eq!(normal.misc_rng.counter, misc_before + 1);
+        assert_eq!(normal.rng.counter, card_before);
+        assert_eq!(normal.card_registry.card_name(normal.state.master_deck[0].def_id), "Wallop+");
+        assert_eq!(normal.card_registry.card_name(normal.state.draw_pile[0].def_id), "Wallop");
+
+        let mut minion = one_enemy_engine("SnakeDagger", 10, 0);
+        minion.state.enemies[0].is_minion = true;
+        minion.state.master_deck = make_deck(&["Wallop"]);
+        ensure_in_hand(&mut minion, "LessonLearned");
+        let misc_before = minion.misc_rng.counter;
+        play_on_enemy(&mut minion, "LessonLearned", 0);
+        assert_eq!(minion.misc_rng.counter, misc_before);
+        assert_eq!(minion.card_registry.card_name(minion.state.master_deck[0].def_id), "Wallop");
+    }
     watcher_test!(
         master_reality_java_parity,
         base = ("MasterReality", "Master Reality", 1, -1, -1, -1, CardType::Power, CardTarget::SelfTarget, false, None, []),

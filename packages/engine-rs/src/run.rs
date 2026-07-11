@@ -1528,6 +1528,12 @@ impl RunEngine {
                 // Update run state from combat result
                 self.run_state.current_hp = engine.state.player.hp;
                 self.run_state.potions = engine.state.potions.clone();
+                self.run_state.deck = engine
+                    .state
+                    .master_deck
+                    .iter()
+                    .map(|card| engine.card_registry.card_name(card.def_id).to_string())
+                    .collect();
                 if engine.state.pending_run_gold > 0
                     && !self
                         .run_state
@@ -3992,6 +3998,13 @@ impl RunEngine {
             .expect("expected active combat to force outcome");
         combat.state.combat_over = true;
         combat.state.player_won = player_won;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_combat_engine_mut(&mut self) -> &mut CombatEngine {
+        self.combat_engine
+            .as_mut()
+            .expect("expected active combat engine")
     }
 
     #[cfg(test)]
