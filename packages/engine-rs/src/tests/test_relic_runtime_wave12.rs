@@ -26,6 +26,7 @@ use crate::tests::support::{
 
 #[test]
 fn relic_wave12_runtime_combat_start_buffs_and_debuffs_match_canonical_runtime() {
+    // OddlySmoothStone.java::atBattleStart applies exactly one Dexterity.
     let mut state = combat_state_with(
         Vec::new(),
         vec![enemy_no_intent("Cultist", 24, 24), enemy_no_intent("JawWorm", 40, 40)],
