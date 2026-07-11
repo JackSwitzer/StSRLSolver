@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T01:37:39.879906+00:00",
+ "updated": "2026-07-11T01:40:36.755550+00:00",
  "status_counts": {
-  "unverified": 591,
-  "verified": 76
+  "unverified": 588,
+  "verified": 79
  },
  "rows": [
   {
@@ -3632,8 +3632,8 @@
    "class": "Foresight",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Foresight.java",
    "methods_ref": "reference/extracted/methods/card/Foresight.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -3642,8 +3642,8 @@
    "class": "Wish",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Wish.java",
    "methods_ref": "reference/extracted/methods/card/Wish.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -3652,8 +3652,8 @@
    "class": "Worship",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Worship.java",
    "methods_ref": "reference/extracted/methods/card/Worship.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

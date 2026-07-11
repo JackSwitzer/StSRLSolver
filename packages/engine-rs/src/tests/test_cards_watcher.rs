@@ -2487,6 +2487,34 @@ mod watcher_card_java_parity_tests {
         plus = ("Wish+", "Wish+", 3, 4, 8, 30, CardType::Skill, CardTarget::None, true, None, ["wish"]),
         {}
     );
+    // Source-derived (verify card/Wish): Become Almighty, Fame and Fortune,
+    // and Live Forever consume Wish's damage/magic/block fields. Wish's empty
+    // applyPowers means existing Strength does not inflate the Strength option.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Wish.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/optionCards/BecomeAlmighty.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/optionCards/FameAndFortune.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/optionCards/LiveForever.java
+    #[test]
+    fn wish_source_upgraded_options_use_fixed_four_thirty_and_eight() {
+        let mut strength = one_enemy_engine("JawWorm", 50, 0);
+        strength.state.hand = make_deck(&["Wish+"]);
+        strength.state.player.set_status(sid::STRENGTH, 10);
+        assert!(play_self(&mut strength, "Wish+"));
+        strength.execute_action(&Action::Choose(0));
+        assert_eq!(strength.state.player.status(sid::STRENGTH), 14);
+
+        let mut gold = one_enemy_engine("JawWorm", 50, 0);
+        gold.state.hand = make_deck(&["Wish+"]);
+        assert!(play_self(&mut gold, "Wish+"));
+        gold.execute_action(&Action::Choose(1));
+        assert_eq!(gold.state.pending_run_gold, 30);
+
+        let mut armor = one_enemy_engine("JawWorm", 50, 0);
+        armor.state.hand = make_deck(&["Wish+"]);
+        assert!(play_self(&mut armor, "Wish+"));
+        armor.execute_action(&Action::Choose(2));
+        assert_eq!(armor.state.player.status(sid::PLATED_ARMOR), 8);
+    }
     watcher_test!(
         worship_java_parity,
         base = ("Worship", "Worship", 2, -1, -1, 5, CardType::Skill, CardTarget::SelfTarget, false, None, ["mantra"]),
@@ -2498,6 +2526,20 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.mantra, 5);
         }
     );
+    // Source-derived (verify card/Worship): the upgrade sets selfRetain and
+    // changes no numeric field. An unplayed Worship+ survives end turn, then
+    // grants exactly five Mantra when used.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Worship.java
+    #[test]
+    fn worship_source_upgrade_only_adds_self_retain() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.hand = make_deck(&["Worship+"]);
+        end_turn(&mut engine);
+        assert_eq!(hand_count(&engine, "Worship+"), 1);
+        assert_eq!(engine.state.mantra, 0);
+        assert!(play_self(&mut engine, "Worship+"));
+        assert_eq!(engine.state.mantra, 5);
+    }
 
     // Missing Java cards or unsupported parity gaps.
     watcher_test!(
@@ -2612,6 +2654,22 @@ mod watcher_card_java_parity_tests {
         plus = ("Wireheading+", "Foresight+", 1, -1, -1, 4, CardType::Power, CardTarget::None, false, None, []),
         {}
     );
+    // Source-derived (verify card/Wireheading): ForesightPower.atStartOfTurn
+    // queues ScryAction after the normal start-turn DrawCardAction. With nine
+    // cards available, five are drawn before Foresight+ exposes the remaining four.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Foresight.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/ForesightPower.java
+    #[test]
+    fn foresight_source_scries_after_the_normal_turn_draw() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.hand = make_deck(&["Wireheading+"]);
+        engine.state.draw_pile = make_deck_n("Strike", 9);
+        assert!(play_self(&mut engine, "Wireheading+"));
+        end_turn(&mut engine);
+        assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+        assert_eq!(engine.state.hand.len(), 5);
+        assert_eq!(engine.choice.as_ref().expect("Foresight Scry").options.len(), 4);
+    }
     watcher_test!(
         simmering_fury_java_parity,
         base = ("Vengeance", "Simmering Fury", 1, -1, -1, 2, CardType::Skill, CardTarget::None, false, None, []),
