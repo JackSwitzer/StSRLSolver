@@ -190,6 +190,43 @@ fn strength_potion_keeps_two_potency_and_persists_across_turns() {
 }
 
 #[test]
+fn weak_potion_keeps_three_potency_targets_one_enemy_and_uses_false_timing_flag() {
+    // Source-derived (verify potion/WeakenPotion): getPotency always returns
+    // three and use applies WeakPower(target, potency, false). Sacred Bark
+    // doubles the amount, Artifact blocks it, and false means the enemy-owned
+    // debuff decrements on that enemy's next turn end.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/WeakenPotion.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![
+            enemy_no_intent("JawWorm", 40, 40),
+            enemy_no_intent("Cultist", 40, 40),
+        ],
+        3,
+    ));
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "Weak Potion".to_string();
+
+    use_potion(&mut engine, 0, 1);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::WEAKENED), 0);
+    assert_eq!(engine.state.enemies[1].entity.status(sid::WEAKENED), 6);
+    assert_eq!(
+        engine.state.enemies[1]
+            .entity
+            .status(sid::WEAKENED_JUST_APPLIED),
+        0
+    );
+    engine.execute_action(&Action::EndTurn);
+    assert_eq!(engine.state.enemies[1].entity.status(sid::WEAKENED), 5);
+
+    engine.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+    engine.state.potions[0] = "WeakenPotion".to_string();
+    use_potion(&mut engine, 0, 0);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::WEAKENED), 0);
+}
+
+#[test]
 fn wave6_simple_targeted_potions_use_runtime_action_path() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike"]),
