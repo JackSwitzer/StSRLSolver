@@ -251,6 +251,38 @@ fn blood_vial_heals_exactly_two_at_combat_start() {
 }
 
 #[test]
+fn blue_candle_plays_and_exhausts_curses_through_hp_loss_damage_rules() {
+    // Source-derived (verify relic/Blue Candle): BlueCandle.java makes a Curse
+    // exhaust on use and queues LoseHPAction(1). AbstractPlayer.damage handles
+    // HP_LOSS modifiers, including Tungsten Rod.
+    let mut normal = engine_without_start_with_relics(
+        &["Blue Candle"],
+        &["Regret", "Strike", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+    normal.start_combat();
+    normal.state.hand = make_deck(&["Regret"]);
+    let hp = normal.state.player.hp;
+    assert!(play_self(&mut normal, "Regret"));
+    assert_eq!(normal.state.player.hp, hp - 1);
+    assert_eq!(normal.state.exhaust_pile.len(), 1);
+
+    let mut tungsten = engine_without_start_with_relics(
+        &["Blue Candle", "Tungsten Rod"],
+        &["Regret", "Strike", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+    tungsten.start_combat();
+    tungsten.state.hand = make_deck(&["Regret"]);
+    let hp = tungsten.state.player.hp;
+    assert!(play_self(&mut tungsten, "Regret"));
+    assert_eq!(tungsten.state.player.hp, hp);
+    assert_eq!(tungsten.state.exhaust_pile.len(), 1);
+}
+
+#[test]
 fn blood_vial_and_mark_of_pain_apply_at_real_combat_start() {
     let mut engine = engine_without_start_with_relics(
         &["Blood Vial", "Mark of Pain"],

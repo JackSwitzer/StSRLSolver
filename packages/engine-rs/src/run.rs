@@ -3029,6 +3029,8 @@ impl RunEngine {
             "Bird Faced Urn",
             // BloodVial.java uses this canonical ID and COMMON tier.
             "Blood Vial",
+            // BlueCandle.java uses this canonical ID and UNCOMMON tier.
+            "Blue Candle",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
@@ -4339,6 +4341,7 @@ impl RunEngine {
 
     fn roll_uncommon_event_relic_id(&mut self) -> String {
         const UNCOMMON_EVENT_RELIC_POOL: &[&str] = &[
+            "Blue Candle",
             "ClockworkSouvenir",
             "DataDisk",
             "HappyFlower",

@@ -1,5 +1,6 @@
 //! Blue Candle: curse cards become playable (1 HP + exhaust).
 //! Passive check via has_relic in card playability pipeline.
+//! Source: decompiled/java-src/com/megacrit/cardcrawl/relics/BlueCandle.java.
 
 use crate::effects::entity_def::{EntityDef, EntityKind};
 

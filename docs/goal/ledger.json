@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T07:06:40.470868+00:00",
+ "updated": "2026-07-11T07:08:52.314906+00:00",
  "status_counts": {
-  "unverified": 508,
-  "verified": 159
+  "unverified": 507,
+  "verified": 160
  },
  "rows": [
   {
@@ -4942,8 +4942,8 @@
    "class": "BlueCandle",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/BlueCandle.java",
    "methods_ref": "reference/extracted/methods/relic/BlueCandle.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

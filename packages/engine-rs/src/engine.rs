@@ -2107,7 +2107,21 @@ impl CombatEngine {
             self.state.total_cards_played += 1;
             self.state.exhaust_pile.push(card_inst);
             self.trigger_card_on_exhaust(card_inst);
-            self.player_lose_hp(1);
+            // BlueCandle.java queues LoseHPAction(1), which uses HP_LOSS damage
+            // rather than directly subtracting HP. Preserve the shared
+            // Intangible/Buffer/Tungsten Rod pipeline.
+            let intangible = self.state.player.status(sid::INTANGIBLE) > 0;
+            let after_intangible = damage::apply_hp_loss(1, intangible, false);
+            let buffer = self.state.player.status(sid::BUFFER);
+            let hp_loss = if after_intangible > 0 && buffer > 0 {
+                self.state.player.set_status(sid::BUFFER, buffer - 1);
+                0
+            } else {
+                let tungsten = self.state.has_relic("Tungsten Rod")
+                    || self.state.has_relic("TungstenRod");
+                damage::apply_hp_loss(after_intangible, false, tungsten)
+            };
+            self.player_lose_hp(hp_loss);
             {
                 let ctx = crate::effects::trigger::TriggerContext {
                     card_type: Some(card.card_type),
