@@ -321,21 +321,36 @@ mod enemy_tests {
 
     // ========== Acid Slime S ==========
 
-    #[test] fn acid_s_first_tackle() {
-        let e = create_enemy("AcidSlime_S", 10, 10);
-        assert_eq!(e.move_id, AS_TACKLE);
-        assert_eq!(e.move_damage(), 3);
+    #[test] fn acid_s_initial_rng_and_a17_opener_match_java() {
+        // Source: reference/extracted/methods/monster/AcidSlime_S.java.
+        let seed_for = |expected: bool| (1..10_000).find(|&seed| {
+            let mut rng = crate::seed::StsRandom::new(seed);
+            rng.random_boolean() == expected
+        }).unwrap();
+        for (value, move_id) in [(true, AS_S_TACKLE), (false, AS_S_LICK)] {
+            let mut e = create_enemy("AcidSlime_S", 10, 10);
+            let mut rng = crate::seed::StsRandom::new(seed_for(value));
+            roll_initial_move_with_num_and_rng(&mut e, 50, &mut rng);
+            assert_eq!(e.move_id, move_id);
+            assert_eq!(rng.counter, 1);
+        }
+        let mut a17 = create_enemy("AcidSlime_S", 10, 10);
+        a17.entity.set_status(sid::STR_AMT, 17);
+        let mut rng = crate::seed::StsRandom::new(1);
+        roll_initial_move_with_num_and_rng(&mut a17, 50, &mut rng);
+        assert_eq!(a17.move_id, AS_S_LICK);
+        assert_eq!(rng.counter, 0);
     }
     #[test] fn acid_s_alternates() {
         let mut e = create_enemy("AcidSlime_S", 10, 10);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(e.move_id, AS_LICK);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(e.move_id, AS_TACKLE);
+        advance_acid_slime_s_after_turn(&mut e);
+        assert_eq!(e.move_id, AS_S_LICK);
+        advance_acid_slime_s_after_turn(&mut e);
+        assert_eq!(e.move_id, AS_S_TACKLE);
     }
     #[test] fn acid_s_lick_weak() {
         let mut e = create_enemy("AcidSlime_S", 10, 10);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        advance_acid_slime_s_after_turn(&mut e);
         assert_eq!(e.effect(mfx::WEAK).unwrap(), 1);
     }
 

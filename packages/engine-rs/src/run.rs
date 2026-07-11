@@ -1310,6 +1310,15 @@ impl RunEngine {
             enemy.set_move(crate::enemies::move_ids::RS_STAB, stab, 1, 0);
         }
 
+        // Source: reference/extracted/methods/monster/AcidSlime_S.java.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "AcidSlime_S") {
+            let damage = if self.run_state.ascension >= 2 { 4 } else { 3 };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, damage);
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
+                if self.run_state.ascension >= 17 { 17 } else { 0 });
+            enemy.set_move(crate::enemies::move_ids::AS_S_TACKLE, damage, 1, 0);
+        }
+
         // Java Cultist.java: ctor sets ritualAmount = ascensionLevel >= 2 ? 4 : 3;
         // takeTurn() case 3 (INCANTATION) applies RitualPower(ritualAmount + 1)
         // at ascensionLevel >= 17, else RitualPower(ritualAmount).
@@ -1391,7 +1400,8 @@ impl RunEngine {
                 (hp, hp)
             }
             "AcidSlime_S" => {
-                let hp = if a20 { 9 } else { 8 };
+                let base = if a20 { 9 } else { 8 };
+                let hp = base + self.rng.gen_range(0..=4);
                 (hp, hp)
             }
             "AcidSlime_M" => {
@@ -4426,6 +4436,45 @@ mod tests {
             assert_eq!(enemy.entity.status(crate::status_ids::sid::BLOCK_AMT), vulnerable);
             assert_eq!(enemy.entity.status(crate::status_ids::sid::IS_FIRST_MOVE), 0);
             assert_eq!(combat.ai_rng.counter, 1);
+        }
+    }
+
+    #[test]
+    fn acid_slime_s_initial_rng_then_direct_alternation_matches_java() {
+        // Source: reference/extracted/methods/monster/AcidSlime_S.java.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("AcidSlime_S").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("AcidSlime_S").0);
+        }
+        assert_eq!(low_hp, (8..=12).collect());
+        assert_eq!(high_hp, (9..=13).collect());
+
+        for (ascension, damage, initial_ticks) in [(0, 3, 2), (2, 4, 2), (17, 4, 1)] {
+            let mut engine = RunEngine::new(42, ascension);
+            engine.enter_specific_combat(vec!["AcidSlime_S".to_string()]);
+            let combat = engine.combat_engine.as_ref().unwrap();
+            let initial = combat.state.enemies[0].move_id;
+            assert!(matches!(initial,
+                crate::enemies::move_ids::AS_S_TACKLE
+                    | crate::enemies::move_ids::AS_S_LICK));
+            assert_eq!(combat.state.enemies[0].entity.status(
+                crate::status_ids::sid::STARTING_DMG), damage);
+            assert_eq!(combat.ai_rng.counter, initial_ticks);
+
+            engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+            let combat = engine.combat_engine.as_ref().unwrap();
+            let expected = if initial == crate::enemies::move_ids::AS_S_TACKLE {
+                crate::enemies::move_ids::AS_S_LICK
+            } else {
+                crate::enemies::move_ids::AS_S_TACKLE
+            };
+            assert_eq!(combat.state.enemies[0].move_id, expected);
+            assert_eq!(combat.ai_rng.counter, initial_ticks,
+                "takeTurn directly sets the next move without RollMoveAction");
         }
     }
 

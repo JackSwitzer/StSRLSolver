@@ -518,8 +518,13 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         }
     }
 
-    // Advance enemy to next move for next turn
-    enemies::roll_next_move(&mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
+    // AcidSlime_S.java sets its opposite move directly in takeTurn and does not
+    // queue RollMoveAction; every other verified monster advances through aiRng.
+    if engine.state.enemies[enemy_idx].id == "AcidSlime_S" {
+        enemies::advance_acid_slime_s_after_turn(&mut engine.state.enemies[enemy_idx]);
+    } else {
+        enemies::roll_next_move(&mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
+    }
 }
 
 /// Handle boss-specific damage hooks (Guardian mode shift, SlimeBoss split, Lagavulin wake,

@@ -135,11 +135,7 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::RS_STAB, 13, 1, 0, &[]);
 
         let e = make("AcidSlime_S", 8);
-        expect_one_of(&e, &[move_ids::AS_TACKLE, move_ids::AS_LICK]);
-        match e.move_id {
-            x if x == move_ids::AS_TACKLE => expect_move(&e, move_ids::AS_TACKLE, 3, 1, 0, &[]),
-            _ => expect_move(&e, move_ids::AS_LICK, 0, 0, 0, &[(mfx::WEAK, 1)]),
-        }
+        expect_move(&e, move_ids::AS_S_TACKLE, 3, 1, 0, &[]);
 
         let e = make("AcidSlime_M", 28);
         expect_one_of(&e, &[move_ids::AS_CORROSIVE_SPIT, move_ids::AS_TACKLE, move_ids::AS_LICK]);
@@ -271,10 +267,10 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::RS_SCRAPE, 8, 1, 0, &[(mfx::VULNERABLE, 1)]);
 
         let mut e = make("AcidSlime_S", 8);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::AS_LICK, 0, 0, 0, &[(mfx::WEAK, 1)]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::AS_TACKLE, 3, 1, 0, &[]);
+        advance_acid_slime_s_after_turn(&mut e);
+        expect_move(&e, move_ids::AS_S_LICK, 0, 0, 0, &[(mfx::WEAK, 1)]);
+        advance_acid_slime_s_after_turn(&mut e);
+        expect_move(&e, move_ids::AS_S_TACKLE, 3, 1, 0, &[]);
 
         let mut e = make("AcidSlime_M", 28);
         roll_times(&mut e, 1);

@@ -171,12 +171,36 @@ pub(super) fn roll_red_slaver(enemy: &mut EnemyCombatState, num: i32) {
     }
 }
 
-pub(super) fn roll_acid_slime_s(enemy: &mut EnemyCombatState, _num: i32) {
-    if last_move(enemy, move_ids::AS_TACKLE) {
-        enemy.set_move(move_ids::AS_LICK, 0, 0, 0);
+pub(super) fn roll_acid_slime_s(
+    enemy: &mut EnemyCombatState,
+    _num: i32,
+    ai_rng: &mut StsRandom,
+) {
+    // Source: reference/extracted/methods/monster/AcidSlime_S.java (`getMove`).
+    let damage = enemy.entity.status(sid::STARTING_DMG).max(3);
+    let tackle = if enemy.entity.status(sid::STR_AMT) >= 17 {
+        last_two_moves(enemy, move_ids::AS_S_TACKLE)
+    } else {
+        ai_rng.random_boolean()
+    };
+    if tackle {
+        enemy.set_move(move_ids::AS_S_TACKLE, damage, 1, 0);
+    } else {
+        enemy.set_move(move_ids::AS_S_LICK, 0, 0, 0);
+        enemy.add_effect(mfx::WEAK, 1);
+    }
+}
+
+pub(crate) fn advance_acid_slime_s_after_turn(enemy: &mut EnemyCombatState) {
+    // AcidSlime_S.takeTurn calls setMove directly and never queues RollMoveAction.
+    enemy.move_history.push(enemy.move_id);
+    enemy.move_effects.clear();
+    if enemy.move_id == move_ids::AS_S_TACKLE {
+        enemy.set_move(move_ids::AS_S_LICK, 0, 0, 0);
         enemy.add_effect(mfx::WEAK, 1);
     } else {
-        enemy.set_move(move_ids::AS_TACKLE, 3, 1, 0);
+        let damage = enemy.entity.status(sid::STARTING_DMG).max(3);
+        enemy.set_move(move_ids::AS_S_TACKLE, damage, 1, 0);
     }
 }
 

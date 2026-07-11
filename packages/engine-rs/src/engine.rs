@@ -304,7 +304,8 @@ impl CombatEngine {
         for enemy in self.state.enemies.iter_mut().filter(|e| matches!(e.id.as_str(),
             "FungiBeast" | "FuzzyLouseNormal" | "RedLouse"
                 | "FuzzyLouseDefensive" | "GreenLouse"
-                | "SlaverBlue" | "BlueSlaver" | "SlaverRed" | "RedSlaver")) {
+                | "SlaverBlue" | "BlueSlaver" | "SlaverRed" | "RedSlaver"
+                | "AcidSlime_S")) {
             crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
         }
 

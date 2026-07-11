@@ -118,6 +118,8 @@ pub mod move_ids {
     pub const RS_SCRAPE: i32 = 3;
 
     // Acid Slime S/M/L
+    pub const AS_S_TACKLE: i32 = 1;
+    pub const AS_S_LICK: i32 = 2;
     pub const AS_CORROSIVE_SPIT: i32 = 1;
     pub const AS_TACKLE: i32 = 2;
     pub const AS_LICK: i32 = 4;
@@ -450,7 +452,9 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::RS_STAB, 13, 1, 0);
         }
         "AcidSlime_S" => {
-            enemy.set_move(move_ids::AS_TACKLE, 3, 1, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 3);
+            enemy.entity.set_status(sid::STR_AMT, 0);
+            enemy.set_move(move_ids::AS_S_TACKLE, 3, 1, 0);
         }
         "AcidSlime_M" => {
             enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 7, 1, 0);
@@ -899,7 +903,7 @@ fn select_move(
         "FuzzyLouseDefensive" | "GreenLouse" => act1::roll_green_louse(enemy, num),
         "SlaverBlue" | "BlueSlaver" => act1::roll_blue_slaver(enemy, num),
         "SlaverRed" | "RedSlaver" => act1::roll_red_slaver(enemy, num),
-        "AcidSlime_S" => act1::roll_acid_slime_s(enemy, num),
+        "AcidSlime_S" => act1::roll_acid_slime_s(enemy, num, ai_rng),
         "AcidSlime_M" => act1::roll_acid_slime_m(enemy, num),
         "AcidSlime_L" => act1::roll_acid_slime_l(enemy, num),
         "SpikeSlime_S" => act1::roll_spike_slime_s(enemy, num),
@@ -988,6 +992,7 @@ pub(crate) fn last_two_moves(enemy: &EnemyCombatState, move_id: i32) -> bool {
 pub use act3::awakened_one_rebirth;
 pub use act1::guardian_check_mode_shift;
 pub use act1::guardian_switch_to_offensive;
+pub(crate) use act1::advance_acid_slime_s_after_turn;
 pub use act1::hexaghost_set_divider;
 pub use act1::lagavulin_wake_up;
 pub use act1::slime_boss_should_split;
@@ -1203,14 +1208,14 @@ mod tests {
     #[test]
     fn test_acid_slime_s_pattern() {
         let mut enemy = create_enemy("AcidSlime_S", 10, 10);
-        assert_eq!(enemy.move_id, move_ids::AS_TACKLE);
+        assert_eq!(enemy.move_id, move_ids::AS_S_TACKLE);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::AS_LICK);
+        advance_acid_slime_s_after_turn(&mut enemy);
+        assert_eq!(enemy.move_id, move_ids::AS_S_LICK);
         assert_eq!(enemy.effect(mfx::WEAK), Some(1));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::AS_TACKLE);
+        advance_acid_slime_s_after_turn(&mut enemy);
+        assert_eq!(enemy.move_id, move_ids::AS_S_TACKLE);
     }
 
     #[test]
