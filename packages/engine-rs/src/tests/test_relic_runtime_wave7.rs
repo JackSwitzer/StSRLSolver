@@ -68,6 +68,7 @@ fn snecko_eye_confuses_and_draws_two_extra_cards_on_runtime_path() {
 
 #[test]
 fn sling_grants_strength_only_in_elite_fights_on_runtime_path() {
+    // Source: reference/extracted/methods/relic/Sling.java
     let mut elite_engine = engine_without_start_with_relics(
         &["Sling"],
         &["Strike", "Strike", "Strike", "Strike", "Strike"],
