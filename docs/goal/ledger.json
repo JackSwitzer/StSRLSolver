@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T01:06:47.172550+00:00",
+ "updated": "2026-07-11T01:11:02.206317+00:00",
  "status_counts": {
-  "unverified": 609,
-  "verified": 58
+  "unverified": 606,
+  "verified": 61
  },
  "rows": [
   {
@@ -2832,8 +2832,8 @@
    "class": "Scrawl",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Scrawl.java",
    "methods_ref": "reference/extracted/methods/card/Scrawl.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -2982,8 +2982,8 @@
    "class": "SignatureMove",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/SignatureMove.java",
    "methods_ref": "reference/extracted/methods/card/SignatureMove.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -3482,8 +3482,8 @@
    "class": "SimmeringFury",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/SimmeringFury.java",
    "methods_ref": "reference/extracted/methods/card/SimmeringFury.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -1294,6 +1294,13 @@ impl CombatEngine {
             replay_window: false,
         });
 
+        // WrathNextTurnPower.atStartOfTurn changes stance before normal draw.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/WrathNextTurnPower.java
+        if self.state.player.status(sid::WRATH_NEXT_TURN) > 0 {
+            self.state.player.set_status(sid::WRATH_NEXT_TURN, 0);
+            self.change_stance(Stance::Wrath);
+        }
+
         self.flush_pending_nightmare_copies();
 
         // Divinity auto-exit at start of turn
@@ -1414,6 +1421,16 @@ impl CombatEngine {
             self.state.player.set_status(sid::INK_BOTTLE_DRAW, 0);
         }
 
+        // DrawCardNextTurnPower.atStartOfTurnPostDraw stacks its amount, draws,
+        // then removes itself. This runs before ordinary post-draw powers such
+        // as Foresight because Draw Card has priority 20.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DrawCardNextTurnPower.java
+        let next_turn_draw = self.state.player.status(sid::SIMMERING_FURY);
+        if next_turn_draw > 0 {
+            self.draw_cards(next_turn_draw);
+            self.state.player.set_status(sid::SIMMERING_FURY, 0);
+        }
+
         // ---- Post-draw power effects (complex powers not in EntityDefs) ----
 
         // Post-draw runtime hooks that must happen before remaining turn-start setup.
@@ -1438,16 +1455,6 @@ impl CombatEngine {
             let foresight = self.state.player.status(sid::FORESIGHT);
             if foresight > 0 {
                 self.do_scry(foresight);
-            }
-        }
-
-        // Simmering Fury: enter Wrath + draw cards (one-shot)
-        {
-            let sf = self.state.player.status(sid::SIMMERING_FURY);
-            if sf > 0 {
-                self.change_stance(Stance::Wrath);
-                self.draw_cards(sf);
-                self.state.player.set_status(sid::SIMMERING_FURY, 0);
             }
         }
 

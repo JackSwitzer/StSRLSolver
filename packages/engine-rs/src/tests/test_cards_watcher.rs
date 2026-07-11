@@ -1426,6 +1426,24 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.hand.len(), 10);
         }
     );
+    // Source-derived (verify card/Scrawl): ExpertiseAction draws exactly the
+    // number needed to reach ten cards after Scrawl leaves hand; Scrawl then
+    // exhausts, and the upgrade only makes it free.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Scrawl.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ExpertiseAction.java
+    #[test]
+    fn scrawl_source_draws_only_to_ten_and_exhausts() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.hand = make_deck(&[
+            "Scrawl+", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend",
+        ]);
+        engine.state.draw_pile = make_deck_n("Strike+", 20);
+        let draw_before = engine.state.draw_pile.len();
+        assert!(play_self(&mut engine, "Scrawl+"));
+        assert_eq!(engine.state.hand.len(), 10);
+        assert_eq!(engine.state.draw_pile.len(), draw_before - 4);
+        assert_eq!(exhaust_prefix_count(&engine, "Scrawl+"), 1);
+    }
     watcher_test!(
         spirit_shield_java_parity,
         base = ("SpiritShield", "Spirit Shield", 2, -1, -1, 3, CardType::Skill, CardTarget::SelfTarget, false, None, ["block_per_card_in_hand"]),
@@ -2100,6 +2118,22 @@ mod watcher_card_java_parity_tests {
         plus = ("SignatureMove+", "Signature Move+", 2, 40, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, ["only_attack_in_hand"]),
         {}
     );
+    // Source-derived (verify card/SignatureMove): every other Attack in hand
+    // blocks canUse, including a second Signature Move; Skills do not block it.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/SignatureMove.java
+    #[test]
+    fn signature_move_source_rejects_another_copy_but_allows_skills() {
+        let mut blocked = one_enemy_engine("JawWorm", 100, 0);
+        blocked.state.hand = make_deck(&["SignatureMove", "SignatureMove+"]);
+        assert!(!blocked.get_legal_actions().iter().any(|action| {
+            matches!(action, Action::PlayCard { card_idx: 0 | 1, .. })
+        }));
+
+        let mut allowed = one_enemy_engine("JawWorm", 100, 0);
+        allowed.state.hand = make_deck(&["Defend", "SignatureMove+"]);
+        assert!(play_on_enemy(&mut allowed, "SignatureMove+", 0));
+        assert_eq!(allowed.state.enemies[0].entity.hp, 60);
+    }
     watcher_test!(
         spirit_shield_more_java_parity,
         base = ("SpiritShield", "Spirit Shield", 2, -1, -1, 3, CardType::Skill, CardTarget::SelfTarget, false, None, ["block_per_card_in_hand"]),
@@ -2284,4 +2318,26 @@ mod watcher_card_java_parity_tests {
         plus = ("Vengeance+", "Simmering Fury+", 1, -1, -1, 3, CardType::Skill, CardTarget::None, false, None, []),
         {}
     );
+    // Source-derived (verify card/Vengeance): WrathNextTurnPower is a
+    // non-stacking one-shot atStartOfTurn power; Draw Card stacks 2 + 3 and
+    // draws after the normal five-card draw before removing itself.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/SimmeringFury.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/WrathNextTurnPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DrawCardNextTurnPower.java
+    #[test]
+    fn simmering_fury_source_separates_wrath_and_stacking_post_draw() {
+        let mut engine = one_enemy_engine("JawWorm", 100, 0);
+        engine.state.hand = make_deck(&["Vengeance", "Vengeance+"]);
+        engine.state.draw_pile = make_deck_n("Strike+", 20);
+        assert!(play_self(&mut engine, "Vengeance"));
+        assert!(play_self(&mut engine, "Vengeance+"));
+        assert_eq!(engine.state.player.status(sid::WRATH_NEXT_TURN), 1);
+        assert_eq!(engine.state.player.status(sid::SIMMERING_FURY), 5);
+
+        end_turn(&mut engine);
+        assert_eq!(engine.state.stance, Stance::Wrath);
+        assert_eq!(engine.state.hand.len(), 10);
+        assert_eq!(engine.state.player.status(sid::WRATH_NEXT_TURN), 0);
+        assert_eq!(engine.state.player.status(sid::SIMMERING_FURY), 0);
+    }
 }
