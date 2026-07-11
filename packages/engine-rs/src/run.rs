@@ -3605,6 +3605,9 @@ impl RunEngine {
             // MealTicket.java uses canonical ID "MealTicket", COMMON tier,
             // and canSpawn excludes non-endless runs after floor 48.
             "MealTicket",
+            // MeatOnTheBone.java uses canonical ID "Meat on the Bone",
+            // UNCOMMON tier, and a floor-48 spawn cutoff.
+            "Meat on the Bone",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
@@ -3627,6 +3630,7 @@ impl RunEngine {
             .filter(|relic| *relic != "Matryoshka" || self.run_state.floor <= 40)
             .filter(|relic| *relic != "MawBank" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "MealTicket" || self.run_state.floor <= 48)
+            .filter(|relic| *relic != "Meat on the Bone" || self.run_state.floor <= 48)
             .filter(|relic| {
                 !matches!(*relic, "Frozen Egg 2" | "Molten Egg 2" | "Toxic Egg 2")
                     || self.run_state.floor <= 48
@@ -3650,6 +3654,7 @@ impl RunEngine {
                     .filter(|relic| *relic != "Matryoshka" || self.run_state.floor <= 40)
                     .filter(|relic| *relic != "MawBank" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "MealTicket" || self.run_state.floor <= 48)
+                    .filter(|relic| *relic != "Meat on the Bone" || self.run_state.floor <= 48)
                     .filter(|relic| {
                         !matches!(*relic, "Frozen Egg 2" | "Molten Egg 2" | "Toxic Egg 2")
                             || self.run_state.floor <= 48

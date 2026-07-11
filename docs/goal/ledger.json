@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T09:00:53.985763+00:00",
+ "updated": "2026-07-11T09:03:25.571774+00:00",
  "status_counts": {
-  "unverified": 472,
-  "verified": 195
+  "unverified": 471,
+  "verified": 196
  },
  "rows": [
   {
@@ -5682,8 +5682,8 @@
    "class": "MeatOnTheBone",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/MeatOnTheBone.java",
    "methods_ref": "reference/extracted/methods/relic/MeatOnTheBone.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -947,6 +947,32 @@ fn meal_ticket_is_reachable_only_through_floor_forty_eight() {
 }
 
 #[test]
+fn meat_on_the_bone_is_reachable_only_through_floor_forty_eight() {
+    // MeatOnTheBone.java constructs an UNCOMMON relic and canSpawn excludes
+    // non-endless runs after floor 48.
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 48;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Meat on the Bone"
+            })
+        })
+    });
+    assert!(offered);
+
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 49;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Meat on the Bone")
+        }));
+    }
+}
+
+#[test]
 fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
     // Source-derived (verify relic/Calling Bell): CallingBell.java is BOSS tier,
     // confirms CurseOfTheBell, then opens COMMON, UNCOMMON, and RARE relic

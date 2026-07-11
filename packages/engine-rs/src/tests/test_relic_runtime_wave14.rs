@@ -7,6 +7,8 @@ use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_stat
 
 #[test]
 fn relic_wave14_meat_on_the_bone_heals_on_victory_at_half_or_below() {
+    // MeatOnTheBone.java::onTrigger uses an inclusive maxHealth / 2.0 check
+    // and heals exactly 12 while currentHealth remains positive.
     let mut state = combat_state_with(Vec::new(), vec![enemy_no_intent("JawWorm", 1, 1)], 3);
     state.relics.push("Meat on the Bone".to_string());
     state.player.hp = 40;
