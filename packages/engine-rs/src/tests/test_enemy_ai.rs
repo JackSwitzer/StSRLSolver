@@ -247,11 +247,16 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::LOUSE_SPIT_WEB, 0, 0, 0, &[(mfx::WEAK, 2)]);
 
         let mut e = make("SlaverBlue", 46);
-        roll_times(&mut e, 1);
+        // SlaverBlue.java: >=40 selects Stab until two consecutive Stabs force Rake.
+        roll_initial_move_with_num_and_rng(
+            &mut e, 40, &mut crate::seed::StsRandom::new(0));
+        roll_with_num(&mut e, 40);
         expect_move(&e, move_ids::BS_STAB, 12, 1, 0, &[]);
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 40);
         expect_move(&e, move_ids::BS_RAKE, 7, 1, 0, &[(mfx::WEAK, 1)]);
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 0);
+        expect_move(&e, move_ids::BS_RAKE, 7, 1, 0, &[(mfx::WEAK, 1)]);
+        roll_with_num(&mut e, 0);
         expect_move(&e, move_ids::BS_STAB, 12, 1, 0, &[]);
 
         let mut e = make("SlaverRed", 46);
@@ -832,7 +837,8 @@ mod enemy_ai_java_parity_tests {
         let act1_strong = enter_forced_combat(1, 0, RoomType::Monster, 3);
         let combat = act1_strong.get_combat_engine().expect("combat engine");
         assert_eq!(combat.state.enemies[0].id, "BlueSlaver");
-        assert_eq!(combat.state.enemies[0].entity.hp, 46);
+        // SlaverBlue.java uses inclusive setHp(46, 50), not a fixed 46.
+        assert!((46..=50).contains(&combat.state.enemies[0].entity.hp));
 
         let act1_elite = enter_forced_combat(1, 20, RoomType::Elite, 0);
         let combat = act1_elite.get_combat_engine().expect("combat engine");

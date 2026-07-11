@@ -223,28 +223,52 @@ mod enemy_tests {
 
     // ========== Blue Slaver ==========
 
-    #[test] fn bs_first_stab() {
-        let e = create_enemy("SlaverBlue", 48, 48);
-        assert_eq!(e.move_id, BS_STAB);
-        assert_eq!(e.move_damage(), 12);
+    #[test] fn bs_initial_roll_uses_java_60_percent_stab_split() {
+        // Source: reference/extracted/methods/monster/SlaverBlue.java.
+        let mut rake = create_enemy("SlaverBlue", 48, 48);
+        roll_initial_move_with_num_and_rng(
+            &mut rake, 39, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(rake.move_id, BS_RAKE);
+        assert_eq!(rake.move_damage(), 7);
+        assert_eq!(rake.effect(mfx::WEAK), Some(1));
+        let mut stab = create_enemy("SlaverBlue", 48, 48);
+        roll_initial_move_with_num_and_rng(
+            &mut stab, 40, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(stab.move_id, BS_STAB);
+        assert_eq!(stab.move_damage(), 12);
     }
     #[test] fn bs_no_three_stabs() {
         let mut e = create_enemy("SlaverBlue", 48, 48);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // stab -> stab
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // stab,stab -> MUST rake
+        roll_next_move_with_num(&mut e, 40);
+        roll_next_move_with_num(&mut e, 40);
         assert_eq!(e.move_id, BS_RAKE);
     }
     #[test] fn bs_rake_weak() {
         let mut e = create_enemy("SlaverBlue", 48, 48);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut e, 40);
+        roll_next_move_with_num(&mut e, 40);
         assert_eq!(e.effect(mfx::WEAK).unwrap(), 1);
     }
     #[test] fn bs_rake_damage() {
         let mut e = create_enemy("SlaverBlue", 48, 48);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut e, 40);
+        roll_next_move_with_num(&mut e, 40);
         assert_eq!(e.move_damage(), 7);
+    }
+
+    #[test] fn bs_a17_prevents_consecutive_rakes() {
+        let mut low = create_enemy("SlaverBlue", 48, 48);
+        roll_initial_move_with_num_and_rng(
+            &mut low, 0, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut low, 0);
+        assert_eq!(low.move_id, BS_RAKE);
+
+        let mut a17 = create_enemy("SlaverBlue", 48, 48);
+        a17.entity.set_status(sid::BLOCK_AMT, 2);
+        roll_initial_move_with_num_and_rng(
+            &mut a17, 0, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut a17, 0);
+        assert_eq!(a17.move_id, BS_STAB);
     }
 
     // ========== Red Slaver ==========

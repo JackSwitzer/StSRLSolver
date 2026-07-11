@@ -303,7 +303,8 @@ impl CombatEngine {
         // monsters have no fixed opener; select it with empty move history.
         for enemy in self.state.enemies.iter_mut().filter(|e| matches!(e.id.as_str(),
             "FungiBeast" | "FuzzyLouseNormal" | "RedLouse"
-                | "FuzzyLouseDefensive" | "GreenLouse")) {
+                | "FuzzyLouseDefensive" | "GreenLouse"
+                | "SlaverBlue" | "BlueSlaver")) {
             crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
         }
 

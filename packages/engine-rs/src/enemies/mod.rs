@@ -437,6 +437,9 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::CURL_UP, 5);
         }
         "SlaverBlue" | "BlueSlaver" => {
+            enemy.entity.set_status(sid::STARTING_DMG, 12);
+            enemy.entity.set_status(sid::STR_AMT, 7);
+            enemy.entity.set_status(sid::BLOCK_AMT, 1);
             enemy.set_move(move_ids::BS_STAB, 12, 1, 0);
         }
         "SlaverRed" | "RedSlaver" => {
@@ -1163,13 +1166,13 @@ mod tests {
     #[test]
     fn test_blue_slaver_pattern() {
         let mut enemy = create_enemy("SlaverBlue", 48, 48);
+        // Source: reference/extracted/methods/monster/SlaverBlue.java.
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 40, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 40);
         assert_eq!(enemy.move_id, move_ids::BS_STAB);
-        assert_eq!(enemy.move_damage(), 12);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::BS_STAB);
-
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 40);
         assert_eq!(enemy.move_id, move_ids::BS_RAKE);
         assert_eq!(enemy.effect(mfx::WEAK), Some(1));
     }

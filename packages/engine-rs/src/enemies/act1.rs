@@ -116,14 +116,23 @@ pub(super) fn roll_green_louse(enemy: &mut EnemyCombatState, num: i32) {
     }
 }
 
-pub(super) fn roll_blue_slaver(enemy: &mut EnemyCombatState, _num: i32) {
-    if last_two_moves(enemy, move_ids::BS_STAB) {
-        enemy.set_move(move_ids::BS_RAKE, 7, 1, 0);
-        enemy.add_effect(mfx::WEAK, 1);
-    } else if last_move(enemy, move_ids::BS_RAKE) {
-        enemy.set_move(move_ids::BS_STAB, 12, 1, 0);
+pub(super) fn roll_blue_slaver(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/SlaverBlue.java (`getMove`).
+    let stab = enemy.entity.status(sid::STARTING_DMG).max(12);
+    let rake = enemy.entity.status(sid::STR_AMT).max(7);
+    let weak = enemy.entity.status(sid::BLOCK_AMT).max(1) as i16;
+    let choose_stab = if num >= 40 && !last_two_moves(enemy, move_ids::BS_STAB) {
+        true
+    } else if weak >= 2 {
+        last_move(enemy, move_ids::BS_RAKE)
     } else {
-        enemy.set_move(move_ids::BS_STAB, 12, 1, 0);
+        last_two_moves(enemy, move_ids::BS_RAKE)
+    };
+    if choose_stab {
+        enemy.set_move(move_ids::BS_STAB, stab, 1, 0);
+    } else {
+        enemy.set_move(move_ids::BS_RAKE, rake, 1, 0);
+        enemy.add_effect(mfx::WEAK, weak);
     }
 }
 

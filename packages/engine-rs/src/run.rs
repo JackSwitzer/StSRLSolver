@@ -1287,6 +1287,17 @@ impl RunEngine {
             enemy.set_move(crate::enemies::move_ids::LOUSE_BITE, bite_damage, 1, 0);
         }
 
+        // Source: reference/extracted/methods/monster/SlaverBlue.java.
+        for enemy in enemy_states.iter_mut().filter(|e| matches!(e.id.as_str(),
+            "SlaverBlue" | "BlueSlaver")) {
+            let (stab, rake) = if self.run_state.ascension >= 2 { (13, 8) } else { (12, 7) };
+            let weak = if self.run_state.ascension >= 17 { 2 } else { 1 };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, stab);
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT, rake);
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT, weak);
+            enemy.set_move(crate::enemies::move_ids::BS_STAB, stab, 1, 0);
+        }
+
         // Java Cultist.java: ctor sets ritualAmount = ascensionLevel >= 2 ? 4 : 3;
         // takeTurn() case 3 (INCANTATION) applies RitualPower(ritualAmount + 1)
         // at ascensionLevel >= 17, else RitualPower(ritualAmount).
@@ -1399,7 +1410,8 @@ impl RunEngine {
                 (hp, hp)
             }
             "BlueSlaver" | "SlaverBlue" => {
-                let hp = if a20 { 48 } else { 46 };
+                let base = if a20 { 48 } else { 46 };
+                let hp = base + self.rng.gen_range(0..=4);
                 (hp, hp)
             }
             "RedSlaver" | "SlaverRed" => {
@@ -4342,6 +4354,36 @@ mod tests {
         let curl = a7.combat_engine.as_ref().unwrap().state.enemies[0]
             .entity.status(crate::status_ids::sid::CURL_UP);
         assert!((4..=8).contains(&curl));
+    }
+
+    #[test]
+    fn blue_slaver_constructor_and_ascension_stats_match_java() {
+        // Source: reference/extracted/methods/monster/SlaverBlue.java.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("SlaverBlue").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("SlaverBlue").0);
+        }
+        assert_eq!(low_hp, (46..=50).collect());
+        assert_eq!(high_hp, (48..=52).collect());
+
+        for (ascension, stab, rake, weak) in
+            [(0, 12, 7, 1), (2, 13, 8, 1), (17, 13, 8, 2)]
+        {
+            let mut engine = RunEngine::new(42, ascension);
+            engine.enter_specific_combat(vec!["SlaverBlue".to_string()]);
+            let combat = engine.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG), stab);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), rake);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::BLOCK_AMT), weak);
+            assert!(matches!(enemy.move_id,
+                crate::enemies::move_ids::BS_STAB | crate::enemies::move_ids::BS_RAKE));
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
     }
 
     #[test]
