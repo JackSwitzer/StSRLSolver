@@ -170,7 +170,8 @@ fn potion_potency(potion_id: &str) -> Option<(i32, i32)> {
         "Weak Potion" | "WeakenPotion" => Some((3, 2)),
         "FearPotion" | "Fear Potion" => Some((3, 2)),
         "Poison Potion" | "PoisonPotion" => Some((6, 4)),
-        "Energy Potion" | "EnergyPotion" => Some((2, 1)),
+        // EnergyPotion.java getPotency ignores ascension and always returns 2.
+        "Energy Potion" | "EnergyPotion" => Some((2, 2)),
         "Swift Potion" | "SwiftPotion" => Some((3, 2)),
         "SneckoOil" => Some((5, 4)),
         "Ancient Potion" | "AncientPotion" => Some((1, 1)),
@@ -977,11 +978,12 @@ mod tests {
     }
 
     #[test]
-    fn test_a11_energy_potion_reduced() {
+    fn test_a11_energy_potion_stays_at_two() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/EnergyPotion.java
         let mut state = make_test_state();
         let initial = state.energy;
         apply_potion_scaled(&mut state, "Energy Potion", -1, 11);
-        assert_eq!(state.energy, initial + 1);
+        assert_eq!(state.energy, initial + 2);
     }
 
     #[test]

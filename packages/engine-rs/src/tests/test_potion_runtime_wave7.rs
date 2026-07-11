@@ -80,6 +80,30 @@ fn wave7_draw_and_energy_potions_use_action_path_with_runtime_potency() {
 }
 
 #[test]
+fn energy_potion_keeps_two_potency_and_sacred_bark_doubles_it() {
+    // Source-derived (verify potion/EnergyPotion): getPotency returns two with
+    // no ascension branch; AbstractPotion doubles that value for Sacred Bark.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/EnergyPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/AbstractPotion.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.energy = 1;
+    engine.state.potions[0] = "Energy Potion".to_string();
+
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.energy, 3);
+
+    engine.state.energy = 1;
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "Energy Potion".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.energy, 5);
+}
+
+#[test]
 fn wave7_status_potions_apply_expected_statuses_via_action_path() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike"]),

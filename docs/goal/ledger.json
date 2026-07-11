@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T05:17:44.538976+00:00",
+ "updated": "2026-07-11T05:20:15.992237+00:00",
  "status_counts": {
-  "unverified": 540,
-  "verified": 127
+  "unverified": 539,
+  "verified": 128
  },
  "rows": [
   {
@@ -4532,8 +4532,8 @@
    "class": "EnergyPotion",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/EnergyPotion.java",
    "methods_ref": "reference/extracted/methods/potion/EnergyPotion.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
