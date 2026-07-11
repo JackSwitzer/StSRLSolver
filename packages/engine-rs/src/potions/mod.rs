@@ -107,10 +107,12 @@ pub(crate) fn return_discard_to_hand(state: &mut CombatState, amount: i32) -> i3
         if state.discard_pile.is_empty() || state.hand.len() >= 10 {
             break;
         }
-        if let Some(card) = state.discard_pile.pop() {
-            state.hand.push(card);
-            moved += 1;
-        }
+        // BetterDiscardPileToHandAction copies CardGroup.group in its stored
+        // order and moves from the front when every card is auto-selected.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/BetterDiscardPileToHandAction.java
+        let card = state.discard_pile.remove(0);
+        state.hand.push(card);
+        moved += 1;
     }
     moved
 }

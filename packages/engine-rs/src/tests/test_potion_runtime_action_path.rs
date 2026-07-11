@@ -270,6 +270,43 @@ fn liquid_memories_returns_discard_cards_via_action_path() {
 }
 
 #[test]
+fn liquid_memories_auto_return_preserves_discard_order_and_hand_limit() {
+    // Source-derived (verify potion/LiquidMemories): Sacred Bark doubles the
+    // constant-one potency. When the discard has no more than that many cards,
+    // BetterDiscardPileToHandAction iterates CardGroup.group in stored order;
+    // each moved card costs zero this turn and the ten-card hand cap leaves
+    // later cards in the discard pile.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/LiquidMemories.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/BetterDiscardPileToHandAction.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike", "Defend", "Bash"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand = make_deck(&[
+        "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend",
+        "Defend",
+    ]);
+    engine.state.discard_pile = make_deck(&["Strike", "Bash"]);
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "LiquidMemories".to_string();
+
+    use_potion(&mut engine, 0, -1);
+
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert_eq!(engine.state.hand.len(), 10);
+    assert_eq!(hand_names(&engine).last().copied(), Some("Strike"));
+    assert_eq!(engine.state.hand.last().expect("returned card").cost, 0);
+    assert_eq!(engine.state.discard_pile.len(), 1);
+    assert_eq!(
+        engine
+            .card_registry
+            .card_name(engine.state.discard_pile[0].def_id),
+        "Bash"
+    );
+}
+
+#[test]
 fn entropic_brew_rolls_for_every_slot_and_refills_its_consumed_slot() {
     // Source-derived (verify potion/EntropicBrew): combat use rolls one limited
     // random potion per potion slot before queued ObtainPotionActions resolve.

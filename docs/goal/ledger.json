@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T05:58:02.473231+00:00",
+ "updated": "2026-07-11T06:00:36.087551+00:00",
  "status_counts": {
-  "unverified": 530,
-  "verified": 137
+  "unverified": 529,
+  "verified": 138
  },
  "rows": [
   {
@@ -4672,8 +4672,8 @@
    "class": "LiquidMemories",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/LiquidMemories.java",
    "methods_ref": "reference/extracted/methods/potion/LiquidMemories.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
