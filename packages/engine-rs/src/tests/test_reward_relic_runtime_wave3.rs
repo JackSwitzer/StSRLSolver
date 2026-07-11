@@ -1171,6 +1171,108 @@ fn girya_lifts_cap_at_three_and_transfer_as_combat_start_strength() {
 }
 
 #[test]
+fn shovel_is_rare_reachable_before_floor_forty_eight_with_at_most_one_campfire_relic() {
+    // Shovel.java constructs a RARE relic; canSpawn requires floorNum < 48 and
+    // fewer than two owned Peace Pipe, Shovel, or Girya relics.
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 47;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Shovel"
+            })
+        })
+    });
+    assert!(offered);
+
+    for seed in 0..256 {
+        let mut late = RunEngine::new(seed, 0);
+        late.run_state.floor = 48;
+        late.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(late.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Shovel")
+        }));
+
+        let mut capped = RunEngine::new(seed, 0);
+        capped.run_state.floor = 20;
+        capped.run_state.relics.extend([
+            "Peace Pipe".to_string(),
+            "Girya".to_string(),
+        ]);
+        capped.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(capped.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Shovel")
+        }));
+    }
+}
+
+#[test]
+fn shovel_dig_opens_one_claimable_tiered_relic_reward_and_is_rl_visible() {
+    // Shovel.java always adds DigOption. CampfireDigEffect rolls one relic tier
+    // (50% common, 33% uncommon, 17% rare in Exordium) and opens one reward.
+    let mut saw_common = false;
+    let mut saw_uncommon = false;
+    let mut saw_rare = false;
+
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 20;
+        engine.run_state.relics.push("Shovel".to_string());
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
+        engine.phase = RunPhase::Campfire;
+
+        assert!(engine.get_legal_actions().contains(&RunAction::CampfireDig));
+        assert!(engine
+            .get_legal_decision_actions()
+            .contains(&DecisionAction::CampfireDig));
+        assert!(engine
+            .current_decision_context()
+            .campfire
+            .expect("campfire context")
+            .can_dig);
+        assert!(engine
+            .step_with_result(&RunAction::CampfireDig)
+            .action_accepted);
+
+        let screen = engine.current_reward_screen().expect("Dig reward");
+        assert_eq!(screen.source, crate::decision::RewardScreenSource::Campfire);
+        assert_eq!(screen.items.len(), 1);
+        assert_eq!(screen.items[0].kind, RewardItemKind::Relic);
+        assert!(screen.items[0].claimable);
+        assert!(!screen.items[0].skip_allowed);
+        let relic = screen.items[0].label.clone();
+        saw_common |= matches!(
+            relic.as_str(),
+            "Akabeko" | "Anchor" | "Art of War" | "Bag of Marbles"
+                | "Bag of Preparation" | "Blood Vial" | "Boot" | "Bronze Scales"
+                | "Lantern" | "Vajra"
+        );
+        saw_uncommon |= matches!(
+            relic.as_str(),
+            "Blue Candle" | "Darkstone Periapt" | "Eternal Feather" | "InkBottle"
+                | "Kunai" | "Letter Opener" | "Ornamental Fan"
+        );
+        saw_rare |= matches!(
+            relic.as_str(),
+            "Bird Faced Urn" | "Calipers" | "Du-Vu Doll" | "FossilizedHelix"
+                | "Ginger" | "Ice Cream" | "Incense Burner" | "Old Coin"
+                | "Thread and Needle" | "Tough Bandages" | "Tungsten Rod"
+        );
+
+        assert!(engine
+            .step_with_result(&RunAction::SelectRewardItem(0))
+            .action_accepted);
+        assert!(engine.run_state.relics.iter().any(|owned| owned == &relic));
+    }
+
+    assert!(saw_common && saw_uncommon && saw_rare);
+}
+
+#[test]
 fn matryoshka_is_reachable_only_through_floor_forty() {
     // Matryoshka.java constructs an UNCOMMON relic and canSpawn allows
     // non-endless runs only while floorNum <= 40.

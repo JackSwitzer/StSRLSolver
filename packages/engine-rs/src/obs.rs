@@ -486,6 +486,7 @@ pub fn encode_actions(engine: &RunEngine, actions: &[RunAction], obs: &mut [f32;
                     RunAction::CampfireUpgrade(_) => obs[base + 5] = 1.0,
                     RunAction::CampfireToke => obs[base + 6] = 1.0,
                     RunAction::CampfireLift => obs[base + 7] = 1.0,
+                    RunAction::CampfireDig => obs[base + 8] = 1.0,
                     _ => {}
                 }
             }

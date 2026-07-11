@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T19:02:37.637762+00:00",
+ "updated": "2026-07-11T19:05:52.904259+00:00",
  "status_counts": {
-  "unverified": 435,
-  "verified": 232
+  "unverified": 434,
+  "verified": 233
  },
  "rows": [
   {
@@ -6192,8 +6192,8 @@
    "class": "Shovel",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Shovel.java",
    "methods_ref": "reference/extracted/methods/relic/Shovel.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

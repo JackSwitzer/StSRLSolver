@@ -1023,6 +1023,7 @@ fn decision_action_sort_key(action: &DecisionAction) -> (u8, i32, i32, i32) {
         DecisionAction::CampfireUpgrade(idx) => (7, *idx as i32, 0, 0),
         DecisionAction::CampfireToke => (7, i32::MAX, 0, 0),
         DecisionAction::CampfireLift => (7, i32::MAX - 1, 0, 0),
+        DecisionAction::CampfireDig => (7, i32::MAX - 2, 0, 0),
         DecisionAction::ShopBuyCard(idx) => (8, *idx as i32, 0, 0),
         DecisionAction::ShopBuyRelic(idx) => (9, *idx as i32, 0, 0),
         DecisionAction::ShopRemoveCard(idx) => (10, *idx as i32, 0, 0),

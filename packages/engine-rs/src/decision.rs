@@ -189,6 +189,7 @@ pub struct CampfireDecisionContext {
     pub upgradable_cards: Vec<usize>,
     pub removable_cards: Vec<usize>,
     pub can_lift: bool,
+    pub can_dig: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -309,6 +310,7 @@ pub enum DecisionAction {
     CampfireUpgrade(usize),
     CampfireToke,
     CampfireLift,
+    CampfireDig,
     ShopBuyCard(usize),
     ShopBuyRelic(usize),
     ShopRemoveCard(usize),
@@ -336,6 +338,7 @@ impl DecisionAction {
             Self::CampfireUpgrade(idx) => RunAction::CampfireUpgrade(*idx),
             Self::CampfireToke => RunAction::CampfireToke,
             Self::CampfireLift => RunAction::CampfireLift,
+            Self::CampfireDig => RunAction::CampfireDig,
             Self::ShopBuyCard(idx) => RunAction::ShopBuyCard(*idx),
             Self::ShopBuyRelic(idx) => RunAction::ShopBuyRelic(*idx),
             Self::ShopRemoveCard(idx) => RunAction::ShopRemoveCard(*idx),
@@ -366,6 +369,7 @@ impl DecisionAction {
             RunAction::CampfireUpgrade(idx) => Self::CampfireUpgrade(*idx),
             RunAction::CampfireToke => Self::CampfireToke,
             RunAction::CampfireLift => Self::CampfireLift,
+            RunAction::CampfireDig => Self::CampfireDig,
             RunAction::ShopBuyCard(idx) => Self::ShopBuyCard(*idx),
             RunAction::ShopBuyRelic(idx) => Self::ShopBuyRelic(*idx),
             RunAction::ShopRemoveCard(idx) => Self::ShopRemoveCard(*idx),

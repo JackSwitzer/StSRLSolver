@@ -70,6 +70,8 @@ pub enum RunAction {
     CampfireToke,
     /// Campfire: use Girya to permanently add one lift, up to three.
     CampfireLift,
+    /// Campfire: use Shovel to open a random relic reward.
+    CampfireDig,
     /// Shop: buy a card (index into shop offerings)
     ShopBuyCard(usize),
     /// Shop: buy a relic (index into shop relic offerings)
@@ -958,6 +960,7 @@ impl RunEngine {
                     },
                     removable_cards: self.peace_pipe_removable_indices(),
                     can_lift: self.can_lift_girya(),
+                    can_dig: self.has_shovel(),
                 })
             } else {
                 None
@@ -1050,6 +1053,7 @@ impl RunEngine {
                 },
                 removable_cards: self.peace_pipe_removable_indices(),
                 can_lift: self.can_lift_girya(),
+                can_dig: self.has_shovel(),
             }),
             RunPhase::Shop => self
                 .current_shop
@@ -1178,6 +1182,10 @@ impl RunEngine {
             actions.push(RunAction::CampfireLift);
         }
 
+        if self.has_shovel() {
+            actions.push(RunAction::CampfireDig);
+        }
+
         actions
     }
 
@@ -1234,6 +1242,10 @@ impl RunEngine {
     fn can_lift_girya(&self) -> bool {
         self.run_state.relics.iter().any(|relic| relic == "Girya")
             && self.run_state.relic_flags.counters[crate::relic_flags::counter::GIRYA] < 3
+    }
+
+    fn has_shovel(&self) -> bool {
+        self.run_state.relics.iter().any(|relic| relic == "Shovel")
     }
 
     fn get_event_actions(&self) -> Vec<RunAction> {
@@ -2580,6 +2592,69 @@ impl RunEngine {
         });
     }
 
+    fn roll_shovel_relic_id(&mut self) -> String {
+        // Exordium.java sets relic tier odds to 50 common / 33 uncommon / 17
+        // rare. CampfireDigEffect uses that tier roll and returnRandomRelic;
+        // this run layer preserves those semantic tiers on its shared stream.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/Exordium.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/vfx/campfire/CampfireDigEffect.java
+        const COMMON: &[&str] = &[
+            "Akabeko", "Anchor", "Art of War", "Bag of Marbles",
+            "Bag of Preparation", "Blood Vial", "Boot", "Bronze Scales",
+            "Lantern", "Vajra",
+        ];
+        const UNCOMMON: &[&str] = &[
+            "Blue Candle", "Darkstone Periapt", "Eternal Feather", "InkBottle",
+            "Kunai", "Letter Opener", "Ornamental Fan",
+        ];
+        const RARE: &[&str] = &[
+            "Bird Faced Urn", "Calipers", "Du-Vu Doll", "FossilizedHelix",
+            "Ginger", "Ice Cream", "Incense Burner", "Old Coin",
+            "Thread and Needle", "Tough Bandages", "Tungsten Rod",
+        ];
+        let roll = self.rng.gen_range(0..100);
+        let pool = if roll < 50 {
+            COMMON
+        } else if roll < 83 {
+            UNCOMMON
+        } else {
+            RARE
+        };
+        let registry = gameplay_registry();
+        let candidates: Vec<&str> = pool
+            .iter()
+            .copied()
+            .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
+            .filter(|id| *id != "Old Coin" || self.run_state.floor <= 48)
+            .filter(|id| !self.run_state.relics.iter().any(|owned| owned == id))
+            .collect();
+        if candidates.is_empty() {
+            "Circlet".to_string()
+        } else {
+            candidates[self.rng.gen_range(0..candidates.len())].to_string()
+        }
+    }
+
+    fn build_shovel_reward_screen(&mut self) {
+        let relic = self.roll_shovel_relic_id();
+        self.reward_screen = Some(RewardScreen {
+            source: RewardScreenSource::Campfire,
+            ordered: true,
+            active_item: None,
+            items: vec![RewardItem {
+                index: 0,
+                kind: RewardItemKind::Relic,
+                state: RewardItemState::Available,
+                label: relic,
+                claimable: true,
+                active: false,
+                skip_allowed: false,
+                skip_label: None,
+                choices: Vec::new(),
+            }],
+        });
+    }
+
     fn build_combat_reward_screen(&mut self, room_type: RoomType) {
         let mut items = Vec::new();
 
@@ -3498,6 +3573,10 @@ impl RunEngine {
                 *id != "Girya"
                     || (self.run_state.floor < 48 && self.campfire_relic_count() < 2)
             })
+            .filter(|id| {
+                *id != "Shovel"
+                    || (self.run_state.floor < 48 && self.campfire_relic_count() < 2)
+            })
             .filter(|id| *id != "Bottled Flame" || self.can_spawn_bottled_flame())
             .filter(|id| *id != "Bottled Lightning" || self.can_spawn_bottled_lightning())
             .filter(|id| *id != "Bottled Tornado" || self.can_spawn_bottled_tornado())
@@ -3549,6 +3628,7 @@ impl RunEngine {
             "Incense Burner",
             "Old Coin",
             "Peace Pipe",
+            "Shovel",
             // ThreadAndNeedle.java constructs a RARE relic.
             "Thread and Needle",
             "Tough Bandages",
@@ -3843,6 +3923,9 @@ impl RunEngine {
             // Girya.java uses canonical ID "Girya", RARE tier, and the same
             // floor and campfire-relic-count spawn gates as Peace Pipe.
             "Girya",
+            // Shovel.java uses canonical ID "Shovel", RARE tier, and the same
+            // floor and campfire-relic-count spawn gates as Peace Pipe.
+            "Shovel",
             // Matryoshka.java uses canonical ID "Matryoshka", UNCOMMON tier,
             // and canSpawn excludes non-endless runs after floor 40.
             "Matryoshka",
@@ -3936,6 +4019,10 @@ impl RunEngine {
                     || (self.run_state.floor < 48 && self.campfire_relic_count() < 2)
             })
             .filter(|relic| {
+                *relic != "Shovel"
+                    || (self.run_state.floor < 48 && self.campfire_relic_count() < 2)
+            })
+            .filter(|relic| {
                 !in_shop || !matches!(*relic, "Old Coin" | "Smiling Mask")
             })
             .filter(|relic| *relic != "Juzu Bracelet" || self.run_state.floor <= 48)
@@ -3978,6 +4065,11 @@ impl RunEngine {
                     })
                     .filter(|relic| {
                         *relic != "Girya"
+                            || (self.run_state.floor < 48
+                                && self.campfire_relic_count() < 2)
+                    })
+                    .filter(|relic| {
+                        *relic != "Shovel"
                             || (self.run_state.floor < 48
                                 && self.campfire_relic_count() < 2)
                     })
@@ -4305,6 +4397,12 @@ impl RunEngine {
                 let counter = &mut self.run_state.relic_flags.counters
                     [crate::relic_flags::counter::GIRYA];
                 *counter = (*counter + 1).min(3);
+            }
+            RunAction::CampfireDig => {
+                self.build_shovel_reward_screen();
+                self.phase = RunPhase::CardReward;
+                self.refresh_decision_stack();
+                return 0.0;
             }
             _ => {}
         }

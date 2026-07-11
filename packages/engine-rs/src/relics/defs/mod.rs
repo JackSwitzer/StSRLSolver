@@ -226,6 +226,7 @@ pub mod strange_spoon;
 pub mod old_coin;
 pub mod smiling_mask;
 pub mod peace_pipe;
+pub mod shovel;
 
 // ===========================================================================
 // Registry — static array of all relic EntityDefs
@@ -390,6 +391,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &old_coin::DEF,
     &smiling_mask::DEF,
     &peace_pipe::DEF,
+    &shovel::DEF,
 ];
 
 pub fn relic_def_by_id(id: &str) -> Option<&'static EntityDef> {

@@ -1169,6 +1169,12 @@ impl StSEngine {
                 "campfire".to_string(),
                 "Train with Girya".to_string(),
             )
+        } else if id == CAMP_DIG {
+            (
+                "camp_dig".to_string(),
+                "campfire".to_string(),
+                "Dig for a relic with Shovel".to_string(),
+            )
         } else if id >= CAMP_UPGRADE_BASE {
             let idx = id - CAMP_UPGRADE_BASE;
             let card = self
@@ -1507,6 +1513,7 @@ const CAMP_REST: i32 = 200;
 const CAMP_UPGRADE_BASE: i32 = 201;
 const CAMP_TOKE: i32 = 250;
 const CAMP_LIFT: i32 = 251;
+const CAMP_DIG: i32 = 252;
 const NEOW_BASE: i32 = 1_000_000;
 const SHOP_BUY_BASE: i32 = 300;
 const SHOP_RELIC_BASE: i32 = 325;
@@ -1958,6 +1965,7 @@ impl PyRunEngine {
             run::RunAction::CampfireUpgrade(i) => CAMP_UPGRADE_BASE + *i as i32,
             run::RunAction::CampfireToke => CAMP_TOKE,
             run::RunAction::CampfireLift => CAMP_LIFT,
+            run::RunAction::CampfireDig => CAMP_DIG,
             run::RunAction::ShopBuyCard(i) => SHOP_BUY_BASE + *i as i32,
             run::RunAction::ShopBuyRelic(i) => SHOP_RELIC_BASE + *i as i32,
             run::RunAction::ShopRemoveCard(i) => SHOP_REMOVE_BASE + *i as i32,
@@ -2025,6 +2033,8 @@ impl PyRunEngine {
             return Some(run::RunAction::CampfireToke);
         } else if action_id == CAMP_LIFT {
             return Some(run::RunAction::CampfireLift);
+        } else if action_id == CAMP_DIG {
+            return Some(run::RunAction::CampfireDig);
         } else if action_id >= CAMP_UPGRADE_BASE {
             return Some(run::RunAction::CampfireUpgrade(
                 (action_id - CAMP_UPGRADE_BASE) as usize,
