@@ -307,7 +307,7 @@ impl CombatEngine {
                 | "SlaverBlue" | "BlueSlaver" | "SlaverRed" | "RedSlaver"
                 | "AcidSlime_S" | "AcidSlime_M" | "AcidSlime_L"
                 | "SpikeSlime_S" | "SpikeSlime_M" | "SpikeSlime_L" | "Looter"
-                | "GremlinFat" | "GremlinThief")) {
+                | "GremlinFat" | "GremlinThief" | "GremlinWarrior")) {
             crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
         }
 
@@ -2833,11 +2833,12 @@ impl CombatEngine {
             return;
         }
 
-        // Source: decompiled GremlinFat.java and GremlinThief.java
+        // Source: decompiled GremlinFat/GremlinThief/GremlinWarrior.java
         // (`deathReact`). A surviving gremlin immediately changes to Escape.
         for (idx, enemy) in self.state.enemies.iter_mut().enumerate() {
             if idx != enemy_idx
-                && matches!(enemy.id.as_str(), "GremlinFat" | "GremlinThief")
+                && matches!(enemy.id.as_str(),
+                    "GremlinFat" | "GremlinThief" | "GremlinWarrior")
                 && enemy.is_alive()
                 && enemy.move_id != crate::enemies::move_ids::GREMLIN_ESCAPE
             {

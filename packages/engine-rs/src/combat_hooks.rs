@@ -571,7 +571,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     }
 
     if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-        "GremlinFat" | "GremlinThief")
+        "GremlinFat" | "GremlinThief" | "GremlinWarrior")
         && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::GREMLIN_ESCAPE
     {
         // Source: GremlinFat.java `takeTurn` case 99 (EscapeAction; no roll).
@@ -580,9 +580,11 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         return;
     }
 
-    if engine.state.enemies[enemy_idx].id == "GremlinThief" {
-        // Source: GremlinThief.java PUNCTURE sets the next PUNCTURE directly;
-        // it does not queue RollMoveAction or consume aiRng.
+    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
+        "GremlinThief" | "GremlinWarrior")
+    {
+        // Sources: GremlinThief.java and GremlinWarrior.java. Their attacks
+        // set the same attack directly without RollMoveAction or aiRng.
         engine.state.enemies[enemy_idx].move_history
             .push(enemies::move_ids::GREMLIN_ATTACK);
         return;

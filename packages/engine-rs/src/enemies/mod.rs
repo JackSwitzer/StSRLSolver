@@ -508,7 +508,8 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::GREMLIN_ATTACK, 9, 1, 0);
         }
         "GremlinWarrior" => {
-            // Scratch: 4 damage
+            enemy.entity.set_status(sid::STARTING_DMG, 4);
+            enemy.entity.set_status(sid::ANGRY, 1);
             enemy.set_move(move_ids::GREMLIN_ATTACK, 4, 1, 0);
         }
         "GremlinWizard" => {
@@ -933,7 +934,7 @@ fn select_move(
         "Looter" => act1::roll_looter(enemy, num),
         "GremlinFat" => act1::roll_gremlin_fat(enemy),
         "GremlinThief" => act1::roll_gremlin_thief(enemy),
-        "GremlinWarrior" => act1::roll_gremlin_simple(enemy, 4, 0),
+        "GremlinWarrior" => act1::roll_gremlin_warrior(enemy),
         "GremlinWizard" => act1::roll_gremlin_wizard(enemy),
         "GremlinTsundere" | "GremlinSneaky" => { /* Does nothing each turn */ }
         "GremlinNob" | "Gremlin Nob" => act1::roll_gremlin_nob(enemy, num),

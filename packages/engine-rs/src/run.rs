@@ -1405,6 +1405,15 @@ impl RunEngine {
             enemy.set_move(crate::enemies::move_ids::GREMLIN_ATTACK, damage, 1, 0);
         }
 
+        // Source: reference/extracted/methods/monster/GremlinWarrior.java.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "GremlinWarrior") {
+            let damage = if self.run_state.ascension >= 2 { 5 } else { 4 };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, damage);
+            enemy.entity.set_status(crate::status_ids::sid::ANGRY,
+                if self.run_state.ascension >= 17 { 2 } else { 1 });
+            enemy.set_move(crate::enemies::move_ids::GREMLIN_ATTACK, damage, 1, 0);
+        }
+
         // The boss passes ascension-derived large-slime constructor values to
         // its children when its split resolves.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "SlimeBoss") {
@@ -1539,6 +1548,11 @@ impl RunEngine {
             }
             "GremlinThief" => {
                 let base = if a20 { 11 } else { 10 };
+                let hp = base + self.rng.gen_range(0..=4);
+                (hp, hp)
+            }
+            "GremlinWarrior" => {
+                let base = if a20 { 21 } else { 20 };
                 let hp = base + self.rng.gen_range(0..=4);
                 (hp, hp)
             }
@@ -5028,6 +5042,56 @@ mod tests {
         let mut group = RunEngine::new(42, 0);
         group.enter_specific_combat(vec!["GremlinThief".to_string(),
             "GremlinWarrior".to_string()]);
+        let combat = group.combat_engine.as_mut().unwrap();
+        combat.state.enemies[1].entity.hp = 1;
+        combat.deal_damage_to_enemy(1, 1);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::GREMLIN_ESCAPE);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert!(combat.state.enemies[0].is_escaping);
+        assert_eq!(combat.state.enemies[0].entity.hp, 0);
+    }
+
+    #[test]
+    fn gremlin_warrior_stats_angry_direct_repeat_and_escape_match_java() {
+        // Source: reference/extracted/methods/monster/GremlinWarrior.java and
+        // the full source's `deathReact` escape behavior.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("GremlinWarrior").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("GremlinWarrior").0);
+        }
+        assert_eq!(low_hp, (20..=24).collect());
+        assert_eq!(high_hp, (21..=25).collect());
+
+        for (ascension, damage, angry) in [(0, 4, 1), (2, 5, 1), (17, 5, 2)] {
+            let mut engine = RunEngine::new(42, ascension);
+            engine.enter_specific_combat(vec!["GremlinWarrior".to_string()]);
+            {
+                let combat = engine.combat_engine.as_mut().unwrap();
+                assert_eq!(combat.state.enemies[0].move_damage(), damage);
+                assert_eq!(combat.state.enemies[0].entity.status(
+                    crate::status_ids::sid::ANGRY), angry);
+                assert_eq!(combat.ai_rng.counter, 1);
+                combat.deal_damage_to_enemy(0, 1);
+                assert_eq!(combat.state.enemies[0].entity.status(
+                    crate::status_ids::sid::STRENGTH), angry);
+            }
+
+            engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+            let combat = engine.combat_engine.as_ref().unwrap();
+            assert_eq!(combat.state.enemies[0].move_id,
+                crate::enemies::move_ids::GREMLIN_ATTACK);
+            assert_eq!(combat.ai_rng.counter, 1,
+                "Scratch sets Scratch directly without RollMoveAction");
+        }
+
+        let mut group = RunEngine::new(42, 0);
+        group.enter_specific_combat(vec!["GremlinWarrior".to_string(),
+            "GremlinThief".to_string()]);
         let combat = group.combat_engine.as_mut().unwrap();
         combat.state.enemies[1].entity.hp = 1;
         combat.deal_damage_to_enemy(1, 1);

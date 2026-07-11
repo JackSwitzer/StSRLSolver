@@ -396,13 +396,6 @@ pub fn advance_looter_after_turn(
     }
 }
 
-pub(super) fn roll_gremlin_simple(enemy: &mut EnemyCombatState, dmg: i32, weak: i32) {
-    enemy.set_move(move_ids::GREMLIN_ATTACK, dmg, 1, 0);
-    if weak > 0 {
-        enemy.add_effect(mfx::WEAK, weak as i16);
-    }
-}
-
 pub(super) fn roll_gremlin_fat(enemy: &mut EnemyCombatState) {
     // Source: reference/extracted/methods/monster/GremlinFat.java.
     let damage = enemy.entity.status(sid::STARTING_DMG).max(4);
@@ -416,6 +409,12 @@ pub(super) fn roll_gremlin_fat(enemy: &mut EnemyCombatState) {
 pub(super) fn roll_gremlin_thief(enemy: &mut EnemyCombatState) {
     // Source: reference/extracted/methods/monster/GremlinThief.java (`getMove`).
     let damage = enemy.entity.status(sid::STARTING_DMG).max(9);
+    enemy.set_move(move_ids::GREMLIN_ATTACK, damage, 1, 0);
+}
+
+pub(super) fn roll_gremlin_warrior(enemy: &mut EnemyCombatState) {
+    // Source: reference/extracted/methods/monster/GremlinWarrior.java (`getMove`).
+    let damage = enemy.entity.status(sid::STARTING_DMG).max(4);
     enemy.set_move(move_ids::GREMLIN_ATTACK, damage, 1, 0);
 }
 

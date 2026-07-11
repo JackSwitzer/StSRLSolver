@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T02:57:52.314457+00:00",
+ "updated": "2026-07-11T03:03:09.865500+00:00",
  "status_counts": {
-  "unverified": 572,
-  "verified": 95
+  "unverified": 571,
+  "verified": 96
  },
  "rows": [
   {
@@ -4022,8 +4022,8 @@
    "class": "GremlinWarrior",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/exordium/GremlinWarrior.java",
    "methods_ref": "reference/extracted/methods/monster/GremlinWarrior.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
