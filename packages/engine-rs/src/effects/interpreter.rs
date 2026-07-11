@@ -1855,9 +1855,12 @@ fn generate_unique_random_cards(
     let mut picked = Vec::with_capacity(target);
     let mut seen = HashSet::new();
     while picked.len() < target {
-        let choice = pool_cards[engine.rng_gen_range(0..pool_cards.len())];
+        let choice = pool_cards
+            [engine.card_random_rng.random((pool_cards.len() - 1) as i32) as usize];
         if seen.insert(choice) {
-            picked.push(engine.temp_card(choice));
+            // DiscoveryAction previews base copies; Master Reality upgrades
+            // only the selected copy during resolution.
+            picked.push(engine.card_registry.make_card(choice));
         }
     }
     picked
@@ -1870,7 +1873,20 @@ fn generated_card_pool(engine: &CombatEngine, pool: GeneratedCardPool) -> Vec<&'
             .card_registry
             .all_card_defs()
             .iter()
-            .filter(|def| def.card_type == CardType::Attack && !def.id.ends_with('+'))
+            .filter(|def| !def.id.ends_with('+'))
+            .filter(|def| {
+                matches!(
+                    generated_card_meta(def.id),
+                    Some(GeneratedCardMeta {
+                        card_type: CardType::Attack,
+                        rarity: GeneratedPoolRarity::Common
+                            | GeneratedPoolRarity::Uncommon
+                            | GeneratedPoolRarity::Rare,
+                        watcher: true,
+                    })
+                )
+            })
+            .filter(|def| def.id != "LessonLearned")
             .map(|def| def.id)
             .collect(),
         GeneratedCardPool::Skill => engine
@@ -1927,6 +1943,7 @@ enum GeneratedPoolRarity {
 struct GeneratedCardMeta {
     card_type: CardType,
     rarity: GeneratedPoolRarity,
+    watcher: bool,
 }
 
 fn generated_card_meta(card_id: &str) -> Option<GeneratedCardMeta> {
@@ -1939,7 +1956,13 @@ fn generated_card_meta(card_id: &str) -> Option<GeneratedCardMeta> {
 
 fn build_generated_card_meta_map() -> HashMap<String, GeneratedCardMeta> {
     let mut map = HashMap::new();
+    let mut watcher = false;
     for line in include_str!("../../content/generated-cards.txt").lines() {
+        if line.contains("============ WATCHER CARDS ============") {
+            watcher = true;
+        } else if line.starts_with("# ============") && line.contains("CARDS ============") {
+            watcher = false;
+        }
         let Some((_, id_rest)) = line.split_once("id=\"") else {
             continue;
         };
@@ -1977,7 +2000,14 @@ fn build_generated_card_meta_map() -> HashMap<String, GeneratedCardMeta> {
             "CURSE" => GeneratedPoolRarity::Curse,
             _ => continue,
         };
-        map.insert(card_id.to_string(), GeneratedCardMeta { card_type, rarity });
+        map.insert(
+            card_id.to_string(),
+            GeneratedCardMeta {
+                card_type,
+                rarity,
+                watcher,
+            },
+        );
     }
     map
 }
@@ -2009,6 +2039,7 @@ fn weighted_any_color_attack_ids(engine: &CombatEngine) -> Vec<&'static str> {
                     rarity: GeneratedPoolRarity::Common
                         | GeneratedPoolRarity::Uncommon
                         | GeneratedPoolRarity::Rare,
+                    ..
                 })
             )
         })
@@ -2032,6 +2063,7 @@ fn weighted_any_color_attack_bucket(
                 Some(GeneratedCardMeta {
                     card_type: CardType::Attack,
                     rarity: card_rarity,
+                    ..
                 }) if card_rarity == rarity
             )
         })

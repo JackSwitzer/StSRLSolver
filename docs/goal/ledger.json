@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T04:42:43.061515+00:00",
+ "updated": "2026-07-11T04:48:14.942894+00:00",
  "status_counts": {
-  "unverified": 548,
-  "verified": 119
+  "unverified": 547,
+  "verified": 120
  },
  "rows": [
   {
@@ -4412,8 +4412,8 @@
    "class": "AttackPotion",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/AttackPotion.java",
    "methods_ref": "reference/extracted/methods/potion/AttackPotion.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

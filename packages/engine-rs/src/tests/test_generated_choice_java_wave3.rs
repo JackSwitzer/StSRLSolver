@@ -27,6 +27,33 @@ const COLORLESS_CHOICES: &[&str] = &[
     "Swift Strike", "The Bomb", "Thinking Ahead", "Transmutation", "Trip", "Violence",
 ];
 
+const WATCHER_ATTACK_CHOICES: &[&str] = &[
+    "BowlingBash",
+    "Brilliance",
+    "CarveReality",
+    "Conclude",
+    "Consecrate",
+    "CrushJoints",
+    "CutThroughFate",
+    "EmptyFist",
+    "FearNoEvil",
+    "FlurryOfBlows",
+    "FlyingSleeves",
+    "FollowUp",
+    "JustLucky",
+    "Ragnarok",
+    "ReachHeaven",
+    "SandsOfTime",
+    "SashWhip",
+    "SignatureMove",
+    "TalkToTheHand",
+    "Tantrum",
+    "Wallop",
+    "Weave",
+    "WheelKick",
+    "WindmillStrike",
+];
+
 fn use_potion(engine: &mut crate::engine::CombatEngine, potion_idx: usize, target_idx: i32) {
     engine.execute_action(&Action::UsePotion {
         potion_idx,
@@ -159,6 +186,47 @@ fn discovery_potions_open_java_style_choice_and_track_copy_count() {
         assert_eq!(engine.state.hand.len(), 1);
         assert!(engine.state.potions[0].is_empty());
     }
+}
+
+#[test]
+fn attack_potion_uses_watcher_pool_and_card_random_rng_tick_for_tick() {
+    // Source-derived (verify potion/AttackPotion): DiscoveryAction requests
+    // three unique ATTACK cards from AbstractDungeon's Watcher source pools.
+    // returnTrulyRandomCardInCombat(type) consumes cardRandomRng once per
+    // attempt and excludes BASIC, SPECIAL, and HEALING cards.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand.clear();
+    engine.state.potions[0] = "AttackPotion".to_string();
+    let card_random_before = engine.card_random_rng.counter;
+    let general_before = engine.rng.counter;
+    let attack_pool = super::generated_card_pool(&engine, super::GeneratedCardPool::Attack);
+    let mut card_random_oracle = engine.card_random_rng.clone();
+    let mut oracle_seen = std::collections::HashSet::new();
+    while oracle_seen.len() < 3 {
+        let idx = card_random_oracle.random((attack_pool.len() - 1) as i32) as usize;
+        oracle_seen.insert(attack_pool[idx]);
+    }
+
+    use_potion(&mut engine, 0, -1);
+
+    let choice = engine.choice.as_ref().expect("Attack Potion choice");
+    let names: Vec<_> = choice
+        .options
+        .iter()
+        .map(|option| match option {
+            ChoiceOption::GeneratedCard(card) => engine.card_registry.card_name(card.def_id),
+            _ => panic!("Attack Potion must generate card choices"),
+        })
+        .collect();
+    assert_eq!(names.len(), 3);
+    assert!(names.iter().all(|name| WATCHER_ATTACK_CHOICES.contains(name)));
+    assert_eq!(card_random_oracle.counter, card_random_before + 4);
+    assert_eq!(engine.card_random_rng.counter, card_random_oracle.counter);
+    assert_eq!(engine.rng.counter, general_before);
 }
 
 #[test]
