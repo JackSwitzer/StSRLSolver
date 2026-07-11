@@ -192,3 +192,37 @@ fn wave6_simple_all_enemy_potions_respect_sacred_bark_via_runtime_path() {
         record.event == Trigger::ManualActivation && record.def_id == Some("ExplosivePotion")
     }));
 }
+
+#[test]
+fn explosive_potion_uses_java_pure_matrix_but_keeps_normal_hit_hooks() {
+    // Source-derived (verify potion/ExplosivePotion): potency is ten at every
+    // ascension and Sacred Bark doubles it. createDamageMatrix(..., true)
+    // bypasses receiving damage modifiers, while NORMAL onAttacked hooks still
+    // run after block is applied.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/ExplosivePotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/DamageInfo.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/FlightPower.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![
+            enemy_no_intent("Byrd", 50, 50),
+            enemy_no_intent("JawWorm", 50, 50),
+        ],
+        3,
+    ));
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.enemies[0].entity.set_status(sid::SLOW, 5);
+    engine.state.enemies[0].entity.set_status(sid::FLIGHT, 3);
+    engine.state.enemies[0].entity.set_status(sid::VULNERABLE, 3);
+    engine.state.enemies[0].entity.set_status(sid::INTANGIBLE, 1);
+    engine.state.enemies[1].entity.block = 6;
+    engine.state.potions[0] = "Explosive Potion".to_string();
+
+    use_potion(&mut engine, 0, -1);
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 30);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::FLIGHT), 2);
+    assert_eq!(engine.state.enemies[1].entity.hp, 36);
+    assert_eq!(engine.state.enemies[1].entity.block, 0);
+    assert!(engine.state.potions[0].is_empty());
+}

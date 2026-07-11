@@ -2775,15 +2775,36 @@ impl CombatEngine {
     }
 
     pub fn deal_damage_to_enemy(&mut self, enemy_idx: usize, damage: i32) {
+        self.deal_precomputed_normal_damage_to_enemy(enemy_idx, damage, false);
+    }
+
+    /// Deal NORMAL damage whose output was precomputed with Java's
+    /// `DamageInfo.createDamageMatrix(..., true)`. Offensive/receiving power
+    /// modifiers are skipped, while block and on-attacked hooks still resolve.
+    pub(crate) fn deal_pure_normal_damage_to_enemy(&mut self, enemy_idx: usize, damage: i32) {
+        self.deal_precomputed_normal_damage_to_enemy(enemy_idx, damage, true);
+    }
+
+    fn deal_precomputed_normal_damage_to_enemy(
+        &mut self,
+        enemy_idx: usize,
+        damage: i32,
+        pure_matrix: bool,
+    ) {
+        let hp_before = self.state.enemies[enemy_idx].entity.hp;
         let enemy = &mut self.state.enemies[enemy_idx];
 
         // Slow: enemies with Slow take 10% more damage per card played this turn
-        let slow_mult = powers::slow_damage_multiplier(&enemy.entity);
-        let damage_after_slow = (damage as f64 * slow_mult) as i32;
+        let damage_after_slow = if pure_matrix {
+            damage
+        } else {
+            let slow_mult = powers::slow_damage_multiplier(&enemy.entity);
+            (damage as f64 * slow_mult) as i32
+        };
 
         // Flight: halve incoming damage while Flight > 0, decrement per hit
         let flight = enemy.entity.status(sid::FLIGHT);
-        let effective_damage = if flight > 0 {
+        let effective_damage = if flight > 0 && !pure_matrix {
             enemy.entity.set_status(sid::FLIGHT, flight - 1);
             (damage_after_slow as f64 * 0.5) as i32
         } else {
@@ -2802,6 +2823,15 @@ impl CombatEngine {
 
         // On-hit enemy reactions (only when HP damage dealt)
         if hp_damage > 0 {
+            // Pure matrices skip Flight.atDamageFinalReceive, but the later
+            // FlightPower.onAttacked hook still consumes one stack when its
+            // half-damage survival check passes.
+            if pure_matrix && flight > 0 && (hp_damage as f64 * 0.5) < hp_before as f64 {
+                self.state.enemies[enemy_idx]
+                    .entity
+                    .set_status(sid::FLIGHT, flight - 1);
+            }
+
             // D63 parity fix: Java CurlUpPower.onAttacked requires
             // `info.type == NORMAL && damageAmount < currentHealth && info.owner != null`.
             // This call site (`deal_damage_to_enemy`) is the NORMAL damage path --

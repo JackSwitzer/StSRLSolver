@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T05:27:32.898180+00:00",
+ "updated": "2026-07-11T05:32:19.859090+00:00",
  "status_counts": {
-  "unverified": 537,
-  "verified": 130
+  "unverified": 536,
+  "verified": 131
  },
  "rows": [
   {
@@ -4572,8 +4572,8 @@
    "class": "ExplosivePotion",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/ExplosivePotion.java",
    "methods_ref": "reference/extracted/methods/potion/ExplosivePotion.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
