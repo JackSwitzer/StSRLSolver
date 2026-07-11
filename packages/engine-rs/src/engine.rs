@@ -695,10 +695,14 @@ impl CombatEngine {
             }
         }
         for &i in weave_indices.iter().rev() {
-            let card = self.state.discard_pile.remove(i);
-            if self.state.hand.len() < 10 {
-                self.state.hand.push(card);
+            // DiscardToHandAction leaves the card in discard when the hand is
+            // full; it never removes and destroys the card.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/DiscardToHandAction.java
+            if self.state.hand.len() >= 10 {
+                break;
             }
+            let card = self.state.discard_pile.remove(i);
+            self.state.hand.push(card);
         }
 
         // CutThroughFate.java queues DrawCardAction(1) after ScryAction, so the
@@ -1621,11 +1625,7 @@ impl CombatEngine {
                     .player
                     .add_status(sid::PERSEVERANCE_BONUS, perseverance_bonus);
             }
-            if windmill_bonus > 0 {
-                self.state
-                    .player
-                    .add_status(sid::WINDMILL_STRIKE_BONUS, windmill_bonus);
-            }
+            debug_assert_eq!(windmill_bonus, 0);
         }
 
         // RestoreRetainedCardsAction clears the one-turn `retain` marker after

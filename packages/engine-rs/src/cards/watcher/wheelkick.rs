@@ -1,6 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/WheelKick.java
+    // DamageAction resolves before the queued two-card DrawCardAction.
     insert(cards, CardDef {
                 id: "WheelKick", name: "Wheel Kick", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 15, base_block: -1,

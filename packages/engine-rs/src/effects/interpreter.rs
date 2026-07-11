@@ -245,6 +245,12 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         // -- Draw --
         SimpleEffect::DrawCards(ref amount_src) => {
+            // DamageAction clears queued non-combat actions when the final
+            // monster dies, so Wheel Kick's following DrawCardAction does not run.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DamageAction.java
+            if engine.state.combat_over || engine.state.is_victory() {
+                return;
+            }
             let count = resolve_card_amount(engine, ctx, amount_src);
             engine.draw_cards(count);
         }

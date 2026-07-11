@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Uncommon: Windmill Strike ---- (cost 2, 7 dmg, retain, +4 dmg each retain; +3 dmg +1 magic upgrade)
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/WindmillStrike.java
+    // onRetained upgrades the damage of this exact card instance by magicNumber.
     insert(cards, CardDef {
                 id: "WindmillStrike", name: "Windmill Strike", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 7, base_block: -1,

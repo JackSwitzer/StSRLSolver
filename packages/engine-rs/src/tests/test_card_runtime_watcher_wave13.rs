@@ -10,7 +10,6 @@
 
 use crate::cards::global_registry;
 use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
-use crate::status_ids::sid;
 use crate::state::Stance;
 use crate::tests::support::*;
 
@@ -119,5 +118,8 @@ fn watcher_wave13_typed_surface_cards_follow_engine_path() {
     let mut windmill = one_enemy_engine("JawWorm", 50, 0);
     ensure_in_hand(&mut windmill, "WindmillStrike");
     end_turn(&mut windmill);
-    assert_eq!(windmill.state.player.status(sid::WINDMILL_STRIKE_BONUS), 4);
+    let retained = windmill.state.hand.iter()
+        .find(|card| windmill.card_registry.card_name(card.def_id) == "WindmillStrike")
+        .expect("Windmill Strike retained");
+    assert_eq!(retained.misc, 11);
 }

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T01:32:24.831802+00:00",
+ "updated": "2026-07-11T01:37:39.879906+00:00",
  "status_counts": {
-  "unverified": 594,
-  "verified": 73
+  "unverified": 591,
+  "verified": 76
  },
  "rows": [
   {
@@ -3562,8 +3562,8 @@
    "class": "Weave",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Weave.java",
    "methods_ref": "reference/extracted/methods/card/Weave.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -3582,8 +3582,8 @@
    "class": "WheelKick",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/WheelKick.java",
    "methods_ref": "reference/extracted/methods/card/WheelKick.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -3622,8 +3622,8 @@
    "class": "WindmillStrike",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/WindmillStrike.java",
    "methods_ref": "reference/extracted/methods/card/WindmillStrike.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

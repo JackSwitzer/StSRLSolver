@@ -1781,6 +1781,66 @@ mod watcher_card_java_parity_tests {
             assert!(engine.state.hand.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Weave"));
         }
     );
+    // Source-derived (verify card/Weave): DiscardToHandAction checks the hand
+    // cap before removing its exact Weave instance from discard. A full hand
+    // therefore leaves Weave in discard instead of deleting it.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Weave.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/DiscardToHandAction.java
+    #[test]
+    fn weave_source_stays_in_discard_when_scry_resolves_with_full_hand() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.hand = make_deck_n("Strike", 10);
+        engine.state.draw_pile = make_deck(&["Defend"]);
+        engine.state.discard_pile = make_deck(&["Weave+"]);
+        engine.do_scry(1);
+        assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+        engine.execute_action(&Action::ConfirmSelection);
+        assert_eq!(engine.state.hand.len(), 10);
+        assert_eq!(discard_prefix_count(&engine, "Weave+"), 1);
+    }
+
+    // Source-derived (verify card/WheelKick): DamageAction is queued before
+    // DrawCardAction(2). If that damage kills the final monster,
+    // clearPostCombatActions removes the queued draw.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/WheelKick.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DamageAction.java
+    #[test]
+    fn wheel_kick_source_does_not_draw_after_lethal_final_damage() {
+        let mut engine = one_enemy_engine("JawWorm", 10, 0);
+        engine.state.hand = make_deck(&["WheelKick"]);
+        engine.state.draw_pile = make_deck(&["Strike", "Defend"]);
+        assert!(play_on_enemy(&mut engine, "WheelKick", 0));
+        assert!(engine.state.combat_over);
+        assert_eq!(engine.state.draw_pile.len(), 2);
+        assert_eq!(engine.state.hand.len(), 0);
+    }
+
+    // Source-derived (verify card/WindmillStrike): onRetained calls
+    // upgradeDamage(magicNumber) on each exact AbstractCard. Base and upgraded
+    // copies therefore grow independently by 4 and 5 per retained turn.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/WindmillStrike.java
+    #[test]
+    fn windmill_strike_source_growth_is_per_card_instance() {
+        let mut engine = one_enemy_engine("JawWorm", 100, 0);
+        engine.state.hand = make_deck(&["WindmillStrike", "WindmillStrike+"]);
+        end_turn(&mut engine);
+        let base = engine.state.hand.iter()
+            .find(|card| engine.card_registry.card_name(card.def_id) == "WindmillStrike")
+            .expect("base Windmill retained");
+        let plus = engine.state.hand.iter()
+            .find(|card| engine.card_registry.card_name(card.def_id) == "WindmillStrike+")
+            .expect("upgraded Windmill retained");
+        assert_eq!(base.misc, 11);
+        assert_eq!(plus.misc, 15);
+
+        assert!(play_on_enemy(&mut engine, "WindmillStrike", 0));
+        assert_eq!(engine.state.enemies[0].entity.hp, 89);
+        end_turn(&mut engine);
+        let plus = engine.state.hand.iter()
+            .find(|card| engine.card_registry.card_name(card.def_id) == "WindmillStrike+")
+            .expect("upgraded Windmill retained twice");
+        assert_eq!(plus.misc, 20);
+    }
     watcher_test!(
         wreath_of_flame_java_parity,
         base = ("WreathOfFlame", "Wreath of Flame", 1, -1, -1, 5, CardType::Skill, CardTarget::SelfTarget, false, None, ["vigor"]),

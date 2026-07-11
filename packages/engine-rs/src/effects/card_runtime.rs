@@ -171,7 +171,7 @@ pub fn apply_on_exhaust(engine: &mut CombatEngine, card: &CardDef, card_inst: Ca
 
 pub fn apply_on_retain(card_inst: &mut CardInstance, card: &CardDef) -> (i32, i32) {
     let perseverance_bonus = 0;
-    let mut windmill_bonus = 0;
+    let windmill_bonus = 0;
     for trigger in card.runtime_triggers() {
         if let CardRuntimeTrigger::OnRetain(rule) = trigger {
             match rule {
@@ -194,7 +194,15 @@ pub fn apply_on_retain(card_inst: &mut CardInstance, card: &CardDef) -> (i32, i3
                     card_inst.misc = current_block + card.base_magic as i16;
                 }
                 OnRetainRule::GrowDamage => {
-                    windmill_bonus += card.base_magic;
+                    // WindmillStrike.onRetained upgrades this exact card's
+                    // damage, so separate copies grow independently.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/WindmillStrike.java
+                    let current_damage = if card_inst.misc >= 0 {
+                        card_inst.misc
+                    } else {
+                        card.base_damage as i16
+                    };
+                    card_inst.misc = current_damage + card.base_magic as i16;
                 }
             }
         }

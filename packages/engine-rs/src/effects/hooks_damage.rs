@@ -94,10 +94,15 @@ pub fn hook_searing_blow(_engine: &CombatEngine, _card: &CardDef, card_inst: Car
     }
 }
 
-/// Windmill Strike: damage bonus from retaining (reads WINDMILL_STRIKE_BONUS status).
-pub fn hook_windmill_strike_damage(engine: &CombatEngine, _card: &CardDef, _card_inst: CardInstance) -> DamageModifier {
+/// Windmill Strike: damage growth belongs to the retained card instance.
+pub fn hook_windmill_strike_damage(_engine: &CombatEngine, card: &CardDef, card_inst: CardInstance) -> DamageModifier {
+    let current_damage = if card_inst.misc >= 0 {
+        card_inst.misc as i32
+    } else {
+        card.base_damage
+    };
     DamageModifier {
-        base_damage_bonus: engine.state.player.status(sid::WINDMILL_STRIKE_BONUS),
+        base_damage_bonus: current_damage - card.base_damage,
         ..DamageModifier::default()
     }
 }
