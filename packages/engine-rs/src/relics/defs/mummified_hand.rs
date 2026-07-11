@@ -1,4 +1,8 @@
-//! Mummified Hand: On Power play, reduce a random hand card's cost to 0.
+//! Mummified Hand: On Power play, reduce a random valid hand card's cost to 0.
+//!
+//! Source: `reference/extracted/methods/relic/MummifiedHand.java`. Candidates
+//! require base and turn cost above zero and must not be free-to-play; selection
+//! consumes `cardRandomRng` even when only one candidate remains.
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
@@ -20,10 +24,25 @@ fn hook(
     _event: &GameEvent,
     _state: &mut EffectState,
 ) {
-    if engine.state.hand.is_empty() {
+    let candidates: Vec<usize> = engine
+        .state
+        .hand
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, card)| {
+            let def = engine.card_registry.card_def_by_id(card.def_id);
+            let base_cost = if card.base_cost >= 0 { card.base_cost } else { def.cost as i8 };
+            let turn_cost = if card.cost >= 0 { card.cost } else { base_cost };
+            (base_cost > 0 && turn_cost > 0 && !card.is_free()).then_some(idx)
+        })
+        .collect();
+    if candidates.is_empty() {
         return;
     }
-    let idx = engine.rng_gen_range(0..engine.state.hand.len());
+    let selected = engine
+        .card_random_rng
+        .random_range(0, (candidates.len() - 1) as i32) as usize;
+    let idx = candidates[selected];
     engine.state.hand[idx].cost = 0;
 }
 

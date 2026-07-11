@@ -3666,6 +3666,9 @@ impl RunEngine {
             // MercuryHourglass.java uses canonical ID "Mercury Hourglass" and
             // UNCOMMON tier.
             "Mercury Hourglass",
+            // MummifiedHand.java uses canonical ID "Mummified Hand" and
+            // UNCOMMON tier.
+            "Mummified Hand",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",

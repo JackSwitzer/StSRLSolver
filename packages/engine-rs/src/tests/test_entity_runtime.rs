@@ -449,6 +449,33 @@ fn mummified_hand_sets_a_remaining_hand_card_cost_to_zero() {
 }
 
 #[test]
+fn mummified_hand_filters_free_cards_and_consumes_card_random_for_one_candidate() {
+    // MummifiedHand.java excludes base-cost-zero, turn-cost-zero, and
+    // freeToPlayOnce cards, then calls cardRandomRng.random even for one valid card.
+    let mut state = combat_state_with(
+        make_deck(&["Inflame", "Strike", "Defend", "Eruption"]),
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        5,
+    );
+    state.relics.push("Mummified Hand".to_string());
+    let mut engine = engine_with_state(state);
+    engine.state.hand = make_deck(&["Inflame", "Strike", "Defend", "Eruption"]);
+    engine.state.draw_pile.clear();
+    engine.state.hand[1].cost = 0;
+    engine.state.hand[2].flags |= crate::combat_types::CardInstance::FLAG_FREE;
+    let before = engine.rng_counters();
+
+    assert!(play_self(&mut engine, "Inflame"));
+
+    let eruption = engine.state.hand.iter().find(|card| {
+        engine.card_registry.card_name(card.def_id) == "Eruption"
+    }).expect("remaining valid card");
+    assert_eq!(eruption.cost, 0);
+    assert_eq!(engine.rng_counters()["cardRandom"], before["cardRandom"] + 1);
+    assert_eq!(engine.rng_counters()["card"], before["card"]);
+}
+
+#[test]
 fn centennial_puzzle_draws_only_on_first_hp_loss() {
     let mut state = combat_state_with(make_deck(&["Strike"; 10]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("Centennial Puzzle".to_string());
