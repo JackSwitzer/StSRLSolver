@@ -633,6 +633,23 @@ fn bronze_scales_is_reachable_from_watcher_relic_rewards() {
 }
 
 #[test]
+fn calipers_is_reachable_from_watcher_relic_rewards() {
+    // Sources: RelicLibrary.java registers Calipers and Calipers.java
+    // constructs the shared relic at RARE tier.
+    let offered = (0..1024).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Calipers")
+        })
+    });
+    assert!(offered);
+}
+
+#[test]
 fn ambrosia_is_reachable_from_watcher_potion_rewards() {
     // PotionHelper.getPotions(WATCHER, false) includes Ambrosia. White Beast
     // Statue guarantees a potion item here so the run reward path is sampled.

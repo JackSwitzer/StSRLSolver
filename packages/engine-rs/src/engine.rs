@@ -1335,7 +1335,7 @@ impl CombatEngine {
             self.change_stance(Stance::Neutral);
         }
 
-        // Block decay — Calipers retains up to 15, Barricade retains all
+        // Block decay — Calipers loses 15 instead of all; Barricade retains all.
         // Skip block reset on turn 1 to preserve combat-start relic effects (Anchor)
         if self.state.turn > 1 {
             let barricade = self.state.player.status(sid::BARRICADE) > 0;

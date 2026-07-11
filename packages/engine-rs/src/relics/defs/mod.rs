@@ -19,6 +19,7 @@ pub mod red_mask;
 pub mod thread_and_needle;
 pub mod bronze_scales;
 pub mod busted_crown;
+pub mod calipers;
 pub mod clockwork_souvenir;
 pub mod fossilized_helix;
 pub mod blood_vial;
@@ -220,6 +221,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &thread_and_needle::DEF,
     &bronze_scales::DEF,
     &busted_crown::DEF,
+    &calipers::DEF,
     &clockwork_souvenir::DEF,
     &fossilized_helix::DEF,
     &blood_vial::DEF,

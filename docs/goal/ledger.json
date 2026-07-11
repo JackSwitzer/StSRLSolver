@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T07:34:32.520332+00:00",
+ "updated": "2026-07-11T07:36:41.863066+00:00",
  "status_counts": {
-  "unverified": 501,
-  "verified": 166
+  "unverified": 500,
+  "verified": 167
  },
  "rows": [
   {
@@ -5042,8 +5042,8 @@
    "class": "Calipers",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Calipers.java",
    "methods_ref": "reference/extracted/methods/relic/Calipers.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
