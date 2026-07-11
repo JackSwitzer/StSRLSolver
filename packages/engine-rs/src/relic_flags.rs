@@ -49,6 +49,7 @@ pub mod counter {
     pub const MAW_BANK_GOLD: usize  = 4;  // Accumulated Maw Bank gold
     pub const OMAMORI_USES: usize   = 5;  // Remaining curse negations (starts at 2)
     pub const MATRYOSHKA_USES: usize = 6; // Remaining free chest relics
+    pub const ANCIENT_TEA_SET: usize = 7; // Armed by entering a rest room; consumed next combat
     pub const NUM_COUNTERS: usize   = 8;
 }
 

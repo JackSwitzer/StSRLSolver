@@ -153,6 +153,34 @@ fn anchor_is_reachable_from_watcher_relic_rewards() {
 }
 
 #[test]
+fn ancient_tea_set_reward_obeys_its_java_floor_cutoff() {
+    // Sources: AncientTeaSet.java constructs a COMMON relic and canSpawn
+    // returns true only through floor 48 outside Endless mode.
+    let offered_before_cutoff = (0..1024).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 48;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Ancient Tea Set"
+            })
+        })
+    });
+    assert!(offered_before_cutoff);
+
+    for seed in 0..1024 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 49;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| {
+                item.kind != RewardItemKind::Relic || item.label != "Ancient Tea Set"
+            })
+        }));
+    }
+}
+
+#[test]
 fn ambrosia_is_reachable_from_watcher_potion_rewards() {
     // PotionHelper.getPotions(WATCHER, false) includes Ambrosia. White Beast
     // Statue guarantees a potion item here so the run reward path is sampled.

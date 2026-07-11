@@ -1185,9 +1185,7 @@ impl RunEngine {
         match room_type {
             RoomType::Monster => self.enter_combat(false, false),
             RoomType::Elite => self.enter_combat(true, false),
-            RoomType::Rest => {
-                self.phase = RunPhase::Campfire;
-            }
+            RoomType::Rest => self.enter_campfire(),
             RoomType::Shop => {
                 self.enter_shop();
             }
@@ -2841,6 +2839,9 @@ impl RunEngine {
 
     fn roll_reward_relic_id(&mut self) -> String {
         const RELIC_REWARD_POOL: &[&str] = &[
+            // RelicLibrary.java registers Ancient Tea Set at COMMON tier;
+            // AncientTeaSet.java::canSpawn excludes floors after 48.
+            "Ancient Tea Set",
             // RelicLibrary.java registers Akabeko, whose constructor in
             // relics/Akabeko.java assigns it to the COMMON tier.
             "Akabeko",
@@ -2860,10 +2861,16 @@ impl RunEngine {
         let mut candidates: Vec<&str> = RELIC_REWARD_POOL
             .iter()
             .copied()
+            .filter(|relic| *relic != "Ancient Tea Set" || self.run_state.floor <= 48)
             .filter(|relic| !self.run_state.relics.iter().any(|owned| owned == relic))
             .collect();
         if candidates.is_empty() {
-            candidates.extend(RELIC_REWARD_POOL.iter().copied());
+            candidates.extend(
+                RELIC_REWARD_POOL
+                    .iter()
+                    .copied()
+                    .filter(|relic| *relic != "Ancient Tea Set" || self.run_state.floor <= 48),
+            );
         }
 
         let idx = self.rng.gen_range(0..candidates.len());
@@ -3051,6 +3058,21 @@ impl RunEngine {
     // =======================================================================
     // Campfire step
     // =======================================================================
+
+    fn enter_campfire(&mut self) {
+        // AncientTeaSet.java::onEnterRestRoom arms the relic on room entry,
+        // regardless of whether the player subsequently rests or upgrades.
+        if self
+            .run_state
+            .relics
+            .iter()
+            .any(|relic| relic == "Ancient Tea Set")
+        {
+            self.run_state.relic_flags.counters
+                [crate::relic_flags::counter::ANCIENT_TEA_SET] = 1;
+        }
+        self.phase = RunPhase::Campfire;
+    }
 
     fn step_campfire(&mut self, action: &RunAction) -> f32 {
         match action {
@@ -4560,7 +4582,7 @@ impl RunEngine {
 
     #[cfg(test)]
     pub(crate) fn debug_set_campfire_phase(&mut self) {
-        self.phase = RunPhase::Campfire;
+        self.enter_campfire();
         self.refresh_decision_stack();
     }
 }
@@ -6325,6 +6347,31 @@ mod tests {
 
         engine.step(&RunAction::CampfireUpgrade(1));
         assert_eq!(engine.run_state.deck[1], "Eruption+");
+    }
+
+    #[test]
+    fn ancient_tea_set_arms_on_rest_room_entry_and_fires_in_the_next_combat() {
+        // Source-derived (verify relic/Ancient Tea Set): AncientTeaSet.java
+        // arms counter -2 in onEnterRestRoom, then its first atTurnStart gains
+        // exactly 2 energy and resets the counter.
+        let mut engine = RunEngine::new(42, 0);
+        engine.run_state.relics.push("Ancient Tea Set".to_string());
+        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+
+        engine.enter_campfire();
+        assert_eq!(
+            engine.run_state.relic_flags.counters
+                [crate::relic_flags::counter::ANCIENT_TEA_SET],
+            1
+        );
+
+        engine.enter_specific_combat(vec!["JawWorm".to_string()]);
+        let combat = engine.combat_engine.as_ref().expect("combat should start");
+        assert_eq!(combat.state.energy, 5);
+        assert_eq!(
+            combat.state.relic_counters[crate::relic_flags::counter::ANCIENT_TEA_SET],
+            0
+        );
     }
 
     #[test]

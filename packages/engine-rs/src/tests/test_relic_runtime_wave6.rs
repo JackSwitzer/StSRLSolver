@@ -120,6 +120,30 @@ fn anchor_applies_ten_block_only_at_combat_start() {
 }
 
 #[test]
+fn ancient_tea_set_charge_only_grants_energy_on_the_first_turn() {
+    // Source-derived (verify relic/Ancient Tea Set): AncientTeaSet.java checks
+    // its armed counter only during the first atTurnStart call, grants 2
+    // energy, and immediately resets the counter.
+    let mut engine = engine_without_start_with_relics(
+        &["Ancient Tea Set"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+    engine.state.relic_counters[crate::relic_flags::counter::ANCIENT_TEA_SET] = 1;
+
+    engine.start_combat();
+    assert_eq!(engine.state.energy, 5);
+    assert_eq!(
+        engine.state.relic_counters[crate::relic_flags::counter::ANCIENT_TEA_SET],
+        0
+    );
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.energy, 3);
+}
+
+#[test]
 fn blood_vial_and_mark_of_pain_apply_at_real_combat_start() {
     let mut engine = engine_without_start_with_relics(
         &["Blood Vial", "Mark of Pain"],

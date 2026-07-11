@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T06:39:01.441742+00:00",
+ "updated": "2026-07-11T06:43:39.143252+00:00",
  "status_counts": {
-  "unverified": 517,
-  "verified": 150
+  "unverified": 516,
+  "verified": 151
  },
  "rows": [
   {
@@ -4842,8 +4842,8 @@
    "class": "AncientTeaSet",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/AncientTeaSet.java",
    "methods_ref": "reference/extracted/methods/relic/AncientTeaSet.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
