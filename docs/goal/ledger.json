@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T09:55:40.812399+00:00",
+ "updated": "2026-07-11T09:57:59.077080+00:00",
  "status_counts": {
-  "unverified": 455,
-  "verified": 212
+  "unverified": 454,
+  "verified": 213
  },
  "rows": [
   {
@@ -6632,8 +6632,8 @@
    "class": "Whetstone",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Whetstone.java",
    "methods_ref": "reference/extracted/methods/relic/Whetstone.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

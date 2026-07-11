@@ -3142,6 +3142,8 @@ impl RunEngine {
                         (self.run_state.current_hp + 14).min(self.run_state.max_hp);
                 }
             }
+            // Source: reference/extracted/methods/relic/Whetstone.java upgrades
+            // up to two upgradable ATTACK cards and checks bottled upgrades.
             "Whetstone" => self.upgrade_random_cards_by_type(crate::cards::CardType::Attack, 2),
             "WarPaint" => self.upgrade_random_cards_by_type(crate::cards::CardType::Skill, 2),
             // D27 partial fix: Pandora's Box. Java replaces all Strikes and Defends
@@ -3545,7 +3547,17 @@ impl RunEngine {
             }
             let pick = self.rng.gen_range(0..eligible.len());
             let deck_idx = eligible.swap_remove(pick);
-            self.run_state.deck[deck_idx] = format!("{}+", self.run_state.deck[deck_idx]);
+            let original = self.run_state.deck[deck_idx].clone();
+            let upgraded = format!("{original}+");
+            self.run_state.deck[deck_idx] = upgraded.clone();
+            // Whetstone.java calls bottledCardUpgradeCheck after each ATTACK
+            // upgrade. RunEngine stores the bottle by card ID, so keep a
+            // uniquely represented bottled attack synchronized.
+            if card_type == crate::cards::CardType::Attack
+                && self.run_state.bottled_flame_card.as_deref() == Some(original.as_str())
+            {
+                self.run_state.bottled_flame_card = Some(upgraded);
+            }
         }
     }
 
@@ -3696,6 +3708,7 @@ impl RunEngine {
             // SingingBowl.java uses canonical ID "Singing Bowl", UNCOMMON
             // tier, and canSpawn excludes non-endless runs after floor 48.
             "Singing Bowl",
+            // Whetstone.java uses canonical ID "Whetstone" and COMMON tier.
             "Whetstone",
             "WarPaint",
             // FrozenEgg2.java, MoltenEgg2.java, and ToxicEgg2.java use spaced

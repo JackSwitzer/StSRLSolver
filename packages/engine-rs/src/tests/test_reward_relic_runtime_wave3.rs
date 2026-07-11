@@ -2734,6 +2734,48 @@ fn singing_bowl_is_reachable_only_through_floor_forty_eight() {
 }
 
 #[test]
+fn whetstone_upgrades_only_eligible_attacks_and_syncs_a_bottled_attack() {
+    // Source: Whetstone.java::onEquip filters canUpgrade ATTACK cards, upgrades
+    // at most two, and calls bottledCardUpgradeCheck on each upgraded card.
+    let mut engine = RunEngine::new(42, 20);
+    engine.run_state.deck = vec![
+        "Strike".to_string(),
+        "Defend".to_string(),
+        "Eruption+".to_string(),
+    ];
+    engine.run_state.bottled_flame_card = Some("Strike".to_string());
+    engine.debug_set_reward_screen(single_relic_reward_screen("Whetstone"));
+
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert_eq!(
+        engine.run_state.deck,
+        vec!["Strike+", "Defend", "Eruption+"]
+    );
+    assert_eq!(
+        engine.run_state.bottled_flame_card.as_deref(),
+        Some("Strike+")
+    );
+}
+
+#[test]
+fn whetstone_is_reachable_from_common_watcher_relic_rewards() {
+    // Whetstone.java constructs a COMMON shared relic under canonical ID
+    // "Whetstone".
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Whetstone"
+            })
+        })
+    });
+    assert!(offered);
+}
+
+#[test]
 fn choosing_black_star_from_relic_choice_doubles_future_elite_relic_rewards() {
     // Source-derived (verify relic/Black Star): BlackStar.java is active for
     // elite rooms; AbstractRoom's elite victory rewards therefore include the
