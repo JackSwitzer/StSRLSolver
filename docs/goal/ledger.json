@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T07:02:21.939702+00:00",
+ "updated": "2026-07-11T07:06:40.470868+00:00",
  "status_counts": {
-  "unverified": 509,
-  "verified": 158
+  "unverified": 508,
+  "verified": 159
  },
  "rows": [
   {
@@ -4932,8 +4932,8 @@
    "class": "BloodyIdol",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/BloodyIdol.java",
    "methods_ref": "reference/extracted/methods/relic/BloodyIdol.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

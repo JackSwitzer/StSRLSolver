@@ -122,12 +122,12 @@ pub fn typed_act2_events() -> Vec<TypedEventDef> {
             "Forgotten Altar",
             vec![
                 supported(
-                    "Offer (lose 5 HP, gain golden idol)",
+                    "Offer Golden Idol (gain Bloody Idol)",
                     vec![
-                        EventProgramOp::hp(-5),
-                        EventProgramOp::gain_relic("Golden Idol"),
+                        EventProgramOp::remove_relic("Golden Idol"),
+                        EventProgramOp::gain_relic("Bloody Idol"),
                     ],
-                    EventEffect::Hp(-5),
+                    EventEffect::GainRelic,
                 ),
                 supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
             ],

@@ -331,6 +331,37 @@ fn default_purge_cost() -> i32 {
     75
 }
 
+fn adjust_run_gold_state(run_state: &mut RunState, amount: i32) {
+    if amount > 0 {
+        if run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::ECTOPLASM)
+        {
+            return;
+        }
+        run_state.gold += amount;
+        if run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::BLOODY_IDOL)
+            && !run_state
+                .relic_flags
+                .has(crate::relic_flags::flag::MARK_OF_BLOOM)
+        {
+            let heal = if run_state
+                .relic_flags
+                .has(crate::relic_flags::flag::MAGIC_FLOWER)
+            {
+                7
+            } else {
+                5
+            };
+            run_state.current_hp = (run_state.current_hp + heal).min(run_state.max_hp);
+        }
+    } else if amount < 0 {
+        run_state.gold = (run_state.gold + amount).max(0);
+    }
+}
+
 impl RunState {
     pub fn new(ascension: i32) -> Self {
         // Watcher starter deck
@@ -620,7 +651,7 @@ impl RunEngine {
     fn apply_neow_choice(&mut self, effect: NeowChoiceEffect) {
         match effect {
             NeowChoiceEffect::GainCards => self.apply_event_deck_mutation(&EventDeckMutation::GainCard { count: 3 }),
-            NeowChoiceEffect::GainGold => self.run_state.gold += 100,
+            NeowChoiceEffect::GainGold => self.adjust_run_gold(100),
             NeowChoiceEffect::UpgradeRandomCard => self.upgrade_random_cards(1),
             NeowChoiceEffect::GainRelic => {
                 let relic = self.roll_reward_relic_id();
@@ -1210,7 +1241,7 @@ impl RunEngine {
                 } else {
                     // Gain gold + go to map
                     let gold = self.rng.gen_range(50..=80);
-                    self.run_state.gold += gold;
+                    self.adjust_run_gold(gold);
                     self.phase = RunPhase::MapChoice;
                 }
             }
@@ -1227,7 +1258,7 @@ impl RunEngine {
             && self.run_state.relic_flags.has(crate::relic_flags::flag::MAW_BANK)
             && !self.run_state.relic_flags.has(crate::relic_flags::flag::ECTOPLASM)
         {
-            self.run_state.gold += 12;
+            self.adjust_run_gold(12);
         }
 
         // Floor milestone reward
@@ -2012,7 +2043,7 @@ impl RunEngine {
                         && enemy.entity.hp <= 0 && !enemy.is_escaping)
                     .map(|enemy| enemy.entity.status(crate::status_ids::sid::COUNT))
                     .sum();
-                self.run_state.gold += recovered_stolen_gold;
+                adjust_run_gold_state(&mut self.run_state, recovered_stolen_gold);
                 self.run_state.potions = engine.state.potions.clone();
                 self.run_state.deck = engine
                     .state
@@ -2026,7 +2057,7 @@ impl RunEngine {
                         .relic_flags
                         .has(crate::relic_flags::flag::ECTOPLASM)
                 {
-                    self.run_state.gold += engine.state.pending_run_gold;
+                    adjust_run_gold_state(&mut self.run_state, engine.state.pending_run_gold);
                 }
                 self.run_state.relic_flags.counters = engine.state.relic_counters;
                 self.run_state.persisted_effect_states = engine.export_persisted_effects();
@@ -2104,7 +2135,7 @@ impl RunEngine {
                     if self.run_state.relic_flags.has(crate::relic_flags::flag::GOLDEN_IDOL) {
                         gold = (gold as f32 * 1.25) as i32;
                     }
-                    self.run_state.gold += gold;
+                    self.adjust_run_gold(gold);
                 }
 
                 // Check if this was elite
@@ -2118,7 +2149,7 @@ impl RunEngine {
                     self.run_state.elites_killed += 1;
                     if !self.run_state.relic_flags.has(crate::relic_flags::flag::ECTOPLASM) {
                         let extra_gold = self.rng.gen_range(25..=35);
-                        self.run_state.gold += extra_gold;
+                        self.adjust_run_gold(extra_gold);
                     }
                 }
 
@@ -2508,7 +2539,7 @@ impl RunEngine {
             }
             (RewardItemKind::Gold, RewardChoice::Named { label, .. }) => {
                 if let Ok(amount) = label.parse::<i32>() {
-                    self.run_state.gold += amount.max(0);
+                    self.adjust_run_gold(amount.max(0));
                 }
             }
             (_, RewardChoice::Named { .. }) => {}
@@ -2670,7 +2701,7 @@ impl RunEngine {
             RewardItemKind::Potion => self.add_potion_reward(&label),
             RewardItemKind::Gold => {
                 if let Ok(amount) = label.parse::<i32>() {
-                    self.run_state.gold += amount.max(0);
+                    self.adjust_run_gold(amount.max(0));
                 }
             }
             _ => {}
@@ -2697,7 +2728,7 @@ impl RunEngine {
                 .relic_flags
                 .has(crate::relic_flags::flag::ECTOPLASM)
         {
-            self.run_state.gold += 9;
+            self.adjust_run_gold(9);
         }
     }
 
@@ -2901,6 +2932,12 @@ impl RunEngine {
             self.run_state.relics.remove(index);
             self.run_state.relic_flags.rebuild(&self.run_state.relics);
         }
+    }
+
+    fn adjust_run_gold(&mut self, amount: i32) {
+        // BloodyIdol.java::onGainGold heals once per gold-gain call,
+        // independent of the amount gained.
+        adjust_run_gold_state(&mut self.run_state, amount);
     }
 
     fn heal_run_player(&mut self, amount: i32) {
@@ -4035,7 +4072,7 @@ impl RunEngine {
                 EventProgramFlow::Continue
             }
             EventProgramOp::AdjustGold { amount } => {
-                self.run_state.gold = (self.run_state.gold + amount).max(0);
+                self.adjust_run_gold(*amount);
                 EventProgramFlow::Continue
             }
             EventProgramOp::AdjustGoldByAct {
@@ -4048,7 +4085,7 @@ impl RunEngine {
                     3 => *beyond,
                     _ => *exordium,
                 };
-                self.run_state.gold = (self.run_state.gold + amount).max(0);
+                self.adjust_run_gold(amount);
                 EventProgramFlow::Continue
             }
             EventProgramOp::AdjustMaxHp { amount } => {
@@ -4079,7 +4116,7 @@ impl RunEngine {
                 if *damage < 0 {
                     self.run_state.current_hp = (self.run_state.current_hp + damage).max(0);
                 }
-                self.run_state.gold = (self.run_state.gold + gold).max(0);
+                self.adjust_run_gold(*gold);
                 if self.run_state.current_hp <= 0 {
                     EventProgramFlow::Died
                 } else {
@@ -4096,11 +4133,11 @@ impl RunEngine {
                 }
             }
             EventProgramOp::ResolveJoustBet { bet_on_owner } => {
-                self.run_state.gold = (self.run_state.gold - 50).max(0);
+                self.adjust_run_gold(-50);
                 let owner_wins = self.rng.gen_bool(0.3);
                 if (*bet_on_owner && owner_wins) || (!*bet_on_owner && !owner_wins) {
                     let payout = if *bet_on_owner { 250 } else { 100 };
-                    self.run_state.gold += payout;
+                    self.adjust_run_gold(payout);
                 }
                 EventProgramFlow::Continue
             }
@@ -4188,7 +4225,7 @@ impl RunEngine {
     fn apply_event_reward(&mut self, reward: &EventReward, reward_items: &mut Vec<RewardItem>) {
         match reward {
             EventReward::Gold { amount } => {
-                self.run_state.gold = (self.run_state.gold + amount).max(0);
+                self.adjust_run_gold(*amount);
             }
             EventReward::MaxHp { amount } => {
                 self.run_state.max_hp = (self.run_state.max_hp + amount).max(1);
@@ -6518,6 +6555,51 @@ mod tests {
             combat.state.relic_counters[crate::relic_flags::counter::ANCIENT_TEA_SET],
             0
         );
+    }
+
+    #[test]
+    fn bloody_idol_swaps_at_forgotten_altar_and_heals_once_per_gold_gain() {
+        // Source-derived (verify relic/Bloody Idol): ForgottenAltar.java swaps
+        // Golden Idol for Bloody Idol; BloodyIdol.java::onGainGold heals 5 once
+        // for each successful gold-gain call.
+        let mut engine = RunEngine::new(42, 0);
+        engine.run_state.relics.push("Golden Idol".to_string());
+        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine.current_event = crate::events::typed_events_for_act(2)
+            .into_iter()
+            .find(|event| event.name == "Forgotten Altar");
+        engine.phase = RunPhase::Event;
+
+        assert!(engine
+            .step_with_result(&RunAction::EventChoice(0))
+            .action_accepted);
+        assert!(!engine
+            .run_state
+            .relics
+            .iter()
+            .any(|relic| relic == "Golden Idol"));
+        assert!(engine
+            .step_with_result(&RunAction::SelectRewardItem(0))
+            .action_accepted);
+        assert!(engine
+            .run_state
+            .relics
+            .iter()
+            .any(|relic| relic == "Bloody Idol"));
+
+        engine.run_state.current_hp = 40;
+        let gold = engine.run_state.gold;
+        engine.adjust_run_gold(75);
+        assert_eq!(engine.run_state.gold, gold + 75);
+        assert_eq!(engine.run_state.current_hp, 45);
+
+        engine.adjust_run_gold(-10);
+        assert_eq!(engine.run_state.current_hp, 45);
+        engine.run_state.relic_flags.set(crate::relic_flags::flag::ECTOPLASM);
+        let gold = engine.run_state.gold;
+        engine.adjust_run_gold(50);
+        assert_eq!(engine.run_state.gold, gold);
+        assert_eq!(engine.run_state.current_hp, 45);
     }
 
     #[test]

@@ -21,6 +21,7 @@ pub mod bronze_scales;
 pub mod clockwork_souvenir;
 pub mod fossilized_helix;
 pub mod blood_vial;
+pub mod bloody_idol;
 pub mod twisted_funnel;
 pub mod mutagenic_strength;
 pub mod philosophers_stone;
@@ -217,6 +218,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &clockwork_souvenir::DEF,
     &fossilized_helix::DEF,
     &blood_vial::DEF,
+    &bloody_idol::DEF,
     &twisted_funnel::DEF,
     &mutagenic_strength::DEF,
     &philosophers_stone::DEF,

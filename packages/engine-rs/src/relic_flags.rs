@@ -38,6 +38,7 @@ pub mod flag {
     pub const MOLTEN_EGG: u64       = 1 << 31;  // Upgrade attacks when added to deck
     pub const TOXIC_EGG: u64        = 1 << 32;  // Upgrade skills when added to deck
     pub const FROZEN_EGG: u64       = 1 << 33;  // Upgrade powers when added to deck
+    pub const BLOODY_IDOL: u64      = 1 << 34;  // Heal 5 whenever gold is gained
 }
 
 /// Counter indices for cross-combat persistent counters.
@@ -112,6 +113,7 @@ impl RelicFlags {
                 "MoltenEgg2" | "Molten Egg 2" => flag::MOLTEN_EGG,
                 "ToxicEgg2" | "Toxic Egg 2" => flag::TOXIC_EGG,
                 "FrozenEgg2" | "Frozen Egg 2" => flag::FROZEN_EGG,
+                "Bloody Idol" | "BloodyIdol" => flag::BLOODY_IDOL,
                 _ => 0,
             };
             self.flags |= f;
