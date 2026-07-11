@@ -2896,6 +2896,7 @@ impl RunEngine {
             "LiquidMemories",
             "Regen Potion",
             "SmokeBomb",
+            "SneckoOil",
         ];
 
         let registry = gameplay_registry();

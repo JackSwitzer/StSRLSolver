@@ -209,7 +209,7 @@ mod tests {
             "PoisonPotion", "SpeedPotion", "SteroidPotion", "AncientPotion",
             "RegenPotion", "EssenceOfSteel", "LiquidBronze", "HeartOfIron",
             "BloodPotion", "SmokeBomb", "FirePotion",
-            "ExplosivePotion", "SneckoOil",
+            "ExplosivePotion",
             "CultistPotion", "GhostInAJar", "DuplicationPotion",
         ];
         for id in &simple_ids {
@@ -233,6 +233,7 @@ mod tests {
             "LiquidMemories",
             "DistilledChaos",
             "FruitJuice",
+            "SneckoOil",
             "EssenceOfDarkness",
             "AttackPotion",
             "SkillPotion",

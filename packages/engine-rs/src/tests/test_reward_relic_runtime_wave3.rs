@@ -411,7 +411,7 @@ fn regen_potion_is_reachable_from_watcher_potion_rewards() {
 fn smoke_bomb_is_reachable_from_watcher_potion_rewards() {
     // PotionHelper.getPotions appends SmokeBomb to the shared pool.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/PotionHelper.java
-    let offered = (0..128).any(|seed| {
+    let offered = (0..1024).any(|seed| {
         let mut engine = RunEngine::new(seed, 0);
         engine
             .run_state
@@ -422,6 +422,27 @@ fn smoke_bomb_is_reachable_from_watcher_potion_rewards() {
         engine.current_reward_screen().is_some_and(|screen| {
             screen.items.iter().any(|item| {
                 item.kind == RewardItemKind::Potion && item.label == "SmokeBomb"
+            })
+        })
+    });
+    assert!(offered);
+}
+
+#[test]
+fn snecko_oil_is_reachable_from_watcher_potion_rewards() {
+    // PotionHelper.getPotions appends SneckoOil to the shared pool.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/PotionHelper.java
+    let offered = (0..1024).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine
+            .run_state
+            .relics
+            .push("White Beast Statue".to_string());
+        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine.debug_build_combat_reward_screen(RoomType::Monster);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Potion && item.label == "SneckoOil"
             })
         })
     });

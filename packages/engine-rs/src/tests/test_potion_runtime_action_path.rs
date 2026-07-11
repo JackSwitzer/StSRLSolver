@@ -3,7 +3,9 @@ use crate::cards::CardType;
 use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
 use crate::state::Stance;
 use crate::status_ids::sid;
-use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_state, make_deck};
+use crate::tests::support::{
+    combat_state_with, enemy_no_intent, engine_with_state, make_deck, TEST_SEED,
+};
 
 fn use_potion(engine: &mut crate::engine::CombatEngine, potion_idx: usize, target_idx: i32) {
     engine.execute_action(&Action::UsePotion {
@@ -538,20 +540,46 @@ fn gamblers_brew_allows_zero_discards_and_consumes_with_an_empty_hand() {
 }
 
 #[test]
-fn snecko_oil_runtime_action_path_draws_and_applies_confusion() {
+fn snecko_oil_draws_then_randomizes_hand_costs_without_confusion() {
+    // Source-derived (verify potion/SneckoOil): getPotency is always five,
+    // Sacred Bark doubles the draw, and RandomizeHandCostAction then rolls
+    // cardRandomRng.random(3) once for each non-negative printed-cost card in
+    // the whole hand. It changes combat cost rather than applying Confusion.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/SneckoOil.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/RandomizeHandCostAction.java
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame", "Zap", "Dualcast"]),
+        make_deck(&["Strike", "Defend", "Bash"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
-    engine.state.hand.clear();
-    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Bash", "Shrug It Off"]);
+    engine.state.hand = make_deck(&["Strike", "Whirlwind"]);
+    engine.state.draw_pile = make_deck(&[
+        "Defend", "Bash", "Inflame", "Zap", "Dualcast", "Shrug It Off", "Strike", "Defend",
+    ]);
+    engine.state.relics.push("SacredBark".to_string());
     engine.state.potions[0] = "SneckoOil".to_string();
 
     use_potion(&mut engine, 0, -1);
 
-    assert_eq!(engine.state.hand.len(), 4);
-    assert_eq!(engine.state.player.status(sid::CONFUSION), 1);
+    assert_eq!(engine.state.hand.len(), 10);
+    assert!(engine.state.draw_pile.is_empty());
+    assert_eq!(engine.state.player.status(sid::CONFUSION), 0);
+    let mut oracle = crate::seed::StsRandom::new(TEST_SEED);
+    for card in &engine.state.hand {
+        let printed_cost = engine.card_registry.card_def_by_id(card.def_id).cost;
+        if printed_cost < 0 {
+            assert_eq!(engine.card_registry.card_name(card.def_id), "Whirlwind");
+            continue;
+        }
+        let expected = oracle.random(3);
+        let actual = if card.base_cost >= 0 {
+            card.base_cost as i32
+        } else {
+            printed_cost
+        };
+        assert_eq!(actual, expected);
+    }
+    assert_eq!(engine.card_random_rng.counter, 9);
     assert!(engine.state.potions[0].is_empty());
     assert!(engine.event_log.iter().any(|record| {
         record.event == crate::effects::trigger::Trigger::ManualActivation

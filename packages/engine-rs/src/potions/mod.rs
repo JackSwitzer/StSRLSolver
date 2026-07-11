@@ -182,7 +182,8 @@ fn potion_potency(potion_id: &str) -> Option<(i32, i32)> {
         // EnergyPotion.java getPotency ignores ascension and always returns 2.
         "Energy Potion" | "EnergyPotion" => Some((2, 2)),
         "Swift Potion" | "SwiftPotion" => Some((3, 2)),
-        "SneckoOil" => Some((5, 4)),
+        // SneckoOil.java getPotency ignores ascension and always returns 5.
+        "SneckoOil" => Some((5, 5)),
         "Ancient Potion" | "AncientPotion" => Some((1, 1)),
         // RegenPotion.java getPotency ignores ascension and always returns 5.
         "Regen Potion" | "RegenPotion" => Some((5, 5)),
@@ -354,7 +355,8 @@ pub(crate) fn apply_potion_scaled(
         "SneckoOil" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
             state.player.set_status(sid::POTION_DRAW, potency);
-            state.player.set_status(sid::CONFUSION, 1);
+            // Production also randomizes the resulting hand through the
+            // cardRandomRng-backed owner-aware runtime.
             true
         }
 
@@ -1038,6 +1040,16 @@ mod tests {
         state.relics.push("SacredBark".to_string());
         apply_potion_scaled(&mut state, "Regen Potion", -1, 11);
         assert_eq!(state.player.status(sid::REGENERATION), 10);
+    }
+
+    #[test]
+    fn test_a11_snecko_oil_stays_at_five_without_applying_confusion() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/SneckoOil.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/RandomizeHandCostAction.java
+        let mut state = make_test_state();
+        apply_potion_scaled(&mut state, "SneckoOil", -1, 11);
+        assert_eq!(state.player.status(sid::POTION_DRAW), 5);
+        assert_eq!(state.player.status(sid::CONFUSION), 0);
     }
 
     #[test]
