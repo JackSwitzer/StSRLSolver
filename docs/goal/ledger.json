@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T03:21:13.371509+00:00",
+ "updated": "2026-07-11T03:28:03.971144+00:00",
  "status_counts": {
-  "unverified": 568,
-  "verified": 99
+  "unverified": 567,
+  "verified": 100
  },
  "rows": [
   {
@@ -4092,8 +4092,8 @@
    "class": "Lagavulin",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/exordium/Lagavulin.java",
    "methods_ref": "reference/extracted/methods/monster/Lagavulin.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -753,15 +753,13 @@ mod enemy_tests {
     }
     #[test] fn lagavulin_debuff_move() {
         let mut e = create_enemy("Lagavulin", 112, 112);
-        let mut has_debuff = false;
-        for _ in 0..10 {
-            roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-            if e.move_id == LAGA_SIPHON {
-                has_debuff = true;
-                break;
-            }
-        }
-        assert!(has_debuff, "Lagavulin should use Siphon Soul");
+        // Source: reference/extracted/methods/monster/Lagavulin.java.
+        e.entity.set_status(sid::IS_FIRST_MOVE, 1);
+        e.entity.set_status(sid::ATTACK_COUNT, 2);
+        roll_next_move_with_num(&mut e, 0);
+        assert_eq!(e.move_id, LAGA_SIPHON);
+        assert_eq!(e.effect(mfx::SIPHON_STR), Some(1));
+        assert_eq!(e.effect(mfx::SIPHON_DEX), Some(1));
     }
 
     // ========== Book of Stabbing (Elite) ==========

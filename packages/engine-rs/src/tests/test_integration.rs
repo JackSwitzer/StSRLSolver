@@ -1501,8 +1501,9 @@ mod combat_engine_p0_p1_regression {
         e.start_combat();
 
         // Lagavulin starts sleeping with Metallicize
-        assert_eq!(e.state.enemies[0].entity.status(sid::SLEEP_TURNS), 3,
-            "Lagavulin should start with SleepTurns = 3");
+        // Source: Lagavulin.java starts idleCount at zero and grants 8 block.
+        assert_eq!(e.state.enemies[0].entity.status(sid::COUNT), 0);
+        assert_eq!(e.state.enemies[0].entity.block, 8);
         assert_eq!(e.state.enemies[0].entity.status(sid::METALLICIZE), 8,
             "Lagavulin should start with Metallicize = 8 while sleeping");
     }
@@ -1515,13 +1516,17 @@ mod combat_engine_p0_p1_regression {
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
 
-        // Attack Lagavulin — should wake it up
+        // Source: Lagavulin.damage wakes only when currentHealth changes. The
+        // first Strike is absorbed by its 8 block; the second deals HP damage.
+        play_card(&mut e, "Strike", 0);
+        assert_eq!(e.state.enemies[0].move_id, enemies::move_ids::LAGA_SLEEP);
         play_card(&mut e, "Strike", 0);
 
         assert_eq!(e.state.enemies[0].entity.status(sid::SLEEP_TURNS), 0,
             "Lagavulin should wake up when damaged");
         assert_eq!(e.state.enemies[0].entity.status(sid::METALLICIZE), 0,
             "Lagavulin should lose Metallicize when woken");
+        assert_eq!(e.state.enemies[0].move_id, enemies::move_ids::LAGA_STUN);
     }
 
     // ===== P1-5: Pen Nib Uses calculate_damage_full =====

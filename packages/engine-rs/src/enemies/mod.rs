@@ -150,9 +150,11 @@ pub mod move_ids {
     pub const NOB_SKULL_BASH: i32 = 3;
 
     // Lagavulin
-    pub const LAGA_SLEEP: i32 = 1;
-    pub const LAGA_ATTACK: i32 = 2;
-    pub const LAGA_SIPHON: i32 = 3;
+    pub const LAGA_SIPHON: i32 = 1;
+    pub const LAGA_ATTACK: i32 = 3;
+    pub const LAGA_STUN: i32 = 4;
+    pub const LAGA_SLEEP: i32 = 5;
+    pub const LAGA_OPEN_NATURAL: i32 = 6;
 
     // Sentry
     pub const SENTRY_BOLT: i32 = 1;
@@ -536,9 +538,15 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.add_effect(mfx::ENRAGE, 2);
         }
         "Lagavulin" => {
+            enemy.entity.block = 8;
+            enemy.entity.set_status(sid::STARTING_DMG, 18);
+            enemy.entity.set_status(sid::STR_AMT, 1);
+            enemy.entity.set_status(sid::IS_FIRST_MOVE, 0);
+            enemy.entity.set_status(sid::COUNT, 0);
+            enemy.entity.set_status(sid::ATTACK_COUNT, 0);
             enemy.set_move(move_ids::LAGA_SLEEP, 0, 0, 0);
             enemy.entity.set_status(sid::METALLICIZE, 8);
-            enemy.entity.set_status(sid::SLEEP_TURNS, 3);
+            enemy.entity.set_status(sid::SLEEP_TURNS, 1);
         }
         "Sentry" => {
             enemy.set_move(move_ids::SENTRY_BOLT, 9, 1, 0);

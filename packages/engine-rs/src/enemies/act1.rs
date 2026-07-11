@@ -509,33 +509,66 @@ pub(super) fn roll_gremlin_nob(enemy: &mut EnemyCombatState, num: i32) {
 }
 
 pub(super) fn roll_lagavulin(enemy: &mut EnemyCombatState) {
-    let sleep_turns = enemy.entity.status(sid::SLEEP_TURNS);
-
-    if sleep_turns > 0 {
-        enemy.entity.set_status(sid::SLEEP_TURNS, sleep_turns - 1);
-        if sleep_turns - 1 <= 0 {
-            enemy.entity.set_status(sid::METALLICIZE, 0);
-            enemy.set_move(move_ids::LAGA_ATTACK, 18, 1, 0);
+    // Source: reference/extracted/methods/monster/Lagavulin.java (`getMove`).
+    if enemy.entity.status(sid::IS_FIRST_MOVE) > 0 {
+        let damage = enemy.entity.status(sid::STARTING_DMG).max(18);
+        if enemy.entity.status(sid::ATTACK_COUNT) >= 2
+            || last_two_moves(enemy, move_ids::LAGA_ATTACK)
+        {
+            let debuff = enemy.entity.status(sid::STR_AMT).max(1) as i16;
+            enemy.set_move(move_ids::LAGA_SIPHON, 0, 0, 0);
+            enemy.add_effect(mfx::SIPHON_STR, debuff);
+            enemy.add_effect(mfx::SIPHON_DEX, debuff);
         } else {
-            enemy.set_move(move_ids::LAGA_SLEEP, 0, 0, 0);
+            enemy.set_move(move_ids::LAGA_ATTACK, damage, 1, 0);
         }
     } else {
-        // Awake: alternate Attack and Siphon Soul
-        if last_move(enemy, move_ids::LAGA_ATTACK) {
-            enemy.set_move(move_ids::LAGA_SIPHON, 0, 0, 0);
-            enemy.add_effect(mfx::SIPHON_STR, 1);
-            enemy.add_effect(mfx::SIPHON_DEX, 1);
-        } else {
-            enemy.set_move(move_ids::LAGA_ATTACK, 18, 1, 0);
-        }
+        enemy.set_move(move_ids::LAGA_SLEEP, 0, 0, 0);
     }
 }
 
 /// Wake Lagavulin early (e.g. when player deals damage to it while sleeping).
 pub fn lagavulin_wake_up(enemy: &mut EnemyCombatState) {
+    // Source: Lagavulin.java `damage`: HP loss while dormant changes intent to
+    // OPEN/STUN, then OPEN removes Metallicize before the stunned turn.
+    enemy.entity.set_status(sid::IS_FIRST_MOVE, 1);
     enemy.entity.set_status(sid::SLEEP_TURNS, 0);
     enemy.entity.set_status(sid::METALLICIZE, 0);
-    enemy.set_move(move_ids::LAGA_ATTACK, 18, 1, 0);
+    enemy.set_move(move_ids::LAGA_STUN, 0, 0, 0);
+}
+
+pub fn advance_lagavulin_after_turn(
+    enemy: &mut EnemyCombatState,
+    ai_rng: &mut crate::seed::StsRandom,
+) {
+    // Source: reference/extracted/methods/monster/Lagavulin.java (`takeTurn`).
+    match enemy.move_id {
+        move_ids::LAGA_SLEEP => {
+            let idle = enemy.entity.status(sid::COUNT) + 1;
+            enemy.entity.set_status(sid::COUNT, idle);
+            if idle >= 3 {
+                enemy.entity.set_status(sid::IS_FIRST_MOVE, 1);
+                enemy.entity.set_status(sid::SLEEP_TURNS, 0);
+                enemy.entity.set_status(sid::METALLICIZE, 0);
+                let damage = enemy.entity.status(sid::STARTING_DMG).max(18);
+                enemy.set_move(move_ids::LAGA_ATTACK, damage, 1, 0);
+            } else {
+                crate::enemies::roll_next_move(enemy, ai_rng);
+            }
+        }
+        move_ids::LAGA_STUN => {
+            crate::enemies::roll_next_move(enemy, ai_rng);
+        }
+        move_ids::LAGA_ATTACK => {
+            enemy.entity.add_status(sid::ATTACK_COUNT, 1);
+            crate::enemies::roll_next_move(enemy, ai_rng);
+        }
+        move_ids::LAGA_SIPHON => {
+            enemy.entity.set_status(sid::ATTACK_COUNT, 0);
+            crate::enemies::roll_next_move(enemy, ai_rng);
+        }
+        _ => {}
+    }
 }
 
 pub(super) fn roll_sentry(enemy: &mut EnemyCombatState) {

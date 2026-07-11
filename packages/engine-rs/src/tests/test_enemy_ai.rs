@@ -200,7 +200,8 @@ mod enemy_ai_java_parity_tests {
         let e = make("Lagavulin", 109);
         expect_move(&e, move_ids::LAGA_SLEEP, 0, 0, 0, &[]);
         expect_status(&e, sid::METALLICIZE, 8);
-        expect_status(&e, sid::SLEEP_TURNS, 3);
+        expect_status(&e, sid::COUNT, 0);
+        assert_eq!(e.entity.block, 8);
 
         let e = make("Sentry", 38);
         expect_move(&e, move_ids::SENTRY_BOLT, 9, 1, 0, &[]);
@@ -365,15 +366,17 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::NOB_SKULL_BASH, 6, 1, 0, &[(mfx::VULNERABLE, 2)]);
 
         let mut e = make("Lagavulin", 109);
-        roll_times(&mut e, 1);
+        let mut laga_rng = crate::seed::StsRandom::new(1);
+        act1::advance_lagavulin_after_turn(&mut e, &mut laga_rng);
         expect_move(&e, move_ids::LAGA_SLEEP, 0, 0, 0, &[]);
-        expect_status(&e, sid::SLEEP_TURNS, 2);
-        roll_times(&mut e, 1);
-        expect_status(&e, sid::SLEEP_TURNS, 1);
-        roll_times(&mut e, 1);
+        expect_status(&e, sid::COUNT, 1);
+        act1::advance_lagavulin_after_turn(&mut e, &mut laga_rng);
+        expect_status(&e, sid::COUNT, 2);
+        act1::advance_lagavulin_after_turn(&mut e, &mut laga_rng);
         expect_move(&e, move_ids::LAGA_ATTACK, 18, 1, 0, &[]);
+        assert_eq!(laga_rng.counter, 2);
         lagavulin_wake_up(&mut e);
-        expect_move(&e, move_ids::LAGA_ATTACK, 18, 1, 0, &[]);
+        expect_move(&e, move_ids::LAGA_STUN, 0, 0, 0, &[]);
         expect_status(&e, sid::SLEEP_TURNS, 0);
 
         let mut e = make("Sentry", 38);

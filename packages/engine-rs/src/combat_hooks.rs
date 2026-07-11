@@ -618,6 +618,12 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         return;
     }
 
+    if engine.state.enemies[enemy_idx].id == "Lagavulin" {
+        enemies::act1::advance_lagavulin_after_turn(
+            &mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
+        return;
+    }
+
     if matches!(engine.state.enemies[enemy_idx].id.as_str(),
         "GremlinThief" | "GremlinWarrior")
     {

@@ -1456,6 +1456,21 @@ impl RunEngine {
             enemy.add_effect(crate::combat_types::mfx::ENRAGE, enrage as i16);
         }
 
+        // Source: reference/extracted/methods/monster/Lagavulin.java.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "Lagavulin") {
+            let damage = if self.run_state.ascension >= 3 { 20 } else { 18 };
+            let debuff = if self.run_state.ascension >= 18 { 2 } else { 1 };
+            enemy.entity.block = 8;
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, damage);
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT, debuff);
+            enemy.entity.set_status(crate::status_ids::sid::IS_FIRST_MOVE, 0);
+            enemy.entity.set_status(crate::status_ids::sid::COUNT, 0);
+            enemy.entity.set_status(crate::status_ids::sid::ATTACK_COUNT, 0);
+            enemy.entity.set_status(crate::status_ids::sid::SLEEP_TURNS, 1);
+            enemy.entity.set_status(crate::status_ids::sid::METALLICIZE, 8);
+            enemy.set_move(crate::enemies::move_ids::LAGA_SLEEP, 0, 0, 0);
+        }
+
         // The boss passes ascension-derived large-slime constructor values to
         // its children when its split resolves.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "SlimeBoss") {
@@ -1635,7 +1650,12 @@ impl RunEngine {
                 (hp, hp)
             }
             "Lagavulin" => {
-                let hp = if a20 { 112 } else { 109 };
+                let (base, width) = if self.run_state.ascension >= 8 {
+                    (112, 3)
+                } else {
+                    (109, 2)
+                };
+                let hp = base + self.rng.gen_range(0..=width);
                 (hp, hp)
             }
             "Sentry" => {
@@ -5352,6 +5372,85 @@ mod tests {
         assert_eq!(a18.combat_engine.as_ref().unwrap().state.enemies[0]
             .entity.status(crate::status_ids::sid::STRENGTH), 3,
             "the Enrage installed by Bellow triggers on a Skill");
+    }
+
+    #[test]
+    fn lagavulin_stats_natural_wake_damage_stun_and_siphon_match_java() {
+        // Source: reference/extracted/methods/monster/Lagavulin.java.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("Lagavulin").0);
+            let mut high = RunEngine::new(seed, 8);
+            high_hp.insert(high.roll_enemy_hp("Lagavulin").0);
+        }
+        assert_eq!(low_hp, (109..=111).collect());
+        assert_eq!(high_hp, (112..=115).collect());
+
+        for (ascension, damage, debuff) in [(0, 18, 1), (3, 20, 1), (18, 20, 2)] {
+            let mut engine = RunEngine::new(42, ascension);
+            engine.enter_specific_combat(vec!["Lagavulin".to_string()]);
+            let combat = engine.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!(enemy.move_id, crate::enemies::move_ids::LAGA_SLEEP);
+            assert_eq!(enemy.entity.block, 8);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::METALLICIZE), 8);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG), damage);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), debuff);
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        let mut natural = RunEngine::new(42, 18);
+        natural.enter_specific_combat(vec!["Lagavulin".to_string()]);
+        let combat = natural.combat_engine.as_mut().unwrap();
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::LAGA_SLEEP);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::LAGA_SLEEP);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::LAGA_ATTACK);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::METALLICIZE), 0);
+        assert_eq!(combat.ai_rng.counter, 3,
+            "the first two idle turns roll; natural wake on idle three does not");
+
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::LAGA_ATTACK);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::LAGA_SIPHON);
+        assert_eq!(combat.state.enemies[0].effect(crate::combat_types::mfx::SIPHON_STR),
+            Some(2));
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::STRENGTH), -2);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::DEXTERITY), -2);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::LAGA_ATTACK);
+        assert_eq!(combat.ai_rng.counter, 6);
+
+        let mut hit_wake = RunEngine::new(42, 0);
+        hit_wake.enter_specific_combat(vec!["Lagavulin".to_string()]);
+        let combat = hit_wake.combat_engine.as_mut().unwrap();
+        combat.deal_damage_to_enemy(0, 8);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::LAGA_SLEEP,
+            "fully blocked damage does not change currentHealth or wake Lagavulin");
+        combat.deal_damage_to_enemy(0, 1);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::LAGA_STUN);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::METALLICIZE), 0);
+        let ticks = combat.ai_rng.counter;
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::LAGA_ATTACK);
+        assert_eq!(combat.ai_rng.counter, ticks + 1,
+            "the stunned wake turn queues one RollMoveAction");
     }
 
     #[test]
