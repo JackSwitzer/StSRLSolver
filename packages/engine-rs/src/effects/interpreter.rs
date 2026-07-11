@@ -1194,13 +1194,38 @@ fn execute_choose_cards(
         return;
     }
 
-    let min_picks = resolve_card_amount(engine, ctx, &min_picks_src).max(0) as usize;
+    let is_meditate = matches!(ctx.card.id, "Meditate" | "Meditate+")
+        && matches!(source, Pile::Discard)
+        && matches!(action, ChoiceAction::MoveToHand);
     let max_picks = (resolve_card_amount(engine, ctx, &max_picks_src).max(0) as usize)
         .min(options.len());
 
     if max_picks == 0 {
         return;
     }
+
+    // MeditateAction is mandatory. When the whole discard pile fits, Java
+    // moves it without opening grid select.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/MeditateAction.java
+    if is_meditate && options.len() <= max_picks {
+        for card in &mut engine.state.discard_pile {
+            card.set_retained(true);
+        }
+        let move_count = options
+            .len()
+            .min(10usize.saturating_sub(engine.state.hand.len()));
+        for _ in 0..move_count {
+            let card = engine.state.discard_pile.remove(0);
+            engine.state.hand.push(card);
+        }
+        return;
+    }
+
+    let min_picks = if is_meditate {
+        max_picks
+    } else {
+        resolve_card_amount(engine, ctx, &min_picks_src).max(0) as usize
+    };
 
     let reason = choice_reason_for_action(action, source);
     if matches!(action, ChoiceAction::CopyToHand | ChoiceAction::StoreCardForNextTurnCopies) {

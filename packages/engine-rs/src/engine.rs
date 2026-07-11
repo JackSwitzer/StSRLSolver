@@ -116,6 +116,8 @@ pub struct ChoiceContext {
     pub post_choice_draw: i32,
     /// Optional block/damage actions queued after a Scry choice.
     pub deferred_scry_card_effects: Option<DeferredScryCardEffects>,
+    /// Optional stance action queued behind an interactive card choice.
+    pub deferred_stance: Option<Stance>,
     /// Optional per-option payload for named choices like Wish.
     pub named_payloads: Option<Vec<NamedChoicePayload>>,
     /// Optional post-selection cost rule for generated-card choices.
@@ -551,6 +553,7 @@ impl CombatEngine {
             action,
             post_choice_draw: 0,
             deferred_scry_card_effects: None,
+            deferred_stance: None,
             named_payloads: None,
             generated_selected_cost_rule: None,
             returned_card_cost_override: None,
@@ -590,6 +593,7 @@ impl CombatEngine {
             Some(c) => c,
             None => return,
         };
+        let deferred_stance = ctx.deferred_stance;
 
         match ctx.action {
             Some(ChoiceAction::StoreCardForNextTurnCopies) => self.resolve_nightmare(ctx),
@@ -618,6 +622,10 @@ impl CombatEngine {
 
         if self.choice.is_some() {
             return;
+        }
+
+        if let Some(stance) = deferred_stance {
+            self.change_stance(stance);
         }
 
         self.phase = CombatPhase::PlayerTurn;
@@ -1569,6 +1577,14 @@ impl CombatEngine {
             }
         }
 
+        // RestoreRetainedCardsAction clears the one-turn `retain` marker after
+        // onRetained has fired. Intrinsically self-retaining cards remain
+        // retained through their CardDef trait on subsequent turns.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/RestoreRetainedCardsAction.java
+        for card_inst in &mut self.state.hand {
+            card_inst.set_retained(false);
+        }
+
         // Trigger exhaust hooks for ethereal cards exhausted at end of turn
         for _ in 0..ethereal_exhausted {
             self.trigger_on_exhaust();
@@ -2069,10 +2085,19 @@ impl CombatEngine {
         // Update last_card_type AFTER effects (so next card sees this one)
         self.state.last_card_type = Some(card.card_type);
 
-        // Stance change from card
+        // Stance actions queued after an interactive card action must wait for
+        // that choice to resolve. Meditate queues ChangeStanceAction after
+        // MeditateAction in Java.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Meditate.java
         if let Some(stance_name) = card.enter_stance {
             let new_stance = Stance::from_str(stance_name);
-            self.change_stance(new_stance);
+            if self.phase == CombatPhase::AwaitingChoice {
+                if let Some(choice) = self.choice.as_mut() {
+                    choice.deferred_stance = Some(new_stance);
+                }
+            } else {
+                self.change_stance(new_stance);
+            }
         }
 
         // Gremlin Nob Enrage / Anger: gains Strength when player plays a SKILL.
@@ -3197,8 +3222,15 @@ impl CombatEngine {
 
     /// Get a CardInstance for a temporary card, upgrading if Master Reality is active.
     pub fn temp_card(&self, base_id: &str) -> CardInstance {
-        if self.state.player.status(sid::MASTER_REALITY) > 0 {
-            self.card_registry.make_card(&format!("{}+", base_id))
+        let base = self.card_registry.get(base_id);
+        let upgraded_id = format!("{}+", base_id);
+        // MakeTempCard* excludes Status and Curse cards from Master Reality.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
+        let master_reality_can_upgrade = self.state.player.status(sid::MASTER_REALITY) > 0
+            && base.is_some_and(|def| !matches!(def.card_type, CardType::Curse | CardType::Status))
+            && self.card_registry.get(&upgraded_id).is_some();
+        if master_reality_can_upgrade {
+            self.card_registry.make_card(&upgraded_id)
         } else {
             self.card_registry.make_card(base_id)
         }

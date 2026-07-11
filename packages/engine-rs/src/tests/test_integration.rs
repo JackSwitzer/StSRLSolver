@@ -2023,10 +2023,10 @@ mod effect_handler_tests {
         // Put a card in discard
         e.state.discard_pile.push(e.card_registry.make_card("WreathOfFlame"));
         play_card(&mut e, "Meditate", -1);
-        // Meditate now enters AwaitingChoice — pick the card from discard
-        assert_eq!(e.phase, CombatPhase::AwaitingChoice);
-        e.execute_action(&Action::Choose(0));
-        e.execute_action(&Action::ConfirmSelection);
+        // MeditateAction automatically moves the whole discard pile when its
+        // size is <= numberOfCards; no grid selection is opened.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/MeditateAction.java
+        assert_ne!(e.phase, CombatPhase::AwaitingChoice);
         // Should have returned the card to hand
         assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "WreathOfFlame"),
             "Meditate should return a card from discard to hand");

@@ -1611,6 +1611,33 @@ mod watcher_card_java_parity_tests {
             assert!(engine.state.draw_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Insight+"));
         }
     );
+    // Source-derived (verify card/MasterReality): the power has no amount and
+    // therefore does not stack. MakeTempCard paths upgrade ordinary created
+    // cards, but explicitly exclude Status and Curse cards.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/MasterReality.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/MasterRealityPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/vfx/cardManip/ShowCardAndAddToDiscardEffect.java
+    #[test]
+    fn master_reality_source_is_nonstacking_and_does_not_upgrade_status_cards() {
+        let mut engine = one_enemy_engine("JawWorm", 100, 0);
+        ensure_in_hand(&mut engine, "MasterReality");
+        ensure_in_hand(&mut engine, "MasterReality+");
+        ensure_in_hand(&mut engine, "Immolate");
+
+        assert!(play_self(&mut engine, "MasterReality"));
+        assert!(play_self(&mut engine, "MasterReality+"));
+        assert_eq!(engine.state.player.status(sid::MASTER_REALITY), 1);
+        assert!(play_self(&mut engine, "Immolate"));
+        let created: Vec<_> = engine
+            .state
+            .discard_pile
+            .iter()
+            .map(|card| engine.card_registry.card_name(card.def_id))
+            .collect();
+        assert_eq!(created.iter().filter(|name| **name == "Burn").count(), 1);
+        assert_eq!(created.iter().filter(|name| **name == "Burn+").count(), 0);
+    }
     watcher_test!(
         mediate_java_parity,
         base = ("Meditate", "Meditate", 1, -1, -1, 1, CardType::Skill, CardTarget::None, false, Some("Calm"), ["meditate", "end_turn"]),
@@ -1627,6 +1654,66 @@ mod watcher_card_java_parity_tests {
             assert!(engine.state.hand.iter().any(|c| { let n = engine.card_registry.card_name(c.def_id); n == "Strike" || n == "Defend" }));
         }
     );
+    // Source-derived (verify card/Meditate): MeditateAction is playable with
+    // an empty discard; auto-moves the whole pile when it fits; otherwise
+    // requires exactly magicNumber selections. ChangeStanceAction and
+    // PressEndTurnButtonAction are queued after that action, and the returned
+    // cards' retain flag is cleared after the one retention.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Meditate.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/MeditateAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/RestoreRetainedCardsAction.java
+    #[test]
+    fn meditate_source_allows_empty_discard_and_auto_returns_small_piles_once() {
+        let mut empty = one_enemy_engine("JawWorm", 100, 0);
+        empty.state.draw_pile = make_deck_n("Strike+", 10);
+        set_stance(&mut empty, Stance::Wrath);
+        ensure_in_hand(&mut empty, "Meditate");
+        assert!(play_self(&mut empty, "Meditate"));
+        assert_eq!(empty.state.stance, Stance::Calm);
+
+        let mut automatic = one_enemy_engine("JawWorm", 100, 0);
+        automatic.state.draw_pile = make_deck_n("Strike+", 10);
+        automatic.state.discard_pile = make_deck(&["Evaluate", "Worship"]);
+        ensure_in_hand(&mut automatic, "Meditate+");
+        assert!(play_self(&mut automatic, "Meditate+"));
+        assert_ne!(automatic.phase, CombatPhase::AwaitingChoice);
+        for name in ["Evaluate", "Worship"] {
+            let returned = automatic
+                .state
+                .hand
+                .iter()
+                .find(|card| automatic.card_registry.card_name(card.def_id) == name)
+                .expect("the whole small discard pile should return");
+            assert!(!returned.is_retained(), "retain clears after this turn");
+        }
+    }
+
+    #[test]
+    fn meditate_source_defers_calm_and_requires_the_full_selection() {
+        let mut engine = one_enemy_engine("JawWorm", 100, 0);
+        engine.state.draw_pile = make_deck_n("Strike+", 10);
+        engine.state.discard_pile = make_deck(&["Evaluate", "Defend", "Worship"]);
+        set_stance(&mut engine, Stance::Wrath);
+        ensure_in_hand(&mut engine, "Meditate+");
+        assert!(play_self(&mut engine, "Meditate+"));
+
+        assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+        assert_eq!(engine.state.stance, Stance::Wrath);
+        let choice = engine.choice.as_ref().expect("Meditate+ choice");
+        assert_eq!((choice.min_picks, choice.max_picks), (2, 2));
+        assert!(!engine.get_legal_actions().contains(&Action::ConfirmSelection));
+
+        engine.execute_action(&Action::Choose(0));
+        assert!(!engine.get_legal_actions().contains(&Action::ConfirmSelection));
+        engine.execute_action(&Action::Choose(1));
+        assert!(engine.get_legal_actions().contains(&Action::ConfirmSelection));
+        engine.execute_action(&Action::ConfirmSelection);
+
+        assert_eq!(engine.state.stance, Stance::Calm);
+        assert!(engine.state.hand.iter().any(|card| engine.card_registry.card_name(card.def_id) == "Evaluate"));
+        assert!(engine.state.hand.iter().any(|card| engine.card_registry.card_name(card.def_id) == "Defend"));
+        assert!(engine.state.discard_pile.iter().any(|card| engine.card_registry.card_name(card.def_id) == "Worship"));
+    }
     watcher_test!(
         mental_fortress_java_parity,
         base = ("MentalFortress", "Mental Fortress", 1, -1, -1, 4, CardType::Power, CardTarget::SelfTarget, false, None, []),
@@ -1640,6 +1727,31 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.player.block, 4);
         }
     );
+    // Source-derived (verify card/MentalFortress): ApplyPowerAction stacks the
+    // amounts, and the power queues its own GainBlockAction only for a real
+    // stance-ID change. Power-owned block is already resolved, so Dexterity
+    // and Frail do not modify it.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/MentalFortress.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/MentalFortressPower.java
+    #[test]
+    fn mental_fortress_source_stacks_and_grants_raw_block_only_on_real_change() {
+        let mut engine = one_enemy_engine("JawWorm", 100, 0);
+        engine.state.energy = 5;
+        engine.state.player.set_status(sid::DEXTERITY, 5);
+        engine.state.player.set_status(sid::FRAIL, 1);
+        ensure_in_hand(&mut engine, "MentalFortress");
+        ensure_in_hand(&mut engine, "MentalFortress+");
+        ensure_in_hand(&mut engine, "Eruption");
+        ensure_in_hand(&mut engine, "Eruption+");
+
+        assert!(play_self(&mut engine, "MentalFortress"));
+        assert!(play_self(&mut engine, "MentalFortress+"));
+        assert_eq!(engine.state.player.status(sid::MENTAL_FORTRESS), 10);
+        assert!(play_on_enemy(&mut engine, "Eruption", 0));
+        assert_eq!(engine.state.player.block, 10);
+        assert!(play_on_enemy(&mut engine, "Eruption+", 0));
+        assert_eq!(engine.state.player.block, 10);
+    }
     watcher_test!(
         press_points_java_parity,
         base = ("PathToVictory", "Pressure Points", 1, -1, -1, 8, CardType::Skill, CardTarget::Enemy, false, None, ["pressure_points"]),
