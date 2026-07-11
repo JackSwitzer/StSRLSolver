@@ -1485,6 +1485,34 @@ impl RunEngine {
             enemy.add_effect(crate::combat_types::mfx::DAZE, daze as i16);
         }
 
+        // Source: reference/extracted/methods/monster/TheGuardian.java
+        // (constructor, `useCloseUp`, and `changeState`). Ascension is only
+        // available at the encounter spawn site.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "TheGuardian") {
+            let threshold = if self.run_state.ascension >= 19 {
+                40
+            } else if self.run_state.ascension >= 9 {
+                35
+            } else {
+                30
+            };
+            let (fierce_bash, roll) = if self.run_state.ascension >= 4 {
+                (36, 10)
+            } else {
+                (32, 9)
+            };
+            let sharp_hide = if self.run_state.ascension >= 19 { 4 } else { 3 };
+            enemy.entity.set_status(crate::status_ids::sid::PHASE, 0);
+            enemy.entity.set_status(crate::status_ids::sid::MODE_SHIFT, threshold);
+            enemy.entity.set_status(crate::status_ids::sid::DAMAGE_TAKEN_THIS_MODE, 0);
+            enemy.entity.set_status(crate::status_ids::sid::FIERCE_BASH_DMG, fierce_bash);
+            enemy.entity.set_status(crate::status_ids::sid::ROLL_DMG, roll);
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT, 9);
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT, sharp_hide);
+            enemy.entity.set_status(crate::status_ids::sid::TURN_COUNT, 20);
+            enemy.set_move(crate::enemies::move_ids::GUARD_CHARGING_UP, 0, 0, 9);
+        }
+
         // The boss passes ascension-derived large-slime constructor values to
         // its children when its split resolves.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "SlimeBoss") {
@@ -1685,7 +1713,9 @@ impl RunEngine {
                 (hp, hp)
             }
             "TheGuardian" => {
-                let hp = if a20 { 250 } else { 240 };
+                // Source: TheGuardian.java constructor: HP changes at A9,
+                // independently of the ordinary-enemy A7 HP threshold.
+                let hp = if self.run_state.ascension >= 9 { 250 } else { 240 };
                 (hp, hp)
             }
             "Hexaghost" => {
@@ -5540,6 +5570,148 @@ mod tests {
                 crate::enemies::move_ids::SENTRY_BEAM,
             ]);
         assert_eq!(combat.ai_rng.counter, 6);
+    }
+
+    #[test]
+    fn guardian_stats_modes_cycles_sharp_hide_and_ai_ticks_match_java() {
+        // Sources: reference/extracted/methods/monster/TheGuardian.java and
+        // decompiled/.../powers/SharpHidePower.java. Expected values and move
+        // transitions are re-derived from the constructors and `use*` methods.
+        for (ascension, hp, threshold, fierce, roll, sharp) in [
+            (0, 240, 30, 32, 9, 3),
+            (4, 240, 30, 36, 10, 3),
+            (9, 250, 35, 36, 10, 3),
+            (19, 250, 40, 36, 10, 4),
+        ] {
+            let mut engine = RunEngine::new(42, ascension);
+            engine.enter_specific_combat(vec!["TheGuardian".to_string()]);
+            let combat = engine.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!((enemy.entity.hp, enemy.entity.max_hp), (hp, hp));
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::MODE_SHIFT), threshold);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::FIERCE_BASH_DMG), fierce);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::ROLL_DMG), roll);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), sharp);
+            assert_eq!(enemy.move_id, crate::enemies::move_ids::GUARD_CHARGING_UP);
+            assert_eq!(enemy.move_block(), 9);
+            assert_eq!(combat.ai_rng.counter, 1,
+                "the constructor's rollMove consumes exactly one aiRng value");
+        }
+
+        let mut offensive = RunEngine::new(42, 0);
+        offensive.enter_specific_combat(vec!["TheGuardian".to_string()]);
+        let combat = offensive.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 200;
+        combat.state.player.max_hp = 200;
+
+        crate::combat_hooks::do_enemy_turns(combat); // Charge Up -> Fierce Bash
+        assert_eq!(combat.state.enemies[0].entity.block, 9);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::GUARD_FIERCE_BASH);
+        assert_eq!(combat.state.enemies[0].move_damage(), 32);
+        crate::combat_hooks::do_enemy_turns(combat); // Fierce Bash -> Vent Steam
+        assert_eq!(combat.state.player.hp, 168);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::GUARD_VENT_STEAM);
+        crate::combat_hooks::do_enemy_turns(combat); // Vent Steam -> Whirlwind
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::WEAKENED), 2);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::VULNERABLE), 2);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::GUARD_WHIRLWIND);
+        crate::combat_hooks::do_enemy_turns(combat); // Whirlwind -> Charge Up
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::GUARD_CHARGING_UP);
+        assert_eq!(combat.ai_rng.counter, 1,
+            "Guardian's direct setMove cycle consumes no later aiRng values");
+
+        let mut defensive = RunEngine::new(42, 19);
+        defensive.enter_specific_combat(vec!["TheGuardian".to_string()]);
+        let combat = defensive.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 200;
+        combat.state.player.max_hp = 200;
+
+        combat.deal_damage_to_enemy(0, 39);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::DAMAGE_TAKEN_THIS_MODE), 39);
+        combat.state.enemies[0].entity.block = 1;
+        combat.deal_damage_to_enemy(0, 1);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::GUARD_CHARGING_UP,
+            "blocked damage does not count toward Mode Shift");
+        combat.deal_damage_to_enemy(0, 1);
+        assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::PHASE), 1);
+        assert_eq!(combat.state.enemies[0].entity.block, 20);
+        assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::MODE_SHIFT), 50);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::GUARD_CLOSE_UP);
+        assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::SHARP_HIDE), 0,
+            "Sharp Hide is applied by Close Up, not by the mode change");
+
+        crate::combat_hooks::do_enemy_turns(combat); // Close Up -> Roll Attack
+        assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::SHARP_HIDE), 4);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::GUARD_ROLL_ATTACK);
+
+        // SharpHidePower.onUseCard retaliates once for an Attack card even
+        // when the Guardian blocks all of that card's damage.
+        combat.phase = crate::engine::CombatPhase::PlayerTurn;
+        combat.state.enemies[0].entity.block = 100;
+        combat.state.player.block = 3;
+        combat.state.energy = 3;
+        let strike = combat.card_registry.make_card("Strike");
+        combat.state.hand.push(strike);
+        let hand_idx = combat.state.hand.len() - 1;
+        let hp_before = combat.state.player.hp;
+        let guardian_hp_before = combat.state.enemies[0].entity.hp;
+        combat.play_card(hand_idx, 0);
+        assert_eq!(combat.state.enemies[0].entity.hp, guardian_hp_before);
+        assert_eq!(combat.state.player.hp, hp_before - 1);
+        assert_eq!(combat.state.player.block, 0);
+
+        combat.state.relics.push("Tungsten Rod".to_string());
+        let strike = combat.card_registry.make_card("Strike");
+        combat.state.hand.push(strike);
+        let hp_before = combat.state.player.hp;
+        combat.play_card(combat.state.hand.len() - 1, 0);
+        assert_eq!(combat.state.player.hp, hp_before - 3,
+            "Tungsten Rod reduces Sharp Hide's THORNS HP damage by one");
+
+        combat.state.relics.retain(|id| id != "Tungsten Rod");
+        combat.state.relics.push("Necronomicon".to_string());
+        combat.state.enemies[0].entity.block = 200;
+        combat.state.energy = 3;
+        let bash = combat.card_registry.make_card("Bash");
+        combat.state.hand.push(bash);
+        let hp_before = combat.state.player.hp;
+        combat.play_card(combat.state.hand.len() - 1, 0);
+        assert_eq!(combat.state.player.hp, hp_before - 8,
+            "Necronomicon's replay constructs a second Sharp Hide onUseCard hit");
+
+        crate::combat_hooks::do_enemy_turns(combat); // Roll Attack -> Twin Slam
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::GUARD_TWIN_SLAM);
+        combat.state.player.set_status(crate::status_ids::sid::THORNS, 3);
+        let guardian_hp_before = combat.state.enemies[0].entity.hp;
+        crate::combat_hooks::do_enemy_turns(combat); // Offensive Mode, Twin Slam -> Whirlwind
+        assert_eq!(combat.state.enemies[0].entity.hp, guardian_hp_before - 6);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::DAMAGE_TAKEN_THIS_MODE), 6,
+            "Offensive Mode resolves before Twin Slam, so both Thorns hits count");
+        assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::PHASE), 0);
+        assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::SHARP_HIDE), 0);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::GUARD_WHIRLWIND);
+        assert_eq!(combat.ai_rng.counter, 1);
+
+        let mut lethal = RunEngine::new(42, 19);
+        lethal.enter_specific_combat(vec!["TheGuardian".to_string()]);
+        let combat = lethal.combat_engine.as_mut().unwrap();
+        combat.state.enemies[0].entity.hp = 40;
+        combat.deal_damage_to_enemy(0, 40);
+        assert_eq!(combat.state.enemies[0].entity.hp, 0);
+        assert_ne!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::GUARD_CLOSE_UP,
+            "TheGuardian.damage excludes lethal hits with !isDying");
     }
 
     #[test]

@@ -1416,9 +1416,12 @@ mod combat_engine_p0_p1_regression {
             play_card(&mut e, "Strike", 0);
         }
 
-        // Guardian should have shifted to defensive mode
-        assert_eq!(e.state.enemies[0].entity.status(sid::SHARP_HIDE), 3,
-            "Guardian should have entered defensive mode (SharpHide = 3)");
+        // Source: TheGuardian.java `changeState`: the threshold queues Close
+        // Up; Sharp Hide is not applied until that move executes.
+        assert_eq!(e.state.enemies[0].move_id,
+            crate::enemies::move_ids::GUARD_CLOSE_UP);
+        assert_eq!(e.state.enemies[0].entity.status(sid::SHARP_HIDE), 0);
+        assert_eq!(e.state.enemies[0].entity.block, 20);
     }
 
     #[test]

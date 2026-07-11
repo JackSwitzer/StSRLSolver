@@ -555,7 +555,7 @@ pub fn hook_play_top_card(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
             -1
         };
         // Execute the card effects directly (free play)
-        crate::card_effects::execute_card_effects(engine, &def, top, target);
+        engine.execute_card_effects_with_enemy_on_use(&def, top, target);
         engine.state.discard_pile.push(top);
     }
 }

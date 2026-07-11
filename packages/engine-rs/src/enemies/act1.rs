@@ -596,32 +596,59 @@ pub(super) fn roll_sentry(enemy: &mut EnemyCombatState) {
 // =========================================================================
 
 pub(super) fn roll_guardian(enemy: &mut EnemyCombatState) {
-    let is_defensive = enemy.entity.status(sid::SHARP_HIDE) > 0;
-
-    if is_defensive {
-        if last_move(enemy, move_ids::GUARD_ROLL_ATTACK) {
-            enemy.set_move(move_ids::GUARD_TWIN_SLAM, 8, 2, 0);
-        } else {
-            enemy.set_move(move_ids::GUARD_ROLL_ATTACK, 9, 1, 0);
-        }
+    // Source: reference/extracted/methods/monster/TheGuardian.java (`getMove`).
+    if enemy.entity.status(sid::PHASE) == 0 {
+        let block = enemy.entity.status(sid::BLOCK_AMT).max(9);
+        enemy.set_move(move_ids::GUARD_CHARGING_UP, 0, 0, block);
     } else {
-        if last_move(enemy, move_ids::GUARD_CHARGING_UP) {
-            let fb = { let v = enemy.entity.status(sid::FIERCE_BASH_DMG); if v > 0 { v } else { 32 } };
-            enemy.set_move(move_ids::GUARD_FIERCE_BASH, fb, 1, 0);
-        } else if last_move(enemy, move_ids::GUARD_FIERCE_BASH) {
+        let roll = enemy.entity.status(sid::ROLL_DMG).max(9);
+        enemy.set_move(move_ids::GUARD_ROLL_ATTACK, roll, 1, 0);
+    }
+}
+
+pub fn advance_guardian_after_turn(enemy: &mut EnemyCombatState) {
+    // Source: TheGuardian.java `use*` methods; all transitions are direct
+    // setMove calls and consume no aiRng after the constructor roll.
+    enemy.move_history.push(enemy.move_id);
+    enemy.move_effects.clear();
+    match enemy.move_id {
+        move_ids::GUARD_CHARGING_UP => {
+            let damage = enemy.entity.status(sid::FIERCE_BASH_DMG).max(32);
+            enemy.set_move(move_ids::GUARD_FIERCE_BASH, damage, 1, 0);
+        }
+        move_ids::GUARD_FIERCE_BASH => {
             enemy.set_move(move_ids::GUARD_VENT_STEAM, 0, 0, 0);
             enemy.add_effect(mfx::WEAK, 2);
             enemy.add_effect(mfx::VULNERABLE, 2);
-        } else if last_move(enemy, move_ids::GUARD_VENT_STEAM) {
-            enemy.set_move(move_ids::GUARD_WHIRLWIND, 5, 4, 0);
-        } else {
-            enemy.set_move(move_ids::GUARD_CHARGING_UP, 0, 0, 9);
         }
+        move_ids::GUARD_VENT_STEAM => {
+            enemy.set_move(move_ids::GUARD_WHIRLWIND, 5, 4, 0);
+        }
+        move_ids::GUARD_WHIRLWIND => {
+            let block = enemy.entity.status(sid::BLOCK_AMT).max(9);
+            enemy.set_move(move_ids::GUARD_CHARGING_UP, 0, 0, block);
+        }
+        move_ids::GUARD_CLOSE_UP => {
+            let roll = enemy.entity.status(sid::ROLL_DMG).max(9);
+            enemy.set_move(move_ids::GUARD_ROLL_ATTACK, roll, 1, 0);
+        }
+        move_ids::GUARD_ROLL_ATTACK => {
+            enemy.set_move(move_ids::GUARD_TWIN_SLAM, 8, 2, 0);
+        }
+        move_ids::GUARD_TWIN_SLAM => {
+            // Twin Smash queues Offensive Mode before its two damage actions,
+            // but removes Sharp Hide and sets Whirlwind after them.
+            enemy.entity.set_status(sid::SHARP_HIDE, 0);
+            enemy.set_move(move_ids::GUARD_WHIRLWIND, 5, 4, 0);
+            enemy.move_history.clear();
+        }
+        _ => {}
     }
 }
 
 /// Check if Guardian should switch to defensive mode after taking damage.
 pub fn guardian_check_mode_shift(enemy: &mut EnemyCombatState, damage_dealt: i32) -> bool {
+    if enemy.entity.status(sid::PHASE) != 0 || enemy.entity.hp <= 0 { return false; }
     let threshold = enemy.entity.status(sid::MODE_SHIFT);
     if threshold <= 0 { return false; }
 
@@ -629,11 +656,13 @@ pub fn guardian_check_mode_shift(enemy: &mut EnemyCombatState, damage_dealt: i32
     enemy.entity.set_status(sid::DAMAGE_TAKEN_THIS_MODE, current_taken);
 
     if current_taken >= threshold {
-        let sha = if threshold >= 40 { 4 } else { 3 };
-        enemy.entity.set_status(sid::SHARP_HIDE, sha);
+        enemy.entity.set_status(sid::PHASE, 1);
         enemy.entity.set_status(sid::DAMAGE_TAKEN_THIS_MODE, 0);
         enemy.entity.set_status(sid::MODE_SHIFT, threshold + 10);
-        enemy.set_move(move_ids::GUARD_ROLL_ATTACK, 9, 1, 0);
+        enemy.entity.block += enemy.entity.status(sid::TURN_COUNT).max(20);
+        enemy.set_move(move_ids::GUARD_CLOSE_UP, 0, 0, 0);
+        enemy.add_effect(mfx::SHARP_HIDE,
+            enemy.entity.status(sid::STR_AMT).max(3) as i16);
         enemy.move_history.clear();
         true
     } else {
@@ -643,10 +672,20 @@ pub fn guardian_check_mode_shift(enemy: &mut EnemyCombatState, damage_dealt: i32
 
 /// Switch Guardian back to offensive mode.
 pub fn guardian_switch_to_offensive(enemy: &mut EnemyCombatState) {
+    enemy.entity.set_status(sid::PHASE, 0);
     enemy.entity.set_status(sid::SHARP_HIDE, 0);
     enemy.entity.set_status(sid::DAMAGE_TAKEN_THIS_MODE, 0);
-    enemy.set_move(move_ids::GUARD_CHARGING_UP, 0, 0, 9);
+    enemy.entity.block = 0;
+    enemy.set_move(move_ids::GUARD_WHIRLWIND, 5, 4, 0);
     enemy.move_history.clear();
+}
+
+/// Twin Smash's first queued action changes to Offensive Mode before damage.
+pub fn guardian_begin_twin_smash(enemy: &mut EnemyCombatState) {
+    // Source: TheGuardian.java `useTwinSmash` queues ChangeStateAction first.
+    enemy.entity.set_status(sid::PHASE, 0);
+    enemy.entity.set_status(sid::DAMAGE_TAKEN_THIS_MODE, 0);
+    enemy.entity.block = 0;
 }
 
 pub(super) fn roll_hexaghost(enemy: &mut EnemyCombatState) {

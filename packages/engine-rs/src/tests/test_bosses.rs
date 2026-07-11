@@ -46,22 +46,26 @@ mod boss_java_parity_tests {
     }
 
     #[test]
-    fn guardian_a2_hp_and_bash_damage_matches_java() {
-        let mut enemy = create_enemy("TheGuardian", 250, 250);
+    fn guardian_constructor_defaults_match_java() {
+        // Ascension-derived values are patched at the run spawn site.
+        let enemy = create_enemy("TheGuardian", 250, 250);
         assert_eq!(enemy.entity.hp, 250);
         assert_eq!(enemy.entity.max_hp, 250);
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_damage(), 36);
+        assert_eq!(enemy.entity.status(sid::FIERCE_BASH_DMG), 32);
+        assert_eq!(enemy.entity.status(sid::ROLL_DMG), 9);
     }
 
     #[test]
     fn guardian_defensive_mode_uses_java_threshold_and_sharp_hide() {
         let mut enemy = create_enemy("TheGuardian", 240, 240);
         enemy.entity.set_status(sid::MODE_SHIFT, 40);
+        enemy.entity.set_status(sid::STR_AMT, 4);
 
         let shifted = guardian_check_mode_shift(&mut enemy, 40);
         assert!(shifted);
-        assert_eq!(enemy.entity.status(sid::SHARP_HIDE), 4);
+        assert_eq!(enemy.entity.status(sid::SHARP_HIDE), 0);
+        assert_eq!(enemy.move_id, move_ids::GUARD_CLOSE_UP);
+        assert_eq!(enemy.effect(mfx::SHARP_HIDE), Some(4));
         assert_eq!(enemy.entity.status(sid::MODE_SHIFT), 50);
     }
 
@@ -70,29 +74,29 @@ mod boss_java_parity_tests {
         let mut enemy = create_enemy("TheGuardian", 240, 240);
         guardian_switch_to_offensive(&mut enemy);
         assert_eq!(enemy.entity.status(sid::SHARP_HIDE), 0);
-        assert_eq!(enemy.move_id, move_ids::GUARD_CHARGING_UP);
-        assert_eq!(enemy.move_block(), 9);
+        assert_eq!(enemy.move_id, move_ids::GUARD_WHIRLWIND);
+        assert_eq!(enemy.move_damage(), 5);
     }
 
     #[test]
     fn guardian_offensive_cycle_matches_java_base_values() {
         let mut enemy = create_enemy("TheGuardian", 240, 240);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        crate::enemies::act1::advance_guardian_after_turn(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::GUARD_FIERCE_BASH);
         assert_eq!(enemy.move_damage(), 32);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        crate::enemies::act1::advance_guardian_after_turn(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::GUARD_VENT_STEAM);
         assert_eq!(enemy.effect(mfx::WEAK), Some(2));
         assert_eq!(enemy.effect(mfx::VULNERABLE), Some(2));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        crate::enemies::act1::advance_guardian_after_turn(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::GUARD_WHIRLWIND);
         assert_eq!(enemy.move_damage(), 5);
         assert_eq!(enemy.move_hits(), 4);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        crate::enemies::act1::advance_guardian_after_turn(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::GUARD_CHARGING_UP);
         assert_eq!(enemy.move_block(), 9);
     }

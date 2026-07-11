@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T03:33:09.504600+00:00",
+ "updated": "2026-07-11T03:45:37.225540+00:00",
  "status_counts": {
-  "unverified": 566,
-  "verified": 101
+  "unverified": 565,
+  "verified": 102
  },
  "rows": [
   {
@@ -4342,8 +4342,8 @@
    "class": "TheGuardian",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/exordium/TheGuardian.java",
    "methods_ref": "reference/extracted/methods/monster/TheGuardian.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

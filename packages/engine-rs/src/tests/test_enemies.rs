@@ -587,26 +587,28 @@ mod enemy_tests {
         assert_eq!(e.entity.status(sid::MODE_SHIFT), 30);
     }
     #[test] fn guard_offensive_cycle() {
+        // Source: reference/extracted/methods/monster/TheGuardian.java (`use*`).
         let mut e = create_enemy("TheGuardian", 240, 240);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // -> Fierce Bash
+        crate::enemies::act1::advance_guardian_after_turn(&mut e); // -> Fierce Bash
         assert_eq!(e.move_id, GUARD_FIERCE_BASH);
         assert_eq!(e.move_damage(), 32);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // -> Vent Steam
+        crate::enemies::act1::advance_guardian_after_turn(&mut e); // -> Vent Steam
         assert_eq!(e.move_id, GUARD_VENT_STEAM);
         assert_eq!(e.effect(mfx::WEAK).unwrap(), 2);
         assert_eq!(e.effect(mfx::VULNERABLE).unwrap(), 2);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // -> Whirlwind
+        crate::enemies::act1::advance_guardian_after_turn(&mut e); // -> Whirlwind
         assert_eq!(e.move_id, GUARD_WHIRLWIND);
         assert_eq!(e.move_damage(), 5);
         assert_eq!(e.move_hits(), 4);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // -> Charging Up
+        crate::enemies::act1::advance_guardian_after_turn(&mut e); // -> Charging Up
         assert_eq!(e.move_id, GUARD_CHARGING_UP);
     }
     #[test] fn guard_mode_shift_at_30() {
         let mut e = create_enemy("TheGuardian", 240, 240);
         assert!(!guardian_check_mode_shift(&mut e, 29));
         assert!(guardian_check_mode_shift(&mut e, 1));
-        assert_eq!(e.entity.status(sid::SHARP_HIDE), 3);
+        assert_eq!(e.move_id, GUARD_CLOSE_UP);
+        assert_eq!(e.effect(mfx::SHARP_HIDE), Some(3));
     }
     #[test] fn guard_mode_shift_threshold_increases() {
         let mut e = create_enemy("TheGuardian", 240, 240);
@@ -616,8 +618,10 @@ mod enemy_tests {
     #[test] fn guard_defensive_cycle() {
         let mut e = create_enemy("TheGuardian", 240, 240);
         guardian_check_mode_shift(&mut e, 30);
+        assert_eq!(e.move_id, GUARD_CLOSE_UP);
+        crate::enemies::act1::advance_guardian_after_turn(&mut e);
         assert_eq!(e.move_id, GUARD_ROLL_ATTACK);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        crate::enemies::act1::advance_guardian_after_turn(&mut e);
         assert_eq!(e.move_id, GUARD_TWIN_SLAM);
         assert_eq!(e.move_hits(), 2);
         assert_eq!(e.move_damage(), 8);
@@ -627,7 +631,7 @@ mod enemy_tests {
         guardian_check_mode_shift(&mut e, 30);
         guardian_switch_to_offensive(&mut e);
         assert_eq!(e.entity.status(sid::SHARP_HIDE), 0);
-        assert_eq!(e.move_id, GUARD_CHARGING_UP);
+        assert_eq!(e.move_id, GUARD_WHIRLWIND);
     }
 
     // ========== Hexaghost ==========

@@ -162,6 +162,7 @@ pub mod move_ids {
 
     // The Guardian
     pub const GUARD_CHARGING_UP: i32 = 6;
+    pub const GUARD_CLOSE_UP: i32 = 1;
     pub const GUARD_FIERCE_BASH: i32 = 2;
     pub const GUARD_ROLL_ATTACK: i32 = 3;
     pub const GUARD_TWIN_SLAM: i32 = 4;
@@ -558,16 +559,15 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.add_effect(mfx::DAZE, 2);
         }
         "TheGuardian" => {
+            enemy.entity.set_status(sid::PHASE, 0);
+            enemy.entity.set_status(sid::MODE_SHIFT, 30);
+            enemy.entity.set_status(sid::DAMAGE_TAKEN_THIS_MODE, 0);
+            enemy.entity.set_status(sid::FIERCE_BASH_DMG, 32);
+            enemy.entity.set_status(sid::ROLL_DMG, 9);
+            enemy.entity.set_status(sid::BLOCK_AMT, 9);
+            enemy.entity.set_status(sid::STR_AMT, 3);
+            enemy.entity.set_status(sid::TURN_COUNT, 20);
             enemy.set_move(move_ids::GUARD_CHARGING_UP, 0, 0, 9);
-            if hp >= 250 {
-                enemy.entity.set_status(sid::MODE_SHIFT, 40);
-                enemy.entity.set_status(sid::FIERCE_BASH_DMG, 36);
-                enemy.entity.set_status(sid::ROLL_DMG, 10);
-            } else {
-                enemy.entity.set_status(sid::MODE_SHIFT, 30);
-                enemy.entity.set_status(sid::FIERCE_BASH_DMG, 32);
-                enemy.entity.set_status(sid::ROLL_DMG, 9);
-            }
         }
         "Hexaghost" => {
             enemy.set_move(move_ids::HEX_ACTIVATE, 0, 0, 0);
@@ -1157,19 +1157,21 @@ mod tests {
 
     #[test]
     fn test_guardian_offensive_pattern() {
+        // Source: reference/extracted/methods/monster/TheGuardian.java
+        // (`useChargeUp`, `useFierceBash`, and `useVentSteam`).
         let mut enemy = create_enemy("TheGuardian", 240, 240);
         assert_eq!(enemy.move_id, move_ids::GUARD_CHARGING_UP);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_guardian_after_turn(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::GUARD_FIERCE_BASH);
         assert_eq!(enemy.move_damage(), 32);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_guardian_after_turn(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::GUARD_VENT_STEAM);
         assert_eq!(enemy.effect(mfx::WEAK), Some(2));
         assert_eq!(enemy.effect(mfx::VULNERABLE), Some(2));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_guardian_after_turn(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::GUARD_WHIRLWIND);
         assert_eq!(enemy.move_damage(), 5);
         assert_eq!(enemy.move_hits(), 4);
@@ -1182,12 +1184,15 @@ mod tests {
 
         let shifted = guardian_check_mode_shift(&mut enemy, 30);
         assert!(shifted);
-        assert_eq!(enemy.entity.status(sid::SHARP_HIDE), 3);
+        assert_eq!(enemy.entity.status(sid::SHARP_HIDE), 0);
         assert_eq!(enemy.entity.status(sid::MODE_SHIFT), 40);
+        assert_eq!(enemy.entity.block, 20);
+        assert_eq!(enemy.move_id, move_ids::GUARD_CLOSE_UP);
+        assert_eq!(enemy.effect(mfx::SHARP_HIDE), Some(3));
 
+        act1::advance_guardian_after_turn(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::GUARD_ROLL_ATTACK);
-
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_guardian_after_turn(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::GUARD_TWIN_SLAM);
     }
 
@@ -1296,11 +1301,11 @@ mod tests {
     fn test_guardian_switch_to_offensive() {
         let mut enemy = create_enemy("TheGuardian", 240, 240);
         guardian_check_mode_shift(&mut enemy, 30);
-        assert_eq!(enemy.entity.status(sid::SHARP_HIDE), 3);
+        enemy.entity.set_status(sid::SHARP_HIDE, 3);
 
         guardian_switch_to_offensive(&mut enemy);
         assert_eq!(enemy.entity.status(sid::SHARP_HIDE), 0);
-        assert_eq!(enemy.move_id, move_ids::GUARD_CHARGING_UP);
+        assert_eq!(enemy.move_id, move_ids::GUARD_WHIRLWIND);
     }
 
     #[test]

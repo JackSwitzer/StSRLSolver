@@ -309,7 +309,7 @@ impl CombatEngine {
                 | "SpikeSlime_S" | "SpikeSlime_M" | "SpikeSlime_L" | "Looter"
                 | "GremlinFat" | "GremlinThief" | "GremlinWarrior"
                 | "GremlinWizard" | "GremlinTsundere" | "GremlinNob"
-                | "Lagavulin" | "Sentry")) {
+                | "Lagavulin" | "Sentry" | "TheGuardian")) {
             crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
         }
 
@@ -2148,7 +2148,7 @@ impl CombatEngine {
         }
 
         // Execute effects (last_card_type refers to card played BEFORE this one)
-        crate::card_effects::execute_card_effects(self, &card, card_inst, target_idx);
+        self.execute_card_effects_with_enemy_on_use(&card, card_inst, target_idx);
 
         // Update last_card_type AFTER effects (so next card sees this one)
         self.state.last_card_type = Some(card.card_type);
@@ -2316,7 +2316,7 @@ impl CombatEngine {
                 && self.state.player.status(sid::NECRONOMICON_USED) == 0
             {
                 self.state.player.set_status(sid::NECRONOMICON_USED, 1);
-                crate::card_effects::execute_card_effects(self, &card, card_inst, target_idx);
+                self.execute_card_effects_with_enemy_on_use(&card, card_inst, target_idx);
             }
         }
 
@@ -2797,12 +2797,6 @@ impl CombatEngine {
                     .add_status(sid::MALLEABLE, 1);
             }
 
-            // Sharp Hide: deal retaliation damage to player when attacked
-            let sharp_hide = self.state.enemies[enemy_idx].entity.status(sid::SHARP_HIDE);
-            if sharp_hide > 0 {
-                self.player_lose_hp(sharp_hide);
-            }
-
             // Shifting: gain block equal to unblocked damage
             let shifting = self.state.enemies[enemy_idx].entity.status(sid::SHIFTING);
             if shifting > 0 {
@@ -2988,6 +2982,66 @@ impl CombatEngine {
 
         if hp_damage > 0 {
             self.player_lose_hp(hp_damage);
+        }
+    }
+
+    fn deal_thorns_damage_to_player(&mut self, damage: i32) {
+        // DamageInfo.THORNS still passes through final-receive powers, block,
+        // Buffer, and Tungsten Rod. Torii and reactive Thorns/Flame Barrier
+        // explicitly exclude THORNS damage.
+        // Sources: AbstractPlayer.damage, IntangiblePlayerPower.java,
+        // BufferPower.java, TungstenRod.java, and Torii.java.
+        let mut incoming = damage.max(0);
+        if self.state.player.status(sid::INTANGIBLE) > 0 && incoming > 1 {
+            incoming = 1;
+        }
+        let blocked = self.state.player.block.min(incoming);
+        self.state.player.block -= blocked;
+        let mut hp_damage = incoming - blocked;
+        if hp_damage > 0 {
+            let buffer = self.state.player.status(sid::BUFFER);
+            if buffer > 0 {
+                self.state.player.set_status(sid::BUFFER, buffer - 1);
+                hp_damage = 0;
+            }
+        }
+        if hp_damage > 0
+            && (self.state.has_relic("Tungsten Rod") || self.state.has_relic("TungstenRod"))
+        {
+            hp_damage -= 1;
+        }
+        if hp_damage > 0 {
+            self.player_lose_hp(hp_damage);
+        }
+    }
+
+    pub(crate) fn execute_card_effects_with_enemy_on_use(
+        &mut self,
+        card: &CardDef,
+        card_inst: CardInstance,
+        target_idx: i32,
+    ) {
+        // SharpHidePower.onUseCard queues one THORNS hit for every living
+        // owner when each Attack card use is constructed, including replayed
+        // and autoplayed cards. Capture before resolution so killing the
+        // Guardian does not cancel its already-queued retaliation.
+        // Sources: decompiled/java-src/com/megacrit/cardcrawl/powers/
+        // SharpHidePower.java and actions/utility/UseCardAction.java.
+        let sharp_hide_retaliations: Vec<i32> = if card.card_type == CardType::Attack {
+            self.state.enemies.iter()
+                .filter(|enemy| enemy.is_alive())
+                .map(|enemy| enemy.entity.status(sid::SHARP_HIDE))
+                .filter(|amount| *amount > 0)
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        crate::card_effects::execute_card_effects(self, card, card_inst, target_idx);
+
+        // card.use actions precede Sharp Hide's DamageAction in Java's queue.
+        for amount in sharp_hide_retaliations {
+            self.deal_thorns_damage_to_player(amount);
         }
     }
 

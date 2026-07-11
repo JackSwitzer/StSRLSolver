@@ -131,6 +131,14 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         return;
     }
 
+    if engine.state.enemies[enemy_idx].id == "TheGuardian"
+        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::GUARD_TWIN_SLAM
+    {
+        // Source: TheGuardian.java `useTwinSmash`: Offensive Mode resolves
+        // before the two attacks, so Thorns can count toward the new threshold.
+        enemies::act1::guardian_begin_twin_smash(&mut engine.state.enemies[enemy_idx]);
+    }
+
     // Source: Looter.java plus DamageAction.java (`stealGold`): Mug and Lunge
     // steal before their damage resolves, even when block prevents HP loss.
     if engine.state.enemies[enemy_idx].id == "Looter"
@@ -322,6 +330,10 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     if let Some(amt) = get_fx(&effects, mfx::ENRAGE) {
         engine.state.enemies[enemy_idx]
             .entity.set_status(sid::ENRAGE, amt as i32);
+    }
+    if let Some(amt) = get_fx(&effects, mfx::SHARP_HIDE) {
+        engine.state.enemies[enemy_idx]
+            .entity.set_status(sid::SHARP_HIDE, amt as i32);
     }
     if let Some(amt) = get_fx(&effects, mfx::ENTANGLE) {
         if amt > 0 {
@@ -621,6 +633,12 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     if engine.state.enemies[enemy_idx].id == "Lagavulin" {
         enemies::act1::advance_lagavulin_after_turn(
             &mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
+        return;
+    }
+
+    if engine.state.enemies[enemy_idx].id == "TheGuardian" {
+        enemies::act1::advance_guardian_after_turn(
+            &mut engine.state.enemies[enemy_idx]);
         return;
     }
 

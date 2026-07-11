@@ -279,7 +279,7 @@ fn hook_double_tap(
     }
 
     let card = engine.card_registry.card_def_by_id(card_inst.def_id).clone();
-    crate::card_effects::execute_card_effects(engine, &card, card_inst, event.target_idx);
+    engine.execute_card_effects_with_enemy_on_use(&card, card_inst, event.target_idx);
 }
 
 fn hook_burst(
@@ -314,7 +314,7 @@ fn hook_burst(
     }
 
     let card = engine.card_registry.card_def_by_id(card_inst.def_id).clone();
-    crate::card_effects::execute_card_effects(engine, &card, card_inst, event.target_idx);
+    engine.execute_card_effects_with_enemy_on_use(&card, card_inst, event.target_idx);
 }
 
 fn hook_echo_form(
@@ -346,7 +346,7 @@ fn hook_echo_form(
     }
 
     let card = engine.card_registry.card_def_by_id(card_inst.def_id).clone();
-    crate::card_effects::execute_card_effects(engine, &card, card_inst, event.target_idx);
+    engine.execute_card_effects_with_enemy_on_use(&card, card_inst, event.target_idx);
 }
 
 // ===========================================================================
