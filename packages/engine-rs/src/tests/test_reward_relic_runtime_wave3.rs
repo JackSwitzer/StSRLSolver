@@ -629,6 +629,76 @@ fn fossilized_helix_is_reachable_under_its_canonical_java_id() {
 }
 
 #[test]
+fn egg_relics_use_canonical_ids_floor_cutoffs_and_upgrade_all_obtain_paths() {
+    // FrozenEgg2.java, MoltenEgg2.java, and ToxicEgg2.java are UNCOMMON, stop
+    // spawning after floor 48, and upgrade Power/Attack/Skill cards in both
+    // onPreviewObtainCard and onObtainCard.
+    for relic_id in ["Frozen Egg 2", "Molten Egg 2", "Toxic Egg 2"] {
+        let offered = (0..1024).any(|seed| {
+            let mut engine = RunEngine::new(seed, 0);
+            engine.run_state.floor = 48;
+            engine.debug_build_combat_reward_screen(RoomType::Elite);
+            engine.current_reward_screen().is_some_and(|screen| {
+                screen.items.iter().any(|item| {
+                    item.kind == RewardItemKind::Relic && item.label == relic_id
+                })
+            })
+        });
+        assert!(offered, "{relic_id} should be reachable through floor 48");
+
+        for seed in 0..128 {
+            let mut engine = RunEngine::new(seed, 0);
+            engine.run_state.floor = 49;
+            engine.debug_build_combat_reward_screen(RoomType::Elite);
+            assert!(engine.current_reward_screen().is_some_and(|screen| {
+                screen.items.iter().all(|item| item.label != relic_id)
+            }));
+        }
+    }
+
+    for (relic_id, card_id, upgraded_id) in [
+        ("Frozen Egg 2", "Devotion", "Devotion+"),
+        ("Molten Egg 2", "Wallop", "Wallop+"),
+        ("Toxic Egg 2", "ThirdEye", "ThirdEye+"),
+    ] {
+        let mut engine = RunEngine::new(73, 0);
+        engine.run_state.relics.push(relic_id.to_string());
+        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine.run_state.gold = 100;
+        engine.debug_set_shop_state(ShopState {
+            cards: vec![(card_id.to_string(), 40)],
+            remove_price: 75,
+            removal_used: false,
+        });
+        assert!(engine
+            .step_with_result(&RunAction::ShopBuyCard(0))
+            .action_accepted);
+        assert_eq!(
+            engine.run_state.deck.last().map(String::as_str),
+            Some(upgraded_id)
+        );
+    }
+
+    let mut preview = RunEngine::new(79, 0);
+    preview.run_state.relics.extend([
+        "Frozen Egg 2".to_string(),
+        "Molten Egg 2".to_string(),
+        "Toxic Egg 2".to_string(),
+    ]);
+    preview
+        .run_state
+        .relic_flags
+        .rebuild(&preview.run_state.relics);
+    preview.debug_enter_shop();
+    assert!(preview
+        .get_shop()
+        .expect("shop")
+        .cards
+        .iter()
+        .all(|(card_id, _)| card_id.ends_with('+')));
+}
+
+#[test]
 fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
     // Source-derived (verify relic/Calling Bell): CallingBell.java is BOSS tier,
     // confirms CurseOfTheBell, then opens COMMON, UNCOMMON, and RARE relic

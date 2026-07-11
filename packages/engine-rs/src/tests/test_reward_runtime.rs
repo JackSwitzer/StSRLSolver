@@ -95,6 +95,8 @@ fn prayer_wheel_and_question_card_expand_reward_structure() {
 
 #[test]
 fn claiming_egg_relic_upgrades_later_card_reward_choice() {
+    // Source: MoltenEgg2.java uses canonical ID "Molten Egg 2" and onEquip
+    // upgrades already-visible Attack cards through onPreviewObtainCard.
     let mut engine = RunEngine::new(42, 20);
     engine.debug_set_reward_screen(RewardScreen {
         source: RewardScreenSource::Combat,
@@ -105,7 +107,7 @@ fn claiming_egg_relic_upgrades_later_card_reward_choice() {
                 index: 0,
                 kind: RewardItemKind::Relic,
                 state: RewardItemState::Available,
-                label: "MoltenEgg2".to_string(),
+                label: "Molten Egg 2".to_string(),
                 claimable: true,
                 active: false,
                 skip_allowed: false,
@@ -138,6 +140,15 @@ fn claiming_egg_relic_upgrades_later_card_reward_choice() {
     let claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
     assert!(claim.action_accepted);
     assert!(engine.run_state.relic_flags.has(crate::relic_flags::flag::MOLTEN_EGG));
+    let screen = engine.current_reward_screen().expect("reward screen remains open");
+    assert!(matches!(
+        &screen.items[1].choices[0],
+        RewardChoice::Card { card_id, .. } if card_id == "Wallop+"
+    ));
+    assert!(matches!(
+        &screen.items[1].choices[1],
+        RewardChoice::Card { card_id, .. } if card_id == "Scrawl"
+    ));
     assert_eq!(
         claim.legal_decision_actions,
         vec![

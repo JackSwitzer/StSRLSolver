@@ -385,6 +385,38 @@ fn adjust_run_gold_state(run_state: &mut RunState, amount: i32) {
     }
 }
 
+fn upgrade_obtained_card_for_eggs(run_state: &RunState, card_id: &str) -> String {
+    if card_id.ends_with('+') {
+        return card_id.to_string();
+    }
+    let registry = crate::cards::global_registry();
+    let Some(def) = registry.get(card_id) else {
+        return card_id.to_string();
+    };
+    // FrozenEgg2.java, MoltenEgg2.java, and ToxicEgg2.java upgrade an
+    // upgradeable Power, Attack, or Skill respectively in both preview and
+    // obtain callbacks.
+    let should_upgrade = match def.card_type {
+        crate::cards::CardType::Attack => run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::MOLTEN_EGG),
+        crate::cards::CardType::Skill => run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::TOXIC_EGG),
+        crate::cards::CardType::Power => run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::FROZEN_EGG),
+        _ => false,
+    };
+    if should_upgrade {
+        let upgraded = format!("{card_id}+");
+        if registry.get(&upgraded).is_some() {
+            return upgraded;
+        }
+    }
+    card_id.to_string()
+}
+
 fn obtain_master_deck_card_state(run_state: &mut RunState, card_id: String) {
     let is_curse = crate::cards::global_registry()
         .get(&card_id)
@@ -400,6 +432,7 @@ fn obtain_master_deck_card_state(run_state: &mut RunState, card_id: String) {
         run_state.relic_flags.counters[crate::relic_flags::counter::OMAMORI_USES] -= 1;
         return;
     }
+    let card_id = upgrade_obtained_card_for_eggs(run_state, &card_id);
     run_state.deck.push(card_id);
     // DarkstonePeriapt.java calls increaseMaxHp(6, true) after an obtained
     // curse. AbstractCreature.java increases max HP, then heals through the
@@ -2372,7 +2405,7 @@ impl RunEngine {
             };
             cards.push(RewardChoice::Card {
                 index: choice_index,
-                card_id: card.to_string(),
+                card_id: self.upgrade_reward_card_if_needed(card),
             });
         }
         cards
@@ -2966,39 +2999,18 @@ impl RunEngine {
     }
 
     fn upgrade_reward_card_if_needed(&self, card_id: &str) -> String {
-        if card_id.ends_with('+') {
-            return card_id.to_string();
-        }
+        upgrade_obtained_card_for_eggs(&self.run_state, card_id)
+    }
 
-        let registry = crate::cards::global_registry();
-        let Some(def) = registry.get(card_id) else {
-            return card_id.to_string();
+    fn refresh_visible_card_rewards_for_eggs(&mut self) {
+        let run_state = &self.run_state;
+        let Some(screen) = self.reward_screen.as_mut() else {
+            return;
         };
-
-        let should_upgrade = match def.card_type {
-            crate::cards::CardType::Attack => self
-                .run_state
-                .relic_flags
-                .has(crate::relic_flags::flag::MOLTEN_EGG),
-            crate::cards::CardType::Skill => self
-                .run_state
-                .relic_flags
-                .has(crate::relic_flags::flag::TOXIC_EGG),
-            crate::cards::CardType::Power => self
-                .run_state
-                .relic_flags
-                .has(crate::relic_flags::flag::FROZEN_EGG),
-            _ => false,
-        };
-        if !should_upgrade {
-            return card_id.to_string();
-        }
-
-        let upgraded = format!("{card_id}+");
-        if registry.get(&upgraded).is_some() {
-            upgraded
-        } else {
-            card_id.to_string()
+        for choice in screen.items.iter_mut().flat_map(|item| item.choices.iter_mut()) {
+            if let RewardChoice::Card { card_id, .. } = choice {
+                *card_id = upgrade_obtained_card_for_eggs(run_state, card_id);
+            }
         }
     }
 
@@ -3023,6 +3035,12 @@ impl RunEngine {
         }
         self.run_state.relic_flags.rebuild(&self.run_state.relics);
         self.run_state.relic_flags.init_relic_counter(relic_id);
+
+        if matches!(relic_id, "Frozen Egg 2" | "Molten Egg 2" | "Toxic Egg 2") {
+            // Each Egg's onEquip revisits cards already present on the combat
+            // reward screen through onPreviewObtainCard.
+            self.refresh_visible_card_rewards_for_eggs();
+        }
 
         match relic_id {
             "Astrolabe" => self.prepare_astrolabe_on_equip(),
@@ -3283,8 +3301,11 @@ impl RunEngine {
             "Bottled Tornado",
             "Darkstone Periapt",
             "Eternal Feather",
+            "Frozen Egg 2",
+            "Molten Egg 2",
             "Ornamental Fan",
             "Thread and Needle",
+            "Toxic Egg 2",
         ];
         const RARE: &[&str] = &[
             "Bird Faced Urn",
@@ -3536,9 +3557,11 @@ impl RunEngine {
             "SingingBowl",
             "Whetstone",
             "WarPaint",
-            "MoltenEgg2",
-            "ToxicEgg2",
-            "FrozenEgg2",
+            // FrozenEgg2.java, MoltenEgg2.java, and ToxicEgg2.java use spaced
+            // canonical IDs, UNCOMMON tier, and a floor-48 spawn cutoff.
+            "Frozen Egg 2",
+            "Molten Egg 2",
+            "Toxic Egg 2",
         ];
 
         let mut candidates: Vec<&str> = RELIC_REWARD_POOL
@@ -3548,6 +3571,10 @@ impl RunEngine {
             .filter(|relic| *relic != "CeramicFish" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Darkstone Periapt" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Dream Catcher" || self.run_state.floor <= 48)
+            .filter(|relic| {
+                !matches!(*relic, "Frozen Egg 2" | "Molten Egg 2" | "Toxic Egg 2")
+                    || self.run_state.floor <= 48
+            })
             .filter(|relic| *relic != "Bottled Flame" || self.can_spawn_bottled_flame())
             .filter(|relic| {
                 *relic != "Bottled Lightning" || self.can_spawn_bottled_lightning()
@@ -3564,6 +3591,10 @@ impl RunEngine {
                     .filter(|relic| *relic != "CeramicFish" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Darkstone Periapt" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Dream Catcher" || self.run_state.floor <= 48)
+                    .filter(|relic| {
+                        !matches!(*relic, "Frozen Egg 2" | "Molten Egg 2" | "Toxic Egg 2")
+                            || self.run_state.floor <= 48
+                    })
                     .filter(|relic| *relic != "Bottled Flame" || self.can_spawn_bottled_flame())
                     .filter(|relic| {
                         *relic != "Bottled Lightning" || self.can_spawn_bottled_lightning()
@@ -3882,7 +3913,7 @@ impl RunEngine {
             } else {
                 price
             };
-            cards.push((card.to_string(), final_price));
+            cards.push((self.upgrade_reward_card_if_needed(card), final_price));
         }
 
         let remove_price = self.compute_shop_remove_price();
