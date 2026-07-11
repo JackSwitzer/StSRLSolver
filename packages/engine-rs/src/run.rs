@@ -3616,6 +3616,7 @@ impl RunEngine {
             "Molten Egg 2",
             "Ornamental Fan",
             "Pantograph",
+            "Shuriken",
             "Toxic Egg 2",
         ];
         const RARE: &[&str] = &[
@@ -3965,6 +3966,8 @@ impl RunEngine {
             "Ornamental Fan",
             // Pantograph.java uses canonical ID "Pantograph" and UNCOMMON tier.
             "Pantograph",
+            // Shuriken.java uses canonical ID "Shuriken" and UNCOMMON tier.
+            "Shuriken",
             // PenNib.java uses canonical ID "Pen Nib" and COMMON tier.
             "Pen Nib",
             // Pear.java uses canonical ID "Pear" and UNCOMMON tier.
