@@ -1273,6 +1273,22 @@ fn shovel_dig_opens_one_claimable_tiered_relic_reward_and_is_rl_visible() {
 }
 
 #[test]
+fn pantograph_is_reachable_from_uncommon_watcher_relic_rewards() {
+    // Pantograph.java constructs the shared relic at UNCOMMON tier under the
+    // canonical ID "Pantograph".
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Pantograph"
+            })
+        })
+    });
+    assert!(offered);
+}
+
+#[test]
 fn matryoshka_is_reachable_only_through_floor_forty() {
     // Matryoshka.java constructs an UNCOMMON relic and canSpawn allows
     // non-endless runs only while floorNum <= 40.
