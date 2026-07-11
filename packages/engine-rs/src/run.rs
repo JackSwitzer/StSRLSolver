@@ -2789,6 +2789,7 @@ impl RunEngine {
             "BlessingOfTheForge",
             "ColorlessPotion",
             "CultistPotion",
+            "DistilledChaos",
         ];
 
         let registry = gameplay_registry();

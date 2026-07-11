@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T05:00:38.514687+00:00",
+ "updated": "2026-07-11T05:11:16.291792+00:00",
  "status_counts": {
-  "unverified": 542,
-  "verified": 125
+  "unverified": 541,
+  "verified": 126
  },
  "rows": [
   {
@@ -4502,8 +4502,8 @@
    "class": "DistilledChaosPotion",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/DistilledChaosPotion.java",
    "methods_ref": "reference/extracted/methods/potion/DistilledChaosPotion.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

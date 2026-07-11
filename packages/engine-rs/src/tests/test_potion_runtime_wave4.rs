@@ -138,14 +138,28 @@ fn distilled_chaos_and_entropic_brew_chain_through_runtime_slots() {
     engine.state.potions[0] = "DistilledChaos".to_string();
     engine.state.potions[1] = "EntropicBrew".to_string();
 
+    let card_random_before = engine.card_random_rng.counter;
     use_potion(&mut engine, 0, -1);
-    assert_eq!(engine.state.hand.len(), 1, "Shrug It Off should leave its drawn Bash in hand");
-    assert_eq!(engine.state.draw_pile.len(), 0, "Sacred Bark should let Distilled Chaos exhaust the whole pile here");
-    assert_eq!(hand_names(&engine), vec!["Bash"]);
-    assert_eq!(engine.state.player.block, 13);
-    assert_eq!(engine.state.enemies[0].entity.hp, 32);
-    assert_eq!(engine.state.orb_slots.occupied_count(), 0);
+    // DistilledChaosPotion.getPotency returns 3 and Sacred Bark doubles the
+    // base AbstractPotion potency, so Java queues six target rolls and six
+    // PlayTopCardActions. Shrug It Off consumes one original draw card, making
+    // the sixth action shuffle the five already-played cards and retry.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/DistilledChaosPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/AbstractPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/PlayTopCardAction.java
+    assert_eq!(engine.card_random_rng.counter, card_random_before + 6);
+    assert_eq!(engine.state.cards_played_this_turn, 6);
+    assert_eq!(
+        engine
+            .event_log
+            .iter()
+            .filter(|record| record.event == crate::effects::trigger::Trigger::OnShuffle)
+            .count(),
+        1
+    );
+    assert_eq!(engine.state.energy, 3);
     assert!(engine.state.potions[0].is_empty());
+    let block_after_chaos = engine.state.player.block;
 
     engine.state.hand.clear();
     engine.state.potions[0] = String::new();
@@ -163,7 +177,7 @@ fn distilled_chaos_and_entropic_brew_chain_through_runtime_slots() {
         target_idx: -1,
     }));
     use_potion(&mut engine, 0, -1);
-    assert_eq!(engine.state.player.block, 37);
+    assert_eq!(engine.state.player.block, block_after_chaos + 24);
 }
 
 #[test]

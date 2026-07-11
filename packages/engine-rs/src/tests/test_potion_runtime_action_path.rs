@@ -206,6 +206,46 @@ fn distilled_chaos_moves_top_draw_cards_via_action_path() {
 }
 
 #[test]
+fn distilled_chaos_preselects_random_targets_and_retries_after_shuffle() {
+    // Source-derived (verify potion/DistilledChaosPotion): use() queues three
+    // PlayTopCardActions with targets selected through cardRandomRng, while
+    // PlayTopCardAction shuffles discard and retries when draw is empty.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/DistilledChaosPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/MonsterGroup.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/PlayTopCardAction.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike", "Strike", "Strike"]),
+        vec![
+            enemy_no_intent("JawWorm", 40, 40),
+            enemy_no_intent("Cultist", 40, 40),
+        ],
+        3,
+    ));
+    engine.state.hand.clear();
+    engine.state.draw_pile.clear();
+    engine.state.discard_pile = make_deck(&["Strike", "Strike", "Strike"]);
+    engine.state.potions[0] = "DistilledChaos".to_string();
+
+    let counter_before = engine.card_random_rng.counter;
+    let mut oracle = engine.card_random_rng.clone();
+    let mut expected_hits = [0; 2];
+    for _ in 0..3 {
+        expected_hits[oracle.random_range(0, 1) as usize] += 1;
+    }
+
+    use_potion(&mut engine, 0, -1);
+
+    assert_eq!(engine.card_random_rng.counter, counter_before + 3);
+    assert_eq!(engine.card_random_rng.counter, oracle.counter);
+    assert_eq!(engine.state.enemies[0].entity.hp, 40 - expected_hits[0] * 6);
+    assert_eq!(engine.state.enemies[1].entity.hp, 40 - expected_hits[1] * 6);
+    assert!(engine.state.draw_pile.is_empty());
+    assert_eq!(engine.state.discard_pile.len(), 3);
+    assert_eq!(engine.state.energy, 3, "autoplayed cards are free");
+    assert!(engine.state.potions[0].is_empty());
+}
+
+#[test]
 fn liquid_memories_returns_discard_cards_via_action_path() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame"]),

@@ -22,34 +22,58 @@ fn distilled_chaos_hook(
     // Sacred Bark, so its exact action-path behavior stays local to this
     // hook instead of going through the generic potency table.
     let potency = if engine.state.has_relic("SacredBark") { 6 } else { 3 };
-    for _ in 0..potency {
-        if engine.state.draw_pile.is_empty() {
-            break;
+
+    // DistilledChaosPotion.java chooses every target while `use` is building
+    // its PlayTopCardAction queue, so all cardRandomRng ticks happen before a
+    // top card can kill or otherwise change the monster group. MonsterGroup's
+    // inclusive random(0, size - 1) also consumes a tick with one living enemy.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/DistilledChaosPotion.java
+    // and decompiled/java-src/com/megacrit/cardcrawl/monsters/MonsterGroup.java
+    let living = engine.state.living_enemy_indices();
+    let targets: Vec<i32> = if living.is_empty() {
+        vec![-1; potency]
+    } else {
+        (0..potency)
+            .map(|_| {
+                let pick = engine
+                    .card_random_rng
+                    .random_range(0, (living.len() - 1) as i32)
+                    as usize;
+                living[pick] as i32
+            })
+            .collect()
+    };
+
+    let mut shuffles = 0;
+    for target_idx in targets {
+        // PlayTopCardAction retries after EmptyDeckShuffleAction whenever the
+        // draw pile is empty but the discard pile still contains cards.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/PlayTopCardAction.java
+        if engine.state.draw_pile.is_empty() && !engine.state.discard_pile.is_empty() {
+            engine.state.draw_pile = std::mem::take(&mut engine.state.discard_pile);
+            engine.shuffle_draw_pile();
+            shuffles += 1;
         }
 
-        let card = engine
-            .state
-            .draw_pile
-            .pop()
-            .expect("checked non-empty draw pile");
+        let Some(card) = engine.state.draw_pile.pop() else {
+            continue;
+        };
+
         let free_card = card.set_free(true);
         engine.state.hand.push(free_card);
         let hand_idx = engine.state.hand.len() - 1;
-
-        let target_idx = {
-            let def = engine.card_registry.card_def_by_id(free_card.def_id);
-            match def.target {
-                crate::cards::CardTarget::Enemy => engine
-                    .state
-                    .living_enemy_indices()
-                    .first()
-                    .map(|idx| *idx as i32)
-                    .unwrap_or(-1),
-                _ => -1,
-            }
-        };
-
         engine.execute_action(&Action::PlayCard { card_idx: hand_idx, target_idx });
+    }
+
+    // EmptyDeckShuffleAction constructs relic onShuffle actions behind the
+    // already queued PlayTopCardActions, so dispatch after this potion's plays.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/EmptyDeckShuffleAction.java
+    for _ in 0..shuffles {
+        let ctx = crate::effects::trigger::TriggerContext::empty();
+        engine.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+            crate::effects::trigger::Trigger::OnShuffle,
+            &ctx,
+        ));
     }
 }
 
