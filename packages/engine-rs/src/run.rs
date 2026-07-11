@@ -346,6 +346,10 @@ pub struct RunState {
     // Canonical owner-aware runtime state that persists across combats.
     #[serde(default)]
     pub persisted_effect_states: Vec<crate::effects::runtime::PersistedEffectState>,
+
+    // LizardTail.java marks the relic used permanently after its one revive.
+    #[serde(default)]
+    pub lizard_tail_used: bool,
 }
 
 fn default_purge_cost() -> i32 {
@@ -523,6 +527,7 @@ impl RunState {
             run_over: false,
             relic_flags,
             persisted_effect_states: Vec::new(),
+            lizard_tail_used: false,
         }
     }
 }
@@ -1861,6 +1866,11 @@ impl RunEngine {
         combat_state
             .player
             .set_status(crate::status_ids::sid::DU_VU_DOLL_CURSES, du_vu_curses);
+        if self.run_state.lizard_tail_used {
+            combat_state
+                .player
+                .set_status(crate::status_ids::sid::LIZARD_TAIL_USED, 1);
+        }
         combat_state.relics = self.run_state.relics.clone();
         combat_state.potions = self.run_state.potions.clone();
         combat_state.relic_counters = self.run_state.relic_flags.counters;
@@ -2203,6 +2213,11 @@ impl RunEngine {
                     .map(|card| engine.card_registry.card_name(card.def_id).to_string())
                     .collect();
                 self.run_state.relic_flags.counters = engine.state.relic_counters;
+                self.run_state.lizard_tail_used = engine
+                    .state
+                    .player
+                    .status(crate::status_ids::sid::LIZARD_TAIL_USED)
+                    > 0;
                 self.run_state.persisted_effect_states = engine.export_persisted_effects();
                 self.last_combat_events = engine.take_event_log();
                 self.pending_event_combat = None;
@@ -2246,6 +2261,11 @@ impl RunEngine {
                     adjust_run_gold_state(&mut self.run_state, engine.state.pending_run_gold);
                 }
                 self.run_state.relic_flags.counters = engine.state.relic_counters;
+                self.run_state.lizard_tail_used = engine
+                    .state
+                    .player
+                    .status(crate::status_ids::sid::LIZARD_TAIL_USED)
+                    > 0;
                 self.run_state.persisted_effect_states = engine.export_persisted_effects();
                 self.run_state.combats_won += 1;
                 self.last_combat_events = engine.take_event_log();
@@ -2366,6 +2386,11 @@ impl RunEngine {
                 // Player died
                 reward -= 1.0;
                 self.run_state.current_hp = 0;
+                self.run_state.lizard_tail_used = engine
+                    .state
+                    .player
+                    .status(crate::status_ids::sid::LIZARD_TAIL_USED)
+                    > 0;
                 self.run_state.persisted_effect_states = engine.export_persisted_effects();
                 self.last_combat_events = engine.take_event_log();
                 self.run_state.run_over = true;
@@ -3564,6 +3589,8 @@ impl RunEngine {
             "Lantern",
             // LetterOpener.java uses canonical ID "Letter Opener" and UNCOMMON tier.
             "Letter Opener",
+            // LizardTail.java uses canonical ID "Lizard Tail" and RARE tier.
+            "Lizard Tail",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",

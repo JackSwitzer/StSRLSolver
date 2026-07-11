@@ -20,6 +20,7 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/Ginger.java
 // - decompiled/java-src/com/megacrit/cardcrawl/actions/common/ApplyPowerAction.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/IceCream.java
+// - decompiled/java-src/com/megacrit/cardcrawl/relics/LizardTail.java
 // - decompiled/java-src/com/megacrit/cardcrawl/core/EnergyManager.java
 
 use crate::effects::runtime::EffectOwner;
@@ -416,6 +417,49 @@ fn lantern_grants_bonus_energy_only_on_turn_one_runtime_path() {
     end_turn(&mut engine);
     assert_eq!(engine.state.turn, 2);
     assert_eq!(engine.state.energy, 3);
+}
+
+#[test]
+fn lizard_tail_revive_uses_healing_rules_and_stays_consumed_next_combat() {
+    // LizardTail.java heals maxHealth / 2 (minimum 1) through player.heal and
+    // then uses itself up. The relic object persists, so the used state is run-wide.
+    let mut lethal_enemy = enemy("JawWorm", 60, 60, 1, 200, 1);
+    lethal_enemy.set_move(1, 200, 1, 0);
+    let mut first_state = combat_state_with(
+        make_deck_n("Strike", 10),
+        vec![lethal_enemy],
+        3,
+    );
+    first_state.relics.push("Lizard Tail".to_string());
+    // Magic Flower's combat marker is the centralized Java-style healing modifier.
+    first_state.player.set_status(sid::HAS_MAGIC_FLOWER, 1);
+    first_state.player.hp = 10;
+    let mut first = engine_with_state(first_state);
+
+    end_turn(&mut first);
+
+    assert_eq!(first.state.player.max_hp, 80);
+    assert_eq!(first.state.player.hp, 60, "40-point revive is boosted by 50%");
+    assert_eq!(first.state.player.status(sid::LIZARD_TAIL_USED), 1);
+    assert!(!first.state.combat_over);
+
+    let mut next_enemy = enemy("JawWorm", 60, 60, 1, 200, 1);
+    next_enemy.set_move(1, 200, 1, 0);
+    let mut next_state = combat_state_with(
+        make_deck_n("Strike", 10),
+        vec![next_enemy],
+        3,
+    );
+    next_state.relics.push("Lizard Tail".to_string());
+    next_state.player.set_status(sid::LIZARD_TAIL_USED, 1);
+    next_state.player.hp = 10;
+    let mut next = engine_with_state(next_state);
+
+    end_turn(&mut next);
+
+    assert_eq!(next.state.player.hp, 0);
+    assert!(next.state.combat_over);
+    assert!(!next.state.player_won);
 }
 
 #[test]

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T08:39:11.671371+00:00",
+ "updated": "2026-07-11T08:43:29.108779+00:00",
  "status_counts": {
-  "unverified": 478,
-  "verified": 189
+  "unverified": 477,
+  "verified": 190
  },
  "rows": [
   {
@@ -5602,8 +5602,8 @@
    "class": "LizardTail",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/LizardTail.java",
    "methods_ref": "reference/extracted/methods/relic/LizardTail.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

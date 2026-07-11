@@ -2746,8 +2746,14 @@ impl CombatEngine {
                 && (self.state.has_relic("Lizard Tail") || self.state.has_relic("LizardTail"))
                 && self.state.player.status(sid::LIZARD_TAIL_USED) == 0
             {
+                // LizardTail.java::onTrigger calls player.heal(maxHealth / 2,
+                // true), clamped to at least 1, then permanently uses up the
+                // relic. RunEngine persists this status between combats; use
+                // the normal heal path so modifiers such as Magic Flower apply.
                 self.state.player.set_status(sid::LIZARD_TAIL_USED, 1);
-                self.state.player.hp = self.state.player.max_hp / 2;
+                self.state.player.hp = 0;
+                let heal_amount = (self.state.player.max_hp / 2).max(1);
+                self.heal_player(heal_amount);
                 return;
             }
             // No revive available
