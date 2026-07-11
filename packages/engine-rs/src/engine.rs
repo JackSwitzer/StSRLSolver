@@ -3084,6 +3084,54 @@ impl CombatEngine {
         }
     }
 
+    /// Deal DamageInfo.THORNS damage to an enemy after target-only power
+    /// calculation, as used by Fire Potion. This intentionally bypasses
+    /// NORMAL-only modifiers/reactions such as Slow, Vulnerable, Flight,
+    /// Curl Up, and Malleable.
+    pub(crate) fn deal_thorns_damage_to_enemy(&mut self, enemy_idx: usize, damage: i32) {
+        if enemy_idx >= self.state.enemies.len() || !self.state.enemies[enemy_idx].is_alive() {
+            return;
+        }
+
+        let mut incoming = damage.max(0);
+        if self.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) > 0 && incoming > 1 {
+            incoming = 1;
+        }
+
+        let blocked = self.state.enemies[enemy_idx].entity.block.min(incoming);
+        self.state.enemies[enemy_idx].entity.block -= blocked;
+        let mut hp_damage = incoming - blocked;
+
+        if hp_damage > 0 {
+            let buffer = self.state.enemies[enemy_idx].entity.status(sid::BUFFER);
+            if buffer > 0 {
+                self.state.enemies[enemy_idx]
+                    .entity
+                    .set_status(sid::BUFFER, buffer - 1);
+                hp_damage = 0;
+            }
+        }
+        if hp_damage > 0 {
+            hp_damage = powers::apply_invincible_cap_tracked(
+                &mut self.state.enemies[enemy_idx].entity,
+                hp_damage,
+            );
+        }
+
+        self.state.enemies[enemy_idx].entity.hp -= hp_damage;
+        self.state.total_damage_dealt += hp_damage;
+
+        // ShiftingPower.onAttacked applies to positive damage of every type.
+        if hp_damage > 0 {
+            let shifting = self.state.enemies[enemy_idx].entity.status(sid::SHIFTING);
+            if shifting > 0 {
+                self.state.enemies[enemy_idx].entity.block += hp_damage;
+            }
+        }
+
+        self.record_enemy_hp_damage(enemy_idx, hp_damage);
+    }
+
     pub(crate) fn execute_card_effects_with_enemy_on_use(
         &mut self,
         card: &CardDef,

@@ -161,7 +161,8 @@ pub fn potion_requires_target(potion_id: &str) -> bool {
 /// are unaffected by ascension.
 fn potion_potency(potion_id: &str) -> Option<(i32, i32)> {
     match potion_id {
-        "Fire Potion" | "FirePotion" => Some((20, 15)),
+        // FirePotion.java getPotency ignores ascension and always returns 20.
+        "Fire Potion" | "FirePotion" => Some((20, 20)),
         // ExplosivePotion.java getPotency ignores ascension and always returns 10.
         "Explosive Potion" | "ExplosivePotion" => Some((10, 10)),
         // BlockPotion.java getPotency ignores ascension and always returns 12.
@@ -948,11 +949,12 @@ mod tests {
     // --- Ascension 11 reduced potency tests ---
 
     #[test]
-    fn test_a11_fire_potion_reduced() {
+    fn test_a11_fire_potion_stays_at_twenty() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FirePotion.java
         let mut state = make_test_state();
         let initial_hp = state.enemies[0].entity.hp;
         apply_potion_scaled(&mut state, "Fire Potion", 0, 11);
-        assert_eq!(state.enemies[0].entity.hp, initial_hp - 15);
+        assert_eq!(state.enemies[0].entity.hp, initial_hp - 20);
     }
 
     #[test]
@@ -1044,11 +1046,13 @@ mod tests {
 
     #[test]
     fn test_a11_sacred_bark_stacks() {
+        // Java: FirePotion potency remains 20 at A11; Sacred Bark doubles it.
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/potions/FirePotion.java
         let mut state = make_test_state();
         state.relics.push("SacredBark".to_string());
         let initial_hp = state.enemies[0].entity.hp;
         apply_potion_scaled(&mut state, "Fire Potion", 0, 11);
-        assert_eq!(state.enemies[0].entity.hp, initial_hp - 30);
+        assert_eq!(state.enemies[0].entity.hp, initial_hp - 40);
     }
 
     #[test]

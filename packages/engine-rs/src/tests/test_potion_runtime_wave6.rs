@@ -262,3 +262,41 @@ fn fear_potion_keeps_three_potency_and_only_debuffs_its_target() {
     assert_eq!(engine.state.enemies[1].entity.status(sid::VULNERABLE_JUST_APPLIED), 0);
     assert!(engine.state.potions[0].is_empty());
 }
+
+#[test]
+fn fire_potion_uses_target_only_thorns_damage_and_constant_potency() {
+    // Source-derived (verify potion/FirePotion): getPotency is always twenty,
+    // Sacred Bark doubles it, and applyEnemyPowersOnly calculates THORNS
+    // damage without NORMAL-only modifiers or reactions.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FirePotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/DamageInfo.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("Byrd", 100, 100)],
+        3,
+    ));
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.enemies[0].entity.set_status(sid::SLOW, 5);
+    engine.state.enemies[0].entity.set_status(sid::VULNERABLE, 3);
+    engine.state.enemies[0].entity.set_status(sid::FLIGHT, 3);
+    engine.state.enemies[0].entity.set_status(sid::CURL_UP, 8);
+    engine.state.enemies[0].entity.set_status(sid::MALLEABLE, 3);
+    engine.state.potions[0] = "Fire Potion".to_string();
+
+    use_potion(&mut engine, 0, 0);
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 60);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::FLIGHT), 3);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::CURL_UP), 8);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::MALLEABLE), 3);
+
+    let mut intangible = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("Nemesis", 50, 50)],
+        3,
+    ));
+    intangible.state.enemies[0].entity.set_status(sid::INTANGIBLE, 1);
+    intangible.state.potions[0] = "Fire Potion".to_string();
+    use_potion(&mut intangible, 0, 0);
+    assert_eq!(intangible.state.enemies[0].entity.hp, 49);
+}
