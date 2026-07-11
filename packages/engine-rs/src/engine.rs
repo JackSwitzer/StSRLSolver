@@ -308,7 +308,7 @@ impl CombatEngine {
                 | "AcidSlime_S" | "AcidSlime_M" | "AcidSlime_L"
                 | "SpikeSlime_S" | "SpikeSlime_M" | "SpikeSlime_L" | "Looter"
                 | "GremlinFat" | "GremlinThief" | "GremlinWarrior"
-                | "GremlinWizard" | "GremlinTsundere")) {
+                | "GremlinWizard" | "GremlinTsundere" | "GremlinNob")) {
             crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
         }
 

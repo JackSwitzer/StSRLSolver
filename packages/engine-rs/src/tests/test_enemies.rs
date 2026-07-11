@@ -714,23 +714,31 @@ mod enemy_tests {
         let e = create_enemy("GremlinNob", 106, 106);
         assert_eq!(e.move_id, NOB_BELLOW);
     }
-    #[test] fn nob_has_enrage() {
+    #[test] fn nob_bellow_applies_enrage_during_its_turn() {
+        // Source: reference/extracted/methods/monster/GremlinNob.java.
         let e = create_enemy("GremlinNob", 106, 106);
-        assert_eq!(e.entity.status(sid::ENRAGE), 2);
+        assert_eq!(e.entity.status(sid::ENRAGE), 0);
+        assert_eq!(e.effect(mfx::ENRAGE), Some(2));
     }
-    #[test] fn nob_skull_bash_vuln() {
-        let mut e = create_enemy("GremlinNob", 106, 106);
-        // Cycle to find Skull Bash
-        let mut found = false;
-        for _ in 0..10 {
-            roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-            if e.move_id == NOB_SKULL_BASH {
-                found = true;
-                assert!(e.effect(mfx::VULNERABLE).is_some());
-                break;
-            }
+    #[test] fn nob_pre_a18_uses_33_percent_bash_split() {
+        for (num, move_id) in [(32, NOB_SKULL_BASH), (33, NOB_RUSH)] {
+            let mut e = create_enemy("GremlinNob", 86, 86);
+            roll_initial_move_with_num_and_rng(
+                &mut e, 99, &mut crate::seed::StsRandom::new(1));
+            roll_next_move_with_num(&mut e, num);
+            assert_eq!(e.move_id, move_id);
         }
-        assert!(found, "Nob should use Skull Bash in first 10 moves");
+    }
+
+    #[test] fn nob_a18_forces_bash_after_two_turns_without_one() {
+        let mut e = create_enemy("GremlinNob", 90, 90);
+        e.entity.set_status(sid::BLOCK_AMT, 18);
+        e.entity.set_status(sid::IS_FIRST_MOVE, 1);
+        e.move_history = vec![NOB_RUSH, NOB_RUSH];
+        e.set_move(NOB_RUSH, 16, 1, 0);
+        roll_next_move_with_num(&mut e, 99);
+        assert_eq!(e.move_id, NOB_SKULL_BASH);
+        assert_eq!(e.effect(mfx::VULNERABLE), Some(2));
     }
 
     // ========== Lagavulin (Elite) ==========

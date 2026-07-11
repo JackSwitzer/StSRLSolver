@@ -475,12 +475,36 @@ pub fn advance_gremlin_tsundere_after_turn(
     }
 }
 
-pub(super) fn roll_gremlin_nob(enemy: &mut EnemyCombatState, _num: i32) {
-    if last_move(enemy, move_ids::NOB_BELLOW) || last_move(enemy, move_ids::NOB_SKULL_BASH) {
-        enemy.set_move(move_ids::NOB_RUSH, 14, 1, 0);
+pub(super) fn roll_gremlin_nob(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/GremlinNob.java (`getMove`).
+    let rush = enemy.entity.status(sid::STARTING_DMG).max(14);
+    let bash = enemy.entity.status(sid::STR_AMT).max(6);
+    if enemy.entity.status(sid::IS_FIRST_MOVE) == 0 {
+        enemy.entity.set_status(sid::IS_FIRST_MOVE, 1);
+        enemy.set_move(move_ids::NOB_BELLOW, 0, 0, 0);
+        enemy.add_effect(mfx::ENRAGE,
+            enemy.entity.status(sid::TURN_COUNT).max(2) as i16);
+        return;
+    }
+    let a18 = enemy.entity.status(sid::BLOCK_AMT) >= 18;
+    let choose_bash = if a18 {
+        let last = enemy.move_history.last().copied();
+        let before = enemy.move_history.iter().rev().nth(1).copied();
+        if last != Some(move_ids::NOB_SKULL_BASH)
+            && before != Some(move_ids::NOB_SKULL_BASH)
+        {
+            true
+        } else {
+            last_two_moves(enemy, move_ids::NOB_RUSH)
+        }
     } else {
-        enemy.set_move(move_ids::NOB_SKULL_BASH, 6, 1, 0);
+        num < 33 || last_two_moves(enemy, move_ids::NOB_RUSH)
+    };
+    if choose_bash {
+        enemy.set_move(move_ids::NOB_SKULL_BASH, bash, 1, 0);
         enemy.add_effect(mfx::VULNERABLE, 2);
+    } else {
+        enemy.set_move(move_ids::NOB_RUSH, rush, 1, 0);
     }
 }
 

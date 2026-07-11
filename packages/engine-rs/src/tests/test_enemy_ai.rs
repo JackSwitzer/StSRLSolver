@@ -192,8 +192,10 @@ mod enemy_ai_java_parity_tests {
             &[(mfx::BLOCK_RANDOM_OTHER, 7)]);
 
         let e = make("GremlinNob", 106);
-        expect_move(&e, move_ids::NOB_BELLOW, 0, 0, 0, &[]);
-        expect_status(&e, sid::ENRAGE, 2);
+        // Source: reference/extracted/methods/monster/GremlinNob.java: Bellow
+        // applies Enrage during takeTurn, not during construction.
+        expect_move(&e, move_ids::NOB_BELLOW, 0, 0, 0, &[(mfx::ENRAGE, 2)]);
+        expect_status(&e, sid::ENRAGE, 0);
 
         let e = make("Lagavulin", 109);
         expect_move(&e, move_ids::LAGA_SLEEP, 0, 0, 0, &[]);
@@ -353,14 +355,13 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::GREMLIN_TSUNDERE_BASH, 6, 1, 0, &[]);
 
         let mut e = make("GremlinNob", 106);
-        roll_times(&mut e, 1);
-        assert!(
-            matches!(e.move_id, move_ids::NOB_SKULL_BASH | move_ids::NOB_RUSH),
-            "GremlinNob should follow Bellow with either Skull Bash or Rush"
-        );
+        roll_initial_move_with_num_and_rng(
+            &mut e, 99, &mut crate::seed::StsRandom::new(1));
+        roll_with_num(&mut e, 33);
+        expect_move(&e, move_ids::NOB_RUSH, 14, 1, 0, &[]);
         e.move_id = move_ids::NOB_RUSH;
         e.move_history = vec![move_ids::NOB_RUSH, move_ids::NOB_RUSH];
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 99);
         expect_move(&e, move_ids::NOB_SKULL_BASH, 6, 1, 0, &[(mfx::VULNERABLE, 2)]);
 
         let mut e = make("Lagavulin", 109);
@@ -858,7 +859,9 @@ mod enemy_ai_java_parity_tests {
         let act1_elite = enter_forced_combat(1, 20, RoomType::Elite, 0);
         let combat = act1_elite.get_combat_engine().expect("combat engine");
         assert_eq!(combat.state.enemies[0].id, "GremlinNob");
-        assert_eq!(combat.state.enemies[0].entity.hp, 110);
+        // Source: reference/extracted/methods/monster/GremlinNob.java:
+        // ascension 8+ uses inclusive setHp(85, 90), not fixed 110 HP.
+        assert!((85..=90).contains(&combat.state.enemies[0].entity.hp));
 
         let act2_weak = enter_forced_combat(2, 0, RoomType::Monster, 0);
         let combat = act2_weak.get_combat_engine().expect("combat engine");

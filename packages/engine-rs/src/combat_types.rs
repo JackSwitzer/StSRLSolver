@@ -142,6 +142,7 @@ pub mod mfx {
     pub const HEAL_LOWEST_ALLY: u8 = 32;
     pub const STRENGTH_ALL_ALLIES: u8 = 33;
     pub const BLOCK_RANDOM_OTHER: u8 = 34;
+    pub const ENRAGE: u8 = 35;
 }
 
 // ---------------------------------------------------------------------------

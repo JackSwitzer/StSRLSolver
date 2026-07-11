@@ -1437,6 +1437,25 @@ impl RunEngine {
                 block as i16);
         }
 
+        // Source: reference/extracted/methods/monster/GremlinNob.java.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "GremlinNob") {
+            let (rush, bash) = if self.run_state.ascension >= 3 {
+                (16, 8)
+            } else {
+                (14, 6)
+            };
+            let enrage = if self.run_state.ascension >= 18 { 3 } else { 2 };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, rush);
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT, bash);
+            enemy.entity.set_status(crate::status_ids::sid::TURN_COUNT, enrage);
+            enemy.entity.set_status(crate::status_ids::sid::IS_FIRST_MOVE, 0);
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if self.run_state.ascension >= 18 { 18 } else { 0 });
+            enemy.entity.set_status(crate::status_ids::sid::ENRAGE, 0);
+            enemy.set_move(crate::enemies::move_ids::NOB_BELLOW, 0, 0, 0);
+            enemy.add_effect(crate::combat_types::mfx::ENRAGE, enrage as i16);
+        }
+
         // The boss passes ascension-derived large-slime constructor values to
         // its children when its split resolves.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "SlimeBoss") {
@@ -1607,7 +1626,12 @@ impl RunEngine {
                 (hp, hp)
             }
             "GremlinNob" => {
-                let hp = if a20 { 110 } else { 106 };
+                let (base, width) = if self.run_state.ascension >= 8 {
+                    (85, 5)
+                } else {
+                    (82, 4)
+                };
+                let hp = base + self.rng.gen_range(0..=width);
                 (hp, hp)
             }
             "Lagavulin" => {
@@ -5266,6 +5290,68 @@ mod tests {
         crate::combat_hooks::do_enemy_turns(combat);
         assert!(combat.state.enemies[0].is_escaping);
         assert_eq!(combat.state.enemies[0].entity.hp, 0);
+    }
+
+    #[test]
+    fn gremlin_nob_stats_bellow_ai_enrage_and_a18_history_match_java() {
+        // Source: reference/extracted/methods/monster/GremlinNob.java.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("GremlinNob").0);
+            let mut high = RunEngine::new(seed, 8);
+            high_hp.insert(high.roll_enemy_hp("GremlinNob").0);
+        }
+        assert_eq!(low_hp, (82..=86).collect());
+        assert_eq!(high_hp, (85..=90).collect());
+
+        for (ascension, rush, bash, enrage, marker) in
+            [(0, 14, 6, 2, 0), (3, 16, 8, 2, 0), (18, 16, 8, 3, 18)]
+        {
+            let mut engine = RunEngine::new(42, ascension);
+            engine.enter_specific_combat(vec!["GremlinNob".to_string()]);
+            let combat = engine.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!(enemy.move_id, crate::enemies::move_ids::NOB_BELLOW);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG), rush);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), bash);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::TURN_COUNT), enrage);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::BLOCK_AMT), marker);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::ENRAGE), 0);
+            assert_eq!(enemy.effect(crate::combat_types::mfx::ENRAGE),
+                Some(enrage as i16));
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        let mut a18 = RunEngine::new(42, 18);
+        a18.enter_specific_combat(vec!["GremlinNob".to_string()]);
+        a18.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        {
+            let combat = a18.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::ENRAGE), 3);
+            assert_eq!(enemy.move_id, crate::enemies::move_ids::NOB_SKULL_BASH,
+                "A18 forces Bash when neither of the previous two moves was Bash");
+            assert_eq!(enemy.move_damage(), 8);
+            assert_eq!(enemy.effect(crate::combat_types::mfx::VULNERABLE), Some(2));
+            assert_eq!(combat.ai_rng.counter, 2);
+        }
+
+        {
+            let combat = a18.combat_engine.as_mut().unwrap();
+            let defend = combat.card_registry.make_card("Defend");
+            combat.state.hand.clear();
+            combat.state.hand.push(defend);
+            combat.state.energy = 3;
+        }
+        a18.step(&RunAction::CombatAction(crate::actions::Action::PlayCard {
+            card_idx: 0,
+            target_idx: -1,
+        }));
+        assert_eq!(a18.combat_engine.as_ref().unwrap().state.enemies[0]
+            .entity.status(crate::status_ids::sid::STRENGTH), 3,
+            "the Enrage installed by Bellow triggers on a Skill");
     }
 
     #[test]

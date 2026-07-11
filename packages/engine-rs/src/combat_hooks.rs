@@ -319,6 +319,10 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             .entity
             .set_status(sid::RITUAL, amt as i32);
     }
+    if let Some(amt) = get_fx(&effects, mfx::ENRAGE) {
+        engine.state.enemies[enemy_idx]
+            .entity.set_status(sid::ENRAGE, amt as i32);
+    }
     if let Some(amt) = get_fx(&effects, mfx::ENTANGLE) {
         if amt > 0 {
             engine.state.player.set_status(sid::ENTANGLED, 1);

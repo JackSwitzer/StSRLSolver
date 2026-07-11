@@ -527,8 +527,13 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.add_effect(mfx::BLOCK_RANDOM_OTHER, 7);
         }
         "GremlinNob" | "Gremlin Nob" => {
+            enemy.entity.set_status(sid::STARTING_DMG, 14);
+            enemy.entity.set_status(sid::STR_AMT, 6);
+            enemy.entity.set_status(sid::TURN_COUNT, 2);
+            enemy.entity.set_status(sid::IS_FIRST_MOVE, 0);
+            enemy.entity.set_status(sid::BLOCK_AMT, 0);
             enemy.set_move(move_ids::NOB_BELLOW, 0, 0, 0);
-            enemy.entity.set_status(sid::ENRAGE, 2);
+            enemy.add_effect(mfx::ENRAGE, 2);
         }
         "Lagavulin" => {
             enemy.set_move(move_ids::LAGA_SLEEP, 0, 0, 0);

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T03:14:23.445575+00:00",
+ "updated": "2026-07-11T03:21:13.371509+00:00",
  "status_counts": {
-  "unverified": 569,
-  "verified": 98
+  "unverified": 568,
+  "verified": 99
  },
  "rows": [
   {
@@ -3992,8 +3992,8 @@
    "class": "GremlinNob",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/exordium/GremlinNob.java",
    "methods_ref": "reference/extracted/methods/monster/GremlinNob.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

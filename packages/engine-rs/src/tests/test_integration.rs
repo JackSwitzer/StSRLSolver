@@ -1455,6 +1455,11 @@ mod combat_engine_p0_p1_regression {
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
 
+        // Source: reference/extracted/methods/monster/GremlinNob.java. Enrage
+        // is applied by Bellow's takeTurn, so execute that turn first.
+        e.execute_action(&Action::EndTurn);
+        assert_eq!(e.state.enemies[0].entity.status(sid::ENRAGE), 2);
+
         let str_before = e.state.enemies[0].entity.strength();
 
         // Play a Defend (Skill) — should trigger Enrage (+2 Str)
@@ -1472,6 +1477,10 @@ mod combat_engine_p0_p1_regression {
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
+
+        // Source: reference/extracted/methods/monster/GremlinNob.java.
+        e.execute_action(&Action::EndTurn);
+        assert_eq!(e.state.enemies[0].entity.status(sid::ENRAGE), 2);
 
         let str_before = e.state.enemies[0].entity.strength();
 
