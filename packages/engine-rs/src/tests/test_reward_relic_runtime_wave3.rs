@@ -240,6 +240,80 @@ fn coffee_dripper_is_reachable_and_disables_only_campfire_rest() {
 }
 
 #[test]
+fn cursed_key_is_reachable_and_nonboss_chests_obtain_one_random_curse() {
+    // CursedKey.java constructs a BOSS relic, increments energyMaster, and
+    // onChestOpen obtains one random curse only when bossChest is false.
+    let offered = (0..128).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_boss_reward_screen();
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0].choices.iter().any(|choice| {
+                matches!(choice, RewardChoice::Named { label, .. } if label == "Cursed Key")
+            })
+        })
+    });
+    assert!(offered);
+
+    let mut engine = RunEngine::new(42, 0);
+    engine.debug_set_reward_screen(relic_choice_reward_screen(&["Cursed Key"]));
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(engine
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+
+    let deck_before = engine.run_state.deck.len();
+    engine.debug_build_boss_reward_screen();
+    assert_eq!(engine.run_state.deck.len(), deck_before);
+    engine.debug_build_treasure_reward_screen();
+    assert_eq!(engine.run_state.deck.len(), deck_before + 1);
+    assert!(matches!(
+        engine.run_state.deck.last().map(String::as_str),
+        Some(
+            "Clumsy"
+                | "Decay"
+                | "Doubt"
+                | "Injury"
+                | "Normality"
+                | "Pain"
+                | "Parasite"
+                | "Regret"
+                | "Shame"
+                | "Writhe"
+        )
+    ));
+
+    // ShowCardAndObtainEffect.java consumes Omamori before adding the curse or
+    // dispatching any onObtainCard hooks.
+    let mut protected = RunEngine::new(43, 0);
+    protected.run_state.relics.extend([
+        "Cursed Key".to_string(),
+        "Omamori".to_string(),
+        "CeramicFish".to_string(),
+    ]);
+    protected
+        .run_state
+        .relic_flags
+        .rebuild(&protected.run_state.relics);
+    protected.run_state.relic_flags.counters
+        [crate::relic_flags::counter::OMAMORI_USES] = 1;
+    let deck_before = protected.run_state.deck.len();
+    let gold_before = protected.run_state.gold;
+    protected.debug_build_treasure_reward_screen();
+    assert_eq!(protected.run_state.deck.len(), deck_before);
+    assert_eq!(protected.run_state.gold, gold_before);
+    assert_eq!(
+        protected.run_state.relic_flags.counters
+            [crate::relic_flags::counter::OMAMORI_USES],
+        0
+    );
+}
+
+#[test]
 fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
     // Source-derived (verify relic/Calling Bell): CallingBell.java is BOSS tier,
     // confirms CurseOfTheBell, then opens COMMON, UNCOMMON, and RARE relic

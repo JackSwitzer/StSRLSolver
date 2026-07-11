@@ -167,6 +167,21 @@ const MATCH_AND_KEEP_CURSES: &[&str] = &[
     "Writhe",
 ];
 
+// CardLibrary.java::getCurse excludes Ascender's Bane, Necronomicurse,
+// Curse of the Bell, and Pride from random curse generation.
+const RANDOM_OBTAINABLE_CURSES: &[&str] = &[
+    "Clumsy",
+    "Decay",
+    "Doubt",
+    "Injury",
+    "Normality",
+    "Pain",
+    "Parasite",
+    "Regret",
+    "Shame",
+    "Writhe",
+];
+
 // ---------------------------------------------------------------------------
 // Act 1 encounter pools (simplified)
 // ---------------------------------------------------------------------------
@@ -369,6 +384,20 @@ fn adjust_run_gold_state(run_state: &mut RunState, amount: i32) {
 }
 
 fn obtain_master_deck_card_state(run_state: &mut RunState, card_id: String) {
+    let is_curse = crate::cards::global_registry()
+        .get(&card_id)
+        .is_some_and(|card| card.card_type == crate::cards::CardType::Curse);
+    // ShowCardAndObtainEffect.java lets Omamori consume a charge and completes
+    // without dispatching onObtainCard or adding the curse to the master deck.
+    if is_curse
+        && run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::OMAMORI)
+        && run_state.relic_flags.counters[crate::relic_flags::counter::OMAMORI_USES] > 0
+    {
+        run_state.relic_flags.counters[crate::relic_flags::counter::OMAMORI_USES] -= 1;
+        return;
+    }
     run_state.deck.push(card_id);
     // Sources: CeramicFish.java::onObtainCard gains 9 gold for every obtained
     // card; ShowCardAndObtainEffect.java and FastCardObtainEffect.java dispatch
@@ -1725,8 +1754,8 @@ impl RunEngine {
                 card.flags |= crate::combat_types::CardInstance::FLAG_INNATE;
             }
         }
-        // BustedCrown.java and CoffeeDripper.java each increment energyMaster
-        // exactly once in onEquip.
+        // BustedCrown.java, CoffeeDripper.java, and CursedKey.java each
+        // increment energyMaster exactly once in onEquip.
         let combat_energy = 3
             + i32::from(
                 self.run_state
@@ -1737,6 +1766,11 @@ impl RunEngine {
                 self.run_state
                     .relic_flags
                     .has(crate::relic_flags::flag::COFFEE_DRIPPER),
+            )
+            + i32::from(
+                self.run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::CURSED_KEY),
             );
         let mut combat_state = CombatState::new(
             self.run_state.current_hp,
@@ -2437,6 +2471,18 @@ impl RunEngine {
     }
 
     fn build_treasure_reward_screen(&mut self) {
+        // CursedKey.java::onChestOpen obtains one random curse for non-boss
+        // chests. Boss relic rewards use their separate boss-chest path.
+        if self
+            .run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::CURSED_KEY)
+        {
+            let curse = RANDOM_OBTAINABLE_CURSES
+                [self.rng.gen_range(0..RANDOM_OBTAINABLE_CURSES.len())]
+                .to_string();
+            obtain_master_deck_card_state(&mut self.run_state, curse);
+        }
         let gold = self.rng.gen_range(50..=80);
         let extra_relic = self.run_state.relic_flags.counters
             [crate::relic_flags::counter::MATRYOSHKA_USES]
@@ -3490,6 +3536,7 @@ impl RunEngine {
             "Busted Crown",
             "Calling Bell",
             "Coffee Dripper",
+            "Cursed Key",
             "Philosopher's Stone",
             "Velvet Choker",
             "Snecko Eye",
@@ -7102,6 +7149,20 @@ mod tests {
         // CoffeeDripper.java::onEquip increments energyMaster exactly once.
         let mut engine = RunEngine::new(37, 0);
         engine.run_state.relics.push("Coffee Dripper".to_string());
+        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+
+        engine.enter_specific_combat(vec!["JawWorm".to_string()]);
+        let combat = engine.combat_engine.as_ref().expect("combat should start");
+        assert_eq!(combat.state.max_energy, 4);
+        assert_eq!(combat.state.energy, 4);
+    }
+
+    #[test]
+    fn cursed_key_increases_watcher_master_energy_for_combat() {
+        // Source-derived (verify relic/Cursed Key):
+        // CursedKey.java::onEquip increments energyMaster exactly once.
+        let mut engine = RunEngine::new(41, 0);
+        engine.run_state.relics.push("Cursed Key".to_string());
         engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
 
         engine.enter_specific_combat(vec!["JawWorm".to_string()]);
