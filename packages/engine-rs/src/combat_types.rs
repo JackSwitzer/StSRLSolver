@@ -28,6 +28,7 @@ impl CardInstance {
     pub const FLAG_FREE: u8      = 0x08;
     pub const FLAG_INNATE: u8    = 0x10;
     pub const FLAG_PURGE: u8     = 0x20;
+    pub const FLAG_EXHAUST_ON_USE: u8 = 0x40;
 
     pub fn new(def_id: u16) -> Self {
         Self { def_id, cost: -1, base_cost: -1, misc: -1, flags: 0 }

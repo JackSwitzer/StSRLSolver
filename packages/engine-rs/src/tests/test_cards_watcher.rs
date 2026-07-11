@@ -1090,15 +1090,124 @@ mod watcher_card_java_parity_tests {
             let block_before = engine.state.player.block;
             ensure_in_hand(&mut engine, "ThirdEye");
             play_self(&mut engine, "ThirdEye");
-            assert_eq!(engine.state.player.block, block_before + 7); // ThirdEye base_block=7 preamble
+            // ScryAction calls NirvanaPower.onScry before opening grid select.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/ScryAction.java
+            assert_eq!(engine.state.player.block, block_before + 10); // Third Eye 7 + Nirvana 3
         }
     );
+    // Source-derived (verify card/Nirvana): onScry fires before the draw-pile
+    // empty check and queues power-owned raw block immediately.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Nirvana.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/NirvanaPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/ScryAction.java
+    #[test]
+    fn nirvana_source_triggers_immediately_and_on_empty_draw() {
+        let mut with_cards = one_enemy_engine("JawWorm", 50, 0);
+        with_cards.state.player.set_status(sid::NIRVANA, 3);
+        with_cards.state.player.set_status(sid::DEXTERITY, 5);
+        with_cards.state.player.set_status(sid::FRAIL, 1);
+        with_cards.state.draw_pile = make_deck(&["Strike"]);
+        with_cards.do_scry(1);
+        assert_eq!(with_cards.state.player.block, 3);
+        assert_eq!(with_cards.phase, CombatPhase::AwaitingChoice);
+
+        let mut empty = one_enemy_engine("JawWorm", 50, 0);
+        empty.state.player.set_status(sid::NIRVANA, 4);
+        empty.do_scry(3);
+        assert_eq!(empty.state.player.block, 4);
+        assert_eq!(empty.phase, CombatPhase::PlayerTurn);
+    }
     watcher_test!(
         perseverance_java_parity,
         base = ("Perseverance", "Perseverance", 1, -1, 5, 2, CardType::Skill, CardTarget::SelfTarget, false, None, ["retain", "grow_block_on_retain"]),
         plus = ("Perseverance+", "Perseverance+", 1, -1, 7, 3, CardType::Skill, CardTarget::SelfTarget, false, None, ["retain", "grow_block_on_retain"]),
         {}
     );
+    // Source-derived (verify card/Perseverance): onRetained calls upgradeBlock
+    // on that AbstractCard instance. A freshly drawn second copy must not
+    // inherit the first copy's accumulated block.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Perseverance.java
+    #[test]
+    fn perseverance_source_growth_is_per_card_instance() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.hand = make_deck(&["Perseverance"]);
+        engine.state.draw_pile = make_deck(&["Perseverance"]);
+        end_turn(&mut engine);
+
+        let mut growth: Vec<_> = engine
+            .state
+            .hand
+            .iter()
+            .filter(|card| engine.card_registry.card_name(card.def_id) == "Perseverance")
+            .map(|card| card.misc)
+            .collect();
+        growth.sort_unstable();
+        assert_eq!(growth, vec![-1, 7]);
+
+        assert!(play_self(&mut engine, "Perseverance"));
+        assert!(play_self(&mut engine, "Perseverance"));
+        assert_eq!(engine.state.player.block, 12); // retained 7 + fresh 5
+    }
+
+    // Source-derived (verify card/Omniscience): the temporary choice is sorted
+    // by name, rarity descending, then Status-last. The selected original is
+    // exhausted, its stat-equivalent copy purges, and both random-target
+    // autoplays consume cardRandomRng even with one living enemy.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Omniscience.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/OmniscienceAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/NewQueueCardAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+    #[test]
+    fn omniscience_source_sorts_then_autoplays_twice_with_exhaust_and_purge() {
+        let mut engine = one_enemy_engine("JawWorm", 40, 0);
+        engine.state.energy = 4;
+        engine.state.hand = make_deck(&["Omniscience"]);
+        engine.state.draw_pile = make_deck(&["Strike", "Burn", "Perseverance", "Ragnarok"]);
+        assert!(play_self(&mut engine, "Omniscience"));
+
+        let choice = engine.choice.as_ref().expect("Omniscience draw-pile choice");
+        let names: Vec<_> = choice
+            .options
+            .iter()
+            .map(|option| match option {
+                ChoiceOption::DrawCard(idx) => engine
+                    .card_registry
+                    .card_name(engine.state.draw_pile[*idx].def_id),
+                other => panic!("unexpected Omniscience option {other:?}"),
+            })
+            .collect();
+        assert_eq!(names, vec!["Ragnarok", "Perseverance", "Strike", "Burn"]);
+
+        let card_random_before = engine.card_random_rng.counter;
+        engine.execute_action(&Action::Choose(2));
+        assert_eq!(engine.state.enemies[0].entity.hp, 28);
+        assert_eq!(engine.card_random_rng.counter, card_random_before + 2);
+        assert_eq!(exhaust_prefix_count(&engine, "Strike"), 1);
+        assert_eq!(discard_prefix_count(&engine, "Strike"), 0);
+        assert_eq!(hand_prefix_count(&engine, "Strike"), 0);
+        assert_eq!(exhaust_prefix_count(&engine, "Omniscience"), 1);
+    }
+
+    #[test]
+    fn omniscience_source_nested_choice_finishes_before_the_queued_copy() {
+        let mut engine = one_enemy_engine("JawWorm", 40, 0);
+        engine.state.energy = 4;
+        engine.state.hand = make_deck(&["Omniscience"]);
+        engine.state.draw_pile = make_deck(&["Strike", "Omniscience+"]);
+
+        assert!(play_self(&mut engine, "Omniscience"));
+        engine.execute_action(&Action::Choose(0)); // sorted rare Omniscience+
+        assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+        assert_eq!(engine.choice.as_ref().expect("nested choice").options.len(), 1);
+
+        engine.execute_action(&Action::Choose(0)); // Strike from nested Omniscience
+        assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+        assert_eq!(engine.state.enemies[0].entity.hp, 28);
+        assert_eq!(exhaust_prefix_count(&engine, "Omniscience"), 2);
+        assert_eq!(exhaust_prefix_count(&engine, "Strike"), 1);
+        assert!(engine.omniscience_autoplay.is_empty());
+        assert!(engine.runtime_played_card.is_none());
+    }
     watcher_test!(
         pray_java_parity,
         base = ("Pray", "Pray", 1, -1, -1, 3, CardType::Skill, CardTarget::SelfTarget, false, None, ["mantra"]),

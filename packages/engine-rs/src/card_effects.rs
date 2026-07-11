@@ -309,20 +309,6 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         )
     }) && !engine.state.draw_pile.is_empty();
 
-    // ---- Perseverance: scaling block bonus from retaining ----
-    let perseverance_block_bonus = if card.runtime_triggers().iter().any(|trigger| {
-        matches!(
-            trigger,
-            crate::effects::types::CardRuntimeTrigger::OnRetain(
-                crate::effects::types::OnRetainRule::GrowBlock
-            )
-        )
-    }) {
-        engine.state.player.status(sid::PERSEVERANCE_BONUS)
-    } else {
-        0
-    };
-
     // ---- Damage ----
     // Track damage dealt for Wallop (block_from_damage) and Reaper (heal)
     let mut total_unblocked_damage = 0i32;
@@ -481,7 +467,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
             let dex = engine.state.player.dexterity();
             let frail = engine.state.player.is_frail();
             let block = damage::calculate_block(
-                (current_base_block + perseverance_block_bonus).max(0),
+                current_base_block.max(0),
                 dex, frail,
             );
             engine.gain_block_player(block * block_multiplier);

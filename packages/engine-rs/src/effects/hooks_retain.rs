@@ -11,8 +11,15 @@ pub fn hook_reduce_cost_on_retain(_engine: &mut CombatEngine, card_inst: &mut Ca
 }
 
 /// Perseverance: grow block bonus when retained.
-pub fn hook_grow_block_on_retain(engine: &mut CombatEngine, _card_inst: &mut CardInstance, card: &CardDef) {
-    engine.state.player.add_status(sid::PERSEVERANCE_BONUS, card.base_magic);
+pub fn hook_grow_block_on_retain(_engine: &mut CombatEngine, card_inst: &mut CardInstance, card: &CardDef) {
+    // Perseverance.onRetained calls upgradeBlock on this exact AbstractCard.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Perseverance.java
+    let current_block = if card_inst.misc >= 0 {
+        card_inst.misc
+    } else {
+        card.base_block as i16
+    };
+    card_inst.misc = current_block + card.base_magic as i16;
 }
 
 /// Windmill Strike: grow damage bonus when retained.

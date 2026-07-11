@@ -170,7 +170,7 @@ pub fn apply_on_exhaust(engine: &mut CombatEngine, card: &CardDef, card_inst: Ca
 }
 
 pub fn apply_on_retain(card_inst: &mut CardInstance, card: &CardDef) -> (i32, i32) {
-    let mut perseverance_bonus = 0;
+    let perseverance_bonus = 0;
     let mut windmill_bonus = 0;
     for trigger in card.runtime_triggers() {
         if let CardRuntimeTrigger::OnRetain(rule) = trigger {
@@ -179,7 +179,14 @@ pub fn apply_on_retain(card_inst: &mut CardInstance, card: &CardDef) -> (i32, i3
                     card_inst.cost = (card_inst.cost - 1).max(0);
                 }
                 OnRetainRule::GrowBlock => {
-                    perseverance_bonus += card.base_magic;
+                    // Perseverance.onRetained upgrades this exact card's block.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Perseverance.java
+                    let current_block = if card_inst.misc >= 0 {
+                        card_inst.misc
+                    } else {
+                        card.base_block as i16
+                    };
+                    card_inst.misc = current_block + card.base_magic as i16;
                 }
                 OnRetainRule::GrowDamage => {
                     windmill_bonus += card.base_magic;

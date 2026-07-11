@@ -251,8 +251,11 @@ fn watcher_wave24_omniscience_uses_the_typed_draw_pile_free_play_surface() {
     engine.execute_action(&crate::actions::Action::Choose(0));
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
-    assert_eq!(engine.state.hand.len(), 1);
-    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Strike");
-    assert_eq!(engine.state.hand[0].cost, 0);
+    // Java sorts Defend before Strike, plays it twice, exhausts the original,
+    // and purges the stat-equivalent copy.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/OmniscienceAction.java
+    assert!(engine.state.hand.is_empty());
+    assert_eq!(engine.state.player.block, 10);
+    assert!(engine.state.exhaust_pile.iter().any(|card| engine.card_registry.card_name(card.def_id) == "Defend"));
     assert_eq!(engine.state.draw_pile.len(), 1);
 }

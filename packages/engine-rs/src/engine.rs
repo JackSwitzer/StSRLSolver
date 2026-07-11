@@ -149,6 +149,9 @@ pub struct CombatEngine {
     pub choice: Option<ChoiceContext>,
     pub effect_runtime: crate::effects::runtime::EffectRuntime,
     pub(crate) nightmare_pending_copies: Vec<(CardInstance, usize)>,
+    /// Omniscience autoplay items paired with the runtime-stack depth of the
+    /// parent card whose action queue owns them.
+    pub(crate) omniscience_autoplay: Vec<(CardInstance, usize)>,
     pub event_log: Vec<crate::effects::runtime::GameEventRecord>,
     pub runtime_played_card: Option<CardInstance>,
     pub(crate) runtime_play_target_idx: Option<i32>,
@@ -185,6 +188,7 @@ impl CombatEngine {
             choice: None,
             effect_runtime,
             nightmare_pending_copies: Vec::new(),
+            omniscience_autoplay: Vec::new(),
             event_log: Vec::new(),
             runtime_played_card: None,
             runtime_play_target_idx: None,
@@ -270,6 +274,7 @@ impl CombatEngine {
         self.runtime_played_card = None;
         self.runtime_play_target_idx = None;
         self.runtime_play_stack.clear();
+        self.omniscience_autoplay.clear();
     }
 
     pub fn hidden_effect_value(
@@ -456,6 +461,7 @@ impl CombatEngine {
             choice: self.choice.clone(),
             effect_runtime: self.effect_runtime.clone(),
             nightmare_pending_copies: self.nightmare_pending_copies.clone(),
+            omniscience_autoplay: self.omniscience_autoplay.clone(),
             event_log: self.event_log.clone(),
             runtime_played_card: self.runtime_played_card,
             runtime_play_target_idx: self.runtime_play_target_idx,
@@ -594,6 +600,10 @@ impl CombatEngine {
             None => return,
         };
         let deferred_stance = ctx.deferred_stance;
+        // Choice-owned autoplay (Omniscience, Havoc-style free play) must run
+        // through the ordinary card pipeline, which may itself open a nested
+        // choice. The prior choice has already been consumed at this point.
+        self.phase = CombatPhase::PlayerTurn;
 
         match ctx.action {
             Some(ChoiceAction::StoreCardForNextTurnCopies) => self.resolve_nightmare(ctx),
@@ -628,13 +638,23 @@ impl CombatEngine {
             self.change_stance(stance);
         }
 
-        self.phase = CombatPhase::PlayerTurn;
         if self.state.combat_over {
             self.clear_runtime_play_contexts();
             return;
         }
-        if self.runtime_played_card.is_some() {
-            self.resume_played_card_tail_from_runtime();
+        self.drive_choice_owned_runtime();
+    }
+
+    fn drive_choice_owned_runtime(&mut self) {
+        while self.phase == CombatPhase::PlayerTurn && !self.state.combat_over {
+            if self.play_ready_omniscience_autoplay() {
+                continue;
+            }
+            if self.runtime_played_card.is_some() {
+                self.resume_played_card_tail_from_runtime();
+                continue;
+            }
+            break;
         }
     }
 
@@ -661,12 +681,6 @@ impl CombatEngine {
         }
         for card in to_discard {
             self.state.discard_pile.push(card);
-        }
-
-        // Nirvana: gain block when scrying
-        let nirvana = self.state.player.status(sid::NIRVANA);
-        if nirvana > 0 {
-            self.gain_block_player(nirvana);
         }
 
         // Weave: return from discard to hand on Scry
@@ -1002,43 +1016,73 @@ impl CombatEngine {
     }
 
     fn resolve_play_card_free_from_draw(&mut self, ctx: ChoiceContext) {
-        // Omniscience: move selected card from draw pile to hand, play it for free,
-        // then add a copy at cost 0 to hand (MCTS approximation of "play it twice").
+        // OmniscienceAction removes the selected original from draw, forces it
+        // to exhaust, then queues the original plus one purge-on-use stat copy.
+        // Both are autoplayed with random targets and no energy payment.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/OmniscienceAction.java
         if let Some(&sel) = ctx.selected.first() {
             if let ChoiceOption::DrawCard(idx) = ctx.options[sel] {
-                if idx < self.state.draw_pile.len() && self.state.hand.len() < 10 {
+                if idx < self.state.draw_pile.len() {
                     let mut card = self.state.draw_pile.remove(idx);
                     card.cost = 0;
-                    card.flags |= crate::combat_types::CardInstance::FLAG_FREE;
-                    // Keep a copy before playing (play_card may exhaust/discard it)
-                    let copy = card;
-                    self.state.hand.push(card);
-                    let hand_idx = self.state.hand.len() - 1;
-                    let target = if self
-                        .card_registry
-                        .card_def_by_id(self.state.hand[hand_idx].def_id)
-                        .target
-                        == CardTarget::Enemy
-                    {
-                        self.state
-                            .targetable_enemy_indices()
-                            .first()
-                            .copied()
-                            .unwrap_or(0) as i32
-                    } else {
-                        -1
-                    };
-                    self.play_card(hand_idx, target);
-                    // Add a cost-0 copy to hand (second play, MCTS lets agent decide when)
-                    if self.state.hand.len() < 10 {
-                        let mut second = copy;
-                        second.cost = 0;
-                        second.flags |= crate::combat_types::CardInstance::FLAG_FREE;
-                        self.state.hand.push(second);
-                    }
+                    card.flags |= CardInstance::FLAG_FREE | CardInstance::FLAG_EXHAUST_ON_USE;
+                    let mut purge_copy = card;
+                    purge_copy.flags |= CardInstance::FLAG_PURGE;
+                    let parent_depth = self.runtime_play_stack.len();
+                    self.omniscience_autoplay.push((card, parent_depth));
+                    self.omniscience_autoplay
+                        .push((purge_copy, parent_depth));
                 }
             }
         }
+    }
+
+    fn play_ready_omniscience_autoplay(&mut self) -> bool {
+        let depth = self.runtime_play_stack.len();
+        let Some(queue_idx) = self
+            .omniscience_autoplay
+            .iter()
+            .position(|(_, parent_depth)| *parent_depth == depth)
+        else {
+            return false;
+        };
+        let (card, _) = self.omniscience_autoplay.remove(queue_idx);
+        let def = self.card_registry.card_def_by_id(card.def_id).clone();
+        let target = if def.target == CardTarget::Enemy {
+            let living = self.state.targetable_enemy_indices();
+            if living.is_empty() {
+                -1
+            } else {
+                // NewQueueCardAction(randomTarget=true) asks MonsterGroup for a
+                // random living target on each queued play, consuming
+                // cardRandomRng even when only one target exists.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+                let selected = self
+                    .card_random_rng
+                    .random_range(0, (living.len() - 1) as i32) as usize;
+                living[selected] as i32
+            }
+        } else {
+            -1
+        };
+
+        if !self.can_play_card_inst(&def, card) {
+            if card.flags & CardInstance::FLAG_PURGE == 0
+                && card.flags & CardInstance::FLAG_EXHAUST_ON_USE != 0
+            {
+                self.state.exhaust_pile.push(card);
+                self.trigger_card_on_exhaust(card);
+            }
+            return true;
+        }
+
+        // Autoplay cards live outside the hand in Java. Push only for the
+        // duration of the ordinary Rust play pipeline; play_card removes it
+        // before hand-sensitive effects and hooks execute.
+        self.state.hand.push(card);
+        let hand_idx = self.state.hand.len() - 1;
+        self.play_card(hand_idx, target);
+        true
     }
 
     fn resolve_search_draw_pile(&mut self, ctx: ChoiceContext) {
@@ -2262,14 +2306,22 @@ impl CombatEngine {
                 crate::effects::trigger::Trigger::OnPowerPlayed,
                 &post_ctx,
             ));
+        }
+
+        if card_inst.flags & CardInstance::FLAG_PURGE != 0 || card.card_type == CardType::Power {
+            // purgeOnUse copies disappear after their effects. Power cards are
+            // consumed by the normal power-play path regardless of exhaust.
         } else if post_play_dest == crate::effects::types::PostPlayDestination::ShuffleIntoDraw {
             self.state.draw_pile.push(card_inst);
             self.shuffle_draw_pile();
         } else if card.exhaust
+            || card_inst.flags & CardInstance::FLAG_EXHAUST_ON_USE != 0
             || (card.card_type == CardType::Skill && self.state.player.status(sid::CORRUPTION) > 0)
         {
             if self.state.has_relic("Strange Spoon") || self.state.has_relic("StrangeSpoon") {
-                if self.rng.random(1) == 0 {
+                // UseCardAction consumes cardRandomRng.randomBoolean for Spoon.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
+                if self.card_random_rng.random(1) == 0 {
                     self.state.draw_pile.push(card_inst);
                 } else {
                     self.state.exhaust_pile.push(card_inst);
@@ -3277,8 +3329,16 @@ impl CombatEngine {
     }
 
     /// Perform Scry: reveal top N cards, let player choose which to discard.
-    /// Triggers Nirvana (on_scry block) and Weave (return_on_scry) in resolve_scry.
+    /// Triggers Nirvana before the choice and Weave after it resolves.
     pub fn do_scry(&mut self, amount: i32) {
+        // ScryAction calls every power's onScry before checking for an empty
+        // draw pile, so Nirvana grants raw power-owned block immediately even
+        // when no selection screen opens.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/ScryAction.java
+        let nirvana = self.state.player.status(sid::NIRVANA);
+        if nirvana > 0 {
+            self.gain_block_player(nirvana);
+        }
         let to_scry = (amount as usize).min(self.state.draw_pile.len());
         if to_scry == 0 {
             return;

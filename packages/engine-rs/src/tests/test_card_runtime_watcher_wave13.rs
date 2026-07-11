@@ -89,7 +89,15 @@ fn watcher_wave13_typed_surface_cards_follow_engine_path() {
     let mut perseverance = one_enemy_engine("JawWorm", 50, 0);
     ensure_in_hand(&mut perseverance, "Perseverance");
     end_turn(&mut perseverance);
-    assert_eq!(perseverance.state.player.status(sid::PERSEVERANCE_BONUS), 2);
+    let retained = perseverance
+        .state
+        .hand
+        .iter()
+        .find(|card| perseverance.card_registry.card_name(card.def_id) == "Perseverance")
+        .expect("Perseverance should retain itself");
+    // Perseverance.onRetained mutates this AbstractCard's block, not a player power.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Perseverance.java
+    assert_eq!(retained.misc, 7);
 
     let mut sands = one_enemy_engine("JawWorm", 50, 0);
     ensure_in_hand(&mut sands, "SandsOfTime");

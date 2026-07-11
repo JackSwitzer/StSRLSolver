@@ -1184,11 +1184,42 @@ fn execute_choose_cards(
     let pile = get_pile(engine, source);
 
     // Build options from the source pile, applying filter
-    let options: Vec<ChoiceOption> = pile.iter()
+    let mut options: Vec<ChoiceOption> = pile.iter()
         .enumerate()
         .filter(|(_, card)| matches_filter(engine, card, filter))
         .map(|(i, _)| make_choice_option(source, i))
         .collect();
+
+    if matches!(ctx.card.id, "Omniscience" | "Omniscience+")
+        && matches!(source, Pile::Draw)
+        && matches!(action, ChoiceAction::PlayForFree)
+    {
+        // OmniscienceAction copies the draw pile, then stably sorts by name,
+        // rarity descending, and finally moves Status cards to the end.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/OmniscienceAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
+        options.sort_by(|left, right| {
+            let ChoiceOption::DrawCard(left_idx) = left else {
+                return std::cmp::Ordering::Equal;
+            };
+            let ChoiceOption::DrawCard(right_idx) = right else {
+                return std::cmp::Ordering::Equal;
+            };
+            let left_card = pile[*left_idx];
+            let right_card = pile[*right_idx];
+            let left_def = engine.card_registry.card_def_by_id(left_card.def_id);
+            let right_def = engine.card_registry.card_def_by_id(right_card.def_id);
+            let left_status = left_def.card_type == CardType::Status;
+            let right_status = right_def.card_type == CardType::Status;
+            left_status
+                .cmp(&right_status)
+                .then_with(|| {
+                    omniscience_rarity_rank(right_def.id)
+                        .cmp(&omniscience_rarity_rank(left_def.id))
+                })
+                .then_with(|| left_def.name.cmp(right_def.name))
+        });
+    }
 
     if options.is_empty() {
         return;
@@ -1838,9 +1869,12 @@ pub fn apply_generated_cost_rule(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum GeneratedPoolRarity {
+    Basic,
+    Special,
     Common,
     Uncommon,
     Rare,
+    Curse,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1889,14 +1923,29 @@ fn build_generated_card_meta_map() -> HashMap<String, GeneratedCardMeta> {
             .next()
             .unwrap_or("");
         let rarity = match rarity_token {
+            "BASIC" => GeneratedPoolRarity::Basic,
+            "SPECIAL" => GeneratedPoolRarity::Special,
             "COMMON" => GeneratedPoolRarity::Common,
             "UNCOMMON" => GeneratedPoolRarity::Uncommon,
             "RARE" => GeneratedPoolRarity::Rare,
+            "CURSE" => GeneratedPoolRarity::Curse,
             _ => continue,
         };
         map.insert(card_id.to_string(), GeneratedCardMeta { card_type, rarity });
     }
     map
+}
+
+fn omniscience_rarity_rank(card_id: &str) -> u8 {
+    match generated_card_meta(card_id).map(|meta| meta.rarity) {
+        Some(GeneratedPoolRarity::Basic) => 0,
+        Some(GeneratedPoolRarity::Special) => 1,
+        Some(GeneratedPoolRarity::Common) => 2,
+        Some(GeneratedPoolRarity::Uncommon) => 3,
+        Some(GeneratedPoolRarity::Rare) => 4,
+        Some(GeneratedPoolRarity::Curse) => 5,
+        None => 0,
+    }
 }
 
 fn weighted_any_color_attack_ids(engine: &CombatEngine) -> Vec<&'static str> {
