@@ -1424,6 +1424,19 @@ impl RunEngine {
             enemy.set_move(crate::enemies::move_ids::GREMLIN_PROTECT, 0, 0, 0);
         }
 
+        // Source: reference/extracted/methods/monster/GremlinTsundere.java.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "GremlinTsundere") {
+            let damage = if self.run_state.ascension >= 2 { 8 } else { 6 };
+            let block = if self.run_state.ascension >= 17 { 11 }
+                else if self.run_state.ascension >= 7 { 8 } else { 7 };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, damage);
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT, block);
+            enemy.set_move(crate::enemies::move_ids::GREMLIN_TSUNDERE_PROTECT,
+                0, 0, 0);
+            enemy.add_effect(crate::combat_types::mfx::BLOCK_RANDOM_OTHER,
+                block as i16);
+        }
+
         // The boss passes ascension-derived large-slime constructor values to
         // its children when its split resolves.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "SlimeBoss") {
@@ -1569,6 +1582,11 @@ impl RunEngine {
             "GremlinWizard" => {
                 let base = if a20 { 22 } else { 21 };
                 let hp = base + self.rng.gen_range(0..=4);
+                (hp, hp)
+            }
+            "GremlinTsundere" => {
+                let (base, width) = if a20 { (13, 4) } else { (12, 3) };
+                let hp = base + self.rng.gen_range(0..=width);
                 (hp, hp)
             }
             "FungiBeast" => {
@@ -5175,6 +5193,72 @@ mod tests {
         group.enter_specific_combat(vec!["GremlinWizard".to_string(),
             "GremlinThief".to_string()]);
         let combat = group.combat_engine.as_mut().unwrap();
+        combat.state.enemies[1].entity.hp = 1;
+        combat.deal_damage_to_enemy(1, 1);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::GREMLIN_ESCAPE);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert!(combat.state.enemies[0].is_escaping);
+        assert_eq!(combat.state.enemies[0].entity.hp, 0);
+    }
+
+    #[test]
+    fn gremlin_tsundere_random_protect_solo_bash_and_escape_match_java() {
+        // Source: reference/extracted/methods/monster/GremlinTsundere.java and
+        // decompiled GainBlockRandomMonsterAction.java.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("GremlinTsundere").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("GremlinTsundere").0);
+        }
+        assert_eq!(low_hp, (12..=15).collect());
+        assert_eq!(high_hp, (13..=17).collect());
+
+        for (ascension, damage, block) in [(0, 6, 7), (2, 8, 7), (7, 8, 8), (17, 8, 11)] {
+            let mut engine = RunEngine::new(42, ascension);
+            engine.enter_specific_combat(vec!["GremlinTsundere".to_string()]);
+            let combat = engine.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!(enemy.move_id,
+                crate::enemies::move_ids::GREMLIN_TSUNDERE_PROTECT);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG), damage);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::BLOCK_AMT), block);
+            assert_eq!(enemy.effect(crate::combat_types::mfx::BLOCK_RANDOM_OTHER),
+                Some(block as i16));
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        let mut solo = RunEngine::new(42, 0);
+        solo.enter_specific_combat(vec!["GremlinTsundere".to_string()]);
+        {
+            let combat = solo.combat_engine.as_mut().unwrap();
+            crate::combat_hooks::do_enemy_turns(combat);
+            assert_eq!(combat.state.enemies[0].entity.block, 7);
+            assert_eq!(combat.state.enemies[0].move_id,
+                crate::enemies::move_ids::GREMLIN_TSUNDERE_BASH);
+            assert_eq!(combat.ai_rng.counter, 1,
+                "no eligible ally means self-block without an aiRng draw");
+        }
+
+        let mut group = RunEngine::new(42, 17);
+        group.enter_specific_combat(vec!["GremlinTsundere".to_string(),
+            "GremlinThief".to_string(), "GremlinWarrior".to_string()]);
+        let opening_ticks = group.combat_engine.as_ref().unwrap().ai_rng.counter;
+        let combat = group.combat_engine.as_mut().unwrap();
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].entity.block, 0);
+        assert_eq!(combat.state.enemies[1..].iter()
+            .filter(|enemy| enemy.entity.block == 11).count(), 1);
+        assert_eq!(combat.ai_rng.counter, opening_ticks + 1,
+            "two eligible allies require exactly one random-target draw");
+
+        let mut escape = RunEngine::new(42, 0);
+        escape.enter_specific_combat(vec!["GremlinTsundere".to_string(),
+            "GremlinThief".to_string()]);
+        let combat = escape.combat_engine.as_mut().unwrap();
         combat.state.enemies[1].entity.hp = 1;
         combat.deal_damage_to_enemy(1, 1);
         assert_eq!(combat.state.enemies[0].move_id,

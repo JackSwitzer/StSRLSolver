@@ -141,6 +141,8 @@ pub mod move_ids {
     pub const GREMLIN_PROTECT: i32 = 2;
     pub const GREMLIN_FAT_SMASH: i32 = 2;
     pub const GREMLIN_ESCAPE: i32 = 99;
+    pub const GREMLIN_TSUNDERE_PROTECT: i32 = 1;
+    pub const GREMLIN_TSUNDERE_BASH: i32 = 2;
 
     // Gremlin Nob
     pub const NOB_BELLOW: i32 = 1;
@@ -519,8 +521,10 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::GREMLIN_PROTECT, 0, 0, 0);
         }
         "GremlinTsundere" | "GremlinSneaky" => {
-            // Shield: does nothing
-            enemy.set_move(move_ids::GREMLIN_PROTECT, 0, 0, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 6);
+            enemy.entity.set_status(sid::BLOCK_AMT, 7);
+            enemy.set_move(move_ids::GREMLIN_TSUNDERE_PROTECT, 0, 0, 0);
+            enemy.add_effect(mfx::BLOCK_RANDOM_OTHER, 7);
         }
         "GremlinNob" | "Gremlin Nob" => {
             enemy.set_move(move_ids::NOB_BELLOW, 0, 0, 0);
@@ -938,7 +942,7 @@ fn select_move(
         "GremlinThief" => act1::roll_gremlin_thief(enemy),
         "GremlinWarrior" => act1::roll_gremlin_warrior(enemy),
         "GremlinWizard" => act1::roll_gremlin_wizard(enemy),
-        "GremlinTsundere" | "GremlinSneaky" => { /* Does nothing each turn */ }
+        "GremlinTsundere" | "GremlinSneaky" => act1::roll_gremlin_tsundere(enemy),
         "GremlinNob" | "Gremlin Nob" => act1::roll_gremlin_nob(enemy, num),
         "Lagavulin" => act1::roll_lagavulin(enemy),
         "Sentry" => act1::roll_sentry(enemy),

@@ -451,6 +451,30 @@ pub fn advance_gremlin_wizard_after_turn(enemy: &mut EnemyCombatState) {
     }
 }
 
+pub(super) fn roll_gremlin_tsundere(enemy: &mut EnemyCombatState) {
+    // Source: reference/extracted/methods/monster/GremlinTsundere.java (`getMove`).
+    let block = enemy.entity.status(sid::BLOCK_AMT).max(7) as i16;
+    enemy.set_move(move_ids::GREMLIN_TSUNDERE_PROTECT, 0, 0, 0);
+    enemy.add_effect(mfx::BLOCK_RANDOM_OTHER, block);
+}
+
+pub fn advance_gremlin_tsundere_after_turn(
+    enemy: &mut EnemyCombatState,
+    alive_count: usize,
+) {
+    // Source: reference/extracted/methods/monster/GremlinTsundere.java (`takeTurn`).
+    let damage = enemy.entity.status(sid::STARTING_DMG).max(6);
+    let block = enemy.entity.status(sid::BLOCK_AMT).max(7) as i16;
+    enemy.move_history.push(enemy.move_id);
+    enemy.move_effects.clear();
+    if enemy.move_id == move_ids::GREMLIN_TSUNDERE_PROTECT && alive_count > 1 {
+        enemy.set_move(move_ids::GREMLIN_TSUNDERE_PROTECT, 0, 0, 0);
+        enemy.add_effect(mfx::BLOCK_RANDOM_OTHER, block);
+    } else {
+        enemy.set_move(move_ids::GREMLIN_TSUNDERE_BASH, damage, 1, 0);
+    }
+}
+
 pub(super) fn roll_gremlin_nob(enemy: &mut EnemyCombatState, _num: i32) {
     if last_move(enemy, move_ids::NOB_BELLOW) || last_move(enemy, move_ids::NOB_SKULL_BASH) {
         enemy.set_move(move_ids::NOB_RUSH, 14, 1, 0);

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T03:07:17.529399+00:00",
+ "updated": "2026-07-11T03:14:23.445575+00:00",
  "status_counts": {
-  "unverified": 570,
-  "verified": 97
+  "unverified": 569,
+  "verified": 98
  },
  "rows": [
   {
@@ -4012,8 +4012,8 @@
    "class": "GremlinTsundere",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/exordium/GremlinTsundere.java",
    "methods_ref": "reference/extracted/methods/monster/GremlinTsundere.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -187,7 +187,9 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::GREMLIN_PROTECT, 0, 0, 0, &[]);
 
         let e = make("GremlinTsundere", 13);
-        expect_move(&e, move_ids::GREMLIN_PROTECT, 0, 0, 0, &[]);
+        // Source: reference/extracted/methods/monster/GremlinTsundere.java.
+        expect_move(&e, move_ids::GREMLIN_TSUNDERE_PROTECT, 0, 0, 0,
+            &[(mfx::BLOCK_RANDOM_OTHER, 7)]);
 
         let e = make("GremlinNob", 106);
         expect_move(&e, move_ids::NOB_BELLOW, 0, 0, 0, &[]);
@@ -342,8 +344,13 @@ mod enemy_ai_java_parity_tests {
         act1::advance_gremlin_wizard_after_turn(&mut e);
         expect_move(&e, move_ids::GREMLIN_PROTECT, 0, 0, 0, &[]);
         let mut e = make("GremlinTsundere", 13);
-        roll_times(&mut e, 3);
-        expect_move(&e, move_ids::GREMLIN_PROTECT, 0, 0, 0, &[]);
+        act1::advance_gremlin_tsundere_after_turn(&mut e, 2);
+        expect_move(&e, move_ids::GREMLIN_TSUNDERE_PROTECT, 0, 0, 0,
+            &[(mfx::BLOCK_RANDOM_OTHER, 7)]);
+        act1::advance_gremlin_tsundere_after_turn(&mut e, 1);
+        expect_move(&e, move_ids::GREMLIN_TSUNDERE_BASH, 6, 1, 0, &[]);
+        act1::advance_gremlin_tsundere_after_turn(&mut e, 1);
+        expect_move(&e, move_ids::GREMLIN_TSUNDERE_BASH, 6, 1, 0, &[]);
 
         let mut e = make("GremlinNob", 106);
         roll_times(&mut e, 1);

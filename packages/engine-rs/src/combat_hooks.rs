@@ -12,18 +12,22 @@ use crate::state::Stance;
 use crate::status_ids::sid;
 use smallvec::SmallVec;
 
-/// Execute all enemy turns: block decay, poison ticks, ritual, moves.
+/// Execute all enemy turns: poison ticks, ritual, moves.
 pub fn do_enemy_turns(engine: &mut CombatEngine) {
     engine.phase = CombatPhase::EnemyTurn;
+
+    // Sources: MonsterStartTurnAction.java and MonsterGroup.java
+    // (`applyPreTurnLogic`). Clear every monster's block once before any
+    // monster acts; block granted later in this queue must remain intact.
+    for enemy in &mut engine.state.enemies {
+        enemy.entity.block = 0;
+    }
 
     let num_enemies = engine.state.enemies.len();
     for i in 0..num_enemies {
         if !engine.state.enemies[i].is_alive() {
             continue;
         }
-
-        // Block decays at start of enemy turn
-        engine.state.enemies[i].entity.block = 0;
 
         // Reset Invincible per-turn damage tracker
         powers::reset_invincible_damage_taken(&mut engine.state.enemies[i].entity);
@@ -493,6 +497,21 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             }
         }
     }
+    if let Some(amt) = get_fx(&effects, mfx::BLOCK_RANDOM_OTHER) {
+        // Source: decompiled GainBlockRandomMonsterAction.java. Exclude the
+        // source and escaping/dying monsters; use self without RNG if empty.
+        let valid: Vec<usize> = engine.state.enemies.iter().enumerate()
+            .filter(|(idx, enemy)| *idx != enemy_idx && enemy.is_alive()
+                && enemy.move_id != enemies::move_ids::GREMLIN_ESCAPE)
+            .map(|(idx, _)| idx)
+            .collect();
+        let target = if valid.is_empty() {
+            enemy_idx
+        } else {
+            valid[engine.ai_rng.random(valid.len() as i32 - 1) as usize]
+        };
+        engine.state.enemies[target].entity.block += amt as i32;
+    }
 
     let large_slime_split = matches!(engine.state.enemies[enemy_idx].id.as_str(),
         "AcidSlime_L" | "SpikeSlime_L")
@@ -571,12 +590,21 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     }
 
     if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-        "GremlinFat" | "GremlinThief" | "GremlinWarrior" | "GremlinWizard")
+        "GremlinFat" | "GremlinThief" | "GremlinWarrior" | "GremlinWizard"
+            | "GremlinTsundere")
         && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::GREMLIN_ESCAPE
     {
         // Source: GremlinFat.java `takeTurn` case 99 (EscapeAction; no roll).
         engine.state.enemies[enemy_idx].is_escaping = true;
         engine.state.enemies[enemy_idx].entity.hp = 0;
+        return;
+    }
+
+    if engine.state.enemies[enemy_idx].id == "GremlinTsundere" {
+        let alive_count = engine.state.enemies.iter()
+            .filter(|enemy| enemy.is_alive()).count();
+        enemies::act1::advance_gremlin_tsundere_after_turn(
+            &mut engine.state.enemies[enemy_idx], alive_count);
         return;
     }
 
