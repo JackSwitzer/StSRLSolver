@@ -21,6 +21,8 @@ pub enum Trigger {
     CombatStartPreDraw,
     /// At the start of each player turn (before draw).
     TurnStart,
+    /// After old block is cleared and queued atTurnStart actions resolve, before draw.
+    TurnStartPreDraw,
     /// At the start of each player turn (after draw).
     TurnStartPostDraw,
     /// Late start of turn, after post-draw power/setup effects have resolved.

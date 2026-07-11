@@ -11,6 +11,8 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/Inserter.java
 
 use crate::effects::runtime::EffectOwner;
+use crate::engine::CombatPhase;
+use crate::status_ids::sid;
 use crate::tests::support::{
     combat_state_with, end_turn, enemy, enemy_no_intent, engine_with_state, make_deck, make_deck_n,
 };
@@ -47,6 +49,35 @@ fn relic_wave10_delayed_turn_block_relics_follow_runtime_path() {
         wheel.hidden_effect_value("CaptainsWheel", EffectOwner::PlayerRelic { slot: 0 }, 0),
         -1
     );
+}
+
+#[test]
+fn captains_wheel_resolves_before_turn_three_draw_and_foresight_choice() {
+    // Sources: reference/extracted/methods/relic/CaptainsWheel.java and
+    // decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java.
+    let mut state = combat_state_with(
+        make_deck_n("Defend", 20),
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+    state.relics.push("CaptainsWheel".to_string());
+    let mut engine = engine_with_state(state);
+    assert_eq!(engine.hidden_effect_value(
+        "CaptainsWheel", EffectOwner::PlayerRelic { slot: 0 }, 0), 1);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.turn, 2);
+    assert_eq!(engine.hidden_effect_value(
+        "CaptainsWheel", EffectOwner::PlayerRelic { slot: 0 }, 0), 2);
+
+    engine.state.player.set_status(sid::FORESIGHT, 1);
+    end_turn(&mut engine);
+    assert_eq!(engine.state.turn, 3);
+    assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+    assert_eq!(engine.state.player.block, 18,
+        "Captain's Wheel resolves before Foresight's post-draw scry choice");
+    assert_eq!(engine.hidden_effect_value(
+        "CaptainsWheel", EffectOwner::PlayerRelic { slot: 0 }, 0), -1);
 }
 
 #[test]

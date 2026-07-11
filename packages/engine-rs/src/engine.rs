@@ -1422,6 +1422,22 @@ impl CombatEngine {
             }
         }
 
+        // Java GameActionManager queues relic atTurnStart actions before its
+        // DrawCardAction; they resolve after the synchronous old-block clear.
+        // Source: GameActionManager.java and AbstractPlayer.applyStartOfTurnRelics.
+        self.emit_event(crate::effects::runtime::GameEvent {
+            kind: crate::effects::trigger::Trigger::TurnStartPreDraw,
+            card_type: None,
+            card_inst: None,
+            is_first_turn: self.state.turn == 1,
+            target_idx: -1,
+            enemy_idx: -1,
+            potion_slot: -1,
+            status_id: None,
+            amount: 0,
+            replay_window: false,
+        });
+
         // Draw cards (default 5 + Draw/Machine Learning power + Ring of the Serpent)
         let ml = self.state.player.status(sid::DRAW);
         let serpent = self.state.player.status(sid::RING_OF_SERPENT_DRAW);

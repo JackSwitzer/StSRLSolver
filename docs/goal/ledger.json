@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T04:03:57.109798+00:00",
+ "updated": "2026-07-11T04:07:24.302578+00:00",
  "status_counts": {
-  "unverified": 560,
-  "verified": 107
+  "unverified": 559,
+  "verified": 108
  },
  "rows": [
   {
@@ -5062,8 +5062,8 @@
    "class": "CaptainsWheel",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/CaptainsWheel.java",
    "methods_ref": "reference/extracted/methods/relic/CaptainsWheel.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
