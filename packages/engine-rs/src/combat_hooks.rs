@@ -570,6 +570,15 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         return;
     }
 
+    if engine.state.enemies[enemy_idx].id == "GremlinFat"
+        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::GREMLIN_ESCAPE
+    {
+        // Source: GremlinFat.java `takeTurn` case 99 (EscapeAction; no roll).
+        engine.state.enemies[enemy_idx].is_escaping = true;
+        engine.state.enemies[enemy_idx].entity.hp = 0;
+        return;
+    }
+
     // These Java takeTurn methods set their next move directly and do not queue
     // RollMoveAction.
     if engine.state.enemies[enemy_idx].id == "AcidSlime_S" {

@@ -306,7 +306,8 @@ impl CombatEngine {
                 | "FuzzyLouseDefensive" | "GreenLouse"
                 | "SlaverBlue" | "BlueSlaver" | "SlaverRed" | "RedSlaver"
                 | "AcidSlime_S" | "AcidSlime_M" | "AcidSlime_L"
-                | "SpikeSlime_S" | "SpikeSlime_M" | "SpikeSlime_L" | "Looter")) {
+                | "SpikeSlime_S" | "SpikeSlime_M" | "SpikeSlime_L" | "Looter"
+                | "GremlinFat")) {
             crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
         }
 
@@ -2830,6 +2831,16 @@ impl CombatEngine {
     pub(crate) fn finalize_enemy_death(&mut self, enemy_idx: usize) {
         if enemy_idx >= self.state.enemies.len() {
             return;
+        }
+
+        // Source: decompiled GremlinFat.java (`deathReact`). A surviving Fat
+        // Gremlin immediately changes its intent to Escape when an ally dies.
+        for (idx, enemy) in self.state.enemies.iter_mut().enumerate() {
+            if idx != enemy_idx && enemy.id == "GremlinFat" && enemy.is_alive()
+                && enemy.move_id != crate::enemies::move_ids::GREMLIN_ESCAPE
+            {
+                enemy.set_move(crate::enemies::move_ids::GREMLIN_ESCAPE, 0, 0, 0);
+            }
         }
 
         // Spore Cloud: apply Vulnerable to player on death.

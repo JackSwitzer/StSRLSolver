@@ -1385,6 +1385,19 @@ impl RunEngine {
             enemy.set_move(crate::enemies::move_ids::LOOTER_MUG, swipe, 1, 0);
         }
 
+        // Source: reference/extracted/methods/monster/GremlinFat.java.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "GremlinFat") {
+            let damage = if self.run_state.ascension >= 2 { 5 } else { 4 };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, damage);
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if self.run_state.ascension >= 17 { 17 } else { 0 });
+            enemy.set_move(crate::enemies::move_ids::GREMLIN_FAT_SMASH, damage, 1, 0);
+            enemy.add_effect(crate::combat_types::mfx::WEAK, 1);
+            if self.run_state.ascension >= 17 {
+                enemy.add_effect(crate::combat_types::mfx::FRAIL, 1);
+            }
+        }
+
         // The boss passes ascension-derived large-slime constructor values to
         // its children when its split resolves.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "SlimeBoss") {
@@ -1509,6 +1522,11 @@ impl RunEngine {
             }
             "Looter" => {
                 let base = if a20 { 46 } else { 44 };
+                let hp = base + self.rng.gen_range(0..=4);
+                (hp, hp)
+            }
+            "GremlinFat" => {
+                let base = if a20 { 14 } else { 13 };
                 let hp = base + self.rng.gen_range(0..=4);
                 (hp, hp)
             }
@@ -4912,6 +4930,56 @@ mod tests {
         refund.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
         assert!((109..=119).contains(&refund.run_state.gold),
             "death returns 15 stolen gold before the normal 10..=20 reward");
+    }
+
+    #[test]
+    fn gremlin_fat_stats_debuffs_ai_ticks_and_ally_death_escape_match_java() {
+        // Source: reference/extracted/methods/monster/GremlinFat.java and the
+        // full source's `deathReact`/`takeTurn` escape case.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("GremlinFat").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("GremlinFat").0);
+        }
+        assert_eq!(low_hp, (13..=17).collect());
+        assert_eq!(high_hp, (14..=18).collect());
+
+        for (ascension, damage, frail) in [(0, 4, false), (2, 5, false), (17, 5, true)] {
+            let mut engine = RunEngine::new(42, ascension);
+            engine.enter_specific_combat(vec!["GremlinFat".to_string()]);
+            let combat = engine.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!(enemy.move_id, crate::enemies::move_ids::GREMLIN_FAT_SMASH);
+            assert_eq!(enemy.move_damage(), damage);
+            assert_eq!(enemy.effect(crate::combat_types::mfx::WEAK), Some(1));
+            assert_eq!(enemy.effect(crate::combat_types::mfx::FRAIL),
+                frail.then_some(1));
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        let mut a17 = RunEngine::new(42, 17);
+        a17.enter_specific_combat(vec!["GremlinFat".to_string()]);
+        a17.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        let combat = a17.combat_engine.as_ref().unwrap();
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::WEAKENED), 1);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::FRAIL), 1);
+        assert_eq!(combat.ai_rng.counter, 2,
+            "the normal attack queues exactly one RollMoveAction");
+
+        let mut group = RunEngine::new(42, 0);
+        group.enter_specific_combat(vec!["GremlinFat".to_string(),
+            "GremlinThief".to_string()]);
+        let combat = group.combat_engine.as_mut().unwrap();
+        combat.state.enemies[1].entity.hp = 1;
+        combat.deal_damage_to_enemy(1, 1);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::GREMLIN_ESCAPE);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert!(combat.state.enemies[0].is_escaping);
+        assert_eq!(combat.state.enemies[0].entity.hp, 0);
     }
 
     #[test]

@@ -139,6 +139,8 @@ pub mod move_ids {
     // Gremlin (Fat/Thief/Warrior/Wizard/Tsundere)
     pub const GREMLIN_ATTACK: i32 = 1;
     pub const GREMLIN_PROTECT: i32 = 2;
+    pub const GREMLIN_FAT_SMASH: i32 = 2;
+    pub const GREMLIN_ESCAPE: i32 = 99;
 
     // Gremlin Nob
     pub const NOB_BELLOW: i32 = 1;
@@ -496,8 +498,9 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::LOOTER_MUG, 10, 1, 0);
         }
         "GremlinFat" => {
-            // Smash: 4 damage + apply 1 Weak
-            enemy.set_move(move_ids::GREMLIN_ATTACK, 4, 1, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 4);
+            enemy.entity.set_status(sid::BLOCK_AMT, 0);
+            enemy.set_move(move_ids::GREMLIN_FAT_SMASH, 4, 1, 0);
             enemy.add_effect(mfx::WEAK, 1);
         }
         "GremlinThief" => {
@@ -928,7 +931,7 @@ fn select_move(
         "SpikeSlime_M" => act1::roll_spike_slime_m(enemy, num),
         "SpikeSlime_L" => act1::roll_spike_slime_l(enemy, num),
         "Looter" => act1::roll_looter(enemy, num),
-        "GremlinFat" => act1::roll_gremlin_simple(enemy, 4, 1),
+        "GremlinFat" => act1::roll_gremlin_fat(enemy),
         "GremlinThief" => act1::roll_gremlin_simple(enemy, 9, 0),
         "GremlinWarrior" => act1::roll_gremlin_simple(enemy, 4, 0),
         "GremlinWizard" => act1::roll_gremlin_wizard(enemy),

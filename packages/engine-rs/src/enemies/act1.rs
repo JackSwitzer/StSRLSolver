@@ -403,6 +403,16 @@ pub(super) fn roll_gremlin_simple(enemy: &mut EnemyCombatState, dmg: i32, weak: 
     }
 }
 
+pub(super) fn roll_gremlin_fat(enemy: &mut EnemyCombatState) {
+    // Source: reference/extracted/methods/monster/GremlinFat.java.
+    let damage = enemy.entity.status(sid::STARTING_DMG).max(4);
+    enemy.set_move(move_ids::GREMLIN_FAT_SMASH, damage, 1, 0);
+    enemy.add_effect(mfx::WEAK, 1);
+    if enemy.entity.status(sid::BLOCK_AMT) >= 17 {
+        enemy.add_effect(mfx::FRAIL, 1);
+    }
+}
+
 pub(super) fn roll_gremlin_wizard(enemy: &mut EnemyCombatState) {
     if last_move(enemy, move_ids::GREMLIN_PROTECT) {
         // Ultimate Blast after charging

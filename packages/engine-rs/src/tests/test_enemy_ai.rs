@@ -174,7 +174,8 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::LOOTER_MUG, 10, 1, 0, &[]);
 
         let e = make("GremlinFat", 18);
-        expect_move(&e, move_ids::GREMLIN_ATTACK, 4, 1, 0, &[(mfx::WEAK, 1)]);
+        // Source: reference/extracted/methods/monster/GremlinFat.java.
+        expect_move(&e, move_ids::GREMLIN_FAT_SMASH, 4, 1, 0, &[(mfx::WEAK, 1)]);
 
         let e = make("GremlinThief", 13);
         expect_move(&e, move_ids::GREMLIN_ATTACK, 9, 1, 0, &[]);
@@ -331,7 +332,7 @@ mod enemy_ai_java_parity_tests {
 
         let mut e = make("GremlinFat", 18);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::GREMLIN_ATTACK, 4, 1, 0, &[(mfx::WEAK, 1)]);
+        expect_move(&e, move_ids::GREMLIN_FAT_SMASH, 4, 1, 0, &[(mfx::WEAK, 1)]);
         let mut e = make("GremlinWizard", 20);
         e.move_id = move_ids::GREMLIN_PROTECT;
         e.move_history = vec![move_ids::GREMLIN_PROTECT, move_ids::GREMLIN_PROTECT];

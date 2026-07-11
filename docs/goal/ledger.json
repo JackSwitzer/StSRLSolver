@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T02:50:09.775428+00:00",
+ "updated": "2026-07-11T02:54:10.208840+00:00",
  "status_counts": {
-  "unverified": 574,
-  "verified": 93
+  "unverified": 573,
+  "verified": 94
  },
  "rows": [
   {
@@ -3972,8 +3972,8 @@
    "class": "GremlinFat",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/exordium/GremlinFat.java",
    "methods_ref": "reference/extracted/methods/monster/GremlinFat.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
