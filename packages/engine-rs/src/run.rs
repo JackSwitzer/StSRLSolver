@@ -2641,7 +2641,9 @@ impl RunEngine {
                 index: items.len(),
                 kind: RewardItemKind::Relic,
                 state: RewardItemState::Available,
-                label: self.roll_reward_relic_id(),
+                // Matryoshka.java consumes relicRng.randomBoolean(0.75f):
+                // COMMON on true, otherwise UNCOMMON.
+                label: self.roll_matryoshka_relic_id(),
                 claimable: false,
                 active: false,
                 skip_allowed: false,
@@ -3587,6 +3589,9 @@ impl RunEngine {
             "Magic Flower",
             // Mango.java uses canonical ID "Mango" and RARE tier.
             "Mango",
+            // Matryoshka.java uses canonical ID "Matryoshka", UNCOMMON tier,
+            // and canSpawn excludes non-endless runs after floor 40.
+            "Matryoshka",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
@@ -3606,6 +3611,7 @@ impl RunEngine {
             .filter(|relic| *relic != "CeramicFish" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Darkstone Periapt" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Dream Catcher" || self.run_state.floor <= 48)
+            .filter(|relic| *relic != "Matryoshka" || self.run_state.floor <= 40)
             .filter(|relic| {
                 !matches!(*relic, "Frozen Egg 2" | "Molten Egg 2" | "Toxic Egg 2")
                     || self.run_state.floor <= 48
@@ -3626,6 +3632,7 @@ impl RunEngine {
                     .filter(|relic| *relic != "CeramicFish" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Darkstone Periapt" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Dream Catcher" || self.run_state.floor <= 48)
+                    .filter(|relic| *relic != "Matryoshka" || self.run_state.floor <= 40)
                     .filter(|relic| {
                         !matches!(*relic, "Frozen Egg 2" | "Molten Egg 2" | "Toxic Egg 2")
                             || self.run_state.floor <= 48
@@ -3642,6 +3649,36 @@ impl RunEngine {
 
         let idx = self.rng.gen_range(0..candidates.len());
         candidates[idx].to_string()
+    }
+
+    fn roll_matryoshka_relic_id(&mut self) -> String {
+        // Matryoshka.java::onChestOpen consumes the 75% tier roll before the
+        // tier-specific reward is generated. RunEngine currently uses one
+        // shared run RNG, so this preserves semantic tiering and call order.
+        const COMMON: &[&str] = &[
+            "Akabeko", "Anchor", "Ancient Tea Set", "Art of War",
+            "Bag of Marbles", "Bag of Preparation", "Blood Vial", "Boot",
+            "Bronze Scales", "CeramicFish", "Dream Catcher", "Lantern", "Vajra",
+        ];
+        const UNCOMMON: &[&str] = &[
+            "Blue Candle", "Bottled Flame", "Bottled Lightning", "Bottled Tornado",
+            "Darkstone Periapt", "Eternal Feather", "Frozen Egg 2", "InkBottle",
+            "Kunai", "Letter Opener", "Matryoshka", "Molten Egg 2",
+            "Ornamental Fan", "Thread and Needle", "Toxic Egg 2",
+        ];
+
+        let pool = if self.rng.gen_bool(0.75) { COMMON } else { UNCOMMON };
+        let registry = gameplay_registry();
+        let candidates: Vec<&str> = pool
+            .iter()
+            .copied()
+            .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
+            .filter(|id| !self.run_state.relics.iter().any(|owned| owned == id))
+            .collect();
+        if candidates.is_empty() {
+            return "Circlet".to_string();
+        }
+        candidates[self.rng.gen_range(0..candidates.len())].to_string()
     }
 
     fn roll_reward_potion_id(&mut self) -> String {

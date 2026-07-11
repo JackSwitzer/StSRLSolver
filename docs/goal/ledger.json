@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T08:50:35.186056+00:00",
+ "updated": "2026-07-11T08:56:18.710480+00:00",
  "status_counts": {
-  "unverified": 475,
-  "verified": 192
+  "unverified": 474,
+  "verified": 193
  },
  "rows": [
   {
@@ -5652,8 +5652,8 @@
    "class": "Matryoshka",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Matryoshka.java",
    "methods_ref": "reference/extracted/methods/relic/Matryoshka.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

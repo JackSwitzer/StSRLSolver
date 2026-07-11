@@ -136,3 +136,34 @@ fn matryoshka_chest_rewards_preserve_gold_then_relic_then_extra_relic_order() {
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert!(engine.current_reward_screen().is_none());
 }
+
+#[test]
+fn matryoshka_extra_chest_reward_uses_only_common_or_uncommon_tiers() {
+    // Matryoshka.java::onChestOpen rolls COMMON at 75%, otherwise UNCOMMON;
+    // it never adds a RARE relic. Exercise both branches on treasure screens.
+    const COMMON: &[&str] = &[
+        "Akabeko", "Anchor", "Ancient Tea Set", "Art of War", "Bag of Marbles",
+        "Bag of Preparation", "Blood Vial", "Boot", "Bronze Scales", "CeramicFish",
+        "Dream Catcher", "Lantern", "Vajra",
+    ];
+    const UNCOMMON: &[&str] = &[
+        "Blue Candle", "Bottled Flame", "Bottled Lightning", "Bottled Tornado",
+        "Darkstone Periapt", "Eternal Feather", "Frozen Egg 2", "InkBottle", "Kunai",
+        "Letter Opener", "Matryoshka", "Molten Egg 2", "Ornamental Fan",
+        "Thread and Needle", "Toxic Egg 2",
+    ];
+    let mut saw_common = false;
+    let mut saw_uncommon = false;
+    for seed in 0..256 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.relics.push("Matryoshka".to_string());
+        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine.run_state.relic_flags.init_relic_counter("Matryoshka");
+        engine.debug_build_treasure_reward_screen();
+        let extra = &engine.current_reward_screen().expect("treasure").items[2].label;
+        saw_common |= COMMON.contains(&extra.as_str());
+        saw_uncommon |= UNCOMMON.contains(&extra.as_str());
+        assert!(COMMON.contains(&extra.as_str()) || UNCOMMON.contains(&extra.as_str()));
+    }
+    assert!(saw_common && saw_uncommon);
+}

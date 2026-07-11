@@ -869,6 +869,32 @@ fn mango_is_reachable_and_increases_max_hp_by_fourteen_on_pickup() {
 }
 
 #[test]
+fn matryoshka_is_reachable_only_through_floor_forty() {
+    // Matryoshka.java constructs an UNCOMMON relic and canSpawn allows
+    // non-endless runs only while floorNum <= 40.
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 40;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Matryoshka"
+            })
+        })
+    });
+    assert!(offered);
+
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 41;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Matryoshka")
+        }));
+    }
+}
+
+#[test]
 fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
     // Source-derived (verify relic/Calling Bell): CallingBell.java is BOSS tier,
     // confirms CurseOfTheBell, then opens COMMON, UNCOMMON, and RARE relic
