@@ -1951,6 +1951,16 @@ impl RunEngine {
             .map(|enemy| enemy.id.clone())
             .collect();
 
+        let escaped_with_smoke_bomb = matches!(
+            &combat_action,
+            crate::actions::Action::UsePotion { potion_idx, .. }
+                if engine
+                    .state
+                    .potions
+                    .get(*potion_idx)
+                    .is_some_and(|id| matches!(id.as_str(), "SmokeBomb" | "Smoke Bomb"))
+        );
+
         engine.clear_event_log();
         let hp_before = engine.state.player.hp;
         engine.execute_action(&combat_action);
@@ -1959,6 +1969,29 @@ impl RunEngine {
         let mut reward = 0.0;
 
         if engine.is_combat_over() {
+            if escaped_with_smoke_bomb {
+                // SmokeBomb marks the room smoked and the player escaping; it
+                // is neither a victory nor player death and grants no combat
+                // rewards. Persist the live combat state, then return to map.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/SmokeBomb.java
+                self.run_state.current_hp = engine.state.player.hp;
+                self.run_state.max_hp = engine.state.player.max_hp;
+                self.run_state.potions = engine.state.potions.clone();
+                self.run_state.deck = engine
+                    .state
+                    .master_deck
+                    .iter()
+                    .map(|card| engine.card_registry.card_name(card.def_id).to_string())
+                    .collect();
+                self.run_state.relic_flags.counters = engine.state.relic_counters;
+                self.run_state.persisted_effect_states = engine.export_persisted_effects();
+                self.last_combat_events = engine.take_event_log();
+                self.pending_event_combat = None;
+                self.combat_engine = None;
+                self.phase = RunPhase::MapChoice;
+                self.refresh_decision_stack();
+                return reward;
+            }
             if engine.state.player_won {
                 // Combat win reward
                 reward += 1.0;
@@ -1971,6 +2004,7 @@ impl RunEngine {
 
                 // Update run state from combat result
                 self.run_state.current_hp = engine.state.player.hp;
+                self.run_state.max_hp = engine.state.player.max_hp;
                 let recovered_stolen_gold: i32 = engine.state.enemies.iter()
                     .filter(|enemy| enemy.id == "Looter"
                         && enemy.entity.hp <= 0 && !enemy.is_escaping)
@@ -2861,6 +2895,7 @@ impl RunEngine {
             "LiquidBronze",
             "LiquidMemories",
             "Regen Potion",
+            "SmokeBomb",
         ];
 
         let registry = gameplay_registry();
@@ -4727,6 +4762,44 @@ mod tests {
         assert!(!engine
             .get_legal_actions()
             .contains(&RunAction::UsePotion(0)));
+    }
+
+    #[test]
+    fn smoke_bomb_escapes_without_losing_run_or_receiving_combat_rewards() {
+        // Source-derived (verify potion/SmokeBomb): use marks the current room
+        // smoked and the player escaping. It does not kill the player or win
+        // the fight. Combat-owned state still persists when the room exits.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/SmokeBomb.java
+        let mut engine = RunEngine::new(42, 20);
+        resolve_opening_neow(&mut engine);
+        let max_before = engine.run_state.max_hp;
+        let hp_before = engine.run_state.current_hp;
+        engine.run_state.potions[0] = "FruitJuice".to_string();
+        engine.run_state.potions[1] = "SmokeBomb".to_string();
+        engine.enter_specific_combat(vec!["JawWorm".to_string()]);
+
+        let fruit = RunAction::CombatAction(crate::actions::Action::UsePotion {
+            potion_idx: 0,
+            target_idx: -1,
+        });
+        assert!(engine.step_with_result(&fruit).action_accepted);
+        let smoke = RunAction::CombatAction(crate::actions::Action::UsePotion {
+            potion_idx: 1,
+            target_idx: -1,
+        });
+        let result = engine.step_with_result(&smoke);
+
+        assert!(result.action_accepted);
+        assert_eq!(result.reward, 0.0);
+        assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+        assert!(!engine.run_state.run_over);
+        assert_eq!(engine.run_state.combats_won, 0);
+        assert_eq!(engine.run_state.max_hp, max_before + 5);
+        assert_eq!(engine.run_state.current_hp, hp_before + 5);
+        assert!(engine.run_state.potions[0].is_empty());
+        assert!(engine.run_state.potions[1].is_empty());
+        assert!(engine.combat_engine.is_none());
+        assert!(engine.reward_screen.is_none());
     }
 
     #[test]

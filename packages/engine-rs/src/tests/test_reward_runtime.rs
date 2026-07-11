@@ -192,12 +192,18 @@ fn white_beast_adds_potion_reward_item_before_card_choice() {
     let claim_potion = engine.step_with_result(&RunAction::SelectRewardItem(0));
     assert!(claim_potion.action_accepted);
     assert!(engine.run_state.potions.iter().any(|p| p == &offered_potion));
+    let mut expected_actions = vec![
+        DecisionAction::ClaimRewardItem { item_index: 1 },
+        DecisionAction::SkipRewardItem { item_index: 1 },
+    ];
+    // FruitJuice.canUse permits use on non-combat reward screens.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FruitJuice.java
+    if matches!(offered_potion.as_str(), "FruitJuice" | "Fruit Juice") {
+        expected_actions.push(DecisionAction::UsePotion(0));
+    }
     assert_eq!(
         claim_potion.legal_decision_actions,
-        vec![
-            DecisionAction::ClaimRewardItem { item_index: 1 },
-            DecisionAction::SkipRewardItem { item_index: 1 },
-        ]
+        expected_actions
     );
 }
 

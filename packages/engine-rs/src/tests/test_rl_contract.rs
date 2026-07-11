@@ -352,14 +352,26 @@ fn reward_action_features_distinguish_potion_and_boss_relic_states() {
     assert_eq!(obs[reward_slot + 6], 1.0, "first reward item should encode as a potion");
     assert_eq!(obs[reward_slot + 10], 1.0, "first reward item should be claimable");
 
+    let offered_potion = engine
+        .current_reward_screen()
+        .expect("reward screen")
+        .items[0]
+        .label
+        .clone();
     let potion_claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
     assert!(potion_claim.action_accepted);
+    let mut expected_actions = vec![
+        DecisionAction::ClaimRewardItem { item_index: 1 },
+        DecisionAction::SkipRewardItem { item_index: 1 },
+    ];
+    // FruitJuice.canUse permits use on non-combat reward screens.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FruitJuice.java
+    if matches!(offered_potion.as_str(), "FruitJuice" | "Fruit Juice") {
+        expected_actions.push(DecisionAction::UsePotion(0));
+    }
     assert_eq!(
         potion_claim.legal_decision_actions,
-        vec![
-            DecisionAction::ClaimRewardItem { item_index: 1 },
-            DecisionAction::SkipRewardItem { item_index: 1 },
-        ]
+        expected_actions
     );
 
     let skip_slot = STATE_DIM + ACTION_FEAT_DIM;
