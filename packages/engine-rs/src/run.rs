@@ -301,6 +301,8 @@ pub struct RunState {
     pub bottled_flame_card: Option<String>,
     #[serde(default)]
     pub bottled_lightning_card: Option<String>,
+    #[serde(default)]
+    pub bottled_tornado_card: Option<String>,
 
     // Map state
     pub map_x: i32,   // -1 before first move
@@ -406,6 +408,7 @@ impl RunState {
             max_potions: 3,
             bottled_flame_card: None,
             bottled_lightning_card: None,
+            bottled_tornado_card: None,
             map_x: -1,
             map_y: -1,
             has_ruby_key: false,
@@ -533,6 +536,7 @@ pub struct RunEngine {
     pending_astrolabe_removed: Vec<String>,
     pending_bottled_flame_selection: bool,
     pending_bottled_lightning_selection: bool,
+    pending_bottled_tornado_selection: bool,
 
     // Canonical stack of active decisions.
     decision_stack: DecisionStack,
@@ -604,6 +608,7 @@ impl RunEngine {
             pending_astrolabe_removed: Vec::new(),
             pending_bottled_flame_selection: false,
             pending_bottled_lightning_selection: false,
+            pending_bottled_tornado_selection: false,
             decision_stack: DecisionStack::new(),
             current_event: None,
             pending_event_combat: None,
@@ -1694,6 +1699,14 @@ impl RunEngine {
                 card.flags |= crate::combat_types::CardInstance::FLAG_INNATE;
             }
         }
+        if let Some(bottled) = self.run_state.bottled_tornado_card.as_deref() {
+            if let Some(card) = deck_instances.iter_mut().find(|card| {
+                registry.card_name(card.def_id).trim_end_matches('+')
+                    == bottled.trim_end_matches('+')
+            }) {
+                card.flags |= crate::combat_types::CardInstance::FLAG_INNATE;
+            }
+        }
         let mut combat_state = CombatState::new(
             self.run_state.current_hp,
             self.run_state.max_hp,
@@ -2543,10 +2556,14 @@ impl RunEngine {
         let astrolabe_card_pick = item_label == "deck_selection_astrolabe";
         let bottled_flame_card_pick = item_label == "deck_selection_bottled_flame";
         let bottled_lightning_card_pick = item_label == "deck_selection_bottled_lightning";
+        let bottled_tornado_card_pick = item_label == "deck_selection_bottled_tornado";
 
         match (kind, choice) {
             (RewardItemKind::CardChoice, RewardChoice::Card { card_id, .. }) => {
-                if bottled_lightning_card_pick {
+                if bottled_tornado_card_pick {
+                    self.run_state.bottled_tornado_card = Some(card_id);
+                    self.pending_bottled_tornado_selection = false;
+                } else if bottled_lightning_card_pick {
                     self.run_state.bottled_lightning_card = Some(card_id);
                     self.pending_bottled_lightning_selection = false;
                 } else if bottled_flame_card_pick {
@@ -2752,6 +2769,8 @@ impl RunEngine {
             self.build_bottled_flame_selection_screen(source);
         } else if label == "Bottled Lightning" && self.pending_bottled_lightning_selection {
             self.build_bottled_lightning_selection_screen(source);
+        } else if label == "Bottled Tornado" && self.pending_bottled_tornado_selection {
+            self.build_bottled_tornado_selection_screen(source);
         }
     }
 
@@ -2839,6 +2858,10 @@ impl RunEngine {
             "Bottled Lightning" => {
                 self.pending_bottled_lightning_selection =
                     !self.bottled_lightning_choices().is_empty();
+            }
+            "Bottled Tornado" => {
+                self.pending_bottled_tornado_selection =
+                    !self.bottled_tornado_choices().is_empty();
             }
             "Whetstone" => self.upgrade_random_cards_by_type(crate::cards::CardType::Attack, 2),
             "WarPaint" => self.upgrade_random_cards_by_type(crate::cards::CardType::Skill, 2),
@@ -2972,6 +2995,10 @@ impl RunEngine {
         self.bottled_card_choices(crate::cards::CardType::Skill)
     }
 
+    fn bottled_tornado_choices(&self) -> Vec<RewardChoice> {
+        self.bottled_card_choices(crate::cards::CardType::Power)
+    }
+
     fn bottled_card_choices(&self, card_type: crate::cards::CardType) -> Vec<RewardChoice> {
         let registry = crate::cards::global_registry();
         self.run_state
@@ -3004,6 +3031,14 @@ impl RunEngine {
             source,
             "deck_selection_bottled_lightning",
             self.bottled_lightning_choices(),
+        );
+    }
+
+    fn build_bottled_tornado_selection_screen(&mut self, source: RewardScreenSource) {
+        self.build_bottled_card_selection_screen(
+            source,
+            "deck_selection_bottled_tornado",
+            self.bottled_tornado_choices(),
         );
     }
 
@@ -3131,6 +3166,15 @@ impl RunEngine {
         self.can_spawn_bottled_card(crate::cards::CardType::Skill)
     }
 
+    fn can_spawn_bottled_tornado(&self) -> bool {
+        let registry = crate::cards::global_registry();
+        self.run_state.deck.iter().any(|card_id| {
+            registry
+                .get(card_id)
+                .is_some_and(|card| card.card_type == crate::cards::CardType::Power)
+        })
+    }
+
     fn can_spawn_bottled_card(&self, card_type: crate::cards::CardType) -> bool {
         let registry = crate::cards::global_registry();
         self.run_state.deck.iter().any(|card_id| {
@@ -3171,6 +3215,8 @@ impl RunEngine {
             "Bottled Flame",
             // BottledLightning.java uses this canonical ID and UNCOMMON tier.
             "Bottled Lightning",
+            // BottledTornado.java uses this canonical ID and UNCOMMON tier.
+            "Bottled Tornado",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
@@ -3189,6 +3235,7 @@ impl RunEngine {
             .filter(|relic| {
                 *relic != "Bottled Lightning" || self.can_spawn_bottled_lightning()
             })
+            .filter(|relic| *relic != "Bottled Tornado" || self.can_spawn_bottled_tornado())
             .filter(|relic| !self.run_state.relics.iter().any(|owned| owned == relic))
             .collect();
         if candidates.is_empty() {
@@ -3200,6 +3247,9 @@ impl RunEngine {
                     .filter(|relic| *relic != "Bottled Flame" || self.can_spawn_bottled_flame())
                     .filter(|relic| {
                         *relic != "Bottled Lightning" || self.can_spawn_bottled_lightning()
+                    })
+                    .filter(|relic| {
+                        *relic != "Bottled Tornado" || self.can_spawn_bottled_tornado()
                     }),
             );
         }
@@ -4492,6 +4542,7 @@ impl RunEngine {
             "Blue Candle",
             "Bottled Flame",
             "Bottled Lightning",
+            "Bottled Tornado",
             "ClockworkSouvenir",
             "DataDisk",
             "HappyFlower",
@@ -4507,6 +4558,7 @@ impl RunEngine {
             .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
             .filter(|id| *id != "Bottled Flame" || self.can_spawn_bottled_flame())
             .filter(|id| *id != "Bottled Lightning" || self.can_spawn_bottled_lightning())
+            .filter(|id| *id != "Bottled Tornado" || self.can_spawn_bottled_tornado())
             .filter(|id| !self.run_state.relics.iter().any(|owned| owned == id))
             .collect();
         if candidates.is_empty() {
@@ -4516,6 +4568,7 @@ impl RunEngine {
                 .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
                 .filter(|id| *id != "Bottled Flame" || self.can_spawn_bottled_flame())
                 .filter(|id| *id != "Bottled Lightning" || self.can_spawn_bottled_lightning())
+                .filter(|id| *id != "Bottled Tornado" || self.can_spawn_bottled_tornado())
                 .collect();
         }
         if candidates.is_empty() {
@@ -6816,6 +6869,35 @@ mod tests {
             .hand
             .iter()
             .any(|card| combat.card_registry.card_name(card.def_id) == "ThirdEye"));
+    }
+
+    #[test]
+    fn bottled_tornado_marks_one_selected_master_deck_card_innate_in_combat() {
+        // Source-derived (verify relic/Bottled Tornado): the selected Power
+        // gets inBottleTornado=true and enters the opening hand.
+        let mut engine = RunEngine::new(29, 0);
+        engine.run_state.deck = vec![
+            "Strike".to_string(),
+            "Strike".to_string(),
+            "Strike".to_string(),
+            "Defend".to_string(),
+            "Defend".to_string(),
+            "Defend".to_string(),
+            "Eruption".to_string(),
+            "Vigilance".to_string(),
+            "Wallop".to_string(),
+            "Devotion".to_string(),
+        ];
+        engine.run_state.relics.push("Bottled Tornado".to_string());
+        engine.run_state.bottled_tornado_card = Some("Devotion".to_string());
+
+        engine.enter_specific_combat(vec!["JawWorm".to_string()]);
+        let combat = engine.combat_engine.as_ref().expect("combat should start");
+        assert!(combat
+            .state
+            .hand
+            .iter()
+            .any(|card| combat.card_registry.card_name(card.def_id) == "Devotion"));
     }
 
     #[test]

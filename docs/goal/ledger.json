@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T07:24:51.928068+00:00",
+ "updated": "2026-07-11T07:28:25.894606+00:00",
  "status_counts": {
-  "unverified": 504,
-  "verified": 163
+  "unverified": 503,
+  "verified": 164
  },
  "rows": [
   {
@@ -4982,8 +4982,8 @@
    "class": "BottledTornado",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/BottledTornado.java",
    "methods_ref": "reference/extracted/methods/relic/BottledTornado.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

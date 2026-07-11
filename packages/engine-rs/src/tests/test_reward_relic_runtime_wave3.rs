@@ -505,6 +505,55 @@ fn bottled_lightning_requires_a_nonbasic_skill_then_selects_any_purgeable_skill(
 }
 
 #[test]
+fn bottled_tornado_requires_and_selects_a_purgeable_power() {
+    // Source-derived (verify relic/Bottled Tornado): canSpawn requires any
+    // Power, and onEquip offers the purgeable Powers for one selection.
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Bottled Tornado")
+        }));
+    }
+
+    let offered = (0..1024).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.deck.push("Devotion".to_string());
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| item.label == "Bottled Tornado")
+        })
+    });
+    assert!(offered);
+
+    let mut engine = RunEngine::new(42, 0);
+    engine.run_state.deck.push("Devotion".to_string());
+    engine.debug_set_reward_screen(single_relic_reward_screen("Bottled Tornado"));
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    let screen = engine.current_reward_screen().expect("power selection should open");
+    assert_eq!(screen.items[0].choices.len(), 1);
+    assert!(matches!(
+        &screen.items[0].choices[0],
+        RewardChoice::Card { card_id, .. } if card_id == "Devotion"
+    ));
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(engine
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+    assert_eq!(
+        engine.run_state.bottled_tornado_card.as_deref(),
+        Some("Devotion")
+    );
+}
+
+#[test]
 fn ambrosia_is_reachable_from_watcher_potion_rewards() {
     // PotionHelper.getPotions(WATCHER, false) includes Ambrosia. White Beast
     // Statue guarantees a potion item here so the run reward path is sampled.

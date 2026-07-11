@@ -170,6 +170,7 @@ pub mod teardrop_locket;
 pub mod boot;
 pub mod bottled_flame;
 pub mod bottled_lightning;
+pub mod bottled_tornado;
 pub mod torii;
 pub mod tungsten_rod;
 pub mod champion_belt;
@@ -313,6 +314,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &boot::DEF,
     &bottled_flame::DEF,
     &bottled_lightning::DEF,
+    &bottled_tornado::DEF,
     &torii::DEF,
     &tungsten_rod::DEF,
     &champion_belt::DEF,
