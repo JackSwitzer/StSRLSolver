@@ -8,7 +8,8 @@ import com.megacrit.cardcrawl.events.AbstractEvent;
 import com.megacrit.cardcrawl.monsters.AbstractMonster;
 import com.megacrit.cardcrawl.potions.AbstractPotion;
 import com.megacrit.cardcrawl.rooms.AbstractRoom;
-import com.megacrit.cardcrawl.ui.campfire.AbstractCampfireOption;
+import com.megacrit.cardcrawl.vfx.campfire.CampfireSleepEffect;
+import com.megacrit.cardcrawl.vfx.campfire.CampfireSmithEffect;
 import tracelab.Script;
 import tracelab.ScriptRunner;
 
@@ -36,49 +37,77 @@ public class RecordHooks {
         }
     }
 
-    @SpirePatch(clz = AbstractPotion.class, method = "use")
+    @SpirePatch(clz = com.megacrit.cardcrawl.ui.panels.TopPanel.class, method = "destroyPotion")
     public static class UsePotionPatch {
-        public static void Prefix(AbstractPotion __instance, AbstractMonster m) {
-            if (!ScriptRunner.recording()) {
+        public static void Prefix(com.megacrit.cardcrawl.ui.panels.TopPanel __instance, int slot) {
+            if (!ScriptRunner.recording() || AbstractDungeon.player == null
+                    || slot < 0 || slot >= AbstractDungeon.player.potions.size()) {
+                return;
+            }
+            AbstractPotion potion = AbstractDungeon.player.potions.get(slot);
+            if (potion == null || "Potion Slot".equals(potion.ID)) {
                 return;
             }
             Script.Action a = new Script.Action();
             a.type = "USE_POTION";
-            a.idx = AbstractDungeon.player != null
-                    ? AbstractDungeon.player.potions.indexOf(__instance) : null;
-            a.card_id = __instance.ID;
-            a.target = m != null && AbstractDungeon.getMonsters() != null
-                    ? AbstractDungeon.getMonsters().monsters.indexOf(m) : null;
+            a.idx = slot;
+            a.card_id = potion.ID;
             ScriptRunner.recordAction(a);
         }
     }
 
-    @SpirePatch(clz = AbstractEvent.class, method = "buttonEffect")
-    public static class EventChoicePatch {
-        public static void Prefix(AbstractEvent __instance, int buttonPressed) {
-            if (!ScriptRunner.recording()) {
-                return;
-            }
-            Script.Action a = new Script.Action();
-            AbstractRoom room = ScriptRunner.currRoom();
-            a.type = room != null && room.getClass().getSimpleName().equals("NeowRoom")
-                    ? "NEOW" : "EVENT_CHOICE";
-            a.choice = buttonPressed;
-            ScriptRunner.recordAction(a);
+    @SpirePatch(clz = com.megacrit.cardcrawl.events.RoomEventDialog.class,
+            method = "getSelectedOption")
+    public static class RoomEventChoicePatch {
+        public static void Postfix(com.megacrit.cardcrawl.events.RoomEventDialog __instance,
+                                   int __result) {
+            recordEventChoice(__result);
         }
     }
 
-    @SpirePatch(clz = AbstractCampfireOption.class, method = "useOption")
-    public static class CampfirePatch {
-        public static void Prefix(AbstractCampfireOption __instance) {
-            if (!ScriptRunner.recording()) {
-                return;
-            }
-            Script.Action a = new Script.Action();
-            a.type = "CAMPFIRE";
-            a.choice_name = __instance.getClass().getSimpleName().replace("Option", "").toUpperCase();
-            ScriptRunner.recordAction(a);
+    @SpirePatch(clz = com.megacrit.cardcrawl.events.GenericEventDialog.class,
+            method = "getSelectedOption")
+    public static class GenericEventChoicePatch {
+        public static void Postfix(com.megacrit.cardcrawl.events.GenericEventDialog __instance,
+                                   int __result) {
+            recordEventChoice(__result);
         }
+    }
+
+    private static void recordEventChoice(int choice) {
+        if (!ScriptRunner.recording() || choice < 0) {
+            return;
+        }
+        Script.Action a = new Script.Action();
+        AbstractRoom room = ScriptRunner.currRoom();
+        a.type = room != null && room.getClass().getSimpleName().equals("NeowRoom")
+                ? "NEOW" : "EVENT_CHOICE";
+        a.choice = choice;
+        ScriptRunner.recordAction(a);
+    }
+
+    @SpirePatch(clz = CampfireSleepEffect.class, method = SpirePatch.CONSTRUCTOR)
+    public static class CampfireRestPatch {
+        public static void Prefix() {
+            recordCampfire("REST");
+        }
+    }
+
+    @SpirePatch(clz = CampfireSmithEffect.class, method = SpirePatch.CONSTRUCTOR)
+    public static class CampfireSmithPatch {
+        public static void Prefix() {
+            recordCampfire("SMITH");
+        }
+    }
+
+    private static void recordCampfire(String what) {
+        if (!ScriptRunner.recording()) {
+            return;
+        }
+        Script.Action a = new Script.Action();
+        a.type = "CAMPFIRE";
+        a.choice_name = what;
+        ScriptRunner.recordAction(a);
     }
 
     @SpirePatch(clz = AbstractRoom.class, method = "endTurn")
