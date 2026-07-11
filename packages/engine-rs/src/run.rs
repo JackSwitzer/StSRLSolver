@@ -3290,6 +3290,7 @@ impl RunEngine {
             "Bird Faced Urn",
             "Calipers",
             "Du-Vu Doll",
+            "FossilizedHelix",
             "Ginger",
             "Ice Cream",
             "Incense Burner",
@@ -3528,6 +3529,8 @@ impl RunEngine {
             "Eternal Feather",
             // Ginger.java uses this canonical ID and RARE tier.
             "Ginger",
+            // FossilizedHelix.java uses canonical ID "FossilizedHelix" and RARE tier.
+            "FossilizedHelix",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",

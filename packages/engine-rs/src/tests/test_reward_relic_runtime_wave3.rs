@@ -613,6 +613,22 @@ fn ginger_is_reachable_from_watcher_relic_rewards() {
 }
 
 #[test]
+fn fossilized_helix_is_reachable_under_its_canonical_java_id() {
+    // RelicLibrary.java registers FossilizedHelix; FossilizedHelix.java
+    // constructs the shared RARE relic under canonical ID "FossilizedHelix".
+    let offered = (0..1024).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "FossilizedHelix"
+            })
+        })
+    });
+    assert!(offered);
+}
+
+#[test]
 fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
     // Source-derived (verify relic/Calling Bell): CallingBell.java is BOSS tier,
     // confirms CurseOfTheBell, then opens COMMON, UNCOMMON, and RARE relic

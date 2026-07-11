@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T08:19:01.140388+00:00",
+ "updated": "2026-07-11T08:21:30.622759+00:00",
  "status_counts": {
-  "unverified": 488,
-  "verified": 179
+  "unverified": 487,
+  "verified": 180
  },
  "rows": [
   {
@@ -5342,8 +5342,8 @@
    "class": "FossilizedHelix",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/FossilizedHelix.java",
    "methods_ref": "reference/extracted/methods/relic/FossilizedHelix.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -50,7 +50,7 @@ fn combat_start_bundle_applies_simple_java_relic_effects_on_runtime_path() {
             "Akabeko",
             "Bronze Scales",
             "Clockwork Souvenir",
-            "Fossilized Helix",
+            "FossilizedHelix",
             "Data Disk",
         ],
         &["Strike", "Strike", "Strike", "Strike", "Strike"],
@@ -327,6 +327,26 @@ fn ginger_runtime_install_blocks_enemy_weak_application() {
     assert!(!applied);
     assert_eq!(engine.state.player.status(sid::WEAKENED), 0);
     assert_eq!(engine.state.player.status(sid::WEAKENED_JUST_APPLIED), 0);
+}
+
+#[test]
+fn fossilized_helix_buffer_prevents_and_is_consumed_by_first_enemy_attack() {
+    // Source-derived (verify relic/FossilizedHelix): FossilizedHelix.java uses
+    // canonical ID "FossilizedHelix" and applies BufferPower(1) at battle start.
+    let mut engine = engine_without_start_with_relics(
+        &["FossilizedHelix"],
+        &["Strike", "Strike", "Defend", "Defend", "Vigilance"],
+        vec![enemy("Cultist", 50, 50, 1, 12, 1)],
+        3,
+    );
+    engine.start_combat();
+    let hp = engine.state.player.hp;
+    assert_eq!(engine.state.player.status(sid::BUFFER), 1);
+
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.hp, hp);
+    assert_eq!(engine.state.player.status(sid::BUFFER), 0);
 }
 
 #[test]
