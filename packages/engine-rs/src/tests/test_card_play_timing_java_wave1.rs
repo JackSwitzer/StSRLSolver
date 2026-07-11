@@ -1,6 +1,7 @@
 #![cfg(test)]
 
 use crate::effects::runtime::EffectOwner;
+use crate::engine::CombatEngine;
 use crate::status_ids::sid;
 use crate::tests::support::{
     combat_state_with, enemy_no_intent, engine_with, engine_with_state, engine_without_start,
@@ -189,4 +190,42 @@ fn burst_replays_skill_cards_during_the_card_use_phase() {
 
     assert!(play_self(&mut engine, "Backflip"));
     assert!(engine.state.player.block >= 10);
+}
+
+#[test]
+// Java oracle:
+// decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
+fn strange_spoon_uses_one_boolean_roll_and_sends_saved_exhaust_to_discard() {
+    let mut saw_discard = false;
+    let mut saw_exhaust = false;
+
+    for card_random_seed in 0..64 {
+        let state = combat_state_with(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            3,
+        );
+        let mut engine = CombatEngine::new_with_card_random_seed(state, 0, card_random_seed);
+        engine.state.relics.push("Strange Spoon".to_string());
+        force_player_turn(&mut engine);
+        engine.state.hand = make_deck(&["Miracle"]);
+
+        let before = engine.rng_counters()["cardRandom"];
+        assert!(play_self(&mut engine, "Miracle"));
+        assert_eq!(engine.rng_counters()["cardRandom"], before + 1);
+        assert!(engine.state.draw_pile.is_empty());
+
+        let discarded = engine.state.discard_pile.iter().any(|card| {
+            engine.card_registry.card_name(card.def_id) == "Miracle"
+        });
+        let exhausted = engine.state.exhaust_pile.iter().any(|card| {
+            engine.card_registry.card_name(card.def_id) == "Miracle"
+        });
+        assert_ne!(discarded, exhausted);
+        saw_discard |= discarded;
+        saw_exhaust |= exhausted;
+    }
+
+    assert!(saw_discard, "sampled seeds must exercise the Spoon save");
+    assert!(saw_exhaust, "sampled seeds must exercise normal exhaustion");
 }

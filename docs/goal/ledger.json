@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T18:42:42.886619+00:00",
+ "updated": "2026-07-11T18:46:31.858402+00:00",
  "status_counts": {
-  "unverified": 440,
-  "verified": 227
+  "unverified": 439,
+  "verified": 228
  },
  "rows": [
   {
@@ -6312,8 +6312,8 @@
    "class": "StrangeSpoon",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/StrangeSpoon.java",
    "methods_ref": "reference/extracted/methods/relic/StrangeSpoon.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

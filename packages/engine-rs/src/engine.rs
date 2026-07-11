@@ -2403,9 +2403,27 @@ impl CombatEngine {
             ));
         }
 
+        let exhausts_on_use = card.exhaust
+            || card_inst.flags & CardInstance::FLAG_EXHAUST_ON_USE != 0
+            || (card.card_type == CardType::Skill
+                && self.state.player.status(sid::CORRUPTION) > 0);
+        let spoon_saved = card_inst.flags & CardInstance::FLAG_PURGE == 0
+            && card.card_type != CardType::Power
+            && exhausts_on_use
+            && (self.state.has_relic("Strange Spoon")
+                || self.state.has_relic("StrangeSpoon"))
+            // UseCardAction sets spoonProc from exactly one
+            // cardRandomRng.randomBoolean(), then follows the ordinary post-use
+            // destination when true.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
+            && self.card_random_rng.random_boolean();
+
         if card_inst.flags & CardInstance::FLAG_PURGE != 0 || card.card_type == CardType::Power {
             // purgeOnUse copies disappear after their effects. Power cards are
             // consumed by the normal power-play path regardless of exhaust.
+        } else if exhausts_on_use && !spoon_saved {
+            self.state.exhaust_pile.push(card_inst);
+            self.trigger_card_on_exhaust(card_inst);
         } else if post_play_dest == crate::effects::types::PostPlayDestination::ShuffleIntoDraw {
             // Tantrum's UseCardAction calls hand.moveToDeck(card, true), which
             // delegates to CardGroup.addToRandomSpot and cardRandomRng. It does
@@ -2420,23 +2438,6 @@ impl CombatEngine {
                     .random_range(0, (self.state.draw_pile.len() - 1) as i32)
                     as usize;
                 self.state.draw_pile.insert(idx, card_inst);
-            }
-        } else if card.exhaust
-            || card_inst.flags & CardInstance::FLAG_EXHAUST_ON_USE != 0
-            || (card.card_type == CardType::Skill && self.state.player.status(sid::CORRUPTION) > 0)
-        {
-            if self.state.has_relic("Strange Spoon") || self.state.has_relic("StrangeSpoon") {
-                // UseCardAction consumes cardRandomRng.randomBoolean for Spoon.
-                // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
-                if self.card_random_rng.random(1) == 0 {
-                    self.state.draw_pile.push(card_inst);
-                } else {
-                    self.state.exhaust_pile.push(card_inst);
-                    self.trigger_card_on_exhaust(card_inst);
-                }
-            } else {
-                self.state.exhaust_pile.push(card_inst);
-                self.trigger_card_on_exhaust(card_inst);
             }
         } else {
             self.state.discard_pile.push(card_inst);
