@@ -1,5 +1,8 @@
 //! Ink Bottle: Every 10 cards played, draw 1 card.
 //! Counter persists across combats.
+//!
+//! Source: `reference/extracted/methods/relic/InkBottle.java`
+//! (`onUseCard` increments the counter, resets it at 10, and queues one draw).
 
 use crate::effects::declarative::{Effect, SimpleEffect, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};

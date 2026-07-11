@@ -156,6 +156,8 @@ fn nunchaku_persists_nine_attacks_and_grants_energy_on_tenth_attack() {
 
 #[test]
 fn ink_bottle_persists_nine_cards_and_draws_on_tenth_card() {
+    // InkBottle.java::onUseCard increments on every used card, resets at ten,
+    // and queues exactly one DrawCardAction(1); the relic counter survives combat.
     let mut first_engine = engine_with_relic_and_attacks("InkBottle", 9);
 
     for _ in 0..9 {

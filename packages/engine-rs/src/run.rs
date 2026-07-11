@@ -3556,6 +3556,8 @@ impl RunEngine {
             "Ice Cream",
             // IncenseBurner.java uses canonical ID "Incense Burner" and RARE tier.
             "Incense Burner",
+            // InkBottle.java uses canonical ID "InkBottle" and UNCOMMON tier.
+            "InkBottle",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
