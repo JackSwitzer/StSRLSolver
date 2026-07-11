@@ -3753,6 +3753,9 @@ impl RunEngine {
             // PotionBelt.java uses canonical ID "Potion Belt", COMMON tier,
             // and canSpawn excludes non-endless runs after floor 48.
             "Potion Belt",
+            // PreservedInsect.java uses canonical ID "PreservedInsect",
+            // COMMON tier, and canSpawn excludes non-endless runs after 52.
+            "PreservedInsect",
             // RegalPillow.java uses canonical ID "Regal Pillow", COMMON tier,
             // and canSpawn excludes non-endless runs after floor 48.
             "Regal Pillow",
@@ -3787,6 +3790,7 @@ impl RunEngine {
             .filter(|relic| *relic != "Question Card" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Prayer Wheel" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Potion Belt" || self.run_state.floor <= 48)
+            .filter(|relic| *relic != "PreservedInsect" || self.run_state.floor <= 52)
             .filter(|relic| *relic != "Regal Pillow" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Singing Bowl" || self.run_state.floor <= 48)
             .filter(|relic| {
@@ -3817,6 +3821,7 @@ impl RunEngine {
                     .filter(|relic| *relic != "Question Card" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Prayer Wheel" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Potion Belt" || self.run_state.floor <= 48)
+                    .filter(|relic| *relic != "PreservedInsect" || self.run_state.floor <= 52)
                     .filter(|relic| *relic != "Regal Pillow" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Singing Bowl" || self.run_state.floor <= 48)
                     .filter(|relic| {

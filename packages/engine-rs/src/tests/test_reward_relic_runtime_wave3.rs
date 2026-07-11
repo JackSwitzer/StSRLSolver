@@ -1300,6 +1300,32 @@ fn potion_belt_is_reachable_through_floor_forty_eight_and_adds_two_slots() {
 }
 
 #[test]
+fn preserved_insect_is_reachable_only_through_floor_fifty_two() {
+    // PreservedInsect.java constructs a COMMON relic under canonical ID
+    // "PreservedInsect" and canSpawn excludes non-endless runs after floor 52.
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 52;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "PreservedInsect"
+            })
+        })
+    });
+    assert!(offered);
+
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 53;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "PreservedInsect")
+        }));
+    }
+}
+
+#[test]
 fn strawberry_is_reachable_and_increases_max_hp_by_seven_on_pickup() {
     // Source: Strawberry.java constructs a COMMON relic and onEquip calls
     // increaseMaxHp(7, true).

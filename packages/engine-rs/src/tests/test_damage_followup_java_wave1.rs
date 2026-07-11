@@ -80,6 +80,7 @@ fn preserved_insect_reduces_all_elite_enemies_to_seventy_five_percent_of_max_hp(
         vec![
             enemy_no_intent("Sentry", 40, 40),
             enemy_no_intent("Sentry", 36, 36),
+            enemy_no_intent("Sentry", 20, 40),
         ],
         3,
     );
@@ -89,6 +90,7 @@ fn preserved_insect_reduces_all_elite_enemies_to_seventy_five_percent_of_max_hp(
 
     assert_eq!(engine.state.enemies[0].entity.hp, 30);
     assert_eq!(engine.state.enemies[1].entity.hp, 27);
+    assert_eq!(engine.state.enemies[2].entity.hp, 20);
 }
 
 #[test]
