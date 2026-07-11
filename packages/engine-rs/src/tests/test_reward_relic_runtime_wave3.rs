@@ -382,6 +382,58 @@ fn darkstone_periapt_is_reachable_and_an_obtained_curse_grants_six_max_hp() {
 }
 
 #[test]
+fn dream_catcher_is_reachable_and_opens_a_card_reward_only_after_resting() {
+    // DreamCatcher.java is COMMON with a floor-48 cutoff;
+    // CampfireSleepEffect.java opens getRewardCards only after Rest resolves.
+    let offered = (0..1024).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 48;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Dream Catcher"
+            })
+        })
+    });
+    assert!(offered);
+
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 49;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Dream Catcher")
+        }));
+    }
+
+    let mut rest = RunEngine::new(53, 0);
+    rest.run_state.relics.push("Dream Catcher".to_string());
+    rest.run_state.relic_flags.rebuild(&rest.run_state.relics);
+    rest.debug_set_campfire_phase();
+    assert!(rest
+        .step_with_result(&RunAction::CampfireRest)
+        .action_accepted);
+    assert_eq!(rest.current_phase(), RunPhase::CardReward);
+    let screen = rest.current_reward_screen().expect("Dream Catcher reward");
+    assert_eq!(screen.items.len(), 1);
+    assert_eq!(screen.items[0].kind, RewardItemKind::CardChoice);
+    assert_eq!(screen.items[0].choices.len(), 3);
+
+    let mut upgrade = RunEngine::new(59, 0);
+    upgrade.run_state.relics.push("Dream Catcher".to_string());
+    upgrade
+        .run_state
+        .relic_flags
+        .rebuild(&upgrade.run_state.relics);
+    upgrade.debug_set_campfire_phase();
+    assert!(upgrade
+        .step_with_result(&RunAction::CampfireUpgrade(0))
+        .action_accepted);
+    assert_eq!(upgrade.current_phase(), RunPhase::MapChoice);
+    assert!(upgrade.current_reward_screen().is_none());
+}
+
+#[test]
 fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
     // Source-derived (verify relic/Calling Bell): CallingBell.java is BOSS tier,
     // confirms CurseOfTheBell, then opens COMMON, UNCOMMON, and RARE relic

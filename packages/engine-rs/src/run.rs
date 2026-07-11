@@ -2353,6 +2353,51 @@ impl RunEngine {
         cards
     }
 
+    fn card_reward_choice_count(&self) -> usize {
+        let question_card_bonus = if self
+            .run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::QUESTION_CARD)
+        {
+            1
+        } else {
+            0
+        };
+        let busted_crown_penalty = if self
+            .run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::BUSTED_CROWN)
+        {
+            2
+        } else {
+            0
+        };
+        (3 + question_card_bonus - busted_crown_penalty).max(1) as usize
+    }
+
+    fn build_dream_catcher_reward_screen(&mut self) {
+        // CampfireSleepEffect.java opens AbstractDungeon.getRewardCards after
+        // resting with Dream Catcher, so normal reward-count relic callbacks
+        // (Question Card and Busted Crown) still apply.
+        let choices = self.generate_card_reward_choices(self.card_reward_choice_count());
+        self.reward_screen = Some(RewardScreen {
+            source: RewardScreenSource::Event,
+            ordered: true,
+            active_item: None,
+            items: vec![RewardItem {
+                index: 0,
+                kind: RewardItemKind::CardChoice,
+                state: RewardItemState::Available,
+                label: "dream_catcher_reward".to_string(),
+                claimable: true,
+                active: false,
+                skip_allowed: true,
+                skip_label: Some("Skip".to_string()),
+                choices,
+            }],
+        });
+    }
+
     fn build_combat_reward_screen(&mut self, room_type: RoomType) {
         let mut items = Vec::new();
 
@@ -2405,27 +2450,9 @@ impl RunEngine {
         } else {
             1
         };
-        let question_card_bonus = if self
-            .run_state
-            .relic_flags
-            .has(crate::relic_flags::flag::QUESTION_CARD)
-        {
-            1
-        } else {
-            0
-        };
         // BustedCrown.java subtracts two through changeNumberOfCardsInReward;
         // QuestionCard adds one through the same ordered relic callback chain.
-        let busted_crown_penalty = if self
-            .run_state
-            .relic_flags
-            .has(crate::relic_flags::flag::BUSTED_CROWN)
-        {
-            2
-        } else {
-            0
-        };
-        let card_choice_count = (3 + question_card_bonus - busted_crown_penalty).max(1);
+        let card_choice_count = self.card_reward_choice_count();
 
         for _ in 0..card_reward_count {
             items.push(RewardItem {
@@ -3464,6 +3491,9 @@ impl RunEngine {
             // DarkstonePeriapt.java uses this canonical ID, UNCOMMON tier, and
             // canSpawn excludes non-endless runs after floor 48.
             "Darkstone Periapt",
+            // DreamCatcher.java uses this canonical ID, COMMON tier, and
+            // canSpawn excludes non-endless runs after floor 48.
+            "Dream Catcher",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
@@ -3480,6 +3510,7 @@ impl RunEngine {
             .filter(|relic| *relic != "Ancient Tea Set" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "CeramicFish" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Darkstone Periapt" || self.run_state.floor <= 48)
+            .filter(|relic| *relic != "Dream Catcher" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Bottled Flame" || self.can_spawn_bottled_flame())
             .filter(|relic| {
                 *relic != "Bottled Lightning" || self.can_spawn_bottled_lightning()
@@ -3495,6 +3526,7 @@ impl RunEngine {
                     .filter(|relic| *relic != "Ancient Tea Set" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "CeramicFish" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Darkstone Periapt" || self.run_state.floor <= 48)
+                    .filter(|relic| *relic != "Dream Catcher" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Bottled Flame" || self.can_spawn_bottled_flame())
                     .filter(|relic| {
                         *relic != "Bottled Lightning" || self.can_spawn_bottled_lightning()
@@ -3726,6 +3758,18 @@ impl RunEngine {
                         heal = (heal as f32 * 1.5) as i32;
                     }
                     self.run_state.current_hp = (self.run_state.current_hp + heal).min(self.run_state.max_hp);
+                }
+                // CampfireSleepEffect.java opens a card reward only after the
+                // Rest option resolves; entering the room or upgrading does not.
+                if self
+                    .run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::DREAM_CATCHER)
+                {
+                    self.build_dream_catcher_reward_screen();
+                    self.phase = RunPhase::CardReward;
+                    self.refresh_decision_stack();
+                    return 0.0;
                 }
             }
             RunAction::CampfireUpgrade(idx) => {
