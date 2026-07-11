@@ -317,6 +317,50 @@ fn hook_burst(
     engine.execute_card_effects_with_enemy_on_use(&card, card_inst, event.target_idx);
 }
 
+fn hook_duplication(
+    engine: &mut CombatEngine,
+    owner: EffectOwner,
+    event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    if owner != EffectOwner::PlayerPower {
+        return;
+    }
+
+    if event.kind == Trigger::RoundEnd {
+        // DuplicationPower.atEndOfRound removes one unused charge, unlike
+        // Double Tap/Burst which remove their entire power at player turn end.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DuplicationPower.java
+        engine.state.player.add_status(sid::DUPLICATION, -1);
+        return;
+    }
+
+    if !engine.runtime_replay_window
+        || event.kind != Trigger::OnCardPlayedPost
+        || engine.state.combat_over
+    {
+        return;
+    }
+
+    let card_inst = match engine.runtime_played_card {
+        Some(card_inst) => card_inst,
+        None => return,
+    };
+    if card_inst.flags & crate::combat_types::CardInstance::FLAG_PURGE != 0
+        || engine.state.player.status(sid::DUPLICATION) <= 0
+    {
+        return;
+    }
+
+    // DuplicationPower.onUseCard copies every non-purge card type once, then
+    // consumes exactly one charge. The replay copy is purge-on-use, so it must
+    // not recursively consume another charge.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DuplicationPower.java
+    engine.state.player.add_status(sid::DUPLICATION, -1);
+    let card = engine.card_registry.card_def_by_id(card_inst.def_id).clone();
+    engine.execute_card_effects_with_enemy_on_use(&card, card_inst, event.target_idx);
+}
+
 fn hook_echo_form(
     engine: &mut CombatEngine,
     owner: EffectOwner,
@@ -401,6 +445,32 @@ pub static DEF_BURST: EntityDef = EntityDef {
     }],
     complex_hook: Some(hook_burst),
     status_guard: Some(sid::BURST),
+};
+
+// ===========================================================================
+// Duplication — replays the next card and loses one unused charge each round
+// ===========================================================================
+
+pub static DEF_DUPLICATION: EntityDef = EntityDef {
+    id: "duplication",
+    name: "Duplication",
+    kind: EntityKind::Power,
+    triggers: &[
+        TriggeredEffect {
+            trigger: Trigger::OnCardPlayedPost,
+            condition: TriggerCondition::Always,
+            effects: &[],
+            counter: None,
+        },
+        TriggeredEffect {
+            trigger: Trigger::RoundEnd,
+            condition: TriggerCondition::Always,
+            effects: &[],
+            counter: None,
+        },
+    ],
+    complex_hook: Some(hook_duplication),
+    status_guard: Some(sid::DUPLICATION),
 };
 
 // ===========================================================================

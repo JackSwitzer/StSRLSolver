@@ -130,6 +130,7 @@ pub enum GameplayEventKind {
     PowerCardPlayed,
     AnyCardPlayed,
     PoisonApplied,
+    RoundEnd,
 }
 
 impl From<crate::effects::trigger::Trigger> for GameplayEventKind {
@@ -143,6 +144,7 @@ impl From<crate::effects::trigger::Trigger> for GameplayEventKind {
             crate::effects::trigger::Trigger::TurnStartPostDrawLate => Self::TurnStartLate,
             crate::effects::trigger::Trigger::TurnEnd => Self::TurnEnd,
             crate::effects::trigger::Trigger::TurnEndPostOrbs => Self::TurnEndPostOrbs,
+            crate::effects::trigger::Trigger::RoundEnd => Self::RoundEnd,
             crate::effects::trigger::Trigger::CombatVictory => Self::CombatVictory,
             crate::effects::trigger::Trigger::OnCardPlayedPre => Self::CardPrePlay,
             crate::effects::trigger::Trigger::OnPlayCard => Self::CardCommitted,

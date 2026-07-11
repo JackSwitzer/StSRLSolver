@@ -4,7 +4,7 @@ use crate::actions::Action;
 use crate::effects::trigger::Trigger;
 use crate::status_ids::sid;
 use crate::tests::support::{
-    combat_state_with, end_turn, enemy_no_intent, engine_with_state, make_deck,
+    combat_state_with, end_turn, enemy_no_intent, engine_with_state, make_deck, play_self,
 };
 
 fn use_potion(engine: &mut crate::engine::CombatEngine, potion_idx: usize, target_idx: i32) {
@@ -165,6 +165,54 @@ fn cultist_potion_ritual_grows_strength_at_player_turn_end_only() {
 
     assert_eq!(engine.state.player.strength(), 2);
     assert_eq!(engine.state.player.status(sid::RITUAL), 2);
+}
+
+#[test]
+fn duplication_potion_replays_each_non_purge_card_and_consumes_one_charge() {
+    // Source-derived (verify potion/DuplicationPotion): base potency is one,
+    // Sacred Bark doubles it to two, and DuplicationPower copies every card
+    // type once while consuming one charge per original card.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/DuplicationPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DuplicationPower.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Defend", "Inflame"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand = make_deck(&["Defend", "Inflame"]);
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "DuplicationPotion".to_string();
+
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::DUPLICATION), 2);
+
+    assert!(play_self(&mut engine, "Defend"));
+    assert_eq!(engine.state.player.block, 10);
+    assert_eq!(engine.state.player.status(sid::DUPLICATION), 1);
+
+    assert!(play_self(&mut engine, "Inflame"));
+    assert_eq!(engine.state.player.strength(), 4);
+    assert_eq!(engine.state.player.status(sid::DUPLICATION), 0);
+}
+
+#[test]
+fn unused_duplication_charge_expires_at_end_of_round() {
+    // DuplicationPower.atEndOfRound reduces the power by exactly one.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DuplicationPower.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Defend"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "DuplicationPotion".to_string();
+
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::DUPLICATION), 2);
+
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.status(sid::DUPLICATION), 1);
 }
 
 #[test]

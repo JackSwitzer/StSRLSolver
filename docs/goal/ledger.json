@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T05:11:16.291792+00:00",
+ "updated": "2026-07-11T05:17:44.538976+00:00",
  "status_counts": {
-  "unverified": 541,
-  "verified": 126
+  "unverified": 540,
+  "verified": 127
  },
  "rows": [
   {
@@ -4512,8 +4512,8 @@
    "class": "DuplicationPotion",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/DuplicationPotion.java",
    "methods_ref": "reference/extracted/methods/potion/DuplicationPotion.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

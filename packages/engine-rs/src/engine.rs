@@ -1796,6 +1796,12 @@ impl CombatEngine {
             }
         }
 
+        // Java power atEndOfRound hooks run after the enemy turn (including
+        // when Vault skips that turn), not with the player's TurnEnd hooks.
+        self.emit_event(crate::effects::runtime::GameEvent::empty(
+            crate::effects::trigger::Trigger::RoundEnd,
+        ));
+
         // Check combat end
         if !self.check_combat_end() {
             self.start_player_turn();

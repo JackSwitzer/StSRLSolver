@@ -2790,6 +2790,7 @@ impl RunEngine {
             "ColorlessPotion",
             "CultistPotion",
             "DistilledChaos",
+            "DuplicationPotion",
         ];
 
         let registry = gameplay_registry();

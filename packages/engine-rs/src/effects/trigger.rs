@@ -86,6 +86,8 @@ pub enum Trigger {
     /// When Poison is applied (for Snecko Skull bonus).
     /// Called inline; not dispatched via dispatch_trigger.
     OnPoisonApplied,
+    /// After the enemy turn and end-of-round power processing.
+    RoundEnd,
 }
 
 // ===========================================================================

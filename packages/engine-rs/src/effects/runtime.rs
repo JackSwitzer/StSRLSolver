@@ -233,7 +233,7 @@ pub struct DispatchTable {
 
 impl DispatchTable {
     fn new() -> Self {
-        let len = Trigger::OnPoisonApplied as usize + 1;
+        let len = Trigger::RoundEnd as usize + 1;
         Self {
             handlers: vec![Vec::new(); len],
         }
@@ -525,7 +525,9 @@ impl EffectRuntime {
         for idx in 0..self.instances.len() {
             let def_id = self.instances[idx].def.id;
             let matches = match event.kind {
-                Trigger::OnCardPlayedPost => def_id == "echo_form",
+                Trigger::OnCardPlayedPost => {
+                    def_id == "echo_form" || def_id == "duplication"
+                }
                 Trigger::OnAttackPlayed => def_id == "double_tap",
                 Trigger::OnSkillPlayed => def_id == "burst",
                 _ => false,
