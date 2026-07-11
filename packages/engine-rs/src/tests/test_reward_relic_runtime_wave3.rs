@@ -117,6 +117,23 @@ fn violet_lotus_is_reachable_from_the_watcher_boss_relic_pool() {
 }
 
 #[test]
+fn black_star_is_reachable_from_the_watcher_boss_relic_pool() {
+    // Sources: RelicLibrary.java registers BlackStar and BlackStar.java
+    // constructs it at BOSS tier with canonical ID "Black Star".
+    let offered = (0..128).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_boss_reward_screen();
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0]
+                .choices
+                .iter()
+                .any(|choice| matches!(choice, RewardChoice::Named { label, .. } if label == "Black Star"))
+        })
+    });
+    assert!(offered);
+}
+
+#[test]
 fn astrolabe_is_reachable_and_transforms_three_selected_cards_upgraded() {
     // Source-derived (verify relic/Astrolabe): Astrolabe.java is BOSS tier,
     // selects exactly three purgeable cards when more than three are eligible,
@@ -1048,9 +1065,12 @@ fn claiming_singing_bowl_turns_future_card_skip_into_max_hp() {
 
 #[test]
 fn choosing_black_star_from_relic_choice_doubles_future_elite_relic_rewards() {
+    // Source-derived (verify relic/Black Star): BlackStar.java is active for
+    // elite rooms; AbstractRoom's elite victory rewards therefore include the
+    // relic's additional relic roll.
     let mut engine = RunEngine::new(99, 20);
     engine.debug_set_reward_screen(relic_choice_reward_screen(&[
-        "BlackStar",
+        "Black Star",
         "SacredBark",
         "Snecko Eye",
     ]));

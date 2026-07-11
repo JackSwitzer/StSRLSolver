@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T06:58:58.681444+00:00",
+ "updated": "2026-07-11T07:00:46.055252+00:00",
  "status_counts": {
-  "unverified": 511,
-  "verified": 156
+  "unverified": 510,
+  "verified": 157
  },
  "rows": [
   {
@@ -4912,8 +4912,8 @@
    "class": "BlackStar",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/BlackStar.java",
    "methods_ref": "reference/extracted/methods/relic/BlackStar.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

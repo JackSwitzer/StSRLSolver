@@ -52,6 +52,7 @@ pub mod damaru;
 // Event-triggered relics (card play, exhaust, discard, death, victory, etc.)
 // ===========================================================================
 pub mod bird_faced_urn;
+pub mod black_star;
 pub mod charons_ashes;
 pub mod tough_bandages;
 pub mod tingsha;
@@ -238,6 +239,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &damaru::DEF,
     // Event-triggered relics
     &bird_faced_urn::DEF,
+    &black_star::DEF,
     &charons_ashes::DEF,
     &tough_bandages::DEF,
     &tingsha::DEF,

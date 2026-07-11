@@ -3079,6 +3079,7 @@ impl RunEngine {
             "HolyWater",
             "VioletLotus",
             "Astrolabe",
+            "Black Star",
         ];
 
         let registry = gameplay_registry();
