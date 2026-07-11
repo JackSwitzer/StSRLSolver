@@ -300,7 +300,9 @@ pub(super) fn roll_acid_slime_l(
 }
 
 pub(super) fn roll_spike_slime_s(enemy: &mut EnemyCombatState, _num: i32) {
-    enemy.set_move(move_ids::SS_TACKLE, 5, 1, 0);
+    // Source: reference/extracted/methods/monster/SpikeSlime_S.java (`getMove`).
+    let damage = enemy.entity.status(sid::STARTING_DMG).max(5);
+    enemy.set_move(move_ids::SS_TACKLE, damage, 1, 0);
 }
 
 pub(super) fn roll_spike_slime_m(enemy: &mut EnemyCombatState, _num: i32) {

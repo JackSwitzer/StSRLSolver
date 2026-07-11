@@ -471,6 +471,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.add_effect(mfx::SLIMED, 2);
         }
         "SpikeSlime_S" => {
+            enemy.entity.set_status(sid::STARTING_DMG, 5);
             enemy.set_move(move_ids::SS_TACKLE, 5, 1, 0);
         }
         "SpikeSlime_M" => {

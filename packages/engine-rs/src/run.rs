@@ -1341,6 +1341,13 @@ impl RunEngine {
             enemy.add_effect(crate::combat_types::mfx::SLIMED, 2);
         }
 
+        // Source: reference/extracted/methods/monster/SpikeSlime_S.java.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "SpikeSlime_S") {
+            let damage = if self.run_state.ascension >= 2 { 6 } else { 5 };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, damage);
+            enemy.set_move(crate::enemies::move_ids::SS_TACKLE, damage, 1, 0);
+        }
+
         // Java Cultist.java: ctor sets ritualAmount = ascensionLevel >= 2 ? 4 : 3;
         // takeTurn() case 3 (INCANTATION) applies RitualPower(ritualAmount + 1)
         // at ascensionLevel >= 17, else RitualPower(ritualAmount).
@@ -1438,7 +1445,8 @@ impl RunEngine {
                 (hp, hp)
             }
             "SpikeSlime_S" => {
-                let hp = if a20 { 13 } else { 11 };
+                let base = if a20 { 11 } else { 10 };
+                let hp = base + self.rng.gen_range(0..=4);
                 (hp, hp)
             }
             "SpikeSlime_M" => {
@@ -4614,6 +4622,37 @@ mod tests {
         }
         assert_eq!(combat.ai_rng.counter, ticks_before + 2,
             "each spawned medium slime initializes with one aiRng roll");
+    }
+
+    #[test]
+    fn spike_slime_s_ranges_damage_and_ai_ticks_match_java() {
+        // Source: reference/extracted/methods/monster/SpikeSlime_S.java.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("SpikeSlime_S").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("SpikeSlime_S").0);
+        }
+        assert_eq!(low_hp, (10..=14).collect());
+        assert_eq!(high_hp, (11..=15).collect());
+
+        for (ascension, damage) in [(0, 5), (2, 6)] {
+            let mut engine = RunEngine::new(42, ascension);
+            engine.enter_specific_combat(vec!["SpikeSlime_S".to_string()]);
+            let combat = engine.combat_engine.as_ref().unwrap();
+            assert_eq!(combat.state.enemies[0].move_id,
+                crate::enemies::move_ids::SS_TACKLE);
+            assert_eq!(combat.state.enemies[0].move_damage(), damage);
+            assert_eq!(combat.ai_rng.counter, 1);
+
+            engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+            let combat = engine.combat_engine.as_ref().unwrap();
+            assert_eq!(combat.state.enemies[0].move_id,
+                crate::enemies::move_ids::SS_TACKLE);
+            assert_eq!(combat.ai_rng.counter, 2);
+        }
     }
 
     #[test]
