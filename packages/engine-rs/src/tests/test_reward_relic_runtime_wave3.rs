@@ -345,6 +345,27 @@ fn gamblers_brew_is_reachable_from_watcher_potion_rewards() {
 }
 
 #[test]
+fn liquid_bronze_is_reachable_from_watcher_potion_rewards() {
+    // PotionHelper.getPotions appends LiquidBronze to the shared pool.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/PotionHelper.java
+    let offered = (0..128).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine
+            .run_state
+            .relics
+            .push("White Beast Statue".to_string());
+        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine.debug_build_combat_reward_screen(RoomType::Monster);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Potion && item.label == "LiquidBronze"
+            })
+        })
+    });
+    assert!(offered);
+}
+
+#[test]
 fn energy_potion_is_reachable_from_watcher_potion_rewards() {
     // PotionHelper.getPotions appends the shared Energy Potion after the
     // class-specific switch, so Watcher combat rewards can offer it.

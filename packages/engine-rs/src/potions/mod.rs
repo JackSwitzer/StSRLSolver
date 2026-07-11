@@ -185,7 +185,8 @@ fn potion_potency(potion_id: &str) -> Option<(i32, i32)> {
         "Regen Potion" | "RegenPotion" => Some((5, 4)),
         // EssenceOfSteel.java getPotency ignores ascension and always returns 4.
         "EssenceOfSteel" => Some((4, 4)),
-        "LiquidBronze" => Some((3, 2)),
+        // LiquidBronze.java getPotency ignores ascension and always returns 3.
+        "LiquidBronze" => Some((3, 3)),
         "CultistPotion" => Some((1, 1)),
         "HeartOfIron" => Some((6, 4)),
         "GhostInAJar" => Some((1, 1)),
@@ -1016,6 +1017,15 @@ mod tests {
         let mut state = make_test_state();
         apply_potion_scaled(&mut state, "Fruit Juice", -1, 11);
         assert_eq!(state.player.max_hp, 85);
+    }
+
+    #[test]
+    fn test_a11_liquid_bronze_stays_at_three_and_bark_doubles_it() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/LiquidBronze.java
+        let mut state = make_test_state();
+        state.relics.push("SacredBark".to_string());
+        apply_potion_scaled(&mut state, "LiquidBronze", -1, 11);
+        assert_eq!(state.player.status(sid::THORNS), 6);
     }
 
     #[test]

@@ -2858,6 +2858,7 @@ impl RunEngine {
             "FairyPotion",
             "FruitJuice",
             "GamblersBrew",
+            "LiquidBronze",
         ];
 
         let registry = gameplay_registry();

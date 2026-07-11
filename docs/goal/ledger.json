@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T05:55:57.809677+00:00",
+ "updated": "2026-07-11T05:58:02.473231+00:00",
  "status_counts": {
-  "unverified": 531,
-  "verified": 136
+  "unverified": 530,
+  "verified": 137
  },
  "rows": [
   {
@@ -4662,8 +4662,8 @@
    "class": "LiquidBronze",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/LiquidBronze.java",
    "methods_ref": "reference/extracted/methods/potion/LiquidBronze.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

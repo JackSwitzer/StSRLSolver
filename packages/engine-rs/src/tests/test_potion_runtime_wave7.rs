@@ -169,6 +169,31 @@ fn ancient_potion_targets_player_and_uses_sacred_bark_potency() {
 }
 
 #[test]
+fn liquid_bronze_keeps_three_potency_and_retaliates_per_attack_hit() {
+    // Source-derived (verify potion/LiquidBronze): getPotency always returns
+    // three and use applies ThornsPower to the player. Sacred Bark doubles the
+    // applied amount, while ThornsPower retaliates once for every qualifying
+    // onAttacked call.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/LiquidBronze.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ThornsPower.java
+    let mut attacker = enemy_no_intent("JawWorm", 40, 40);
+    attacker.set_move(1, 1, 2, 0);
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![attacker],
+        3,
+    ));
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "LiquidBronze".to_string();
+
+    use_potion(&mut engine, 0, -1);
+
+    assert_eq!(engine.state.player.status(sid::THORNS), 6);
+    end_turn(&mut engine);
+    assert_eq!(engine.state.enemies[0].entity.hp, 28);
+}
+
+#[test]
 fn essence_of_steel_keeps_four_potency_and_targets_the_player() {
     // Source-derived (verify potion/EssenceOfSteel): Java overwrites target
     // with the player, applies four Plated Armor at every ascension, and
