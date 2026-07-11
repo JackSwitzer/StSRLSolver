@@ -1017,6 +1017,51 @@ fn juzu_bracelet_is_reachable_only_through_floor_forty_eight() {
 }
 
 #[test]
+fn lees_waffle_is_shop_only_and_applies_its_two_step_on_equip_heal() {
+    // Waffle.java is SHOP tier. onEquip increases max HP by 7 without healing,
+    // then heals by maxHealth; Mark of the Bloom blocks only the second call.
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Lee's Waffle")
+        }));
+    }
+
+    let offered_seed = (0..1024).find(|seed| {
+        let mut engine = RunEngine::new(*seed, 0);
+        engine.debug_enter_shop();
+        engine.get_shop().is_some_and(|shop| {
+            shop.relics.iter().any(|(relic, _)| relic == "Lee's Waffle")
+        })
+    }).expect("Lee's Waffle should be reachable from the SHOP-tier slot");
+
+    let mut engine = RunEngine::new(offered_seed, 0);
+    engine.run_state.gold = 999;
+    engine.run_state.current_hp = 40;
+    engine.run_state.max_hp = 80;
+    engine.debug_enter_shop();
+    let idx = engine.get_shop().expect("shop").relics.iter()
+        .position(|(relic, _)| relic == "Lee's Waffle").expect("waffle offer");
+    assert!(engine.step_with_result(&RunAction::ShopBuyRelic(idx)).action_accepted);
+    assert_eq!(engine.run_state.max_hp, 87);
+    assert_eq!(engine.run_state.current_hp, 87);
+
+    let mut blocked = RunEngine::new(offered_seed, 0);
+    blocked.run_state.gold = 999;
+    blocked.run_state.current_hp = 40;
+    blocked.run_state.max_hp = 80;
+    blocked.run_state.relics.push("Mark of the Bloom".to_string());
+    blocked.run_state.relic_flags.rebuild(&blocked.run_state.relics);
+    blocked.debug_enter_shop();
+    let idx = blocked.get_shop().expect("shop").relics.iter()
+        .position(|(relic, _)| relic == "Lee's Waffle").expect("waffle offer");
+    assert!(blocked.step_with_result(&RunAction::ShopBuyRelic(idx)).action_accepted);
+    assert_eq!(blocked.run_state.max_hp, 87);
+    assert_eq!(blocked.run_state.current_hp, 40);
+}
+
+#[test]
 fn medical_kit_is_reachable_only_from_the_shop_relic_slot() {
     // MedicalKit.java constructs RelicTier.SHOP. ShopScreen.java::initRelics
     // makes its third relic slot SHOP-tier; ordinary combat rewards cannot offer it.

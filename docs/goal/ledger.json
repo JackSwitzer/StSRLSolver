@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T09:22:56.930831+00:00",
+ "updated": "2026-07-11T09:24:44.758173+00:00",
  "status_counts": {
-  "unverified": 468,
-  "verified": 199
+  "unverified": 467,
+  "verified": 200
  },
  "rows": [
   {
@@ -5582,8 +5582,8 @@
    "class": "Waffle",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Waffle.java",
    "methods_ref": "reference/extracted/methods/relic/Waffle.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

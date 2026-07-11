@@ -3100,6 +3100,19 @@ impl RunEngine {
                     !self.bottled_tornado_choices().is_empty();
             }
             "Calling Bell" => self.pending_calling_bell_rewards = true,
+            "Lee's Waffle" => {
+                // Waffle.java::onEquip increases max HP by 7 without healing,
+                // then separately heals by maxHealth. Mark of the Bloom blocks
+                // that heal while leaving the max-HP increase intact.
+                self.run_state.max_hp += 7;
+                if !self
+                    .run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::MARK_OF_BLOOM)
+                {
+                    self.run_state.current_hp = self.run_state.max_hp;
+                }
+            }
             "Mango" => {
                 // Mango.java::onEquip calls increaseMaxHp(14, true): max HP
                 // always rises, while Mark of the Bloom can block the heal.
@@ -4058,7 +4071,7 @@ impl RunEngine {
             relics.push((relic, final_price));
         }
         const SHOP_RELICS: &[&str] = &[
-            "TheAbacus", "Brimstone", "HandDrill", "Medical Kit", "Melange",
+            "TheAbacus", "Brimstone", "HandDrill", "Lee's Waffle", "Medical Kit", "Melange",
             "OrangePellets", "Runic Capacitor", "Sling", "Strange Spoon",
             "TwistedFunnel",
         ];
