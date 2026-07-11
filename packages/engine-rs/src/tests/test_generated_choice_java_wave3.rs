@@ -267,6 +267,64 @@ fn attack_potion_uses_watcher_pool_and_card_random_rng_tick_for_tick() {
 }
 
 #[test]
+fn power_potion_uses_watcher_power_pool_rng_and_bark_copy_count() {
+    // Source-derived (verify potion/PowerPotion): DiscoveryAction requests
+    // three unique POWER cards, consuming cardRandomRng once per attempt.
+    // Potency is constant one; Sacred Bark doubles the selected copies, both
+    // cost zero this turn, and Master Reality upgrades only those copies.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/PowerPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DiscoveryAction.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand = make_deck(&[
+        "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend",
+        "Defend",
+    ]);
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.player.set_status(sid::MASTER_REALITY, 1);
+    engine.state.potions[0] = "PowerPotion".to_string();
+    let pool = super::generated_card_pool(&engine, super::GeneratedCardPool::Power);
+    let mut oracle = engine.card_random_rng.clone();
+    let mut seen = std::collections::HashSet::new();
+    while seen.len() < 3 {
+        let idx = oracle.random((pool.len() - 1) as i32) as usize;
+        seen.insert(pool[idx]);
+    }
+
+    use_potion(&mut engine, 0, -1);
+
+    let choice = engine.choice.as_ref().expect("Power Potion choice");
+    assert_eq!(choice.reason, ChoiceReason::DiscoverCard);
+    assert_eq!(choice.options.len(), 3);
+    assert_eq!(choice.aux_count, 2);
+    assert_eq!(engine.card_random_rng.counter, oracle.counter);
+    for option in &choice.options {
+        let ChoiceOption::GeneratedCard(card) = option else {
+            panic!("Power Potion should offer generated cards");
+        };
+        assert_eq!(
+            engine.card_registry.card_def_by_id(card.def_id).card_type,
+            CardType::Power
+        );
+        assert!(!card.is_upgraded());
+        assert_eq!(card.cost, 0);
+    }
+
+    engine.execute_action(&Action::Choose(0));
+    assert_eq!(engine.state.hand.len(), 10);
+    assert_eq!(engine.state.discard_pile.len(), 1);
+    let hand_copy = engine.state.hand.last().expect("first selected copy");
+    let discard_copy = engine.state.discard_pile.last().expect("second selected copy");
+    assert!(hand_copy.is_upgraded());
+    assert!(discard_copy.is_upgraded());
+    assert_eq!(hand_copy.cost, 0);
+    assert_eq!(discard_copy.cost, 0);
+}
+
+#[test]
 fn colorless_potion_uses_normal_pool_base_previews_and_exact_card_rng() {
     // Source-derived (verify potion/ColorlessPotion): DiscoveryAction(true,
     // potency) chooses three unique cards from srcColorlessCardPool, excluding
