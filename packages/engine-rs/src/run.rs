@@ -3964,6 +3964,8 @@ impl RunEngine {
             "Turnip",
             // UnceasingTop.java uses canonical ID "Unceasing Top" and RARE tier.
             "Unceasing Top",
+            // ToughBandages.java uses canonical ID "Tough Bandages" and RARE tier.
+            "Tough Bandages",
             // TungstenRod.java uses canonical ID "TungstenRod" and RARE tier.
             "TungstenRod",
             // Matryoshka.java uses canonical ID "Matryoshka", UNCOMMON tier,

@@ -101,6 +101,32 @@ fn potion_use_flows_through_owner_aware_runtime() {
 }
 
 #[test]
+fn tough_bandages_grants_three_block_only_for_manual_discards() {
+    // ToughBandages.java implements onManualDiscard, so normal end-turn hand
+    // cleanup does not trigger it; each manual discard grants exactly 3 Block.
+    let mut state = combat_state_with(
+        make_deck(&["Defend"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    state.relics.push("Tough Bandages".to_string());
+    let mut engine = engine_with_state(state);
+    engine.state.hand = make_deck(&["Defend"]);
+    engine.state.draw_pile.clear();
+    engine.state.discard_pile.clear();
+    engine.clear_event_log();
+
+    crate::tests::support::end_turn(&mut engine);
+
+    assert!(!engine.event_log.iter().any(|record| {
+        record.event == Trigger::OnCardDiscard && record.def_id == Some("Tough Bandages")
+    }));
+
+    engine.on_card_discarded(engine.card_registry.make_card("Defend"));
+    assert_eq!(engine.state.player.block, 3);
+}
+
+#[test]
 fn block_potion_runtime_keeps_flat_potion_block() {
     let mut state = combat_state_with(make_deck(&["Strike"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.potions[0] = "Block Potion".to_string();

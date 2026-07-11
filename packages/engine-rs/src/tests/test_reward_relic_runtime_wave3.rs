@@ -1503,6 +1503,22 @@ fn tiny_chest_forces_every_fourth_mystery_room_to_treasure_and_resets() {
 }
 
 #[test]
+fn tough_bandages_is_reachable_from_rare_watcher_relic_rewards() {
+    // ToughBandages.java constructs the shared relic at RARE tier under
+    // canonical ID "Tough Bandages".
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Tough Bandages"
+            })
+        })
+    });
+    assert!(offered);
+}
+
+#[test]
 fn matryoshka_is_reachable_only_through_floor_forty() {
     // Matryoshka.java constructs an UNCOMMON relic and canSpawn allows
     // non-endless runs only while floorNum <= 40.
