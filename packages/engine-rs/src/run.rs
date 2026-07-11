@@ -3142,6 +3142,20 @@ impl RunEngine {
                         (self.run_state.current_hp + 14).min(self.run_state.max_hp);
                 }
             }
+            "Pear" => {
+                // Source: reference/extracted/methods/relic/Pear.java
+                // onEquip calls increaseMaxHp(10, true): max HP always rises,
+                // while Mark of the Bloom can prevent the accompanying heal.
+                self.run_state.max_hp += 10;
+                if !self
+                    .run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::MARK_OF_BLOOM)
+                {
+                    self.run_state.current_hp =
+                        (self.run_state.current_hp + 10).min(self.run_state.max_hp);
+                }
+            }
             // Source: reference/extracted/methods/relic/Whetstone.java upgrades
             // up to two upgradable ATTACK cards and checks bottled upgrades.
             "Whetstone" => self.upgrade_random_cards_by_type(crate::cards::CardType::Attack, 2),
@@ -3706,6 +3720,8 @@ impl RunEngine {
             "Ornamental Fan",
             // PenNib.java uses canonical ID "Pen Nib" and COMMON tier.
             "Pen Nib",
+            // Pear.java uses canonical ID "Pear" and UNCOMMON tier.
+            "Pear",
             // QuestionCard.java uses canonical ID "Question Card", UNCOMMON
             // tier, and canSpawn excludes non-endless runs after floor 48.
             "Question Card",

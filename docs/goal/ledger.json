@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T09:59:24.479683+00:00",
+ "updated": "2026-07-11T18:14:27.618093+00:00",
  "status_counts": {
-  "unverified": 453,
-  "verified": 214
+  "unverified": 452,
+  "verified": 215
  },
  "rows": [
   {
@@ -5972,8 +5972,8 @@
    "class": "Pear",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Pear.java",
    "methods_ref": "reference/extracted/methods/relic/Pear.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
