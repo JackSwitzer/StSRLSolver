@@ -89,6 +89,26 @@ fn maw_bank_pays_on_shop_entry_then_is_used_up_by_the_first_purchase() {
 }
 
 #[test]
+fn meal_ticket_heals_exactly_fifteen_on_shop_entry() {
+    // MealTicket.java::justEnteredRoom heals 15 only for ShopRoom. Because the
+    // room is not in COMBAT, MagicFlower.java does not multiply this heal.
+    let mut engine = RunEngine::new(44, 0);
+    engine.run_state.relics.extend([
+        "MealTicket".to_string(),
+        "Magic Flower".to_string(),
+    ]);
+    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine.run_state.current_hp = 40;
+    resolve_opening_neow(&mut engine);
+    set_first_reachable_room(&mut engine, RoomType::Shop);
+
+    let enter = engine.get_legal_actions()[0].clone();
+    assert!(engine.step_with_result(&enter).action_accepted);
+    assert_eq!(engine.current_phase(), RunPhase::Shop);
+    assert_eq!(engine.run_state.current_hp, 55);
+}
+
+#[test]
 fn matryoshka_treasure_room_builds_ordered_chest_reward_screen() {
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.relics.push("Matryoshka".to_string());

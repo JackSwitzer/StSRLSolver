@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T08:59:00.943011+00:00",
+ "updated": "2026-07-11T09:00:53.985763+00:00",
  "status_counts": {
-  "unverified": 473,
-  "verified": 194
+  "unverified": 472,
+  "verified": 195
  },
  "rows": [
   {
@@ -5672,8 +5672,8 @@
    "class": "MealTicket",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/MealTicket.java",
    "methods_ref": "reference/extracted/methods/relic/MealTicket.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

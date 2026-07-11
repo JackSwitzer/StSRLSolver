@@ -3602,6 +3602,9 @@ impl RunEngine {
             // MawBank.java uses canonical ID "MawBank", COMMON tier, and
             // canSpawn excludes floors after 48 and the current shop room.
             "MawBank",
+            // MealTicket.java uses canonical ID "MealTicket", COMMON tier,
+            // and canSpawn excludes non-endless runs after floor 48.
+            "MealTicket",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
@@ -3623,6 +3626,7 @@ impl RunEngine {
             .filter(|relic| *relic != "Dream Catcher" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Matryoshka" || self.run_state.floor <= 40)
             .filter(|relic| *relic != "MawBank" || self.run_state.floor <= 48)
+            .filter(|relic| *relic != "MealTicket" || self.run_state.floor <= 48)
             .filter(|relic| {
                 !matches!(*relic, "Frozen Egg 2" | "Molten Egg 2" | "Toxic Egg 2")
                     || self.run_state.floor <= 48
@@ -3645,6 +3649,7 @@ impl RunEngine {
                     .filter(|relic| *relic != "Dream Catcher" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Matryoshka" || self.run_state.floor <= 40)
                     .filter(|relic| *relic != "MawBank" || self.run_state.floor <= 48)
+                    .filter(|relic| *relic != "MealTicket" || self.run_state.floor <= 48)
                     .filter(|relic| {
                         !matches!(*relic, "Frozen Egg 2" | "Molten Egg 2" | "Toxic Egg 2")
                             || self.run_state.floor <= 48
