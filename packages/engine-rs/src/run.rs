@@ -3669,6 +3669,8 @@ impl RunEngine {
             // MummifiedHand.java uses canonical ID "Mummified Hand" and
             // UNCOMMON tier.
             "Mummified Hand",
+            // Nunchaku.java uses canonical ID "Nunchaku" and COMMON tier.
+            "Nunchaku",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",

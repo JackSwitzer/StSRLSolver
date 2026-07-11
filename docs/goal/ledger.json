@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T09:33:50.420076+00:00",
+ "updated": "2026-07-11T09:35:34.267892+00:00",
  "status_counts": {
-  "unverified": 464,
-  "verified": 203
+  "unverified": 463,
+  "verified": 204
  },
  "rows": [
   {
@@ -5832,8 +5832,8 @@
    "class": "Nunchaku",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Nunchaku.java",
    "methods_ref": "reference/extracted/methods/relic/Nunchaku.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

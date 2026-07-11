@@ -120,6 +120,8 @@ fn shuriken_triggers_on_third_attack_and_resets_each_turn() {
 
 #[test]
 fn nunchaku_persists_nine_attacks_and_grants_energy_on_tenth_attack() {
+    // Nunchaku.java counts only ATTACK cards and queues one energy when the
+    // persistent counter reaches ten, then resets the counter to zero.
     let mut first_engine = engine_with_relic_and_attacks("Nunchaku", 9);
     let starting_energy = first_engine.state.energy;
 
