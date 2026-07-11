@@ -14,7 +14,11 @@ fn ambrosia_hook(
     _event: &crate::effects::runtime::GameEvent,
     _state: &mut crate::effects::runtime::EffectState,
 ) {
-    crate::potions::apply_ambrosia_effect(&mut engine.state);
+    // Ambrosia.java queues ChangeStanceAction("Divinity"). Route through the
+    // stance engine so Calm exit, Violet Lotus, Divinity energy, and power
+    // hooks all resolve; the reported potency is not used by the action.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/Ambrosia.java
+    engine.change_stance(crate::state::Stance::Divinity);
 }
 
 pub static DEF: EntityDef = EntityDef {

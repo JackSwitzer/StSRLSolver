@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T04:32:53.724880+00:00",
+ "updated": "2026-07-11T04:36:33.707689+00:00",
  "status_counts": {
-  "unverified": 552,
-  "verified": 115
+  "unverified": 551,
+  "verified": 116
  },
  "rows": [
   {
@@ -4392,8 +4392,8 @@
    "class": "Ambrosia",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/Ambrosia.java",
    "methods_ref": "reference/extracted/methods/potion/Ambrosia.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

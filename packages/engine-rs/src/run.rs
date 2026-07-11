@@ -2782,6 +2782,7 @@ impl RunEngine {
             "Strength Potion",
             "Swift Potion",
             "Weak Potion",
+            "Ambrosia",
         ];
 
         let registry = gameplay_registry();

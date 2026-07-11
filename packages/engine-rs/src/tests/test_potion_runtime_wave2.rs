@@ -144,6 +144,32 @@ fn declarative_potions_drop_hooks_and_apply_runtime_effects() {
 }
 
 #[test]
+fn ambrosia_uses_the_full_divinity_stance_transition_and_ignores_potency() {
+    // Source-derived (verify potion/Ambrosia): use() queues exactly one
+    // ChangeStanceAction("Divinity"); getPotency() returns 2 but is not read.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike", "Defend", "Bash"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.relics = vec!["VioletLotus".to_string(), "SacredBark".to_string()];
+    engine.state.potions = vec![String::new(); 3];
+    engine.state.stance = Stance::Calm;
+    engine.state.energy = 1;
+    equip_potion(&mut engine, 0, "Ambrosia");
+
+    use_potion(&mut engine, 0, -1);
+
+    assert_eq!(engine.state.stance, Stance::Divinity);
+    assert_eq!(engine.state.energy, 7);
+    assert!(engine
+        .event_log
+        .iter()
+        .any(|record| record.event == crate::effects::trigger::Trigger::OnStanceChange));
+    assert!(engine.state.potions[0].is_empty());
+}
+
+#[test]
 fn random_generation_potions_pick_the_right_card_families() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike", "Defend", "Bash"]),
