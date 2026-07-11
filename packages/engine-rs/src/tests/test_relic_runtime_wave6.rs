@@ -395,6 +395,8 @@ fn blood_vial_and_mark_of_pain_apply_at_real_combat_start() {
 
 #[test]
 fn lantern_grants_bonus_energy_only_on_turn_one_runtime_path() {
+    // Lantern.java arms at pre-battle, queues exactly one energy on the first
+    // turn start, and clears its first-turn flag for later turns.
     let mut engine = engine_without_start_with_relics(
         &["Lantern"],
         &["Strike", "Strike", "Strike", "Strike", "Strike"],

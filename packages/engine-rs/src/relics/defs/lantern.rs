@@ -1,4 +1,7 @@
 //! Lantern: +1 Energy on turn 1.
+//!
+//! Source: `reference/extracted/methods/relic/Lantern.java`
+//! (`atPreBattle` arms it; the first `atTurnStart` queues one energy).
 
 use crate::effects::declarative::{Effect, SimpleEffect, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};

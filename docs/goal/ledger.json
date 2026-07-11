@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T08:34:05.806649+00:00",
+ "updated": "2026-07-11T08:36:08.680658+00:00",
  "status_counts": {
-  "unverified": 480,
-  "verified": 187
+  "unverified": 479,
+  "verified": 188
  },
  "rows": [
   {
@@ -5572,8 +5572,8 @@
    "class": "Lantern",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Lantern.java",
    "methods_ref": "reference/extracted/methods/relic/Lantern.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -3560,6 +3560,8 @@ impl RunEngine {
             "InkBottle",
             // Kunai.java uses canonical ID "Kunai" and UNCOMMON tier.
             "Kunai",
+            // Lantern.java uses canonical ID "Lantern" and COMMON tier.
+            "Lantern",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
@@ -4941,7 +4943,6 @@ impl RunEngine {
             "ClockworkSouvenir",
             "DataDisk",
             "HappyFlower",
-            "Lantern",
             "OrnamentalFan",
             "ThreadAndNeedle",
         ];
