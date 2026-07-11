@@ -3129,6 +3129,12 @@ impl RunEngine {
                     shop.remove_price = ((shop.remove_price as f32) * 0.5).round() as i32;
                 }
             }
+            "Old Coin" | "OldCoin" => {
+                // OldCoin.java::onEquip calls AbstractPlayer.gainGold(300),
+                // which also preserves Ectoplasm's gain-gold prohibition.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/OldCoin.java
+                self.adjust_run_gold(300);
+            }
             "Mango" => {
                 // Mango.java::onEquip calls increaseMaxHp(14, true): max HP
                 // always rises, while Mark of the Bloom can block the heal.
@@ -3396,6 +3402,7 @@ impl RunEngine {
             .copied()
             .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
             .filter(|id| *id != "Ancient Tea Set" || self.run_state.floor <= 48)
+            .filter(|id| *id != "Old Coin" || self.run_state.floor <= 48)
             .filter(|id| *id != "Bottled Flame" || self.can_spawn_bottled_flame())
             .filter(|id| *id != "Bottled Lightning" || self.can_spawn_bottled_lightning())
             .filter(|id| *id != "Bottled Tornado" || self.can_spawn_bottled_tornado())
@@ -3443,6 +3450,7 @@ impl RunEngine {
             "Ginger",
             "Ice Cream",
             "Incense Burner",
+            "Old Coin",
             // ThreadAndNeedle.java constructs a RARE relic.
             "Thread and Needle",
             "Tough Bandages",
@@ -3709,6 +3717,9 @@ impl RunEngine {
             "Magic Flower",
             // Mango.java uses canonical ID "Mango" and RARE tier.
             "Mango",
+            // OldCoin.java uses canonical ID "Old Coin", RARE tier, and
+            // canSpawn excludes non-endless runs after floor 48.
+            "Old Coin",
             // Matryoshka.java uses canonical ID "Matryoshka", UNCOMMON tier,
             // and canSpawn excludes non-endless runs after floor 40.
             "Matryoshka",
@@ -3791,6 +3802,7 @@ impl RunEngine {
             .filter(|relic| *relic != "MawBank" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "MealTicket" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Meat on the Bone" || self.run_state.floor <= 48)
+            .filter(|relic| *relic != "Old Coin" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Juzu Bracelet" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Question Card" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Prayer Wheel" || self.run_state.floor <= 48)
@@ -3822,6 +3834,7 @@ impl RunEngine {
                     .filter(|relic| *relic != "MawBank" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "MealTicket" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Meat on the Bone" || self.run_state.floor <= 48)
+                    .filter(|relic| *relic != "Old Coin" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Juzu Bracelet" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Question Card" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Prayer Wheel" || self.run_state.floor <= 48)

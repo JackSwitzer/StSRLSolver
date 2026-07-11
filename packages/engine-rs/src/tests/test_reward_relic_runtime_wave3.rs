@@ -871,6 +871,63 @@ fn mango_is_reachable_and_increases_max_hp_by_fourteen_on_pickup() {
 }
 
 #[test]
+fn old_coin_is_rare_reachable_through_floor_forty_eight_only() {
+    // OldCoin.java constructs a RARE relic; canSpawn permits non-endless runs
+    // through floor 48 and excludes later floors and shops.
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 48;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Old Coin"
+            })
+        })
+    });
+    assert!(offered);
+
+    for seed in 0..256 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 49;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Old Coin")
+        }));
+    }
+}
+
+#[test]
+fn old_coin_on_equip_gains_exactly_three_hundred_gold_unless_ectoplasm_blocks_it() {
+    // OldCoin.java::onEquip calls AbstractPlayer.gainGold(300), whose Java
+    // implementation returns without changing gold when Ectoplasm is owned.
+    let mut engine = RunEngine::new(47, 0);
+    engine.run_state.gold = 123;
+    engine.debug_set_reward_screen(single_relic_reward_screen("Old Coin"));
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert_eq!(engine.run_state.gold, 423);
+    assert!(engine
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == "Old Coin"));
+
+    let mut blocked = RunEngine::new(49, 0);
+    blocked.run_state.gold = 123;
+    blocked.run_state.relics.push("Ectoplasm".to_string());
+    blocked
+        .run_state
+        .relic_flags
+        .rebuild(&blocked.run_state.relics);
+    blocked.debug_set_reward_screen(single_relic_reward_screen("Old Coin"));
+    assert!(blocked
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert_eq!(blocked.run_state.gold, 123);
+}
+
+#[test]
 fn matryoshka_is_reachable_only_through_floor_forty() {
     // Matryoshka.java constructs an UNCOMMON relic and canSpawn allows
     // non-endless runs only while floorNum <= 40.
