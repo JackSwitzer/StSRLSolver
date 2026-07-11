@@ -102,6 +102,24 @@ fn akabeko_vigor_survives_skills_then_buffs_every_hit_of_the_first_attack() {
 }
 
 #[test]
+fn anchor_applies_ten_block_only_at_combat_start() {
+    // Source-derived (verify relic/Anchor): Anchor.java::atBattleStart queues a
+    // GainBlockAction for exactly 10 block and has no per-turn block hook.
+    let mut engine = engine_without_start_with_relics(
+        &["Anchor"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+
+    engine.start_combat();
+    assert_eq!(engine.state.player.block, 10);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.block, 0);
+}
+
+#[test]
 fn blood_vial_and_mark_of_pain_apply_at_real_combat_start() {
     let mut engine = engine_without_start_with_relics(
         &["Blood Vial", "Mark of Pain"],

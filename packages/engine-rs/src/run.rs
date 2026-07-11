@@ -4134,7 +4134,6 @@ impl RunEngine {
 
     fn roll_uncommon_event_relic_id(&mut self) -> String {
         const UNCOMMON_EVENT_RELIC_POOL: &[&str] = &[
-            "Anchor",
             "BagOfMarbles",
             "ClockworkSouvenir",
             "DataDisk",

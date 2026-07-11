@@ -1,4 +1,5 @@
 //! Anchor: 10 Block at combat start.
+//! Source: decompiled/java-src/com/megacrit/cardcrawl/relics/Anchor.java.
 
 use crate::effects::declarative::{Effect, SimpleEffect, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
