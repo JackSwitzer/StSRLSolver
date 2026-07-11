@@ -1,4 +1,5 @@
 //! Stone Calendar: deal 52 damage to all enemies at the end of turn 7.
+//! Java: decompiled/java-src/com/megacrit/cardcrawl/relics/StoneCalendar.java
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
