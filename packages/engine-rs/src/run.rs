@@ -3156,6 +3156,20 @@ impl RunEngine {
                         (self.run_state.current_hp + 10).min(self.run_state.max_hp);
                 }
             }
+            "Strawberry" => {
+                // Source: reference/extracted/methods/relic/Strawberry.java
+                // onEquip calls increaseMaxHp(7, true): max HP always rises,
+                // while Mark of the Bloom can prevent the accompanying heal.
+                self.run_state.max_hp += 7;
+                if !self
+                    .run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::MARK_OF_BLOOM)
+                {
+                    self.run_state.current_hp =
+                        (self.run_state.current_hp + 7).min(self.run_state.max_hp);
+                }
+            }
             // Source: reference/extracted/methods/relic/Whetstone.java upgrades
             // up to two upgradable ATTACK cards and checks bottled upgrades.
             "Whetstone" => self.upgrade_random_cards_by_type(crate::cards::CardType::Attack, 2),
@@ -3734,6 +3748,8 @@ impl RunEngine {
             // SingingBowl.java uses canonical ID "Singing Bowl", UNCOMMON
             // tier, and canSpawn excludes non-endless runs after floor 48.
             "Singing Bowl",
+            // Strawberry.java uses canonical ID "Strawberry" and COMMON tier.
+            "Strawberry",
             // Whetstone.java uses canonical ID "Whetstone" and COMMON tier.
             "Whetstone",
             // WarPaint.java uses canonical ID "War Paint" and COMMON tier.

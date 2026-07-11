@@ -1262,6 +1262,50 @@ fn pear_is_reachable_and_increases_max_hp_by_ten_on_pickup() {
 }
 
 #[test]
+fn strawberry_is_reachable_and_increases_max_hp_by_seven_on_pickup() {
+    // Source: Strawberry.java constructs a COMMON relic and onEquip calls
+    // increaseMaxHp(7, true).
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Strawberry"
+            })
+        })
+    });
+    assert!(offered);
+
+    let mut engine = RunEngine::new(42, 20);
+    engine.run_state.max_hp = 72;
+    engine.run_state.current_hp = 50;
+    engine.debug_set_reward_screen(single_relic_reward_screen("Strawberry"));
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert_eq!(engine.run_state.max_hp, 79);
+    assert_eq!(engine.run_state.current_hp, 57);
+
+    let mut blocked = RunEngine::new(42, 20);
+    blocked.run_state.max_hp = 72;
+    blocked.run_state.current_hp = 50;
+    blocked
+        .run_state
+        .relics
+        .push("Mark of the Bloom".to_string());
+    blocked
+        .run_state
+        .relic_flags
+        .rebuild(&blocked.run_state.relics);
+    blocked.debug_set_reward_screen(single_relic_reward_screen("Strawberry"));
+    assert!(blocked
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert_eq!(blocked.run_state.max_hp, 79);
+    assert_eq!(blocked.run_state.current_hp, 50);
+}
+
+#[test]
 fn medical_kit_is_reachable_only_from_the_shop_relic_slot() {
     // MedicalKit.java constructs RelicTier.SHOP. ShopScreen.java::initRelics
     // makes its third relic slot SHOP-tier; ordinary combat rewards cannot offer it.
