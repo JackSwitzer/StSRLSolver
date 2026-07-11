@@ -27,6 +27,43 @@ const COLORLESS_CHOICES: &[&str] = &[
     "Swift Strike", "The Bomb", "Thinking Ahead", "Transmutation", "Trip", "Violence",
 ];
 
+const COLORLESS_POTION_CHOICES: &[&str] = &[
+    "Apotheosis",
+    "Blind",
+    "Chrysalis",
+    "Dark Shackles",
+    "Deep Breath",
+    "Discovery",
+    "Dramatic Entrance",
+    "Enlightenment",
+    "Finesse",
+    "Flash of Steel",
+    "Forethought",
+    "Good Instincts",
+    "HandOfGreed",
+    "Impatience",
+    "Jack Of All Trades",
+    "Madness",
+    "Magnetism",
+    "Master of Strategy",
+    "Mayhem",
+    "Metamorphosis",
+    "Mind Blast",
+    "Panacea",
+    "Panache",
+    "PanicButton",
+    "Purity",
+    "Sadistic Nature",
+    "Secret Technique",
+    "Secret Weapon",
+    "Swift Strike",
+    "The Bomb",
+    "Thinking Ahead",
+    "Transmutation",
+    "Trip",
+    "Violence",
+];
+
 const WATCHER_ATTACK_CHOICES: &[&str] = &[
     "BowlingBash",
     "Brilliance",
@@ -227,6 +264,55 @@ fn attack_potion_uses_watcher_pool_and_card_random_rng_tick_for_tick() {
     assert_eq!(card_random_oracle.counter, card_random_before + 4);
     assert_eq!(engine.card_random_rng.counter, card_random_oracle.counter);
     assert_eq!(engine.rng.counter, general_before);
+}
+
+#[test]
+fn colorless_potion_uses_normal_pool_base_previews_and_exact_card_rng() {
+    // Source-derived (verify potion/ColorlessPotion): DiscoveryAction(true,
+    // potency) chooses three unique cards from srcColorlessCardPool, excluding
+    // HEALING. Master Reality upgrades only the selected copies; Sacred Bark
+    // doubles the one-copy potency.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand.clear();
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.player.set_status(sid::MASTER_REALITY, 1);
+    engine.state.potions[0] = "ColorlessPotion".to_string();
+    let pool = super::generated_card_pool(&engine, super::GeneratedCardPool::Colorless);
+    let mut card_random_oracle = engine.card_random_rng.clone();
+    let mut oracle_seen = std::collections::HashSet::new();
+    while oracle_seen.len() < 3 {
+        let idx = card_random_oracle.random((pool.len() - 1) as i32) as usize;
+        oracle_seen.insert(pool[idx]);
+    }
+    let general_before = engine.rng.counter;
+
+    use_potion(&mut engine, 0, -1);
+
+    let choice = engine.choice.as_ref().expect("Colorless Potion choice");
+    assert_eq!(choice.aux_count, 2);
+    let names: Vec<_> = choice
+        .options
+        .iter()
+        .map(|option| match option {
+            ChoiceOption::GeneratedCard(card) => {
+                assert!(!card.is_upgraded());
+                engine.card_registry.card_name(card.def_id)
+            }
+            _ => panic!("Colorless Potion must generate card choices"),
+        })
+        .collect();
+    assert!(names.iter().all(|name| COLORLESS_POTION_CHOICES.contains(name)));
+    assert_eq!(engine.card_random_rng.counter, card_random_oracle.counter);
+    assert_eq!(engine.rng.counter, general_before);
+
+    engine.execute_action(&Action::Choose(0));
+    assert_eq!(engine.state.hand.len(), 2);
+    assert!(engine.state.hand.iter().all(|card| card.is_upgraded()));
+    assert!(engine.state.hand.iter().all(|card| card.cost == 0));
 }
 
 #[test]

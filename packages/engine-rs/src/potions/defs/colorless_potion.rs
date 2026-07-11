@@ -2,6 +2,10 @@ use super::prelude::*;
 use crate::engine::CombatEngine;
 use crate::effects::declarative::{GeneratedCardPool, GeneratedCostRule, GeneratedUpgradeRule};
 
+// Java: decompiled/java-src/com/megacrit/cardcrawl/potions/ColorlessPotion.java
+// and actions/unique/DiscoveryAction.java. Present three unique non-healing
+// colorless pool cards, then add potion-potency copies at zero cost this turn.
+
 static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::ManualActivation,
     condition: TriggerCondition::Always,
