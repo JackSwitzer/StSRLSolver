@@ -2776,6 +2776,48 @@ fn whetstone_is_reachable_from_common_watcher_relic_rewards() {
 }
 
 #[test]
+fn war_paint_upgrades_only_eligible_skills_and_syncs_a_bottled_skill() {
+    // Source: WarPaint.java::onEquip filters canUpgrade SKILL cards, upgrades
+    // at most two, and calls bottledCardUpgradeCheck on each upgraded card.
+    let mut engine = RunEngine::new(42, 20);
+    engine.run_state.deck = vec![
+        "Defend".to_string(),
+        "Strike".to_string(),
+        "Vigilance+".to_string(),
+    ];
+    engine.run_state.bottled_lightning_card = Some("Defend".to_string());
+    engine.debug_set_reward_screen(single_relic_reward_screen("War Paint"));
+
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert_eq!(
+        engine.run_state.deck,
+        vec!["Defend+", "Strike", "Vigilance+"]
+    );
+    assert_eq!(
+        engine.run_state.bottled_lightning_card.as_deref(),
+        Some("Defend+")
+    );
+}
+
+#[test]
+fn war_paint_is_reachable_from_common_watcher_relic_rewards() {
+    // WarPaint.java constructs a COMMON shared relic under canonical ID
+    // "War Paint".
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "War Paint"
+            })
+        })
+    });
+    assert!(offered);
+}
+
+#[test]
 fn choosing_black_star_from_relic_choice_doubles_future_elite_relic_rewards() {
     // Source-derived (verify relic/Black Star): BlackStar.java is active for
     // elite rooms; AbstractRoom's elite victory rewards therefore include the

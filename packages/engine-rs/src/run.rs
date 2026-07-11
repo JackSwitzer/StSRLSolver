@@ -3145,7 +3145,11 @@ impl RunEngine {
             // Source: reference/extracted/methods/relic/Whetstone.java upgrades
             // up to two upgradable ATTACK cards and checks bottled upgrades.
             "Whetstone" => self.upgrade_random_cards_by_type(crate::cards::CardType::Attack, 2),
-            "WarPaint" => self.upgrade_random_cards_by_type(crate::cards::CardType::Skill, 2),
+            // Source: reference/extracted/methods/relic/WarPaint.java upgrades
+            // up to two upgradable SKILL cards and checks bottled upgrades.
+            "War Paint" | "WarPaint" => {
+                self.upgrade_random_cards_by_type(crate::cards::CardType::Skill, 2)
+            }
             // D27 partial fix: Pandora's Box. Java replaces all Strikes and Defends
             // in master_deck with `returnTrulyRandomCard()` from the player's class
             // common pool. We remove the starter basics now (the "transform" side);
@@ -3557,6 +3561,12 @@ impl RunEngine {
                 && self.run_state.bottled_flame_card.as_deref() == Some(original.as_str())
             {
                 self.run_state.bottled_flame_card = Some(upgraded);
+            } else if card_type == crate::cards::CardType::Skill
+                && self.run_state.bottled_lightning_card.as_deref() == Some(original.as_str())
+            {
+                // WarPaint.java performs the same bottledCardUpgradeCheck for
+                // each SKILL it upgrades.
+                self.run_state.bottled_lightning_card = Some(upgraded);
             }
         }
     }
@@ -3710,7 +3720,8 @@ impl RunEngine {
             "Singing Bowl",
             // Whetstone.java uses canonical ID "Whetstone" and COMMON tier.
             "Whetstone",
-            "WarPaint",
+            // WarPaint.java uses canonical ID "War Paint" and COMMON tier.
+            "War Paint",
             // FrozenEgg2.java, MoltenEgg2.java, and ToxicEgg2.java use spaced
             // canonical IDs, UNCOMMON tier, and a floor-48 spawn cutoff.
             "Frozen Egg 2",

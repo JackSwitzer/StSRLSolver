@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T09:57:59.077080+00:00",
+ "updated": "2026-07-11T09:59:24.479683+00:00",
  "status_counts": {
-  "unverified": 454,
-  "verified": 213
+  "unverified": 453,
+  "verified": 214
  },
  "rows": [
   {
@@ -6612,8 +6612,8 @@
    "class": "WarPaint",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/WarPaint.java",
    "methods_ref": "reference/extracted/methods/relic/WarPaint.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
