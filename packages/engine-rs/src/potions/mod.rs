@@ -162,7 +162,8 @@ fn potion_potency(potion_id: &str) -> Option<(i32, i32)> {
         // BlockPotion.java getPotency ignores ascension and always returns 12.
         "Block Potion" | "BlockPotion" => Some((12, 12)),
         "Strength Potion" | "StrengthPotion" => Some((2, 1)),
-        "Dexterity Potion" | "DexterityPotion" => Some((2, 1)),
+        // DexterityPotion.java getPotency ignores ascension and always returns 2.
+        "Dexterity Potion" | "DexterityPotion" => Some((2, 2)),
         "Focus Potion" | "FocusPotion" => Some((2, 1)),
         "SteroidPotion" | "Flex Potion" => Some((5, 3)),
         "SpeedPotion" => Some((5, 3)),
@@ -1021,5 +1022,13 @@ mod tests {
         let mut state = make_test_state();
         apply_potion_scaled(&mut state, "Block Potion", -1, 20);
         assert_eq!(state.player.block, 12);
+    }
+
+    #[test]
+    fn test_a20_dexterity_potion_stays_at_source_potency() {
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/potions/DexterityPotion.java
+        let mut state = make_test_state();
+        apply_potion_scaled(&mut state, "Dexterity Potion", -1, 20);
+        assert_eq!(state.player.dexterity(), 2);
     }
 }

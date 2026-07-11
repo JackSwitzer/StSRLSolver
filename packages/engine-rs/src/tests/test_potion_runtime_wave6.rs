@@ -101,6 +101,25 @@ fn block_potion_grants_raw_bark_doubled_block_without_card_modifiers() {
 }
 
 #[test]
+fn dexterity_potion_keeps_full_potency_and_modifies_real_card_block() {
+    // Source-derived (verify potion/DexterityPotion): Java targets the player
+    // and applies DexterityPower(potency 2). Sacred Bark doubles that to four.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Defend"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.hand = make_deck(&["Defend"]);
+    engine.state.potions[0] = "Dexterity Potion".to_string();
+
+    use_potion(&mut engine, 0, 0);
+    assert_eq!(engine.state.player.dexterity(), 4);
+    assert!(crate::tests::support::play_self(&mut engine, "Defend"));
+    assert_eq!(engine.state.player.block, 9);
+}
+
+#[test]
 fn wave6_simple_targeted_potions_use_runtime_action_path() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike"]),
