@@ -169,7 +169,8 @@ fn potion_potency(potion_id: &str) -> Option<(i32, i32)> {
         "Explosive Potion" | "ExplosivePotion" => Some((10, 10)),
         // BlockPotion.java getPotency ignores ascension and always returns 12.
         "Block Potion" | "BlockPotion" => Some((12, 12)),
-        "Strength Potion" | "StrengthPotion" => Some((2, 1)),
+        // StrengthPotion.java getPotency ignores ascension and always returns 2.
+        "Strength Potion" | "StrengthPotion" => Some((2, 2)),
         // DexterityPotion.java getPotency ignores ascension and always returns 2.
         "Dexterity Potion" | "DexterityPotion" => Some((2, 2)),
         "Focus Potion" | "FocusPotion" => Some((2, 1)),
@@ -964,10 +965,11 @@ mod tests {
     }
 
     #[test]
-    fn test_a11_strength_potion_reduced() {
+    fn test_a11_strength_potion_stays_at_two() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/StrengthPotion.java
         let mut state = make_test_state();
         apply_potion_scaled(&mut state, "Strength Potion", -1, 11);
-        assert_eq!(state.player.strength(), 1);
+        assert_eq!(state.player.strength(), 2);
     }
 
     #[test]

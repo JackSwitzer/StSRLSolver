@@ -164,6 +164,32 @@ fn dexterity_potion_keeps_full_potency_and_modifies_real_card_block() {
 }
 
 #[test]
+fn strength_potion_keeps_two_potency_and_persists_across_turns() {
+    // Source-derived (verify potion/StrengthPotion): Java applies
+    // StrengthPower with constant potency two and no delayed-loss power.
+    // Sacred Bark therefore grants four Strength for the rest of combat.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/StrengthPotion.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand = make_deck(&["Strike"]);
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "Strength Potion".to_string();
+
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::STRENGTH), 4);
+    engine.execute_action(&Action::PlayCard {
+        card_idx: 0,
+        target_idx: 0,
+    });
+    assert_eq!(engine.state.enemies[0].entity.hp, 30);
+    engine.execute_action(&Action::EndTurn);
+    assert_eq!(engine.state.player.status(sid::STRENGTH), 4);
+}
+
+#[test]
 fn wave6_simple_targeted_potions_use_runtime_action_path() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike"]),
