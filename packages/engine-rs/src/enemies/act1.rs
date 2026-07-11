@@ -572,11 +572,22 @@ pub fn advance_lagavulin_after_turn(
 }
 
 pub(super) fn roll_sentry(enemy: &mut EnemyCombatState) {
-    if last_move(enemy, move_ids::SENTRY_BOLT) {
-        enemy.set_move(move_ids::SENTRY_BEAM, 9, 1, 0);
-        enemy.add_effect(mfx::DAZE, 2);
+    // Source: reference/extracted/methods/monster/Sentry.java (`getMove`).
+    let damage = enemy.entity.status(sid::STARTING_DMG).max(9);
+    let daze = enemy.entity.status(sid::STR_AMT).max(2) as i16;
+    let move_id = if enemy.entity.status(sid::FIRST_MOVE) == 0 {
+        enemy.entity.set_status(sid::FIRST_MOVE, 1);
+        enemy.entity.status(sid::IS_FIRST_MOVE)
+    } else if last_move(enemy, move_ids::SENTRY_BEAM) {
+        move_ids::SENTRY_BOLT
     } else {
-        enemy.set_move(move_ids::SENTRY_BOLT, 9, 1, 0);
+        move_ids::SENTRY_BEAM
+    };
+    if move_id == move_ids::SENTRY_BOLT {
+        enemy.set_move(move_ids::SENTRY_BOLT, 0, 0, 0);
+        enemy.add_effect(mfx::DAZE, daze);
+    } else {
+        enemy.set_move(move_ids::SENTRY_BEAM, damage, 1, 0);
     }
 }
 

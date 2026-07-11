@@ -157,8 +157,8 @@ pub mod move_ids {
     pub const LAGA_OPEN_NATURAL: i32 = 6;
 
     // Sentry
-    pub const SENTRY_BOLT: i32 = 1;
-    pub const SENTRY_BEAM: i32 = 2;
+    pub const SENTRY_BOLT: i32 = 3;
+    pub const SENTRY_BEAM: i32 = 4;
 
     // The Guardian
     pub const GUARD_CHARGING_UP: i32 = 6;
@@ -549,7 +549,13 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::SLEEP_TURNS, 1);
         }
         "Sentry" => {
-            enemy.set_move(move_ids::SENTRY_BOLT, 9, 1, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 9);
+            enemy.entity.set_status(sid::STR_AMT, 2);
+            enemy.entity.set_status(sid::FIRST_MOVE, 0);
+            enemy.entity.set_status(sid::IS_FIRST_MOVE, move_ids::SENTRY_BOLT);
+            enemy.entity.set_status(sid::ARTIFACT, 1);
+            enemy.set_move(move_ids::SENTRY_BOLT, 0, 0, 0);
+            enemy.add_effect(mfx::DAZE, 2);
         }
         "TheGuardian" => {
             enemy.set_move(move_ids::GUARD_CHARGING_UP, 0, 0, 9);
@@ -1109,10 +1115,13 @@ mod tests {
     fn test_sentry_alternating() {
         let mut enemy = create_enemy("Sentry", 38, 38);
         assert_eq!(enemy.move_id, move_ids::SENTRY_BOLT);
+        assert_eq!(enemy.effect(mfx::DAZE), Some(2));
 
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 0, &mut crate::seed::StsRandom::new(1));
         roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SENTRY_BEAM);
-        assert_eq!(enemy.effect(mfx::DAZE), Some(2));
+        assert_eq!(enemy.move_damage(), 9);
 
         roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SENTRY_BOLT);

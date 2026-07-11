@@ -204,7 +204,10 @@ mod enemy_ai_java_parity_tests {
         assert_eq!(e.entity.block, 8);
 
         let e = make("Sentry", 38);
-        expect_move(&e, move_ids::SENTRY_BOLT, 9, 1, 0, &[]);
+        // Source: reference/extracted/methods/monster/Sentry.java: Bolt (3)
+        // adds Dazed; Beam (4) is the damaging move.
+        expect_move(&e, move_ids::SENTRY_BOLT, 0, 0, 0, &[(mfx::DAZE, 2)]);
+        expect_status(&e, sid::ARTIFACT, 1);
     }
 
     #[test]
@@ -380,10 +383,12 @@ mod enemy_ai_java_parity_tests {
         expect_status(&e, sid::SLEEP_TURNS, 0);
 
         let mut e = make("Sentry", 38);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 0, &mut crate::seed::StsRandom::new(1));
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SENTRY_BEAM, 9, 1, 0, &[(mfx::DAZE, 2)]);
+        expect_move(&e, move_ids::SENTRY_BEAM, 9, 1, 0, &[]);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SENTRY_BOLT, 9, 1, 0, &[]);
+        expect_move(&e, move_ids::SENTRY_BOLT, 0, 0, 0, &[(mfx::DAZE, 2)]);
     }
 
     #[test]

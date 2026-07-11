@@ -551,20 +551,26 @@ mod enemy_tests {
     #[test] fn sentry_first_bolt() {
         let e = create_enemy("Sentry", 38, 38);
         assert_eq!(e.move_id, SENTRY_BOLT);
-        assert_eq!(e.move_damage(), 9);
+        assert_eq!(e.move_damage(), 0);
+        assert_eq!(e.effect(mfx::DAZE), Some(2));
     }
     #[test] fn sentry_alternates_bolt_beam() {
         let mut e = create_enemy("Sentry", 38, 38);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 0, &mut crate::seed::StsRandom::new(1));
         roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, SENTRY_BEAM);
-        assert_eq!(e.effect(mfx::DAZE).unwrap(), 2);
+        assert_eq!(e.move_damage(), 9);
         roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, SENTRY_BOLT);
+        assert_eq!(e.effect(mfx::DAZE), Some(2));
         roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, SENTRY_BEAM);
     }
     #[test] fn sentry_beam_damage() {
         let mut e = create_enemy("Sentry", 38, 38);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 0, &mut crate::seed::StsRandom::new(1));
         roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_damage(), 9);
     }

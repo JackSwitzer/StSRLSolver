@@ -1471,6 +1471,20 @@ impl RunEngine {
             enemy.set_move(crate::enemies::move_ids::LAGA_SLEEP, 0, 0, 0);
         }
 
+        // Source: reference/extracted/methods/monster/Sentry.java.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "Sentry") {
+            let damage = if self.run_state.ascension >= 3 { 10 } else { 9 };
+            let daze = if self.run_state.ascension >= 18 { 3 } else { 2 };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, damage);
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT, daze);
+            enemy.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 0);
+            enemy.entity.set_status(crate::status_ids::sid::IS_FIRST_MOVE,
+                crate::enemies::move_ids::SENTRY_BOLT);
+            enemy.entity.set_status(crate::status_ids::sid::ARTIFACT, 1);
+            enemy.set_move(crate::enemies::move_ids::SENTRY_BOLT, 0, 0, 0);
+            enemy.add_effect(crate::combat_types::mfx::DAZE, daze as i16);
+        }
+
         // The boss passes ascension-derived large-slime constructor values to
         // its children when its split resolves.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "SlimeBoss") {
@@ -1491,13 +1505,16 @@ impl RunEngine {
             }
         }
 
-        // Sentry stagger: middle sentry starts on Beam, others on Bolt
+        // Sentry.java: even encounter indices open Bolt, odd indices open Beam.
         if expanded.len() == 3
             && expanded.iter().all(|id| id == "Sentry")
         {
             use crate::enemies::move_ids;
-            enemy_states[1].set_move(move_ids::SENTRY_BEAM, 9, 1, 0);
-            enemy_states[1].add_effect(crate::combat_types::mfx::DAZE, 2);
+            for (idx, enemy) in enemy_states.iter_mut().enumerate() {
+                enemy.entity.set_status(crate::status_ids::sid::IS_FIRST_MOVE,
+                    if idx % 2 == 0 { move_ids::SENTRY_BOLT }
+                    else { move_ids::SENTRY_BEAM });
+            }
         }
 
         // Create combat state — convert deck strings to CardInstance
@@ -1659,7 +1676,12 @@ impl RunEngine {
                 (hp, hp)
             }
             "Sentry" => {
-                let hp = if a20 { 39 } else { 38 };
+                let (base, width) = if self.run_state.ascension >= 8 {
+                    (39, 6)
+                } else {
+                    (38, 4)
+                };
+                let hp = base + self.rng.gen_range(0..=width);
                 (hp, hp)
             }
             "TheGuardian" => {
@@ -5451,6 +5473,73 @@ mod tests {
             crate::enemies::move_ids::LAGA_ATTACK);
         assert_eq!(combat.ai_rng.counter, ticks + 1,
             "the stunned wake turn queues one RollMoveAction");
+    }
+
+    #[test]
+    fn sentry_stats_stagger_daze_artifact_and_ai_ticks_match_java() {
+        // Source: reference/extracted/methods/monster/Sentry.java.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("Sentry").0);
+            let mut high = RunEngine::new(seed, 8);
+            high_hp.insert(high.roll_enemy_hp("Sentry").0);
+        }
+        assert_eq!(low_hp, (38..=42).collect());
+        assert_eq!(high_hp, (39..=45).collect());
+
+        for (ascension, damage, daze) in [(0, 9, 2), (3, 10, 2), (18, 10, 3)] {
+            let mut engine = RunEngine::new(42, ascension);
+            engine.enter_specific_combat(vec!["Sentry".to_string()]);
+            let combat = engine.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!(enemy.move_id, crate::enemies::move_ids::SENTRY_BOLT);
+            assert_eq!(enemy.move_damage(), 0);
+            assert_eq!(enemy.effect(crate::combat_types::mfx::DAZE),
+                Some(daze as i16));
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG), damage);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::ARTIFACT), 1);
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        let mut single = RunEngine::new(42, 0);
+        single.enter_specific_combat(vec!["Sentry".to_string()]);
+        single.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        let combat = single.combat_engine.as_ref().unwrap();
+        assert_eq!(combat.state.discard_pile.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) == "Daze").count(), 2);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::SENTRY_BEAM);
+        assert_eq!(combat.state.enemies[0].move_damage(), 9);
+        assert_eq!(combat.ai_rng.counter, 2);
+
+        let mut trio = RunEngine::new(42, 18);
+        trio.enter_specific_combat(vec!["Sentry".to_string(), "Sentry".to_string(),
+            "Sentry".to_string()]);
+        {
+            let combat = trio.combat_engine.as_ref().unwrap();
+            assert_eq!(combat.state.enemies.iter().map(|enemy| enemy.move_id)
+                .collect::<Vec<_>>(), vec![
+                    crate::enemies::move_ids::SENTRY_BOLT,
+                    crate::enemies::move_ids::SENTRY_BEAM,
+                    crate::enemies::move_ids::SENTRY_BOLT,
+                ]);
+            assert_eq!(combat.ai_rng.counter, 3);
+        }
+        let hp_before = trio.combat_engine.as_ref().unwrap().state.player.hp;
+        trio.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        let combat = trio.combat_engine.as_ref().unwrap();
+        assert_eq!(combat.state.player.hp, hp_before - 10);
+        assert_eq!(combat.state.discard_pile.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) == "Daze").count(), 6);
+        assert_eq!(combat.state.enemies.iter().map(|enemy| enemy.move_id)
+            .collect::<Vec<_>>(), vec![
+                crate::enemies::move_ids::SENTRY_BEAM,
+                crate::enemies::move_ids::SENTRY_BOLT,
+                crate::enemies::move_ids::SENTRY_BEAM,
+            ]);
+        assert_eq!(combat.ai_rng.counter, 6);
     }
 
     #[test]

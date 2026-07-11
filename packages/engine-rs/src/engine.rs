@@ -309,7 +309,7 @@ impl CombatEngine {
                 | "SpikeSlime_S" | "SpikeSlime_M" | "SpikeSlime_L" | "Looter"
                 | "GremlinFat" | "GremlinThief" | "GremlinWarrior"
                 | "GremlinWizard" | "GremlinTsundere" | "GremlinNob"
-                | "Lagavulin")) {
+                | "Lagavulin" | "Sentry")) {
             crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
         }
 
