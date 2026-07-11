@@ -147,6 +147,7 @@ pub static RUNTIME_PLAYER_POWER_DEFS: &[&EntityDef] = &[
     &exhaust::DEF_DARK_EMBRACE,
     &stance::DEF_MENTAL_FORTRESS,
     &stance::DEF_RUSHDOWN,
+    &enemy::DEF_RITUAL,
 ];
 
 /// Enemy-owned power defs that can safely execute through the owner-aware

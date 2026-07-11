@@ -3,7 +3,9 @@
 use crate::actions::Action;
 use crate::effects::trigger::Trigger;
 use crate::status_ids::sid;
-use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_state, make_deck};
+use crate::tests::support::{
+    combat_state_with, end_turn, enemy_no_intent, engine_with_state, make_deck,
+};
 
 fn use_potion(engine: &mut crate::engine::CombatEngine, potion_idx: usize, target_idx: i32) {
     engine.execute_action(&Action::UsePotion {
@@ -140,6 +142,29 @@ fn ancient_potion_targets_player_and_uses_sacred_bark_potency() {
     assert_eq!(engine.state.player.status(sid::ARTIFACT), 2);
     assert_eq!(engine.state.enemies[0].entity.status(sid::ARTIFACT), 0);
     assert!(engine.state.potions[0].is_empty());
+}
+
+#[test]
+fn cultist_potion_ritual_grows_strength_at_player_turn_end_only() {
+    // Source-derived (verify potion/CultistPotion): the potion applies
+    // RitualPower(player, potency, true). RitualPower gains that Strength at
+    // each player turn end; Sacred Bark doubles base potency one to two.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "CultistPotion".to_string();
+
+    use_potion(&mut engine, 0, 0);
+    assert_eq!(engine.state.player.status(sid::RITUAL), 2);
+    assert_eq!(engine.state.player.strength(), 0);
+
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.strength(), 2);
+    assert_eq!(engine.state.player.status(sid::RITUAL), 2);
 }
 
 #[test]

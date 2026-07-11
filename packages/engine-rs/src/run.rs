@@ -2788,6 +2788,7 @@ impl RunEngine {
             "Ancient Potion",
             "BlessingOfTheForge",
             "ColorlessPotion",
+            "CultistPotion",
         ];
 
         let registry = gameplay_registry();
