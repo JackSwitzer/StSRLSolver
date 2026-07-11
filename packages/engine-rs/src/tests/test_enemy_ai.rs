@@ -273,14 +273,13 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::AS_S_TACKLE, 3, 1, 0, &[]);
 
         let mut e = make("AcidSlime_M", 28);
-        roll_times(&mut e, 1);
-        let first_move = e.move_id;
-        assert!(matches!(
-            first_move,
-            move_ids::AS_CORROSIVE_SPIT | move_ids::AS_TACKLE | move_ids::AS_LICK
-        ));
-        roll_times(&mut e, 1);
-        assert_ne!(e.move_id, first_move, "AcidSlime_M should not immediately repeat its first move");
+        roll_initial_move_with_num_and_rng(
+            &mut e, 0, &mut crate::seed::StsRandom::new(1));
+        expect_move(&e, move_ids::AS_CORROSIVE_SPIT, 7, 1, 0, &[(mfx::SLIMED, 1)]);
+        roll_with_num(&mut e, 40);
+        expect_move(&e, move_ids::AS_TACKLE, 10, 1, 0, &[]);
+        roll_with_num(&mut e, 70);
+        expect_move(&e, move_ids::AS_LICK, 0, 0, 0, &[(mfx::WEAK, 1)]);
 
         let mut e = make("AcidSlime_L", 65);
         expect_one_of(&e, &[move_ids::AS_CORROSIVE_SPIT, move_ids::AS_TACKLE, move_ids::AS_LICK]);

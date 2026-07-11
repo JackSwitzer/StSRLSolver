@@ -356,14 +356,57 @@ mod enemy_tests {
 
     // ========== Acid Slime M ==========
 
-    #[test] fn acid_m_first() {
-        let e = create_enemy("AcidSlime_M", 28, 28);
-        assert_eq!(e.move_id, AS_CORROSIVE_SPIT);
-        assert_eq!(e.effect(mfx::SLIMED).unwrap(), 1);
+    #[test] fn acid_m_initial_windows_match_java_at_a0_and_a17() {
+        // Source: reference/extracted/methods/monster/AcidSlime_M.java.
+        for (num, move_id) in [(29, AS_CORROSIVE_SPIT), (30, AS_TACKLE), (70, AS_LICK)] {
+            let mut e = create_enemy("AcidSlime_M", 28, 28);
+            let mut rng = crate::seed::StsRandom::new(1);
+            roll_initial_move_with_num_and_rng(&mut e, num, &mut rng);
+            assert_eq!(e.move_id, move_id);
+            assert_eq!(rng.counter, 0);
+        }
+        for (num, move_id) in [(39, AS_CORROSIVE_SPIT), (40, AS_TACKLE), (80, AS_LICK)] {
+            let mut e = create_enemy("AcidSlime_M", 28, 28);
+            e.entity.set_status(sid::BLOCK_AMT, 17);
+            roll_initial_move_with_num_and_rng(
+                &mut e, num, &mut crate::seed::StsRandom::new(1));
+            assert_eq!(e.move_id, move_id);
+        }
     }
     #[test] fn acid_m_damage() {
         let e = create_enemy("AcidSlime_M", 28, 28);
         assert_eq!(e.move_damage(), 7);
+    }
+
+    #[test] fn acid_m_repeated_wound_uses_secondary_boolean_draw() {
+        let seed_for = |expected: bool| (1..10_000).find(|&seed| {
+            let mut rng = crate::seed::StsRandom::new(seed);
+            rng.random_boolean() == expected
+        }).unwrap();
+        for (value, expected) in [(true, AS_TACKLE), (false, AS_LICK)] {
+            let mut e = create_enemy("AcidSlime_M", 28, 28);
+            e.move_history.push(AS_CORROSIVE_SPIT);
+            e.set_move(AS_CORROSIVE_SPIT, 7, 1, 0);
+            let mut rng = crate::seed::StsRandom::new(seed_for(value));
+            roll_next_move_with_num_and_rng(&mut e, 0, &mut rng);
+            assert_eq!(e.move_id, expected);
+            assert_eq!(rng.counter, 1);
+        }
+    }
+
+    #[test] fn acid_m_probability_guards_consume_one_float_draw() {
+        let seed_for = |below: f32, expected: bool| (1..10_000).find(|&seed| {
+            let mut rng = crate::seed::StsRandom::new(seed);
+            (rng.random_float() < below) == expected
+        }).unwrap();
+        for (value, expected) in [(true, AS_CORROSIVE_SPIT), (false, AS_LICK)] {
+            let mut e = create_enemy("AcidSlime_M", 28, 28);
+            e.set_move(AS_TACKLE, 10, 1, 0);
+            let mut rng = crate::seed::StsRandom::new(seed_for(0.4, value));
+            roll_next_move_with_num_and_rng(&mut e, 30, &mut rng);
+            assert_eq!(e.move_id, expected);
+            assert_eq!(rng.counter, 1);
+        }
     }
 
     // ========== Acid Slime L ==========

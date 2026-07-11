@@ -1319,6 +1319,17 @@ impl RunEngine {
             enemy.set_move(crate::enemies::move_ids::AS_S_TACKLE, damage, 1, 0);
         }
 
+        // Source: reference/extracted/methods/monster/AcidSlime_M.java.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "AcidSlime_M") {
+            let (wound, normal) = if self.run_state.ascension >= 2 { (8, 12) } else { (7, 10) };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, wound);
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT, normal);
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if self.run_state.ascension >= 17 { 17 } else { 0 });
+            enemy.set_move(crate::enemies::move_ids::AS_CORROSIVE_SPIT, wound, 1, 0);
+            enemy.add_effect(crate::combat_types::mfx::SLIMED, 1);
+        }
+
         // Java Cultist.java: ctor sets ritualAmount = ascensionLevel >= 2 ? 4 : 3;
         // takeTurn() case 3 (INCANTATION) applies RitualPower(ritualAmount + 1)
         // at ascensionLevel >= 17, else RitualPower(ritualAmount).
@@ -1405,7 +1416,9 @@ impl RunEngine {
                 (hp, hp)
             }
             "AcidSlime_M" => {
-                let hp = if a20 { 32 } else { 28 };
+                let base = if a20 { 29 } else { 28 };
+                let width = if a20 { 5 } else { 4 };
+                let hp = base + self.rng.gen_range(0..=width);
                 (hp, hp)
             }
             "AcidSlime_L" => {
@@ -4476,6 +4489,64 @@ mod tests {
             assert_eq!(combat.ai_rng.counter, initial_ticks,
                 "takeTurn directly sets the next move without RollMoveAction");
         }
+    }
+
+    #[test]
+    fn acid_slime_m_ranges_stats_and_conditional_rng_match_java() {
+        // Source: reference/extracted/methods/monster/AcidSlime_M.java.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("AcidSlime_M").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("AcidSlime_M").0);
+        }
+        assert_eq!(low_hp, (28..=32).collect());
+        assert_eq!(high_hp, (29..=34).collect());
+
+        for (ascension, wound, normal, marker) in
+            [(0, 7, 10, 0), (2, 8, 12, 0), (17, 8, 12, 17)]
+        {
+            let mut engine = RunEngine::new(42, ascension);
+            engine.enter_specific_combat(vec!["AcidSlime_M".to_string()]);
+            let combat = engine.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG), wound);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), normal);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::BLOCK_AMT), marker);
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        // Drive a real enemy turn where the 30..69 window follows Normal
+        // Tackle with Java's conditional 0.4 draw.
+        let seed = (1..10_000).find(|&seed| {
+            let mut rng = crate::seed::StsRandom::new(seed);
+            let num = rng.random(99);
+            (30..70).contains(&num)
+        }).unwrap();
+        let mut probe = crate::seed::StsRandom::new(seed);
+        let _ = probe.random(99);
+        let expected_wound = probe.random_float() < 0.4;
+
+        let mut engine = RunEngine::new(42, 0);
+        engine.enter_specific_combat(vec!["AcidSlime_M".to_string()]);
+        {
+            let combat = engine.combat_engine.as_mut().unwrap();
+            let enemy = &mut combat.state.enemies[0];
+            enemy.move_history.clear();
+            enemy.set_move(crate::enemies::move_ids::AS_TACKLE, 10, 1, 0);
+            enemy.move_effects.clear();
+            combat.ai_rng = crate::seed::StsRandom::new(seed);
+        }
+        engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        let combat = engine.combat_engine.as_ref().unwrap();
+        assert_eq!(combat.ai_rng.counter, 2);
+        assert_eq!(combat.state.enemies[0].move_id, if expected_wound {
+            crate::enemies::move_ids::AS_CORROSIVE_SPIT
+        } else {
+            crate::enemies::move_ids::AS_LICK
+        });
     }
 
     #[test]

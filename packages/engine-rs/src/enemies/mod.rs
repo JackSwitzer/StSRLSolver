@@ -457,6 +457,9 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::AS_S_TACKLE, 3, 1, 0);
         }
         "AcidSlime_M" => {
+            enemy.entity.set_status(sid::STARTING_DMG, 7);
+            enemy.entity.set_status(sid::STR_AMT, 10);
+            enemy.entity.set_status(sid::BLOCK_AMT, 0);
             enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 7, 1, 0);
             enemy.add_effect(mfx::SLIMED, 1);
         }
@@ -904,7 +907,7 @@ fn select_move(
         "SlaverBlue" | "BlueSlaver" => act1::roll_blue_slaver(enemy, num),
         "SlaverRed" | "RedSlaver" => act1::roll_red_slaver(enemy, num),
         "AcidSlime_S" => act1::roll_acid_slime_s(enemy, num, ai_rng),
-        "AcidSlime_M" => act1::roll_acid_slime_m(enemy, num),
+        "AcidSlime_M" => act1::roll_acid_slime_m(enemy, num, ai_rng),
         "AcidSlime_L" => act1::roll_acid_slime_l(enemy, num),
         "SpikeSlime_S" => act1::roll_spike_slime_s(enemy, num),
         "SpikeSlime_M" => act1::roll_spike_slime_m(enemy, num),

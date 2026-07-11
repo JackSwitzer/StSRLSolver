@@ -305,7 +305,7 @@ impl CombatEngine {
             "FungiBeast" | "FuzzyLouseNormal" | "RedLouse"
                 | "FuzzyLouseDefensive" | "GreenLouse"
                 | "SlaverBlue" | "BlueSlaver" | "SlaverRed" | "RedSlaver"
-                | "AcidSlime_S")) {
+                | "AcidSlime_S" | "AcidSlime_M")) {
             crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
         }
 
