@@ -22,7 +22,7 @@ pub mod flag {
     pub const SINGING_BOWL: u64     = 1 << 15;  // +2 max HP option at card reward
     pub const QUESTION_CARD: u64    = 1 << 16;  // +1 card choice at reward
     pub const PRAYER_WHEEL: u64     = 1 << 17;  // +1 card reward after combat
-    pub const MAW_BANK: u64         = 1 << 18;  // +12g per non-shop floor
+    pub const MAW_BANK: u64         = 1 << 18;  // +12g per room until gold is spent
     pub const OLD_COIN: u64         = 1 << 19;  // +300g on pickup (already applied)
     pub const CERAMIC_FISH: u64     = 1 << 20;  // +9g on card add
     pub const MEAL_TICKET: u64      = 1 << 21;  // Heal 15 at shop
@@ -50,7 +50,7 @@ pub mod counter {
     pub const INCENSE_BURNER: usize = 1;  // 6 turns -> intangible
     pub const INK_BOTTLE: usize     = 2;  // 10 cards -> +1 draw
     pub const HAPPY_FLOWER: usize   = 3;  // 3 turns -> +1 energy
-    pub const MAW_BANK_GOLD: usize  = 4;  // Accumulated Maw Bank gold
+    pub const MAW_BANK_GOLD: usize  = 4;  // -2 after Maw Bank is used up
     pub const OMAMORI_USES: usize   = 5;  // Remaining curse negations (starts at 2)
     pub const MATRYOSHKA_USES: usize = 6; // Remaining free chest relics
     pub const ANCIENT_TEA_SET: usize = 7; // Armed by entering a rest room; consumed next combat

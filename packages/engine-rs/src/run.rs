@@ -379,6 +379,11 @@ fn adjust_run_gold_state(run_state: &mut RunState, amount: i32) {
         }
     } else if amount < 0 {
         run_state.gold = (run_state.gold + amount).max(0);
+        // MawBank.java::onSpendGold permanently uses the relic up on any
+        // actual gold-spending call, regardless of where the spend occurs.
+        if run_state.relic_flags.has(crate::relic_flags::flag::MAW_BANK) {
+            run_state.relic_flags.counters[crate::relic_flags::counter::MAW_BANK_GOLD] = -2;
+        }
     }
 }
 
@@ -1366,10 +1371,12 @@ impl RunEngine {
             }
         }
 
-        // Maw Bank: +12g per non-shop floor
-        if room_type != RoomType::Shop
-            && self.run_state.relic_flags.has(crate::relic_flags::flag::MAW_BANK)
-            && !self.run_state.relic_flags.has(crate::relic_flags::flag::ECTOPLASM)
+        // MawBank.java::onEnterRoom triggers for every room, including shops,
+        // until onSpendGold marks the relic used up.
+        if self.run_state.relic_flags.has(crate::relic_flags::flag::MAW_BANK)
+            && self.run_state.relic_flags.counters
+                [crate::relic_flags::counter::MAW_BANK_GOLD]
+                != -2
         {
             self.adjust_run_gold(12);
         }
@@ -3592,6 +3599,9 @@ impl RunEngine {
             // Matryoshka.java uses canonical ID "Matryoshka", UNCOMMON tier,
             // and canSpawn excludes non-endless runs after floor 40.
             "Matryoshka",
+            // MawBank.java uses canonical ID "MawBank", COMMON tier, and
+            // canSpawn excludes floors after 48 and the current shop room.
+            "MawBank",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
@@ -3612,6 +3622,7 @@ impl RunEngine {
             .filter(|relic| *relic != "Darkstone Periapt" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Dream Catcher" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Matryoshka" || self.run_state.floor <= 40)
+            .filter(|relic| *relic != "MawBank" || self.run_state.floor <= 48)
             .filter(|relic| {
                 !matches!(*relic, "Frozen Egg 2" | "Molten Egg 2" | "Toxic Egg 2")
                     || self.run_state.floor <= 48
@@ -3633,6 +3644,7 @@ impl RunEngine {
                     .filter(|relic| *relic != "Darkstone Periapt" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Dream Catcher" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Matryoshka" || self.run_state.floor <= 40)
+                    .filter(|relic| *relic != "MawBank" || self.run_state.floor <= 48)
                     .filter(|relic| {
                         !matches!(*relic, "Frozen Egg 2" | "Molten Egg 2" | "Toxic Egg 2")
                             || self.run_state.floor <= 48
@@ -4012,6 +4024,10 @@ impl RunEngine {
                         let (card, price) = shop.cards[*idx].clone();
                         if self.run_state.gold >= price {
                             self.run_state.gold -= price;
+                            if self.run_state.relic_flags.has(crate::relic_flags::flag::MAW_BANK) {
+                                self.run_state.relic_flags.counters
+                                    [crate::relic_flags::counter::MAW_BANK_GOLD] = -2;
+                            }
                             obtain_master_deck_card_state(&mut self.run_state, card);
                             shop.cards.remove(*idx);
                         }
@@ -4034,6 +4050,10 @@ impl RunEngine {
                 });
                 if let Some(price) = remove_price {
                     self.run_state.gold -= price;
+                    if self.run_state.relic_flags.has(crate::relic_flags::flag::MAW_BANK) {
+                        self.run_state.relic_flags.counters
+                            [crate::relic_flags::counter::MAW_BANK_GOLD] = -2;
+                    }
                     self.remove_master_deck_card(*idx);
                     self.run_state.purge_cost += 25;
                     let next_remove_price = self.compute_shop_remove_price();

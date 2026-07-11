@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T08:56:18.710480+00:00",
+ "updated": "2026-07-11T08:59:00.943011+00:00",
  "status_counts": {
-  "unverified": 474,
-  "verified": 193
+  "unverified": 473,
+  "verified": 194
  },
  "rows": [
   {
@@ -5662,8 +5662,8 @@
    "class": "MawBank",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/MawBank.java",
    "methods_ref": "reference/extracted/methods/relic/MawBank.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -59,6 +59,36 @@ fn black_star_elite_rewards_unlock_second_relic_before_other_rewards() {
 }
 
 #[test]
+fn maw_bank_pays_on_shop_entry_then_is_used_up_by_the_first_purchase() {
+    // MawBank.java::onEnterRoom gains 12 in every room while active, including
+    // a ShopRoom; onSpendGold then permanently sets its counter to used-up.
+    let mut engine = RunEngine::new(42, 0);
+    engine.run_state.relics.push("MawBank".to_string());
+    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine.run_state.gold = 999;
+    resolve_opening_neow(&mut engine);
+    set_first_reachable_room(&mut engine, RoomType::Shop);
+    let gold_before = engine.run_state.gold;
+
+    let enter = engine.get_legal_actions()[0].clone();
+    assert!(engine.step_with_result(&enter).action_accepted);
+    assert_eq!(engine.current_phase(), RunPhase::Shop);
+    assert_eq!(engine.run_state.gold, gold_before + 12);
+    assert_eq!(
+        engine.run_state.relic_flags.counters[crate::relic_flags::counter::MAW_BANK_GOLD],
+        0
+    );
+
+    assert!(engine
+        .step_with_result(&RunAction::ShopBuyCard(0))
+        .action_accepted);
+    assert_eq!(
+        engine.run_state.relic_flags.counters[crate::relic_flags::counter::MAW_BANK_GOLD],
+        -2
+    );
+}
+
+#[test]
 fn matryoshka_treasure_room_builds_ordered_chest_reward_screen() {
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.relics.push("Matryoshka".to_string());

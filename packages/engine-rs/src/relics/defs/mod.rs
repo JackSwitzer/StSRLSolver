@@ -211,6 +211,7 @@ pub mod hovering_kite;
 pub mod lizard_tail;
 pub mod mango;
 pub mod matryoshka;
+pub mod maw_bank;
 pub mod ancient_tea_set;
 pub mod astrolabe;
 pub mod medical_kit;
@@ -365,6 +366,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &lizard_tail::DEF,
     &mango::DEF,
     &matryoshka::DEF,
+    &maw_bank::DEF,
     &ancient_tea_set::DEF,
     &astrolabe::DEF,
     &medical_kit::DEF,
