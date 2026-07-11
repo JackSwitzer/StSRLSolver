@@ -434,7 +434,13 @@ fn bottled_miracle_and_cunning_potion_respect_sacred_bark_and_hand_limit_via_act
 }
 
 #[test]
-fn gamblers_brew_discards_then_redraws_through_engine_path() {
+fn gamblers_brew_selects_any_subset_then_discards_and_redraws_that_count() {
+    // Source-derived (verify potion/GamblersBrew): use queues a
+    // GamblingChipAction with notchip=true. That action opens an any-number
+    // hand selection, manually discards only those cards, and draws exactly
+    // the number selected.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/GamblersBrew.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/GamblingChipAction.java
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame", "Zap", "Dualcast"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -447,9 +453,50 @@ fn gamblers_brew_discards_then_redraws_through_engine_path() {
 
     use_potion(&mut engine, 0, -1);
 
-    assert_eq!(hand_names(&engine), vec!["Dualcast", "Zap", "Inflame"]);
-    assert_eq!(engine.state.discard_pile.len(), 3);
-    assert_eq!(engine.state.player.status(sid::POTION_DRAW), 0);
+    assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+    let choice = engine.choice.as_ref().expect("Gambler's Brew choice");
+    assert_eq!(choice.reason, ChoiceReason::DiscardFromHand);
+    assert_eq!(choice.min_picks, 0);
+    assert_eq!(choice.max_picks, 3);
+    assert!(engine.state.potions[0].is_empty());
+
+    engine.execute_action(&Action::Choose(0));
+    engine.execute_action(&Action::Choose(2));
+    engine.execute_action(&Action::ConfirmSelection);
+
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert_eq!(hand_names(&engine), vec!["Defend", "Dualcast", "Zap"]);
+    assert_eq!(engine.state.discard_pile.len(), 2);
+    assert_eq!(engine.state.player.status(sid::GAMBLING_CHIP_ACTIVE), 0);
+}
+
+#[test]
+fn gamblers_brew_allows_zero_discards_and_consumes_with_an_empty_hand() {
+    // GamblingChipAction's `anyNumber=true` permits confirming zero cards;
+    // GamblersBrew.use queues no action at all when the hand is empty.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/GamblersBrew.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/GamblingChipAction.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike", "Defend", "Bash"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand = make_deck(&["Strike", "Defend"]);
+    engine.state.draw_pile = make_deck(&["Bash"]);
+    engine.state.potions[0] = "GamblersBrew".to_string();
+
+    use_potion(&mut engine, 0, -1);
+    engine.execute_action(&Action::ConfirmSelection);
+
+    assert_eq!(hand_names(&engine), vec!["Strike", "Defend"]);
+    assert_eq!(engine.state.draw_pile.len(), 1);
+    assert!(engine.state.discard_pile.is_empty());
+
+    engine.state.hand.clear();
+    engine.state.potions[0] = "GamblersBrew".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert!(engine.choice.is_none());
     assert!(engine.state.potions[0].is_empty());
 }
 

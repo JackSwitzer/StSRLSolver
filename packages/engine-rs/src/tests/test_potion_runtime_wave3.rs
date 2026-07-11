@@ -130,6 +130,10 @@ fn test_potion_runtime_wave3_discard_draw_and_randomized_draw_behaviors() {
     engine.state.hand = make_deck(&["Strike", "Defend", "Bash"]);
     equip_potion(&mut engine, 0, "GamblersBrew");
     use_potion(&mut engine, 0, -1);
+    engine.execute_action(&Action::Choose(0));
+    engine.execute_action(&Action::Choose(1));
+    engine.execute_action(&Action::Choose(2));
+    engine.execute_action(&Action::ConfirmSelection);
     assert_eq!(engine.state.hand.len(), 3);
     assert!(engine.state.discard_pile.is_empty());
     assert_eq!(engine.state.player.status(sid::POTION_DRAW), 0);

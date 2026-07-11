@@ -521,9 +521,8 @@ pub(crate) fn apply_potion_scaled(
         }
 
         "GamblersBrew" => {
-            let hand_size = state.hand.len() as i32;
-            state.discard_pile.extend(state.hand.drain(..));
-            state.player.set_status(sid::POTION_DRAW, hand_size);
+            // The production runtime opens GamblingChipAction's interactive
+            // any-number choice; this state-only test helper cannot model it.
             true
         }
 
@@ -618,7 +617,7 @@ pub fn consume_fairy(state: &mut CombatState) {
 mod tests {
     use super::*;
     use crate::state::{CombatState, EnemyCombatState};
-    use crate::tests::support::{make_deck, make_deck_n};
+    use crate::tests::support::make_deck_n;
 
     fn make_test_state() -> CombatState {
         let enemy = EnemyCombatState::new("JawWorm", 44, 44);
@@ -883,16 +882,6 @@ mod tests {
         apply_potion(&mut state, "SmokeBomb", -1);
         assert!(state.combat_over);
         assert!(!state.player_won);
-    }
-
-    #[test]
-    fn test_gamblers_brew() {
-        let mut state = make_test_state();
-        state.hand = make_deck(&["A", "B", "C"]);
-        apply_potion(&mut state, "GamblersBrew", -1);
-        assert!(state.hand.is_empty());
-        assert_eq!(state.discard_pile.len(), 3);
-        assert_eq!(state.player.status(sid::POTION_DRAW), 3);
     }
 
     #[test]
