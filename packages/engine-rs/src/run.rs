@@ -2986,6 +2986,8 @@ impl RunEngine {
             // BagOfMarbles.java uses the canonical ID "Bag of Marbles" and
             // assigns the relic to the COMMON tier.
             "Bag of Marbles",
+            // BagOfPreparation.java uses this canonical ID and COMMON tier.
+            "Bag of Preparation",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",

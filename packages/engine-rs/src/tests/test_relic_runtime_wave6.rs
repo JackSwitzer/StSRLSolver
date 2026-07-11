@@ -193,6 +193,28 @@ fn bag_of_marbles_applies_one_vulnerable_to_every_enemy_at_combat_start() {
 }
 
 #[test]
+fn bag_of_preparation_draws_two_extra_cards_only_in_the_opening_hand() {
+    // Source-derived (verify relic/Bag of Preparation):
+    // BagOfPreparation.java::atBattleStart queues exactly one DrawCardAction(2)
+    // and defines no later turn-start hook.
+    let mut engine = engine_without_start_with_relics(
+        &["Bag of Preparation"],
+        &[
+            "Strike", "Strike", "Strike", "Strike", "Strike", "Defend", "Defend", "Defend",
+            "Defend", "Defend", "Defend", "Defend",
+        ],
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+
+    engine.start_combat();
+    assert_eq!(engine.state.hand.len(), 7);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.hand.len(), 5);
+}
+
+#[test]
 fn blood_vial_and_mark_of_pain_apply_at_real_combat_start() {
     let mut engine = engine_without_start_with_relics(
         &["Blood Vial", "Mark of Pain"],

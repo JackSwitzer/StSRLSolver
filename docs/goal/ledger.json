@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T06:55:26.179895+00:00",
+ "updated": "2026-07-11T06:57:09.404411+00:00",
  "status_counts": {
-  "unverified": 513,
-  "verified": 154
+  "unverified": 512,
+  "verified": 155
  },
  "rows": [
   {
@@ -4882,8 +4882,8 @@
    "class": "BagOfPreparation",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/BagOfPreparation.java",
    "methods_ref": "reference/extracted/methods/relic/BagOfPreparation.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
