@@ -241,6 +241,8 @@ pub(crate) fn execute_primary_attack(
 pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst: CardInstance, target_idx: i32) {
     let card_id = engine.card_registry.card_name(card_inst.def_id);
     // ---- X-cost: consume all remaining energy as X value + Chemical X bonus ----
+    // Sources: ChemicalX.java defines BOOST 2; CollectAction.java and
+    // ConjureBladeAction.java add exactly 2 when the player owns "Chemical X".
     let x_value = if card.cost == -1 {
         let x = engine.state.energy;
         let x_is_free = card_inst.is_free()

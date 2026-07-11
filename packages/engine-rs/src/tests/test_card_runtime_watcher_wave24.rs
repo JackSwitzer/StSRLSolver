@@ -230,6 +230,19 @@ fn watcher_wave24_chemical_x_bonus_stamps_expunger_hit_count() {
 }
 
 #[test]
+fn chemical_x_makes_zero_energy_collect_apply_exactly_two() {
+    // Sources: ChemicalX.java defines BOOST 2, and CollectAction.java adds it
+    // to EnergyPanel.totalCount before applying CollectPower.
+    let mut engine = engine_with(make_deck(&["Collect"]), 40, 0);
+    engine.state.relics.push("Chemical X".to_string());
+    engine.state.energy = 0;
+
+    assert!(play_self(&mut engine, "Collect"));
+
+    assert_eq!(engine.state.player.status(sid::COLLECT_MIRACLES), 2);
+}
+
+#[test]
 fn watcher_wave24_omniscience_uses_the_typed_draw_pile_free_play_surface() {
     let mut engine = engine_without_start(
         make_deck(&["Omniscience+", "Strike", "Defend"]),

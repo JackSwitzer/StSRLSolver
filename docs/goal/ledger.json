@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T18:26:36.149988+00:00",
+ "updated": "2026-07-11T18:29:42.395542+00:00",
  "status_counts": {
-  "unverified": 446,
-  "verified": 221
+  "unverified": 445,
+  "verified": 222
  },
  "rows": [
   {
@@ -5122,8 +5122,8 @@
    "class": "ChemicalX",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/ChemicalX.java",
    "methods_ref": "reference/extracted/methods/relic/ChemicalX.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

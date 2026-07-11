@@ -39,6 +39,7 @@ pub mod bloody_idol;
 pub mod twisted_funnel;
 pub mod mutagenic_strength;
 pub mod philosophers_stone;
+pub mod chemical_x;
 
 // ===========================================================================
 // Counter-based relics (OnAttackPlayed/OnSkillPlayed/OnAnyCardPlayed/etc.)
@@ -260,6 +261,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &twisted_funnel::DEF,
     &mutagenic_strength::DEF,
     &philosophers_stone::DEF,
+    &chemical_x::DEF,
     // Counter-based relics
     &ornamental_fan::DEF,
     &kunai::DEF,
