@@ -29,6 +29,7 @@ pub struct DecisionState {
 pub enum RewardScreenSource {
     Combat,
     BossCombat,
+    Campfire,
     Event,
     Treasure,
     Unknown,
@@ -186,6 +187,7 @@ pub struct ShopDecisionContext {
 pub struct CampfireDecisionContext {
     pub can_rest: bool,
     pub upgradable_cards: Vec<usize>,
+    pub removable_cards: Vec<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -304,6 +306,7 @@ pub enum DecisionAction {
     },
     CampfireRest,
     CampfireUpgrade(usize),
+    CampfireToke,
     ShopBuyCard(usize),
     ShopBuyRelic(usize),
     ShopRemoveCard(usize),
@@ -329,6 +332,7 @@ impl DecisionAction {
             Self::SkipRewardItem { item_index } => RunAction::SkipRewardItem(*item_index),
             Self::CampfireRest => RunAction::CampfireRest,
             Self::CampfireUpgrade(idx) => RunAction::CampfireUpgrade(*idx),
+            Self::CampfireToke => RunAction::CampfireToke,
             Self::ShopBuyCard(idx) => RunAction::ShopBuyCard(*idx),
             Self::ShopBuyRelic(idx) => RunAction::ShopBuyRelic(*idx),
             Self::ShopRemoveCard(idx) => RunAction::ShopRemoveCard(*idx),
@@ -357,6 +361,7 @@ impl DecisionAction {
             },
             RunAction::CampfireRest => Self::CampfireRest,
             RunAction::CampfireUpgrade(idx) => Self::CampfireUpgrade(*idx),
+            RunAction::CampfireToke => Self::CampfireToke,
             RunAction::ShopBuyCard(idx) => Self::ShopBuyCard(*idx),
             RunAction::ShopBuyRelic(idx) => Self::ShopBuyRelic(*idx),
             RunAction::ShopRemoveCard(idx) => Self::ShopRemoveCard(*idx),

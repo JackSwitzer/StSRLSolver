@@ -995,6 +995,96 @@ fn smiling_mask_keeps_card_removal_at_fifty_after_other_discounts_and_ramp() {
 }
 
 #[test]
+fn peace_pipe_is_rare_reachable_before_floor_forty_eight_with_at_most_one_campfire_relic() {
+    // PeacePipe.java constructs a RARE relic; canSpawn requires floorNum < 48
+    // and fewer than two owned Peace Pipe, Shovel, or Girya relics.
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 47;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Peace Pipe"
+            })
+        })
+    });
+    assert!(offered);
+
+    for seed in 0..256 {
+        let mut late = RunEngine::new(seed, 0);
+        late.run_state.floor = 48;
+        late.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(late.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Peace Pipe")
+        }));
+
+        let mut capped = RunEngine::new(seed, 0);
+        capped.run_state.floor = 20;
+        capped.run_state.relics.extend([
+            "Girya".to_string(),
+            "Shovel".to_string(),
+        ]);
+        capped.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(capped.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Peace Pipe")
+        }));
+    }
+}
+
+#[test]
+fn peace_pipe_toke_selects_one_purgeable_non_bottled_card_and_is_rl_visible() {
+    // PeacePipe.java builds TokeOption from purgeable cards after excluding
+    // bottled cards; CampfireTokeEffect removes exactly the selected card.
+    let mut engine = RunEngine::new(59, 0);
+    engine.run_state.deck = vec![
+        "Strike".to_string(),
+        "Wallop".to_string(),
+        "CurseOfTheBell".to_string(),
+    ];
+    engine.run_state.bottled_flame_card = Some("Wallop".to_string());
+    engine.run_state.relics.push("Peace Pipe".to_string());
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
+    engine.phase = RunPhase::Campfire;
+
+    assert!(engine.get_legal_actions().contains(&RunAction::CampfireToke));
+    assert!(engine
+        .get_legal_decision_actions()
+        .contains(&DecisionAction::CampfireToke));
+    assert_eq!(
+        engine
+            .current_decision_context()
+            .campfire
+            .expect("campfire context")
+            .removable_cards,
+        vec![0]
+    );
+
+    assert!(engine
+        .step_with_result(&RunAction::CampfireToke)
+        .action_accepted);
+    assert_eq!(engine.current_phase(), RunPhase::CardReward);
+    let screen = engine.current_reward_screen().expect("Toke selection");
+    assert_eq!(screen.source, crate::decision::RewardScreenSource::Campfire);
+    assert_eq!(screen.items[0].choices.len(), 1);
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(engine
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+
+    assert_eq!(engine.run_state.deck, vec!["Wallop", "CurseOfTheBell"]);
+    engine.phase = RunPhase::Campfire;
+    assert!(!engine.get_legal_actions().contains(&RunAction::CampfireToke));
+}
+
+#[test]
 fn matryoshka_is_reachable_only_through_floor_forty() {
     // Matryoshka.java constructs an UNCOMMON relic and canSpawn allows
     // non-endless runs only while floorNum <= 40.

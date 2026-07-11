@@ -332,6 +332,7 @@ pub fn encode_run_state(engine: &RunEngine, obs: &mut [f32; RUN_DIM]) {
         match &screen.source {
             crate::decision::RewardScreenSource::Combat => obs[off + 3] = 1.0,
             crate::decision::RewardScreenSource::BossCombat => obs[off + 4] = 1.0,
+            crate::decision::RewardScreenSource::Campfire => {},
             crate::decision::RewardScreenSource::Event => obs[off + 5] = 1.0,
             crate::decision::RewardScreenSource::Treasure => obs[off + 6] = 1.0,
             crate::decision::RewardScreenSource::Unknown
@@ -483,6 +484,7 @@ pub fn encode_actions(engine: &RunEngine, actions: &[RunAction], obs: &mut [f32;
                 match action {
                     RunAction::CampfireRest => obs[base + 4] = 1.0,
                     RunAction::CampfireUpgrade(_) => obs[base + 5] = 1.0,
+                    RunAction::CampfireToke => obs[base + 6] = 1.0,
                     _ => {}
                 }
             }

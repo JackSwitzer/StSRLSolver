@@ -1157,6 +1157,12 @@ impl StSEngine {
                 "shop".to_string(),
                 format!("Buy {}", card_info),
             )
+        } else if id == CAMP_TOKE {
+            (
+                "camp_toke".to_string(),
+                "campfire".to_string(),
+                "Remove a card with Peace Pipe".to_string(),
+            )
         } else if id >= CAMP_UPGRADE_BASE {
             let idx = id - CAMP_UPGRADE_BASE;
             let card = self
@@ -1267,6 +1273,7 @@ fn reward_screen_source_str(source: crate::decision::RewardScreenSource) -> &'st
     match source {
         crate::decision::RewardScreenSource::Combat => "combat",
         crate::decision::RewardScreenSource::BossCombat => "boss_combat",
+        crate::decision::RewardScreenSource::Campfire => "campfire",
         crate::decision::RewardScreenSource::Event => "event",
         crate::decision::RewardScreenSource::Treasure => "treasure",
         crate::decision::RewardScreenSource::Unknown => "unknown",
@@ -1492,6 +1499,7 @@ const REWARD_ITEM_SHIFT: i32 = 4;
 const REWARD_INDEX_MASK: i32 = 0x0f;
 const CAMP_REST: i32 = 200;
 const CAMP_UPGRADE_BASE: i32 = 201;
+const CAMP_TOKE: i32 = 250;
 const NEOW_BASE: i32 = 1_000_000;
 const SHOP_BUY_BASE: i32 = 300;
 const SHOP_RELIC_BASE: i32 = 325;
@@ -1941,6 +1949,7 @@ impl PyRunEngine {
             run::RunAction::SkipRewardItem(i) => REWARD_SKIP_BASE + *i as i32,
             run::RunAction::CampfireRest => CAMP_REST,
             run::RunAction::CampfireUpgrade(i) => CAMP_UPGRADE_BASE + *i as i32,
+            run::RunAction::CampfireToke => CAMP_TOKE,
             run::RunAction::ShopBuyCard(i) => SHOP_BUY_BASE + *i as i32,
             run::RunAction::ShopBuyRelic(i) => SHOP_RELIC_BASE + *i as i32,
             run::RunAction::ShopRemoveCard(i) => SHOP_REMOVE_BASE + *i as i32,
@@ -2004,6 +2013,8 @@ impl PyRunEngine {
             return Some(run::RunAction::ShopBuyCard(
                 (action_id - SHOP_BUY_BASE) as usize,
             ));
+        } else if action_id == CAMP_TOKE {
+            return Some(run::RunAction::CampfireToke);
         } else if action_id >= CAMP_UPGRADE_BASE {
             return Some(run::RunAction::CampfireUpgrade(
                 (action_id - CAMP_UPGRADE_BASE) as usize,

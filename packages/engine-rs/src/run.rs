@@ -66,6 +66,8 @@ pub enum RunAction {
     CampfireRest,
     /// Campfire: upgrade a card (index into deck)
     CampfireUpgrade(usize),
+    /// Campfire: use Peace Pipe to open a one-card purge selection.
+    CampfireToke,
     /// Shop: buy a card (index into shop offerings)
     ShopBuyCard(usize),
     /// Shop: buy a relic (index into shop relic offerings)
@@ -952,6 +954,7 @@ impl RunEngine {
                             .filter_map(|(i, card)| (!card.ends_with('+')).then_some(i))
                             .collect()
                     },
+                    removable_cards: self.peace_pipe_removable_indices(),
                 })
             } else {
                 None
@@ -1042,6 +1045,7 @@ impl RunEngine {
                         .filter_map(|(i, card)| (!card.ends_with('+')).then_some(i))
                         .collect()
                 },
+                removable_cards: self.peace_pipe_removable_indices(),
             }),
             RunPhase::Shop => self
                 .current_shop
@@ -1162,6 +1166,10 @@ impl RunEngine {
             }
         }
 
+        if !self.peace_pipe_removable_indices().is_empty() {
+            actions.push(RunAction::CampfireToke);
+        }
+
         actions
     }
 
@@ -1192,6 +1200,27 @@ impl RunEngine {
 
     fn is_purgeable_master_deck_card(card_id: &str) -> bool {
         !matches!(card_id, "Necronomicurse" | "CurseOfTheBell" | "AscendersBane")
+    }
+
+    fn peace_pipe_removable_indices(&self) -> Vec<usize> {
+        if !self.run_state.relics.iter().any(|relic| relic == "Peace Pipe") {
+            return Vec::new();
+        }
+        let bottled = [
+            self.run_state.bottled_flame_card.as_deref(),
+            self.run_state.bottled_lightning_card.as_deref(),
+            self.run_state.bottled_tornado_card.as_deref(),
+        ];
+        self.run_state
+            .deck
+            .iter()
+            .enumerate()
+            .filter_map(|(index, card)| {
+                (Self::is_purgeable_master_deck_card(card)
+                    && !bottled.contains(&Some(card.as_str())))
+                .then_some(index)
+            })
+            .collect()
     }
 
     fn get_event_actions(&self) -> Vec<RunAction> {
@@ -2501,6 +2530,38 @@ impl RunEngine {
         });
     }
 
+    fn build_peace_pipe_selection_screen(&mut self) {
+        // PeacePipe.java adds an active TokeOption only when the purgeable,
+        // non-bottled master-deck group is nonempty. CampfireTokeEffect then
+        // opens an exact one-card purge selection from that same group.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/PeacePipe.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/vfx/campfire/CampfireTokeEffect.java
+        let choices = self
+            .peace_pipe_removable_indices()
+            .into_iter()
+            .map(|index| RewardChoice::Card {
+                index,
+                card_id: self.run_state.deck[index].clone(),
+            })
+            .collect();
+        self.reward_screen = Some(RewardScreen {
+            source: RewardScreenSource::Campfire,
+            ordered: true,
+            active_item: None,
+            items: vec![RewardItem {
+                index: 0,
+                kind: RewardItemKind::CardChoice,
+                state: RewardItemState::Available,
+                label: "deck_selection_peace_pipe".to_string(),
+                claimable: true,
+                active: false,
+                skip_allowed: false,
+                skip_label: None,
+                choices,
+            }],
+        });
+    }
+
     fn build_combat_reward_screen(&mut self, room_type: RoomType) {
         let mut items = Vec::new();
 
@@ -2903,6 +2964,10 @@ impl RunEngine {
 
         match label {
             "deck_selection_purge" => {
+                self.remove_master_deck_card(*deck_index);
+                true
+            }
+            "deck_selection_peace_pipe" => {
                 self.remove_master_deck_card(*deck_index);
                 true
             }
@@ -3407,6 +3472,10 @@ impl RunEngine {
             .filter(|id| *id != "Ancient Tea Set" || self.run_state.floor <= 48)
             .filter(|id| *id != "Old Coin" || self.run_state.floor <= 48)
             .filter(|id| *id != "Smiling Mask" || self.run_state.floor <= 48)
+            .filter(|id| {
+                *id != "Peace Pipe"
+                    || (self.run_state.floor < 48 && self.campfire_relic_count() < 2)
+            })
             .filter(|id| *id != "Bottled Flame" || self.can_spawn_bottled_flame())
             .filter(|id| *id != "Bottled Lightning" || self.can_spawn_bottled_lightning())
             .filter(|id| *id != "Bottled Tornado" || self.can_spawn_bottled_tornado())
@@ -3456,6 +3525,7 @@ impl RunEngine {
             "Ice Cream",
             "Incense Burner",
             "Old Coin",
+            "Peace Pipe",
             // ThreadAndNeedle.java constructs a RARE relic.
             "Thread and Needle",
             "Tough Bandages",
@@ -3653,6 +3723,14 @@ impl RunEngine {
         self.roll_reward_relic_id_with_shop_exclusions(false)
     }
 
+    fn campfire_relic_count(&self) -> usize {
+        self.run_state
+            .relics
+            .iter()
+            .filter(|relic| matches!(relic.as_str(), "Peace Pipe" | "Shovel" | "Girya"))
+            .count()
+    }
+
     fn roll_shop_reward_relic_id(&mut self) -> String {
         self.roll_reward_relic_id_with_shop_exclusions(true)
     }
@@ -3736,6 +3814,9 @@ impl RunEngine {
             // SmilingMask.java uses canonical ID "Smiling Mask", COMMON tier,
             // and canSpawn excludes non-endless runs after floor 48.
             "Smiling Mask",
+            // PeacePipe.java uses canonical ID "Peace Pipe", RARE tier, and
+            // canSpawn requires floor < 48 and fewer than two campfire relics.
+            "Peace Pipe",
             // Matryoshka.java uses canonical ID "Matryoshka", UNCOMMON tier,
             // and canSpawn excludes non-endless runs after floor 40.
             "Matryoshka",
@@ -3821,6 +3902,10 @@ impl RunEngine {
             .filter(|relic| *relic != "Old Coin" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Smiling Mask" || self.run_state.floor <= 48)
             .filter(|relic| {
+                *relic != "Peace Pipe"
+                    || (self.run_state.floor < 48 && self.campfire_relic_count() < 2)
+            })
+            .filter(|relic| {
                 !in_shop || !matches!(*relic, "Old Coin" | "Smiling Mask")
             })
             .filter(|relic| *relic != "Juzu Bracelet" || self.run_state.floor <= 48)
@@ -3856,6 +3941,11 @@ impl RunEngine {
                     .filter(|relic| *relic != "Meat on the Bone" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Old Coin" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Smiling Mask" || self.run_state.floor <= 48)
+                    .filter(|relic| {
+                        *relic != "Peace Pipe"
+                            || (self.run_state.floor < 48
+                                && self.campfire_relic_count() < 2)
+                    })
                     .filter(|relic| {
                         !in_shop || !matches!(*relic, "Old Coin" | "Smiling Mask")
                     })
@@ -4166,6 +4256,12 @@ impl RunEngine {
                         self.run_state.deck[*idx] = upgraded;
                     }
                 }
+            }
+            RunAction::CampfireToke => {
+                self.build_peace_pipe_selection_screen();
+                self.phase = RunPhase::CardReward;
+                self.refresh_decision_stack();
+                return 0.0;
             }
             _ => {}
         }

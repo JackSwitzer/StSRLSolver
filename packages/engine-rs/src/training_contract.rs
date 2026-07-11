@@ -1261,7 +1261,10 @@ fn action_allowed(
             return false;
         }
         if matches!(context.kind, DecisionKind::CampfireAction)
-            && !matches!(action, DecisionAction::CampfireUpgrade(_))
+            && !matches!(
+                action,
+                DecisionAction::CampfireUpgrade(_) | DecisionAction::CampfireToke
+            )
         {
             return false;
         }
