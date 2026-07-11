@@ -41,6 +41,7 @@ pub mod flag {
     pub const BLOODY_IDOL: u64      = 1 << 34;  // Heal 5 whenever gold is gained
     pub const BUSTED_CROWN: u64     = 1 << 35;  // +1 energy, -2 card reward choices
     pub const DARKSTONE_PERIAPT: u64 = 1 << 36; // +6 max HP when a curse is obtained
+    pub const ETERNAL_FEATHER: u64 = 1 << 37; // Heal per five cards on rest-room entry
 }
 
 /// Counter indices for cross-combat persistent counters.
@@ -118,6 +119,7 @@ impl RelicFlags {
                 "Bloody Idol" | "BloodyIdol" => flag::BLOODY_IDOL,
                 "Busted Crown" | "BustedCrown" => flag::BUSTED_CROWN,
                 "Darkstone Periapt" | "DarkstonePeriapt" => flag::DARKSTONE_PERIAPT,
+                "Eternal Feather" | "EternalFeather" => flag::ETERNAL_FEATHER,
                 _ => 0,
             };
             self.flags |= f;

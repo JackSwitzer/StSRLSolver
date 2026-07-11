@@ -527,6 +527,35 @@ fn du_vu_doll_is_reachable_from_watcher_relic_rewards() {
 }
 
 #[test]
+fn eternal_feather_is_reachable_and_heals_on_rest_room_entry_before_choice() {
+    // EternalFeather.java constructs an UNCOMMON relic and onEnterRoom heals
+    // floor(masterDeck.size / 5) * 3 when the room is a RestRoom.
+    let offered = (0..1024).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Eternal Feather"
+            })
+        })
+    });
+    assert!(offered);
+
+    let mut engine = RunEngine::new(67, 0);
+    engine.run_state.relics.push("Eternal Feather".to_string());
+    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine.run_state.deck = vec!["Strike".to_string(); 14];
+    engine.run_state.current_hp = 40;
+
+    engine.debug_set_campfire_phase();
+    assert_eq!(engine.run_state.current_hp, 46);
+    assert!(engine
+        .step_with_result(&RunAction::CampfireUpgrade(0))
+        .action_accepted);
+    assert_eq!(engine.run_state.current_hp, 46);
+}
+
+#[test]
 fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
     // Source-derived (verify relic/Calling Bell): CallingBell.java is BOSS tier,
     // confirms CurseOfTheBell, then opens COMMON, UNCOMMON, and RARE relic

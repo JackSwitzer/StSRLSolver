@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T08:11:32.488271+00:00",
+ "updated": "2026-07-11T08:13:24.472554+00:00",
  "status_counts": {
-  "unverified": 491,
-  "verified": 176
+  "unverified": 490,
+  "verified": 177
  },
  "rows": [
   {
@@ -5322,8 +5322,8 @@
    "class": "EternalFeather",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/EternalFeather.java",
    "methods_ref": "reference/extracted/methods/relic/EternalFeather.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

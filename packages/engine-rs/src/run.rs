@@ -3276,6 +3276,7 @@ impl RunEngine {
             "Bottled Lightning",
             "Bottled Tornado",
             "Darkstone Periapt",
+            "Eternal Feather",
             "Ornamental Fan",
             "Thread and Needle",
         ];
@@ -3516,6 +3517,8 @@ impl RunEngine {
             "Dream Catcher",
             // DuVuDoll.java uses this canonical ID and RARE tier.
             "Du-Vu Doll",
+            // EternalFeather.java uses this canonical ID and UNCOMMON tier.
+            "Eternal Feather",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
@@ -3757,6 +3760,16 @@ impl RunEngine {
     // =======================================================================
 
     fn enter_campfire(&mut self) {
+        // EternalFeather.java::onEnterRoom heals floor(masterDeck.size / 5) * 3
+        // on RestRoom entry, before the player chooses a campfire option.
+        if self
+            .run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::ETERNAL_FEATHER)
+        {
+            let heal = (self.run_state.deck.len() / 5 * 3) as i32;
+            self.heal_run_player(heal);
+        }
         // AncientTeaSet.java::onEnterRestRoom arms the relic on room entry,
         // regardless of whether the player subsequently rests or upgrades.
         if self
