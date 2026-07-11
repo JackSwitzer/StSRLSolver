@@ -1,4 +1,5 @@
 //! Blood Vial: Heal 2 HP at combat start.
+//! Source: decompiled/java-src/com/megacrit/cardcrawl/relics/BloodVial.java.
 
 use crate::effects::declarative::{Effect, SimpleEffect, Target, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};

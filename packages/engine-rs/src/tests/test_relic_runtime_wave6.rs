@@ -235,6 +235,22 @@ fn bird_faced_urn_heals_two_only_when_a_power_card_is_used() {
 }
 
 #[test]
+fn blood_vial_heals_exactly_two_at_combat_start() {
+    // Source-derived (verify relic/Blood Vial): BloodVial.java::atBattleStart
+    // queues HealAction(player, player, 2, 0.0f).
+    let mut engine = engine_without_start_with_relics(
+        &["Blood Vial"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+    engine.state.player.hp = 50;
+
+    engine.start_combat();
+    assert_eq!(engine.state.player.hp, 52);
+}
+
+#[test]
 fn blood_vial_and_mark_of_pain_apply_at_real_combat_start() {
     let mut engine = engine_without_start_with_relics(
         &["Blood Vial", "Mark of Pain"],

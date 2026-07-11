@@ -2990,6 +2990,8 @@ impl RunEngine {
             "Bag of Preparation",
             // BirdFacedUrn.java uses this canonical ID and RARE tier.
             "Bird Faced Urn",
+            // BloodVial.java uses this canonical ID and COMMON tier.
+            "Blood Vial",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",

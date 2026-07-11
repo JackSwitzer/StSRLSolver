@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T07:00:46.055252+00:00",
+ "updated": "2026-07-11T07:02:21.939702+00:00",
  "status_counts": {
-  "unverified": 510,
-  "verified": 157
+  "unverified": 509,
+  "verified": 158
  },
  "rows": [
   {
@@ -4922,8 +4922,8 @@
    "class": "BloodVial",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/BloodVial.java",
    "methods_ref": "reference/extracted/methods/relic/BloodVial.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
