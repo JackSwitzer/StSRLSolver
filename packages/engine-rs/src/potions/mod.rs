@@ -173,7 +173,8 @@ fn potion_potency(potion_id: &str) -> Option<(i32, i32)> {
         "SteroidPotion" | "Flex Potion" => Some((5, 3)),
         "SpeedPotion" => Some((5, 3)),
         "Weak Potion" | "WeakenPotion" => Some((3, 2)),
-        "FearPotion" | "Fear Potion" => Some((3, 2)),
+        // FearPotion.java getPotency ignores ascension and always returns 3.
+        "FearPotion" | "Fear Potion" => Some((3, 3)),
         "Poison Potion" | "PoisonPotion" => Some((6, 4)),
         // EnergyPotion.java getPotency ignores ascension and always returns 2.
         "Energy Potion" | "EnergyPotion" => Some((2, 2)),
@@ -1007,6 +1008,14 @@ mod tests {
         let hp_before = state.enemies[0].entity.hp;
         apply_potion_scaled(&mut state, "Explosive Potion", -1, 11);
         assert_eq!(state.enemies[0].entity.hp, hp_before - 10);
+    }
+
+    #[test]
+    fn test_a11_fear_potion_stays_at_three() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FearPotion.java
+        let mut state = make_test_state();
+        apply_potion_scaled(&mut state, "FearPotion", 0, 11);
+        assert_eq!(state.enemies[0].entity.status(sid::VULNERABLE), 3);
     }
 
     #[test]

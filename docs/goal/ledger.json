@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T05:37:33.075947+00:00",
+ "updated": "2026-07-11T05:39:34.990276+00:00",
  "status_counts": {
-  "unverified": 535,
-  "verified": 132
+  "unverified": 534,
+  "verified": 133
  },
  "rows": [
   {
@@ -4592,8 +4592,8 @@
    "class": "FearPotion",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/FearPotion.java",
    "methods_ref": "reference/extracted/methods/potion/FearPotion.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

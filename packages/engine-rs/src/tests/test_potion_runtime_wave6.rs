@@ -226,3 +226,39 @@ fn explosive_potion_uses_java_pure_matrix_but_keeps_normal_hit_hooks() {
     assert_eq!(engine.state.enemies[1].entity.block, 0);
     assert!(engine.state.potions[0].is_empty());
 }
+
+#[test]
+fn fear_potion_keeps_three_potency_and_only_debuffs_its_target() {
+    // Source-derived (verify potion/FearPotion): targetRequired is true,
+    // getPotency is always three, and Sacred Bark doubles the applied
+    // player-sourced VulnerablePower to six.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FearPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/AbstractPotion.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![
+            enemy_no_intent("JawWorm", 40, 40),
+            enemy_no_intent("Cultist", 40, 40),
+        ],
+        3,
+    ));
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "FearPotion".to_string();
+
+    let legal = engine.get_legal_actions();
+    assert!(legal.contains(&Action::UsePotion {
+        potion_idx: 0,
+        target_idx: 1,
+    }));
+    assert!(!legal.contains(&Action::UsePotion {
+        potion_idx: 0,
+        target_idx: -1,
+    }));
+
+    use_potion(&mut engine, 0, 1);
+
+    assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 0);
+    assert_eq!(engine.state.enemies[1].entity.status(sid::VULNERABLE), 6);
+    assert_eq!(engine.state.enemies[1].entity.status(sid::VULNERABLE_JUST_APPLIED), 0);
+    assert!(engine.state.potions[0].is_empty());
+}
