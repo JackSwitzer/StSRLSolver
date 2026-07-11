@@ -652,6 +652,11 @@ fn collect_test_markers_from_simple(simple: &SimpleEffect, markers: &mut Vec<&'s
                 _ => {}
             }
         }
+        SimpleEffect::AddCardToRandomDrawSpot(card_id, _) => {
+            if *card_id == "Insight" {
+                add_test_marker(markers, "insight_to_draw");
+            }
+        }
         SimpleEffect::ChannelOrb(orb, _) => match orb {
             OrbType::Lightning => add_test_marker(markers, "channel_lightning"),
             OrbType::Frost => add_test_marker(markers, "channel_frost"),
@@ -1138,6 +1143,7 @@ fn collect_simple_x_cost_amounts(effect: &SimpleEffect, amounts: &mut Vec<Amount
         | SimpleEffect::Scry(source)
         | SimpleEffect::DrawCardsThenDiscardDrawnNonZeroCost(source)
         | SimpleEffect::AddCard(_, _, source)
+        | SimpleEffect::AddCardToRandomDrawSpot(_, source)
         | SimpleEffect::AddCardWithMisc(_, _, source, _)
         | SimpleEffect::ChannelOrb(_, source)
         | SimpleEffect::EvokeOrb(source)

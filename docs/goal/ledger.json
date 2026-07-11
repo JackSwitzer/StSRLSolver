@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T00:50:39.543735+00:00",
+ "updated": "2026-07-11T00:59:26.001406+00:00",
  "status_counts": {
-  "unverified": 618,
-  "verified": 49
+  "unverified": 615,
+  "verified": 52
  },
  "rows": [
   {
@@ -2412,8 +2412,8 @@
    "class": "PressurePoints",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/PressurePoints.java",
    "methods_ref": "reference/extracted/methods/card/PressurePoints.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -2492,8 +2492,8 @@
    "class": "Pray",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Pray.java",
    "methods_ref": "reference/extracted/methods/card/Pray.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -2532,8 +2532,8 @@
    "class": "Prostrate",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Prostrate.java",
    "methods_ref": "reference/extracted/methods/card/Prostrate.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

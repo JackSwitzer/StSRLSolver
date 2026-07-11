@@ -307,6 +307,8 @@ pub enum SimpleEffect {
     Scry(AmountSource),
     /// Add a temp card to a pile. Routes through engine.temp_card() + pile push.
     AddCard(&'static str, Pile, AmountSource),
+    /// Add a temp card at Java's cardRandomRng-selected draw-pile index.
+    AddCardToRandomDrawSpot(&'static str, AmountSource),
     /// Add a temp card to a pile with explicit misc state.
     AddCardWithMisc(&'static str, Pile, AmountSource, AmountSource),
     /// Copy the played card instance to a pile (Anger: copy to discard).

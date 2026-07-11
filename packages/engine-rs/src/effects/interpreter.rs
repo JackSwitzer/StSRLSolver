@@ -409,6 +409,22 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             }
         }
 
+        SimpleEffect::AddCardToRandomDrawSpot(name, ref amount_src) => {
+            let count = resolve_card_amount(engine, ctx, amount_src).max(0);
+            for _ in 0..count {
+                let card = engine.temp_card(name);
+                if engine.state.draw_pile.is_empty() {
+                    engine.state.draw_pile.push(card);
+                } else {
+                    let idx = engine.card_random_rng.random_range(
+                        0,
+                        (engine.state.draw_pile.len() - 1) as i32,
+                    ) as usize;
+                    engine.state.draw_pile.insert(idx, card);
+                }
+            }
+        }
+
         // -- Add temp card to a pile with explicit misc state --
         SimpleEffect::AddCardWithMisc(name, pile, ref amount_src, ref misc_src) => {
             let count = resolve_card_amount(engine, ctx, amount_src).max(0);
@@ -625,14 +641,36 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             for idx in living {
                 let mark = engine.state.enemies[idx].entity.status(sid::MARK);
                 if mark > 0 {
-                    engine.state.enemies[idx].entity.hp -= mark;
-                    engine.state.total_damage_dealt += mark;
-                    total_mark_damage += mark;
+                    // LoseHPAction creates HP_LOSS DamageInfo. AbstractMonster
+                    // bypasses block for HP_LOSS, but applies Intangible first
+                    // and Buffer's onAttackedToChangeDamage afterward.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/LoseHPAction.java
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/AbstractMonster.java
+                    let mut hp_loss = if engine.state.enemies[idx]
+                        .entity
+                        .status(sid::INTANGIBLE)
+                        > 0
+                    {
+                        1
+                    } else {
+                        mark
+                    };
+                    let buffer = engine.state.enemies[idx].entity.status(sid::BUFFER);
+                    if hp_loss > 0 && buffer > 0 {
+                        engine.state.enemies[idx]
+                            .entity
+                            .set_status(sid::BUFFER, buffer - 1);
+                        hp_loss = 0;
+                    }
+                    let hp_damage = hp_loss.min(engine.state.enemies[idx].entity.hp);
+                    engine.state.enemies[idx].entity.hp -= hp_damage;
+                    engine.state.total_damage_dealt += hp_damage;
+                    total_mark_damage += hp_damage;
                     if engine.state.enemies[idx].entity.hp <= 0 {
                         engine.state.enemies[idx].entity.hp = 0;
                         any_killed = true;
                     }
-                    engine.record_enemy_hp_damage(idx, mark);
+                    engine.record_enemy_hp_damage(idx, hp_damage);
                 }
             }
             if total_mark_damage > 0 {

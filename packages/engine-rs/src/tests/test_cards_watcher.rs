@@ -1219,6 +1219,86 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.mantra, 3);
         }
     );
+    // Source-derived (verify card/Pray): randomSpot inserts one Insight using
+    // cardRandomRng while preserving the relative order of the existing draw
+    // pile; an empty pile needs no RNG call.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Pray.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInDrawPileAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
+    #[test]
+    fn pray_source_uses_one_card_random_insertion_without_shuffling() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.draw_pile = make_deck(&["Strike", "Defend", "Worship"]);
+        ensure_in_hand(&mut engine, "Pray");
+        let card_random_before = engine.card_random_rng.counter;
+        let card_before = engine.rng.counter;
+        assert!(play_self(&mut engine, "Pray"));
+        assert_eq!(engine.state.mantra, 3);
+        assert_eq!(engine.card_random_rng.counter, card_random_before + 1);
+        assert_eq!(engine.rng.counter, card_before);
+        let existing: Vec<_> = engine
+            .state
+            .draw_pile
+            .iter()
+            .filter_map(|card| {
+                let name = engine.card_registry.card_name(card.def_id);
+                (name != "Insight").then_some(name)
+            })
+            .collect();
+        assert_eq!(existing, vec!["Strike", "Defend", "Worship"]);
+
+        let mut empty = one_enemy_engine("JawWorm", 50, 0);
+        ensure_in_hand(&mut empty, "Pray+");
+        let card_random_before = empty.card_random_rng.counter;
+        assert!(play_self(&mut empty, "Pray+"));
+        assert_eq!(empty.card_random_rng.counter, card_random_before);
+        assert_eq!(draw_prefix_count(&empty, "Insight"), 1);
+    }
+
+    // Source-derived (verify card/PathToVictory): Mark triggers LoseHPAction on
+    // every marked enemy. HP_LOSS bypasses block, is capped by Intangible, and
+    // is reduced to zero by Buffer while consuming one Buffer stack.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/PressurePoints.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/MarkPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/LoseHPAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/AbstractMonster.java
+    #[test]
+    fn pressure_points_source_routes_mark_through_hp_loss_defenses() {
+        let mut engine = two_enemy_engine(("JawWorm", 20, 0), ("Cultist", 15, 0));
+        engine.state.enemies[0].entity.block = 99;
+        engine.state.enemies[0].entity.set_status(sid::INTANGIBLE, 1);
+        engine.state.enemies[1].entity.block = 99;
+        engine.state.enemies[1].entity.set_status(sid::MARK, 5);
+        engine.state.enemies[1].entity.set_status(sid::BUFFER, 1);
+        ensure_in_hand(&mut engine, "PathToVictory");
+        assert!(play_on_enemy(&mut engine, "PathToVictory", 0));
+
+        assert_eq!(engine.state.enemies[0].entity.status(sid::MARK), 8);
+        assert_eq!(engine.state.enemies[0].entity.hp, 19);
+        assert_eq!(engine.state.enemies[0].entity.block, 99);
+        assert_eq!(engine.state.enemies[1].entity.hp, 15);
+        assert_eq!(engine.state.enemies[1].entity.block, 99);
+        assert_eq!(engine.state.enemies[1].entity.status(sid::BUFFER), 0);
+    }
+
+    // Source-derived (verify card/Prostrate): base and upgrade both cost zero
+    // and own block 4; only Mantra increases from 2 to 3. Card block still uses
+    // the ordinary Dexterity/Frail calculation.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Prostrate.java
+    #[test]
+    fn prostrate_source_upgrade_changes_only_mantra_and_block_uses_modifiers() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.player.set_status(sid::DEXTERITY, 3);
+        engine.state.player.set_status(sid::FRAIL, 1);
+        ensure_in_hand(&mut engine, "Prostrate");
+        ensure_in_hand(&mut engine, "Prostrate+");
+        let energy_before = engine.state.energy;
+        assert!(play_self(&mut engine, "Prostrate"));
+        assert!(play_self(&mut engine, "Prostrate+"));
+        assert_eq!(engine.state.energy, energy_before);
+        assert_eq!(engine.state.mantra, 5);
+        assert_eq!(engine.state.player.block, 10);
+    }
     watcher_test!(
         protect_java_parity_coverage,
         base = ("Protect", "Protect", 2, -1, 12, -1, CardType::Skill, CardTarget::SelfTarget, false, None, ["retain"]),

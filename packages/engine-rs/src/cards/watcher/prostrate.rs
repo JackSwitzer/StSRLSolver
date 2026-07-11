@@ -1,6 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+    // Prostrate queues Mantra before ordinary card-owned block; the upgrade
+    // changes only Mantra, leaving zero cost and base block 4 unchanged.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Prostrate.java
     insert(cards, CardDef {
                 id: "Prostrate", name: "Prostrate", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: 4,

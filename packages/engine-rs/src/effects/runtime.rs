@@ -962,6 +962,21 @@ impl EffectRuntime {
                     engine.shuffle_draw_pile();
                 }
             }
+            SimpleEffect::AddCardToRandomDrawSpot(card_name, amount_src) => {
+                let count = self.resolve_amount(engine, instance_idx, owner, amount_src).max(0);
+                for _ in 0..count {
+                    let card = engine.temp_card(card_name);
+                    if engine.state.draw_pile.is_empty() {
+                        engine.state.draw_pile.push(card);
+                    } else {
+                        let idx = engine.card_random_rng.random_range(
+                            0,
+                            (engine.state.draw_pile.len() - 1) as i32,
+                        ) as usize;
+                        engine.state.draw_pile.insert(idx, card);
+                    }
+                }
+            }
             SimpleEffect::AddCardWithMisc(card_name, pile, amount_src, misc_src) => {
                 let count = self.resolve_amount(engine, instance_idx, owner, amount_src).max(0);
                 let misc = self.resolve_amount(engine, instance_idx, owner, misc_src).max(0) as i16;

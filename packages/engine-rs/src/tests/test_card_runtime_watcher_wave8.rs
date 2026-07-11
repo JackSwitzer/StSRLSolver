@@ -12,7 +12,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/FearNoEvil.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, Effect as E, Pile, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
 use crate::state::Stance;
 use crate::tests::support::*;
 
@@ -40,7 +40,7 @@ fn watcher_wave8_registry_exports_match_typed_surface() {
         pray.effect_data,
         &[
             E::Simple(SE::GainMantra(A::Magic)),
-            E::Simple(SE::AddCard("Insight", Pile::Draw, A::Fixed(1))),
+            E::Simple(SE::AddCardToRandomDrawSpot("Insight", A::Fixed(1))),
         ]
     );
 
