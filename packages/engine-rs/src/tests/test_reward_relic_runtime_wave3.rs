@@ -198,7 +198,7 @@ fn busted_crown_is_reachable_and_subtracts_two_card_reward_choices() {
         .expect("card reward should exist");
     assert_eq!(choices, 1);
 
-    engine.run_state.relics.push("QuestionCard".to_string());
+    engine.run_state.relics.push("Question Card".to_string());
     engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
     engine.debug_build_combat_reward_screen(RoomType::Monster);
     let choices = engine
@@ -2517,10 +2517,12 @@ fn fire_potion_is_reachable_from_watcher_potion_rewards() {
 
 #[test]
 fn claiming_question_card_expands_later_card_reward_choices() {
+    // Source: QuestionCard.java::changeNumberOfCardsInReward returns the
+    // incoming count plus exactly one, under canonical ID "Question Card".
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.relics.push("Sozu".to_string());
     engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
-    engine.debug_set_reward_screen(single_relic_reward_screen("QuestionCard"));
+    engine.debug_set_reward_screen(single_relic_reward_screen("Question Card"));
 
     let claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
     assert!(claim.action_accepted);
@@ -2540,6 +2542,32 @@ fn claiming_question_card_expands_later_card_reward_choices() {
             DecisionAction::SkipRewardItem { item_index: 0 },
         ]
     );
+}
+
+#[test]
+fn question_card_is_reachable_only_through_floor_forty_eight() {
+    // QuestionCard.java constructs an UNCOMMON relic and canSpawn excludes
+    // non-endless runs after floor 48.
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 48;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Question Card"
+            })
+        })
+    });
+    assert!(offered);
+
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 49;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Question Card")
+        }));
+    }
 }
 
 #[test]

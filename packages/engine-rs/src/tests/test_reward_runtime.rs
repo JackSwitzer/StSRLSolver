@@ -73,7 +73,7 @@ fn prayer_wheel_and_question_card_expand_reward_structure() {
     // Sources: PrayerWheel.java and CombatRewardScreen.java::setupItemReward.
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.relics.push("Prayer Wheel".to_string());
-    engine.run_state.relics.push("QuestionCard".to_string());
+    engine.run_state.relics.push("Question Card".to_string());
     engine.run_state.relics.push("Sozu".to_string());
     engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
     engine.debug_build_combat_reward_screen(RoomType::Monster);

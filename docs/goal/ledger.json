@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T09:47:20.492015+00:00",
+ "updated": "2026-07-11T09:48:50.307855+00:00",
  "status_counts": {
-  "unverified": 458,
-  "verified": 209
+  "unverified": 457,
+  "verified": 210
  },
  "rows": [
   {
@@ -6062,8 +6062,8 @@
    "class": "QuestionCard",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/QuestionCard.java",
    "methods_ref": "reference/extracted/methods/relic/QuestionCard.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
