@@ -201,6 +201,20 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.stance, Stance::Calm);
         }
     );
+    // Source-derived (verify card/Vigilance): GainBlockAction resolves before
+    // ChangeStanceAction; the upgrade adds four block and does not change cost.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Vigilance.java
+    #[test]
+    fn vigilance_source_gains_modified_twelve_block_then_enters_calm() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        set_stance(&mut engine, Stance::Wrath);
+        engine.state.hand = make_deck(&["Vigilance+"]);
+        engine.state.player.set_status(sid::DEXTERITY, 2);
+        assert!(play_self(&mut engine, "Vigilance+"));
+        assert_eq!(engine.state.player.block, 14);
+        assert_eq!(engine.state.stance, Stance::Calm);
+        assert_eq!(engine.state.energy, 1);
+    }
 
     // Source-derived (verify card/Alpha): Alpha.java exhausts and queues one
     // stat-equivalent Beta into the draw pile. upgrade() changes only isInnate.
@@ -1713,6 +1727,41 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.player.block, 4);
         }
     );
+    // Source-derived (verify card/Wallop): WallopAction gains exactly
+    // target.lastDamageTaken through GainBlockAction. That damage-derived block
+    // is not card.block, so Dexterity and Frail do not modify it.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Wallop.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/WallopAction.java
+    #[test]
+    fn wallop_source_returns_last_damage_as_raw_block() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.hand = make_deck(&["Wallop"]);
+        engine.state.player.set_status(sid::DEXTERITY, 5);
+        engine.state.player.set_status(sid::FRAIL, 1);
+        assert!(play_on_enemy(&mut engine, "Wallop", 0));
+        assert_eq!(engine.state.enemies[0].entity.hp, 41);
+        assert_eq!(engine.state.player.block, 9);
+    }
+
+    // Source-derived (verify card/WaveOfTheHand): each positive block gain
+    // applies the full stacked amount of Weak to every monster. ApplyPowerAction
+    // still respects Artifact independently on each target.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/WaveOfTheHand.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/WaveOfTheHandPower.java
+    #[test]
+    fn wave_of_the_hand_source_triggers_per_block_gain_and_respects_artifact() {
+        let mut engine = two_enemy_engine(("JawWorm", 50, 0), ("Cultist", 50, 0));
+        engine.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+        engine.state.hand = make_deck(&["WaveOfTheHand+", "Defend", "Defend"]);
+        assert!(play_self(&mut engine, "WaveOfTheHand+"));
+        assert!(play_self(&mut engine, "Defend"));
+        assert_eq!(engine.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::WEAKENED), 0);
+        assert_eq!(engine.state.enemies[1].entity.status(sid::WEAKENED), 2);
+        assert!(play_self(&mut engine, "Defend"));
+        assert_eq!(engine.state.enemies[0].entity.status(sid::WEAKENED), 2);
+        assert_eq!(engine.state.enemies[1].entity.status(sid::WEAKENED), 4);
+    }
     watcher_test!(
         weave_java_parity,
         base = ("Weave", "Weave", 0, 4, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, ["return_on_scry"]),

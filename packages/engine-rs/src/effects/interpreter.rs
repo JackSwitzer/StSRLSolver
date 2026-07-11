@@ -350,9 +350,17 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             if matches!(amount_src, AmountSource::Block) && ctx.card.cost == -1 && ctx.card.base_block > 0 {
                 multiplier = ctx.x_value.max(0);
             }
-            let dex = engine.state.player.dexterity();
-            let frail = engine.state.player.is_frail();
-            let block = damage::calculate_block(base, dex, frail) * multiplier;
+            // WallopAction passes target.lastDamageTaken straight to a
+            // GainBlockAction. Dexterity/Frail already affect card.block during
+            // applyPowers and do not modify this damage-derived action amount.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/WallopAction.java
+            let block = if matches!(amount_src, AmountSource::TotalUnblockedDamage) {
+                base
+            } else {
+                let dex = engine.state.player.dexterity();
+                let frail = engine.state.player.is_frail();
+                damage::calculate_block(base, dex, frail)
+            } * multiplier;
             engine.gain_block_player(block);
         }
         SimpleEffect::GainBlockIfLastHandCardType(card_type, ref amount_src) => {
