@@ -1,4 +1,5 @@
 //! Torii: Unblocked attack damage of 2-5 is reduced to 1.
+//! Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Torii.java
 //!
 //! Damage modifier: owned by the canonical inline damage pipeline.
 //! This EntityDef records the trigger surface for export/runtime snapshots.

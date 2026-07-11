@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T19:11:06.161740+00:00",
+ "updated": "2026-07-11T19:12:34.250658+00:00",
  "status_counts": {
-  "unverified": 431,
-  "verified": 236
+  "unverified": 430,
+  "verified": 237
  },
  "rows": [
   {
@@ -6502,8 +6502,8 @@
    "class": "Torii",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Torii.java",
    "methods_ref": "reference/extracted/methods/relic/Torii.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
