@@ -170,6 +170,48 @@ fn ambrosia_uses_the_full_divinity_stance_transition_and_ignores_potency() {
 }
 
 #[test]
+fn bottled_miracle_scales_with_bark_master_reality_and_hand_overflow() {
+    // Source-derived (verify potion/BottledMiracle): Java passes potion potency
+    // to MakeTempCardInHandAction(new Miracle(), potency). Sacred Bark doubles
+    // the two-card potency, Master Reality upgrades the generated template, and
+    // cards beyond the ten-card hand limit spill into discard.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike", "Defend", "Bash"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.player.set_status(sid::MASTER_REALITY, 1);
+    engine.state.hand = make_deck(&[
+        "Strike",
+        "Defend",
+        "Bash",
+        "Zap",
+        "Dualcast",
+        "Inflame",
+        "Shrug It Off",
+        "Defend",
+    ]);
+    engine.state.discard_pile.clear();
+    engine.state.potions = vec![String::new(); 3];
+    equip_potion(&mut engine, 0, "BottledMiracle");
+
+    use_potion(&mut engine, 0, -1);
+
+    assert_eq!(hand_names(&engine).iter().filter(|name| **name == "Miracle+").count(), 2);
+    assert_eq!(
+        engine
+            .state
+            .discard_pile
+            .iter()
+            .filter(|card| engine.card_registry.card_name(card.def_id) == "Miracle+")
+            .count(),
+        2
+    );
+    assert_eq!(hand_names(&engine).iter().filter(|name| **name == "Miracle").count(), 0);
+}
+
+#[test]
 fn random_generation_potions_pick_the_right_card_families() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike", "Defend", "Bash"]),

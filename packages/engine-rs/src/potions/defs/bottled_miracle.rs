@@ -1,5 +1,9 @@
 use super::prelude::*;
 
+// Java: decompiled/java-src/com/megacrit/cardcrawl/potions/BottledMiracle.java
+// use() queues MakeTempCardInHandAction(new Miracle(), potency); the shared
+// temp-card path supplies Master Reality upgrades and ten-card hand overflow.
+
 static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::ManualActivation,
     condition: TriggerCondition::Always,
