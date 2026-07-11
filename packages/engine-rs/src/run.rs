@@ -3377,6 +3377,8 @@ impl RunEngine {
             "Bronze Scales",
             // Calipers.java uses this canonical ID and RARE tier.
             "Calipers",
+            // CentennialPuzzle.java uses this canonical ID and COMMON tier.
+            "Centennial Puzzle",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",

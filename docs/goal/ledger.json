@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T07:43:34.751574+00:00",
+ "updated": "2026-07-11T07:47:20.990121+00:00",
  "status_counts": {
-  "unverified": 499,
-  "verified": 168
+  "unverified": 498,
+  "verified": 169
  },
  "rows": [
   {
@@ -5082,8 +5082,8 @@
    "class": "CentennialPuzzle",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/CentennialPuzzle.java",
    "methods_ref": "reference/extracted/methods/relic/CentennialPuzzle.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

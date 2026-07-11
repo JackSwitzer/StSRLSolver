@@ -11,6 +11,8 @@ fn hook(
     event: &GameEvent,
     state: &mut EffectState,
 ) {
+    // Source: decompiled/java-src/com/megacrit/cardcrawl/relics/CentennialPuzzle.java
+    // resets at pre-battle and draws exactly 3 cards on the first positive HP loss.
     match event.kind {
         Trigger::CombatStart => {
             state.set(0, 1);
