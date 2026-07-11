@@ -3067,6 +3067,19 @@ impl RunEngine {
                     !self.bottled_tornado_choices().is_empty();
             }
             "Calling Bell" => self.pending_calling_bell_rewards = true,
+            "Mango" => {
+                // Mango.java::onEquip calls increaseMaxHp(14, true): max HP
+                // always rises, while Mark of the Bloom can block the heal.
+                self.run_state.max_hp += 14;
+                if !self
+                    .run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::MARK_OF_BLOOM)
+                {
+                    self.run_state.current_hp =
+                        (self.run_state.current_hp + 14).min(self.run_state.max_hp);
+                }
+            }
             "Whetstone" => self.upgrade_random_cards_by_type(crate::cards::CardType::Attack, 2),
             "WarPaint" => self.upgrade_random_cards_by_type(crate::cards::CardType::Skill, 2),
             // D27 partial fix: Pandora's Box. Java replaces all Strikes and Defends
@@ -3572,6 +3585,8 @@ impl RunEngine {
             "Lizard Tail",
             // MagicFlower.java uses canonical ID "Magic Flower" and RARE tier.
             "Magic Flower",
+            // Mango.java uses canonical ID "Mango" and RARE tier.
+            "Mango",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",

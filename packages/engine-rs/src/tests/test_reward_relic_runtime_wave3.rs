@@ -827,6 +827,48 @@ fn magic_flower_is_reachable_from_watcher_relic_rewards() {
 }
 
 #[test]
+fn mango_is_reachable_and_increases_max_hp_by_fourteen_on_pickup() {
+    // Mango.java constructs a RARE relic and onEquip calls
+    // increaseMaxHp(14, true). Mark of the Bloom blocks the heal, not max HP.
+    let offered = (0..1024).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Mango"
+            })
+        })
+    });
+    assert!(offered);
+
+    let mut engine = RunEngine::new(41, 0);
+    engine.run_state.current_hp = 40;
+    engine.run_state.max_hp = 80;
+    engine.debug_set_reward_screen(single_relic_reward_screen("Mango"));
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert_eq!(engine.run_state.max_hp, 94);
+    assert_eq!(engine.run_state.current_hp, 54);
+    assert!(engine.run_state.relics.iter().any(|relic| relic == "Mango"));
+
+    let mut blocked = RunEngine::new(43, 0);
+    blocked.run_state.current_hp = 40;
+    blocked.run_state.max_hp = 80;
+    blocked.run_state.relics.push("Mark of the Bloom".to_string());
+    blocked
+        .run_state
+        .relic_flags
+        .rebuild(&blocked.run_state.relics);
+    blocked.debug_set_reward_screen(single_relic_reward_screen("Mango"));
+    assert!(blocked
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert_eq!(blocked.run_state.max_hp, 94);
+    assert_eq!(blocked.run_state.current_hp, 40);
+}
+
+#[test]
 fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
     // Source-derived (verify relic/Calling Bell): CallingBell.java is BOSS tier,
     // confirms CurseOfTheBell, then opens COMMON, UNCOMMON, and RARE relic

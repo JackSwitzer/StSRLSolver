@@ -209,6 +209,7 @@ pub mod warped_tongs;
 pub mod gambling_chip;
 pub mod hovering_kite;
 pub mod lizard_tail;
+pub mod mango;
 pub mod ancient_tea_set;
 pub mod astrolabe;
 pub mod medical_kit;
@@ -361,6 +362,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &gambling_chip::DEF,
     &hovering_kite::DEF,
     &lizard_tail::DEF,
+    &mango::DEF,
     &ancient_tea_set::DEF,
     &astrolabe::DEF,
     &medical_kit::DEF,
