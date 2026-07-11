@@ -37,7 +37,10 @@ public class TraceLabMod implements PostInitializeSubscriber, PostUpdateSubscrib
         String scriptPath = System.getProperty("tracelab.script");
         String outPath = System.getProperty("tracelab.out");
         if (scriptPath == null || outPath == null) {
-            System.out.println("[TraceLab] no -Dtracelab.script/-Dtracelab.out; idle.");
+            String dir = System.getProperty("tracelab.dir",
+                    System.getProperty("user.home") + "/SpireTraces");
+            ScriptRunner.startStandaloneRecord(dir);
+            System.out.println("[TraceLab] passive recording: one trace per run -> " + dir);
             return;
         }
         try {

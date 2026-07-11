@@ -51,7 +51,7 @@ public class ScriptRunner {
     private static List<MapRoomNode> lastMapOptions = null;
 
     public static boolean recording() {
-        return record && active && !finished;
+        return record && active && !finished && (!standalone || runFileOpen);
     }
 
     public static void recordAction(Script.Action a) {
@@ -71,6 +71,21 @@ public class ScriptRunner {
         stableFrames = 0;
     }
 
+    private static boolean standalone = false;
+    private static String standaloneDir = null;
+    private static boolean runFileOpen = false;
+
+    public static void startStandaloneRecord(String dir) {
+        Script s = new Script();
+        s.mode = "record";
+        s.actions = new ArrayList<Script.Action>();
+        script = s;
+        record = true;
+        standalone = true;
+        standaloneDir = dir;
+        active = true;
+    }
+
     public static void start(Script s) {
         script = s;
         auto = "auto".equals(s.mode);
@@ -88,12 +103,54 @@ public class ScriptRunner {
         if (!active || finished) {
             return;
         }
+        if (standalone) {
+            boolean inRun = CardCrawlGame.isInARun() && AbstractDungeon.player != null
+                    && AbstractDungeon.currMapNode != null;
+            boolean dead = inRun
+                    && (AbstractDungeon.player.isDead || AbstractDungeon.player.isDying);
+            if (runFileOpen && (!inRun || dead)) {
+                if (awaitingRecord) {
+                    TraceWriter.writeRecord(recordIdx, lastAction);
+                    recordIdx++;
+                    awaitingRecord = false;
+                }
+                TraceWriter.writeFinal(dead ? "player_dead" : "run_ended",
+                        recordIdx, recordIdx, recordIdx);
+                TraceWriter.close();
+                System.out.println("[TraceLab] run trace closed (" + recordIdx + " actions)");
+                runFileOpen = false;
+                recordIdx = 0;
+                lastMapNode = null;
+                lastMapOptions = null;
+                return;
+            }
+            if (!runFileOpen && inRun && !dead) {
+                try {
+                    long seedLong = com.megacrit.cardcrawl.core.Settings.seed != null
+                            ? com.megacrit.cardcrawl.core.Settings.seed : 0L;
+                    TraceWriter.initRun(standaloneDir,
+                            com.megacrit.cardcrawl.helpers.SeedHelper.getString(seedLong),
+                            seedLong,
+                            AbstractDungeon.player.chosenClass.name(),
+                            AbstractDungeon.ascensionLevel);
+                    runFileOpen = true;
+                } catch (Exception e) {
+                    System.err.println("[TraceLab] failed to open run trace: " + e);
+                    active = false;
+                    return;
+                }
+            }
+            if (!runFileOpen) {
+                return;
+            }
+        } else {
         if (!CardCrawlGame.isInARun() || AbstractDungeon.player == null) {
             return;
         }
         if (AbstractDungeon.player.isDead || AbstractDungeon.player.isDying) {
             finish("player_dead");
             return;
+        }
         }
 
         frameCounter++;
