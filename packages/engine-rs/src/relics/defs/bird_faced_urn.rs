@@ -1,4 +1,5 @@
 //! Bird-Faced Urn: Heal 2 HP whenever a Power card is played.
+//! Source: decompiled/java-src/com/megacrit/cardcrawl/relics/BirdFacedUrn.java.
 
 use crate::effects::declarative::{Effect, SimpleEffect, Target, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T06:57:09.404411+00:00",
+ "updated": "2026-07-11T06:58:58.681444+00:00",
  "status_counts": {
-  "unverified": 512,
-  "verified": 155
+  "unverified": 511,
+  "verified": 156
  },
  "rows": [
   {
@@ -4892,8 +4892,8 @@
    "class": "BirdFacedUrn",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/BirdFacedUrn.java",
    "methods_ref": "reference/extracted/methods/relic/BirdFacedUrn.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

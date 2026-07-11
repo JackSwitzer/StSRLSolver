@@ -215,6 +215,26 @@ fn bag_of_preparation_draws_two_extra_cards_only_in_the_opening_hand() {
 }
 
 #[test]
+fn bird_faced_urn_heals_two_only_when_a_power_card_is_used() {
+    // Source-derived (verify relic/Bird Faced Urn): BirdFacedUrn.java::onUseCard
+    // checks card.type == POWER and then queues HealAction(..., 2).
+    let mut engine = engine_without_start_with_relics(
+        &["Bird Faced Urn"],
+        &["Defend", "Inflame", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        5,
+    );
+    engine.start_combat();
+    engine.state.player.hp = 60;
+    engine.state.hand = make_deck(&["Defend", "Inflame"]);
+
+    assert!(play_self(&mut engine, "Defend"));
+    assert_eq!(engine.state.player.hp, 60);
+    assert!(play_self(&mut engine, "Inflame"));
+    assert_eq!(engine.state.player.hp, 62);
+}
+
+#[test]
 fn blood_vial_and_mark_of_pain_apply_at_real_combat_start() {
     let mut engine = engine_without_start_with_relics(
         &["Blood Vial", "Mark of Pain"],

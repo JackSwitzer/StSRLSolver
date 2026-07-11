@@ -2988,6 +2988,8 @@ impl RunEngine {
             "Bag of Marbles",
             // BagOfPreparation.java uses this canonical ID and COMMON tier.
             "Bag of Preparation",
+            // BirdFacedUrn.java uses this canonical ID and RARE tier.
+            "Bird Faced Urn",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
@@ -4329,6 +4331,7 @@ impl RunEngine {
 
     fn roll_rare_event_relic_id(&mut self) -> String {
         const RARE_EVENT_RELIC_POOL: &[&str] = &[
+            "Bird Faced Urn",
             "Calipers",
             "Ice Cream",
             "Incense Burner",
