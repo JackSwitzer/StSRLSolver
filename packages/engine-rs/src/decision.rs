@@ -164,8 +164,17 @@ pub struct ShopCardOfferContext {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShopRelicOfferContext {
+    pub index: usize,
+    pub relic_id: String,
+    pub price: i32,
+    pub affordable: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShopDecisionContext {
     pub offers: Vec<ShopCardOfferContext>,
+    pub relic_offers: Vec<ShopRelicOfferContext>,
     pub remove_price: i32,
     pub removal_used: bool,
     pub removable_cards: usize,
@@ -294,6 +303,7 @@ pub enum DecisionAction {
     CampfireRest,
     CampfireUpgrade(usize),
     ShopBuyCard(usize),
+    ShopBuyRelic(usize),
     ShopRemoveCard(usize),
     ShopLeave,
     EventChoice(usize),
@@ -318,6 +328,7 @@ impl DecisionAction {
             Self::CampfireRest => RunAction::CampfireRest,
             Self::CampfireUpgrade(idx) => RunAction::CampfireUpgrade(*idx),
             Self::ShopBuyCard(idx) => RunAction::ShopBuyCard(*idx),
+            Self::ShopBuyRelic(idx) => RunAction::ShopBuyRelic(*idx),
             Self::ShopRemoveCard(idx) => RunAction::ShopRemoveCard(*idx),
             Self::ShopLeave => RunAction::ShopLeave,
             Self::EventChoice(idx) => RunAction::EventChoice(*idx),
@@ -345,6 +356,7 @@ impl DecisionAction {
             RunAction::CampfireRest => Self::CampfireRest,
             RunAction::CampfireUpgrade(idx) => Self::CampfireUpgrade(*idx),
             RunAction::ShopBuyCard(idx) => Self::ShopBuyCard(*idx),
+            RunAction::ShopBuyRelic(idx) => Self::ShopBuyRelic(*idx),
             RunAction::ShopRemoveCard(idx) => Self::ShopRemoveCard(*idx),
             RunAction::ShopLeave => Self::ShopLeave,
             RunAction::EventChoice(idx) => Self::EventChoice(*idx),
@@ -366,6 +378,17 @@ pub(crate) fn build_shop_context(shop: &ShopState, gold: i32, deck_len: usize) -
             .map(|(index, (card_id, price))| ShopCardOfferContext {
                 index,
                 card_id: card_id.clone(),
+                price: *price,
+                affordable: gold >= *price,
+            })
+            .collect(),
+        relic_offers: shop
+            .relics
+            .iter()
+            .enumerate()
+            .map(|(index, (relic_id, price))| ShopRelicOfferContext {
+                index,
+                relic_id: relic_id.clone(),
                 price: *price,
                 affordable: gold >= *price,
             })

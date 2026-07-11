@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T09:03:25.571774+00:00",
+ "updated": "2026-07-11T09:14:23.874190+00:00",
  "status_counts": {
-  "unverified": 471,
-  "verified": 196
+  "unverified": 470,
+  "verified": 197
  },
  "rows": [
   {
@@ -5692,8 +5692,8 @@
    "class": "MedicalKit",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/MedicalKit.java",
    "methods_ref": "reference/extracted/methods/relic/MedicalKit.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

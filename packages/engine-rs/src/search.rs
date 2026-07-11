@@ -1022,10 +1022,11 @@ fn decision_action_sort_key(action: &DecisionAction) -> (u8, i32, i32, i32) {
         DecisionAction::CampfireRest => (6, 0, 0, 0),
         DecisionAction::CampfireUpgrade(idx) => (7, *idx as i32, 0, 0),
         DecisionAction::ShopBuyCard(idx) => (8, *idx as i32, 0, 0),
-        DecisionAction::ShopRemoveCard(idx) => (9, *idx as i32, 0, 0),
-        DecisionAction::ShopLeave => (10, 0, 0, 0),
-        DecisionAction::EventChoice(idx) => (11, *idx as i32, 0, 0),
-        DecisionAction::UsePotion(idx) => (12, *idx as i32, 0, 0),
+        DecisionAction::ShopBuyRelic(idx) => (9, *idx as i32, 0, 0),
+        DecisionAction::ShopRemoveCard(idx) => (10, *idx as i32, 0, 0),
+        DecisionAction::ShopLeave => (11, 0, 0, 0),
+        DecisionAction::EventChoice(idx) => (12, *idx as i32, 0, 0),
+        DecisionAction::UsePotion(idx) => (13, *idx as i32, 0, 0),
     }
 }
 

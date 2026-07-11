@@ -1131,6 +1131,19 @@ impl StSEngine {
                 "shop".to_string(),
                 format!("Remove {} from deck", card),
             )
+        } else if id >= SHOP_RELIC_BASE {
+            let idx = id - SHOP_RELIC_BASE;
+            let relic_info = self
+                .inner
+                .get_shop()
+                .and_then(|s| s.relics.get(idx as usize))
+                .map(|(relic, price)| format!("{} ({}g)", relic, price))
+                .unwrap_or_else(|| format!("relic_{}", idx));
+            (
+                format!("shop_buy_relic_{}", idx),
+                "shop".to_string(),
+                format!("Buy {}", relic_info),
+            )
         } else if id >= SHOP_BUY_BASE {
             let idx = id - SHOP_BUY_BASE;
             let card_info = self
@@ -1481,6 +1494,7 @@ const CAMP_REST: i32 = 200;
 const CAMP_UPGRADE_BASE: i32 = 201;
 const NEOW_BASE: i32 = 1_000_000;
 const SHOP_BUY_BASE: i32 = 300;
+const SHOP_RELIC_BASE: i32 = 325;
 const SHOP_REMOVE_BASE: i32 = 350;
 const SHOP_LEAVE: i32 = 399;
 const EVENT_BASE: i32 = 400;
@@ -1914,6 +1928,7 @@ impl PyRunEngine {
             run::RunAction::CampfireRest => CAMP_REST,
             run::RunAction::CampfireUpgrade(i) => CAMP_UPGRADE_BASE + *i as i32,
             run::RunAction::ShopBuyCard(i) => SHOP_BUY_BASE + *i as i32,
+            run::RunAction::ShopBuyRelic(i) => SHOP_RELIC_BASE + *i as i32,
             run::RunAction::ShopRemoveCard(i) => SHOP_REMOVE_BASE + *i as i32,
             run::RunAction::ShopLeave => SHOP_LEAVE,
             run::RunAction::EventChoice(i) => EVENT_BASE + *i as i32,
@@ -1966,6 +1981,10 @@ impl PyRunEngine {
         } else if action_id >= SHOP_REMOVE_BASE {
             return Some(run::RunAction::ShopRemoveCard(
                 (action_id - SHOP_REMOVE_BASE) as usize,
+            ));
+        } else if action_id >= SHOP_RELIC_BASE {
+            return Some(run::RunAction::ShopBuyRelic(
+                (action_id - SHOP_RELIC_BASE) as usize,
             ));
         } else if action_id >= SHOP_BUY_BASE {
             return Some(run::RunAction::ShopBuyCard(

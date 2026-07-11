@@ -68,6 +68,8 @@ pub enum RunAction {
     CampfireUpgrade(usize),
     /// Shop: buy a card (index into shop offerings)
     ShopBuyCard(usize),
+    /// Shop: buy a relic (index into shop relic offerings)
+    ShopBuyRelic(usize),
     /// Shop: remove a card (index into deck)
     ShopRemoveCard(usize),
     /// Shop: skip/leave shop
@@ -290,6 +292,8 @@ use crate::events::{
 pub struct ShopState {
     /// Cards available for purchase: (card_id, price)
     pub cards: Vec<(String, i32)>,
+    /// Relics available for purchase: (relic_id, price)
+    pub relics: Vec<(String, i32)>,
     /// Card removal price
     pub remove_price: i32,
     /// Whether the player has already used their one card removal this shop visit
@@ -1149,6 +1153,11 @@ impl RunEngine {
             for (i, (_, price)) in shop.cards.iter().enumerate() {
                 if self.run_state.gold >= *price {
                     actions.push(RunAction::ShopBuyCard(i));
+                }
+            }
+            for (i, (_, price)) in shop.relics.iter().enumerate() {
+                if self.run_state.gold >= *price {
+                    actions.push(RunAction::ShopBuyRelic(i));
                 }
             }
             if !shop.removal_used && self.run_state.gold >= shop.remove_price {
@@ -4008,8 +4017,58 @@ impl RunEngine {
 
         let remove_price = self.compute_shop_remove_price();
 
+        // ShopScreen.java::initRelics creates two ordinary tier rolls followed
+        // by one guaranteed SHOP-tier relic. The run RNG is still shared, but
+        // the visible slot semantics and purchase path match Java.
+        let mut relics = Vec::new();
+        for _ in 0..2 {
+            let relic = self.roll_reward_relic_id();
+            let price = self.rng.gen_range(143..=158);
+            let final_price = if self
+                .run_state
+                .relic_flags
+                .has(crate::relic_flags::flag::MEMBERSHIP_CARD)
+            {
+                price / 2
+            } else {
+                price
+            };
+            relics.push((relic, final_price));
+        }
+        const SHOP_RELICS: &[&str] = &[
+            "TheAbacus", "Brimstone", "HandDrill", "Medical Kit", "Melange",
+            "OrangePellets", "Runic Capacitor", "Sling", "Strange Spoon",
+            "TwistedFunnel",
+        ];
+        let registry = gameplay_registry();
+        let candidates: Vec<&str> = SHOP_RELICS
+            .iter()
+            .copied()
+            .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
+            .filter(|id| !self.run_state.relics.iter().any(|owned| owned == id))
+            .collect();
+        let shop_relic = if candidates.is_empty() {
+            "Circlet"
+        } else {
+            candidates[self.rng.gen_range(0..candidates.len())]
+        };
+        // AbstractRelic.java::getPrice returns 150 for SHOP tier; StoreRelic
+        // applies merchantRng.random(0.95f, 1.05f).
+        let shop_price = self.rng.gen_range(143..=158);
+        let shop_price = if self
+            .run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::MEMBERSHIP_CARD)
+        {
+            shop_price / 2
+        } else {
+            shop_price
+        };
+        relics.push((shop_relic.to_string(), shop_price));
+
         self.current_shop = Some(ShopState {
             cards,
+            relics,
             remove_price,
             removal_used: false,
         });
@@ -4044,6 +4103,21 @@ impl RunEngine {
                     }
                 }
                 // Stay in shop for more purchases
+                return 0.0;
+            }
+            RunAction::ShopBuyRelic(idx) => {
+                let purchase = self.current_shop.as_ref().and_then(|shop| {
+                    shop.relics.get(*idx).cloned().filter(|(_, price)| {
+                        self.run_state.gold >= *price
+                    })
+                });
+                if let Some((relic, price)) = purchase {
+                    self.adjust_run_gold(-price);
+                    self.add_relic_reward(&relic);
+                    if let Some(shop) = self.current_shop.as_mut() {
+                        shop.relics.remove(*idx);
+                    }
+                }
                 return 0.0;
             }
             RunAction::ShopRemoveCard(idx) => {

@@ -501,6 +501,7 @@ fn ectoplasm_is_act_one_only_blocks_gold_gains_and_still_allows_spending() {
 
     engine.debug_set_shop_state(ShopState {
         cards: vec![("Strike".to_string(), 40)],
+        relics: Vec::new(),
         remove_price: 75,
         removal_used: false,
     });
@@ -667,6 +668,7 @@ fn egg_relics_use_canonical_ids_floor_cutoffs_and_upgrade_all_obtain_paths() {
         engine.run_state.gold = 100;
         engine.debug_set_shop_state(ShopState {
             cards: vec![(card_id.to_string(), 40)],
+            relics: Vec::new(),
             remove_price: 75,
             removal_used: false,
         });
@@ -970,6 +972,46 @@ fn meat_on_the_bone_is_reachable_only_through_floor_forty_eight() {
             screen.items.iter().all(|item| item.label != "Meat on the Bone")
         }));
     }
+}
+
+#[test]
+fn medical_kit_is_reachable_only_from_the_shop_relic_slot() {
+    // MedicalKit.java constructs RelicTier.SHOP. ShopScreen.java::initRelics
+    // makes its third relic slot SHOP-tier; ordinary combat rewards cannot offer it.
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Medical Kit")
+        }));
+    }
+
+    let offered_seed = (0..512).find(|seed| {
+        let mut engine = RunEngine::new(*seed, 0);
+        engine.debug_enter_shop();
+        engine.get_shop().is_some_and(|shop| {
+            shop.relics.iter().any(|(relic, _)| relic == "Medical Kit")
+        })
+    }).expect("Medical Kit should be reachable from the SHOP-tier slot");
+
+    let mut engine = RunEngine::new(offered_seed, 0);
+    engine.run_state.gold = 999;
+    engine.debug_enter_shop();
+    let idx = engine
+        .get_shop()
+        .expect("shop")
+        .relics
+        .iter()
+        .position(|(relic, _)| relic == "Medical Kit")
+        .expect("Medical Kit offer");
+    assert!(engine
+        .step_with_result(&RunAction::ShopBuyRelic(idx))
+        .action_accepted);
+    assert!(engine
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == "Medical Kit"));
 }
 
 #[test]
@@ -1555,6 +1597,7 @@ fn ceramic_fish_is_reachable_before_floor_49_and_pays_for_shop_card_obtains() {
     engine.run_state.gold = 100;
     engine.debug_set_shop_state(ShopState {
         cards: vec![("Strike".to_string(), 50)],
+        relics: Vec::new(),
         remove_price: 75,
         removal_used: false,
     });

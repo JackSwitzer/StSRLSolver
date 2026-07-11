@@ -289,6 +289,7 @@ fn shop_and_event_decision_contexts_are_stable_and_bridged() {
     engine.run_state.gold = 120;
     engine.debug_set_shop_state(ShopState {
         cards: vec![("Wallop".to_string(), 80), ("Scrawl".to_string(), 150)],
+        relics: Vec::new(),
         remove_price: 50,
         removal_used: false,
     });
