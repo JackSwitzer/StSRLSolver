@@ -841,6 +841,33 @@ mod watcher_card_java_parity_tests {
             assert!(engine.state.discard_pile.iter().any(|card| engine.card_registry.card_name(card.def_id) == "ThirdEye"));
         }
     );
+    // Source-derived (verify card/ThirdEye): GainBlockAction is queued before
+    // ScryAction, so upgraded block (9 plus Dexterity) is already present while
+    // the five-card Scry selection is awaiting input.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/ThirdEye.java
+    #[test]
+    fn third_eye_source_gains_block_before_opening_scry_choice() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.draw_pile = make_deck(&[
+            "Strike", "Defend", "Worship", "Protect", "Prostrate",
+        ]);
+        engine.state.hand = make_deck(&["ThirdEye+"]);
+        engine.state.player.set_status(sid::DEXTERITY, 2);
+        assert!(play_self(&mut engine, "ThirdEye+"));
+        assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+        assert_eq!(engine.state.player.block, 11);
+        assert_eq!(engine.choice.as_ref().expect("Scry choice").options.len(), 5);
+    }
+
+    // Source-derived (verify card/Unraveling): the leftover class exists, but
+    // retail CardLibrary.addPurpleCards() neither imports nor registers it.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Unraveling.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
+    #[test]
+    fn unraveling_source_is_not_in_the_retail_card_library() {
+        assert!(reg().get("Unraveling").is_none());
+        assert!(reg().get("Unraveling+").is_none());
+    }
 
     // Uncommon cards and powers.
     watcher_test!(
@@ -1654,6 +1681,26 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.turn, turn_before + 1);
         }
     );
+    // Source-derived (verify card/Vault): SkipEnemiesTurnAction sets the room
+    // flag before PressEndTurnButtonAction. GameActionManager therefore skips
+    // both monster actions and monsters.applyEndOfTurnPowers for that round.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Vault.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+    #[test]
+    fn vault_source_skips_enemy_action_and_enemy_power_decrement() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 20);
+        engine.state.enemies[0].entity.set_status(sid::VULNERABLE, 2);
+        engine.state.hand = make_deck(&["Vault+"]);
+        engine.state.draw_pile = make_deck_n("Strike", 5);
+        engine.state.energy = 2;
+        let hp_before = engine.state.player.hp;
+        let turn_before = engine.state.turn;
+        assert!(play_self(&mut engine, "Vault+"));
+        assert_eq!(engine.state.turn, turn_before + 1);
+        assert_eq!(engine.state.player.hp, hp_before);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 2);
+        assert_eq!(exhaust_prefix_count(&engine, "Vault+"), 1);
+    }
     watcher_test!(
         wallop_java_parity,
         base = ("Wallop", "Wallop", 2, 9, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, ["block_from_damage"]),

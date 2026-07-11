@@ -74,6 +74,9 @@ mod tantrum;
 mod thirdeye;
 mod throughviolence;
 mod tranquility;
+// Unraveling.java is a leftover beta class and is intentionally omitted:
+// CardLibrary.addPurpleCards() does not import or register it.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
 mod vault;
 mod vengeance;
 mod vigilance;
