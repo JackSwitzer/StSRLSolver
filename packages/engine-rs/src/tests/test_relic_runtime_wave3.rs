@@ -24,7 +24,19 @@ fn engine_with_relic_and_attacks(relic_id: &str, attack_count: usize) -> crate::
 
 #[test]
 fn ornamental_fan_triggers_on_third_attack_and_resets_each_turn() {
+    // Source: reference/extracted/methods/relic/OrnamentalFan.java
+    // Only ATTACK cards increment the counter; the third grants 4 Block, and
+    // atTurnStart resets partial progress.
     let mut engine = engine_with_relic_and_attacks("Ornamental Fan", 5);
+    engine.state.hand = make_deck(&[
+        "Miracle", "Strike", "Strike", "Strike", "Strike", "Strike",
+    ]);
+
+    assert!(play_self(&mut engine, "Miracle"));
+    assert_eq!(
+        engine.hidden_effect_value("Ornamental Fan", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        0
+    );
 
     assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert!(play_on_enemy(&mut engine, "Strike", 0));

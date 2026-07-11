@@ -3676,6 +3676,9 @@ impl RunEngine {
             "Oddly Smooth Stone",
             // Orichalcum.java uses canonical ID "Orichalcum" and COMMON tier.
             "Orichalcum",
+            // OrnamentalFan.java uses canonical ID "Ornamental Fan" and
+            // UNCOMMON tier.
+            "Ornamental Fan",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
@@ -5238,7 +5241,8 @@ impl RunEngine {
             "Bottled Tornado",
             "ClockworkSouvenir",
             "DataDisk",
-            "OrnamentalFan",
+            // OrnamentalFan.java declares canonical ID "Ornamental Fan".
+            "Ornamental Fan",
             "ThreadAndNeedle",
         ];
 

@@ -14,6 +14,8 @@ static RESET_EFFECTS: [Effect; 1] = [
 ];
 
 static TRIGGERS: [TriggeredEffect; 2] = [
+    // Source: reference/extracted/methods/relic/OrnamentalFan.java
+    // onUseCard counts ATTACK cards, grants 4 Block on the third, and resets.
     TriggeredEffect {
         trigger: Trigger::OnAttackPlayed,
         condition: TriggerCondition::CounterReached,
@@ -21,6 +23,7 @@ static TRIGGERS: [TriggeredEffect; 2] = [
         counter: Some((sid::ORNAMENTAL_FAN_COUNTER, 3)),
     },
     TriggeredEffect {
+        // OrnamentalFan.java::atTurnStart resets the per-turn attack counter.
         trigger: Trigger::TurnStart,
         condition: TriggerCondition::Always,
         effects: &RESET_EFFECTS,
