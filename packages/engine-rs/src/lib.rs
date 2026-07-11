@@ -1740,9 +1740,23 @@ impl PyRunEngine {
         let context = PyDict::new_bound(py);
         if let Some(combat) = self.inner.get_combat_engine() {
             context.set_item("potions", PyList::new_bound(py, &combat.state.potions))?;
+            let draw_order: Vec<String> = if combat.state.has_relic("Frozen Eye") {
+                combat
+                    .state
+                    .draw_pile
+                    .iter()
+                    .map(|card| combat.card_registry.card_name(card.def_id).to_string())
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            // Source: DrawPileViewScreen.java preserves actual pile order only
+            // while the player owns Frozen Eye.
+            context.set_item("draw_order", PyList::new_bound(py, &draw_order))?;
             context.set_item("choice", build_combat_choice_dict(py, combat)?)?;
         } else {
             context.set_item("potions", PyList::empty_bound(py))?;
+            context.set_item("draw_order", PyList::empty_bound(py))?;
             let empty_choice = PyDict::new_bound(py);
             empty_choice.set_item("active", false)?;
             context.set_item("choice", empty_choice)?;

@@ -1,5 +1,8 @@
 use crate::actions::Action;
-use crate::decision::{DecisionAction, DecisionKind, RewardChoice, RewardItemKind, RewardItemState};
+use crate::decision::{
+    build_combat_context, DecisionAction, DecisionKind, RewardChoice, RewardItemKind,
+    RewardItemState,
+};
 use crate::events::{EventDef, EventEffect, EventOption};
 use crate::obs::{
     encode_combat_state_v2, get_observation, ACTION_FEAT_DIM, COMBAT_DIM,
@@ -179,6 +182,28 @@ fn potion_belt_fifth_slot_is_observable_and_actionable_in_combat() {
     let fifth_slot_offset = COMBAT_DIM + 18 + 4 * 4;
     assert_eq!(obs[fifth_slot_offset], 1.0);
     assert_eq!(obs[fifth_slot_offset + 1], 1.0);
+}
+
+#[test]
+fn frozen_eye_alone_exposes_actual_draw_order_in_combat_context() {
+    // Sources: FrozenEye.java and DrawPileViewScreen.java::open.
+    let mut plain = RunEngine::new(42, 20);
+    enter_test_combat(&mut plain);
+    let plain_context = build_combat_context(plain.get_combat_engine().expect("plain combat"));
+    assert!(plain_context.draw_order.is_empty());
+
+    let mut frozen = RunEngine::new(42, 20);
+    frozen.run_state.relics.push("Frozen Eye".to_string());
+    enter_test_combat(&mut frozen);
+    let combat = frozen.get_combat_engine().expect("Frozen Eye combat");
+    let expected: Vec<String> = combat
+        .state
+        .draw_pile
+        .iter()
+        .map(|card| combat.card_registry.card_name(card.def_id).to_string())
+        .collect();
+    assert!(!expected.is_empty());
+    assert_eq!(build_combat_context(combat).draw_order, expected);
 }
 
 #[test]

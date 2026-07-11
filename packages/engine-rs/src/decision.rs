@@ -124,6 +124,8 @@ pub struct CombatChoiceContext {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CombatContext {
     pub potions: Vec<CombatPotionSlotContext>,
+    /// Actual draw order is visible only with Frozen Eye.
+    pub draw_order: Vec<String>,
     pub choice: CombatChoiceContext,
 }
 
@@ -414,6 +416,18 @@ pub(crate) fn build_combat_context(combat: &CombatEngine) -> CombatContext {
                     && crate::potions::potion_requires_target(potion_id),
             })
             .collect(),
+        // Source: DrawPileViewScreen.java copies the real group order with
+        // Frozen Eye; otherwise it sorts the copy and hides actual order.
+        draw_order: if combat.state.has_relic("Frozen Eye") {
+            combat
+                .state
+                .draw_pile
+                .iter()
+                .map(|card| combat.card_registry.card_name(card.def_id).to_string())
+                .collect()
+        } else {
+            Vec::new()
+        },
         choice: build_choice_context(combat),
     }
 }

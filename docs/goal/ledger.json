@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T18:32:56.843286+00:00",
+ "updated": "2026-07-11T18:35:50.262104+00:00",
  "status_counts": {
-  "unverified": 444,
-  "verified": 223
+  "unverified": 443,
+  "verified": 224
  },
  "rows": [
   {
@@ -5362,8 +5362,8 @@
    "class": "FrozenEye",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/FrozenEye.java",
    "methods_ref": "reference/extracted/methods/relic/FrozenEye.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
