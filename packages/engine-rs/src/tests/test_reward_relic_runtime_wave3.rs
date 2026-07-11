@@ -1260,7 +1260,7 @@ fn shovel_dig_opens_one_claimable_tiered_relic_reward_and_is_rl_visible() {
             relic.as_str(),
             "Bird Faced Urn" | "Calipers" | "Du-Vu Doll" | "FossilizedHelix"
                 | "Ginger" | "Ice Cream" | "Incense Burner" | "Old Coin"
-                | "Thread and Needle" | "Tough Bandages" | "Tungsten Rod"
+                | "Thread and Needle" | "Tough Bandages" | "TungstenRod"
         );
 
         assert!(engine
@@ -1330,6 +1330,21 @@ fn torii_is_reachable_from_rare_watcher_relic_rewards() {
         engine.current_reward_screen().is_some_and(|screen| {
             screen.items.iter().any(|item| {
                 item.kind == RewardItemKind::Relic && item.label == "Torii"
+            })
+        })
+    });
+    assert!(offered);
+}
+
+#[test]
+fn tungsten_rod_is_reachable_under_its_canonical_java_id() {
+    // TungstenRod.java declares ID "TungstenRod" and constructs a RARE relic.
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "TungstenRod"
             })
         })
     });

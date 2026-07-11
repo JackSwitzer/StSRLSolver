@@ -2610,7 +2610,7 @@ impl RunEngine {
         const RARE: &[&str] = &[
             "Bird Faced Urn", "Calipers", "Du-Vu Doll", "FossilizedHelix",
             "Ginger", "Ice Cream", "Incense Burner", "Old Coin",
-            "Thread and Needle", "Tough Bandages", "Tungsten Rod",
+            "Thread and Needle", "Tough Bandages", "TungstenRod",
         ];
         let roll = self.rng.gen_range(0..100);
         let pool = if roll < 50 {
@@ -3636,7 +3636,7 @@ impl RunEngine {
             // ThreadAndNeedle.java constructs a RARE relic.
             "Thread and Needle",
             "Tough Bandages",
-            "Tungsten Rod",
+            "TungstenRod",
         ];
         let common = self.roll_calling_bell_tier_relic(COMMON);
         let uncommon = self.roll_calling_bell_tier_relic(UNCOMMON);
@@ -3934,6 +3934,8 @@ impl RunEngine {
             "Pocketwatch",
             // Torii.java uses canonical ID "Torii" and RARE tier.
             "Torii",
+            // TungstenRod.java uses canonical ID "TungstenRod" and RARE tier.
+            "TungstenRod",
             // Matryoshka.java uses canonical ID "Matryoshka", UNCOMMON tier,
             // and canSpawn excludes non-endless runs after floor 40.
             "Matryoshka",
@@ -5670,7 +5672,7 @@ impl RunEngine {
             // and RARE tier.
             "Thread and Needle",
             "Tough Bandages",
-            "Tungsten Rod",
+            "TungstenRod",
         ];
 
         let registry = gameplay_registry();

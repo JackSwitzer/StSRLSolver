@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T19:12:34.250658+00:00",
+ "updated": "2026-07-11T19:14:47.171946+00:00",
  "status_counts": {
-  "unverified": 430,
-  "verified": 237
+  "unverified": 429,
+  "verified": 238
  },
  "rows": [
   {
@@ -6542,8 +6542,8 @@
    "class": "TungstenRod",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/TungstenRod.java",
    "methods_ref": "reference/extracted/methods/relic/TungstenRod.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
