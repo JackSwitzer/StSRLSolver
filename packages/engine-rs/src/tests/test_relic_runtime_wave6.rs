@@ -82,6 +82,21 @@ fn combat_start_bundle_applies_simple_java_relic_effects_on_runtime_path() {
 }
 
 #[test]
+fn vajra_applies_exactly_one_strength_at_combat_start() {
+    // Source: reference/extracted/methods/relic/Vajra.java
+    let mut engine = engine_without_start_with_relics(
+        &["Vajra"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        3,
+    );
+
+    engine.start_combat();
+
+    assert_eq!(engine.state.player.strength(), 1);
+}
+
+#[test]
 fn akabeko_vigor_survives_skills_then_buffs_every_hit_of_the_first_attack() {
     // Source-derived (verify relic/Akabeko): Akabeko.java::atBattleStart
     // applies 8 Vigor. VigorPower.java adds that amount to NORMAL damage and

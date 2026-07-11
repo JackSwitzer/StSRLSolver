@@ -3420,6 +3420,7 @@ impl RunEngine {
             "Blood Vial",
             "Boot",
             "Bronze Scales",
+            // Vajra.java uses canonical ID "Vajra" and COMMON tier.
             "Vajra",
         ];
         const UNCOMMON: &[&str] = &[
