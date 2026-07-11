@@ -722,7 +722,7 @@ fn fairy_potion_is_passive_and_revives_through_java_healing_rules() {
     lethal_enemy.set_move(1, 200, 1, 0);
     let mut state = combat_state_with(make_deck(&["Strike"]), vec![lethal_enemy], 3);
     state.relics.push("SacredBark".to_string());
-    state.relics.push("MagicFlower".to_string());
+    state.relics.push("Magic Flower".to_string());
     state.potions[0] = "FairyPotion".to_string();
     let mut engine = engine_with_state(state);
 

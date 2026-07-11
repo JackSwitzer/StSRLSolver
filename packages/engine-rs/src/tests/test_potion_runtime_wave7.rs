@@ -237,7 +237,8 @@ fn regen_potion_keeps_five_potency_then_heals_and_decrements_each_turn() {
     // Source-derived (verify potion/RegenPotion): getPotency always returns
     // five; RegenPower queues RegenAction at player turn end, which heals the
     // current amount before decrementing the power by one. Sacred Bark doubles
-    // the initial stack and Magic Flower modifies each heal.
+    // the initial stack and MagicFlower.java rounds each 1.5x heal. The
+    // second nine-point tick is therefore 14, not a truncated 13.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/RegenPotion.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RegenPower.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/RegenAction.java
@@ -259,7 +260,7 @@ fn regen_potion_keeps_five_potency_then_heals_and_decrements_each_turn() {
     assert_eq!(engine.state.player.status(sid::REGENERATION), 9);
 
     end_turn(&mut engine);
-    assert_eq!(engine.state.player.hp, 48);
+    assert_eq!(engine.state.player.hp, 49);
     assert_eq!(engine.state.player.status(sid::REGENERATION), 8);
 }
 

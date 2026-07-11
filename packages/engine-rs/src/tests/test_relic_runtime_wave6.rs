@@ -430,9 +430,7 @@ fn lizard_tail_revive_uses_healing_rules_and_stays_consumed_next_combat() {
         vec![lethal_enemy],
         3,
     );
-    first_state.relics.push("Lizard Tail".to_string());
-    // Magic Flower's combat marker is the centralized Java-style healing modifier.
-    first_state.player.set_status(sid::HAS_MAGIC_FLOWER, 1);
+    first_state.relics = vec!["Lizard Tail".to_string(), "Magic Flower".to_string()];
     first_state.player.hp = 10;
     let mut first = engine_with_state(first_state);
 
@@ -460,6 +458,24 @@ fn lizard_tail_revive_uses_healing_rules_and_stays_consumed_next_combat() {
     assert_eq!(next.state.player.hp, 0);
     assert!(next.state.combat_over);
     assert!(!next.state.player_won);
+}
+
+#[test]
+fn magic_flower_uses_canonical_id_and_rounds_odd_combat_heals() {
+    // MagicFlower.java uses canonical ID "Magic Flower" and, during combat,
+    // returns MathUtils.round(healAmount * 1.5f). Five therefore heals eight.
+    let mut state = combat_state_with(
+        make_deck_n("Strike", 5),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    state.relics.push("Magic Flower".to_string());
+    let mut engine = engine_with_state(state);
+    engine.state.player.hp = 40;
+
+    assert_eq!(engine.state.player.status(sid::HAS_MAGIC_FLOWER), 1);
+    engine.heal_player(5);
+    assert_eq!(engine.state.player.hp, 48);
 }
 
 #[test]

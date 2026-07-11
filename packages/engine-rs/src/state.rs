@@ -433,7 +433,8 @@ impl CombatState {
         }
         let mut heal = amount;
         if self.player.status(crate::status_ids::sid::HAS_MAGIC_FLOWER) > 0 {
-            heal = (heal as f64 * 1.5) as i32;
+            // MagicFlower.java uses MathUtils.round(healAmount * 1.5f).
+            heal = (heal as f64 * 1.5).round() as i32;
         }
         self.player.hp = (self.player.hp + heal).min(self.player.max_hp);
     }

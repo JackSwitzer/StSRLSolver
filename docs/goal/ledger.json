@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T08:43:29.108779+00:00",
+ "updated": "2026-07-11T08:48:30.018410+00:00",
  "status_counts": {
-  "unverified": 477,
-  "verified": 190
+  "unverified": 476,
+  "verified": 191
  },
  "rows": [
   {
@@ -5612,8 +5612,8 @@
    "class": "MagicFlower",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/MagicFlower.java",
    "methods_ref": "reference/extracted/methods/relic/MagicFlower.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -374,15 +374,8 @@ fn adjust_run_gold_state(run_state: &mut RunState, amount: i32) {
                 .relic_flags
                 .has(crate::relic_flags::flag::MARK_OF_BLOOM)
         {
-            let heal = if run_state
-                .relic_flags
-                .has(crate::relic_flags::flag::MAGIC_FLOWER)
-            {
-                7
-            } else {
-                5
-            };
-            run_state.current_hp = (run_state.current_hp + heal).min(run_state.max_hp);
+            // MagicFlower.java only modifies healing during RoomPhase.COMBAT.
+            run_state.current_hp = (run_state.current_hp + 5).min(run_state.max_hp);
         }
     } else if amount < 0 {
         run_state.gold = (run_state.gold + amount).max(0);
@@ -451,15 +444,8 @@ fn obtain_master_deck_card_state(run_state: &mut RunState, card_id: String) {
             .relic_flags
             .has(crate::relic_flags::flag::MARK_OF_BLOOM)
         {
-            let heal = if run_state
-                .relic_flags
-                .has(crate::relic_flags::flag::MAGIC_FLOWER)
-            {
-                9
-            } else {
-                6
-            };
-            run_state.current_hp = (run_state.current_hp + heal).min(run_state.max_hp);
+            // Card-obtain screens are outside combat; Magic Flower does not apply.
+            run_state.current_hp = (run_state.current_hp + 6).min(run_state.max_hp);
         }
     }
     // Sources: CeramicFish.java::onObtainCard gains 9 gold for every obtained
@@ -1299,8 +1285,8 @@ impl RunEngine {
                 } else {
                     5
                 };
-                // AbstractCreature.increaseMaxHp raises maxHealth before heal,
-                // preserving Magic Flower and Mark of the Bloom semantics.
+                // AbstractCreature.increaseMaxHp raises maxHealth before heal.
+                // MagicFlower.java does not modify this out-of-combat heal.
                 // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FruitJuice.java
                 // Java: decompiled/java-src/com/megacrit/cardcrawl/core/AbstractCreature.java
                 self.run_state.max_hp += amount;
@@ -3440,16 +3426,9 @@ impl RunEngine {
             return;
         }
 
-        let mut heal = amount;
-        if self
-            .run_state
-            .relic_flags
-            .has(crate::relic_flags::flag::MAGIC_FLOWER)
-        {
-            heal = (heal as f32 * 1.5) as i32;
-        }
-
-        self.run_state.current_hp = (self.run_state.current_hp + heal).min(self.run_state.max_hp);
+        // MagicFlower.java only modifies healing in RoomPhase.COMBAT; all
+        // RunEngine healing paths represented here occur outside combat.
+        self.run_state.current_hp = (self.run_state.current_hp + amount).min(self.run_state.max_hp);
     }
 
     fn add_potion_reward(&mut self, potion_id: &str) {
@@ -3591,6 +3570,8 @@ impl RunEngine {
             "Letter Opener",
             // LizardTail.java uses canonical ID "Lizard Tail" and RARE tier.
             "Lizard Tail",
+            // MagicFlower.java uses canonical ID "Magic Flower" and RARE tier.
+            "Magic Flower",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
@@ -3876,10 +3857,6 @@ impl RunEngine {
                     if self.run_state.relic_flags.has(crate::relic_flags::flag::REGAL_PILLOW) {
                         heal += 15;
                     }
-                    // Magic Flower: 1.5x healing
-                    if self.run_state.relic_flags.has(crate::relic_flags::flag::MAGIC_FLOWER) {
-                        heal = (heal as f32 * 1.5) as i32;
-                    }
                     self.run_state.current_hp = (self.run_state.current_hp + heal).min(self.run_state.max_hp);
                 }
                 // CampfireSleepEffect.java opens a card reward only after the
@@ -3969,11 +3946,9 @@ impl RunEngine {
         if self.run_state.relic_flags.has(crate::relic_flags::flag::MEAL_TICKET)
             && !self.run_state.relic_flags.has(crate::relic_flags::flag::MARK_OF_BLOOM)
         {
-            let mut heal = 15;
-            if self.run_state.relic_flags.has(crate::relic_flags::flag::MAGIC_FLOWER) {
-                heal = (heal as f32 * 1.5) as i32;
-            }
-            self.run_state.current_hp = (self.run_state.current_hp + heal).min(self.run_state.max_hp);
+            // Meal Ticket heals in a shop, not during combat, so Magic Flower
+            // does not modify the 15 points.
+            self.run_state.current_hp = (self.run_state.current_hp + 15).min(self.run_state.max_hp);
         }
     }
 
@@ -5571,8 +5546,8 @@ mod tests {
     fn fruit_juice_is_usable_outside_combat_except_we_meet_again() {
         // Source-derived (verify potion/FruitJuice): canUse only rejects an
         // ended combat turn and WeMeetAgain; use increases max HP by constant
-        // potency five through increaseMaxHp. Sacred Bark doubles potency and
-        // Magic Flower modifies the heal performed by increaseMaxHp.
+        // potency five through increaseMaxHp. Sacred Bark doubles potency;
+        // MagicFlower.java does not modify healing outside RoomPhase.COMBAT.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FruitJuice.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/core/AbstractCreature.java
         let mut engine = RunEngine::new(42, 20);
@@ -5581,7 +5556,7 @@ mod tests {
         engine.run_state.max_hp = 80;
         engine.run_state.potions[0] = "FruitJuice".to_string();
         engine.run_state.relics.push("SacredBark".to_string());
-        engine.run_state.relics.push("MagicFlower".to_string());
+        engine.run_state.relics.push("Magic Flower".to_string());
         engine
             .run_state
             .relic_flags
@@ -5594,7 +5569,7 @@ mod tests {
 
         assert!(result.action_accepted);
         assert_eq!(engine.run_state.max_hp, 90);
-        assert_eq!(engine.run_state.current_hp, 55);
+        assert_eq!(engine.run_state.current_hp, 50);
         assert!(engine.run_state.potions[0].is_empty());
         assert_eq!(engine.current_phase(), RunPhase::MapChoice);
 
