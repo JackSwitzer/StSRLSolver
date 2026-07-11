@@ -94,10 +94,17 @@ fn orange_pellets_clears_all_debuffs_after_attack_skill_and_power_have_all_been_
     engine.state.player.set_status(sid::VULNERABLE, 1);
     engine.state.player.set_status(sid::FRAIL, 2);
     engine.state.player.set_status(sid::NO_DRAW, 1);
+    engine.state.player.set_status(sid::HEX, 1);
+    engine.state.player.set_status(sid::CONFUSION, 1);
+    engine.state.player.set_status(sid::SLOW, 1);
+    engine.state.player.set_status(sid::NO_BLOCK, 1);
     engine.state.hand = make_deck(&["Strike", "Defend", "Inflame"]);
     engine.state.draw_pile.clear();
     engine.state.discard_pile.clear();
     engine.rebuild_effect_runtime();
+    // Confusion randomizes each cost to 0-3; ample energy keeps all three
+    // source-required card types executable in this purge scenario.
+    engine.state.energy = 20;
 
     assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert!(play_self(&mut engine, "Defend"));
@@ -107,6 +114,10 @@ fn orange_pellets_clears_all_debuffs_after_attack_skill_and_power_have_all_been_
     assert_eq!(engine.state.player.status(sid::VULNERABLE), 0);
     assert_eq!(engine.state.player.status(sid::FRAIL), 0);
     assert_eq!(engine.state.player.status(sid::NO_DRAW), 0);
+    assert_eq!(engine.state.player.status(sid::HEX), 0);
+    assert_eq!(engine.state.player.status(sid::CONFUSION), 0);
+    assert_eq!(engine.state.player.status(sid::SLOW), 0);
+    assert_eq!(engine.state.player.status(sid::NO_BLOCK), 0);
 }
 
 #[test]
