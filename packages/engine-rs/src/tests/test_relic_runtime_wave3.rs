@@ -58,6 +58,8 @@ fn ornamental_fan_triggers_on_third_attack_and_resets_each_turn() {
 
 #[test]
 fn kunai_triggers_on_third_attack_and_resets_each_turn() {
+    // Kunai.java counts only ATTACK cards, grants one Dexterity on the third,
+    // resets the counter immediately, and also resets it at turn start.
     let mut engine = engine_with_relic_and_attacks("Kunai", 5);
 
     assert!(play_on_enemy(&mut engine, "Strike", 0));

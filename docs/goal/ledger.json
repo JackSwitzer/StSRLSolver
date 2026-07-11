@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T08:32:44.026296+00:00",
+ "updated": "2026-07-11T08:34:05.806649+00:00",
  "status_counts": {
-  "unverified": 481,
-  "verified": 186
+  "unverified": 480,
+  "verified": 187
  },
  "rows": [
   {
@@ -5562,8 +5562,8 @@
    "class": "Kunai",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Kunai.java",
    "methods_ref": "reference/extracted/methods/relic/Kunai.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

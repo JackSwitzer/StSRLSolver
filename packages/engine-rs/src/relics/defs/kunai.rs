@@ -1,4 +1,7 @@
 //! Kunai: Every 3 Attacks played, gain 1 Dexterity.
+//!
+//! Source: `reference/extracted/methods/relic/Kunai.java`
+//! (`onUseCard` counts only ATTACK cards; `atTurnStart` resets the counter).
 
 use crate::effects::declarative::{Effect, SimpleEffect, Target, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};

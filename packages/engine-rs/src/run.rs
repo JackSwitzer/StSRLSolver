@@ -3558,6 +3558,8 @@ impl RunEngine {
             "Incense Burner",
             // InkBottle.java uses canonical ID "InkBottle" and UNCOMMON tier.
             "InkBottle",
+            // Kunai.java uses canonical ID "Kunai" and UNCOMMON tier.
+            "Kunai",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
