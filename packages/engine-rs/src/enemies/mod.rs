@@ -443,6 +443,10 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::BS_STAB, 12, 1, 0);
         }
         "SlaverRed" | "RedSlaver" => {
+            enemy.entity.set_status(sid::STARTING_DMG, 13);
+            enemy.entity.set_status(sid::STR_AMT, 8);
+            enemy.entity.set_status(sid::BLOCK_AMT, 1);
+            enemy.entity.set_status(sid::IS_FIRST_MOVE, 1);
             enemy.set_move(move_ids::RS_STAB, 13, 1, 0);
         }
         "AcidSlime_S" => {
@@ -1180,14 +1184,17 @@ mod tests {
     #[test]
     fn test_red_slaver_pattern() {
         let mut enemy = create_enemy("SlaverRed", 48, 48);
+        // Source: reference/extracted/methods/monster/SlaverRed.java.
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 0, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::RS_STAB);
         assert_eq!(enemy.move_damage(), 13);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 75);
         assert_eq!(enemy.move_id, move_ids::RS_ENTANGLE);
         assert_eq!(enemy.effect(mfx::ENTANGLE), Some(1));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 60);
         assert!(
             enemy.move_id == move_ids::RS_SCRAPE || enemy.move_id == move_ids::RS_STAB
         );

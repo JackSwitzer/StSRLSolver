@@ -260,11 +260,14 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::BS_STAB, 12, 1, 0, &[]);
 
         let mut e = make("SlaverRed", 46);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::RS_ENTANGLE, 0, 0, 0, &[(mfx::ENTANGLE, 1)]);
-        roll_times(&mut e, 1);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 0, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::RS_STAB, 13, 1, 0, &[]);
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 75);
+        expect_move(&e, move_ids::RS_ENTANGLE, 0, 0, 0, &[(mfx::ENTANGLE, 1)]);
+        roll_with_num(&mut e, 60);
+        expect_move(&e, move_ids::RS_STAB, 13, 1, 0, &[]);
+        roll_with_num(&mut e, 0);
         expect_move(&e, move_ids::RS_SCRAPE, 8, 1, 0, &[(mfx::VULNERABLE, 1)]);
 
         let mut e = make("AcidSlime_S", 8);

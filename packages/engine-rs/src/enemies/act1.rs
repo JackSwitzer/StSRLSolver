@@ -136,22 +136,38 @@ pub(super) fn roll_blue_slaver(enemy: &mut EnemyCombatState, num: i32) {
     }
 }
 
-pub(super) fn roll_red_slaver(enemy: &mut EnemyCombatState, _num: i32) {
+pub(super) fn roll_red_slaver(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/SlaverRed.java (`getMove`).
+    let stab = enemy.entity.status(sid::STARTING_DMG).max(13);
+    let scrape = enemy.entity.status(sid::STR_AMT).max(8);
+    let vulnerable = enemy.entity.status(sid::BLOCK_AMT).max(1) as i16;
+    if enemy.entity.status(sid::IS_FIRST_MOVE) > 0 {
+        enemy.entity.set_status(sid::IS_FIRST_MOVE, 0);
+        enemy.set_move(move_ids::RS_STAB, stab, 1, 0);
+        return;
+    }
     let used_entangle = enemy
         .move_history
         .iter()
         .any(|&m| m == move_ids::RS_ENTANGLE);
 
-    if !used_entangle && !enemy.move_history.is_empty() {
+    if num >= 75 && !used_entangle {
         enemy.set_move(move_ids::RS_ENTANGLE, 0, 0, 0);
         enemy.add_effect(mfx::ENTANGLE, 1);
-    } else if last_move(enemy, move_ids::RS_ENTANGLE)
-        || last_two_moves(enemy, move_ids::RS_SCRAPE)
-    {
-        enemy.set_move(move_ids::RS_STAB, 13, 1, 0);
+    } else if num >= 55 && used_entangle && !last_two_moves(enemy, move_ids::RS_STAB) {
+        enemy.set_move(move_ids::RS_STAB, stab, 1, 0);
+    } else if vulnerable >= 2 {
+        if !last_move(enemy, move_ids::RS_SCRAPE) {
+            enemy.set_move(move_ids::RS_SCRAPE, scrape, 1, 0);
+            enemy.add_effect(mfx::VULNERABLE, vulnerable);
+        } else {
+            enemy.set_move(move_ids::RS_STAB, stab, 1, 0);
+        }
+    } else if !last_two_moves(enemy, move_ids::RS_SCRAPE) {
+        enemy.set_move(move_ids::RS_SCRAPE, scrape, 1, 0);
+        enemy.add_effect(mfx::VULNERABLE, vulnerable);
     } else {
-        enemy.set_move(move_ids::RS_SCRAPE, 8, 1, 0);
-        enemy.add_effect(mfx::VULNERABLE, 1);
+        enemy.set_move(move_ids::RS_STAB, stab, 1, 0);
     }
 }
 

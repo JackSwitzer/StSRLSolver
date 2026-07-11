@@ -273,24 +273,50 @@ mod enemy_tests {
 
     // ========== Red Slaver ==========
 
-    #[test] fn rs_first_stab() {
-        let e = create_enemy("SlaverRed", 48, 48);
-        assert_eq!(e.move_id, RS_STAB);
-        assert_eq!(e.move_damage(), 13);
+    #[test] fn rs_first_stab_ignores_initial_num() {
+        // Source: reference/extracted/methods/monster/SlaverRed.java.
+        for num in [0, 99] {
+            let mut e = create_enemy("SlaverRed", 48, 48);
+            roll_initial_move_with_num_and_rng(
+                &mut e, num, &mut crate::seed::StsRandom::new(0));
+            assert_eq!(e.move_id, RS_STAB);
+            assert_eq!(e.move_damage(), 13);
+            assert!(e.move_history.is_empty());
+        }
     }
     #[test] fn rs_entangle_once() {
         let mut e = create_enemy("SlaverRed", 48, 48);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(
+            &mut e, 0, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut e, 75);
         assert_eq!(e.move_id, RS_ENTANGLE);
         assert_eq!(e.effect(mfx::ENTANGLE).unwrap(), 1);
+        roll_next_move_with_num(&mut e, 75);
+        assert_ne!(e.move_id, RS_ENTANGLE);
     }
     #[test] fn rs_scrape_vuln() {
         let mut e = create_enemy("SlaverRed", 48, 48);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // entangle
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // scrape or stab
-        if e.move_id == RS_SCRAPE {
-            assert_eq!(e.effect(mfx::VULNERABLE).unwrap(), 1);
-        }
+        roll_initial_move_with_num_and_rng(
+            &mut e, 0, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut e, 0);
+        assert_eq!(e.move_id, RS_SCRAPE);
+        assert_eq!(e.effect(mfx::VULNERABLE), Some(1));
+    }
+    #[test] fn rs_a17_prevents_consecutive_scrapes() {
+        let mut low = create_enemy("SlaverRed", 48, 48);
+        roll_initial_move_with_num_and_rng(
+            &mut low, 0, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut low, 0);
+        roll_next_move_with_num(&mut low, 0);
+        assert_eq!(low.move_id, RS_SCRAPE);
+
+        let mut a17 = create_enemy("SlaverRed", 48, 48);
+        a17.entity.set_status(sid::BLOCK_AMT, 2);
+        roll_initial_move_with_num_and_rng(
+            &mut a17, 0, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut a17, 0);
+        roll_next_move_with_num(&mut a17, 0);
+        assert_eq!(a17.move_id, RS_STAB);
     }
 
     // ========== Acid Slime S ==========

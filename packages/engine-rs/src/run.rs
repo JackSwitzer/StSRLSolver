@@ -1298,6 +1298,18 @@ impl RunEngine {
             enemy.set_move(crate::enemies::move_ids::BS_STAB, stab, 1, 0);
         }
 
+        // Source: reference/extracted/methods/monster/SlaverRed.java.
+        for enemy in enemy_states.iter_mut().filter(|e| matches!(e.id.as_str(),
+            "SlaverRed" | "RedSlaver")) {
+            let (stab, scrape) = if self.run_state.ascension >= 2 { (14, 9) } else { (13, 8) };
+            let vulnerable = if self.run_state.ascension >= 17 { 2 } else { 1 };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, stab);
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT, scrape);
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT, vulnerable);
+            enemy.entity.set_status(crate::status_ids::sid::IS_FIRST_MOVE, 1);
+            enemy.set_move(crate::enemies::move_ids::RS_STAB, stab, 1, 0);
+        }
+
         // Java Cultist.java: ctor sets ritualAmount = ascensionLevel >= 2 ? 4 : 3;
         // takeTurn() case 3 (INCANTATION) applies RitualPower(ritualAmount + 1)
         // at ascensionLevel >= 17, else RitualPower(ritualAmount).
@@ -1415,7 +1427,8 @@ impl RunEngine {
                 (hp, hp)
             }
             "RedSlaver" | "SlaverRed" => {
-                let hp = if a20 { 48 } else { 46 };
+                let base = if a20 { 48 } else { 46 };
+                let hp = base + self.rng.gen_range(0..=4);
                 (hp, hp)
             }
             "GremlinNob" => {
@@ -4382,6 +4395,36 @@ mod tests {
             assert_eq!(enemy.entity.status(crate::status_ids::sid::BLOCK_AMT), weak);
             assert!(matches!(enemy.move_id,
                 crate::enemies::move_ids::BS_STAB | crate::enemies::move_ids::BS_RAKE));
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+    }
+
+    #[test]
+    fn red_slaver_constructor_and_first_turn_match_java() {
+        // Source: reference/extracted/methods/monster/SlaverRed.java.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("SlaverRed").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("SlaverRed").0);
+        }
+        assert_eq!(low_hp, (46..=50).collect());
+        assert_eq!(high_hp, (48..=52).collect());
+
+        for (ascension, stab, scrape, vulnerable) in
+            [(0, 13, 8, 1), (2, 14, 9, 1), (17, 14, 9, 2)]
+        {
+            let mut engine = RunEngine::new(42, ascension);
+            engine.enter_specific_combat(vec!["SlaverRed".to_string()]);
+            let combat = engine.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!(enemy.move_id, crate::enemies::move_ids::RS_STAB);
+            assert_eq!(enemy.move_damage(), stab);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), scrape);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::BLOCK_AMT), vulnerable);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::IS_FIRST_MOVE), 0);
             assert_eq!(combat.ai_rng.counter, 1);
         }
     }

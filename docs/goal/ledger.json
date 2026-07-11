@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T02:08:33.445129+00:00",
+ "updated": "2026-07-11T02:12:59.168693+00:00",
  "status_counts": {
-  "unverified": 582,
-  "verified": 85
+  "unverified": 581,
+  "verified": 86
  },
  "rows": [
   {
@@ -4222,8 +4222,8 @@
    "class": "SlaverRed",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/exordium/SlaverRed.java",
    "methods_ref": "reference/extracted/methods/monster/SlaverRed.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
