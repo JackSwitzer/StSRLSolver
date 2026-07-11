@@ -98,6 +98,25 @@ fn holy_water_is_offered_only_with_pure_water_and_replaces_it_when_chosen() {
 }
 
 #[test]
+fn violet_lotus_is_reachable_from_the_watcher_boss_relic_pool() {
+    // Source: VioletLotus.java constructs the relic at BOSS tier. RunEngine is
+    // currently Watcher-only, so its boss pool must be able to offer this ID.
+    let offered = (0..64).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_boss_reward_screen();
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0]
+                .choices
+                .iter()
+                .any(|choice| {
+                    matches!(choice, RewardChoice::Named { label, .. } if label == "VioletLotus")
+                })
+        })
+    });
+    assert!(offered);
+}
+
+#[test]
 fn claiming_question_card_expands_later_card_reward_choices() {
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.relics.push("Sozu".to_string());

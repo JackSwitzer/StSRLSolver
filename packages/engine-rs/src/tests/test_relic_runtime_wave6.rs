@@ -170,6 +170,34 @@ fn violet_lotus_grants_extra_energy_when_exiting_calm() {
 }
 
 #[test]
+fn violet_lotus_uses_its_java_id_and_only_triggers_when_leaving_calm() {
+    // Source-derived (verify relic/VioletLotus): VioletLotus.java has no
+    // combat-start hook and grants one energy only when the previous stance is
+    // Calm and differs from the new stance.
+    let mut engine = engine_without_start_with_relics(
+        &["VioletLotus"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        0,
+    );
+    engine.start_combat();
+    assert_eq!(engine.state.player.status(sid::VIOLET_LOTUS), 0);
+
+    engine.state.energy = 0;
+    engine.state.stance = Stance::Calm;
+    engine.change_stance(Stance::Wrath);
+    assert_eq!(engine.state.energy, 3);
+
+    engine.change_stance(Stance::Neutral);
+    engine.change_stance(Stance::Calm);
+    engine.change_stance(Stance::Calm);
+    assert_eq!(engine.state.energy, 3);
+
+    engine.change_stance(Stance::Wrath);
+    assert_eq!(engine.state.energy, 6);
+}
+
+#[test]
 fn torii_and_tungsten_rod_reduce_real_hp_loss_from_enemy_attacks() {
     let mut torii = engine_without_start_with_relics(
         &["Torii"],

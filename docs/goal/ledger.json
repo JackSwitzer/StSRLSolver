@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T04:30:07.274420+00:00",
+ "updated": "2026-07-11T04:32:53.724880+00:00",
  "status_counts": {
-  "unverified": 553,
-  "verified": 114
+  "unverified": 552,
+  "verified": 115
  },
  "rows": [
   {
@@ -6602,8 +6602,8 @@
    "class": "VioletLotus",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/VioletLotus.java",
    "methods_ref": "reference/extracted/methods/relic/VioletLotus.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

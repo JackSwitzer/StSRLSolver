@@ -2806,6 +2806,7 @@ impl RunEngine {
             "Velvet Choker",
             "Snecko Eye",
             "HolyWater",
+            "VioletLotus",
         ];
 
         let registry = gameplay_registry();
