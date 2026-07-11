@@ -299,6 +299,8 @@ pub struct RunState {
     pub max_potions: usize,
     #[serde(default)]
     pub bottled_flame_card: Option<String>,
+    #[serde(default)]
+    pub bottled_lightning_card: Option<String>,
 
     // Map state
     pub map_x: i32,   // -1 before first move
@@ -403,6 +405,7 @@ impl RunState {
             potions: vec!["".to_string(); 3],
             max_potions: 3,
             bottled_flame_card: None,
+            bottled_lightning_card: None,
             map_x: -1,
             map_y: -1,
             has_ruby_key: false,
@@ -529,6 +532,7 @@ pub struct RunEngine {
     pending_astrolabe_selection: bool,
     pending_astrolabe_removed: Vec<String>,
     pending_bottled_flame_selection: bool,
+    pending_bottled_lightning_selection: bool,
 
     // Canonical stack of active decisions.
     decision_stack: DecisionStack,
@@ -599,6 +603,7 @@ impl RunEngine {
             pending_astrolabe_selection: false,
             pending_astrolabe_removed: Vec::new(),
             pending_bottled_flame_selection: false,
+            pending_bottled_lightning_selection: false,
             decision_stack: DecisionStack::new(),
             current_event: None,
             pending_event_combat: None,
@@ -1681,6 +1686,14 @@ impl RunEngine {
                 card.flags |= crate::combat_types::CardInstance::FLAG_INNATE;
             }
         }
+        if let Some(bottled) = self.run_state.bottled_lightning_card.as_deref() {
+            if let Some(card) = deck_instances.iter_mut().find(|card| {
+                registry.card_name(card.def_id).trim_end_matches('+')
+                    == bottled.trim_end_matches('+')
+            }) {
+                card.flags |= crate::combat_types::CardInstance::FLAG_INNATE;
+            }
+        }
         let mut combat_state = CombatState::new(
             self.run_state.current_hp,
             self.run_state.max_hp,
@@ -2529,10 +2542,14 @@ impl RunEngine {
             matches!(&choice, RewardChoice::Named { label, .. } if label == "Astrolabe");
         let astrolabe_card_pick = item_label == "deck_selection_astrolabe";
         let bottled_flame_card_pick = item_label == "deck_selection_bottled_flame";
+        let bottled_lightning_card_pick = item_label == "deck_selection_bottled_lightning";
 
         match (kind, choice) {
             (RewardItemKind::CardChoice, RewardChoice::Card { card_id, .. }) => {
-                if bottled_flame_card_pick {
+                if bottled_lightning_card_pick {
+                    self.run_state.bottled_lightning_card = Some(card_id);
+                    self.pending_bottled_lightning_selection = false;
+                } else if bottled_flame_card_pick {
                     self.run_state.bottled_flame_card = Some(card_id);
                     self.pending_bottled_flame_selection = false;
                 } else if astrolabe_card_pick {
@@ -2733,6 +2750,8 @@ impl RunEngine {
         }
         if label == "Bottled Flame" && self.pending_bottled_flame_selection {
             self.build_bottled_flame_selection_screen(source);
+        } else if label == "Bottled Lightning" && self.pending_bottled_lightning_selection {
+            self.build_bottled_lightning_selection_screen(source);
         }
     }
 
@@ -2816,6 +2835,10 @@ impl RunEngine {
             "Astrolabe" => self.prepare_astrolabe_on_equip(),
             "Bottled Flame" => {
                 self.pending_bottled_flame_selection = !self.bottled_flame_choices().is_empty();
+            }
+            "Bottled Lightning" => {
+                self.pending_bottled_lightning_selection =
+                    !self.bottled_lightning_choices().is_empty();
             }
             "Whetstone" => self.upgrade_random_cards_by_type(crate::cards::CardType::Attack, 2),
             "WarPaint" => self.upgrade_random_cards_by_type(crate::cards::CardType::Skill, 2),
@@ -2942,6 +2965,14 @@ impl RunEngine {
     }
 
     fn bottled_flame_choices(&self) -> Vec<RewardChoice> {
+        self.bottled_card_choices(crate::cards::CardType::Attack)
+    }
+
+    fn bottled_lightning_choices(&self) -> Vec<RewardChoice> {
+        self.bottled_card_choices(crate::cards::CardType::Skill)
+    }
+
+    fn bottled_card_choices(&self, card_type: crate::cards::CardType) -> Vec<RewardChoice> {
         let registry = crate::cards::global_registry();
         self.run_state
             .deck
@@ -2951,7 +2982,7 @@ impl RunEngine {
             .filter(|(_, card_id)| {
                 registry
                     .get(card_id)
-                    .is_some_and(|card| card.card_type == crate::cards::CardType::Attack)
+                    .is_some_and(|card| card.card_type == card_type)
             })
             .map(|(index, card_id)| RewardChoice::Card {
                 index,
@@ -2961,6 +2992,27 @@ impl RunEngine {
     }
 
     fn build_bottled_flame_selection_screen(&mut self, source: RewardScreenSource) {
+        self.build_bottled_card_selection_screen(
+            source,
+            "deck_selection_bottled_flame",
+            self.bottled_flame_choices(),
+        );
+    }
+
+    fn build_bottled_lightning_selection_screen(&mut self, source: RewardScreenSource) {
+        self.build_bottled_card_selection_screen(
+            source,
+            "deck_selection_bottled_lightning",
+            self.bottled_lightning_choices(),
+        );
+    }
+
+    fn build_bottled_card_selection_screen(
+        &mut self,
+        source: RewardScreenSource,
+        label: &str,
+        choices: Vec<RewardChoice>,
+    ) {
         let mut screen = RewardScreen {
             source,
             ordered: true,
@@ -2969,12 +3021,12 @@ impl RunEngine {
                 index: 0,
                 kind: RewardItemKind::CardChoice,
                 state: RewardItemState::Available,
-                label: "deck_selection_bottled_flame".to_string(),
+                label: label.to_string(),
                 claimable: true,
                 active: false,
                 skip_allowed: false,
                 skip_label: None,
-                choices: self.bottled_flame_choices(),
+                choices,
             }],
         };
         Self::refresh_reward_screen(&mut screen);
@@ -3072,11 +3124,19 @@ impl RunEngine {
     }
 
     fn can_spawn_bottled_flame(&self) -> bool {
+        self.can_spawn_bottled_card(crate::cards::CardType::Attack)
+    }
+
+    fn can_spawn_bottled_lightning(&self) -> bool {
+        self.can_spawn_bottled_card(crate::cards::CardType::Skill)
+    }
+
+    fn can_spawn_bottled_card(&self, card_type: crate::cards::CardType) -> bool {
         let registry = crate::cards::global_registry();
         self.run_state.deck.iter().any(|card_id| {
             registry
                 .get(card_id)
-                .is_some_and(|card| card.card_type == crate::cards::CardType::Attack)
+                .is_some_and(|card| card.card_type == card_type)
                 && event_card_rarity(card_id) != Some(EventCardRarity::Basic)
         })
     }
@@ -3109,6 +3169,8 @@ impl RunEngine {
             "Boot",
             // BottledFlame.java uses this canonical ID and UNCOMMON tier.
             "Bottled Flame",
+            // BottledLightning.java uses this canonical ID and UNCOMMON tier.
+            "Bottled Lightning",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
@@ -3124,6 +3186,9 @@ impl RunEngine {
             .copied()
             .filter(|relic| *relic != "Ancient Tea Set" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Bottled Flame" || self.can_spawn_bottled_flame())
+            .filter(|relic| {
+                *relic != "Bottled Lightning" || self.can_spawn_bottled_lightning()
+            })
             .filter(|relic| !self.run_state.relics.iter().any(|owned| owned == relic))
             .collect();
         if candidates.is_empty() {
@@ -3132,7 +3197,10 @@ impl RunEngine {
                     .iter()
                     .copied()
                     .filter(|relic| *relic != "Ancient Tea Set" || self.run_state.floor <= 48)
-                    .filter(|relic| *relic != "Bottled Flame" || self.can_spawn_bottled_flame()),
+                    .filter(|relic| *relic != "Bottled Flame" || self.can_spawn_bottled_flame())
+                    .filter(|relic| {
+                        *relic != "Bottled Lightning" || self.can_spawn_bottled_lightning()
+                    }),
             );
         }
 
@@ -4423,6 +4491,7 @@ impl RunEngine {
         const UNCOMMON_EVENT_RELIC_POOL: &[&str] = &[
             "Blue Candle",
             "Bottled Flame",
+            "Bottled Lightning",
             "ClockworkSouvenir",
             "DataDisk",
             "HappyFlower",
@@ -4437,6 +4506,7 @@ impl RunEngine {
             .copied()
             .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
             .filter(|id| *id != "Bottled Flame" || self.can_spawn_bottled_flame())
+            .filter(|id| *id != "Bottled Lightning" || self.can_spawn_bottled_lightning())
             .filter(|id| !self.run_state.relics.iter().any(|owned| owned == id))
             .collect();
         if candidates.is_empty() {
@@ -4445,6 +4515,7 @@ impl RunEngine {
                 .copied()
                 .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
                 .filter(|id| *id != "Bottled Flame" || self.can_spawn_bottled_flame())
+                .filter(|id| *id != "Bottled Lightning" || self.can_spawn_bottled_lightning())
                 .collect();
         }
         if candidates.is_empty() {
@@ -6716,6 +6787,35 @@ mod tests {
             .hand
             .iter()
             .any(|card| combat.card_registry.card_name(card.def_id) == "Wallop"));
+    }
+
+    #[test]
+    fn bottled_lightning_marks_one_selected_master_deck_card_innate_in_combat() {
+        // Source-derived (verify relic/Bottled Lightning): the selected Skill
+        // gets inBottleLightning=true and enters the opening hand.
+        let mut engine = RunEngine::new(23, 0);
+        engine.run_state.deck = vec![
+            "Strike".to_string(),
+            "Strike".to_string(),
+            "Strike".to_string(),
+            "Defend".to_string(),
+            "Defend".to_string(),
+            "Defend".to_string(),
+            "Eruption".to_string(),
+            "Vigilance".to_string(),
+            "Wallop".to_string(),
+            "ThirdEye".to_string(),
+        ];
+        engine.run_state.relics.push("Bottled Lightning".to_string());
+        engine.run_state.bottled_lightning_card = Some("ThirdEye".to_string());
+
+        engine.enter_specific_combat(vec!["JawWorm".to_string()]);
+        let combat = engine.combat_engine.as_ref().expect("combat should start");
+        assert!(combat
+            .state
+            .hand
+            .iter()
+            .any(|card| combat.card_registry.card_name(card.def_id) == "ThirdEye"));
     }
 
     #[test]

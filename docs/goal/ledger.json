@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T07:20:34.071701+00:00",
+ "updated": "2026-07-11T07:24:51.928068+00:00",
  "status_counts": {
-  "unverified": 505,
-  "verified": 162
+  "unverified": 504,
+  "verified": 163
  },
  "rows": [
   {
@@ -4972,8 +4972,8 @@
    "class": "BottledLightning",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/BottledLightning.java",
    "methods_ref": "reference/extracted/methods/relic/BottledLightning.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
