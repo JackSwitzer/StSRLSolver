@@ -102,6 +102,29 @@ fn teardrop_locket_starts_player_in_calm_on_runtime_path() {
 }
 
 #[test]
+fn teardrop_locket_uses_a_real_stance_transition_before_the_opening_draw() {
+    // Source-derived (verify relic/TeardropLocket): TeardropLocket.java queues
+    // ChangeStanceAction("Calm") from atBattleStart rather than assigning the
+    // stance field, so OnStanceChange hooks resolve before the initial draw.
+    let mut engine = engine_without_start_with_relics(
+        &["TeardropLocket"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    engine.start_combat();
+
+    assert_eq!(engine.state.stance, Stance::Calm);
+    assert!(engine
+        .event_log
+        .iter()
+        .any(|record| record.event == crate::effects::trigger::Trigger::OnStanceChange));
+    assert_eq!(engine.state.player.block, 0);
+    assert_eq!(engine.state.hand.len(), 5);
+    assert_eq!(engine.state.energy, 3);
+}
+
+#[test]
 fn pantograph_heals_only_at_boss_combat_start_on_runtime_path() {
     let mut boss_engine = engine_without_start_with_relics(
         &["Pantograph"],

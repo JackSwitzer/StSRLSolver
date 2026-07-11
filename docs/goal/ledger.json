@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T04:27:54.488213+00:00",
+ "updated": "2026-07-11T04:30:07.274420+00:00",
  "status_counts": {
-  "unverified": 554,
-  "verified": 113
+  "unverified": 553,
+  "verified": 114
  },
  "rows": [
   {
@@ -6362,8 +6362,8 @@
    "class": "TeardropLocket",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/TeardropLocket.java",
    "methods_ref": "reference/extracted/methods/relic/TeardropLocket.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
