@@ -166,7 +166,9 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::SS_TACKLE, 8, 1, 0, &[(mfx::SLIMED, 1)]);
 
         let e = make("SpikeSlime_L", 65);
-        expect_move(&e, move_ids::SS_TACKLE, 16, 1, 0, &[]);
+        // Source: reference/extracted/methods/monster/SpikeSlime_L.java
+        // (`takeTurn` case FLAME_TACKLE adds two Slimed).
+        expect_move(&e, move_ids::SS_TACKLE, 16, 1, 0, &[(mfx::SLIMED, 2)]);
 
         let e = make("Looter", 44);
         expect_move(&e, move_ids::LOOTER_MUG, 10, 1, 0, &[]);
@@ -302,9 +304,12 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::SS_LICK, 0, 0, 0, &[(mfx::FRAIL, 1)]);
 
         let mut e = make("SpikeSlime_L", 65);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SS_TACKLE, 16, 1, 0, &[]);
-        roll_times(&mut e, 1);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 0, &mut crate::seed::StsRandom::new(1));
+        expect_move(&e, move_ids::SS_TACKLE, 16, 1, 0, &[(mfx::SLIMED, 2)]);
+        roll_with_num(&mut e, 30);
+        expect_move(&e, move_ids::SS_LICK, 0, 0, 0, &[(mfx::FRAIL, 2)]);
+        roll_with_num(&mut e, 30);
         expect_move(&e, move_ids::SS_LICK, 0, 0, 0, &[(mfx::FRAIL, 2)]);
 
         let mut e = make("Looter", 44);

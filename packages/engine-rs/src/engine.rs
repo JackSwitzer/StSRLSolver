@@ -306,7 +306,7 @@ impl CombatEngine {
                 | "FuzzyLouseDefensive" | "GreenLouse"
                 | "SlaverBlue" | "BlueSlaver" | "SlaverRed" | "RedSlaver"
                 | "AcidSlime_S" | "AcidSlime_M" | "AcidSlime_L"
-                | "SpikeSlime_S" | "SpikeSlime_M")) {
+                | "SpikeSlime_S" | "SpikeSlime_M" | "SpikeSlime_L")) {
             crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
         }
 

@@ -325,14 +325,24 @@ pub(super) fn roll_spike_slime_m(enemy: &mut EnemyCombatState, num: i32) {
     }
 }
 
-pub(super) fn roll_spike_slime_l(enemy: &mut EnemyCombatState, _num: i32) {
-    if last_two_moves(enemy, move_ids::SS_TACKLE) {
-        enemy.set_move(move_ids::SS_LICK, 0, 0, 0);
-        enemy.add_effect(mfx::FRAIL, 2);
-    } else if last_move(enemy, move_ids::SS_LICK) {
-        enemy.set_move(move_ids::SS_TACKLE, 16, 1, 0);
+pub(super) fn roll_spike_slime_l(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/SpikeSlime_L.java (`getMove`).
+    let damage = enemy.entity.status(sid::STARTING_DMG).max(16);
+    let frail = enemy.entity.status(sid::STR_AMT).max(2) as i16;
+    let a17 = enemy.entity.status(sid::BLOCK_AMT) >= 17;
+    let choose_tackle = if num < 30 {
+        !last_two_moves(enemy, move_ids::SS_TACKLE)
+    } else if a17 {
+        last_move(enemy, move_ids::SS_LICK)
     } else {
-        enemy.set_move(move_ids::SS_TACKLE, 16, 1, 0);
+        last_two_moves(enemy, move_ids::SS_LICK)
+    };
+    if choose_tackle {
+        enemy.set_move(move_ids::SS_TACKLE, damage, 1, 0);
+        enemy.add_effect(mfx::SLIMED, 2);
+    } else {
+        enemy.set_move(move_ids::SS_LICK, 0, 0, 0);
+        enemy.add_effect(mfx::FRAIL, frail);
     }
 }
 

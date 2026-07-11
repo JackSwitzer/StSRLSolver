@@ -481,7 +481,11 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.add_effect(mfx::SLIMED, 1);
         }
         "SpikeSlime_L" => {
+            enemy.entity.set_status(sid::STARTING_DMG, 16);
+            enemy.entity.set_status(sid::STR_AMT, 2);
+            enemy.entity.set_status(sid::BLOCK_AMT, 0);
             enemy.set_move(move_ids::SS_TACKLE, 16, 1, 0);
+            enemy.add_effect(mfx::SLIMED, 2);
         }
         "Looter" => {
             // Mug -> Mug -> SmokeBomb -> Escape

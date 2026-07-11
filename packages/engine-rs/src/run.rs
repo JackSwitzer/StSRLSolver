@@ -1358,6 +1358,27 @@ impl RunEngine {
             enemy.add_effect(crate::combat_types::mfx::SLIMED, 1);
         }
 
+        // Source: reference/extracted/methods/monster/SpikeSlime_L.java.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "SpikeSlime_L") {
+            let damage = if self.run_state.ascension >= 2 { 18 } else { 16 };
+            let frail = if self.run_state.ascension >= 17 { 3 } else { 2 };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, damage);
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT, frail);
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if self.run_state.ascension >= 17 { 17 } else { 0 });
+            enemy.set_move(crate::enemies::move_ids::SS_TACKLE, damage, 1, 0);
+            enemy.add_effect(crate::combat_types::mfx::SLIMED, 2);
+        }
+
+        // The boss passes ascension-derived large-slime constructor values to
+        // its children when its split resolves.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "SlimeBoss") {
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
+                if self.run_state.ascension >= 2 { 1 } else { 0 });
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if self.run_state.ascension >= 17 { 17 } else { 0 });
+        }
+
         // Java Cultist.java: ctor sets ritualAmount = ascensionLevel >= 2 ? 4 : 3;
         // takeTurn() case 3 (INCANTATION) applies RitualPower(ritualAmount + 1)
         // at ascensionLevel >= 17, else RitualPower(ritualAmount).
@@ -1466,7 +1487,8 @@ impl RunEngine {
                 (hp, hp)
             }
             "SpikeSlime_L" => {
-                let hp = if a20 { 70 } else { 65 };
+                let base = if a20 { 67 } else { 64 };
+                let hp = base + self.rng.gen_range(0..=6);
                 (hp, hp)
             }
             "FungiBeast" => {
@@ -4711,6 +4733,78 @@ mod tests {
             "RollMoveAction consumes one aiRng draw after Tackle");
         assert_eq!(combat.state.discard_pile.iter().filter(|card|
             combat.card_registry.card_name(card.def_id) == "Slimed").count(), 1);
+    }
+
+    #[test]
+    fn spike_slime_l_stats_tackle_ai_and_half_hp_split_match_java() {
+        // Source: reference/extracted/methods/monster/SpikeSlime_L.java.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("SpikeSlime_L").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("SpikeSlime_L").0);
+        }
+        assert_eq!(low_hp, (64..=70).collect());
+        assert_eq!(high_hp, (67..=73).collect());
+
+        for (ascension, damage, frail, marker) in
+            [(0, 16, 2, 0), (2, 18, 2, 0), (17, 18, 3, 17)]
+        {
+            let mut engine = RunEngine::new(42, ascension);
+            engine.enter_specific_combat(vec!["SpikeSlime_L".to_string()]);
+            let combat = engine.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG), damage);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), frail);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::BLOCK_AMT), marker);
+            assert_eq!(combat.ai_rng.counter, 1,
+                "AbstractMonster.init performs one opening roll");
+        }
+
+        let mut engine = RunEngine::new(42, 0);
+        engine.enter_specific_combat(vec!["SpikeSlime_L".to_string()]);
+        let ticks_before = {
+            let combat = engine.combat_engine.as_mut().unwrap();
+            let enemy = &mut combat.state.enemies[0];
+            enemy.move_history.clear();
+            enemy.set_move(crate::enemies::move_ids::SS_TACKLE, 16, 1, 0);
+            enemy.move_effects.clear();
+            enemy.add_effect(crate::combat_types::mfx::SLIMED, 2);
+            combat.ai_rng.counter
+        };
+        engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        let combat = engine.combat_engine.as_ref().unwrap();
+        assert_eq!(combat.ai_rng.counter, ticks_before + 1);
+        assert_eq!(combat.state.discard_pile.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) == "Slimed").count(), 2);
+
+        let mut engine = RunEngine::new(42, 17);
+        engine.enter_specific_combat(vec!["SpikeSlime_L".to_string()]);
+        let (half_hp, ticks_before) = {
+            let combat = engine.combat_engine.as_mut().unwrap();
+            let enemy = &mut combat.state.enemies[0];
+            let half = enemy.entity.max_hp / 2;
+            enemy.entity.hp = half + 1;
+            let ticks = combat.ai_rng.counter;
+            combat.deal_damage_to_enemy(0, 1);
+            assert_eq!(combat.state.enemies[0].move_id,
+                crate::enemies::move_ids::SS_SPLIT);
+            (half, ticks)
+        };
+        engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        let combat = engine.combat_engine.as_ref().unwrap();
+        assert_eq!(combat.state.enemies[0].entity.hp, 0);
+        assert_eq!(combat.state.enemies.len(), 3);
+        for child in &combat.state.enemies[1..] {
+            assert_eq!(child.id, "SpikeSlime_M");
+            assert_eq!((child.entity.hp, child.entity.max_hp), (half_hp, half_hp));
+            assert_eq!(child.entity.status(crate::status_ids::sid::STARTING_DMG), 10);
+            assert_eq!(child.entity.status(crate::status_ids::sid::BLOCK_AMT), 17);
+        }
+        assert_eq!(combat.ai_rng.counter, ticks_before + 2,
+            "each spawned medium slime initializes with one aiRng roll");
     }
 
     #[test]
