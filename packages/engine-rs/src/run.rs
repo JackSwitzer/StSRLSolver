@@ -3554,6 +3554,8 @@ impl RunEngine {
             "FossilizedHelix",
             // IceCream.java uses canonical ID "Ice Cream" and RARE tier.
             "Ice Cream",
+            // IncenseBurner.java uses canonical ID "Incense Burner" and RARE tier.
+            "Incense Burner",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",

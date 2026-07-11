@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T08:28:28.450294+00:00",
+ "updated": "2026-07-11T08:30:46.748392+00:00",
  "status_counts": {
-  "unverified": 483,
-  "verified": 184
+  "unverified": 482,
+  "verified": 185
  },
  "rows": [
   {
@@ -5522,8 +5522,8 @@
    "class": "IncenseBurner",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/IncenseBurner.java",
    "methods_ref": "reference/extracted/methods/relic/IncenseBurner.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

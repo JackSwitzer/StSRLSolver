@@ -363,6 +363,8 @@ fn happy_flower_grants_energy_on_every_third_turn_via_engine_path() {
 
 #[test]
 fn incense_burner_grants_intangible_on_sixth_turn_via_engine_path() {
+    // Source-derived (verify relic/Incense Burner): IncenseBurner.java increments
+    // atTurnStart, resets its counter at 6, and applies IntangiblePlayerPower(1).
     let mut state = combat_state_with(make_deck(&["Strike"; 30]), vec![enemy("JawWorm", 120, 120, 1, 0, 1)], 3);
     state.relics.push("Incense Burner".to_string());
 
