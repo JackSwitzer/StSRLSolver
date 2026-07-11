@@ -1175,8 +1175,11 @@ impl EffectRuntime {
                 }
                 self.heal_hp(engine, owner, target, amount, event);
             }
-            SimpleEffect::IncrementCounter(status_id, _threshold) => {
+            SimpleEffect::IncrementCounter(status_id, threshold) => {
                 let next = self.read_status(engine, instance_idx, owner, status_id) + 1;
+                // VelvetChoker.java stops incrementing at six. A threshold of
+                // 1 remains the unbounded counter behavior used by Slow.
+                let next = if threshold > 1 { next.min(threshold) } else { next };
                 self.write_status(engine, instance_idx, owner, status_id, next);
             }
             SimpleEffect::ModifyMaxHp(amount_src) => {

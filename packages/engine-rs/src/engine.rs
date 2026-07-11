@@ -1846,12 +1846,17 @@ impl CombatEngine {
     // =======================================================================
 
     fn velvet_choker_allows_play(&self) -> bool {
-        if !self.state.has_relic("Velvet Choker") && !self.state.has_relic("VelvetChoker") {
+        let Some(slot) = self
+            .state
+            .relics
+            .iter()
+            .position(|relic| matches!(relic.as_str(), "Velvet Choker" | "VelvetChoker"))
+        else {
             return true;
-        }
+        };
         self.hidden_effect_value(
             "Velvet Choker",
-            crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 },
+            crate::effects::runtime::EffectOwner::PlayerRelic { slot: slot as u16 },
             0,
         ) < 6
     }
@@ -3816,6 +3821,8 @@ impl CombatEngine {
 #[cfg(test)]
 mod test_relic_runtime_wave4 {
     use crate::actions::Action;
+    use crate::effects::runtime::GameEvent;
+    use crate::effects::trigger::Trigger;
     use crate::tests::support::{combat_state_with, end_turn, engine_with_state, make_deck_n};
 
     #[test]
@@ -3825,7 +3832,7 @@ mod test_relic_runtime_wave4 {
             vec![crate::tests::support::enemy_no_intent("JawWorm", 120, 120)],
             20,
         );
-        state.relics.push("Velvet Choker".to_string());
+        state.relics = vec!["PureWater".to_string(), "Velvet Choker".to_string()];
         let mut engine = engine_with_state(state);
         engine.state.hand = make_deck_n("Defend", 7);
         engine.state.draw_pile.clear();
@@ -3842,12 +3849,24 @@ mod test_relic_runtime_wave4 {
             assert_eq!(
                 engine.hidden_effect_value(
                     "Velvet Choker",
-                    crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 },
+                    crate::effects::runtime::EffectOwner::PlayerRelic { slot: 1 },
                     0,
                 ),
                 expected
             );
         }
+
+        // VelvetChoker.java ignores further onPlayCard callbacks at six,
+        // including callbacks from paths that do not pass the manual play gate.
+        engine.emit_event(GameEvent::empty(Trigger::OnAnyCardPlayed));
+        assert_eq!(
+            engine.hidden_effect_value(
+                "Velvet Choker",
+                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 1 },
+                0,
+            ),
+            6
+        );
 
         let hand_before_blocked = engine.state.hand.len();
         let energy_before_blocked = engine.state.energy;
@@ -3863,7 +3882,7 @@ mod test_relic_runtime_wave4 {
         assert_eq!(
             engine.hidden_effect_value(
                 "Velvet Choker",
-                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 },
+                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 1 },
                 0,
             ),
             6
@@ -3873,7 +3892,7 @@ mod test_relic_runtime_wave4 {
         assert_eq!(
             engine.hidden_effect_value(
                 "Velvet Choker",
-                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 },
+                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 1 },
                 0,
             ),
             0
@@ -3891,10 +3910,20 @@ mod test_relic_runtime_wave4 {
         assert_eq!(
             engine.hidden_effect_value(
                 "Velvet Choker",
-                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 },
+                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 1 },
                 0,
             ),
             1
+        );
+
+        engine.emit_event(GameEvent::empty(Trigger::CombatVictory));
+        assert_eq!(
+            engine.hidden_effect_value(
+                "Velvet Choker",
+                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 1 },
+                0,
+            ),
+            -1
         );
     }
 }

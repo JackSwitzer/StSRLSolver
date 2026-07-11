@@ -744,8 +744,10 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
         }
 
         // -- Increment counter status --
-        SimpleEffect::IncrementCounter(status_id, _threshold) => {
-            engine.state.player.add_status(status_id, 1);
+        SimpleEffect::IncrementCounter(status_id, threshold) => {
+            let next = engine.state.player.status(status_id) + 1;
+            let next = if threshold > 1 { next.min(threshold) } else { next };
+            engine.state.player.set_status(status_id, next);
         }
 
         // -- Modify max HP --

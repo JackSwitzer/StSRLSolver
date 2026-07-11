@@ -223,6 +223,61 @@ fn runic_dome_grants_energy_and_hides_intents_from_the_rl_surface() {
 }
 
 #[test]
+fn velvet_choker_is_boss_reachable_and_grants_exactly_one_energy() {
+    // Source: VelvetChoker.java constructs a BOSS relic and increments
+    // energyMaster on equip, then decrements it on unequip.
+    let offered = (0..128).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_boss_reward_screen();
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0].choices.iter().any(|choice| {
+                matches!(choice, RewardChoice::Named { label, .. } if label == "Velvet Choker")
+            })
+        })
+    });
+    assert!(offered);
+
+    let mut engine = RunEngine::new(42, 0);
+    engine.debug_set_reward_screen(relic_choice_reward_screen(&["Velvet Choker"]));
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(engine
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    assert_eq!(
+        engine
+            .get_combat_engine()
+            .expect("combat should start")
+            .state
+            .max_energy,
+        4
+    );
+
+    engine
+        .run_state
+        .relics
+        .retain(|relic| relic != "Velvet Choker");
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    assert_eq!(
+        engine
+            .get_combat_engine()
+            .expect("replacement combat should start")
+            .state
+            .max_energy,
+        3
+    );
+}
+
+#[test]
 fn black_star_is_reachable_from_the_watcher_boss_relic_pool() {
     // Sources: RelicLibrary.java registers BlackStar and BlackStar.java
     // constructs it at BOSS tier with canonical ID "Black Star".
