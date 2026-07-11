@@ -1062,6 +1062,50 @@ fn lees_waffle_is_shop_only_and_applies_its_two_step_on_equip_heal() {
 }
 
 #[test]
+fn membership_card_purchase_immediately_rounds_all_visible_shop_prices_in_half() {
+    // MembershipCard.java is SHOP tier; StoreRelic.java purchases it at the
+    // current price, then ShopScreen.applyDiscount(0.5f, true) reprices cards,
+    // relics, and purge using MathUtils.round.
+    let offered_seed = (0..2048).find(|seed| {
+        let mut engine = RunEngine::new(*seed, 0);
+        engine.debug_enter_shop();
+        engine.get_shop().is_some_and(|shop| {
+            shop.relics.iter().any(|(relic, _)| relic == "Membership Card")
+        })
+    }).expect("Membership Card SHOP-tier offer");
+
+    let mut engine = RunEngine::new(offered_seed, 0);
+    engine.run_state.gold = 999;
+    engine.debug_enter_shop();
+    let before = engine.get_shop().expect("shop").clone();
+    let membership_idx = before.relics.iter()
+        .position(|(relic, _)| relic == "Membership Card").expect("membership offer");
+    assert!(engine
+        .step_with_result(&RunAction::ShopBuyRelic(membership_idx))
+        .action_accepted);
+
+    let after = engine.get_shop().expect("shop");
+    for ((_, before_price), (_, after_price)) in before.cards.iter().zip(&after.cards) {
+        assert_eq!(*after_price, ((*before_price as f32) * 0.5).round() as i32);
+    }
+    for (after_idx, (_, after_price)) in after.relics.iter().enumerate() {
+        let before_idx = if after_idx >= membership_idx { after_idx + 1 } else { after_idx };
+        assert_eq!(
+            *after_price,
+            ((before.relics[before_idx].1 as f32) * 0.5).round() as i32
+        );
+    }
+    assert_eq!(
+        after.remove_price,
+        ((before.remove_price as f32) * 0.5).round() as i32
+    );
+    assert!(engine
+        .run_state
+        .relic_flags
+        .has(crate::relic_flags::flag::MEMBERSHIP_CARD));
+}
+
+#[test]
 fn medical_kit_is_reachable_only_from_the_shop_relic_slot() {
     // MedicalKit.java constructs RelicTier.SHOP. ShopScreen.java::initRelics
     // makes its third relic slot SHOP-tier; ordinary combat rewards cannot offer it.

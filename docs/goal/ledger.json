@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T09:24:44.758173+00:00",
+ "updated": "2026-07-11T09:27:38.795308+00:00",
  "status_counts": {
-  "unverified": 467,
-  "verified": 200
+  "unverified": 466,
+  "verified": 201
  },
  "rows": [
   {
@@ -5712,8 +5712,8 @@
    "class": "MembershipCard",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/MembershipCard.java",
    "methods_ref": "reference/extracted/methods/relic/MembershipCard.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

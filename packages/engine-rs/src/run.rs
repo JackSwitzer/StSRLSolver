@@ -3113,6 +3113,19 @@ impl RunEngine {
                     self.run_state.current_hp = self.run_state.max_hp;
                 }
             }
+            "Membership Card" => {
+                // StoreRelic.java immediately applies ShopScreen's rounded
+                // 0.5 discount to all visible offers and the purge price.
+                if let Some(shop) = self.current_shop.as_mut() {
+                    for (_, price) in &mut shop.cards {
+                        *price = ((*price as f32) * 0.5).round() as i32;
+                    }
+                    for (_, price) in &mut shop.relics {
+                        *price = ((*price as f32) * 0.5).round() as i32;
+                    }
+                    shop.remove_price = ((shop.remove_price as f32) * 0.5).round() as i32;
+                }
+            }
             "Mango" => {
                 // Mango.java::onEquip calls increaseMaxHp(14, true): max HP
                 // always rises, while Mark of the Bloom can block the heal.
@@ -4043,7 +4056,7 @@ impl RunEngine {
             };
             // Membership Card: 50% shop discount
             let final_price = if self.run_state.relic_flags.has(crate::relic_flags::flag::MEMBERSHIP_CARD) {
-                price / 2
+                ((price as f32) * 0.5).round() as i32
             } else {
                 price
             };
@@ -4064,7 +4077,7 @@ impl RunEngine {
                 .relic_flags
                 .has(crate::relic_flags::flag::MEMBERSHIP_CARD)
             {
-                price / 2
+                ((price as f32) * 0.5).round() as i32
             } else {
                 price
             };
@@ -4072,6 +4085,7 @@ impl RunEngine {
         }
         const SHOP_RELICS: &[&str] = &[
             "TheAbacus", "Brimstone", "HandDrill", "Lee's Waffle", "Medical Kit", "Melange",
+            "Membership Card",
             "OrangePellets", "Runic Capacitor", "Sling", "Strange Spoon",
             "TwistedFunnel",
         ];
@@ -4095,7 +4109,7 @@ impl RunEngine {
             .relic_flags
             .has(crate::relic_flags::flag::MEMBERSHIP_CARD)
         {
-            shop_price / 2
+            ((shop_price as f32) * 0.5).round() as i32
         } else {
             shop_price
         };
