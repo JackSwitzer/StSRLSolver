@@ -41,7 +41,11 @@ fn relic_wave12_runtime_combat_start_buffs_and_debuffs_match_canonical_runtime()
     let engine = engine_with_state(state);
 
     assert_eq!(engine.state.player.dexterity(), 1);
-    assert!(engine.state.enemies.iter().all(|enemy| enemy.entity.is_weak()));
+    assert!(engine
+        .state
+        .enemies
+        .iter()
+        .all(|enemy| enemy.entity.status(sid::WEAKENED) == 1));
     assert!(engine.state.enemies.iter().all(|enemy| enemy.entity.strength() == 1));
 }
 

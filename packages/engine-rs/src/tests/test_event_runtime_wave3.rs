@@ -162,6 +162,25 @@ fn sensory_stone_focus_and_tomb_of_lord_red_mask_flow_through_event_rewards() {
 }
 
 #[test]
+fn tomb_of_lord_red_mask_reward_is_claimable_into_run_state() {
+    // TombRedMask.java grants the canonical Red Mask special relic; RedMask.java
+    // declares the same ID consumed by its combat-start hook.
+    let mut engine = RunEngine::new(49, 20);
+    engine.debug_set_typed_event_state(typed_event(3, "Tomb of Lord Red Mask"));
+    assert!(engine
+        .step_with_result(&RunAction::EventChoice(0))
+        .action_accepted);
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(engine
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == "Red Mask"));
+}
+
+#[test]
 fn mushrooms_eat_branch_is_now_supported_heal_plus_curse() {
     let mut engine = RunEngine::new(53, 20);
     let mushrooms = typed_event(1, "Mushrooms");

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T19:20:49.942714+00:00",
+ "updated": "2026-07-11T19:23:27.711100+00:00",
  "status_counts": {
-  "unverified": 426,
-  "verified": 241
+  "unverified": 425,
+  "verified": 242
  },
  "rows": [
   {
@@ -6082,8 +6082,8 @@
    "class": "RedMask",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/RedMask.java",
    "methods_ref": "reference/extracted/methods/relic/RedMask.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
