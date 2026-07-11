@@ -80,6 +80,27 @@ fn wave6_simple_self_buff_potions_use_runtime_action_path() {
 }
 
 #[test]
+fn block_potion_grants_raw_bark_doubled_block_without_card_modifiers() {
+    // Source-derived (verify potion/BlockPotion): use() queues GainBlockAction
+    // for the player with potency 12. Dexterity and Frail modify card block,
+    // not this raw action; Sacred Bark doubles potion potency to 24.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.player.set_status(sid::DEXTERITY, 5);
+    engine.state.player.set_status(sid::FRAIL, 1);
+    engine.state.potions[0] = "Block Potion".to_string();
+
+    use_potion(&mut engine, 0, 0);
+
+    assert_eq!(engine.state.player.block, 24);
+    assert!(engine.state.potions[0].is_empty());
+}
+
+#[test]
 fn wave6_simple_targeted_potions_use_runtime_action_path() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike"]),
