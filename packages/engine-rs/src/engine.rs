@@ -3068,6 +3068,8 @@ impl CombatEngine {
             return damage;
         }
 
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/relics/StrikeDummy.java
+        // atDamageModify adds exactly 3 only for cards carrying CardTags.STRIKE.
         if self.card_registry.is_strike(card_inst.def_id) && self.state.has_relic("StrikeDummy") {
             damage += 3;
         }

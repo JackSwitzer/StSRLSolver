@@ -596,18 +596,27 @@ fn red_skull_activates_on_mid_combat_hp_drop_and_clears_on_heal() {
 }
 
 #[test]
-fn strike_dummy_buffs_strike_damage_on_engine_path() {
-    let mut state = combat_state_with(make_deck(&["Strike"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+fn strike_dummy_buffs_only_strike_tagged_attacks_on_engine_path() {
+    // Sources: StrikeDummy.java::atDamageModify adds 3 only for STRIKE-tagged
+    // cards; Strike_Purple.java tags Strike, while Eruption.java does not.
+    let mut state = combat_state_with(
+        make_deck(&["Strike", "Eruption"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
     state.relics.push("StrikeDummy".to_string());
 
     let mut engine = engine_with_state(state);
-    engine.state.hand = make_deck(&["Strike"]);
+    engine.state.hand = make_deck(&["Strike", "Eruption"]);
     engine.state.draw_pile.clear();
-    let hp_before = engine.state.enemies[0].entity.hp;
 
+    let hp_before_strike = engine.state.enemies[0].entity.hp;
     assert!(play_on_enemy(&mut engine, "Strike", 0));
+    assert_eq!(hp_before_strike - engine.state.enemies[0].entity.hp, 9);
 
-    assert_eq!(hp_before - engine.state.enemies[0].entity.hp, 9);
+    let hp_before_eruption = engine.state.enemies[0].entity.hp;
+    assert!(play_on_enemy(&mut engine, "Eruption", 0));
+    assert_eq!(hp_before_eruption - engine.state.enemies[0].entity.hp, 9);
 }
 
 #[test]
