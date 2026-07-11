@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T09:48:50.307855+00:00",
+ "updated": "2026-07-11T09:51:33.029475+00:00",
  "status_counts": {
-  "unverified": 457,
-  "verified": 210
+  "unverified": 456,
+  "verified": 211
  },
  "rows": [
   {
@@ -6102,8 +6102,8 @@
    "class": "RegalPillow",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/RegalPillow.java",
    "methods_ref": "reference/extracted/methods/relic/RegalPillow.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

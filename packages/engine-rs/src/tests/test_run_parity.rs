@@ -261,13 +261,28 @@ mod run_java_parity_tests {
     }
 
     #[test]
-    fn campfire_rest_uses_ceiling_thirty_percent_formula() {
+    fn campfire_rest_truncates_thirty_percent_like_java() {
+        // Source: CampfireSleepEffect.java casts maxHealth * 0.3f to int.
         let mut engine = RunEngine::new(42, 0);
         engine.phase = RunPhase::Campfire;
         engine.run_state.max_hp = 72;
         engine.run_state.current_hp = 40;
         engine.step(&RunAction::CampfireRest);
-        assert_eq!(engine.run_state.current_hp, 62);
+        assert_eq!(engine.run_state.current_hp, 61);
+    }
+
+    #[test]
+    fn regal_pillow_adds_exactly_fifteen_after_truncated_rest_healing() {
+        // Sources: RegalPillow.java defines HEAL_AMT 15; the
+        // CampfireSleepEffect constructor adds it after truncating base heal.
+        let mut engine = RunEngine::new(42, 0);
+        engine.phase = RunPhase::Campfire;
+        engine.run_state.max_hp = 72;
+        engine.run_state.current_hp = 20;
+        engine.run_state.relics.push("Regal Pillow".to_string());
+        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine.step(&RunAction::CampfireRest);
+        assert_eq!(engine.run_state.current_hp, 56);
     }
 
     #[test]

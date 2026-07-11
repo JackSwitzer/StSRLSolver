@@ -2650,6 +2650,32 @@ fn prayer_wheel_is_reachable_only_through_floor_forty_eight() {
 }
 
 #[test]
+fn regal_pillow_is_reachable_only_through_floor_forty_eight() {
+    // RegalPillow.java constructs a COMMON relic and canSpawn excludes
+    // non-endless runs after floor 48.
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 48;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Regal Pillow"
+            })
+        })
+    });
+    assert!(offered);
+
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 49;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Regal Pillow")
+        }));
+    }
+}
+
+#[test]
 fn claiming_singing_bowl_turns_future_card_skip_into_max_hp() {
     let mut engine = RunEngine::new(42, 20);
     engine.debug_set_reward_screen(single_relic_reward_screen("SingingBowl"));

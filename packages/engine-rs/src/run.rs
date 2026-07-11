@@ -3687,6 +3687,9 @@ impl RunEngine {
             // PrayerWheel.java uses canonical ID "Prayer Wheel", RARE tier,
             // and canSpawn excludes non-endless runs after floor 48.
             "Prayer Wheel",
+            // RegalPillow.java uses canonical ID "Regal Pillow", COMMON tier,
+            // and canSpawn excludes non-endless runs after floor 48.
+            "Regal Pillow",
             "SingingBowl",
             "Whetstone",
             "WarPaint",
@@ -3711,6 +3714,7 @@ impl RunEngine {
             .filter(|relic| *relic != "Juzu Bracelet" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Question Card" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Prayer Wheel" || self.run_state.floor <= 48)
+            .filter(|relic| *relic != "Regal Pillow" || self.run_state.floor <= 48)
             .filter(|relic| {
                 !matches!(*relic, "Frozen Egg 2" | "Molten Egg 2" | "Toxic Egg 2")
                     || self.run_state.floor <= 48
@@ -3738,6 +3742,7 @@ impl RunEngine {
                     .filter(|relic| *relic != "Juzu Bracelet" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Question Card" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Prayer Wheel" || self.run_state.floor <= 48)
+                    .filter(|relic| *relic != "Regal Pillow" || self.run_state.floor <= 48)
                     .filter(|relic| {
                         !matches!(*relic, "Frozen Egg 2" | "Molten Egg 2" | "Toxic Egg 2")
                             || self.run_state.floor <= 48
@@ -4009,8 +4014,9 @@ impl RunEngine {
         match action {
             RunAction::CampfireRest => {
                 if !self.run_state.relic_flags.has(crate::relic_flags::flag::MARK_OF_BLOOM) {
-                    let mut heal = (self.run_state.max_hp as f32 * 0.3).ceil() as i32;
-                    // Regal Pillow: +15 campfire heal
+                    // Source: CampfireSleepEffect.java truncates maxHealth *
+                    // 0.3f to int, then adds Regal Pillow's exact 15.
+                    let mut heal = (self.run_state.max_hp as f32 * 0.3) as i32;
                     if self.run_state.relic_flags.has(crate::relic_flags::flag::REGAL_PILLOW) {
                         heal += 15;
                     }
