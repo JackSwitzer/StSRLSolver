@@ -206,7 +206,7 @@ mod tests {
         let simple_ids = [
             "StrengthPotion", "DexterityPotion", "FocusPotion", "BlockPotion",
             "SwiftPotion", "EnergyPotion", "WeakenPotion", "FearPotion",
-            "PoisonPotion", "SpeedPotion", "SteroidPotion", "AncientPotion",
+            "PoisonPotion", "SteroidPotion", "AncientPotion",
             "RegenPotion", "EssenceOfSteel", "LiquidBronze", "HeartOfIron",
             "BloodPotion", "SmokeBomb", "FirePotion",
             "ExplosivePotion",
@@ -234,6 +234,7 @@ mod tests {
             "DistilledChaos",
             "FruitJuice",
             "SneckoOil",
+            "SpeedPotion",
             "EssenceOfDarkness",
             "AttackPotion",
             "SkillPotion",

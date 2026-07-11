@@ -627,6 +627,47 @@ fn temporary_effect_potions_apply_statuses_through_action_path() {
 }
 
 #[test]
+fn speed_potion_keeps_five_potency_and_artifact_can_block_only_dex_loss() {
+    // Source-derived (verify potion/SpeedPotion): getPotency always returns
+    // five. Java applies DexterityPower before debuff-typed LoseDexterityPower,
+    // so Sacred Bark doubles both while Artifact consumes itself to block only
+    // the delayed loss.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/SpeedPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/LoseDexterityPower.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Defend"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand = make_deck(&["Defend"]);
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "SpeedPotion".to_string();
+
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::DEXTERITY), 10);
+    assert_eq!(engine.state.player.status(sid::LOSE_DEXTERITY), 10);
+    assert!(crate::tests::support::play_self(&mut engine, "Defend"));
+    assert_eq!(engine.state.player.block, 15);
+    engine.execute_action(&Action::EndTurn);
+    assert_eq!(engine.state.player.status(sid::DEXTERITY), 0);
+    assert_eq!(engine.state.player.status(sid::LOSE_DEXTERITY), 0);
+
+    let mut artifact = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    artifact.state.player.set_status(sid::ARTIFACT, 1);
+    artifact.state.potions[0] = "SpeedPotion".to_string();
+    use_potion(&mut artifact, 0, -1);
+    assert_eq!(artifact.state.player.status(sid::DEXTERITY), 5);
+    assert_eq!(artifact.state.player.status(sid::LOSE_DEXTERITY), 0);
+    assert_eq!(artifact.state.player.status(sid::ARTIFACT), 0);
+    artifact.execute_action(&Action::EndTurn);
+    assert_eq!(artifact.state.player.status(sid::DEXTERITY), 5);
+}
+
+#[test]
 fn fairy_potion_is_passive_and_revives_through_java_healing_rules() {
     // Source-derived (verify potion/FairyPotion): canUse is always false. On
     // lethal damage, potency is 30% at every ascension, Sacred Bark doubles it,
