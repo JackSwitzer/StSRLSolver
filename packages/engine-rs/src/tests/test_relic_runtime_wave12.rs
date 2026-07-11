@@ -11,11 +11,13 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/RedSkull.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/Sundial.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/TheAbacus.java
+// - decompiled/java-src/com/megacrit/cardcrawl/relics/Melange.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/GremlinHorn.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/TheSpecimen.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/BurningBlood.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/BlackBlood.java
 use crate::effects::runtime::EffectOwner;
+use crate::engine::{ChoiceReason, CombatPhase};
 use crate::status_ids::sid;
 use crate::tests::support::{
     combat_state_with, enemy_no_intent, engine_with_state, engine_without_start, make_deck,
@@ -140,6 +142,61 @@ fn relic_wave12_runtime_shuffle_and_enemy_death_families_match_canonical_runtime
     assert_eq!(engine.state.energy, 4);
     assert_eq!(engine.state.hand.len(), 1);
     assert_eq!(engine.state.enemies[1].entity.status(sid::POISON), 5);
+}
+
+#[test]
+fn melange_scries_after_the_shuffle_draw_and_composes_with_golden_eye() {
+    // Melange.java queues ScryAction(3) from onShuffle. EmptyDeckShuffleAction
+    // completes between the split draw actions, while Melange's addToBot Scry
+    // runs only after the requested cards have been drawn.
+    let shuffled_cards = [
+        "Strike",
+        "Defend",
+        "Bash",
+        "Eruption",
+        "Vigilance",
+        "Scrawl",
+        "EmptyBody",
+    ];
+
+    let mut baseline =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    baseline.state.discard_pile = make_deck(&shuffled_cards);
+    baseline.draw_cards(2);
+    let baseline_hand: Vec<_> = baseline
+        .state
+        .hand
+        .iter()
+        .map(|card| baseline.card_registry.card_name(card.def_id))
+        .collect();
+
+    let mut melange =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    melange.state.relics.push("Melange".to_string());
+    melange.rebuild_effect_runtime();
+    melange.state.discard_pile = make_deck(&shuffled_cards);
+    melange.draw_cards(2);
+    let melange_hand: Vec<_> = melange
+        .state
+        .hand
+        .iter()
+        .map(|card| melange.card_registry.card_name(card.def_id))
+        .collect();
+    assert_eq!(melange_hand, baseline_hand);
+    assert_eq!(melange.phase, CombatPhase::AwaitingChoice);
+    let choice = melange.choice.as_ref().expect("Melange Scry choice");
+    assert_eq!(choice.reason, ChoiceReason::Scry);
+    assert_eq!(choice.options.len(), 3);
+
+    let mut golden =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    golden.state.relics = vec!["Melange".to_string(), "GoldenEye".to_string()];
+    golden.rebuild_effect_runtime();
+    golden.state.discard_pile = make_deck(&shuffled_cards);
+    golden.draw_cards(2);
+    let choice = golden.choice.as_ref().expect("GoldenEye Melange Scry choice");
+    assert_eq!(choice.options.len(), 5);
+    assert_eq!(choice.max_picks, 5);
 }
 
 #[test]

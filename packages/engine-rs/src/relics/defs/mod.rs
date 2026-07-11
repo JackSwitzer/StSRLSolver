@@ -61,6 +61,7 @@ pub mod black_blood;
 pub mod toy_ornithopter;
 pub mod self_forming_clay;
 pub mod the_abacus;
+pub mod melange;
 
 // ===========================================================================
 // Combat-start: stat buffs requiring complex_hook
@@ -245,6 +246,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &toy_ornithopter::DEF,
     &self_forming_clay::DEF,
     &the_abacus::DEF,
+    &melange::DEF,
     // Combat-start: stat buffs (complex_hook)
     &du_vu_doll::DEF,
     &girya::DEF,

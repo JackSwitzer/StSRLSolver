@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T04:23:04.799120+00:00",
+ "updated": "2026-07-11T04:27:54.488213+00:00",
  "status_counts": {
-  "unverified": 555,
-  "verified": 112
+  "unverified": 554,
+  "verified": 113
  },
  "rows": [
   {
@@ -5702,8 +5702,8 @@
    "class": "Melange",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Melange.java",
    "methods_ref": "reference/extracted/methods/relic/Melange.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

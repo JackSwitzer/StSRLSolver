@@ -3243,6 +3243,7 @@ impl CombatEngine {
         let actual_count = (count - draw_reduction).max(0);
 
         let mut extra_draws = 0i32;
+        let mut shuffles = 0;
 
         for _ in 0..actual_count {
             if self.state.hand.len() >= 10 {
@@ -3257,14 +3258,7 @@ impl CombatEngine {
                 let mut shuffled = std::mem::take(&mut self.state.discard_pile);
                 shuffled.shuffle(&mut self.rng);
                 self.state.draw_pile = shuffled;
-                // Fire on_shuffle relics via unified dispatch (Sundial, The Abacus)
-                {
-                    let ctx = crate::effects::trigger::TriggerContext::empty();
-                    self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
-                        crate::effects::trigger::Trigger::OnShuffle,
-                        &ctx,
-                    ));
-                }
+                shuffles += 1;
             }
 
             if let Some(drawn) = self.state.draw_pile.pop() {
@@ -3296,9 +3290,31 @@ impl CombatEngine {
             }
         }
 
+        // EmptyDeckShuffleAction constructs onShuffle relic actions before the
+        // follow-up draw, but those relic actions are queued behind that draw.
+        // Emit after the requested cards are in hand so Melange's ScryAction
+        // sees the same remaining draw pile as Java.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DrawCardAction.java
+        // and actions/common/EmptyDeckShuffleAction.java
+        for _ in 0..shuffles {
+            let ctx = crate::effects::trigger::TriggerContext::empty();
+            self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+                crate::effects::trigger::Trigger::OnShuffle,
+                &ctx,
+            ));
+        }
+
         // Evolve: draw accumulated extra cards (recursive call handles further triggers)
         if extra_draws > 0 {
-            self.draw_cards(extra_draws);
+            if self.phase == CombatPhase::AwaitingChoice
+                && self.choice.as_ref().is_some_and(|choice| choice.reason == ChoiceReason::Scry)
+            {
+                if let Some(choice) = self.choice.as_mut() {
+                    choice.post_choice_draw += extra_draws;
+                }
+            } else {
+                self.draw_cards(extra_draws);
+            }
         }
     }
 
