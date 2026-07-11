@@ -196,6 +196,50 @@ fn busted_crown_is_reachable_and_subtracts_two_card_reward_choices() {
 }
 
 #[test]
+fn coffee_dripper_is_reachable_and_disables_only_campfire_rest() {
+    // CoffeeDripper.java constructs a BOSS relic, increments energyMaster on
+    // equip, and rejects the exact RestOption class in canUseCampfireOption.
+    let offered = (0..128).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_boss_reward_screen();
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0].choices.iter().any(|choice| {
+                matches!(choice, RewardChoice::Named { label, .. } if label == "Coffee Dripper")
+            })
+        })
+    });
+    assert!(offered);
+
+    let mut engine = RunEngine::new(42, 0);
+    engine.debug_set_reward_screen(relic_choice_reward_screen(&["Coffee Dripper"]));
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(engine
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+    assert!(engine
+        .run_state
+        .relic_flags
+        .has(crate::relic_flags::flag::COFFEE_DRIPPER));
+
+    engine.debug_set_campfire_phase();
+    assert!(!engine.get_legal_actions().contains(&RunAction::CampfireRest));
+    assert!(!engine
+        .current_decision_context()
+        .campfire
+        .expect("campfire context")
+        .can_rest);
+    assert!(engine
+        .get_legal_actions()
+        .iter()
+        .any(|action| matches!(action, RunAction::CampfireUpgrade(_))));
+}
+
+#[test]
 fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
     // Source-derived (verify relic/Calling Bell): CallingBell.java is BOSS tier,
     // confirms CurseOfTheBell, then opens COMMON, UNCOMMON, and RARE relic

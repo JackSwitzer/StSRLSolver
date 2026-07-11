@@ -21,6 +21,7 @@ pub mod bronze_scales;
 pub mod busted_crown;
 pub mod calipers;
 pub mod calling_bell;
+pub mod coffee_dripper;
 pub mod clockwork_souvenir;
 pub mod fossilized_helix;
 pub mod blood_vial;
@@ -224,6 +225,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &busted_crown::DEF,
     &calipers::DEF,
     &calling_bell::DEF,
+    &coffee_dripper::DEF,
     &clockwork_souvenir::DEF,
     &fossilized_helix::DEF,
     &blood_vial::DEF,

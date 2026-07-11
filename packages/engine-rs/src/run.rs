@@ -1040,7 +1040,8 @@ impl RunEngine {
     fn get_campfire_actions(&self) -> Vec<RunAction> {
         let mut actions = Vec::new();
 
-        // Coffee Dripper blocks resting
+        // CoffeeDripper.java::canUseCampfireOption disables the exact
+        // RestOption class while leaving other campfire options available.
         if !self.run_state.relic_flags.has(crate::relic_flags::flag::COFFEE_DRIPPER) {
             actions.push(RunAction::CampfireRest);
         }
@@ -1724,12 +1725,18 @@ impl RunEngine {
                 card.flags |= crate::combat_types::CardInstance::FLAG_INNATE;
             }
         }
-        // BustedCrown.java::onEquip increments energyMaster once.
+        // BustedCrown.java and CoffeeDripper.java each increment energyMaster
+        // exactly once in onEquip.
         let combat_energy = 3
             + i32::from(
                 self.run_state
                     .relic_flags
                     .has(crate::relic_flags::flag::BUSTED_CROWN),
+            )
+            + i32::from(
+                self.run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::COFFEE_DRIPPER),
             );
         let mut combat_state = CombatState::new(
             self.run_state.current_hp,
@@ -3482,6 +3489,7 @@ impl RunEngine {
         const BOSS_RELIC_POOL: &[&str] = &[
             "Busted Crown",
             "Calling Bell",
+            "Coffee Dripper",
             "Philosopher's Stone",
             "Velvet Choker",
             "Snecko Eye",
@@ -7080,6 +7088,20 @@ mod tests {
         // BustedCrown.java::onEquip increments energyMaster exactly once.
         let mut engine = RunEngine::new(31, 0);
         engine.run_state.relics.push("Busted Crown".to_string());
+        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+
+        engine.enter_specific_combat(vec!["JawWorm".to_string()]);
+        let combat = engine.combat_engine.as_ref().expect("combat should start");
+        assert_eq!(combat.state.max_energy, 4);
+        assert_eq!(combat.state.energy, 4);
+    }
+
+    #[test]
+    fn coffee_dripper_increases_watcher_master_energy_for_combat() {
+        // Source-derived (verify relic/Coffee Dripper):
+        // CoffeeDripper.java::onEquip increments energyMaster exactly once.
+        let mut engine = RunEngine::new(37, 0);
+        engine.run_state.relics.push("Coffee Dripper".to_string());
         engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
 
         engine.enter_specific_combat(vec!["JawWorm".to_string()]);

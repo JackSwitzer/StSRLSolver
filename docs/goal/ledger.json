@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T07:51:22.577608+00:00",
+ "updated": "2026-07-11T07:53:53.524585+00:00",
  "status_counts": {
-  "unverified": 497,
-  "verified": 170
+  "unverified": 496,
+  "verified": 171
  },
  "rows": [
   {
@@ -5162,8 +5162,8 @@
    "class": "CoffeeDripper",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/CoffeeDripper.java",
    "methods_ref": "reference/extracted/methods/relic/CoffeeDripper.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
