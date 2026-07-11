@@ -196,6 +196,87 @@ fn busted_crown_is_reachable_and_subtracts_two_card_reward_choices() {
 }
 
 #[test]
+fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
+    // Source-derived (verify relic/Calling Bell): CallingBell.java is BOSS tier,
+    // confirms CurseOfTheBell, then opens COMMON, UNCOMMON, and RARE relic
+    // rewards in that order.
+    let offered = (0..128).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_boss_reward_screen();
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0]
+                .choices
+                .iter()
+                .any(|choice| matches!(choice, RewardChoice::Named { label, .. } if label == "Calling Bell"))
+        })
+    });
+    assert!(offered);
+
+    let mut engine = RunEngine::new(77, 0);
+    engine.run_state.deck.push("Wallop".to_string());
+    engine.run_state.deck.push("ThirdEye".to_string());
+    engine.run_state.deck.push("Devotion".to_string());
+    engine.debug_set_reward_screen(relic_choice_reward_screen(&["Calling Bell"]));
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(engine
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+
+    let screen = engine
+        .current_reward_screen()
+        .expect("Calling Bell rewards should replace boss choices");
+    assert_eq!(screen.items.len(), 4);
+    assert!(matches!(
+        &screen.items[0].choices[0],
+        RewardChoice::Card { card_id, .. } if card_id == "CurseOfTheBell"
+    ));
+    assert!(screen.items[1..]
+        .iter()
+        .all(|item| item.kind == RewardItemKind::Relic));
+
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(engine
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+    assert!(engine
+        .run_state
+        .deck
+        .iter()
+        .any(|card| card == "CurseOfTheBell"));
+
+    for item_index in 1..=3 {
+        assert!(engine
+            .step_with_result(&RunAction::SelectRewardItem(item_index))
+            .action_accepted);
+        if engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0].label.starts_with("deck_selection_bottled_")
+        }) {
+            assert!(engine
+                .step_with_result(&RunAction::SelectRewardItem(0))
+                .action_accepted);
+            assert!(engine
+                .step_with_result(&RunAction::ChooseRewardOption {
+                    item_index: 0,
+                    choice_index: 0,
+                })
+                .action_accepted);
+        }
+    }
+    assert_eq!(engine.run_state.relics.len(), 5);
+    assert!(engine.run_state.run_over);
+}
+
+#[test]
 fn astrolabe_is_reachable_and_transforms_three_selected_cards_upgraded() {
     // Source-derived (verify relic/Astrolabe): Astrolabe.java is BOSS tier,
     // selects exactly three purgeable cards when more than three are eligible,

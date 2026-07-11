@@ -244,16 +244,17 @@ fn boss_reward_screen_requires_relic_choice_and_ends_run_after_resolution() {
     assert!(screen.items[0].claimable);
     assert!(!screen.items[0].skip_allowed);
 
-    // Astrolabe.java::onEquip opens a required three-card selection when more
-    // than three purgeable cards exist, so this generic immediate-completion
-    // test deliberately chooses a boss relic without a nested decision.
+    // Astrolabe.java::onEquip and CallingBell.java::onEquip/update open
+    // mandatory nested decisions, so this generic immediate-completion test
+    // deliberately chooses a boss relic without a nested decision.
     let choice_index = screen.items[0]
         .choices
         .iter()
         .position(|choice| {
-            matches!(choice, RewardChoice::Named { label, .. } if label != "Astrolabe")
+            matches!(choice, RewardChoice::Named { label, .. }
+                if label != "Astrolabe" && label != "Calling Bell")
         })
-        .expect("boss screen should include a non-Astrolabe choice");
+        .expect("boss screen should include a non-nested relic choice");
     let chosen_relic = match &screen.items[0].choices[choice_index] {
         RewardChoice::Named { label, .. } => label.clone(),
         other => panic!("expected named boss relic choice, got {other:?}"),

@@ -532,11 +532,13 @@ pub struct RunEngine {
 
     // Ordered reward screen state (when in CardReward phase).
     reward_screen: Option<RewardScreen>,
+    suspended_reward_screen: Option<RewardScreen>,
     pending_astrolabe_selection: bool,
     pending_astrolabe_removed: Vec<String>,
     pending_bottled_flame_selection: bool,
     pending_bottled_lightning_selection: bool,
     pending_bottled_tornado_selection: bool,
+    pending_calling_bell_rewards: bool,
 
     // Canonical stack of active decisions.
     decision_stack: DecisionStack,
@@ -604,11 +606,13 @@ impl RunEngine {
             rng,
             combat_engine: None,
             reward_screen: None,
+            suspended_reward_screen: None,
             pending_astrolabe_selection: false,
             pending_astrolabe_removed: Vec::new(),
             pending_bottled_flame_selection: false,
             pending_bottled_lightning_selection: false,
             pending_bottled_tornado_selection: false,
+            pending_calling_bell_rewards: false,
             decision_stack: DecisionStack::new(),
             current_event: None,
             pending_event_combat: None,
@@ -2572,6 +2576,8 @@ impl RunEngine {
         let kind = choice_frame.item_kind;
         let chose_astrolabe =
             matches!(&choice, RewardChoice::Named { label, .. } if label == "Astrolabe");
+        let chose_calling_bell =
+            matches!(&choice, RewardChoice::Named { label, .. } if label == "Calling Bell");
         let astrolabe_card_pick = item_label == "deck_selection_astrolabe";
         let bottled_flame_card_pick = item_label == "deck_selection_bottled_flame";
         let bottled_lightning_card_pick = item_label == "deck_selection_bottled_lightning";
@@ -2634,6 +2640,15 @@ impl RunEngine {
             }
         } else if chose_astrolabe && self.pending_astrolabe_selection {
             self.build_astrolabe_selection_screen();
+        } else if chose_calling_bell && self.pending_calling_bell_rewards {
+            self.build_calling_bell_reward_screen();
+        }
+        if (bottled_flame_card_pick
+            || bottled_lightning_card_pick
+            || bottled_tornado_card_pick)
+            && self.suspended_reward_screen.is_some()
+        {
+            self.reward_screen = self.suspended_reward_screen.take();
         }
     }
 
@@ -2766,6 +2781,11 @@ impl RunEngine {
         let kind = item.kind;
         let label = item.label.clone();
         let source = screen.source.clone();
+        let suspend_for_bottle = screen.items.len() > 1
+            && matches!(
+                label.as_str(),
+                "Bottled Flame" | "Bottled Lightning" | "Bottled Tornado"
+            );
 
         match kind {
             RewardItemKind::Relic => self.add_relic_reward(&label),
@@ -2784,12 +2804,17 @@ impl RunEngine {
             }
             Self::refresh_reward_screen(screen);
         }
+        if suspend_for_bottle {
+            self.suspended_reward_screen = self.reward_screen.clone();
+        }
         if label == "Bottled Flame" && self.pending_bottled_flame_selection {
             self.build_bottled_flame_selection_screen(source);
         } else if label == "Bottled Lightning" && self.pending_bottled_lightning_selection {
             self.build_bottled_lightning_selection_screen(source);
         } else if label == "Bottled Tornado" && self.pending_bottled_tornado_selection {
             self.build_bottled_tornado_selection_screen(source);
+        } else if label == "Calling Bell" && self.pending_calling_bell_rewards {
+            self.build_calling_bell_reward_screen();
         }
     }
 
@@ -2882,6 +2907,7 @@ impl RunEngine {
                 self.pending_bottled_tornado_selection =
                     !self.bottled_tornado_choices().is_empty();
             }
+            "Calling Bell" => self.pending_calling_bell_rewards = true,
             "Whetstone" => self.upgrade_random_cards_by_type(crate::cards::CardType::Attack, 2),
             "WarPaint" => self.upgrade_random_cards_by_type(crate::cards::CardType::Skill, 2),
             // D27 partial fix: Pandora's Box. Java replaces all Strikes and Defends
@@ -3085,6 +3111,117 @@ impl RunEngine {
         };
         Self::refresh_reward_screen(&mut screen);
         self.reward_screen = Some(screen);
+    }
+
+    fn roll_calling_bell_tier_relic(&mut self, pool: &[&str]) -> String {
+        let registry = gameplay_registry();
+        let candidates: Vec<&str> = pool
+            .iter()
+            .copied()
+            .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
+            .filter(|id| *id != "Ancient Tea Set" || self.run_state.floor <= 48)
+            .filter(|id| *id != "Bottled Flame" || self.can_spawn_bottled_flame())
+            .filter(|id| *id != "Bottled Lightning" || self.can_spawn_bottled_lightning())
+            .filter(|id| *id != "Bottled Tornado" || self.can_spawn_bottled_tornado())
+            .filter(|id| !self.run_state.relics.iter().any(|owned| owned == id))
+            .collect();
+        if candidates.is_empty() {
+            return "Circlet".to_string();
+        }
+        candidates[self.rng.gen_range(0..candidates.len())].to_string()
+    }
+
+    fn build_calling_bell_reward_screen(&mut self) {
+        // CallingBell.java opens one mandatory Curse of the Bell confirmation,
+        // then one screenless COMMON, UNCOMMON, and RARE relic reward.
+        const COMMON: &[&str] = &[
+            "Akabeko",
+            "Anchor",
+            "Ancient Tea Set",
+            "Art of War",
+            "Bag of Marbles",
+            "Bag of Preparation",
+            "Blood Vial",
+            "Boot",
+            "Bronze Scales",
+            "Vajra",
+        ];
+        const UNCOMMON: &[&str] = &[
+            "Blue Candle",
+            "Bottled Flame",
+            "Bottled Lightning",
+            "Bottled Tornado",
+            "Ornamental Fan",
+            "Thread and Needle",
+        ];
+        const RARE: &[&str] = &[
+            "Bird Faced Urn",
+            "Calipers",
+            "Ice Cream",
+            "Incense Burner",
+            "Tough Bandages",
+            "Tungsten Rod",
+        ];
+        let common = self.roll_calling_bell_tier_relic(COMMON);
+        let uncommon = self.roll_calling_bell_tier_relic(UNCOMMON);
+        let rare = self.roll_calling_bell_tier_relic(RARE);
+        let mut screen = RewardScreen {
+            source: RewardScreenSource::BossCombat,
+            ordered: true,
+            active_item: None,
+            items: vec![
+                RewardItem {
+                    index: 0,
+                    kind: RewardItemKind::CardChoice,
+                    state: RewardItemState::Available,
+                    label: "calling_bell_curse".to_string(),
+                    claimable: true,
+                    active: false,
+                    skip_allowed: false,
+                    skip_label: None,
+                    choices: vec![RewardChoice::Card {
+                        index: 0,
+                        card_id: "CurseOfTheBell".to_string(),
+                    }],
+                },
+                RewardItem {
+                    index: 1,
+                    kind: RewardItemKind::Relic,
+                    state: RewardItemState::Available,
+                    label: common,
+                    claimable: false,
+                    active: false,
+                    skip_allowed: false,
+                    skip_label: None,
+                    choices: Vec::new(),
+                },
+                RewardItem {
+                    index: 2,
+                    kind: RewardItemKind::Relic,
+                    state: RewardItemState::Available,
+                    label: uncommon,
+                    claimable: false,
+                    active: false,
+                    skip_allowed: false,
+                    skip_label: None,
+                    choices: Vec::new(),
+                },
+                RewardItem {
+                    index: 3,
+                    kind: RewardItemKind::Relic,
+                    state: RewardItemState::Available,
+                    label: rare,
+                    claimable: false,
+                    active: false,
+                    skip_allowed: false,
+                    skip_label: None,
+                    choices: Vec::new(),
+                },
+            ],
+        };
+        Self::refresh_reward_screen(&mut screen);
+        self.reward_screen = Some(screen);
+        self.pending_calling_bell_rewards = false;
     }
 
     fn remove_relic_reward(&mut self, relic_id: &str) {
@@ -3336,6 +3473,7 @@ impl RunEngine {
     fn roll_boss_relic_choices(&mut self, count: usize) -> Vec<String> {
         const BOSS_RELIC_POOL: &[&str] = &[
             "Busted Crown",
+            "Calling Bell",
             "Philosopher's Stone",
             "Velvet Choker",
             "Snecko Eye",

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T07:36:41.863066+00:00",
+ "updated": "2026-07-11T07:43:34.751574+00:00",
  "status_counts": {
-  "unverified": 500,
-  "verified": 167
+  "unverified": 499,
+  "verified": 168
  },
  "rows": [
   {
@@ -5052,8 +5052,8 @@
    "class": "CallingBell",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/CallingBell.java",
    "methods_ref": "reference/extracted/methods/relic/CallingBell.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
