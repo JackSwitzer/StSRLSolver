@@ -760,17 +760,36 @@ pub fn advance_hexaghost_after_turn(
 }
 
 pub(super) fn roll_slime_boss(enemy: &mut EnemyCombatState) {
-    if last_move(enemy, move_ids::SB_STICKY) {
-        enemy.set_move(move_ids::SB_PREP_SLAM, 0, 0, 0);
-    } else if last_move(enemy, move_ids::SB_PREP_SLAM) {
-        enemy.set_move(move_ids::SB_SLAM, 35, 1, 0);
-    } else {
+    // Source: reference/extracted/methods/monster/SlimeBoss.java (`getMove`).
+    if enemy.entity.status(sid::IS_FIRST_MOVE) == 0 {
+        enemy.entity.set_status(sid::IS_FIRST_MOVE, 1);
         enemy.set_move(move_ids::SB_STICKY, 0, 0, 0);
-        enemy.add_effect(mfx::SLIMED, 3);
+        enemy.add_effect(mfx::SLIMED,
+            enemy.entity.status(sid::STR_AMT).max(3) as i16);
+    }
+}
+
+pub fn advance_slime_boss_after_turn(enemy: &mut EnemyCombatState) {
+    // Source: SlimeBoss.java `takeTurn`. All three ordinary moves call
+    // setMove directly and never queue RollMoveAction.
+    enemy.move_history.push(enemy.move_id);
+    enemy.move_effects.clear();
+    match enemy.move_id {
+        move_ids::SB_STICKY => enemy.set_move(move_ids::SB_PREP_SLAM, 0, 0, 0),
+        move_ids::SB_PREP_SLAM => enemy.set_move(move_ids::SB_SLAM,
+            enemy.entity.status(sid::SLAP_DMG).max(35), 1, 0),
+        move_ids::SB_SLAM => {
+            enemy.set_move(move_ids::SB_STICKY, 0, 0, 0);
+            enemy.add_effect(mfx::SLIMED,
+                enemy.entity.status(sid::STR_AMT).max(3) as i16);
+        }
+        _ => {}
     }
 }
 
 /// Check if Slime Boss should split (HP <= 50%).
 pub fn slime_boss_should_split(enemy: &EnemyCombatState) -> bool {
-    enemy.entity.hp > 0 && enemy.entity.hp <= enemy.entity.max_hp / 2
+    enemy.entity.hp > 0
+        && enemy.entity.hp * 2 <= enemy.entity.max_hp
+        && enemy.move_id != move_ids::SB_SPLIT
 }

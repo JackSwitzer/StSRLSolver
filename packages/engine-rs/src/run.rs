@@ -1531,6 +1531,15 @@ impl RunEngine {
         // The boss passes ascension-derived large-slime constructor values to
         // its children when its split resolves.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "SlimeBoss") {
+            enemy.entity.set_status(crate::status_ids::sid::FIRE_TACKLE_DMG,
+                if self.run_state.ascension >= 4 { 10 } else { 9 });
+            enemy.entity.set_status(crate::status_ids::sid::SLAP_DMG,
+                if self.run_state.ascension >= 4 { 38 } else { 35 });
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
+                if self.run_state.ascension >= 19 { 5 } else { 3 });
+            enemy.set_move(crate::enemies::move_ids::SB_STICKY, 0, 0, 0);
+            enemy.add_effect(crate::combat_types::mfx::SLIMED,
+                if self.run_state.ascension >= 19 { 5 } else { 3 });
             enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
                 if self.run_state.ascension >= 2 { 1 } else { 0 });
             enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
@@ -1739,7 +1748,8 @@ impl RunEngine {
                 (hp, hp)
             }
             "SlimeBoss" => {
-                let hp = if a20 { 150 } else { 140 };
+                // Source: SlimeBoss.java constructor: HP changes at A9.
+                let hp = if self.run_state.ascension >= 9 { 150 } else { 140 };
                 (hp, hp)
             }
             // Act 2 enemies
@@ -5831,6 +5841,95 @@ mod tests {
         crate::combat_hooks::do_enemy_turns(combat);
         crate::combat_hooks::do_enemy_turns(combat);
         assert_eq!(combat.state.enemies[0].effect(crate::combat_types::mfx::BURN), Some(2));
+    }
+
+    #[test]
+    fn slime_boss_stats_direct_cycle_delayed_split_and_child_order_match_java() {
+        // Source: reference/extracted/methods/monster/SlimeBoss.java
+        // (constructor, `getMove`, `takeTurn`, and `damage`).
+        for (ascension, hp, tackle, slam, slimed) in [
+            (0, 140, 9, 35, 3),
+            (4, 140, 10, 38, 3),
+            (9, 150, 10, 38, 3),
+            (19, 150, 10, 38, 5),
+        ] {
+            let mut engine = RunEngine::new(42, ascension);
+            engine.enter_specific_combat(vec!["SlimeBoss".to_string()]);
+            let combat = engine.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!((enemy.entity.hp, enemy.entity.max_hp), (hp, hp));
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::FIRE_TACKLE_DMG), tackle);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::SLAP_DMG), slam);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), slimed);
+            assert_eq!(enemy.move_id, crate::enemies::move_ids::SB_STICKY);
+            assert_eq!(enemy.effect(crate::combat_types::mfx::SLIMED), Some(slimed as i16));
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        let mut cycle = RunEngine::new(42, 19);
+        cycle.enter_specific_combat(vec!["SlimeBoss".to_string()]);
+        let combat = cycle.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 200;
+        combat.state.player.max_hp = 200;
+        crate::combat_hooks::do_enemy_turns(combat); // Sticky -> Prep Slam
+        assert_eq!(combat.state.discard_pile.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) == "Slimed").count(), 5);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::SB_PREP_SLAM);
+        crate::combat_hooks::do_enemy_turns(combat); // Prep Slam -> Slam
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::SB_SLAM);
+        assert_eq!(combat.state.enemies[0].move_damage(), 38);
+        crate::combat_hooks::do_enemy_turns(combat); // Slam -> Sticky
+        assert_eq!(combat.state.player.hp, 162);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::SB_STICKY);
+        assert_eq!(combat.state.enemies[0].effect(crate::combat_types::mfx::SLIMED), Some(5));
+        assert_eq!(combat.ai_rng.counter, 1,
+            "Sticky, Prep Slam, and Slam all set the next move directly");
+
+        let mut split = RunEngine::new(42, 19);
+        split.enter_specific_combat(vec!["SlimeBoss".to_string()]);
+        let combat = split.combat_engine.as_mut().unwrap();
+        combat.deal_damage_to_enemy(0, 75);
+        assert_eq!(combat.state.enemies[0].entity.hp, 75);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::SB_SPLIT);
+        assert_eq!(combat.state.enemies.len(), 1,
+            "damage only interrupts the intent; Split has not taken its turn");
+        assert_eq!(combat.ai_rng.counter, 1);
+
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].entity.hp, 0);
+        assert_eq!(combat.state.enemies.len(), 3);
+        assert_eq!(combat.state.enemies[1].id, "SpikeSlime_L");
+        assert_eq!(combat.state.enemies[2].id, "AcidSlime_L");
+        for child in &combat.state.enemies[1..] {
+            assert_eq!((child.entity.hp, child.entity.max_hp), (75, 75));
+        }
+        assert_eq!(combat.state.enemies[1].entity.status(
+            crate::status_ids::sid::STARTING_DMG), 18);
+        assert_eq!(combat.state.enemies[1].entity.status(
+            crate::status_ids::sid::STR_AMT), 3);
+        assert_eq!(combat.state.enemies[2].entity.status(
+            crate::status_ids::sid::STARTING_DMG), 12);
+        assert_eq!(combat.state.enemies[2].entity.status(
+            crate::status_ids::sid::STR_AMT), 18);
+        assert_eq!(combat.state.enemies[1].entity.status(
+            crate::status_ids::sid::BLOCK_AMT), 17);
+        assert_eq!(combat.state.enemies[2].entity.status(
+            crate::status_ids::sid::BLOCK_AMT), 17);
+        assert_eq!(combat.ai_rng.counter, 3,
+            "the spawned Spike then Acid each consume one opening aiRng value");
+
+        let mut lethal = RunEngine::new(42, 0);
+        lethal.enter_specific_combat(vec!["SlimeBoss".to_string()]);
+        let combat = lethal.combat_engine.as_mut().unwrap();
+        combat.state.enemies[0].entity.hp = 10;
+        combat.deal_damage_to_enemy(0, 10);
+        assert_eq!(combat.state.enemies[0].entity.hp, 0);
+        assert_eq!(combat.state.enemies.len(), 1,
+            "SlimeBoss.damage excludes lethal hits with !isDying");
     }
 
     #[test]

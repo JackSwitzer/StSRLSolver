@@ -664,6 +664,16 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         return;
     }
 
+    if engine.state.enemies[enemy_idx].id == "SlimeBoss" {
+        if engine.state.enemies[enemy_idx].move_id == enemies::move_ids::SB_SPLIT {
+            do_slime_boss_split(engine, enemy_idx);
+        } else {
+            enemies::act1::advance_slime_boss_after_turn(
+                &mut engine.state.enemies[enemy_idx]);
+        }
+        return;
+    }
+
     if matches!(engine.state.enemies[enemy_idx].id.as_str(),
         "GremlinThief" | "GremlinWarrior")
     {
@@ -712,7 +722,11 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
         }
         "SlimeBoss" => {
             if enemies::slime_boss_should_split(&engine.state.enemies[enemy_idx]) {
-                do_slime_boss_split(engine, enemy_idx);
+                // Source: SlimeBoss.java `damage`: crossing half HP interrupts
+                // the current intent with Split; spawning waits for takeTurn.
+                let enemy = &mut engine.state.enemies[enemy_idx];
+                enemy.move_effects.clear();
+                enemy.set_move(enemies::move_ids::SB_SPLIT, 0, 0, 0);
             }
         }
         "AcidSlime_L" | "SpikeSlime_L" => {
@@ -774,26 +788,26 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
 
 /// Handle Slime Boss splitting into two smaller slimes.
 fn do_slime_boss_split(engine: &mut CombatEngine, boss_idx: usize) {
-    // Capture boss's current HP before killing (each child gets the boss's current HP)
+    // Source: SlimeBoss.java `takeTurn` case 3. Spawn Spike first, then Acid,
+    // both with the boss's current HP as current and maximum HP.
     let boss_current_hp = engine.state.enemies[boss_idx].entity.hp;
 
     // Kill the boss
     engine.state.enemies[boss_idx].entity.hp = 0;
 
-    // Spawn two Large slimes (one Acid, one Spike) with boss's current HP
     let upgraded = engine.state.enemies[boss_idx].entity.status(sid::STARTING_DMG) > 0;
     let a17 = engine.state.enemies[boss_idx].entity.status(sid::BLOCK_AMT) >= 17;
-    let mut acid = enemies::create_enemy("AcidSlime_L", boss_current_hp, boss_current_hp);
-    acid.entity.set_status(sid::STARTING_DMG, if upgraded { 12 } else { 11 });
-    acid.entity.set_status(sid::STR_AMT, if upgraded { 18 } else { 16 });
-    acid.entity.set_status(sid::BLOCK_AMT, if a17 { 17 } else { 0 });
-    enemies::roll_initial_move(&mut acid, &mut engine.ai_rng);
     let mut spike = enemies::create_enemy("SpikeSlime_L", boss_current_hp, boss_current_hp);
     spike.entity.set_status(sid::STARTING_DMG, if upgraded { 18 } else { 16 });
     spike.entity.set_status(sid::STR_AMT, if a17 { 3 } else { 2 });
     spike.entity.set_status(sid::BLOCK_AMT, if a17 { 17 } else { 0 });
     enemies::roll_initial_move(&mut spike, &mut engine.ai_rng);
+    let mut acid = enemies::create_enemy("AcidSlime_L", boss_current_hp, boss_current_hp);
+    acid.entity.set_status(sid::STARTING_DMG, if upgraded { 12 } else { 11 });
+    acid.entity.set_status(sid::STR_AMT, if upgraded { 18 } else { 16 });
+    acid.entity.set_status(sid::BLOCK_AMT, if a17 { 17 } else { 0 });
+    enemies::roll_initial_move(&mut acid, &mut engine.ai_rng);
 
-    engine.state.enemies.push(acid);
     engine.state.enemies.push(spike);
+    engine.state.enemies.push(acid);
 }

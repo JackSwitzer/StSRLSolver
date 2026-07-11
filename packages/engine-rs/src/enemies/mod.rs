@@ -580,6 +580,10 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::HEX_ACTIVATE, 0, 0, 0);
         }
         "SlimeBoss" => {
+            enemy.entity.set_status(sid::IS_FIRST_MOVE, 0);
+            enemy.entity.set_status(sid::FIRE_TACKLE_DMG, 9);
+            enemy.entity.set_status(sid::SLAP_DMG, 35);
+            enemy.entity.set_status(sid::STR_AMT, 3);
             enemy.set_move(move_ids::SB_STICKY, 0, 0, 0);
             enemy.add_effect(mfx::SLIMED, 3);
         }
@@ -1125,17 +1129,18 @@ mod tests {
 
     #[test]
     fn test_slime_boss_pattern() {
+        // Source: reference/extracted/methods/monster/SlimeBoss.java (`takeTurn`).
         let mut enemy = create_enemy("SlimeBoss", 140, 140);
         assert_eq!(enemy.move_id, move_ids::SB_STICKY);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_slime_boss_after_turn(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SB_PREP_SLAM);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_slime_boss_after_turn(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SB_SLAM);
         assert_eq!(enemy.move_damage(), 35);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_slime_boss_after_turn(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SB_STICKY);
     }
 

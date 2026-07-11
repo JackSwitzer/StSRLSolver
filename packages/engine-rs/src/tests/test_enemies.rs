@@ -694,12 +694,12 @@ mod enemy_tests {
     }
     #[test] fn sb_full_cycle() {
         let mut e = create_enemy("SlimeBoss", 140, 140);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Prep
+        crate::enemies::act1::advance_slime_boss_after_turn(&mut e); // Prep
         assert_eq!(e.move_id, SB_PREP_SLAM);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Slam
+        crate::enemies::act1::advance_slime_boss_after_turn(&mut e); // Slam
         assert_eq!(e.move_id, SB_SLAM);
         assert_eq!(e.move_damage(), 35);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Sticky
+        crate::enemies::act1::advance_slime_boss_after_turn(&mut e); // Sticky
         assert_eq!(e.move_id, SB_STICKY);
     }
     #[test] fn sb_split_at_50pct() {

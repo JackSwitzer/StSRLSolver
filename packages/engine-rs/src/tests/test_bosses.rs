@@ -228,10 +228,15 @@ mod boss_java_parity_tests {
         let mut engine = boss_engine("SlimeBoss", 140, 140);
         engine.deal_damage_to_enemy(0, 70);
 
+        assert_eq!(engine.state.enemies[0].entity.hp, 70);
+        assert_eq!(engine.state.enemies[0].move_id, move_ids::SB_SPLIT);
+        assert_eq!(engine.state.enemies.len(), 1);
+
+        do_enemy_turns(&mut engine);
         assert_eq!(engine.state.enemies[0].entity.hp, 0);
         assert_eq!(engine.state.enemies.len(), 3);
-        assert_eq!(engine.state.enemies[1].id, "AcidSlime_L");
-        assert_eq!(engine.state.enemies[2].id, "SpikeSlime_L");
+        assert_eq!(engine.state.enemies[1].id, "SpikeSlime_L");
+        assert_eq!(engine.state.enemies[2].id, "AcidSlime_L");
         assert_eq!(engine.state.enemies[1].entity.hp, 70);
         assert_eq!(engine.state.enemies[2].entity.hp, 70);
         assert!(slime_boss_should_split(&create_enemy("SlimeBoss", 70, 140)));

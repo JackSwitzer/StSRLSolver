@@ -1438,13 +1438,14 @@ mod combat_engine_p0_p1_regression {
         // Strike does 6 damage -> brings to 65, which is <= 70 -> triggers split
         play_card(&mut e, "Strike", 0);
 
-        // Boss should be dead (hp set to 0 by split) and 2 new slimes spawned
-        assert!(e.state.enemies[0].entity.is_dead(),
-            "Slime Boss should be dead after split, hp={}",
-            e.state.enemies[0].entity.hp);
-        assert_eq!(e.state.enemies.len(), 3,
-            "Should have spawned 2 new medium slimes, total enemies: {}",
-            e.state.enemies.len());
+        // Source: SlimeBoss.java `damage` only interrupts to Split. The boss
+        // survives until Split executes on its monster turn.
+        assert_eq!(e.state.enemies[0].entity.hp, 65);
+        assert_eq!(e.state.enemies[0].move_id, crate::enemies::move_ids::SB_SPLIT);
+        assert_eq!(e.state.enemies.len(), 1);
+        e.execute_action(&Action::EndTurn);
+        assert!(e.state.enemies[0].entity.is_dead());
+        assert_eq!(e.state.enemies.len(), 3);
     }
 
     // ===== P0-4: Gremlin Nob + Lagavulin =====
@@ -2415,16 +2416,19 @@ mod effect_handler_tests {
         e.start_combat();
         // Deal damage to bring boss to 50% HP (70)
         e.deal_damage_to_enemy(0, 70);
-        // Boss should have split: should be dead
+        assert_eq!(e.state.enemies[0].entity.hp, 70,
+            "damage only changes the intent to Split");
+        assert_eq!(e.state.enemies[0].move_id, crate::enemies::move_ids::SB_SPLIT);
+        crate::combat_hooks::do_enemy_turns(&mut e);
         assert_eq!(e.state.enemies[0].entity.hp, 0, "SlimeBoss should be dead after split");
         // Two new enemies spawned
         assert_eq!(e.state.enemies.len(), 3, "Should have boss + 2 spawned slimes");
         // Spawned slimes should be Large variants
-        assert_eq!(e.state.enemies[1].id, "AcidSlime_L", "First spawn should be AcidSlime_L");
-        assert_eq!(e.state.enemies[2].id, "SpikeSlime_L", "Second spawn should be SpikeSlime_L");
+        assert_eq!(e.state.enemies[1].id, "SpikeSlime_L", "First spawn should be SpikeSlime_L");
+        assert_eq!(e.state.enemies[2].id, "AcidSlime_L", "Second spawn should be AcidSlime_L");
         // HP should be boss's current HP at split (140 - 70 = 70)
-        assert_eq!(e.state.enemies[1].entity.hp, 70, "AcidSlime_L should have boss's current HP");
-        assert_eq!(e.state.enemies[2].entity.hp, 70, "SpikeSlime_L should have boss's current HP");
+        assert_eq!(e.state.enemies[1].entity.hp, 70, "SpikeSlime_L should have boss's current HP");
+        assert_eq!(e.state.enemies[2].entity.hp, 70, "AcidSlime_L should have boss's current HP");
     }
 
     // #2: Awakened One rebirth uses pending flag (not instant)
