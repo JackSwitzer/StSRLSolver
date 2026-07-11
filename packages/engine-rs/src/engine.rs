@@ -1597,6 +1597,8 @@ impl CombatEngine {
 
         // 4. Discard hand — Runic Pyramid keeps ALL cards in hand (including Status/Curse).
         //    Only Ethereal cards exhaust at end of turn regardless of Runic Pyramid.
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/actions/common/
+        // DiscardAtEndOfTurnAction.java skips DiscardAction with "Runic Pyramid".
         let _explicitly_retained = std::mem::take(&mut self.state.retained_cards);
         let mut ethereal_exhausted = 0i32;
         if self.state.has_relic("Runic Pyramid") || self.state.has_relic("RunicPyramid") {

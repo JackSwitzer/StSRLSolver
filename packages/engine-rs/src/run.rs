@@ -4259,6 +4259,9 @@ impl RunEngine {
             "Ectoplasm",
             "Fusion Hammer",
             "Philosopher's Stone",
+            // RunicPyramid.java constructs canonical ID "Runic Pyramid" at
+            // BOSS tier; DiscardAtEndOfTurnAction.java supplies its behavior.
+            "Runic Pyramid",
             "Velvet Choker",
             "Snecko Eye",
             "HolyWater",

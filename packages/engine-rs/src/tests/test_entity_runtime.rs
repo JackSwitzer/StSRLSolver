@@ -127,6 +127,45 @@ fn tough_bandages_grants_three_block_only_for_manual_discards() {
 }
 
 #[test]
+fn runic_pyramid_keeps_the_whole_non_ethereal_hand_without_marking_retain() {
+    // Sources: RunicPyramid.java assigns BOSS tier and canonical ID; Java's
+    // DiscardAtEndOfTurnAction skips the hand-wide discard when it is owned,
+    // but only explicit retain/selfRetain cards pass through onRetained.
+    let mut state = combat_state_with(
+        make_deck(&["Strike", "Doubt", "Daze"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    state.relics.push("Runic Pyramid".to_string());
+    let mut engine = engine_with_state(state);
+    engine.state.hand = make_deck(&["Strike", "Doubt", "Daze"]);
+    engine.state.draw_pile.clear();
+    engine.state.discard_pile.clear();
+    engine.state.exhaust_pile.clear();
+
+    end_turn(&mut engine);
+
+    let strike = engine
+        .state
+        .hand
+        .iter()
+        .find(|card| engine.card_registry.card_name(card.def_id) == "Strike")
+        .expect("ordinary card should remain in hand");
+    assert!(!strike.is_retained());
+    assert!(engine
+        .state
+        .hand
+        .iter()
+        .any(|card| engine.card_registry.card_name(card.def_id) == "Doubt"));
+    assert!(engine.state.discard_pile.is_empty());
+    assert!(engine
+        .state
+        .exhaust_pile
+        .iter()
+        .any(|card| engine.card_registry.card_name(card.def_id) == "Daze"));
+}
+
+#[test]
 fn tingsha_uses_one_card_random_tick_and_hits_exactly_one_enemy_for_three() {
     // Tingsha.java queues DamageRandomEnemyAction(3, THORNS), which selects via
     // cardRandomRng even when only one candidate exists.

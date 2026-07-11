@@ -222,7 +222,7 @@ fn matryoshka_extra_chest_reward_uses_only_common_or_uncommon_tiers() {
     const COMMON: &[&str] = &[
         "Akabeko", "Anchor", "Ancient Tea Set", "Art of War", "Bag of Marbles",
         "Bag of Preparation", "Blood Vial", "Boot", "Bronze Scales", "CeramicFish",
-        "Dream Catcher", "Lantern", "Vajra",
+        "Dream Catcher", "Lantern", "Omamori", "Vajra",
     ];
     const UNCOMMON: &[&str] = &[
         "Blue Candle", "Bottled Flame", "Bottled Lightning", "Bottled Tornado",

@@ -229,6 +229,8 @@ pub mod peace_pipe;
 pub mod shovel;
 pub mod unceasing_top;
 pub mod tiny_chest;
+pub mod omamori;
+pub mod runic_pyramid;
 
 // ===========================================================================
 // Registry — static array of all relic EntityDefs
@@ -396,6 +398,8 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &shovel::DEF,
     &unceasing_top::DEF,
     &tiny_chest::DEF,
+    &omamori::DEF,
+    &runic_pyramid::DEF,
 ];
 
 pub fn relic_def_by_id(id: &str) -> Option<&'static EntityDef> {

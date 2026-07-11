@@ -155,7 +155,8 @@ fn tags_for_entity_kind(domain: GameplayDomain, kind: EntityKind) -> Vec<String>
 
 fn state_fields_for_entity(def_id: &str) -> Vec<GameplayStateField> {
     match def_id {
-        "Nunchaku" | "InkBottle" | "Happy Flower" | "Incense Burner" | "Sundial" => vec![
+        "Nunchaku" | "InkBottle" | "Happy Flower" | "Incense Burner" | "Sundial"
+        | "Omamori" => vec![
             GameplayStateField {
                 id: "counter",
                 visibility: StateVisibility::Observable,

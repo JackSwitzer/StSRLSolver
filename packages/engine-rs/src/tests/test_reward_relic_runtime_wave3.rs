@@ -136,6 +136,25 @@ fn violet_lotus_is_reachable_from_the_watcher_boss_relic_pool() {
 }
 
 #[test]
+fn runic_pyramid_is_reachable_from_the_watcher_boss_relic_pool() {
+    // Source: RunicPyramid.java constructs canonical ID "Runic Pyramid" at
+    // BOSS tier, so it must be selectable after a Watcher boss combat.
+    assert!(crate::gameplay::global_registry()
+        .relic("Runic Pyramid")
+        .is_some());
+    let offered = (0..128).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_boss_reward_screen();
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0].choices.iter().any(|choice| {
+                matches!(choice, RewardChoice::Named { label, .. } if label == "Runic Pyramid")
+            })
+        })
+    });
+    assert!(offered);
+}
+
+#[test]
 fn black_star_is_reachable_from_the_watcher_boss_relic_pool() {
     // Sources: RelicLibrary.java registers BlackStar and BlackStar.java
     // constructs it at BOSS tier with canonical ID "Black Star".
@@ -337,6 +356,7 @@ fn omamori_is_reachable_through_floor_forty_eight_and_blocks_exactly_two_curses(
     // Sources: Omamori.java constructs a COMMON relic with counter 2 and
     // excludes non-endless floors after 48. ShowCardAndObtainEffect.java calls
     // Omamori.use only for CURSE cards while the counter is nonzero.
+    assert!(crate::gameplay::global_registry().relic("Omamori").is_some());
     let offered = (0..2048).any(|seed| {
         let mut engine = RunEngine::new(seed, 0);
         engine.run_state.floor = 48;
