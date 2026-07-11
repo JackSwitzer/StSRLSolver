@@ -2619,7 +2619,24 @@ impl RunEngine {
     }
 
     fn add_relic_reward(&mut self, relic_id: &str) {
-        self.run_state.relics.push(relic_id.to_string());
+        // BossRelicSelectScreen instant-obtains HolyWater into slot zero; its
+        // canSpawn guard means that slot contains PureWater in a valid run.
+        // Preserve the same replacement semantics without duplicating relics.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/screens/select/BossRelicSelectScreen.java
+        if relic_id == "HolyWater" {
+            if let Some(slot) = self
+                .run_state
+                .relics
+                .iter()
+                .position(|owned| owned == "PureWater")
+            {
+                self.run_state.relics[slot] = relic_id.to_string();
+            } else {
+                self.run_state.relics.push(relic_id.to_string());
+            }
+        } else {
+            self.run_state.relics.push(relic_id.to_string());
+        }
         self.run_state.relic_flags.rebuild(&self.run_state.relics);
         self.run_state.relic_flags.init_relic_counter(relic_id);
 
@@ -2788,20 +2805,33 @@ impl RunEngine {
             "Philosopher's Stone",
             "Velvet Choker",
             "Snecko Eye",
+            "HolyWater",
         ];
 
         let registry = gameplay_registry();
+        // HolyWater.java canSpawn() requires PureWater. Java's boss-relic
+        // selection therefore cannot offer the Watcher upgrade after its
+        // starter relic has already been replaced.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/HolyWater.java
+        let has_pure_water = self
+            .run_state
+            .relics
+            .iter()
+            .any(|owned| owned == "PureWater");
+        let can_spawn = |id: &&str| *id != "HolyWater" || has_pure_water;
         let mut candidates: Vec<&str> = BOSS_RELIC_POOL
             .iter()
             .copied()
             .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
             .filter(|id| !self.run_state.relics.iter().any(|owned| owned == id))
+            .filter(can_spawn)
             .collect();
         if candidates.len() < count {
             candidates = BOSS_RELIC_POOL
                 .iter()
                 .copied()
                 .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
+                .filter(can_spawn)
                 .collect();
         }
         if candidates.is_empty() {
@@ -3140,7 +3170,12 @@ impl RunEngine {
         }
         if relics
             .iter()
-            .any(|relic| matches!(relic.as_str(), "PureWater" | "VioletLotus" | "Damaru"))
+            .any(|relic| {
+                matches!(
+                    relic.as_str(),
+                    "PureWater" | "HolyWater" | "VioletLotus" | "Damaru"
+                )
+            })
         {
             return EventCardColor::Purple;
         }

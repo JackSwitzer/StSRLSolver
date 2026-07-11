@@ -55,16 +55,22 @@ fn relic_wave15_pure_water_miracle_is_added_before_the_opening_draw() {
     assert_eq!(hand_count(&engine, "Miracle+"), 0);
 }
 
+// Source-derived (verify relic/HolyWater):
+// HolyWater.java queues exactly three un-upgraded Miracle instances, while
+// MakeTempCardInHandAction spills only the cards beyond the ten-card hand cap.
 #[test]
-fn relic_wave15_holy_water_fills_hand_then_spills_overflow_to_discard() {
+fn relic_wave15_holy_water_adds_three_miracles_and_spills_only_overflow() {
     let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     engine.state.relics.push("HolyWater".to_string());
     engine.state.hand = make_deck_n("Strike", 9);
 
     fire_combat_start(&mut engine);
 
-    assert_eq!(hand_count(&engine, "HolyWater"), 1);
-    assert_eq!(discard_prefix_count(&engine, "HolyWater"), 2);
+    assert_eq!(hand_count(&engine, "Miracle"), 1);
+    assert_eq!(discard_prefix_count(&engine, "Miracle"), 2);
+    assert_eq!(hand_count(&engine, "Miracle+"), 0);
+    assert_eq!(hand_count(&engine, "HolyWater"), 0);
+    assert_eq!(discard_prefix_count(&engine, "HolyWater"), 0);
 }
 
 #[test]

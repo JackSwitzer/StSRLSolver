@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T04:15:19.311174+00:00",
+ "updated": "2026-07-11T04:23:04.799120+00:00",
  "status_counts": {
-  "unverified": 556,
-  "verified": 111
+  "unverified": 555,
+  "verified": 112
  },
  "rows": [
   {
@@ -5482,8 +5482,8 @@
    "class": "HolyWater",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/HolyWater.java",
    "methods_ref": "reference/extracted/methods/relic/HolyWater.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

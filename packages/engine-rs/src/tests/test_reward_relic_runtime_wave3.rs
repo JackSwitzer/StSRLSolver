@@ -51,6 +51,53 @@ fn relic_choice_reward_screen(labels: &[&str]) -> RewardScreen {
 }
 
 #[test]
+fn holy_water_is_offered_only_with_pure_water_and_replaces_it_when_chosen() {
+    // Sources: HolyWater.java (`canSpawn` requires PureWater) and
+    // BossRelicSelectScreen.java (instant-obtains HolyWater into relic slot 0).
+    let offered_with_starter = (0..64).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_boss_reward_screen();
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0]
+                .choices
+                .iter()
+                .any(|choice| {
+                    matches!(choice, RewardChoice::Named { label, .. } if label == "HolyWater")
+                })
+        })
+    });
+    assert!(offered_with_starter);
+
+    for seed in 0..16 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.relics.clear();
+        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine.debug_build_boss_reward_screen();
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0]
+                .choices
+                .iter()
+                .all(|choice| {
+                    !matches!(choice, RewardChoice::Named { label, .. } if label == "HolyWater")
+                })
+        }));
+    }
+
+    let mut engine = RunEngine::new(42, 0);
+    engine.debug_set_reward_screen(relic_choice_reward_screen(&["HolyWater"]));
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(engine
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+    assert_eq!(engine.run_state.relics, vec!["HolyWater".to_string()]);
+}
+
+#[test]
 fn claiming_question_card_expands_later_card_reward_choices() {
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.relics.push("Sozu".to_string());
