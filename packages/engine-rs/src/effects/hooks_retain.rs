@@ -7,7 +7,12 @@ use crate::status_ids::sid;
 
 /// Sands of Time: reduce cost by 1 when retained.
 pub fn hook_reduce_cost_on_retain(_engine: &mut CombatEngine, card_inst: &mut CardInstance, _card: &CardDef) {
-    card_inst.cost = (card_inst.cost - 1).max(0);
+    let current_cost = if card_inst.cost >= 0 {
+        card_inst.cost
+    } else {
+        _card.cost as i8
+    };
+    card_inst.set_permanent_cost((current_cost - 1).max(0));
 }
 
 /// Perseverance: grow block bonus when retained.

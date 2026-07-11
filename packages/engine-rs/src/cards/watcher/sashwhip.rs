@@ -1,7 +1,10 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Common: Sash Whip ---- (cost 1, 8 dmg, weak 1 if last attack; +2 dmg +1 magic upgrade)
+        // HeadStompAction checks the card immediately before this Sash Whip and
+        // applies Weak only when that previous card was an Attack.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/SashWhip.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/HeadStompAction.java
     insert(cards, CardDef {
                 id: "SashWhip", name: "Sash Whip", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 8, base_block: -1,

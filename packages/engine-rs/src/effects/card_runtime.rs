@@ -176,7 +176,12 @@ pub fn apply_on_retain(card_inst: &mut CardInstance, card: &CardDef) -> (i32, i3
         if let CardRuntimeTrigger::OnRetain(rule) = trigger {
             match rule {
                 OnRetainRule::ReduceCost => {
-                    card_inst.cost = (card_inst.cost - 1).max(0);
+                    let current_cost = if card_inst.cost >= 0 {
+                        card_inst.cost
+                    } else {
+                        card.cost as i8
+                    };
+                    card_inst.set_permanent_cost((current_cost - 1).max(0));
                 }
                 OnRetainRule::GrowBlock => {
                     // Perseverance.onRetained upgrades this exact card's block.

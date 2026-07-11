@@ -2021,6 +2021,79 @@ mod watcher_card_java_parity_tests {
         plus = ("Sanctity+", "Sanctity+", 1, -1, 9, 2, CardType::Skill, CardTarget::SelfTarget, false, None, []),
         {}
     );
+    // Source-derived (verify card/Sanctity): SanctityAction examines the card
+    // immediately before the current Sanctity and draws exactly two only when
+    // it was a Skill; block is always gained first.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Sanctity.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/SanctityAction.java
+    #[test]
+    fn sanctity_source_draws_only_after_a_previous_skill() {
+        let mut skill = one_enemy_engine("JawWorm", 50, 0);
+        skill.state.draw_pile = make_deck_n("Strike+", 10);
+        skill.state.hand = make_deck(&["Defend", "Sanctity+"]);
+        assert!(play_self(&mut skill, "Defend"));
+        assert!(play_self(&mut skill, "Sanctity+"));
+        assert_eq!(skill.state.player.block, 14);
+        assert_eq!(skill.state.hand.len(), 2);
+
+        let mut attack = one_enemy_engine("JawWorm", 50, 0);
+        attack.state.draw_pile = make_deck_n("Strike+", 10);
+        attack.state.hand = make_deck(&["Strike", "Sanctity"]);
+        assert!(play_on_enemy(&mut attack, "Strike", 0));
+        assert!(play_self(&mut attack, "Sanctity"));
+        assert_eq!(attack.state.player.block, 6);
+        assert!(attack.state.hand.is_empty());
+    }
+
+    // Source-derived (verify card/SandsOfTime): selfRetain calls
+    // modifyCostForCombat(-1) on this exact card every turn, so discounts
+    // persist and accumulate 4 -> 3 -> 2.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/SandsOfTime.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/AbstractCard.java
+    #[test]
+    fn sands_of_time_source_accumulates_per_copy_retained_cost() {
+        let mut engine = one_enemy_engine("JawWorm", 100, 0);
+        engine.state.draw_pile = make_deck_n("Strike+", 10);
+        engine.state.hand = make_deck(&["SandsOfTime+"]);
+        end_turn(&mut engine);
+        let first = engine
+            .state
+            .hand
+            .iter()
+            .find(|card| engine.card_registry.card_name(card.def_id) == "SandsOfTime+")
+            .expect("first retain");
+        assert_eq!(first.cost, 3);
+        end_turn(&mut engine);
+        let second = engine
+            .state
+            .hand
+            .iter()
+            .find(|card| engine.card_registry.card_name(card.def_id) == "SandsOfTime+")
+            .expect("second retain");
+        assert_eq!((second.cost, second.base_cost), (2, 2));
+        assert!(play_on_enemy(&mut engine, "SandsOfTime+", 0));
+        assert_eq!(engine.state.enemies[0].entity.hp, 74);
+    }
+
+    // Source-derived (verify card/SashWhip): HeadStompAction checks only the
+    // immediately previous card, applying upgraded Weak 2 after an Attack and
+    // none after a Skill.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/SashWhip.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/HeadStompAction.java
+    #[test]
+    fn sash_whip_source_checks_only_the_immediately_previous_card() {
+        let mut attack = one_enemy_engine("JawWorm", 50, 0);
+        attack.state.hand = make_deck(&["Strike", "SashWhip+"]);
+        assert!(play_on_enemy(&mut attack, "Strike", 0));
+        assert!(play_on_enemy(&mut attack, "SashWhip+", 0));
+        assert_eq!(attack.state.enemies[0].entity.status(sid::WEAKENED), 2);
+
+        let mut skill = one_enemy_engine("JawWorm", 50, 0);
+        skill.state.hand = make_deck(&["Defend", "SashWhip+"]);
+        assert!(play_self(&mut skill, "Defend"));
+        assert!(play_on_enemy(&mut skill, "SashWhip+", 0));
+        assert_eq!(skill.state.enemies[0].entity.status(sid::WEAKENED), 0);
+    }
     watcher_test!(
         signature_move_java_parity,
         base = ("SignatureMove", "Signature Move", 2, 30, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, ["only_attack_in_hand"]),

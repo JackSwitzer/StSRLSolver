@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T01:03:26.104903+00:00",
+ "updated": "2026-07-11T01:06:47.172550+00:00",
  "status_counts": {
-  "unverified": 612,
-  "verified": 55
+  "unverified": 609,
+  "verified": 58
  },
  "rows": [
   {
@@ -2792,8 +2792,8 @@
    "class": "Sanctity",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Sanctity.java",
    "methods_ref": "reference/extracted/methods/card/Sanctity.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -2802,8 +2802,8 @@
    "class": "SandsOfTime",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/SandsOfTime.java",
    "methods_ref": "reference/extracted/methods/card/SandsOfTime.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -2812,8 +2812,8 @@
    "class": "SashWhip",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/SashWhip.java",
    "methods_ref": "reference/extracted/methods/card/SashWhip.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
