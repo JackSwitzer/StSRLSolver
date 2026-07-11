@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T08:36:08.680658+00:00",
+ "updated": "2026-07-11T08:39:11.671371+00:00",
  "status_counts": {
-  "unverified": 479,
-  "verified": 188
+  "unverified": 478,
+  "verified": 189
  },
  "rows": [
   {
@@ -5592,8 +5592,8 @@
    "class": "LetterOpener",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/LetterOpener.java",
    "methods_ref": "reference/extracted/methods/relic/LetterOpener.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

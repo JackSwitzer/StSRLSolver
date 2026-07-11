@@ -779,6 +779,22 @@ fn lantern_is_reachable_from_watcher_relic_rewards() {
 }
 
 #[test]
+fn letter_opener_is_reachable_from_watcher_relic_rewards() {
+    // RelicLibrary.java registers LetterOpener; LetterOpener.java constructs
+    // the shared relic at UNCOMMON tier under canonical ID "Letter Opener".
+    let offered = (0..1024).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Letter Opener"
+            })
+        })
+    });
+    assert!(offered);
+}
+
+#[test]
 fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
     // Source-derived (verify relic/Calling Bell): CallingBell.java is BOSS tier,
     // confirms CurseOfTheBell, then opens COMMON, UNCOMMON, and RARE relic

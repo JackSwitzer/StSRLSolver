@@ -3562,6 +3562,8 @@ impl RunEngine {
             "Kunai",
             // Lantern.java uses canonical ID "Lantern" and COMMON tier.
             "Lantern",
+            // LetterOpener.java uses canonical ID "Letter Opener" and UNCOMMON tier.
+            "Letter Opener",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
