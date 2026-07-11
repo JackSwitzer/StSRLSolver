@@ -368,6 +368,19 @@ fn adjust_run_gold_state(run_state: &mut RunState, amount: i32) {
     }
 }
 
+fn obtain_master_deck_card_state(run_state: &mut RunState, card_id: String) {
+    run_state.deck.push(card_id);
+    // Sources: CeramicFish.java::onObtainCard gains 9 gold for every obtained
+    // card; ShowCardAndObtainEffect.java and FastCardObtainEffect.java dispatch
+    // that hook for rewards, shops, event gains, duplicates, and transforms.
+    if run_state
+        .relic_flags
+        .has(crate::relic_flags::flag::CERAMIC_FISH)
+    {
+        adjust_run_gold_state(run_state, 9);
+    }
+}
+
 impl RunState {
     pub fn new(ascension: i32) -> Self {
         // Watcher starter deck
@@ -2820,19 +2833,7 @@ impl RunEngine {
 
     fn add_card_reward(&mut self, card_id: String) {
         let upgraded = self.upgrade_reward_card_if_needed(&card_id);
-        self.run_state.deck.push(upgraded);
-        // Ceramic Fish: +9g on card add
-        if self
-            .run_state
-            .relic_flags
-            .has(crate::relic_flags::flag::CERAMIC_FISH)
-            && !self
-                .run_state
-                .relic_flags
-                .has(crate::relic_flags::flag::ECTOPLASM)
-        {
-            self.adjust_run_gold(9);
-        }
+        obtain_master_deck_card_state(&mut self.run_state, upgraded);
     }
 
     fn upgrade_reward_card_if_needed(&self, card_id: &str) -> String {
@@ -2968,7 +2969,7 @@ impl RunEngine {
             }
             let transformed = &candidates[self.rng.gen_range(0..candidates.len())];
             let upgraded = format!("{transformed}+");
-            self.run_state.deck.push(if registry.get(&upgraded).is_some() {
+            obtain_master_deck_card_state(&mut self.run_state, if registry.get(&upgraded).is_some() {
                 upgraded
             } else {
                 transformed.clone()
@@ -3379,6 +3380,9 @@ impl RunEngine {
             "Calipers",
             // CentennialPuzzle.java uses this canonical ID and COMMON tier.
             "Centennial Puzzle",
+            // CeramicFish.java uses canonical ID "CeramicFish", COMMON tier,
+            // and canSpawn excludes non-endless runs after floor 48.
+            "CeramicFish",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
@@ -3393,6 +3397,7 @@ impl RunEngine {
             .iter()
             .copied()
             .filter(|relic| *relic != "Ancient Tea Set" || self.run_state.floor <= 48)
+            .filter(|relic| *relic != "CeramicFish" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Bottled Flame" || self.can_spawn_bottled_flame())
             .filter(|relic| {
                 *relic != "Bottled Lightning" || self.can_spawn_bottled_lightning()
@@ -3406,6 +3411,7 @@ impl RunEngine {
                     .iter()
                     .copied()
                     .filter(|relic| *relic != "Ancient Tea Set" || self.run_state.floor <= 48)
+                    .filter(|relic| *relic != "CeramicFish" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Bottled Flame" || self.can_spawn_bottled_flame())
                     .filter(|relic| {
                         *relic != "Bottled Lightning" || self.can_spawn_bottled_lightning()
@@ -3727,7 +3733,7 @@ impl RunEngine {
                         let (card, price) = shop.cards[*idx].clone();
                         if self.run_state.gold >= price {
                             self.run_state.gold -= price;
-                            self.run_state.deck.push(card);
+                            obtain_master_deck_card_state(&mut self.run_state, card);
                             shop.cards.remove(*idx);
                         }
                     }
@@ -4096,7 +4102,7 @@ impl RunEngine {
                     let first_card = state.board[first_idx].clone();
                     let second_card = state.board[choice_idx].clone();
                     if first_card == second_card {
-                        self.run_state.deck.push(first_card);
+                        obtain_master_deck_card_state(&mut self.run_state, first_card);
                         let (hi, lo) = if first_idx > choice_idx {
                             (first_idx, choice_idx)
                         } else {
@@ -4543,7 +4549,10 @@ impl RunEngine {
             EventDeckMutation::GainCard { count } => {
                 for _ in 0..*count {
                     let idx = self.rng.gen_range(0..WATCHER_COMMON_CARDS.len());
-                    self.run_state.deck.push(WATCHER_COMMON_CARDS[idx].to_string());
+                    obtain_master_deck_card_state(
+                        &mut self.run_state,
+                        WATCHER_COMMON_CARDS[idx].to_string(),
+                    );
                 }
             }
             EventDeckMutation::RemoveCard { count } => {
@@ -4561,9 +4570,10 @@ impl RunEngine {
                         self.remove_master_deck_card(idx);
                     }
                     let card_idx = self.rng.gen_range(0..WATCHER_COMMON_CARDS.len());
-                    self.run_state
-                        .deck
-                        .push(WATCHER_COMMON_CARDS[card_idx].to_string());
+                    obtain_master_deck_card_state(
+                        &mut self.run_state,
+                        WATCHER_COMMON_CARDS[card_idx].to_string(),
+                    );
                 }
             }
             EventDeckMutation::DuplicateCard { count } => {
@@ -4571,7 +4581,7 @@ impl RunEngine {
                     if !self.run_state.deck.is_empty() {
                         let idx = self.rng.gen_range(0..self.run_state.deck.len());
                         let card = self.run_state.deck[idx].clone();
-                        self.run_state.deck.push(card);
+                        obtain_master_deck_card_state(&mut self.run_state, card);
                     }
                 }
             }
@@ -4675,7 +4685,7 @@ impl RunEngine {
                 });
             }
             EventReward::Curse { label } => {
-                self.run_state.deck.push(label.clone());
+                obtain_master_deck_card_state(&mut self.run_state, label.clone());
             }
             EventReward::Nothing => {}
         }

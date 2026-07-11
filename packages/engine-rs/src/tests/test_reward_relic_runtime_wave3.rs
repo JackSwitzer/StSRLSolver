@@ -3,7 +3,7 @@ use crate::decision::{
     RewardScreenSource,
 };
 use crate::map::RoomType;
-use crate::run::{RunAction, RunEngine, RunPhase};
+use crate::run::{RunAction, RunEngine, RunPhase, ShopState};
 
 fn single_relic_reward_screen(label: &str) -> RewardScreen {
     RewardScreen {
@@ -744,6 +744,48 @@ fn centennial_puzzle_is_reachable_from_watcher_relic_rewards() {
         })
     });
     assert!(offered);
+}
+
+#[test]
+fn ceramic_fish_is_reachable_before_floor_49_and_pays_for_shop_card_obtains() {
+    // CeramicFish.java constructs a COMMON relic, excludes floors after 48,
+    // and onObtainCard gains exactly 9 gold. ShopScreen.java purchases through
+    // FastCardObtainEffect.java, which dispatches onObtainCard to every relic.
+    let offered = (0..1024).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 48;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "CeramicFish"
+            })
+        })
+    });
+    assert!(offered);
+
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 49;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "CeramicFish")
+        }));
+    }
+
+    let mut engine = RunEngine::new(42, 0);
+    engine.run_state.relics.push("CeramicFish".to_string());
+    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine.run_state.gold = 100;
+    engine.debug_set_shop_state(ShopState {
+        cards: vec![("Strike".to_string(), 50)],
+        remove_price: 75,
+        removal_used: false,
+    });
+
+    let step = engine.step_with_result(&RunAction::ShopBuyCard(0));
+    assert!(step.action_accepted);
+    assert_eq!(engine.run_state.deck.last().map(String::as_str), Some("Strike"));
+    assert_eq!(engine.run_state.gold, 59);
 }
 
 #[test]
