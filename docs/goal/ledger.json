@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T06:43:39.143252+00:00",
+ "updated": "2026-07-11T06:45:30.035704+00:00",
  "status_counts": {
-  "unverified": 516,
-  "verified": 151
+  "unverified": 515,
+  "verified": 152
  },
  "rows": [
   {
@@ -4852,8 +4852,8 @@
    "class": "ArtOfWar",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/ArtOfWar.java",
    "methods_ref": "reference/extracted/methods/relic/ArtOfWar.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

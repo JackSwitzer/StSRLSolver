@@ -1,4 +1,5 @@
 //! Art of War: if no Attacks were played last turn, gain 1 energy next turn.
+//! Source: decompiled/java-src/com/megacrit/cardcrawl/relics/ArtOfWar.java.
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};

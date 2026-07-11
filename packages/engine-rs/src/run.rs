@@ -2842,6 +2842,9 @@ impl RunEngine {
             // RelicLibrary.java registers Ancient Tea Set at COMMON tier;
             // AncientTeaSet.java::canSpawn excludes floors after 48.
             "Ancient Tea Set",
+            // RelicLibrary.java registers Art of War, whose constructor in
+            // relics/ArtOfWar.java assigns it to the COMMON tier.
+            "Art of War",
             // RelicLibrary.java registers Akabeko, whose constructor in
             // relics/Akabeko.java assigns it to the COMMON tier.
             "Akabeko",

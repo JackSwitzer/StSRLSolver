@@ -144,6 +144,31 @@ fn ancient_tea_set_charge_only_grants_energy_on_the_first_turn() {
 }
 
 #[test]
+fn art_of_war_tracks_whether_the_previous_turn_used_an_attack() {
+    // Source-derived (verify relic/Art of War): ArtOfWar.java starts ready but
+    // skips turn one, clears readiness from onUseCard only for Attacks, and
+    // restores readiness at every turn start.
+    let mut engine = engine_without_start_with_relics(
+        &["Art of War"],
+        &["Strike", "Defend", "Strike", "Defend", "Strike"],
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+    engine.start_combat();
+    assert_eq!(engine.state.energy, 3);
+
+    engine.state.hand = make_deck(&["Strike"]);
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
+    end_turn(&mut engine);
+    assert_eq!(engine.state.energy, 3);
+
+    engine.state.hand = make_deck(&["Defend"]);
+    assert!(play_self(&mut engine, "Defend"));
+    end_turn(&mut engine);
+    assert_eq!(engine.state.energy, 4);
+}
+
+#[test]
 fn blood_vial_and_mark_of_pain_apply_at_real_combat_start() {
     let mut engine = engine_without_start_with_relics(
         &["Blood Vial", "Mark of Pain"],
