@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T05:25:47.602170+00:00",
+ "updated": "2026-07-11T05:27:32.898180+00:00",
  "status_counts": {
-  "unverified": 538,
-  "verified": 129
+  "unverified": 537,
+  "verified": 130
  },
  "rows": [
   {
@@ -4562,8 +4562,8 @@
    "class": "EssenceOfSteel",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/EssenceOfSteel.java",
    "methods_ref": "reference/extracted/methods/potion/EssenceOfSteel.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

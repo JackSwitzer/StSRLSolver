@@ -169,6 +169,28 @@ fn ancient_potion_targets_player_and_uses_sacred_bark_potency() {
 }
 
 #[test]
+fn essence_of_steel_keeps_four_potency_and_targets_the_player() {
+    // Source-derived (verify potion/EssenceOfSteel): Java overwrites target
+    // with the player, applies four Plated Armor at every ascension, and
+    // AbstractPotion doubles the potency for Sacred Bark.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/EssenceOfSteel.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/AbstractPotion.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "EssenceOfSteel".to_string();
+
+    use_potion(&mut engine, 0, 0);
+
+    assert_eq!(engine.state.player.status(sid::PLATED_ARMOR), 8);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::PLATED_ARMOR), 0);
+    assert!(engine.state.potions[0].is_empty());
+}
+
+#[test]
 fn cultist_potion_ritual_grows_strength_at_player_turn_end_only() {
     // Source-derived (verify potion/CultistPotion): the potion applies
     // RitualPower(player, potency, true). RitualPower gains that Strength at

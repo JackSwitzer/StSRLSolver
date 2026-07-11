@@ -2792,6 +2792,7 @@ impl RunEngine {
             "DistilledChaos",
             "DuplicationPotion",
             "EntropicBrew",
+            "EssenceOfSteel",
         ];
 
         let registry = gameplay_registry();

@@ -176,7 +176,8 @@ fn potion_potency(potion_id: &str) -> Option<(i32, i32)> {
         "SneckoOil" => Some((5, 4)),
         "Ancient Potion" | "AncientPotion" => Some((1, 1)),
         "Regen Potion" | "RegenPotion" => Some((5, 4)),
-        "EssenceOfSteel" => Some((4, 3)),
+        // EssenceOfSteel.java getPotency ignores ascension and always returns 4.
+        "EssenceOfSteel" => Some((4, 4)),
         "LiquidBronze" => Some((3, 2)),
         "CultistPotion" => Some((1, 1)),
         "HeartOfIron" => Some((6, 4)),
@@ -984,6 +985,14 @@ mod tests {
         let initial = state.energy;
         apply_potion_scaled(&mut state, "Energy Potion", -1, 11);
         assert_eq!(state.energy, initial + 2);
+    }
+
+    #[test]
+    fn test_a11_essence_of_steel_stays_at_four() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/EssenceOfSteel.java
+        let mut state = make_test_state();
+        apply_potion_scaled(&mut state, "EssenceOfSteel", -1, 11);
+        assert_eq!(state.player.status(sid::PLATED_ARMOR), 4);
     }
 
     #[test]
