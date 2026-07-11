@@ -169,6 +169,30 @@ fn art_of_war_tracks_whether_the_previous_turn_used_an_attack() {
 }
 
 #[test]
+fn bag_of_marbles_applies_one_vulnerable_to_every_enemy_at_combat_start() {
+    // Source-derived (verify relic/Bag of Marbles): BagOfMarbles.java loops
+    // over the room's complete monster list and queues VulnerablePower(1) for
+    // each monster during atBattleStart.
+    let mut engine = engine_without_start_with_relics(
+        &["Bag of Marbles"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
+        vec![
+            enemy_no_intent("JawWorm", 60, 60),
+            enemy_no_intent("Cultist", 60, 60),
+            enemy_no_intent("FungiBeast", 60, 60),
+        ],
+        3,
+    );
+
+    engine.start_combat();
+    assert!(engine
+        .state
+        .enemies
+        .iter()
+        .all(|enemy| enemy.entity.status(sid::VULNERABLE) == 1));
+}
+
+#[test]
 fn blood_vial_and_mark_of_pain_apply_at_real_combat_start() {
     let mut engine = engine_without_start_with_relics(
         &["Blood Vial", "Mark of Pain"],

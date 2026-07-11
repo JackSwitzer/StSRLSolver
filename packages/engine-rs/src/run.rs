@@ -2983,7 +2983,9 @@ impl RunEngine {
             "Akabeko",
             "Vajra",
             "Anchor",
-            "BagOfMarbles",
+            // BagOfMarbles.java uses the canonical ID "Bag of Marbles" and
+            // assigns the relic to the COMMON tier.
+            "Bag of Marbles",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
@@ -4293,7 +4295,6 @@ impl RunEngine {
 
     fn roll_uncommon_event_relic_id(&mut self) -> String {
         const UNCOMMON_EVENT_RELIC_POOL: &[&str] = &[
-            "BagOfMarbles",
             "ClockworkSouvenir",
             "DataDisk",
             "HappyFlower",

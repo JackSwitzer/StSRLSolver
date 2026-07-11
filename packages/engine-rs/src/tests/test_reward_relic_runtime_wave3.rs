@@ -285,6 +285,22 @@ fn art_of_war_is_reachable_from_watcher_relic_rewards() {
 }
 
 #[test]
+fn bag_of_marbles_is_reachable_under_its_canonical_java_id() {
+    // Sources: RelicLibrary.java registers BagOfMarbles and BagOfMarbles.java
+    // constructs the COMMON relic with ID "Bag of Marbles".
+    let offered = (0..1024).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Bag of Marbles"
+            })
+        })
+    });
+    assert!(offered);
+}
+
+#[test]
 fn ambrosia_is_reachable_from_watcher_potion_rewards() {
     // PotionHelper.getPotions(WATCHER, false) includes Ambrosia. White Beast
     // Statue guarantees a potion item here so the run reward path is sampled.

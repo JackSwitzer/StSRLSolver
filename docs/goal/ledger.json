@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T06:53:35.238845+00:00",
+ "updated": "2026-07-11T06:55:26.179895+00:00",
  "status_counts": {
-  "unverified": 514,
-  "verified": 153
+  "unverified": 513,
+  "verified": 154
  },
  "rows": [
   {
@@ -4872,8 +4872,8 @@
    "class": "BagOfMarbles",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/BagOfMarbles.java",
    "methods_ref": "reference/extracted/methods/relic/BagOfMarbles.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
