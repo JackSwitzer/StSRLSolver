@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T09:45:36.666396+00:00",
+ "updated": "2026-07-11T09:47:20.492015+00:00",
  "status_counts": {
-  "unverified": 459,
-  "verified": 208
+  "unverified": 458,
+  "verified": 209
  },
  "rows": [
   {
@@ -6022,8 +6022,8 @@
    "class": "PrayerWheel",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/PrayerWheel.java",
    "methods_ref": "reference/extracted/methods/relic/PrayerWheel.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

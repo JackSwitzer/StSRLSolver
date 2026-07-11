@@ -3682,7 +3682,9 @@ impl RunEngine {
             // PenNib.java uses canonical ID "Pen Nib" and COMMON tier.
             "Pen Nib",
             "QuestionCard",
-            "PrayerWheel",
+            // PrayerWheel.java uses canonical ID "Prayer Wheel", RARE tier,
+            // and canSpawn excludes non-endless runs after floor 48.
+            "Prayer Wheel",
             "SingingBowl",
             "Whetstone",
             "WarPaint",
@@ -3705,6 +3707,7 @@ impl RunEngine {
             .filter(|relic| *relic != "MealTicket" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Meat on the Bone" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Juzu Bracelet" || self.run_state.floor <= 48)
+            .filter(|relic| *relic != "Prayer Wheel" || self.run_state.floor <= 48)
             .filter(|relic| {
                 !matches!(*relic, "Frozen Egg 2" | "Molten Egg 2" | "Toxic Egg 2")
                     || self.run_state.floor <= 48
@@ -3730,6 +3733,7 @@ impl RunEngine {
                     .filter(|relic| *relic != "MealTicket" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Meat on the Bone" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Juzu Bracelet" || self.run_state.floor <= 48)
+                    .filter(|relic| *relic != "Prayer Wheel" || self.run_state.floor <= 48)
                     .filter(|relic| {
                         !matches!(*relic, "Frozen Egg 2" | "Molten Egg 2" | "Toxic Egg 2")
                             || self.run_state.floor <= 48

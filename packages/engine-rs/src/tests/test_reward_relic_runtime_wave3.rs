@@ -2544,13 +2544,28 @@ fn claiming_question_card_expands_later_card_reward_choices() {
 
 #[test]
 fn claiming_prayer_wheel_adds_second_ordered_card_reward_item() {
+    // Sources: PrayerWheel.java declares canonical ID "Prayer Wheel";
+    // CombatRewardScreen.java adds its second card reward only for a regular
+    // MonsterRoom, excluding elite and boss subclasses.
     let mut engine = RunEngine::new(7, 20);
     engine.run_state.relics.push("Sozu".to_string());
     engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
-    engine.debug_set_reward_screen(single_relic_reward_screen("PrayerWheel"));
+    engine.debug_set_reward_screen(single_relic_reward_screen("Prayer Wheel"));
 
     let claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
     assert!(claim.action_accepted);
+
+    engine.debug_build_combat_reward_screen(RoomType::Elite);
+    assert_eq!(
+        engine
+            .current_reward_screen()
+            .expect("elite rewards")
+            .items
+            .iter()
+            .filter(|item| item.kind == RewardItemKind::CardChoice)
+            .count(),
+        1
+    );
 
     engine.debug_build_combat_reward_screen(RoomType::Monster);
     let screen = engine
@@ -2578,6 +2593,32 @@ fn claiming_prayer_wheel_adds_second_ordered_card_reward_item() {
             DecisionAction::SkipRewardItem { item_index: 1 },
         ]
     );
+}
+
+#[test]
+fn prayer_wheel_is_reachable_only_through_floor_forty_eight() {
+    // PrayerWheel.java constructs a RARE relic and canSpawn excludes
+    // non-endless runs after floor 48.
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 48;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Prayer Wheel"
+            })
+        })
+    });
+    assert!(offered);
+
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 49;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Prayer Wheel")
+        }));
+    }
 }
 
 #[test]
