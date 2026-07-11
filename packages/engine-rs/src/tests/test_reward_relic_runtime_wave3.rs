@@ -1582,6 +1582,48 @@ fn hand_drill_is_reachable_only_from_the_shop_relic_slot() {
 }
 
 #[test]
+fn the_abacus_is_reachable_only_from_the_shop_relic_slot() {
+    // Abacus.java declares canonical ID "TheAbacus" and constructs
+    // RelicTier.SHOP.
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "TheAbacus")
+        }));
+    }
+
+    let offered_seed = (0..512)
+        .find(|seed| {
+            let mut engine = RunEngine::new(*seed, 0);
+            engine.debug_enter_shop();
+            engine.get_shop().is_some_and(|shop| {
+                shop.relics.iter().any(|(relic, _)| relic == "TheAbacus")
+            })
+        })
+        .expect("TheAbacus should be reachable from the SHOP-tier slot");
+
+    let mut engine = RunEngine::new(offered_seed, 0);
+    engine.run_state.gold = 999;
+    engine.debug_enter_shop();
+    let idx = engine
+        .get_shop()
+        .expect("shop")
+        .relics
+        .iter()
+        .position(|(relic, _)| relic == "TheAbacus")
+        .expect("TheAbacus offer");
+    assert!(engine
+        .step_with_result(&RunAction::ShopBuyRelic(idx))
+        .action_accepted);
+    assert!(engine
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == "TheAbacus"));
+}
+
+#[test]
 fn orange_pellets_is_reachable_only_from_the_shop_relic_slot() {
     // OrangePellets.java declares canonical ID "OrangePellets" and constructs
     // RelicTier.SHOP.

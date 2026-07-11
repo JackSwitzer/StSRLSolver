@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T18:39:35.201109+00:00",
+ "updated": "2026-07-11T18:41:11.925467+00:00",
  "status_counts": {
-  "unverified": 442,
-  "verified": 225
+  "unverified": 441,
+  "verified": 226
  },
  "rows": [
   {
@@ -6442,8 +6442,8 @@
    "class": "Abacus",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Abacus.java",
    "methods_ref": "reference/extracted/methods/relic/Abacus.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -10,7 +10,7 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/RunicCube.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/RedSkull.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/Sundial.java
-// - decompiled/java-src/com/megacrit/cardcrawl/relics/TheAbacus.java
+// - decompiled/java-src/com/megacrit/cardcrawl/relics/Abacus.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/Melange.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/GremlinHorn.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/TheSpecimen.java
@@ -143,6 +143,24 @@ fn relic_wave12_runtime_shuffle_and_enemy_death_families_match_canonical_runtime
     assert_eq!(engine.state.energy, 4);
     assert_eq!(engine.state.hand.len(), 1);
     assert_eq!(engine.state.enemies[1].entity.status(sid::POISON), 5);
+}
+
+#[test]
+fn the_abacus_grants_exactly_six_block_on_one_shuffle() {
+    // Source: reference/extracted/methods/relic/Abacus.java
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    engine.state.relics = vec!["TheAbacus".to_string()];
+    engine.rebuild_effect_runtime();
+    engine.state.draw_pile.clear();
+    engine.state.discard_pile = make_deck(&["Strike"]);
+
+    engine.draw_cards(1);
+
+    assert_eq!(engine.state.player.block, 6);
 }
 
 #[test]
