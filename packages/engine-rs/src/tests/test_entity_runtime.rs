@@ -635,6 +635,29 @@ fn hand_drill_applies_vulnerable_when_block_breaks_on_engine_path() {
 }
 
 #[test]
+fn hand_drill_triggers_when_attack_damage_exactly_equals_enemy_block() {
+    // Sources: AbstractCreature.java::decrementBlock invokes brokeBlock on
+    // equality; HandDrill.java::onBlockBroken applies 2 Vulnerable.
+    let mut state = combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    state.relics.push("HandDrill".to_string());
+    let mut engine = engine_with_state(state);
+    engine.state.hand = make_deck(&["Strike"]);
+    engine.state.draw_pile.clear();
+    engine.state.enemies[0].entity.block = 6;
+    let hp_before = engine.state.enemies[0].entity.hp;
+
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
+
+    assert_eq!(engine.state.enemies[0].entity.block, 0);
+    assert_eq!(engine.state.enemies[0].entity.hp, hp_before);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 2);
+}
+
+#[test]
 fn sword_boomerang_uses_boot_and_hand_drill_on_custom_multi_hit_path() {
     let mut state = combat_state_with(make_deck(&["Sword Boomerang"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("Boot".to_string());

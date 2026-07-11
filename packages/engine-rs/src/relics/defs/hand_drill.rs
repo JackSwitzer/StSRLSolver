@@ -7,6 +7,8 @@ use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 
 static TRIGGERS: [TriggeredEffect; 1] = [
+    // Source: reference/extracted/methods/relic/HandDrill.java
+    // onBlockBroken applies exactly 2 Vulnerable to that creature.
     TriggeredEffect {
         trigger: Trigger::OnBlockBroken,
         condition: TriggerCondition::Always,

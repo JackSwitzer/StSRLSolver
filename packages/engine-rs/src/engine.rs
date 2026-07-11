@@ -3022,7 +3022,10 @@ impl CombatEngine {
         let hit_damage = damage;
         let block_broken = self.state.has_relic("HandDrill")
             && enemy_block_before > 0
-            && hit_damage > enemy_block_before;
+            // Sources: AbstractCreature.java::decrementBlock calls
+            // brokeBlock for both damage > block and damage == block;
+            // HandDrill.java::onBlockBroken then applies 2 Vulnerable.
+            && hit_damage >= enemy_block_before;
         let hp_before = self.state.enemies[enemy_idx].entity.hp;
 
         self.deal_damage_to_enemy(enemy_idx, hit_damage);
