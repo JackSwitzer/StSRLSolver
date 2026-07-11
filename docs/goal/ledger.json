@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T19:26:31.205557+00:00",
+ "updated": "2026-07-11T19:30:22.359113+00:00",
  "status_counts": {
-  "unverified": 423,
-  "verified": 244
+  "unverified": 422,
+  "verified": 245
  },
  "rows": [
   {
@@ -6472,8 +6472,8 @@
    "class": "TinyChest",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/TinyChest.java",
    "methods_ref": "reference/extracted/methods/relic/TinyChest.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

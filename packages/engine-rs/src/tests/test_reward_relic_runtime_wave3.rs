@@ -1444,6 +1444,65 @@ fn sundial_is_reachable_from_uncommon_watcher_relic_rewards() {
 }
 
 #[test]
+fn tiny_chest_is_common_reachable_through_floor_thirty_five_only() {
+    // TinyChest.java constructs a COMMON relic and canSpawn permits
+    // non-endless runs only while floorNum <= 35.
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 35;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Tiny Chest"
+            })
+        })
+    });
+    assert!(offered);
+
+    for seed in 0..256 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 36;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Tiny Chest")
+        }));
+    }
+}
+
+#[test]
+fn tiny_chest_forces_every_fourth_mystery_room_to_treasure_and_resets() {
+    // EventHelper.java consumes a roll, increments Tiny Chest, and overrides
+    // exactly counter 4 to TREASURE before resetting the counter to zero.
+    let mut engine = RunEngine::new(71, 0);
+    engine.run_state.gold = 0;
+    engine.run_state.relics.push("Tiny Chest".to_string());
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
+    engine.run_state.relic_flags.init_relic_counter("Tiny Chest");
+    engine.debug_force_event_rolls(&[99, 99, 99, 99]);
+
+    for expected in 1..=3 {
+        engine.debug_enter_mystery_room();
+        assert_eq!(engine.current_phase(), RunPhase::Event);
+        assert_eq!(
+            engine.run_state.relic_flags.counters[crate::relic_flags::counter::TINY_CHEST],
+            expected
+        );
+        engine.debug_clear_event_state();
+    }
+
+    engine.debug_enter_mystery_room();
+    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+    assert!(engine.run_state.gold >= 50);
+    assert_eq!(
+        engine.run_state.relic_flags.counters[crate::relic_flags::counter::TINY_CHEST],
+        0
+    );
+}
+
+#[test]
 fn matryoshka_is_reachable_only_through_floor_forty() {
     // Matryoshka.java constructs an UNCOMMON relic and canSpawn allows
     // non-endless runs only while floorNum <= 40.

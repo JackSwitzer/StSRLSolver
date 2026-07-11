@@ -3576,6 +3576,7 @@ impl RunEngine {
             .filter(|id| *id != "Ancient Tea Set" || self.run_state.floor <= 48)
             .filter(|id| *id != "Old Coin" || self.run_state.floor <= 48)
             .filter(|id| *id != "Smiling Mask" || self.run_state.floor <= 48)
+            .filter(|id| *id != "Tiny Chest" || self.run_state.floor <= 35)
             .filter(|id| {
                 *id != "Peace Pipe"
                     || (self.run_state.floor < 48 && self.campfire_relic_count() < 2)
@@ -3613,6 +3614,7 @@ impl RunEngine {
             "Boot",
             "Bronze Scales",
             "Smiling Mask",
+            "Tiny Chest",
             "Toy Ornithopter",
             // Vajra.java uses canonical ID "Vajra" and COMMON tier.
             "Vajra",
@@ -3940,6 +3942,9 @@ impl RunEngine {
             // SmilingMask.java uses canonical ID "Smiling Mask", COMMON tier,
             // and canSpawn excludes non-endless runs after floor 48.
             "Smiling Mask",
+            // TinyChest.java uses canonical ID "Tiny Chest", COMMON tier, and
+            // canSpawn permits non-endless runs through floor 35.
+            "Tiny Chest",
             // PeacePipe.java uses canonical ID "Peace Pipe", RARE tier, and
             // canSpawn requires floor < 48 and fewer than two campfire relics.
             "Peace Pipe",
@@ -4051,6 +4056,7 @@ impl RunEngine {
             .filter(|relic| *relic != "Meat on the Bone" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Old Coin" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Smiling Mask" || self.run_state.floor <= 48)
+            .filter(|relic| *relic != "Tiny Chest" || self.run_state.floor <= 35)
             .filter(|relic| {
                 *relic != "Peace Pipe"
                     || (self.run_state.floor < 48 && self.campfire_relic_count() < 2)
@@ -4099,6 +4105,7 @@ impl RunEngine {
                     .filter(|relic| *relic != "Meat on the Bone" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Old Coin" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Smiling Mask" || self.run_state.floor <= 48)
+                    .filter(|relic| *relic != "Tiny Chest" || self.run_state.floor <= 35)
                     .filter(|relic| {
                         *relic != "Peace Pipe"
                             || (self.run_state.floor < 48
@@ -4931,6 +4938,23 @@ impl RunEngine {
         // MONSTER, SHOP, TREASURE, then EVENT. (Elite entries require the
         // Deadly Events modifier, which the standard run engine does not use.)
         let roll = self.next_event_roll_100() as i32;
+        let force_tiny_chest = if self
+            .run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::TINY_CHEST)
+        {
+            let counter = &mut self.run_state.relic_flags.counters
+                [crate::relic_flags::counter::TINY_CHEST];
+            *counter += 1;
+            if *counter == 4 {
+                *counter = 0;
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
         let monster_end = self.run_state.event_monster_chance.min(100);
         let shop_end = (monster_end + self.run_state.event_shop_chance).min(100);
         let treasure_end = (shop_end + self.run_state.event_treasure_chance).min(100);
@@ -4938,7 +4962,12 @@ impl RunEngine {
         #[derive(Clone, Copy, PartialEq, Eq)]
         enum MysteryResult { Monster, Shop, Treasure, Event }
 
-        let rolled = if roll < monster_end {
+        let rolled = if force_tiny_chest {
+            // EventHelper.java consumes eventRng.random() before incrementing
+            // Tiny Chest and overriding the fourth mystery result to TREASURE.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/EventHelper.java
+            MysteryResult::Treasure
+        } else if roll < monster_end {
             MysteryResult::Monster
         } else if roll < shop_end {
             MysteryResult::Shop
@@ -6047,6 +6076,12 @@ impl RunEngine {
     #[cfg(test)]
     pub(crate) fn debug_force_event_rolls(&mut self, rolls: &[usize]) {
         self.forced_event_rolls = rolls.to_vec();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_enter_mystery_room(&mut self) {
+        self.enter_mystery_room();
+        self.refresh_decision_stack();
     }
 
     #[cfg(test)]

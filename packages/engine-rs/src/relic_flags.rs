@@ -55,7 +55,8 @@ pub mod counter {
     pub const MATRYOSHKA_USES: usize = 6; // Remaining free chest relics
     pub const ANCIENT_TEA_SET: usize = 7; // Armed by entering a rest room; consumed next combat
     pub const GIRYA: usize          = 8;  // Permanent campfire lifts, capped at 3
-    pub const NUM_COUNTERS: usize   = 9;
+    pub const TINY_CHEST: usize     = 9;  // Mystery rooms since last forced chest
+    pub const NUM_COUNTERS: usize   = 10;
 }
 
 /// Relic flags for a run. Populated from Vec<String> relics on add/remove.
@@ -132,6 +133,7 @@ impl RelicFlags {
         match name {
             "Omamori" => self.counters[counter::OMAMORI_USES] = 2,
             "Matryoshka" => self.counters[counter::MATRYOSHKA_USES] = 2,
+            "Tiny Chest" | "TinyChest" => self.counters[counter::TINY_CHEST] = 0,
             _ => {}
         }
     }
