@@ -197,7 +197,13 @@ fn execute_scaled_attack_damage(
         Target::RandomEnemy => {
             let living = engine.state.living_enemy_indices();
             if !living.is_empty() {
-                let enemy_idx = living[engine.rng_gen_range(0..living.len())];
+                // AttackDamageRandomEnemyAction selects through cardRandomRng
+                // for every hit, including the one-enemy random(0, 0) case.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/AttackDamageRandomEnemyAction.java
+                let selected = engine
+                    .card_random_rng
+                    .random_range(0, (living.len() - 1) as i32) as usize;
+                let enemy_idx = living[selected];
                 let enemy_vuln = engine.state.enemies[enemy_idx].entity.is_vulnerable();
                 let enemy_intangible = engine.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) > 0;
                 let vuln_paper_frog = engine.state.has_relic("Paper Frog");

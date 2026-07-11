@@ -40,7 +40,13 @@ fn pick_random_living_enemy(engine: &mut CombatEngine) -> Option<usize> {
     if living.is_empty() {
         None
     } else {
-        Some(living[engine.rng_gen_range(0..living.len())])
+        // AttackDamageRandomEnemyAction uses cardRandomRng and consumes a call
+        // even when the only possible range is random(0, 0).
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/AttackDamageRandomEnemyAction.java
+        let selected = engine
+            .card_random_rng
+            .random_range(0, (living.len() - 1) as i32) as usize;
+        Some(living[selected])
     }
 }
 

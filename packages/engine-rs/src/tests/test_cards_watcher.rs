@@ -1305,18 +1305,80 @@ mod watcher_card_java_parity_tests {
         plus = ("Protect+", "Protect+", 2, -1, 16, -1, CardType::Skill, CardTarget::SelfTarget, false, None, ["retain"]),
         {}
     );
+    // Source-derived (verify card/Protect): selfRetain keeps an unplayed copy;
+    // the upgrade changes block 12 -> 16 and ordinary Dexterity/Frail modifiers
+    // apply when it is eventually played.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Protect.java
+    #[test]
+    fn protect_source_self_retains_and_uses_modified_upgraded_block() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.draw_pile = make_deck_n("Strike+", 10);
+        engine.state.hand = make_deck(&["Protect+"]);
+        end_turn(&mut engine);
+        assert_eq!(hand_count(&engine, "Protect+"), 1);
+        engine.state.player.set_status(sid::DEXTERITY, 4);
+        engine.state.player.set_status(sid::FRAIL, 1);
+        assert!(play_self(&mut engine, "Protect+"));
+        assert_eq!(engine.state.player.block, 15); // floor((16 + 4) * 0.75)
+    }
     watcher_test!(
         ragnarok_java_parity,
         base = ("Ragnarok", "Ragnarok", 3, 5, -1, 5, CardType::Attack, CardTarget::AllEnemy, false, None, []),
         plus = ("Ragnarok+", "Ragnarok+", 3, 6, -1, 6, CardType::Attack, CardTarget::AllEnemy, false, None, []),
         {}
     );
+    // Source-derived (verify card/Ragnarok): five separate random-enemy
+    // actions each consume cardRandomRng, even when random(0, 0) has only one
+    // legal target. The upgrade queues six hits at six damage.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Ragnarok.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/AttackDamageRandomEnemyAction.java
+    #[test]
+    fn ragnarok_source_consumes_card_random_once_per_hit() {
+        let mut engine = one_enemy_engine("JawWorm", 100, 0);
+        engine.state.hand = make_deck(&["Ragnarok"]);
+        let card_random_before = engine.card_random_rng.counter;
+        let card_before = engine.rng.counter;
+        assert!(play_on_enemy(&mut engine, "Ragnarok", 0));
+        assert_eq!(engine.state.enemies[0].entity.hp, 75);
+        assert_eq!(engine.card_random_rng.counter, card_random_before + 5);
+        assert_eq!(engine.rng.counter, card_before);
+    }
     watcher_test!(
         reach_heaven_java_parity,
         base = ("ReachHeaven", "Reach Heaven", 2, 10, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, ["add_through_violence_to_draw"]),
         plus = ("ReachHeaven+", "Reach Heaven+", 2, 15, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, ["add_through_violence_to_draw"]),
         {}
     );
+    // Source-derived (verify card/ReachHeaven): damage resolves before one base
+    // Through Violence is inserted at a cardRandomRng-selected draw index; the
+    // existing pile is not shuffled.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/ReachHeaven.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInDrawPileAction.java
+    #[test]
+    fn reach_heaven_source_uses_random_insertion_without_shuffling() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.draw_pile = make_deck(&["Strike", "Defend", "Worship"]);
+        engine.state.hand = make_deck(&["ReachHeaven+"]);
+        let card_random_before = engine.card_random_rng.counter;
+        let card_before = engine.rng.counter;
+        assert!(play_on_enemy(&mut engine, "ReachHeaven+", 0));
+        assert_eq!(engine.state.enemies[0].entity.hp, 35);
+        assert_eq!(engine.card_random_rng.counter, card_random_before + 1);
+        assert_eq!(engine.rng.counter, card_before);
+        let names: Vec<_> = engine
+            .state
+            .draw_pile
+            .iter()
+            .map(|card| engine.card_registry.card_name(card.def_id))
+            .collect();
+        let existing: Vec<_> = names
+            .iter()
+            .copied()
+            .filter(|name| *name != "ThroughViolence")
+            .collect();
+        assert_eq!(existing, vec!["Strike", "Defend", "Worship"]);
+        assert_eq!(names.iter().filter(|name| **name == "ThroughViolence").count(), 1);
+    }
     watcher_test!(
         rushdown_java_parity,
         base = ("Adaptation", "Rushdown", 1, -1, -1, 2, CardType::Power, CardTarget::SelfTarget, false, None, []),

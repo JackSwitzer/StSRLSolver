@@ -653,8 +653,10 @@ fn collect_test_markers_from_simple(simple: &SimpleEffect, markers: &mut Vec<&'s
             }
         }
         SimpleEffect::AddCardToRandomDrawSpot(card_id, _) => {
-            if *card_id == "Insight" {
-                add_test_marker(markers, "insight_to_draw");
+            match *card_id {
+                "Insight" => add_test_marker(markers, "insight_to_draw"),
+                "ThroughViolence" => add_test_marker(markers, "add_through_violence_to_draw"),
+                _ => {}
             }
         }
         SimpleEffect::ChannelOrb(orb, _) => match orb {

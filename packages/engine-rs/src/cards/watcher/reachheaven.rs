@@ -1,13 +1,16 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Uncommon: Reach Heaven ---- (cost 2, 10 dmg, shuffle Through Violence into draw; +5 dmg upgrade)
+        // MakeTempCardInDrawPileAction inserts base Through Violence at a
+        // cardRandomRng-selected draw index after damage; upgrade adds 5 damage.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/ReachHeaven.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInDrawPileAction.java
     insert(cards, CardDef {
                 id: "ReachHeaven", name: "Reach Heaven", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 10, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[
-                    E::Simple(SE::AddCard("ThroughViolence", P::Draw, A::Fixed(1))),
+                    E::Simple(SE::AddCardToRandomDrawSpot("ThroughViolence", A::Fixed(1))),
                 ], complex_hook: None,
             });
     insert(cards, CardDef {
@@ -15,7 +18,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 target: CardTarget::Enemy, cost: 2, base_damage: 15, base_block: -1,
                 base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[
-                    E::Simple(SE::AddCard("ThroughViolence", P::Draw, A::Fixed(1))),
+                    E::Simple(SE::AddCardToRandomDrawSpot("ThroughViolence", A::Fixed(1))),
                 ], complex_hook: None,
             });
 }
