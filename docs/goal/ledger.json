@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T01:11:02.206317+00:00",
+ "updated": "2026-07-11T01:19:26.304424+00:00",
  "status_counts": {
-  "unverified": 606,
-  "verified": 61
+  "unverified": 603,
+  "verified": 64
  },
  "rows": [
   {
@@ -3042,8 +3042,8 @@
    "class": "SpiritShield",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/SpiritShield.java",
    "methods_ref": "reference/extracted/methods/card/SpiritShield.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -3172,8 +3172,8 @@
    "class": "Study",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Study.java",
    "methods_ref": "reference/extracted/methods/card/Study.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -3232,8 +3232,8 @@
    "class": "Swivel",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Swivel.java",
    "methods_ref": "reference/extracted/methods/card/Swivel.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

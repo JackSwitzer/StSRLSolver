@@ -2,7 +2,7 @@
 //!
 //! Powers that trigger at the end of the player's turn.
 
-use crate::effects::declarative::{AmountSource, Effect, Pile, SimpleEffect, Target};
+use crate::effects::declarative::{AmountSource, Effect, SimpleEffect, Target};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::state::Stance;
@@ -140,9 +140,11 @@ pub static DEF_LIKE_WATER: EntityDef = EntityDef {
 // Study — TurnEnd: add Insight(s) to draw pile
 // ===========================================================================
 
-static STUDY_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddCard(
+// Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/StudyPower.java
+// MakeTempCardInDrawPileAction(..., randomSpot=true) uses cardRandomRng for
+// each Insight rather than shuffling the existing draw pile.
+static STUDY_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddCardToRandomDrawSpot(
     "Insight",
-    Pile::Draw,
     AmountSource::StatusValue(sid::STUDY),
 ))];
 

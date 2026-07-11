@@ -828,6 +828,7 @@ fn supplemental_test_markers(id: &str) -> &'static [&'static str] {
             &["pressure_points"]
         }
         "Judgement" | "Judgement+" => &["judgement"],
+        "SpiritShield" | "SpiritShield+" => &["block_per_card_in_hand"],
         "LessonLearned" | "LessonLearned+" => &["lesson_learned"],
         "Wish" | "Wish+" => &["wish"],
         "DeusExMachina" | "DeusExMachina+" => &["deus_ex_machina"],

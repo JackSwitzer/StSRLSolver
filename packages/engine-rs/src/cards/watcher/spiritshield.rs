@@ -1,27 +1,20 @@
 use crate::cards::prelude::*;
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE};
-
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Rare: Spirit Shield ---- (cost 2, skill, gain 3 block per card in hand; +1 magic upgrade)
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/SpiritShield.java
+    // applyPowers sets one baseBlock equal to the remaining hand size times
+    // magicNumber, then applies block modifiers once to that total.
     insert(cards, CardDef {
                 id: "SpiritShield", name: "Spirit Shield", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,
                 base_magic: 3, exhaust: false, enter_stance: None,
-                effect_data: &[
-                    E::Simple(SE::GainBlock(A::HandSize)),
-                    E::Simple(SE::GainBlock(A::HandSize)),
-                    E::Simple(SE::GainBlock(A::HandSize)),
-                ], complex_hook: None,
+                effect_data: &[],
+                complex_hook: Some(crate::effects::hooks_simple::hook_block_per_card_in_hand),
             });
     insert(cards, CardDef {
                 id: "SpiritShield+", name: "Spirit Shield+", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,
                 base_magic: 4, exhaust: false, enter_stance: None,
-                effect_data: &[
-                    E::Simple(SE::GainBlock(A::HandSize)),
-                    E::Simple(SE::GainBlock(A::HandSize)),
-                    E::Simple(SE::GainBlock(A::HandSize)),
-                    E::Simple(SE::GainBlock(A::HandSize)),
-                ], complex_hook: None,
+                effect_data: &[],
+                complex_hook: Some(crate::effects::hooks_simple::hook_block_per_card_in_hand),
             });
 }

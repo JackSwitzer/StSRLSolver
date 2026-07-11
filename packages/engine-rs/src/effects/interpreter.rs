@@ -2209,7 +2209,9 @@ fn set_bool_flag(engine: &mut CombatEngine, flag: BoolFlag) {
             engine.state.skip_enemy_turn = true;
         }
         BoolFlag::NextAttackFree => {
-            engine.state.player.set_status(sid::NEXT_ATTACK_FREE, 1);
+            // FreeAttackPower stacks and consumes one charge per Attack.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/FreeAttackPower.java
+            engine.state.player.add_status(sid::NEXT_ATTACK_FREE, 1);
         }
         BoolFlag::Blasphemy => {
             engine.state.blasphemy_active = true;

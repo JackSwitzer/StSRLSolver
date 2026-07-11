@@ -1104,7 +1104,7 @@ impl EffectRuntime {
                         engine.state.skip_enemy_turn = true;
                     }
                     crate::effects::declarative::BoolFlag::NextAttackFree => {
-                        engine.state.player.set_status(sid::NEXT_ATTACK_FREE, 1);
+                        engine.state.player.add_status(sid::NEXT_ATTACK_FREE, 1);
                     }
                     crate::effects::declarative::BoolFlag::Blasphemy => {
                         engine.state.blasphemy_active = true;

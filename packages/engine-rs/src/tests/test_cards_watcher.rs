@@ -1455,6 +1455,23 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.player.block, 15);
         }
     );
+    // Source-derived (verify card/SpiritShield): applyPowers excludes the card
+    // itself, multiplies the remaining hand count by magicNumber, and only then
+    // runs the ordinary block-power pipeline once. With four remaining cards,
+    // Spirit Shield+ has base block 16; Dexterity 4 and Frail yield floor(20*.75)=15.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/SpiritShield.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/AbstractCard.java
+    #[test]
+    fn spirit_shield_source_applies_block_modifiers_once_to_the_total() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.hand = make_deck(&[
+            "SpiritShield+", "Strike", "Defend", "Worship", "Protect",
+        ]);
+        engine.state.player.set_status(sid::DEXTERITY, 4);
+        engine.state.player.set_status(sid::FRAIL, 1);
+        assert!(play_self(&mut engine, "SpiritShield+"));
+        assert_eq!(engine.state.player.block, 15);
+    }
     watcher_test!(
         study_java_parity,
         base = ("Study", "Study", 2, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, []),
@@ -1471,6 +1488,45 @@ mod watcher_card_java_parity_tests {
             assert_eq!(total_insights, 1); // Study adds exactly 1 Insight at end of turn
         }
     );
+    // Source-derived (verify card/Study): StudyPower.atEndOfTurn passes
+    // randomSpot=true to MakeTempCardInDrawPileAction once per power stack.
+    // CardGroup.addToRandomSpot consumes cardRandomRng and preserves existing
+    // draw-pile order instead of shuffling it.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Study.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/StudyPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
+    #[test]
+    fn study_source_randomly_inserts_each_insight_without_shuffling() {
+        let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.state.draw_pile = make_deck(&[
+            "Strike", "Defend", "Worship", "Protect", "Prostrate", "Vigilance",
+        ]);
+        engine.state.hand = make_deck(&["Study", "Study+"]);
+        engine.state.energy = 3;
+        assert!(play_self(&mut engine, "Study"));
+        assert!(play_self(&mut engine, "Study+"));
+        assert_eq!(engine.state.player.status(sid::STUDY), 2);
+        let card_random_before = engine.card_random_rng.counter;
+        let shuffle_before = engine.rng.counter;
+        end_turn(&mut engine);
+        assert_eq!(engine.card_random_rng.counter, card_random_before + 2);
+        assert_eq!(engine.rng.counter, shuffle_before);
+        let existing: Vec<_> = engine
+            .state
+            .draw_pile
+            .iter()
+            .chain(engine.state.hand.iter())
+            .filter_map(|card| {
+                let name = engine.card_registry.card_name(card.def_id);
+                (name != "Insight").then_some(name)
+            })
+            .collect();
+        assert_eq!(existing.len(), 6);
+        let total_insights = hand_prefix_count(&engine, "Insight")
+            + draw_prefix_count(&engine, "Insight")
+            + discard_prefix_count(&engine, "Insight");
+        assert_eq!(total_insights, 2);
+    }
     watcher_test!(
         swivel_java_parity,
         base = ("Swivel", "Swivel", 2, -1, 8, -1, CardType::Skill, CardTarget::SelfTarget, false, None, ["next_attack_free"]),
@@ -1485,6 +1541,33 @@ mod watcher_card_java_parity_tests {
             assert_eq!(engine.state.energy, energy_before);
         }
     );
+    // Source-derived (verify card/Swivel): ApplyPowerAction stacks
+    // FreeAttackPower, whose onUseCard decrements exactly one amount for each
+    // non-purge Attack. Two Swivels therefore make the next two Attacks free.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Swivel.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/FreeAttackPower.java
+    #[test]
+    fn swivel_source_stacks_and_consumes_one_free_attack_charge_at_a_time() {
+        let mut engine = one_enemy_engine("JawWorm", 100, 0);
+        engine.state.hand = make_deck(&[
+            "Swivel", "Swivel", "Strike", "Strike", "Strike",
+        ]);
+        engine.state.energy = 10;
+        assert!(play_self(&mut engine, "Swivel"));
+        assert!(play_self(&mut engine, "Swivel"));
+        assert_eq!(engine.state.player.block, 16);
+        assert_eq!(engine.state.player.status(sid::NEXT_ATTACK_FREE), 2);
+        assert_eq!(engine.state.energy, 6);
+
+        assert!(play_on_enemy(&mut engine, "Strike", 0));
+        assert_eq!(engine.state.player.status(sid::NEXT_ATTACK_FREE), 1);
+        assert_eq!(engine.state.energy, 6);
+        assert!(play_on_enemy(&mut engine, "Strike", 0));
+        assert_eq!(engine.state.player.status(sid::NEXT_ATTACK_FREE), 0);
+        assert_eq!(engine.state.energy, 6);
+        assert!(play_on_enemy(&mut engine, "Strike", 0));
+        assert_eq!(engine.state.energy, 5);
+    }
     watcher_test!(
         talk_to_the_hand_java_parity,
         base = ("TalkToTheHand", "Talk to the Hand", 1, 5, -1, 2, CardType::Attack, CardTarget::Enemy, true, None, ["apply_block_return"]),

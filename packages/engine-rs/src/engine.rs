@@ -1940,7 +1940,9 @@ impl CombatEngine {
         if card_inst.is_free() {
             return 0;
         }
-        if card.card_type == CardType::Attack && self.state.player.status(sid::NEXT_ATTACK_FREE) > 0
+        if card.card_type == CardType::Attack
+            && card_inst.flags & CardInstance::FLAG_PURGE == 0
+            && self.state.player.status(sid::NEXT_ATTACK_FREE) > 0
         {
             return 0;
         }
@@ -2284,7 +2286,10 @@ impl CombatEngine {
 
         if card.card_type == CardType::Attack && self.state.player.status(sid::NEXT_ATTACK_FREE) > 0
         {
-            self.state.player.set_status(sid::NEXT_ATTACK_FREE, 0);
+            // FreeAttackPower.onUseCard decrements one stack and removes the
+            // power only at zero, so stacked Swivels cover stacked attacks.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/FreeAttackPower.java
+            self.state.player.add_status(sid::NEXT_ATTACK_FREE, -1);
         }
 
         if !self.state.combat_over {
