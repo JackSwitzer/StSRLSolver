@@ -124,6 +124,25 @@ fn wave7_status_potions_apply_expected_statuses_via_action_path() {
 }
 
 #[test]
+fn ancient_potion_targets_player_and_uses_sacred_bark_potency() {
+    // Source-derived (verify potion/AncientPotion): Java overwrites `target`
+    // with the player and applies ArtifactPower(potency). Base potency is one.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "Ancient Potion".to_string();
+
+    use_potion(&mut engine, 0, 0);
+
+    assert_eq!(engine.state.player.status(sid::ARTIFACT), 2);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+    assert!(engine.state.potions[0].is_empty());
+}
+
+#[test]
 fn wave7_smoke_bomb_flees_combat_via_runtime_action_path() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike"]),

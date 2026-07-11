@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T04:40:29.195976+00:00",
+ "updated": "2026-07-11T04:42:43.061515+00:00",
  "status_counts": {
-  "unverified": 549,
-  "verified": 118
+  "unverified": 548,
+  "verified": 119
  },
  "rows": [
   {
@@ -4402,8 +4402,8 @@
    "class": "AncientPotion",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/AncientPotion.java",
    "methods_ref": "reference/extracted/methods/potion/AncientPotion.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

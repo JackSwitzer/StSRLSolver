@@ -179,6 +179,26 @@ fn stance_potion_is_reachable_from_watcher_potion_rewards() {
 }
 
 #[test]
+fn ancient_potion_is_reachable_from_watcher_potion_rewards() {
+    // PotionHelper's shared potion list includes the canonical spaced ID.
+    let offered = (0..128).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine
+            .run_state
+            .relics
+            .push("White Beast Statue".to_string());
+        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine.debug_build_combat_reward_screen(RoomType::Monster);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Potion && item.label == "Ancient Potion"
+            })
+        })
+    });
+    assert!(offered);
+}
+
+#[test]
 fn claiming_question_card_expands_later_card_reward_choices() {
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.relics.push("Sozu".to_string());

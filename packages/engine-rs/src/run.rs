@@ -2785,6 +2785,7 @@ impl RunEngine {
             "Ambrosia",
             "BottledMiracle",
             "StancePotion",
+            "Ancient Potion",
         ];
 
         let registry = gameplay_registry();
