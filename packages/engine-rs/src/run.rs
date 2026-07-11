@@ -1257,6 +1257,14 @@ impl RunEngine {
             enemy.set_move(crate::enemies::move_ids::JW_CHOMP, chomp_damage, 1, 0);
         }
 
+        // Source: reference/extracted/methods/monster/FungiBeast.java.
+        // Grow grants 3 Strength, 4 at A2, and one additional point at A17.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "FungiBeast") {
+            let strength = if self.run_state.ascension >= 17 { 5 }
+                else if self.run_state.ascension >= 2 { 4 } else { 3 };
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT, strength);
+        }
+
         // Java Cultist.java: ctor sets ritualAmount = ascensionLevel >= 2 ? 4 : 3;
         // takeTurn() case 3 (INCANTATION) applies RitualPower(ritualAmount + 1)
         // at ascensionLevel >= 17, else RitualPower(ritualAmount).
@@ -1357,7 +1365,10 @@ impl RunEngine {
                 (hp, hp)
             }
             "FungiBeast" => {
-                let hp = if a20 { 24 } else { 22 };
+                // Source: reference/extracted/methods/monster/FungiBeast.java:
+                // setHp(22,28), or setHp(24,28) at ascension 7+ (inclusive).
+                let base = if a20 { 24 } else { 22 };
+                let hp = base + self.rng.gen_range(0..=(28 - base));
                 (hp, hp)
             }
             "BlueSlaver" | "SlaverBlue" => {
@@ -4225,6 +4236,35 @@ mod tests {
             assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG), damage);
             assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), strength);
             assert_eq!(enemy.entity.status(crate::status_ids::sid::BLOCK_AMT), block);
+        }
+    }
+
+    #[test]
+    fn fungi_beast_constructor_ranges_and_ascension_stats_match_java() {
+        // Source: reference/extracted/methods/monster/FungiBeast.java.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("FungiBeast").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("FungiBeast").0);
+        }
+        assert!(low_hp.iter().all(|hp| (22..=28).contains(hp)));
+        assert!(high_hp.iter().all(|hp| (24..=28).contains(hp)));
+        assert!(low_hp.contains(&22) && low_hp.contains(&28));
+        assert!(high_hp.contains(&24) && high_hp.contains(&28));
+
+        for (ascension, strength) in [(0, 3), (2, 4), (17, 5)] {
+            let mut engine = RunEngine::new(42, ascension);
+            engine.enter_specific_combat(vec!["FungiBeast".to_string()]);
+            let enemy = &engine.combat_engine.as_ref().unwrap().state.enemies[0];
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), strength);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::SPORE_CLOUD), 2);
+            assert!(enemy.move_history.is_empty());
+            assert!(matches!(enemy.move_id,
+                crate::enemies::move_ids::FB_BITE | crate::enemies::move_ids::FB_GROW));
+            assert_eq!(engine.combat_engine.as_ref().unwrap().ai_rng.counter, 1);
         }
     }
 

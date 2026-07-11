@@ -104,10 +104,21 @@ mod enemy_tests {
 
     // ========== FungiBeast ==========
 
-    #[test] fn fb_first_bite() {
-        let e = create_enemy("FungiBeast", 24, 24);
-        assert_eq!(e.move_id, FB_BITE);
-        assert_eq!(e.move_damage(), 6);
+    #[test] fn fb_initial_roll_uses_java_60_percent_split() {
+        // Source: reference/extracted/methods/monster/FungiBeast.java (`getMove`).
+        let mut bite = create_enemy("FungiBeast", 24, 24);
+        roll_initial_move_with_num_and_rng(
+            &mut bite, 59, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(bite.move_id, FB_BITE);
+        assert_eq!(bite.move_damage(), 6);
+        assert!(bite.move_history.is_empty());
+
+        let mut grow = create_enemy("FungiBeast", 24, 24);
+        roll_initial_move_with_num_and_rng(
+            &mut grow, 60, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(grow.move_id, FB_GROW);
+        assert_eq!(grow.effect(mfx::STRENGTH), Some(3));
+        assert!(grow.move_history.is_empty());
     }
     #[test] fn fb_spore_cloud_on_death() {
         let e = create_enemy("FungiBeast", 24, 24);
@@ -115,21 +126,21 @@ mod enemy_tests {
     }
     #[test] fn fb_no_three_bites() {
         let mut e = create_enemy("FungiBeast", 24, 24);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // bite -> bite
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // bite,bite -> MUST grow
+        roll_next_move_with_num(&mut e, 0); // bite -> bite
+        roll_next_move_with_num(&mut e, 0); // bite,bite -> MUST grow
         assert_eq!(e.move_id, FB_GROW);
     }
     #[test] fn fb_grow_gives_strength() {
         let mut e = create_enemy("FungiBeast", 24, 24);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut e, 0);
+        roll_next_move_with_num(&mut e, 0);
         assert_eq!(e.effect(mfx::STRENGTH).unwrap(), 3);
     }
     #[test] fn fb_after_grow_bite() {
         let mut e = create_enemy("FungiBeast", 24, 24);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut e, 0);
+        roll_next_move_with_num(&mut e, 0);
+        roll_next_move_with_num(&mut e, 99);
         assert_eq!(e.move_id, FB_BITE);
     }
 

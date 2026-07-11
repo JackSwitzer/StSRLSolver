@@ -419,6 +419,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.add_effect(mfx::RITUAL, 3);
         }
         "FungiBeast" => {
+            enemy.entity.set_status(sid::STR_AMT, 3);
             enemy.set_move(move_ids::FB_BITE, 6, 1, 0);
             enemy.entity.set_status(sid::SPORE_CLOUD, 2);
         }
@@ -834,6 +835,24 @@ pub fn roll_next_move(enemy: &mut EnemyCombatState, ai_rng: &mut crate::seed::St
     roll_next_move_with_num_and_rng(enemy, num, ai_rng);
 }
 
+/// Select a monster's opening intent without recording a placeholder move in
+/// history. Java calls `rollMove()` from `AbstractMonster.init()` while history
+/// is empty. This is currently used only for source-verified random openers.
+pub fn roll_initial_move(enemy: &mut EnemyCombatState, ai_rng: &mut crate::seed::StsRandom) {
+    let num = ai_rng.random(99);
+    roll_initial_move_with_num_and_rng(enemy, num, ai_rng);
+}
+
+pub fn roll_initial_move_with_num_and_rng(
+    enemy: &mut EnemyCombatState,
+    num: i32,
+    ai_rng: &mut crate::seed::StsRandom,
+) {
+    enemy.move_history.clear();
+    enemy.move_effects.clear();
+    select_move(enemy, num, ai_rng);
+}
+
 /// Test-friendly entry point: advance enemy intent using an explicit `num` (0..=99)
 /// and a deterministic secondary RNG. Production code should call `roll_next_move`;
 /// RNG-sensitive tests should call `roll_next_move_with_num_and_rng`.
@@ -851,7 +870,14 @@ pub fn roll_next_move_with_num_and_rng(
 ) {
     enemy.move_history.push(enemy.move_id);
     enemy.move_effects.clear();
+    select_move(enemy, num, ai_rng);
+}
 
+fn select_move(
+    enemy: &mut EnemyCombatState,
+    num: i32,
+    ai_rng: &mut crate::seed::StsRandom,
+) {
     match enemy.id.as_str() {
         // Act 1
         "JawWorm" => act1::roll_jaw_worm(enemy, num, ai_rng),
@@ -1012,16 +1038,13 @@ mod tests {
     #[test]
     fn test_fungi_beast_anti_repeat() {
         let mut enemy = create_enemy("FungiBeast", 24, 24);
-        assert_eq!(enemy.move_id, move_ids::FB_BITE);
+        // Source: reference/extracted/methods/monster/FungiBeast.java.
+        roll_next_move_with_num(&mut enemy, 0);
+        roll_next_move_with_num(&mut enemy, 0);
+        assert_eq!(enemy.move_id, move_ids::FB_GROW);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        if enemy.move_history.len() >= 2
-            && enemy.move_history[enemy.move_history.len() - 1] == move_ids::FB_BITE
-            && enemy.move_history[enemy.move_history.len() - 2] == move_ids::FB_BITE
-        {
-            assert_eq!(enemy.move_id, move_ids::FB_GROW);
-        }
+        roll_next_move_with_num(&mut enemy, 99);
+        assert_eq!(enemy.move_id, move_ids::FB_BITE);
     }
 
     #[test]

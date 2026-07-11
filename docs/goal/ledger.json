@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T01:56:01.832990+00:00",
+ "updated": "2026-07-11T02:00:05.296766+00:00",
  "status_counts": {
-  "unverified": 586,
-  "verified": 81
+  "unverified": 585,
+  "verified": 82
  },
  "rows": [
   {
@@ -3932,8 +3932,8 @@
    "class": "FungiBeast",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/exordium/FungiBeast.java",
    "methods_ref": "reference/extracted/methods/monster/FungiBeast.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

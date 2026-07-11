@@ -298,6 +298,13 @@ impl CombatEngine {
 
         self.rebuild_effect_runtime();
 
+        // Source: reference/extracted/methods/monster/FungiBeast.java and
+        // methods/base/AbstractMonster.java (`init` -> `rollMove`). Fungi Beast
+        // has no fixed opener; choose it before combat-start actions/draws.
+        for enemy in self.state.enemies.iter_mut().filter(|e| e.id == "FungiBeast") {
+            crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
+        }
+
         // Apply combat-start relic + power effects via owner-aware runtime.
         self.emit_event(crate::effects::runtime::GameEvent::empty(
             crate::effects::trigger::Trigger::CombatStart,

@@ -56,14 +56,21 @@ pub(super) fn roll_cultist(enemy: &mut EnemyCombatState, _num: i32) {
     enemy.set_move(move_ids::CULT_DARK_STRIKE, 6, 1, 0);
 }
 
-pub(super) fn roll_fungi_beast(enemy: &mut EnemyCombatState, _num: i32) {
-    if last_two_moves(enemy, move_ids::FB_BITE) {
-        enemy.set_move(move_ids::FB_GROW, 0, 0, 0);
-        enemy.add_effect(mfx::STRENGTH, 3);
+pub(super) fn roll_fungi_beast(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/FungiBeast.java (`getMove`).
+    let strength = enemy.entity.status(sid::STR_AMT).max(3) as i16;
+    if num < 60 {
+        if last_two_moves(enemy, move_ids::FB_BITE) {
+            enemy.set_move(move_ids::FB_GROW, 0, 0, 0);
+            enemy.add_effect(mfx::STRENGTH, strength);
+        } else {
+            enemy.set_move(move_ids::FB_BITE, 6, 1, 0);
+        }
     } else if last_move(enemy, move_ids::FB_GROW) {
         enemy.set_move(move_ids::FB_BITE, 6, 1, 0);
     } else {
-        enemy.set_move(move_ids::FB_BITE, 6, 1, 0);
+        enemy.set_move(move_ids::FB_GROW, 0, 0, 0);
+        enemy.add_effect(mfx::STRENGTH, strength);
     }
 }
 
