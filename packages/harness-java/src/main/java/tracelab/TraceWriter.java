@@ -118,6 +118,8 @@ public class TraceWriter {
         if (a.choice != null) m.put("choice", a.choice);
         if (a.item != null) m.put("item", a.item);
         if (a.idx != null) m.put("idx", a.idx);
+        if (a.card_id != null) m.put("card_id", a.card_id);
+        if (a.choice_name != null) m.put("choice_name", a.choice_name);
         return m;
     }
 
