@@ -3617,6 +3617,8 @@ impl RunEngine {
             // MeatOnTheBone.java uses canonical ID "Meat on the Bone",
             // UNCOMMON tier, and a floor-48 spawn cutoff.
             "Meat on the Bone",
+            // HappyFlower.java uses canonical ID "Happy Flower" and COMMON tier.
+            "Happy Flower",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
@@ -5102,7 +5104,6 @@ impl RunEngine {
             "Bottled Tornado",
             "ClockworkSouvenir",
             "DataDisk",
-            "HappyFlower",
             "OrnamentalFan",
             "ThreadAndNeedle",
         ];

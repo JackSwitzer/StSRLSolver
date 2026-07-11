@@ -342,6 +342,8 @@ fn philosophers_stone_buffs_all_enemies_at_combat_start() {
 
 #[test]
 fn happy_flower_grants_energy_on_every_third_turn_via_engine_path() {
+    // HappyFlower.java increments at every turn start, resets at three, and
+    // queues exactly one GainEnergyAction(1).
     let mut state = combat_state_with(make_deck(&["Strike"; 20]), vec![enemy("JawWorm", 80, 80, 1, 0, 1)], 3);
     state.relics.push("Happy Flower".to_string());
 

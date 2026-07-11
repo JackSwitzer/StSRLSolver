@@ -975,6 +975,22 @@ fn meat_on_the_bone_is_reachable_only_through_floor_forty_eight() {
 }
 
 #[test]
+fn happy_flower_is_reachable_from_common_watcher_relic_rewards() {
+    // HappyFlower.java constructs a COMMON relic under canonical ID
+    // "Happy Flower"; it must not be sourced from an UNCOMMON-only event roll.
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Happy Flower"
+            })
+        })
+    });
+    assert!(offered);
+}
+
+#[test]
 fn medical_kit_is_reachable_only_from_the_shop_relic_slot() {
     // MedicalKit.java constructs RelicTier.SHOP. ShopScreen.java::initRelics
     // makes its third relic slot SHOP-tier; ordinary combat rewards cannot offer it.

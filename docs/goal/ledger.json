@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T09:16:10.903537+00:00",
+ "updated": "2026-07-11T09:18:36.650036+00:00",
  "status_counts": {
-  "unverified": 470,
-  "verified": 197
+  "unverified": 469,
+  "verified": 198
  },
  "rows": [
   {
@@ -5472,8 +5472,8 @@
    "class": "HappyFlower",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/HappyFlower.java",
    "methods_ref": "reference/extracted/methods/relic/HappyFlower.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
