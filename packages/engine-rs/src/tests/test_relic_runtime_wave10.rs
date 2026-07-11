@@ -155,11 +155,25 @@ fn relic_wave10_turn_end_runtime_relics_match_java_timing() {
         vec![enemy("JawWorm", 60, 60, 1, 5, 1)],
         3,
     );
+    // Source: reference/extracted/methods/relic/Orichalcum.java
+    // onPlayerEndTurn queues exactly 6 Block when currentBlock is zero.
     orichalcum_state.relics.push("Orichalcum".to_string());
     let mut orichalcum = engine_with_state(orichalcum_state);
     let hp_before = orichalcum.state.player.hp;
     end_turn(&mut orichalcum);
     assert_eq!(orichalcum.state.player.hp, hp_before);
+
+    let mut blocked_state = combat_state_with(
+        make_deck_n("Defend", 5),
+        vec![enemy("JawWorm", 60, 60, 1, 5, 1)],
+        3,
+    );
+    blocked_state.relics.push("Orichalcum".to_string());
+    blocked_state.player.block = 1;
+    let mut blocked = engine_with_state(blocked_state);
+    let hp_before = blocked.state.player.hp;
+    end_turn(&mut blocked);
+    assert_eq!(blocked.state.player.hp, hp_before - 4);
 
     let mut clasp_state = combat_state_with(
         make_deck(&["Defend", "Defend", "Defend"]),

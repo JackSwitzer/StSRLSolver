@@ -3674,6 +3674,8 @@ impl RunEngine {
             // OddlySmoothStone.java uses canonical ID "Oddly Smooth Stone"
             // and COMMON tier.
             "Oddly Smooth Stone",
+            // Orichalcum.java uses canonical ID "Orichalcum" and COMMON tier.
+            "Orichalcum",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",

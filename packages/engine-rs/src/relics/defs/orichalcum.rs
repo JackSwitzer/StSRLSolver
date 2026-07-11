@@ -9,6 +9,8 @@ static EFFECTS: [Effect; 1] = [
 ];
 
 static TRIGGERS: [TriggeredEffect; 1] = [
+    // Source: reference/extracted/methods/relic/Orichalcum.java
+    // onPlayerEndTurn queues exactly 6 Block only when currentBlock is zero.
     TriggeredEffect {
         trigger: Trigger::TurnEnd,
         condition: TriggerCondition::NoBlock,

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T09:38:01.687774+00:00",
+ "updated": "2026-07-11T09:40:28.972348+00:00",
  "status_counts": {
-  "unverified": 462,
-  "verified": 205
+  "unverified": 461,
+  "verified": 206
  },
  "rows": [
   {
@@ -5892,8 +5892,8 @@
    "class": "Orichalcum",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Orichalcum.java",
    "methods_ref": "reference/extracted/methods/relic/Orichalcum.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
