@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T02:30:01.028455+00:00",
+ "updated": "2026-07-11T02:35:23.694225+00:00",
  "status_counts": {
-  "unverified": 577,
-  "verified": 90
+  "unverified": 576,
+  "verified": 91
  },
  "rows": [
   {
@@ -4282,8 +4282,8 @@
    "class": "SpikeSlime_M",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/exordium/SpikeSlime_M.java",
    "methods_ref": "reference/extracted/methods/monster/SpikeSlime_M.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

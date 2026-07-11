@@ -1348,6 +1348,16 @@ impl RunEngine {
             enemy.set_move(crate::enemies::move_ids::SS_TACKLE, damage, 1, 0);
         }
 
+        // Source: reference/extracted/methods/monster/SpikeSlime_M.java.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "SpikeSlime_M") {
+            let damage = if self.run_state.ascension >= 2 { 10 } else { 8 };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, damage);
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if self.run_state.ascension >= 17 { 17 } else { 0 });
+            enemy.set_move(crate::enemies::move_ids::SS_TACKLE, damage, 1, 0);
+            enemy.add_effect(crate::combat_types::mfx::SLIMED, 1);
+        }
+
         // Java Cultist.java: ctor sets ritualAmount = ascensionLevel >= 2 ? 4 : 3;
         // takeTurn() case 3 (INCANTATION) applies RitualPower(ritualAmount + 1)
         // at ascensionLevel >= 17, else RitualPower(ritualAmount).
@@ -1450,7 +1460,9 @@ impl RunEngine {
                 (hp, hp)
             }
             "SpikeSlime_M" => {
-                let hp = if a20 { 32 } else { 28 };
+                let base = if a20 { 29 } else { 28 };
+                let width = if a20 { 5 } else { 4 };
+                let hp = base + self.rng.gen_range(0..=width);
                 (hp, hp)
             }
             "SpikeSlime_L" => {
@@ -4653,6 +4665,52 @@ mod tests {
                 crate::enemies::move_ids::SS_TACKLE);
             assert_eq!(combat.ai_rng.counter, 2);
         }
+    }
+
+    #[test]
+    fn spike_slime_m_stats_tackle_and_ai_ticks_match_java() {
+        // Source: reference/extracted/methods/monster/SpikeSlime_M.java.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("SpikeSlime_M").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("SpikeSlime_M").0);
+        }
+        assert_eq!(low_hp, (28..=32).collect());
+        assert_eq!(high_hp, (29..=34).collect());
+
+        for (ascension, damage, marker) in [(0, 8, 0), (2, 10, 0), (17, 10, 17)] {
+            let mut engine = RunEngine::new(42, ascension);
+            engine.enter_specific_combat(vec!["SpikeSlime_M".to_string()]);
+            let combat = engine.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG), damage);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::BLOCK_AMT), marker);
+            assert!(matches!(enemy.move_id,
+                crate::enemies::move_ids::SS_TACKLE | crate::enemies::move_ids::SS_LICK));
+            assert_eq!(combat.ai_rng.counter, 1,
+                "AbstractMonster.init performs one opening roll");
+        }
+
+        let mut engine = RunEngine::new(42, 0);
+        engine.enter_specific_combat(vec!["SpikeSlime_M".to_string()]);
+        let ticks_before = {
+            let combat = engine.combat_engine.as_mut().unwrap();
+            let enemy = &mut combat.state.enemies[0];
+            enemy.move_history.clear();
+            enemy.set_move(crate::enemies::move_ids::SS_TACKLE, 8, 1, 0);
+            enemy.move_effects.clear();
+            enemy.add_effect(crate::combat_types::mfx::SLIMED, 1);
+            combat.ai_rng.counter
+        };
+        engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        let combat = engine.combat_engine.as_ref().unwrap();
+        assert_eq!(combat.ai_rng.counter, ticks_before + 1,
+            "RollMoveAction consumes one aiRng draw after Tackle");
+        assert_eq!(combat.state.discard_pile.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) == "Slimed").count(), 1);
     }
 
     #[test]

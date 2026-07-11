@@ -467,17 +467,41 @@ mod enemy_tests {
 
     // ========== Spike Slime M ==========
 
-    #[test] fn spike_m_first() {
-        let e = create_enemy("SpikeSlime_M", 28, 28);
-        assert_eq!(e.move_id, SS_TACKLE);
-        assert_eq!(e.move_damage(), 8);
+    #[test] fn spike_m_initial_window_and_tackle_slimed_match_java() {
+        // Source: reference/extracted/methods/monster/SpikeSlime_M.java.
+        let mut tackle = create_enemy("SpikeSlime_M", 28, 28);
+        roll_initial_move_with_num_and_rng(
+            &mut tackle, 29, &mut crate::seed::StsRandom::new(1));
+        assert_eq!(tackle.move_id, SS_TACKLE);
+        assert_eq!(tackle.move_damage(), 8);
+        assert_eq!(tackle.effect(mfx::SLIMED), Some(1));
+        let mut lick = create_enemy("SpikeSlime_M", 28, 28);
+        roll_initial_move_with_num_and_rng(
+            &mut lick, 30, &mut crate::seed::StsRandom::new(1));
+        assert_eq!(lick.move_id, SS_LICK);
+        assert_eq!(lick.effect(mfx::FRAIL), Some(1));
     }
     #[test] fn spike_m_no_three_tackles() {
         let mut e = create_enemy("SpikeSlime_M", 28, 28);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut e, 0);
+        roll_next_move_with_num(&mut e, 0);
         assert_eq!(e.move_id, SS_LICK);
         assert_eq!(e.effect(mfx::FRAIL).unwrap(), 1);
+    }
+
+    #[test] fn spike_m_a17_prevents_consecutive_licks() {
+        let mut low = create_enemy("SpikeSlime_M", 28, 28);
+        roll_initial_move_with_num_and_rng(
+            &mut low, 30, &mut crate::seed::StsRandom::new(1));
+        roll_next_move_with_num(&mut low, 30);
+        assert_eq!(low.move_id, SS_LICK);
+
+        let mut a17 = create_enemy("SpikeSlime_M", 28, 28);
+        a17.entity.set_status(sid::BLOCK_AMT, 17);
+        roll_initial_move_with_num_and_rng(
+            &mut a17, 30, &mut crate::seed::StsRandom::new(1));
+        roll_next_move_with_num(&mut a17, 30);
+        assert_eq!(a17.move_id, SS_TACKLE);
     }
 
     // ========== Spike Slime L ==========

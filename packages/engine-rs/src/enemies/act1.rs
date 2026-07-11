@@ -305,14 +305,23 @@ pub(super) fn roll_spike_slime_s(enemy: &mut EnemyCombatState, _num: i32) {
     enemy.set_move(move_ids::SS_TACKLE, damage, 1, 0);
 }
 
-pub(super) fn roll_spike_slime_m(enemy: &mut EnemyCombatState, _num: i32) {
-    if last_two_moves(enemy, move_ids::SS_TACKLE) {
+pub(super) fn roll_spike_slime_m(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/SpikeSlime_M.java (`getMove`).
+    let damage = enemy.entity.status(sid::STARTING_DMG).max(8);
+    let a17 = enemy.entity.status(sid::BLOCK_AMT) >= 17;
+    let choose_tackle = if num < 30 {
+        !last_two_moves(enemy, move_ids::SS_TACKLE)
+    } else if a17 {
+        last_move(enemy, move_ids::SS_LICK)
+    } else {
+        last_two_moves(enemy, move_ids::SS_LICK)
+    };
+    if choose_tackle {
+        enemy.set_move(move_ids::SS_TACKLE, damage, 1, 0);
+        enemy.add_effect(mfx::SLIMED, 1);
+    } else {
         enemy.set_move(move_ids::SS_LICK, 0, 0, 0);
         enemy.add_effect(mfx::FRAIL, 1);
-    } else if last_move(enemy, move_ids::SS_LICK) {
-        enemy.set_move(move_ids::SS_TACKLE, 8, 1, 0);
-    } else {
-        enemy.set_move(move_ids::SS_TACKLE, 8, 1, 0);
     }
 }
 

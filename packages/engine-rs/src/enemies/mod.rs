@@ -475,7 +475,10 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::SS_TACKLE, 5, 1, 0);
         }
         "SpikeSlime_M" => {
+            enemy.entity.set_status(sid::STARTING_DMG, 8);
+            enemy.entity.set_status(sid::BLOCK_AMT, 0);
             enemy.set_move(move_ids::SS_TACKLE, 8, 1, 0);
+            enemy.add_effect(mfx::SLIMED, 1);
         }
         "SpikeSlime_L" => {
             enemy.set_move(move_ids::SS_TACKLE, 16, 1, 0);
@@ -1227,14 +1230,18 @@ mod tests {
 
     #[test]
     fn test_spike_slime_m_pattern() {
+        // Source: reference/extracted/methods/monster/SpikeSlime_M.java
+        // (`getMove`: <30 cannot Tackle three times; >=30 selects Lick).
         let mut enemy = create_enemy("SpikeSlime_M", 28, 28);
         assert_eq!(enemy.move_id, move_ids::SS_TACKLE);
         assert_eq!(enemy.move_damage(), 8);
+        assert_eq!(enemy.effect(mfx::SLIMED), Some(1));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 0);
         assert_eq!(enemy.move_id, move_ids::SS_TACKLE);
+        assert_eq!(enemy.effect(mfx::SLIMED), Some(1));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 0);
         assert_eq!(enemy.move_id, move_ids::SS_LICK);
         assert_eq!(enemy.effect(mfx::FRAIL), Some(1));
     }
