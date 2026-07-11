@@ -3552,6 +3552,8 @@ impl RunEngine {
             "Ginger",
             // FossilizedHelix.java uses canonical ID "FossilizedHelix" and RARE tier.
             "FossilizedHelix",
+            // IceCream.java uses canonical ID "Ice Cream" and RARE tier.
+            "Ice Cream",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",

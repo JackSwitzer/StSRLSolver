@@ -1286,7 +1286,8 @@ impl CombatEngine {
             }
         }
 
-        // Reset energy — Ice Cream preserves unspent energy
+        // EnergyManager.java::recharge calls addEnergy(energyMaster) with Ice
+        // Cream, preserving unspent energy instead of resetting to the master amount.
         if self.state.has_relic("Ice Cream") || self.state.has_relic("IceCream") {
             self.state.energy += self.state.max_energy;
         } else {

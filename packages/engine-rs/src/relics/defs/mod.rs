@@ -31,6 +31,7 @@ pub mod fusion_hammer;
 pub mod frozen_egg_2;
 pub mod molten_egg_2;
 pub mod toxic_egg_2;
+pub mod ice_cream;
 pub mod clockwork_souvenir;
 pub mod fossilized_helix;
 pub mod blood_vial;
@@ -244,6 +245,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &frozen_egg_2::DEF,
     &molten_egg_2::DEF,
     &toxic_egg_2::DEF,
+    &ice_cream::DEF,
     &clockwork_souvenir::DEF,
     &fossilized_helix::DEF,
     &blood_vial::DEF,

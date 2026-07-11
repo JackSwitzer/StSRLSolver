@@ -19,6 +19,8 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/TungstenRod.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/Ginger.java
 // - decompiled/java-src/com/megacrit/cardcrawl/actions/common/ApplyPowerAction.java
+// - decompiled/java-src/com/megacrit/cardcrawl/relics/IceCream.java
+// - decompiled/java-src/com/megacrit/cardcrawl/core/EnergyManager.java
 
 use crate::effects::runtime::EffectOwner;
 use crate::state::Stance;
@@ -347,6 +349,24 @@ fn fossilized_helix_buffer_prevents_and_is_consumed_by_first_enemy_attack() {
 
     assert_eq!(engine.state.player.hp, hp);
     assert_eq!(engine.state.player.status(sid::BUFFER), 0);
+}
+
+#[test]
+fn ice_cream_carries_unspent_energy_through_real_turn_recharge() {
+    // Source-derived (verify relic/Ice Cream): EnergyManager.recharge uses
+    // addEnergy(energyMaster) rather than setEnergy while Ice Cream is owned.
+    let mut engine = engine_without_start_with_relics(
+        &["Ice Cream"],
+        &["Strike", "Strike", "Defend", "Defend", "Vigilance"],
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        3,
+    );
+    engine.start_combat();
+    engine.state.energy = 2;
+
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.energy, 5);
 }
 
 #[test]

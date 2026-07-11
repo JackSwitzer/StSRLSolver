@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T08:25:43.250320+00:00",
+ "updated": "2026-07-11T08:28:28.450294+00:00",
  "status_counts": {
-  "unverified": 484,
-  "verified": 183
+  "unverified": 483,
+  "verified": 184
  },
  "rows": [
   {
@@ -5512,8 +5512,8 @@
    "class": "IceCream",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/IceCream.java",
    "methods_ref": "reference/extracted/methods/relic/IceCream.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
