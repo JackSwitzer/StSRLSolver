@@ -309,7 +309,7 @@ impl CombatEngine {
                 | "SpikeSlime_S" | "SpikeSlime_M" | "SpikeSlime_L" | "Looter"
                 | "GremlinFat" | "GremlinThief" | "GremlinWarrior"
                 | "GremlinWizard" | "GremlinTsundere" | "GremlinNob"
-                | "Lagavulin" | "Sentry" | "TheGuardian")) {
+                | "Lagavulin" | "Sentry" | "TheGuardian" | "Hexaghost")) {
             crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
         }
 
@@ -3954,6 +3954,7 @@ impl RustCombatEngine {
             "slimed" => mfx::SLIMED,
             "daze" => mfx::DAZE,
             "burn" => mfx::BURN,
+            "burn_plus" => mfx::BURN_PLUS,
             "burn_upgrade" => mfx::BURN_UPGRADE,
             "siphon_str" => mfx::SIPHON_STR,
             "siphon_dex" => mfx::SIPHON_DEX,

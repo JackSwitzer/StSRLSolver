@@ -355,6 +355,11 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             engine.state.discard_pile.push(engine.card_registry.make_card("Burn"));
         }
     }
+    if let Some(amt) = get_fx(&effects, mfx::BURN_PLUS) {
+        for _ in 0..amt {
+            engine.state.discard_pile.push(engine.card_registry.make_card("Burn+"));
+        }
+    }
     // Lagavulin Siphon Soul: reduce player Strength and Dexterity
     if let Some(amt) = get_fx(&effects, mfx::SIPHON_STR) {
         engine.state.player.add_status(sid::STRENGTH, -(amt as i32));
@@ -395,11 +400,21 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             .add_status(sid::ARTIFACT, amt as i32);
     }
 
-    // Burn+: add upgraded Burn cards to player discard
-    if let Some(amt) = get_fx(&effects, mfx::BURN_UPGRADE) {
-        for _ in 0..amt {
-            engine.state.discard_pile.push(engine.card_registry.make_card("Burn+"));
+    // Source: BurnIncreaseAction.java. Upgrade every Burn in draw/discard,
+    // then add three upgraded Burns to discard. Future Sear cards are upgraded.
+    if get_fx(&effects, mfx::BURN_UPGRADE).unwrap_or(0) > 0 {
+        let burn_id = engine.card_registry.make_card("Burn").def_id;
+        let burn_plus = engine.card_registry.make_card("Burn+");
+        for card in &mut engine.state.draw_pile {
+            if card.def_id == burn_id { *card = burn_plus; }
         }
+        for card in &mut engine.state.discard_pile {
+            if card.def_id == burn_id { *card = burn_plus; }
+        }
+        for _ in 0..3 {
+            engine.state.discard_pile.push(burn_plus);
+        }
+        engine.state.enemies[enemy_idx].entity.set_status(sid::BUFF_COUNT, 1);
     }
 
     // Confused: apply Confusion to player
@@ -639,6 +654,13 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     if engine.state.enemies[enemy_idx].id == "TheGuardian" {
         enemies::act1::advance_guardian_after_turn(
             &mut engine.state.enemies[enemy_idx]);
+        return;
+    }
+
+    if engine.state.enemies[enemy_idx].id == "Hexaghost" {
+        let player_hp = engine.state.player.hp;
+        enemies::act1::advance_hexaghost_after_turn(
+            &mut engine.state.enemies[enemy_idx], player_hp, &mut engine.ai_rng);
         return;
     }
 

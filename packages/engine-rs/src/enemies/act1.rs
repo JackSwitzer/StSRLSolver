@@ -689,49 +689,38 @@ pub fn guardian_begin_twin_smash(enemy: &mut EnemyCombatState) {
 }
 
 pub(super) fn roll_hexaghost(enemy: &mut EnemyCombatState) {
-    let moves_done = enemy.move_history.len();
+    // Source: reference/extracted/methods/monster/Hexaghost.java (`getMove`).
+    if enemy.entity.status(sid::IS_FIRST_MOVE) == 0 {
+        enemy.entity.set_status(sid::IS_FIRST_MOVE, 1);
+        enemy.set_move(move_ids::HEX_ACTIVATE, 0, 0, 0);
+        return;
+    }
 
-    // Java: orbActiveCount tracks the cycle position (0-6).
-    // After Activate (first turn): Divider on turn 2, then orbActiveCount-based cycle.
-    // Cycle: Sear(0), Tackle(1), Sear(2), Inflame(3), Tackle(4), Sear(5), Inferno(6->reset).
-    // orbActiveCount resets to 0 after Inferno (Deactivate all orbs).
-    // A4+: fireTackleDmg=6, infernoDmg=3. Else 5, 2.
-    // A19: strAmount=3, searBurnCount=2. Else 2, 1.
-    match moves_done {
-        1 => {
-            // After Activate: Divider. Damage = player_hp / 12 + 1 (integer division), hit 6 times.
-            // Use 7 as default (80hp / 12 + 1 = 7.67 -> 7)
-            enemy.set_move(move_ids::HEX_DIVIDER, 7, 6, 0);
-        }
-        _ => {
-            // orbActiveCount-based: starts at 0 after Divider, increments with each orb-activating move
-            let orb_count = (moves_done - 2) % 7;
-            match orb_count {
-                0 | 2 | 5 => {
-                    // Sear: 6 damage + burn cards (searBurnCount, default 1)
-                    enemy.set_move(move_ids::HEX_SEAR, 6, 1, 0);
-                    let sbc = { let v = enemy.entity.status(sid::SEAR_BURN_COUNT); if v > 0 { v } else { 1 } };
-                    enemy.add_effect(mfx::BURN, sbc as i16);
-                }
-                1 | 4 => {
-                    // Fire Tackle: fireTackleDmg x2 (A4+ = 6, else 5)
-                    let ftd = { let v = enemy.entity.status(sid::FIRE_TACKLE_DMG); if v > 0 { v } else { 5 } };
-                    enemy.set_move(move_ids::HEX_TACKLE, ftd, 2, 0);
-                }
-                3 => {
-                    // Inflame: 12 block + strAmount Str (A19 = 3, else 2)
-                    enemy.set_move(move_ids::HEX_INFLAME, 0, 0, 12);
-                    let sa = { let v = enemy.entity.status(sid::STR_AMT); if v > 0 { v } else { 2 } };
-                    enemy.add_effect(mfx::STRENGTH, sa as i16);
-                }
-                _ => {
-                    // Inferno: infernoDmg x6 (A4+ = 3, else 2) + upgrade all burns
-                    let idmg = { let v = enemy.entity.status(sid::INFERNO_DMG); if v > 0 { v } else { 2 } };
-                    enemy.set_move(move_ids::HEX_INFERNO, idmg, 6, 0);
-                    enemy.add_effect(mfx::BURN_UPGRADE, 1);
-                }
+    match enemy.entity.status(sid::COUNT) {
+        0 | 2 | 5 => {
+            enemy.set_move(move_ids::HEX_SEAR, 6, 1, 0);
+            let burn_count = enemy.entity.status(sid::SEAR_BURN_COUNT).max(1) as i16;
+            if enemy.entity.status(sid::BUFF_COUNT) > 0 {
+                enemy.add_effect(mfx::BURN_PLUS, burn_count);
+            } else {
+                enemy.add_effect(mfx::BURN, burn_count);
             }
         }
+        1 | 4 => {
+            let damage = enemy.entity.status(sid::FIRE_TACKLE_DMG).max(5);
+            enemy.set_move(move_ids::HEX_TACKLE, damage, 2, 0);
+        }
+        3 => {
+            enemy.set_move(move_ids::HEX_INFLAME, 0, 0, 12);
+            enemy.add_effect(mfx::STRENGTH,
+                enemy.entity.status(sid::STR_AMT).max(2) as i16);
+        }
+        6 => {
+            let damage = enemy.entity.status(sid::INFERNO_DMG).max(2);
+            enemy.set_move(move_ids::HEX_INFERNO, damage, 6, 0);
+            enemy.add_effect(mfx::BURN_UPGRADE, 1);
+        }
+        _ => unreachable!("Hexaghost orb count must stay in 0..=6"),
     }
 }
 
@@ -741,6 +730,33 @@ pub(super) fn roll_hexaghost(enemy: &mut EnemyCombatState) {
 pub fn hexaghost_set_divider(enemy: &mut EnemyCombatState, player_hp: i32) {
     let per_hit = player_hp / 12 + 1;
     enemy.set_move(move_ids::HEX_DIVIDER, per_hit, 6, 0);
+}
+
+pub fn advance_hexaghost_after_turn(
+    enemy: &mut EnemyCombatState,
+    player_hp: i32,
+    ai_rng: &mut crate::seed::StsRandom,
+) {
+    // Source: Hexaghost.java `takeTurn` and `changeState`. Activate directly
+    // sets Divider without RollMoveAction; every later move rolls exactly once.
+    match enemy.move_id {
+        move_ids::HEX_ACTIVATE => {
+            enemy.move_history.push(enemy.move_id);
+            enemy.move_effects.clear();
+            enemy.entity.set_status(sid::IS_FIRST_MOVE, 1);
+            enemy.entity.set_status(sid::COUNT, 6);
+            hexaghost_set_divider(enemy, player_hp);
+        }
+        move_ids::HEX_DIVIDER | move_ids::HEX_INFERNO => {
+            enemy.entity.set_status(sid::COUNT, 0);
+            crate::enemies::roll_next_move(enemy, ai_rng);
+        }
+        move_ids::HEX_TACKLE | move_ids::HEX_SEAR | move_ids::HEX_INFLAME => {
+            enemy.entity.add_status(sid::COUNT, 1);
+            crate::enemies::roll_next_move(enemy, ai_rng);
+        }
+        _ => {}
+    }
 }
 
 pub(super) fn roll_slime_boss(enemy: &mut EnemyCombatState) {

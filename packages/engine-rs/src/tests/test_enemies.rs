@@ -642,39 +642,45 @@ mod enemy_tests {
     }
     #[test] fn hex_second_divider() {
         let mut e = create_enemy("Hexaghost", 250, 250);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
+        crate::enemies::act1::advance_hexaghost_after_turn(
+            &mut e, 80, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, HEX_DIVIDER);
         assert_eq!(e.move_hits(), 6);
     }
     #[test] fn hex_full_7_cycle() {
         let mut e = create_enemy("Hexaghost", 250, 250);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Divider
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Sear
+        let mut rng = crate::seed::StsRandom::new(0);
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut e, 80, &mut rng); // Divider
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut e, 38, &mut rng); // Sear
         assert_eq!(e.move_id, HEX_SEAR);
         assert_eq!(e.move_damage(), 6);
         assert_eq!(e.effect(mfx::BURN).unwrap(), 1);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Tackle
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut e, 32, &mut rng); // Tackle
         assert_eq!(e.move_id, HEX_TACKLE);
         assert_eq!(e.move_hits(), 2);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Sear
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut e, 22, &mut rng); // Sear
         assert_eq!(e.move_id, HEX_SEAR);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Inflame
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut e, 16, &mut rng); // Inflame
         assert_eq!(e.move_id, HEX_INFLAME);
         assert_eq!(e.move_block(), 12);
         assert_eq!(e.effect(mfx::STRENGTH).unwrap(), 2);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Tackle
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut e, 16, &mut rng); // Tackle
         assert_eq!(e.move_id, HEX_TACKLE);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Sear
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut e, 6, &mut rng); // Sear
         assert_eq!(e.move_id, HEX_SEAR);
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); // Inferno
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut e, 1, &mut rng); // Inferno
         assert_eq!(e.move_id, HEX_INFERNO);
         assert_eq!(e.move_hits(), 6);
         assert_eq!(e.effect(mfx::BURN_UPGRADE).unwrap(), 1);
     }
     #[test] fn hex_cycle_repeats() {
         let mut e = create_enemy("Hexaghost", 250, 250);
-        // Activate + Divider + 7 cycle + restart
-        for _ in 0..9 { roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0)); }
+        let mut rng = crate::seed::StsRandom::new(0);
+        // Activate -> Divider, then Divider + seven orb-count moves -> Sear.
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut e, 80, &mut rng);
+        for _ in 0..8 {
+            crate::enemies::act1::advance_hexaghost_after_turn(&mut e, 80, &mut rng);
+        }
         // Should be back to Sear
         assert_eq!(e.move_id, HEX_SEAR);
     }

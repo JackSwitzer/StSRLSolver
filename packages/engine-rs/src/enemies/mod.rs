@@ -570,18 +570,14 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::GUARD_CHARGING_UP, 0, 0, 9);
         }
         "Hexaghost" => {
+            enemy.entity.set_status(sid::IS_FIRST_MOVE, 0);
+            enemy.entity.set_status(sid::COUNT, 0);
+            enemy.entity.set_status(sid::BUFF_COUNT, 0);
+            enemy.entity.set_status(sid::STR_AMT, 2);
+            enemy.entity.set_status(sid::SEAR_BURN_COUNT, 1);
+            enemy.entity.set_status(sid::FIRE_TACKLE_DMG, 5);
+            enemy.entity.set_status(sid::INFERNO_DMG, 2);
             enemy.set_move(move_ids::HEX_ACTIVATE, 0, 0, 0);
-            if hp >= 264 {
-                enemy.entity.set_status(sid::STR_AMT, 3);
-                enemy.entity.set_status(sid::SEAR_BURN_COUNT, 2);
-                enemy.entity.set_status(sid::FIRE_TACKLE_DMG, 6);
-                enemy.entity.set_status(sid::INFERNO_DMG, 3);
-            } else {
-                enemy.entity.set_status(sid::STR_AMT, 2);
-                enemy.entity.set_status(sid::SEAR_BURN_COUNT, 1);
-                enemy.entity.set_status(sid::FIRE_TACKLE_DMG, 5);
-                enemy.entity.set_status(sid::INFERNO_DMG, 2);
-            }
         }
         "SlimeBoss" => {
             enemy.set_move(move_ids::SB_STICKY, 0, 0, 0);
@@ -1198,18 +1194,20 @@ mod tests {
 
     #[test]
     fn test_hexaghost_pattern() {
+        // Source: reference/extracted/methods/monster/Hexaghost.java (`takeTurn`).
         let mut enemy = create_enemy("Hexaghost", 250, 250);
+        let mut rng = crate::seed::StsRandom::new(0);
         assert_eq!(enemy.move_id, move_ids::HEX_ACTIVATE);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_hexaghost_after_turn(&mut enemy, 80, &mut rng);
         assert_eq!(enemy.move_id, move_ids::HEX_DIVIDER);
         assert_eq!(enemy.move_hits(), 6);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_hexaghost_after_turn(&mut enemy, 38, &mut rng);
         assert_eq!(enemy.move_id, move_ids::HEX_SEAR);
         assert_eq!(enemy.effect(mfx::BURN), Some(1));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_hexaghost_after_turn(&mut enemy, 32, &mut rng);
         assert_eq!(enemy.move_id, move_ids::HEX_TACKLE);
         assert_eq!(enemy.move_hits(), 2);
     }

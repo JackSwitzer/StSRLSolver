@@ -144,6 +144,7 @@ pub mod mfx {
     pub const BLOCK_RANDOM_OTHER: u8 = 34;
     pub const ENRAGE: u8 = 35;
     pub const SHARP_HIDE: u8 = 36;
+    pub const BURN_PLUS: u8 = 37;
 }
 
 // ---------------------------------------------------------------------------

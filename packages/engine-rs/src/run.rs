@@ -1513,6 +1513,21 @@ impl RunEngine {
             enemy.set_move(crate::enemies::move_ids::GUARD_CHARGING_UP, 0, 0, 9);
         }
 
+        // Source: reference/extracted/methods/monster/Hexaghost.java
+        // (constructor). HP, attack damage, and A19 buff/card values use three
+        // independent ascension thresholds.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "Hexaghost") {
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
+                if self.run_state.ascension >= 19 { 3 } else { 2 });
+            enemy.entity.set_status(crate::status_ids::sid::SEAR_BURN_COUNT,
+                if self.run_state.ascension >= 19 { 2 } else { 1 });
+            let high_damage = self.run_state.ascension >= 4;
+            enemy.entity.set_status(crate::status_ids::sid::FIRE_TACKLE_DMG,
+                if high_damage { 6 } else { 5 });
+            enemy.entity.set_status(crate::status_ids::sid::INFERNO_DMG,
+                if high_damage { 3 } else { 2 });
+        }
+
         // The boss passes ascension-derived large-slime constructor values to
         // its children when its split resolves.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "SlimeBoss") {
@@ -1719,7 +1734,8 @@ impl RunEngine {
                 (hp, hp)
             }
             "Hexaghost" => {
-                let hp = if a20 { 264 } else { 250 };
+                // Source: Hexaghost.java constructor: HP changes at A9.
+                let hp = if self.run_state.ascension >= 9 { 264 } else { 250 };
                 (hp, hp)
             }
             "SlimeBoss" => {
@@ -5712,6 +5728,109 @@ mod tests {
         assert_ne!(combat.state.enemies[0].move_id,
             crate::enemies::move_ids::GUARD_CLOSE_UP,
             "TheGuardian.damage excludes lethal hits with !isDying");
+    }
+
+    #[test]
+    fn hexaghost_stats_divider_cycle_burn_upgrade_and_ai_ticks_match_java() {
+        // Sources: reference/extracted/methods/monster/Hexaghost.java and
+        // decompiled/java-src/com/megacrit/cardcrawl/actions/unique/
+        // BurnIncreaseAction.java.
+        for (ascension, hp, tackle, inferno, strength, burns) in [
+            (0, 250, 5, 2, 2, 1),
+            (4, 250, 6, 3, 2, 1),
+            (9, 264, 6, 3, 2, 1),
+            (19, 264, 6, 3, 3, 2),
+        ] {
+            let mut engine = RunEngine::new(42, ascension);
+            engine.enter_specific_combat(vec!["Hexaghost".to_string()]);
+            let combat = engine.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!((enemy.entity.hp, enemy.entity.max_hp), (hp, hp));
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::FIRE_TACKLE_DMG), tackle);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::INFERNO_DMG), inferno);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), strength);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::SEAR_BURN_COUNT), burns);
+            assert_eq!(enemy.move_id, crate::enemies::move_ids::HEX_ACTIVATE);
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        let mut engine = RunEngine::new(42, 0);
+        engine.enter_specific_combat(vec!["Hexaghost".to_string()]);
+        let combat = engine.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 77;
+        combat.state.player.max_hp = 500;
+
+        crate::combat_hooks::do_enemy_turns(combat); // Activate -> Divider
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::HEX_DIVIDER);
+        assert_eq!(combat.state.enemies[0].move_damage(), 77 / 12 + 1);
+        assert_eq!(combat.state.enemies[0].move_hits(), 6);
+        assert_eq!(combat.ai_rng.counter, 1,
+            "Activate sets Divider directly without RollMoveAction");
+
+        combat.state.player.hp = 500;
+        let seed_burn = combat.card_registry.make_card("Burn");
+        combat.state.draw_pile.push(seed_burn);
+        crate::combat_hooks::do_enemy_turns(combat); // Divider -> Sear(0)
+        assert_eq!(combat.state.player.hp, 458);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::HEX_SEAR);
+        assert_eq!(combat.state.enemies[0].effect(crate::combat_types::mfx::BURN), Some(1));
+        assert_eq!(combat.ai_rng.counter, 2);
+
+        crate::combat_hooks::do_enemy_turns(combat); // Sear(0) -> Tackle(1)
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::HEX_TACKLE);
+        assert_eq!(combat.state.enemies[0].move_damage(), 5);
+        crate::combat_hooks::do_enemy_turns(combat); // Tackle(1) -> Sear(2)
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::HEX_SEAR);
+        crate::combat_hooks::do_enemy_turns(combat); // Sear(2) -> Inflame(3)
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::HEX_INFLAME);
+        crate::combat_hooks::do_enemy_turns(combat); // Inflame(3) -> Tackle(4)
+        assert_eq!(combat.state.enemies[0].entity.block, 12);
+        assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::STRENGTH), 2);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::HEX_TACKLE);
+        crate::combat_hooks::do_enemy_turns(combat); // Tackle(4) -> Sear(5)
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::HEX_SEAR);
+        crate::combat_hooks::do_enemy_turns(combat); // Sear(5) -> Inferno(6)
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::HEX_INFERNO);
+        assert_eq!(combat.state.enemies[0].move_damage(), 2);
+        assert_eq!(combat.state.enemies[0].move_hits(), 6);
+        assert_eq!(combat.ai_rng.counter, 8);
+
+        crate::combat_hooks::do_enemy_turns(combat); // Inferno -> Sear(0)
+        let draw_names: Vec<&str> = combat.state.draw_pile.iter()
+            .map(|card| combat.card_registry.card_name(card.def_id)).collect();
+        let discard_names: Vec<&str> = combat.state.discard_pile.iter()
+            .map(|card| combat.card_registry.card_name(card.def_id)).collect();
+        assert!(draw_names.iter().all(|name| *name != "Burn"));
+        assert!(discard_names.iter().all(|name| *name != "Burn"));
+        assert_eq!(draw_names.iter().chain(discard_names.iter())
+            .filter(|name| **name == "Burn+").count(), 7,
+            "three Sear Burns plus the seeded Burn are upgraded, then three Burn+ are added");
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::HEX_SEAR);
+        assert_eq!(combat.state.enemies[0].effect(crate::combat_types::mfx::BURN_PLUS), Some(1));
+        assert_eq!(combat.ai_rng.counter, 9);
+
+        crate::combat_hooks::do_enemy_turns(combat); // upgraded Sear -> Tackle
+        assert_eq!(combat.state.discard_pile.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) == "Burn+").count(), 7);
+        assert_eq!(combat.state.draw_pile.iter().chain(combat.state.discard_pile.iter())
+            .filter(|card| combat.card_registry.card_name(card.def_id) == "Burn+").count(), 8);
+
+        let mut a19 = RunEngine::new(42, 19);
+        a19.enter_specific_combat(vec!["Hexaghost".to_string()]);
+        let combat = a19.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 200;
+        crate::combat_hooks::do_enemy_turns(combat);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].effect(crate::combat_types::mfx::BURN), Some(2));
     }
 
     #[test]

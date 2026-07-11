@@ -21,12 +21,6 @@ mod boss_java_parity_tests {
     use crate::enemies::move_ids;
     use crate::tests::support::*;
 
-    fn roll_times(enemy: &mut crate::state::EnemyCombatState, turns: usize) {
-        for _ in 0..turns {
-            roll_next_move(enemy, &mut crate::seed::StsRandom::new(0));
-        }
-    }
-
     fn boss_engine(id: &str, hp: i32, max_hp: i32) -> CombatEngine {
         engine_without_start(Vec::new(), vec![create_enemy(id, hp, max_hp)], 3)
     }
@@ -133,36 +127,37 @@ mod boss_java_parity_tests {
     #[test]
     fn hexaghost_base_cycle_matches_java_shape() {
         let mut enemy = create_enemy("Hexaghost", 250, 250);
+        let mut rng = crate::seed::StsRandom::new(0);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut enemy, 80, &mut rng);
         assert_eq!(enemy.move_id, move_ids::HEX_DIVIDER);
         assert_eq!(enemy.move_damage(), 7);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut enemy, 38, &mut rng);
         assert_eq!(enemy.move_id, move_ids::HEX_SEAR);
         assert_eq!(enemy.move_damage(), 6);
         assert_eq!(enemy.effect(mfx::BURN), Some(1));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut enemy, 32, &mut rng);
         assert_eq!(enemy.move_id, move_ids::HEX_TACKLE);
         assert_eq!(enemy.move_damage(), 5);
         assert_eq!(enemy.move_hits(), 2);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut enemy, 22, &mut rng);
         assert_eq!(enemy.move_id, move_ids::HEX_SEAR);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut enemy, 16, &mut rng);
         assert_eq!(enemy.move_id, move_ids::HEX_INFLAME);
         assert_eq!(enemy.move_block(), 12);
         assert_eq!(enemy.effect(mfx::STRENGTH), Some(2));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut enemy, 16, &mut rng);
         assert_eq!(enemy.move_id, move_ids::HEX_TACKLE);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut enemy, 6, &mut rng);
         assert_eq!(enemy.move_id, move_ids::HEX_SEAR);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut enemy, 1, &mut rng);
         assert_eq!(enemy.move_id, move_ids::HEX_INFERNO);
         assert_eq!(enemy.move_damage(), 2);
         assert_eq!(enemy.move_hits(), 6);
@@ -171,17 +166,22 @@ mod boss_java_parity_tests {
     #[test]
     fn hexaghost_a4_scaling_matches_java_expectations() {
         let mut enemy = create_enemy("Hexaghost", 264, 264);
+        enemy.entity.set_status(sid::FIRE_TACKLE_DMG, 6);
+        enemy.entity.set_status(sid::INFERNO_DMG, 3);
+        let mut rng = crate::seed::StsRandom::new(0);
 
         // Activate -> Divider -> Sear(orb=0) -> Tackle(orb=1)
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut enemy, 80, &mut rng);
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut enemy, 38, &mut rng);
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut enemy, 32, &mut rng);
         assert_eq!(enemy.move_id, move_ids::HEX_TACKLE);
         assert_eq!(enemy.move_damage(), 6);
         assert_eq!(enemy.move_hits(), 2);
 
         // Sear(2) -> Inflame(3) -> Tackle(4) -> Sear(5) -> Inferno(6)
-        roll_times(&mut enemy, 5);
+        for _ in 0..5 {
+            crate::enemies::act1::advance_hexaghost_after_turn(&mut enemy, 80, &mut rng);
+        }
         assert_eq!(enemy.move_id, move_ids::HEX_INFERNO);
         assert_eq!(enemy.move_damage(), 3);
         assert_eq!(enemy.move_hits(), 6);
@@ -190,13 +190,18 @@ mod boss_java_parity_tests {
     #[test]
     fn hexaghost_a19_burn_and_strength_matches_java_expectations() {
         let mut enemy = create_enemy("Hexaghost", 264, 264);
+        enemy.entity.set_status(sid::STR_AMT, 3);
+        enemy.entity.set_status(sid::SEAR_BURN_COUNT, 2);
+        let mut rng = crate::seed::StsRandom::new(0);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut enemy, 80, &mut rng);
+        crate::enemies::act1::advance_hexaghost_after_turn(&mut enemy, 38, &mut rng);
         assert_eq!(enemy.effect(mfx::BURN), Some(2));
 
         // Sear(0) -> Tackle(1) -> Sear(2) -> Inflame(3)
-        roll_times(&mut enemy, 3);
+        for _ in 0..3 {
+            crate::enemies::act1::advance_hexaghost_after_turn(&mut enemy, 80, &mut rng);
+        }
         assert_eq!(enemy.move_id, move_ids::HEX_INFLAME);
         assert_eq!(enemy.effect(mfx::STRENGTH), Some(3));
     }
