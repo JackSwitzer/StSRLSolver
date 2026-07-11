@@ -1803,6 +1803,15 @@ impl RunEngine {
                     .relic_flags
                     .has(crate::relic_flags::flag::ECTOPLASM),
             );
+        // DuVuDoll.java::onEquip/onMasterDeckChange counts every card whose
+        // type is CURSE; atBattleStart grants that counter as Strength.
+        let du_vu_curses = deck_instances
+            .iter()
+            .filter(|card| {
+                registry.card_def_by_id(card.def_id).card_type
+                    == crate::cards::CardType::Curse
+            })
+            .count() as i32;
         let mut combat_state = CombatState::new(
             self.run_state.current_hp,
             self.run_state.max_hp,
@@ -1810,6 +1819,9 @@ impl RunEngine {
             deck_instances,
             combat_energy,
         );
+        combat_state
+            .player
+            .set_status(crate::status_ids::sid::DU_VU_DOLL_CURSES, du_vu_curses);
         combat_state.relics = self.run_state.relics.clone();
         combat_state.potions = self.run_state.potions.clone();
         combat_state.relic_counters = self.run_state.relic_flags.counters;
@@ -3270,6 +3282,7 @@ impl RunEngine {
         const RARE: &[&str] = &[
             "Bird Faced Urn",
             "Calipers",
+            "Du-Vu Doll",
             "Ice Cream",
             "Incense Burner",
             "Tough Bandages",
@@ -3501,6 +3514,8 @@ impl RunEngine {
             // DreamCatcher.java uses this canonical ID, COMMON tier, and
             // canSpawn excludes non-endless runs after floor 48.
             "Dream Catcher",
+            // DuVuDoll.java uses this canonical ID and RARE tier.
+            "Du-Vu Doll",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",
@@ -7269,6 +7284,38 @@ mod tests {
         let combat = engine.combat_engine.as_ref().expect("combat should start");
         assert_eq!(combat.state.max_energy, 4);
         assert_eq!(combat.state.energy, 4);
+    }
+
+    #[test]
+    fn du_vu_doll_counts_actual_master_deck_curses_for_combat_strength() {
+        // Source-derived (verify relic/Du-Vu Doll): DuVuDoll.java counts every
+        // CURSE-typed master-deck card, then grants that count at battle start.
+        let mut engine = RunEngine::new(47, 20);
+        engine.run_state.relics.push("Du-Vu Doll".to_string());
+        engine.run_state.deck.extend([
+            "Regret".to_string(),
+            "CurseOfTheBell".to_string(),
+        ]);
+
+        engine.enter_specific_combat(vec!["JawWorm".to_string()]);
+        let combat = engine.combat_engine.as_ref().expect("combat should start");
+        // Ascension 20 supplies Ascender's Bane; all three cards are CURSE type.
+        assert_eq!(
+            combat
+                .state
+                .player
+                .status(crate::status_ids::sid::DU_VU_DOLL_CURSES),
+            3
+        );
+        assert_eq!(combat.state.player.strength(), 3);
+        assert_eq!(
+            combat.hidden_effect_value(
+                "Du-Vu Doll",
+                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 1 },
+                0,
+            ),
+            3
+        );
     }
 
     #[test]

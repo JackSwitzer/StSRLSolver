@@ -511,6 +511,22 @@ fn ectoplasm_is_act_one_only_blocks_gold_gains_and_still_allows_spending() {
 }
 
 #[test]
+fn du_vu_doll_is_reachable_from_watcher_relic_rewards() {
+    // RelicLibrary.java registers DuVuDoll; DuVuDoll.java constructs the
+    // shared relic at RARE tier under canonical ID "Du-Vu Doll".
+    let offered = (0..1024).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Du-Vu Doll"
+            })
+        })
+    });
+    assert!(offered);
+}
+
+#[test]
 fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
     // Source-derived (verify relic/Calling Bell): CallingBell.java is BOSS tier,
     // confirms CurseOfTheBell, then opens COMMON, UNCOMMON, and RARE relic
