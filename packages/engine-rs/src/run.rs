@@ -2563,15 +2563,7 @@ impl RunEngine {
                 claimable: items.is_empty(),
                 active: false,
                 skip_allowed: true,
-                skip_label: Some(if self
-                    .run_state
-                    .relic_flags
-                    .has(crate::relic_flags::flag::SINGING_BOWL)
-                {
-                    "+2 Max HP".to_string()
-                } else {
-                    "Skip".to_string()
-                }),
+                skip_label: Some("Skip".to_string()),
                 choices: self.generate_card_reward_choices(card_choice_count),
             });
         }
@@ -2760,11 +2752,26 @@ impl RunEngine {
         }
 
         if !item.choices.is_empty() {
+            let mut choices = item.choices.clone();
+            // Sources: CardRewardScreen.java displays the ordinary Skip button
+            // and a separate SingingBowlButton; SingingBowlButton::onClick
+            // increases max HP by 2 and removes this card reward.
+            if item.kind == RewardItemKind::CardChoice
+                && self
+                    .run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::SINGING_BOWL)
+            {
+                choices.push(RewardChoice::Named {
+                    index: choices.len(),
+                    label: "Singing Bowl".to_string(),
+                });
+            }
             self.decision_stack.push(DecisionFrame::RewardChoice(RewardChoiceFrame {
                 item_index,
                 item_kind: item.kind,
                 skip_allowed: item.skip_allowed,
-                choices: item.choices.clone(),
+                choices,
             }));
             return;
         }
@@ -2825,6 +2832,12 @@ impl RunEngine {
                 {
                     self.add_card_reward(card_id);
                 }
+            }
+            (RewardItemKind::CardChoice, RewardChoice::Named { label, .. })
+                if label == "Singing Bowl" =>
+            {
+                self.run_state.max_hp += 2;
+                self.run_state.current_hp += 2;
             }
             (RewardItemKind::Relic, RewardChoice::Named { label, .. }) => {
                 self.add_relic_reward(&label);
@@ -2967,16 +2980,6 @@ impl RunEngine {
             }
         } else if !item.claimable {
             return;
-        }
-
-        if item.kind == RewardItemKind::CardChoice
-            && self
-                .run_state
-                .relic_flags
-                .has(crate::relic_flags::flag::SINGING_BOWL)
-        {
-            self.run_state.max_hp += 2;
-            self.run_state.current_hp += 2;
         }
 
         if let Some(screen) = self.reward_screen.as_mut() {
@@ -3690,7 +3693,9 @@ impl RunEngine {
             // RegalPillow.java uses canonical ID "Regal Pillow", COMMON tier,
             // and canSpawn excludes non-endless runs after floor 48.
             "Regal Pillow",
-            "SingingBowl",
+            // SingingBowl.java uses canonical ID "Singing Bowl", UNCOMMON
+            // tier, and canSpawn excludes non-endless runs after floor 48.
+            "Singing Bowl",
             "Whetstone",
             "WarPaint",
             // FrozenEgg2.java, MoltenEgg2.java, and ToxicEgg2.java use spaced
@@ -3715,6 +3720,7 @@ impl RunEngine {
             .filter(|relic| *relic != "Question Card" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Prayer Wheel" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Regal Pillow" || self.run_state.floor <= 48)
+            .filter(|relic| *relic != "Singing Bowl" || self.run_state.floor <= 48)
             .filter(|relic| {
                 !matches!(*relic, "Frozen Egg 2" | "Molten Egg 2" | "Toxic Egg 2")
                     || self.run_state.floor <= 48
@@ -3743,6 +3749,7 @@ impl RunEngine {
                     .filter(|relic| *relic != "Question Card" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Prayer Wheel" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Regal Pillow" || self.run_state.floor <= 48)
+                    .filter(|relic| *relic != "Singing Bowl" || self.run_state.floor <= 48)
                     .filter(|relic| {
                         !matches!(*relic, "Frozen Egg 2" | "Molten Egg 2" | "Toxic Egg 2")
                             || self.run_state.floor <= 48
@@ -5533,15 +5540,7 @@ impl RunEngine {
                 claimable: true,
                 active: false,
                 skip_allowed: true,
-                skip_label: Some(if self
-                    .run_state
-                    .relic_flags
-                    .has(crate::relic_flags::flag::SINGING_BOWL)
-                {
-                    "+2 Max HP".to_string()
-                } else {
-                    "Skip".to_string()
-                }),
+                skip_label: Some("Skip".to_string()),
                 choices: rewards
                     .into_iter()
                     .enumerate()

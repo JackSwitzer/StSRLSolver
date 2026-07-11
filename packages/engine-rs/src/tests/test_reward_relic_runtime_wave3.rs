@@ -2677,8 +2677,10 @@ fn regal_pillow_is_reachable_only_through_floor_forty_eight() {
 
 #[test]
 fn claiming_singing_bowl_turns_future_card_skip_into_max_hp() {
+    // Sources: CardRewardScreen.java keeps the normal Skip button visible;
+    // SingingBowlButton.java::onClick is a separate action that grants 2 max HP.
     let mut engine = RunEngine::new(42, 20);
-    engine.debug_set_reward_screen(single_relic_reward_screen("SingingBowl"));
+    engine.debug_set_reward_screen(single_relic_reward_screen("Singing Bowl"));
     let claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
     assert!(claim.action_accepted);
 
@@ -2688,12 +2690,47 @@ fn claiming_singing_bowl_turns_future_card_skip_into_max_hp() {
     let screen = engine
         .current_reward_screen()
         .expect("card reward screen should exist");
-    assert_eq!(screen.items[0].skip_label.as_deref(), Some("+2 Max HP"));
+    assert_eq!(screen.items[0].skip_label.as_deref(), Some("Skip"));
 
-    let skip = engine.step_with_result(&RunAction::SkipRewardItem(0));
-    assert!(skip.action_accepted);
+    let open = engine.step_with_result(&RunAction::SelectRewardItem(0));
+    assert!(open.action_accepted);
+    assert!(open.legal_decision_actions.contains(&DecisionAction::PickRewardChoice {
+        item_index: 0,
+        choice_index: 2,
+    }));
+    let bowl = engine.step_with_result(&RunAction::ChooseRewardOption {
+        item_index: 0,
+        choice_index: 2,
+    });
+    assert!(bowl.action_accepted);
     assert_eq!(engine.run_state.max_hp, max_hp_before + 2);
     assert_eq!(engine.run_state.current_hp, hp_before + 2);
+}
+
+#[test]
+fn singing_bowl_is_reachable_only_through_floor_forty_eight() {
+    // SingingBowl.java constructs an UNCOMMON relic and canSpawn excludes
+    // non-endless runs after floor 48.
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 48;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Singing Bowl"
+            })
+        })
+    });
+    assert!(offered);
+
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 49;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Singing Bowl")
+        }));
+    }
 }
 
 #[test]

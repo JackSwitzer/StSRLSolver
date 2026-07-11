@@ -169,9 +169,11 @@ fn claiming_egg_relic_upgrades_later_card_reward_choice() {
 }
 
 #[test]
-fn singing_bowl_turns_card_skip_into_max_hp_gain() {
+fn singing_bowl_keeps_skip_separate_from_its_max_hp_choice() {
+    // Sources: CardRewardScreen.java shows both buttons, while
+    // SingingBowlButton.java::onClick alone grants 2 max HP.
     let mut engine = RunEngine::new(42, 20);
-    engine.run_state.relics.push("SingingBowl".to_string());
+    engine.run_state.relics.push("Singing Bowl".to_string());
     engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
     let max_hp_before = engine.run_state.max_hp;
     let hp_before = engine.run_state.current_hp;
@@ -179,8 +181,8 @@ fn singing_bowl_turns_card_skip_into_max_hp_gain() {
 
     let step = engine.step_with_result(&RunAction::SkipRewardItem(0));
     assert!(step.action_accepted);
-    assert_eq!(engine.run_state.max_hp, max_hp_before + 2);
-    assert_eq!(engine.run_state.current_hp, hp_before + 2);
+    assert_eq!(engine.run_state.max_hp, max_hp_before);
+    assert_eq!(engine.run_state.current_hp, hp_before);
 }
 
 #[test]

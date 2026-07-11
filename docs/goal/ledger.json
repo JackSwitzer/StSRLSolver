@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T09:51:33.029475+00:00",
+ "updated": "2026-07-11T09:55:40.812399+00:00",
  "status_counts": {
-  "unverified": 456,
-  "verified": 211
+  "unverified": 455,
+  "verified": 212
  },
  "rows": [
   {
@@ -6212,8 +6212,8 @@
    "class": "SingingBowl",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/SingingBowl.java",
    "methods_ref": "reference/extracted/methods/relic/SingingBowl.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
