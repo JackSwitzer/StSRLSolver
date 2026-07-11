@@ -54,7 +54,8 @@ pub mod counter {
     pub const OMAMORI_USES: usize   = 5;  // Remaining curse negations (starts at 2)
     pub const MATRYOSHKA_USES: usize = 6; // Remaining free chest relics
     pub const ANCIENT_TEA_SET: usize = 7; // Armed by entering a rest room; consumed next combat
-    pub const NUM_COUNTERS: usize   = 8;
+    pub const GIRYA: usize          = 8;  // Permanent campfire lifts, capped at 3
+    pub const NUM_COUNTERS: usize   = 9;
 }
 
 /// Relic flags for a run. Populated from Vec<String> relics on add/remove.

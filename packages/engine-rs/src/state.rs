@@ -340,7 +340,7 @@ pub struct CombatState {
 
     /// Cross-combat relic counters (Nunchaku, Incense Burner, Ink Bottle, Happy Flower, etc.)
     /// Indexed by relic_flags::counter::* constants. Synced from/to RunState.relic_flags.
-    pub relic_counters: [i16; 8],
+    pub relic_counters: [i16; crate::relic_flags::counter::NUM_COUNTERS],
 
 }
 
@@ -384,7 +384,7 @@ impl CombatState {
             relics: Vec::new(),
             retained_cards: Vec::new(),
             orb_slots: OrbSlots::new(0), // 0 slots by default (Watcher has no orbs)
-            relic_counters: [0i16; 8],
+            relic_counters: [0i16; crate::relic_flags::counter::NUM_COUNTERS],
         }
     }
 

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T18:58:20.058828+00:00",
+ "updated": "2026-07-11T19:02:37.637762+00:00",
  "status_counts": {
-  "unverified": 436,
-  "verified": 231
+  "unverified": 435,
+  "verified": 232
  },
  "rows": [
   {
@@ -5412,8 +5412,8 @@
    "class": "Girya",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Girya.java",
    "methods_ref": "reference/extracted/methods/relic/Girya.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

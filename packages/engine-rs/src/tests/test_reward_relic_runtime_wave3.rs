@@ -1085,6 +1085,92 @@ fn peace_pipe_toke_selects_one_purgeable_non_bottled_card_and_is_rl_visible() {
 }
 
 #[test]
+fn girya_is_rare_reachable_before_floor_forty_eight_with_at_most_one_campfire_relic() {
+    // Girya.java constructs a RARE relic; canSpawn requires floorNum < 48 and
+    // fewer than two owned Peace Pipe, Shovel, or Girya relics.
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 47;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Girya"
+            })
+        })
+    });
+    assert!(offered);
+
+    for seed in 0..256 {
+        let mut late = RunEngine::new(seed, 0);
+        late.run_state.floor = 48;
+        late.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(late.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Girya")
+        }));
+
+        let mut capped = RunEngine::new(seed, 0);
+        capped.run_state.floor = 20;
+        capped.run_state.relics.extend([
+            "Peace Pipe".to_string(),
+            "Shovel".to_string(),
+        ]);
+        capped.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(capped.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Girya")
+        }));
+    }
+}
+
+#[test]
+fn girya_lifts_cap_at_three_and_transfer_as_combat_start_strength() {
+    // Girya.java adds an active LiftOption while counter < 3; each
+    // CampfireLiftEffect increments the counter once, and atBattleStart grants
+    // Strength equal to that counter.
+    let mut engine = RunEngine::new(61, 0);
+    engine.run_state.relics.push("Girya".to_string());
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
+
+    for expected in 1..=3 {
+        engine.phase = RunPhase::Campfire;
+        assert!(engine.get_legal_actions().contains(&RunAction::CampfireLift));
+        assert!(engine
+            .get_legal_decision_actions()
+            .contains(&DecisionAction::CampfireLift));
+        assert!(engine
+            .current_decision_context()
+            .campfire
+            .expect("campfire context")
+            .can_lift);
+        assert!(engine
+            .step_with_result(&RunAction::CampfireLift)
+            .action_accepted);
+        assert_eq!(
+            engine.run_state.relic_flags.counters[crate::relic_flags::counter::GIRYA],
+            expected
+        );
+    }
+
+    engine.phase = RunPhase::Campfire;
+    assert!(!engine.get_legal_actions().contains(&RunAction::CampfireLift));
+    assert!(!engine
+        .step_with_result(&RunAction::CampfireLift)
+        .action_accepted);
+    engine.debug_enter_specific_combat(&["Cultist"]);
+    assert_eq!(
+        engine
+            .get_combat_engine()
+            .expect("combat")
+            .state
+            .player
+            .strength(),
+        3
+    );
+}
+
+#[test]
 fn matryoshka_is_reachable_only_through_floor_forty() {
     // Matryoshka.java constructs an UNCOMMON relic and canSpawn allows
     // non-endless runs only while floorNum <= 40.

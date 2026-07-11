@@ -68,6 +68,8 @@ pub enum RunAction {
     CampfireUpgrade(usize),
     /// Campfire: use Peace Pipe to open a one-card purge selection.
     CampfireToke,
+    /// Campfire: use Girya to permanently add one lift, up to three.
+    CampfireLift,
     /// Shop: buy a card (index into shop offerings)
     ShopBuyCard(usize),
     /// Shop: buy a relic (index into shop relic offerings)
@@ -955,6 +957,7 @@ impl RunEngine {
                             .collect()
                     },
                     removable_cards: self.peace_pipe_removable_indices(),
+                    can_lift: self.can_lift_girya(),
                 })
             } else {
                 None
@@ -1046,6 +1049,7 @@ impl RunEngine {
                         .collect()
                 },
                 removable_cards: self.peace_pipe_removable_indices(),
+                can_lift: self.can_lift_girya(),
             }),
             RunPhase::Shop => self
                 .current_shop
@@ -1170,6 +1174,10 @@ impl RunEngine {
             actions.push(RunAction::CampfireToke);
         }
 
+        if self.can_lift_girya() {
+            actions.push(RunAction::CampfireLift);
+        }
+
         actions
     }
 
@@ -1221,6 +1229,11 @@ impl RunEngine {
                 .then_some(index)
             })
             .collect()
+    }
+
+    fn can_lift_girya(&self) -> bool {
+        self.run_state.relics.iter().any(|relic| relic == "Girya")
+            && self.run_state.relic_flags.counters[crate::relic_flags::counter::GIRYA] < 3
     }
 
     fn get_event_actions(&self) -> Vec<RunAction> {
@@ -1915,6 +1928,11 @@ impl RunEngine {
         combat_state
             .player
             .set_status(crate::status_ids::sid::DU_VU_DOLL_CURSES, du_vu_curses);
+        combat_state.player.set_status(
+            crate::status_ids::sid::GIRYA_COUNTER,
+            self.run_state.relic_flags.counters[crate::relic_flags::counter::GIRYA]
+                as i32,
+        );
         if self.run_state.lizard_tail_used {
             combat_state
                 .player
@@ -3476,6 +3494,10 @@ impl RunEngine {
                 *id != "Peace Pipe"
                     || (self.run_state.floor < 48 && self.campfire_relic_count() < 2)
             })
+            .filter(|id| {
+                *id != "Girya"
+                    || (self.run_state.floor < 48 && self.campfire_relic_count() < 2)
+            })
             .filter(|id| *id != "Bottled Flame" || self.can_spawn_bottled_flame())
             .filter(|id| *id != "Bottled Lightning" || self.can_spawn_bottled_lightning())
             .filter(|id| *id != "Bottled Tornado" || self.can_spawn_bottled_tornado())
@@ -3521,6 +3543,7 @@ impl RunEngine {
             "Calipers",
             "Du-Vu Doll",
             "FossilizedHelix",
+            "Girya",
             "Ginger",
             "Ice Cream",
             "Incense Burner",
@@ -3817,6 +3840,9 @@ impl RunEngine {
             // PeacePipe.java uses canonical ID "Peace Pipe", RARE tier, and
             // canSpawn requires floor < 48 and fewer than two campfire relics.
             "Peace Pipe",
+            // Girya.java uses canonical ID "Girya", RARE tier, and the same
+            // floor and campfire-relic-count spawn gates as Peace Pipe.
+            "Girya",
             // Matryoshka.java uses canonical ID "Matryoshka", UNCOMMON tier,
             // and canSpawn excludes non-endless runs after floor 40.
             "Matryoshka",
@@ -3906,6 +3932,10 @@ impl RunEngine {
                     || (self.run_state.floor < 48 && self.campfire_relic_count() < 2)
             })
             .filter(|relic| {
+                *relic != "Girya"
+                    || (self.run_state.floor < 48 && self.campfire_relic_count() < 2)
+            })
+            .filter(|relic| {
                 !in_shop || !matches!(*relic, "Old Coin" | "Smiling Mask")
             })
             .filter(|relic| *relic != "Juzu Bracelet" || self.run_state.floor <= 48)
@@ -3943,6 +3973,11 @@ impl RunEngine {
                     .filter(|relic| *relic != "Smiling Mask" || self.run_state.floor <= 48)
                     .filter(|relic| {
                         *relic != "Peace Pipe"
+                            || (self.run_state.floor < 48
+                                && self.campfire_relic_count() < 2)
+                    })
+                    .filter(|relic| {
+                        *relic != "Girya"
                             || (self.run_state.floor < 48
                                 && self.campfire_relic_count() < 2)
                     })
@@ -4262,6 +4297,14 @@ impl RunEngine {
                 self.phase = RunPhase::CardReward;
                 self.refresh_decision_stack();
                 return 0.0;
+            }
+            RunAction::CampfireLift => {
+                // CampfireLiftEffect increments Girya.counter exactly once;
+                // LiftOption is usable only while the counter is below three.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/vfx/campfire/CampfireLiftEffect.java
+                let counter = &mut self.run_state.relic_flags.counters
+                    [crate::relic_flags::counter::GIRYA];
+                *counter = (*counter + 1).min(3);
             }
             _ => {}
         }
@@ -5806,6 +5849,11 @@ impl RunEngine {
     #[cfg(test)]
     pub(crate) fn debug_enter_shop(&mut self) {
         self.enter_shop();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_enter_specific_combat(&mut self, enemies: &[&str]) {
+        self.enter_specific_combat(enemies.iter().map(|enemy| (*enemy).to_string()).collect());
     }
 
     #[cfg(test)]
