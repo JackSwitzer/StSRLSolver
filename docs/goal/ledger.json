@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T19:17:22.668731+00:00",
+ "updated": "2026-07-11T19:19:02.994740+00:00",
  "status_counts": {
-  "unverified": 428,
-  "verified": 239
+  "unverified": 427,
+  "verified": 240
  },
  "rows": [
   {
@@ -6532,8 +6532,8 @@
    "class": "ToyOrnithopter",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/ToyOrnithopter.java",
    "methods_ref": "reference/extracted/methods/relic/ToyOrnithopter.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

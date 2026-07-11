@@ -1368,6 +1368,34 @@ fn turnip_is_reachable_from_rare_watcher_relic_rewards() {
 }
 
 #[test]
+fn toy_ornithopter_is_common_reachable_and_heals_for_noncombat_potion_use() {
+    // ToyOrnithopter.java constructs a COMMON relic and onUsePotion heals 5 in
+    // both combat and noncombat room phases.
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "Toy Ornithopter"
+            })
+        })
+    });
+    assert!(offered);
+
+    let mut engine = RunEngine::new(67, 0);
+    engine.run_state.current_hp = 50;
+    engine.run_state.max_hp = 80;
+    engine.run_state.relics.push("Toy Ornithopter".to_string());
+    engine.run_state.potions[0] = "Fruit Juice".to_string();
+    assert!(engine
+        .step_with_result(&RunAction::UsePotion(0))
+        .action_accepted);
+    assert_eq!(engine.run_state.max_hp, 85);
+    assert_eq!(engine.run_state.current_hp, 60);
+    assert!(engine.run_state.potions[0].is_empty());
+}
+
+#[test]
 fn matryoshka_is_reachable_only_through_floor_forty() {
     // Matryoshka.java constructs an UNCOMMON relic and canSpawn allows
     // non-endless runs only while floorNum <= 40.

@@ -1378,6 +1378,17 @@ impl RunEngine {
                 self.run_state.max_hp += amount;
                 self.heal_run_player(amount);
                 self.run_state.potions[potion_idx].clear();
+                if self
+                    .run_state
+                    .relics
+                    .iter()
+                    .any(|relic| relic == "Toy Ornithopter")
+                {
+                    // ToyOrnithopter.java heals 5 immediately outside combat
+                    // whenever a potion is used.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/ToyOrnithopter.java
+                    self.heal_run_player(5);
+                }
             }
             _ => {}
         }
@@ -3602,6 +3613,7 @@ impl RunEngine {
             "Boot",
             "Bronze Scales",
             "Smiling Mask",
+            "Toy Ornithopter",
             // Vajra.java uses canonical ID "Vajra" and COMMON tier.
             "Vajra",
         ];
@@ -3869,6 +3881,9 @@ impl RunEngine {
             "Blue Candle",
             // Boot.java uses canonical ID "Boot" and COMMON tier.
             "Boot",
+            // ToyOrnithopter.java uses canonical ID "Toy Ornithopter" and
+            // COMMON tier.
+            "Toy Ornithopter",
             // BottledFlame.java uses this canonical ID and UNCOMMON tier.
             "Bottled Flame",
             // BottledLightning.java uses this canonical ID and UNCOMMON tier.
