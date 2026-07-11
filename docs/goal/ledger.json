@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T08:13:24.472554+00:00",
+ "updated": "2026-07-11T08:15:56.065400+00:00",
  "status_counts": {
-  "unverified": 490,
-  "verified": 177
+  "unverified": 489,
+  "verified": 178
  },
  "rows": [
   {
@@ -5382,8 +5382,8 @@
    "class": "FusionHammer",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/FusionHammer.java",
    "methods_ref": "reference/extracted/methods/relic/FusionHammer.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

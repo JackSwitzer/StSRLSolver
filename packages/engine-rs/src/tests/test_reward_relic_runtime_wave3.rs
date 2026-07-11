@@ -556,6 +556,47 @@ fn eternal_feather_is_reachable_and_heals_on_rest_room_entry_before_choice() {
 }
 
 #[test]
+fn fusion_hammer_is_reachable_and_disables_only_campfire_upgrades() {
+    // FusionHammer.java constructs a BOSS relic, increments energyMaster, and
+    // rejects the exact SmithOption class while allowing other campfire options.
+    let offered = (0..128).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_boss_reward_screen();
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0].choices.iter().any(|choice| {
+                matches!(choice, RewardChoice::Named { label, .. } if label == "Fusion Hammer")
+            })
+        })
+    });
+    assert!(offered);
+
+    let mut engine = RunEngine::new(71, 0);
+    engine.debug_set_reward_screen(relic_choice_reward_screen(&["Fusion Hammer"]));
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(engine
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+
+    engine.debug_set_campfire_phase();
+    assert!(engine.get_legal_actions().contains(&RunAction::CampfireRest));
+    assert!(!engine
+        .get_legal_actions()
+        .iter()
+        .any(|action| matches!(action, RunAction::CampfireUpgrade(_))));
+    let context = engine
+        .current_decision_context()
+        .campfire
+        .expect("campfire context");
+    assert!(context.can_rest);
+    assert!(context.upgradable_cards.is_empty());
+}
+
+#[test]
 fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
     // Source-derived (verify relic/Calling Bell): CallingBell.java is BOSS tier,
     // confirms CurseOfTheBell, then opens COMMON, UNCOMMON, and RARE relic

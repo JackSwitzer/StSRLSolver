@@ -1101,7 +1101,8 @@ impl RunEngine {
             actions.push(RunAction::CampfireRest);
         }
 
-        // Fusion Hammer blocks upgrading
+        // FusionHammer.java::canUseCampfireOption disables the exact
+        // SmithOption class while leaving Rest and other options available.
         if !self.run_state.relic_flags.has(crate::relic_flags::flag::FUSION_HAMMER) {
             for (i, card) in self.run_state.deck.iter().enumerate() {
                 if !card.ends_with('+') {
@@ -1780,8 +1781,8 @@ impl RunEngine {
                 card.flags |= crate::combat_types::CardInstance::FLAG_INNATE;
             }
         }
-        // BustedCrown.java, CoffeeDripper.java, CursedKey.java, and
-        // Ectoplasm.java each increment energyMaster exactly once in onEquip.
+        // BustedCrown.java, CoffeeDripper.java, CursedKey.java, Ectoplasm.java,
+        // and FusionHammer.java each increment energyMaster once in onEquip.
         let combat_energy = 3
             + i32::from(
                 self.run_state
@@ -1802,6 +1803,11 @@ impl RunEngine {
                 self.run_state
                     .relic_flags
                     .has(crate::relic_flags::flag::ECTOPLASM),
+            )
+            + i32::from(
+                self.run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::FUSION_HAMMER),
             );
         // DuVuDoll.java::onEquip/onMasterDeckChange counts every card whose
         // type is CURSE; atBattleStart grants that counter as Strength.
@@ -3625,6 +3631,7 @@ impl RunEngine {
             "Coffee Dripper",
             "Cursed Key",
             "Ectoplasm",
+            "Fusion Hammer",
             "Philosopher's Stone",
             "Velvet Choker",
             "Snecko Eye",
@@ -7291,6 +7298,20 @@ mod tests {
         // Ectoplasm.java::onEquip increments energyMaster exactly once.
         let mut engine = RunEngine::new(43, 0);
         engine.run_state.relics.push("Ectoplasm".to_string());
+        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+
+        engine.enter_specific_combat(vec!["JawWorm".to_string()]);
+        let combat = engine.combat_engine.as_ref().expect("combat should start");
+        assert_eq!(combat.state.max_energy, 4);
+        assert_eq!(combat.state.energy, 4);
+    }
+
+    #[test]
+    fn fusion_hammer_increases_watcher_master_energy_for_combat() {
+        // Source-derived (verify relic/Fusion Hammer):
+        // FusionHammer.java::onEquip increments energyMaster exactly once.
+        let mut engine = RunEngine::new(45, 0);
+        engine.run_state.relics.push("Fusion Hammer".to_string());
         engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
 
         engine.enter_specific_combat(vec!["JawWorm".to_string()]);
