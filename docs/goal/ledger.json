@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T04:11:55.288819+00:00",
+ "updated": "2026-07-11T04:15:19.311174+00:00",
  "status_counts": {
-  "unverified": 557,
-  "verified": 110
+  "unverified": 556,
+  "verified": 111
  },
  "rows": [
   {
@@ -5432,8 +5432,8 @@
    "class": "GoldenEye",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/GoldenEye.java",
    "methods_ref": "reference/extracted/methods/relic/GoldenEye.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

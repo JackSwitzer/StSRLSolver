@@ -8,6 +8,8 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/Orichalcum.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/CloakClasp.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/Damaru.java
+// - decompiled/java-src/com/megacrit/cardcrawl/relics/GoldenEye.java
+// - decompiled/java-src/com/megacrit/cardcrawl/actions/utility/ScryAction.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/Inserter.java
 
 use crate::effects::runtime::EffectOwner;
@@ -15,7 +17,8 @@ use crate::engine::CombatPhase;
 use crate::state::Stance;
 use crate::status_ids::sid;
 use crate::tests::support::{
-    combat_state_with, end_turn, enemy, enemy_no_intent, engine_with_state, make_deck, make_deck_n,
+    combat_state_with, end_turn, enemy, enemy_no_intent, engine_with_state, engine_without_start,
+    make_deck, make_deck_n,
 };
 
 #[test]
@@ -102,6 +105,30 @@ fn damaru_gains_mantra_and_enters_divinity_before_post_draw_choices() {
     assert_eq!(engine.state.mantra, 0);
     assert_eq!(engine.state.stance, Stance::Divinity,
         "Damaru's tenth Mantra resolves before Foresight pauses after draw");
+}
+
+#[test]
+fn golden_eye_adds_exactly_two_cards_to_every_scry_action() {
+    // Source: ScryAction.java adds two in its constructor when the player has
+    // GoldenEye, then caps the selection group at the current draw-pile size.
+    let mut plain = engine_without_start(
+        make_deck_n("Defend", 5),
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+    plain.do_scry(1);
+    assert_eq!(plain.choice.as_ref().expect("plain Scry choice").options.len(), 1);
+
+    let mut golden = engine_without_start(
+        make_deck_n("Defend", 5),
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+    golden.state.relics.push("GoldenEye".to_string());
+    golden.do_scry(1);
+    let choice = golden.choice.as_ref().expect("GoldenEye Scry choice");
+    assert_eq!(choice.options.len(), 3);
+    assert_eq!(choice.max_picks, 3);
 }
 
 #[test]

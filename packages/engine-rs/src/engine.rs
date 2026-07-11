@@ -3467,6 +3467,14 @@ impl CombatEngine {
     /// Perform Scry: reveal top N cards, let player choose which to discard.
     /// Triggers Nirvana before the choice and Weave after it resolves.
     pub fn do_scry(&mut self, amount: i32) {
+        // GoldenEye is applied by ScryAction's constructor, before onScry
+        // powers run or the draw pile is inspected. Its bonus is exactly two.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/ScryAction.java
+        let amount = if self.state.has_relic("GoldenEye") {
+            amount + 2
+        } else {
+            amount
+        };
         // ScryAction calls every power's onScry before checking for an empty
         // draw pile, so Nirvana grants raw power-owned block immediately even
         // when no selection screen opens.
@@ -3475,7 +3483,11 @@ impl CombatEngine {
         if nirvana > 0 {
             self.gain_block_player(nirvana);
         }
-        let to_scry = (amount as usize).min(self.state.draw_pile.len());
+        let to_scry = if amount == -1 {
+            self.state.draw_pile.len()
+        } else {
+            (amount.max(0) as usize).min(self.state.draw_pile.len())
+        };
         if to_scry == 0 {
             return;
         }
