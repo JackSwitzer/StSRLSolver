@@ -2841,6 +2841,9 @@ impl RunEngine {
 
     fn roll_reward_relic_id(&mut self) -> String {
         const RELIC_REWARD_POOL: &[&str] = &[
+            // RelicLibrary.java registers Akabeko, whose constructor in
+            // relics/Akabeko.java assigns it to the COMMON tier.
+            "Akabeko",
             "Vajra",
             "Anchor",
             "BagOfMarbles",

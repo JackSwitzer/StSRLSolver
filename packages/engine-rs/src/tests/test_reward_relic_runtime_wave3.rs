@@ -117,6 +117,24 @@ fn violet_lotus_is_reachable_from_the_watcher_boss_relic_pool() {
 }
 
 #[test]
+fn akabeko_is_reachable_from_watcher_relic_rewards() {
+    // Sources: RelicLibrary.java registers Akabeko and Akabeko.java constructs
+    // it at COMMON tier; AbstractDungeon.java::populateRelicPool places common
+    // relics into the run's common relic pool for the chosen character.
+    let offered = (0..1024).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Akabeko")
+        })
+    });
+    assert!(offered);
+}
+
+#[test]
 fn ambrosia_is_reachable_from_watcher_potion_rewards() {
     // PotionHelper.getPotions(WATCHER, false) includes Ambrosia. White Beast
     // Statue guarantees a potion item here so the run reward path is sampled.

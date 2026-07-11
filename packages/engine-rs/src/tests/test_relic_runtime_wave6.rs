@@ -23,7 +23,7 @@ use crate::state::Stance;
 use crate::status_ids::sid;
 use crate::tests::support::{
     combat_state_with, end_turn, enemy, enemy_no_intent, engine_with_state, engine_without_start,
-    make_deck, make_deck_n, play_on_enemy,
+    make_deck, make_deck_n, play_on_enemy, play_self,
 };
 
 fn engine_without_start_with_relics(
@@ -74,6 +74,31 @@ fn combat_start_bundle_applies_simple_java_relic_effects_on_runtime_path() {
         .enemies
         .iter()
         .all(|enemy| enemy.entity.status(sid::VULNERABLE) == 1));
+}
+
+#[test]
+fn akabeko_vigor_survives_skills_then_buffs_every_hit_of_the_first_attack() {
+    // Source-derived (verify relic/Akabeko): Akabeko.java::atBattleStart
+    // applies 8 Vigor. VigorPower.java adds that amount to NORMAL damage and
+    // removes itself only when an Attack card is used.
+    let mut engine = engine_without_start_with_relics(
+        &["Akabeko"],
+        &["Defend", "FlyingSleeves", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+    engine.start_combat();
+    engine.state.hand = make_deck(&["Defend", "FlyingSleeves"]);
+    engine.state.draw_pile.clear();
+    engine.state.discard_pile.clear();
+
+    assert_eq!(engine.state.player.status(sid::VIGOR), 8);
+    assert!(play_self(&mut engine, "Defend"));
+    assert_eq!(engine.state.player.status(sid::VIGOR), 8);
+
+    assert!(play_on_enemy(&mut engine, "FlyingSleeves", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp, 36);
+    assert_eq!(engine.state.player.status(sid::VIGOR), 0);
 }
 
 #[test]
