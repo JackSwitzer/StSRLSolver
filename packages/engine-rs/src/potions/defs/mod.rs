@@ -208,7 +208,7 @@ mod tests {
             "SwiftPotion", "EnergyPotion", "WeakenPotion", "FearPotion",
             "PoisonPotion", "SpeedPotion", "SteroidPotion", "AncientPotion",
             "RegenPotion", "EssenceOfSteel", "LiquidBronze", "HeartOfIron",
-            "BloodPotion", "FruitJuice", "SmokeBomb", "FirePotion",
+            "BloodPotion", "SmokeBomb", "FirePotion",
             "ExplosivePotion", "SneckoOil",
             "CultistPotion", "GhostInAJar", "DuplicationPotion",
         ];
@@ -219,6 +219,7 @@ mod tests {
             assert_eq!(def.triggers[0].trigger, Trigger::ManualActivation,
                 "wrong trigger for {}", id);
         }
+
     }
 
     #[test]
@@ -231,6 +232,7 @@ mod tests {
             "BlessingOfTheForge",
             "LiquidMemories",
             "DistilledChaos",
+            "FruitJuice",
             "EssenceOfDarkness",
             "AttackPotion",
             "SkillPotion",

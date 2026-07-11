@@ -415,6 +415,12 @@ pub fn encode_actions(engine: &RunEngine, actions: &[RunAction], obs: &mut [f32;
         let base = off + i * ACTION_FEAT_DIM;
         let action = &actions[i];
 
+        if let RunAction::UsePotion(potion_idx) = action {
+            obs[base + 3] = 1.0; // non-combat inventory action
+            obs[base + 4] = (*potion_idx as f32 + 1.0) / 3.0;
+            continue;
+        }
+
         match engine.current_phase() {
             RunPhase::Neow => {
                 obs[base + 3] = 1.0; // is_other

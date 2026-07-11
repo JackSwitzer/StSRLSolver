@@ -80,6 +80,50 @@ fn wave6_simple_self_buff_potions_use_runtime_action_path() {
 }
 
 #[test]
+fn fruit_juice_uses_increase_max_hp_healing_semantics() {
+    // Source-derived (verify potion/FruitJuice): FruitJuice.use calls
+    // increaseMaxHp(potency, true), getPotency always returns five, and
+    // AbstractCreature.increaseMaxHp raises maxHealth before calling heal.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FruitJuice.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/core/AbstractCreature.java
+    let mut state = combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    state.player.hp = 40;
+    state.player.max_hp = 80;
+    state.relics.push("SacredBark".to_string());
+    state.player.set_status(sid::HAS_MAGIC_FLOWER, 1);
+    state.potions[0] = "FruitJuice".to_string();
+    let mut engine = engine_with_state(state);
+
+    use_potion(&mut engine, 0, -1);
+
+    assert_eq!(engine.state.player.max_hp, 90);
+    assert_eq!(engine.state.player.hp, 55);
+    assert!(engine.state.potions[0].is_empty());
+
+    let mut blocked_state = combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    blocked_state.player.hp = 40;
+    blocked_state.player.max_hp = 80;
+    blocked_state.relics.push("SacredBark".to_string());
+    blocked_state.player.set_status(sid::HAS_MARK_OF_BLOOM, 1);
+    blocked_state.potions[0] = "Fruit Juice".to_string();
+    let mut blocked = engine_with_state(blocked_state);
+
+    use_potion(&mut blocked, 0, -1);
+
+    assert_eq!(blocked.state.player.max_hp, 90);
+    assert_eq!(blocked.state.player.hp, 40);
+    assert!(blocked.state.potions[0].is_empty());
+}
+
+#[test]
 fn block_potion_grants_raw_bark_doubled_block_without_card_modifiers() {
     // Source-derived (verify potion/BlockPotion): use() queues GainBlockAction
     // for the player with potency 12. Dexterity and Frail modify card block,

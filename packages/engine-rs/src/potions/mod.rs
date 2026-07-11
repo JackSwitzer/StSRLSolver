@@ -191,7 +191,8 @@ fn potion_potency(potion_id: &str) -> Option<(i32, i32)> {
         "GhostInAJar" => Some((1, 1)),
         "DuplicationPotion" => Some((1, 1)),
         "Blood Potion" | "BloodPotion" => Some((20, 15)),
-        "Fruit Juice" | "FruitJuice" => Some((5, 3)),
+        // FruitJuice.java getPotency ignores ascension and always returns 5.
+        "Fruit Juice" | "FruitJuice" => Some((5, 5)),
         "BottledMiracle" => Some((2, 1)),
         "CunningPotion" => Some((3, 2)),
         "PotionOfCapacity" => Some((2, 1)),
@@ -411,7 +412,7 @@ pub(crate) fn apply_potion_scaled(
         "Fruit Juice" | "FruitJuice" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
             state.player.max_hp += potency;
-            state.player.hp += potency;
+            state.heal_player(potency);
             true
         }
 
@@ -1021,10 +1022,11 @@ mod tests {
     }
 
     #[test]
-    fn test_a11_fruit_juice_reduced() {
+    fn test_a11_fruit_juice_stays_at_five() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FruitJuice.java
         let mut state = make_test_state();
         apply_potion_scaled(&mut state, "Fruit Juice", -1, 11);
-        assert_eq!(state.player.max_hp, 83);
+        assert_eq!(state.player.max_hp, 85);
     }
 
     #[test]

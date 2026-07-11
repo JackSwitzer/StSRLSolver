@@ -297,6 +297,7 @@ pub enum DecisionAction {
     ShopRemoveCard(usize),
     ShopLeave,
     EventChoice(usize),
+    UsePotion(usize),
 }
 
 impl DecisionAction {
@@ -320,6 +321,7 @@ impl DecisionAction {
             Self::ShopRemoveCard(idx) => RunAction::ShopRemoveCard(*idx),
             Self::ShopLeave => RunAction::ShopLeave,
             Self::EventChoice(idx) => RunAction::EventChoice(*idx),
+            Self::UsePotion(idx) => RunAction::UsePotion(*idx),
         }
     }
 
@@ -346,6 +348,7 @@ impl DecisionAction {
             RunAction::ShopRemoveCard(idx) => Self::ShopRemoveCard(*idx),
             RunAction::ShopLeave => Self::ShopLeave,
             RunAction::EventChoice(idx) => Self::EventChoice(*idx),
+            RunAction::UsePotion(idx) => Self::UsePotion(*idx),
             RunAction::CombatAction(action) => {
                 let _ = phase;
                 Self::Combat(action.clone())

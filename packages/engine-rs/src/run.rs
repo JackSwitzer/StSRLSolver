@@ -76,6 +76,8 @@ pub enum RunAction {
     EventChoice(usize),
     /// Combat action: play card, use potion, or end turn
     CombatAction(crate::actions::Action),
+    /// Use a potion from a run-level (non-combat) screen.
+    UsePotion(usize),
 }
 
 // ---------------------------------------------------------------------------
@@ -674,7 +676,7 @@ impl RunEngine {
 
     /// Get all legal actions in the current phase.
     pub fn get_legal_actions(&self) -> Vec<RunAction> {
-        match self.phase {
+        let mut actions = match self.phase {
             RunPhase::Neow => self.get_neow_actions(),
             RunPhase::MapChoice => self.get_map_actions(),
             RunPhase::Combat => self.get_combat_actions(),
@@ -683,7 +685,11 @@ impl RunEngine {
             RunPhase::Shop => self.get_shop_actions(),
             RunPhase::Event => self.get_event_actions(),
             RunPhase::GameOver => Vec::new(),
+        };
+        if !matches!(self.phase, RunPhase::Combat | RunPhase::GameOver) {
+            actions.extend(self.get_noncombat_potion_actions());
         }
+        actions
     }
 
     pub fn get_legal_decision_actions(&self) -> Vec<DecisionAction> {
@@ -1029,6 +1035,29 @@ impl RunEngine {
         }
     }
 
+    fn get_noncombat_potion_actions(&self) -> Vec<RunAction> {
+        // FruitJuice.canUse permits every non-combat screen except WeMeetAgain.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FruitJuice.java
+        if self.phase == RunPhase::Event
+            && self
+                .current_event
+                .as_ref()
+                .is_some_and(|event| event.name == "WeMeetAgain")
+        {
+            return Vec::new();
+        }
+
+        self.run_state
+            .potions
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, potion)| {
+                matches!(potion.as_str(), "Fruit Juice" | "FruitJuice")
+                    .then_some(RunAction::UsePotion(idx))
+            })
+            .collect()
+    }
+
     // =======================================================================
     // Step — execute an action and return (reward, done)
     // =======================================================================
@@ -1045,15 +1074,19 @@ impl RunEngine {
         let legal_before = self.get_legal_actions();
         let action_accepted = legal_before.contains(action);
         let reward = if action_accepted {
-            match self.phase {
-                RunPhase::Neow => self.step_neow(action),
-                RunPhase::MapChoice => self.step_map(action),
-                RunPhase::Combat => self.step_combat(action),
-                RunPhase::CardReward => self.step_card_reward(action),
-                RunPhase::Campfire => self.step_campfire(action),
-                RunPhase::Shop => self.step_shop(action),
-                RunPhase::Event => self.step_event(action),
-                RunPhase::GameOver => 0.0,
+            if let RunAction::UsePotion(potion_idx) = action {
+                self.step_noncombat_potion(*potion_idx)
+            } else {
+                match self.phase {
+                    RunPhase::Neow => self.step_neow(action),
+                    RunPhase::MapChoice => self.step_map(action),
+                    RunPhase::Combat => self.step_combat(action),
+                    RunPhase::CardReward => self.step_card_reward(action),
+                    RunPhase::Campfire => self.step_campfire(action),
+                    RunPhase::Shop => self.step_shop(action),
+                    RunPhase::Event => self.step_event(action),
+                    RunPhase::GameOver => 0.0,
+                }
             }
         } else {
             0.0
@@ -1087,6 +1120,34 @@ impl RunEngine {
             combat_obs_version: crate::obs::COMBAT_OBS_VERSION,
             combat_context,
         }
+    }
+
+    fn step_noncombat_potion(&mut self, potion_idx: usize) -> f32 {
+        let Some(potion_id) = self.run_state.potions.get(potion_idx).cloned() else {
+            return 0.0;
+        };
+        match potion_id.as_str() {
+            "Fruit Juice" | "FruitJuice" => {
+                let amount = if self
+                    .run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::SACRED_BARK)
+                {
+                    10
+                } else {
+                    5
+                };
+                // AbstractCreature.increaseMaxHp raises maxHealth before heal,
+                // preserving Magic Flower and Mark of the Bloom semantics.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FruitJuice.java
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/core/AbstractCreature.java
+                self.run_state.max_hp += amount;
+                self.heal_run_player(amount);
+                self.run_state.potions[potion_idx].clear();
+            }
+            _ => {}
+        }
+        0.0
     }
 
     // =======================================================================
@@ -2795,6 +2856,7 @@ impl RunEngine {
             "EssenceOfSteel",
             "Explosive Potion",
             "FairyPotion",
+            "FruitJuice",
         ];
 
         let registry = gameplay_registry();
@@ -4617,6 +4679,50 @@ mod tests {
         assert_eq!(engine.phase, RunPhase::Neow);
         assert_eq!(engine.current_choice_count(), 4);
         assert!(!engine.is_done());
+    }
+
+    #[test]
+    fn fruit_juice_is_usable_outside_combat_except_we_meet_again() {
+        // Source-derived (verify potion/FruitJuice): canUse only rejects an
+        // ended combat turn and WeMeetAgain; use increases max HP by constant
+        // potency five through increaseMaxHp. Sacred Bark doubles potency and
+        // Magic Flower modifies the heal performed by increaseMaxHp.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FruitJuice.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/core/AbstractCreature.java
+        let mut engine = RunEngine::new(42, 20);
+        resolve_opening_neow(&mut engine);
+        engine.run_state.current_hp = 40;
+        engine.run_state.max_hp = 80;
+        engine.run_state.potions[0] = "FruitJuice".to_string();
+        engine.run_state.relics.push("SacredBark".to_string());
+        engine.run_state.relics.push("MagicFlower".to_string());
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
+
+        assert!(engine
+            .get_legal_actions()
+            .contains(&RunAction::UsePotion(0)));
+        let result = engine.step_with_result(&RunAction::UsePotion(0));
+
+        assert!(result.action_accepted);
+        assert_eq!(engine.run_state.max_hp, 90);
+        assert_eq!(engine.run_state.current_hp, 55);
+        assert!(engine.run_state.potions[0].is_empty());
+        assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+
+        engine.run_state.potions[0] = "Fruit Juice".to_string();
+        engine.debug_set_event_state(EventDef {
+            name: "WeMeetAgain".to_string(),
+            options: vec![EventOption {
+                text: "Leave".to_string(),
+                effect: EventEffect::Nothing,
+            }],
+        });
+        assert!(!engine
+            .get_legal_actions()
+            .contains(&RunAction::UsePotion(0)));
     }
 
     #[test]

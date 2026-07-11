@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T05:42:38.195965+00:00",
+ "updated": "2026-07-11T05:51:18.678433+00:00",
  "status_counts": {
-  "unverified": 533,
-  "verified": 134
+  "unverified": 532,
+  "verified": 135
  },
  "rows": [
   {
@@ -4622,8 +4622,8 @@
    "class": "FruitJuice",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/FruitJuice.java",
    "methods_ref": "reference/extracted/methods/potion/FruitJuice.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

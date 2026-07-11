@@ -1097,7 +1097,14 @@ impl StSEngine {
             };
         }
 
-        let (name, atype, desc) = if id >= EVENT_BASE {
+        let (name, atype, desc) = if id >= RUN_POTION_BASE {
+            let idx = id - RUN_POTION_BASE;
+            (
+                format!("use_potion_{}", idx),
+                "potion".to_string(),
+                format!("Use potion in slot {}", idx),
+            )
+        } else if id >= EVENT_BASE {
             let idx = id - EVENT_BASE;
             (
                 format!("event_choice_{}", idx),
@@ -1477,6 +1484,7 @@ const SHOP_BUY_BASE: i32 = 300;
 const SHOP_REMOVE_BASE: i32 = 350;
 const SHOP_LEAVE: i32 = 399;
 const EVENT_BASE: i32 = 400;
+const RUN_POTION_BASE: i32 = 450;
 const COMBAT_BASE: i32 = 500;
 
 #[pyclass(name = "RustRunEngine")]
@@ -1909,6 +1917,7 @@ impl PyRunEngine {
             run::RunAction::ShopRemoveCard(i) => SHOP_REMOVE_BASE + *i as i32,
             run::RunAction::ShopLeave => SHOP_LEAVE,
             run::RunAction::EventChoice(i) => EVENT_BASE + *i as i32,
+            run::RunAction::UsePotion(i) => RUN_POTION_BASE + *i as i32,
             run::RunAction::CombatAction(a) => match a {
                 crate::actions::Action::EndTurn => COMBAT_BASE,
                 crate::actions::Action::PlayCard {
@@ -1944,6 +1953,10 @@ impl PyRunEngine {
         if action_id >= COMBAT_BASE {
             let combat_id = action_id - COMBAT_BASE;
             return decode_combat_action_id_in_run(combat_id).map(run::RunAction::CombatAction);
+        } else if action_id >= RUN_POTION_BASE {
+            return Some(run::RunAction::UsePotion(
+                (action_id - RUN_POTION_BASE) as usize,
+            ));
         } else if action_id >= EVENT_BASE {
             return Some(run::RunAction::EventChoice(
                 (action_id - EVENT_BASE) as usize,
