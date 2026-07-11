@@ -571,12 +571,18 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     }
 
     if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-        "GremlinFat" | "GremlinThief" | "GremlinWarrior")
+        "GremlinFat" | "GremlinThief" | "GremlinWarrior" | "GremlinWizard")
         && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::GREMLIN_ESCAPE
     {
         // Source: GremlinFat.java `takeTurn` case 99 (EscapeAction; no roll).
         engine.state.enemies[enemy_idx].is_escaping = true;
         engine.state.enemies[enemy_idx].entity.hp = 0;
+        return;
+    }
+
+    if engine.state.enemies[enemy_idx].id == "GremlinWizard" {
+        enemies::act1::advance_gremlin_wizard_after_turn(
+            &mut engine.state.enemies[enemy_idx]);
         return;
     }
 

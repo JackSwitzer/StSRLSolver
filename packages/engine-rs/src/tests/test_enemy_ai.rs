@@ -334,11 +334,12 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::GREMLIN_FAT_SMASH, 4, 1, 0, &[(mfx::WEAK, 1)]);
         let mut e = make("GremlinWizard", 20);
-        e.move_id = move_ids::GREMLIN_PROTECT;
-        e.move_history = vec![move_ids::GREMLIN_PROTECT, move_ids::GREMLIN_PROTECT];
-        roll_times(&mut e, 1);
+        // Source: reference/extracted/methods/monster/GremlinWizard.java.
+        act1::advance_gremlin_wizard_after_turn(&mut e);
+        expect_move(&e, move_ids::GREMLIN_PROTECT, 0, 0, 0, &[]);
+        act1::advance_gremlin_wizard_after_turn(&mut e);
         expect_move(&e, move_ids::GREMLIN_ATTACK, 25, 1, 0, &[]);
-        roll_times(&mut e, 1);
+        act1::advance_gremlin_wizard_after_turn(&mut e);
         expect_move(&e, move_ids::GREMLIN_PROTECT, 0, 0, 0, &[]);
         let mut e = make("GremlinTsundere", 13);
         roll_times(&mut e, 3);

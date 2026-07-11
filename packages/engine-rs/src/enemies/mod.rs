@@ -513,7 +513,9 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::GREMLIN_ATTACK, 4, 1, 0);
         }
         "GremlinWizard" => {
-            // Charging (first turn), then Ultimate Blast (25 damage)
+            enemy.entity.set_status(sid::STARTING_DMG, 25);
+            enemy.entity.set_status(sid::COUNT, 1);
+            enemy.entity.set_status(sid::BLOCK_AMT, 0);
             enemy.set_move(move_ids::GREMLIN_PROTECT, 0, 0, 0);
         }
         "GremlinTsundere" | "GremlinSneaky" => {

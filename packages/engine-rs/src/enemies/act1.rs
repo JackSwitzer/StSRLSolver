@@ -419,12 +419,35 @@ pub(super) fn roll_gremlin_warrior(enemy: &mut EnemyCombatState) {
 }
 
 pub(super) fn roll_gremlin_wizard(enemy: &mut EnemyCombatState) {
-    if last_move(enemy, move_ids::GREMLIN_PROTECT) {
-        // Ultimate Blast after charging
-        enemy.set_move(move_ids::GREMLIN_ATTACK, 25, 1, 0);
-    } else {
-        // Charge up again
-        enemy.set_move(move_ids::GREMLIN_PROTECT, 0, 0, 0);
+    // Source: reference/extracted/methods/monster/GremlinWizard.java (`getMove`).
+    enemy.set_move(move_ids::GREMLIN_PROTECT, 0, 0, 0);
+}
+
+pub fn advance_gremlin_wizard_after_turn(enemy: &mut EnemyCombatState) {
+    // Source: reference/extracted/methods/monster/GremlinWizard.java (`takeTurn`).
+    let damage = enemy.entity.status(sid::STARTING_DMG).max(25);
+    let a17 = enemy.entity.status(sid::BLOCK_AMT) >= 17;
+    enemy.move_history.push(enemy.move_id);
+    enemy.move_effects.clear();
+    match enemy.move_id {
+        move_ids::GREMLIN_PROTECT => {
+            let charge = enemy.entity.status(sid::COUNT) + 1;
+            enemy.entity.set_status(sid::COUNT, charge);
+            if charge == 3 {
+                enemy.set_move(move_ids::GREMLIN_ATTACK, damage, 1, 0);
+            } else {
+                enemy.set_move(move_ids::GREMLIN_PROTECT, 0, 0, 0);
+            }
+        }
+        move_ids::GREMLIN_ATTACK => {
+            enemy.entity.set_status(sid::COUNT, 0);
+            if a17 {
+                enemy.set_move(move_ids::GREMLIN_ATTACK, damage, 1, 0);
+            } else {
+                enemy.set_move(move_ids::GREMLIN_PROTECT, 0, 0, 0);
+            }
+        }
+        _ => {}
     }
 }
 

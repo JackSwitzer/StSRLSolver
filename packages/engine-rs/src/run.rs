@@ -1414,6 +1414,16 @@ impl RunEngine {
             enemy.set_move(crate::enemies::move_ids::GREMLIN_ATTACK, damage, 1, 0);
         }
 
+        // Source: reference/extracted/methods/monster/GremlinWizard.java.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "GremlinWizard") {
+            let damage = if self.run_state.ascension >= 2 { 30 } else { 25 };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, damage);
+            enemy.entity.set_status(crate::status_ids::sid::COUNT, 1);
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if self.run_state.ascension >= 17 { 17 } else { 0 });
+            enemy.set_move(crate::enemies::move_ids::GREMLIN_PROTECT, 0, 0, 0);
+        }
+
         // The boss passes ascension-derived large-slime constructor values to
         // its children when its split resolves.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "SlimeBoss") {
@@ -1553,6 +1563,11 @@ impl RunEngine {
             }
             "GremlinWarrior" => {
                 let base = if a20 { 21 } else { 20 };
+                let hp = base + self.rng.gen_range(0..=4);
+                (hp, hp)
+            }
+            "GremlinWizard" => {
+                let base = if a20 { 22 } else { 21 };
                 let hp = base + self.rng.gen_range(0..=4);
                 (hp, hp)
             }
@@ -5091,6 +5106,73 @@ mod tests {
 
         let mut group = RunEngine::new(42, 0);
         group.enter_specific_combat(vec!["GremlinWarrior".to_string(),
+            "GremlinThief".to_string()]);
+        let combat = group.combat_engine.as_mut().unwrap();
+        combat.state.enemies[1].entity.hp = 1;
+        combat.deal_damage_to_enemy(1, 1);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::GREMLIN_ESCAPE);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert!(combat.state.enemies[0].is_escaping);
+        assert_eq!(combat.state.enemies[0].entity.hp, 0);
+    }
+
+    #[test]
+    fn gremlin_wizard_charge_cycle_a17_repeat_and_escape_match_java() {
+        // Source: reference/extracted/methods/monster/GremlinWizard.java and
+        // the full source's initial charge and `deathReact` fields.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("GremlinWizard").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("GremlinWizard").0);
+        }
+        assert_eq!(low_hp, (21..=25).collect());
+        assert_eq!(high_hp, (22..=26).collect());
+
+        for (ascension, damage, marker) in [(0, 25, 0), (2, 30, 0), (17, 30, 17)] {
+            let mut engine = RunEngine::new(42, ascension);
+            engine.enter_specific_combat(vec!["GremlinWizard".to_string()]);
+            let combat = engine.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!(enemy.move_id, crate::enemies::move_ids::GREMLIN_PROTECT);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG), damage);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::COUNT), 1);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::BLOCK_AMT), marker);
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        let mut low = RunEngine::new(42, 0);
+        low.enter_specific_combat(vec!["GremlinWizard".to_string()]);
+        low.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        assert_eq!(low.combat_engine.as_ref().unwrap().state.enemies[0].move_id,
+            crate::enemies::move_ids::GREMLIN_PROTECT);
+        low.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        assert_eq!(low.combat_engine.as_ref().unwrap().state.enemies[0].move_id,
+            crate::enemies::move_ids::GREMLIN_ATTACK);
+        low.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        let combat = low.combat_engine.as_ref().unwrap();
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::GREMLIN_PROTECT);
+        assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::COUNT), 0);
+        assert_eq!(combat.ai_rng.counter, 1,
+            "all charge/blast transitions use direct SetMoveAction calls");
+
+        let mut a17 = RunEngine::new(42, 17);
+        a17.enter_specific_combat(vec!["GremlinWizard".to_string()]);
+        a17.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        a17.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        a17.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        let combat = a17.combat_engine.as_ref().unwrap();
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::GREMLIN_ATTACK,
+            "A17 repeats Ultimate Blast immediately");
+        assert_eq!(combat.ai_rng.counter, 1);
+
+        let mut group = RunEngine::new(42, 0);
+        group.enter_specific_combat(vec!["GremlinWizard".to_string(),
             "GremlinThief".to_string()]);
         let combat = group.combat_engine.as_mut().unwrap();
         combat.state.enemies[1].entity.hp = 1;
