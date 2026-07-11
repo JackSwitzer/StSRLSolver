@@ -2409,6 +2409,10 @@ mod watcher_card_java_parity_tests {
             .find(|card| engine.card_registry.card_name(card.def_id) == "SandsOfTime+")
             .expect("second retain");
         assert_eq!((second.cost, second.base_cost), (2, 2));
+        // This test spans live enemy turns only to exercise Retain. Clear any
+        // incidental Jaw Worm Bellow block before isolating the card's Java
+        // 26-damage assertion (SandsOfTime.java).
+        engine.state.enemies[0].entity.block = 0;
         assert!(play_on_enemy(&mut engine, "SandsOfTime+", 0));
         assert_eq!(engine.state.enemies[0].entity.hp, 74);
     }

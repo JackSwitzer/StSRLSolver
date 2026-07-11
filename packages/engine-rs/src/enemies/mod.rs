@@ -402,6 +402,11 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         // Act 1 — Exordium
         // =================================================================
         "JawWorm" => {
+            // Source: reference/extracted/methods/monster/JawWorm.java.
+            // The run layer patches these constructor values for ascension.
+            enemy.entity.set_status(sid::STARTING_DMG, 11);
+            enemy.entity.set_status(sid::STR_AMT, 3);
+            enemy.entity.set_status(sid::BLOCK_AMT, 6);
             enemy.set_move(move_ids::JW_CHOMP, 11, 1, 0);
         }
         "Cultist" => {
@@ -826,18 +831,30 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
 /// multi-enemy intent ordering parity with Java.
 pub fn roll_next_move(enemy: &mut EnemyCombatState, ai_rng: &mut crate::seed::StsRandom) {
     let num: i32 = ai_rng.random(99);
-    roll_next_move_with_num(enemy, num);
+    roll_next_move_with_num_and_rng(enemy, num, ai_rng);
 }
 
 /// Test-friendly entry point: advance enemy intent using an explicit `num` (0..=99)
-/// without consuming from any RNG. Production code should call `roll_next_move`.
+/// and a deterministic secondary RNG. Production code should call `roll_next_move`;
+/// RNG-sensitive tests should call `roll_next_move_with_num_and_rng`.
 pub fn roll_next_move_with_num(enemy: &mut EnemyCombatState, num: i32) {
+    let mut secondary_rng = crate::seed::StsRandom::new(0);
+    roll_next_move_with_num_and_rng(enemy, num, &mut secondary_rng);
+}
+
+/// Advance with an explicit Java `getMove` number while preserving conditional
+/// RNG draws performed inside the enemy's AI routine.
+pub fn roll_next_move_with_num_and_rng(
+    enemy: &mut EnemyCombatState,
+    num: i32,
+    ai_rng: &mut crate::seed::StsRandom,
+) {
     enemy.move_history.push(enemy.move_id);
     enemy.move_effects.clear();
 
     match enemy.id.as_str() {
         // Act 1
-        "JawWorm" => act1::roll_jaw_worm(enemy, num),
+        "JawWorm" => act1::roll_jaw_worm(enemy, num, ai_rng),
         "Cultist" => act1::roll_cultist(enemy, num),
         "FungiBeast" => act1::roll_fungi_beast(enemy, num),
         "FuzzyLouseNormal" | "RedLouse" => act1::roll_red_louse(enemy, num),
@@ -962,16 +979,18 @@ mod tests {
         let mut enemy = create_enemy("JawWorm", 44, 44);
         assert_eq!(enemy.move_id, move_ids::JW_CHOMP);
 
-        roll_next_move_with_num(&mut enemy, 30); // -> BELLOW
-        assert_eq!(enemy.move_id, move_ids::JW_BELLOW);
-        assert_eq!(enemy.effect(mfx::STRENGTH), Some(3));
-
-        roll_next_move_with_num(&mut enemy, 80); // -> THRASH
+        // Source: reference/extracted/methods/monster/JawWorm.java (`getMove`).
+        roll_next_move_with_num(&mut enemy, 30); // CHOMP -> THRASH
         assert_eq!(enemy.move_id, move_ids::JW_THRASH);
         assert_eq!(enemy.move_damage(), 7);
         assert_eq!(enemy.move_block(), 5);
 
-        roll_next_move_with_num(&mut enemy, 10); // -> CHOMP
+        roll_next_move_with_num(&mut enemy, 80); // THRASH -> BELLOW
+        assert_eq!(enemy.move_id, move_ids::JW_BELLOW);
+        assert_eq!(enemy.effect(mfx::STRENGTH), Some(3));
+
+        roll_next_move_with_num(&mut enemy, 30); // BELLOW -> THRASH
+        roll_next_move_with_num(&mut enemy, 10); // THRASH -> CHOMP
         assert_eq!(enemy.move_id, move_ids::JW_CHOMP);
     }
 

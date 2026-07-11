@@ -12,9 +12,7 @@ mod enemy_tests {
         assert_eq!(e.entity.hp, 44);
         assert_eq!(e.entity.max_hp, 44);
     }
-    // JawWorm intent now branches on the dispatched `num` (0..=99). These tests
-    // exercise specific branches via `roll_next_move_with_num` to stay deterministic;
-    // the pre-RNG-fix tests asserted the broken always-CHOMP-first behavior.
+    // Source-derived from reference/extracted/methods/monster/JawWorm.java.
     #[test] fn jw_first_move_chomp() {
         let e = create_enemy("JawWorm", 44, 44);
         // Initial intent is set in create_enemy; CHOMP is the canonical opener.
@@ -22,44 +20,39 @@ mod enemy_tests {
         assert_eq!(e.move_damage(), 11);
         assert_eq!(e.move_hits(), 1);
     }
-    #[test] fn jw_after_chomp_bellow() {
+    #[test] fn jw_after_chomp_middle_window_is_thrash() {
         let mut e = create_enemy("JawWorm", 44, 44);
-        roll_next_move_with_num(&mut e, 30); // 25..55 -> BELLOW
-        assert_eq!(e.move_id, JW_BELLOW);
-        assert_eq!(e.move_block(), 6);
-        assert_eq!(e.effect(mfx::STRENGTH).unwrap(), 3);
-    }
-    #[test] fn jw_after_bellow_thrash() {
-        let mut e = create_enemy("JawWorm", 44, 44);
-        roll_next_move_with_num(&mut e, 30); // -> BELLOW
-        roll_next_move_with_num(&mut e, 80); // -> THRASH (>=55)
+        roll_next_move_with_num(&mut e, 30);
         assert_eq!(e.move_id, JW_THRASH);
         assert_eq!(e.move_damage(), 7);
         assert_eq!(e.move_block(), 5);
     }
+    #[test] fn jw_after_thrash_high_window_is_bellow() {
+        let mut e = create_enemy("JawWorm", 44, 44);
+        roll_next_move_with_num(&mut e, 30);
+        roll_next_move_with_num(&mut e, 80);
+        assert_eq!(e.move_id, JW_BELLOW);
+        assert_eq!(e.move_block(), 6);
+        assert_eq!(e.effect(mfx::STRENGTH), Some(3));
+    }
     #[test] fn jw_after_thrash_chomp() {
         let mut e = create_enemy("JawWorm", 44, 44);
-        roll_next_move_with_num(&mut e, 30); // BELLOW
-        roll_next_move_with_num(&mut e, 80); // THRASH
-        roll_next_move_with_num(&mut e, 10); // CHOMP (<25, last two are CHOMP/BELLOW)
+        roll_next_move_with_num(&mut e, 30);
+        roll_next_move_with_num(&mut e, 10);
         assert_eq!(e.move_id, JW_CHOMP);
     }
     #[test] fn jw_6_turn_cycle() {
         let mut e = create_enemy("JawWorm", 44, 44);
         let mut ids = vec![e.move_id];
-        // Cycle nums to exercise each Java branch deterministically.
-        for &num in &[30, 80, 10, 30, 80] {
+        for &num in &[25, 55, 25, 0, 55] {
             roll_next_move_with_num(&mut e, num);
             ids.push(e.move_id);
         }
-        assert_eq!(ids[0], JW_CHOMP);
-        assert_eq!(ids[1], JW_BELLOW);
-        assert_eq!(ids[2], JW_THRASH);
-        assert_eq!(ids[3], JW_CHOMP);
+        assert_eq!(ids, vec![JW_CHOMP, JW_THRASH, JW_BELLOW, JW_THRASH, JW_CHOMP, JW_BELLOW]);
     }
     #[test] fn jw_bellow_has_no_damage() {
         let mut e = create_enemy("JawWorm", 44, 44);
-        roll_next_move_with_num(&mut e, 30); // -> BELLOW
+        roll_next_move_with_num(&mut e, 55);
         assert_eq!(e.move_damage(), 0);
     }
 
@@ -648,4 +641,3 @@ mod enemy_tests {
 // =============================================================================
 // Relic exhaustive tests
 // =============================================================================
-

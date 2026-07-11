@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T01:43:12.448985+00:00",
+ "updated": "2026-07-11T01:56:01.832990+00:00",
  "status_counts": {
-  "unverified": 587,
-  "verified": 80
+  "unverified": 586,
+  "verified": 81
  },
  "rows": [
   {
@@ -4082,8 +4082,8 @@
    "class": "JawWorm",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/exordium/JawWorm.java",
    "methods_ref": "reference/extracted/methods/monster/JawWorm.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

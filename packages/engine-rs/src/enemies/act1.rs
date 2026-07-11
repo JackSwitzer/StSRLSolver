@@ -2,29 +2,47 @@ use crate::state::EnemyCombatState;
 use crate::combat_types::mfx;
 use super::{last_move, last_two_moves};
 use super::move_ids;
+use crate::seed::StsRandom;
 use crate::status_ids::sid;
 
 // =========================================================================
 // Act 1 Basic Enemies
 // =========================================================================
 
-pub(super) fn roll_jaw_worm(enemy: &mut EnemyCombatState, num: i32) {
-    // Java JawWorm.getMove(int num) (decompiled monsters/exordium/JawWorm.java):
-    //   if (num < 25 && !lastTwoMoves(CHOMP)) -> CHOMP (11 dmg)
-    //   else if (num < 55 && !lastMove(BELLOW)) -> BELLOW (+3 str, 6 block)
-    //   else if !lastTwoMoves(THRASH) -> THRASH (7 dmg, 5 block)
-    //   First turn has no history, so only the num check applies:
-    //   0-24 CHOMP, 25-54 BELLOW, 55-99 THRASH (~25/30/45 split).
-    if num < 25 && !last_two_moves(enemy, move_ids::JW_CHOMP) {
-        enemy.set_move(move_ids::JW_CHOMP, 11, 1, 0);
-    } else if num < 55 && !last_move(enemy, move_ids::JW_BELLOW) {
-        enemy.set_move(move_ids::JW_BELLOW, 0, 0, 6);
-        enemy.add_effect(mfx::STRENGTH, 3);
-    } else if !last_two_moves(enemy, move_ids::JW_THRASH) {
+pub(super) fn roll_jaw_worm(enemy: &mut EnemyCombatState, num: i32, ai_rng: &mut StsRandom) {
+    // Source: reference/extracted/methods/monster/JawWorm.java (`getMove`).
+    // Java makes a conditional randomBoolean draw after CHOMP (<25), after two
+    // THRASHes (25..54), and after BELLOW (>=55). Each advances shared aiRng.
+    let chomp_damage = enemy.entity.status(sid::STARTING_DMG).max(11);
+    let strength = enemy.entity.status(sid::STR_AMT).max(3) as i16;
+    let bellow_block = enemy.entity.status(sid::BLOCK_AMT).max(6);
+    let chomp = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::JW_CHOMP, chomp_damage, 1, 0);
+    };
+    let bellow = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::JW_BELLOW, 0, 0, bellow_block);
+        enemy.add_effect(mfx::STRENGTH, strength);
+    };
+    let thrash = |enemy: &mut EnemyCombatState| {
         enemy.set_move(move_ids::JW_THRASH, 7, 1, 5);
+    };
+
+    if num < 25 {
+        if last_move(enemy, move_ids::JW_CHOMP) {
+            if ai_rng.random_float() < 0.5625 { bellow(enemy); } else { thrash(enemy); }
+        } else {
+            chomp(enemy);
+        }
+    } else if num < 55 {
+        if last_two_moves(enemy, move_ids::JW_THRASH) {
+            if ai_rng.random_float() < 0.357 { chomp(enemy); } else { bellow(enemy); }
+        } else {
+            thrash(enemy);
+        }
+    } else if last_move(enemy, move_ids::JW_BELLOW) {
+        if ai_rng.random_float() < 0.416 { chomp(enemy); } else { thrash(enemy); }
     } else {
-        // All anti-repeat guards triggered; fall back to CHOMP.
-        enemy.set_move(move_ids::JW_CHOMP, 11, 1, 0);
+        bellow(enemy);
     }
 }
 
@@ -370,4 +388,3 @@ pub(super) fn roll_slime_boss(enemy: &mut EnemyCombatState) {
 pub fn slime_boss_should_split(enemy: &EnemyCombatState) -> bool {
     enemy.entity.hp > 0 && enemy.entity.hp <= enemy.entity.max_hp / 2
 }
-
