@@ -80,6 +80,45 @@ fn wave7_draw_and_energy_potions_use_action_path_with_runtime_potency() {
 }
 
 #[test]
+fn swift_potion_keeps_three_potency_and_uses_normal_draw_rules() {
+    // Source-derived (verify potion/SwiftPotion): getPotency always returns
+    // three and use queues an ordinary DrawCardAction. Sacred Bark doubles the
+    // amount, while DrawCardAction still respects the hand cap and No Draw.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/SwiftPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DrawCardAction.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike", "Defend", "Bash"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand = make_deck(&[
+        "Strike", "Defend", "Bash", "Strike", "Defend", "Bash",
+    ]);
+    engine.state.draw_pile = make_deck(&[
+        "Strike", "Defend", "Bash", "Strike", "Defend", "Bash", "Strike", "Defend",
+    ]);
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "Swift Potion".to_string();
+
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.hand.len(), 10);
+    assert_eq!(engine.state.draw_pile.len(), 4);
+
+    let mut no_draw = engine_with_state(combat_state_with(
+        make_deck(&["Strike", "Defend", "Bash"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    no_draw.state.hand.clear();
+    no_draw.state.draw_pile = make_deck(&["Strike", "Defend", "Bash"]);
+    no_draw.state.player.set_status(sid::NO_DRAW, 1);
+    no_draw.state.potions[0] = "SwiftPotion".to_string();
+    use_potion(&mut no_draw, 0, -1);
+    assert!(no_draw.state.hand.is_empty());
+    assert_eq!(no_draw.state.draw_pile.len(), 3);
+}
+
+#[test]
 fn energy_potion_keeps_two_potency_and_sacred_bark_doubles_it() {
     // Source-derived (verify potion/EnergyPotion): getPotency returns two with
     // no ascension branch; AbstractPotion doubles that value for Sacred Bark.
