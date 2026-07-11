@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T05:32:19.859090+00:00",
+ "updated": "2026-07-11T05:37:33.075947+00:00",
  "status_counts": {
-  "unverified": 536,
-  "verified": 131
+  "unverified": 535,
+  "verified": 132
  },
  "rows": [
   {
@@ -4582,8 +4582,8 @@
    "class": "FairyPotion",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/FairyPotion.java",
    "methods_ref": "reference/extracted/methods/potion/FairyPotion.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

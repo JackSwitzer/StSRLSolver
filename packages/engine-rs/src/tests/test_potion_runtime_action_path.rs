@@ -515,6 +515,44 @@ fn temporary_effect_potions_apply_statuses_through_action_path() {
 }
 
 #[test]
+fn fairy_potion_is_passive_and_revives_through_java_healing_rules() {
+    // Source-derived (verify potion/FairyPotion): canUse is always false. On
+    // lethal damage, potency is 30% at every ascension, Sacred Bark doubles it,
+    // the amount is clamped to at least one, and player.heal applies Magic
+    // Flower before the potion slot is destroyed.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FairyPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+    let mut lethal_enemy = enemy_no_intent("JawWorm", 40, 40);
+    lethal_enemy.set_move(1, 200, 1, 0);
+    let mut state = combat_state_with(make_deck(&["Strike"]), vec![lethal_enemy], 3);
+    state.relics.push("SacredBark".to_string());
+    state.relics.push("MagicFlower".to_string());
+    state.potions[0] = "FairyPotion".to_string();
+    let mut engine = engine_with_state(state);
+
+    assert!(!engine.get_legal_actions().iter().any(|action| {
+        matches!(action, Action::UsePotion { potion_idx: 0, .. })
+    }));
+
+    engine.execute_action(&Action::EndTurn);
+
+    // 80 * 60% Sacred Bark = 48; Magic Flower raises that heal to 72.
+    assert_eq!(engine.state.player.hp, 72);
+    assert!(!engine.state.combat_over);
+    assert!(engine.state.potions[0].is_empty());
+
+    let mut tiny_enemy = enemy_no_intent("JawWorm", 40, 40);
+    tiny_enemy.set_move(1, 2, 1, 0);
+    let mut tiny_state = combat_state_with(make_deck(&["Strike"]), vec![tiny_enemy], 3);
+    tiny_state.player.hp = 1;
+    tiny_state.player.max_hp = 1;
+    tiny_state.potions[0] = "FairyPotion".to_string();
+    let mut tiny = engine_with_state(tiny_state);
+    tiny.execute_action(&Action::EndTurn);
+    assert_eq!(tiny.state.player.hp, 1, "Fairy heal is clamped to one");
+}
+
+#[test]
 fn stance_potion_opens_choose_one_and_sets_stance_via_action_path() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike", "Defend", "Strike", "Defend", "Strike"]),

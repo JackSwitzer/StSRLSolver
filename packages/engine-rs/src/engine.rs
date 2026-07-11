@@ -2717,7 +2717,11 @@ impl CombatEngine {
             };
             if revive_hp > 0 {
                 potions::consume_fairy(&mut self.state);
-                self.state.player.hp = revive_hp;
+                self.state.player.hp = 0;
+                // FairyPotion.use calls player.heal, so healing modifiers such
+                // as Magic Flower apply after the percent amount is computed.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FairyPotion.java
+                self.heal_player(revive_hp);
                 return;
             }
             // Lizard Tail (relic): revive at 50% max HP, once per run
@@ -3601,7 +3605,6 @@ impl CombatEngine {
         let pool: Vec<&'static str> = crate::potions::defs::POTION_DEFS
             .iter()
             .map(|def| def.id)
-            .filter(|id| *id != "FairyPotion")
             .collect();
         if pool.is_empty() {
             return false;

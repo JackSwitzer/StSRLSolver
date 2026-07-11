@@ -76,6 +76,10 @@ fn is_boss_enemy_id(enemy_id: &str) -> bool {
 
 pub fn potion_can_use_in_combat(state: &CombatState, potion_id: &str) -> bool {
     match potion_id {
+        // FairyPotion.canUse() is always false; it triggers passively on lethal
+        // damage from AbstractPlayer.damage instead.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FairyPotion.java
+        "FairyPotion" | "Fairy in a Bottle" => false,
         "SmokeBomb" | "Smoke Bomb" => {
             // Java blocks Smoke Bomb against bosses and also against any
             // enemy currently presenting BackAttack legality. We model that
@@ -579,15 +583,15 @@ pub fn check_fairy_revive(state: &CombatState) -> i32 {
     check_fairy_revive_scaled(state, 0)
 }
 
-/// Check fairy revive with ascension scaling.
-/// A11+ reduces revive from 30% to 20% max HP.
-pub fn check_fairy_revive_scaled(state: &CombatState, ascension: i32) -> i32 {
+/// Check fairy revive with the retained ascension parameter used by helper
+/// tests. FairyPotion.java has no ascension branch: potency is always 30%.
+pub fn check_fairy_revive_scaled(state: &CombatState, _ascension: i32) -> i32 {
     let bark = state.has_relic("SacredBark");
-    let base_pct = if ascension >= 11 { 20 } else { 30 };
+    let base_pct = 30;
     let potency = if bark { base_pct * 2 } else { base_pct };
     for potion in &state.potions {
         if potion == "FairyPotion" || potion == "Fairy in a Bottle" {
-            return (state.player.max_hp * potency) / 100;
+            return ((state.player.max_hp * potency) / 100).max(1);
         }
     }
     0
@@ -1013,11 +1017,12 @@ mod tests {
     }
 
     #[test]
-    fn test_a11_fairy_revive_reduced() {
+    fn test_a11_fairy_revive_stays_at_thirty_percent() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FairyPotion.java
         let mut state = make_test_state();
         state.potions[0] = "FairyPotion".to_string();
         let revive = check_fairy_revive_scaled(&state, 11);
-        assert_eq!(revive, 16);
+        assert_eq!(revive, 24);
     }
 
     #[test]
