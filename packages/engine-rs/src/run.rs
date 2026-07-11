@@ -3217,6 +3217,8 @@ impl RunEngine {
             "Bottled Lightning",
             // BottledTornado.java uses this canonical ID and UNCOMMON tier.
             "Bottled Tornado",
+            // BronzeScales.java uses this canonical ID and COMMON tier.
+            "Bronze Scales",
             "QuestionCard",
             "PrayerWheel",
             "SingingBowl",

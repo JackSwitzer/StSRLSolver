@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T07:28:25.894606+00:00",
+ "updated": "2026-07-11T07:31:49.695466+00:00",
  "status_counts": {
-  "unverified": 503,
-  "verified": 164
+  "unverified": 502,
+  "verified": 165
  },
  "rows": [
   {
@@ -5002,8 +5002,8 @@
    "class": "BronzeScales",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/BronzeScales.java",
    "methods_ref": "reference/extracted/methods/relic/BronzeScales.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

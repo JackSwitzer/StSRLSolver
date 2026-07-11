@@ -283,6 +283,28 @@ fn blue_candle_plays_and_exhausts_curses_through_hp_loss_damage_rules() {
 }
 
 #[test]
+fn bronze_scales_grants_three_thorns_that_retaliates_through_full_block() {
+    // Source-derived (verify relic/Bronze Scales): BronzeScales.java applies
+    // ThornsPower(3) at battle start. ThornsPower.onAttacked does not require
+    // positive HP damage from the triggering NORMAL attack.
+    let mut engine = engine_without_start_with_relics(
+        &["Bronze Scales"],
+        &["Defend", "Defend", "Defend", "Defend", "Defend"],
+        vec![enemy("Cultist", 60, 60, 1, 4, 1)],
+        3,
+    );
+    engine.start_combat();
+    assert_eq!(engine.state.player.status(sid::THORNS), 3);
+    engine.state.player.block = 10;
+    let player_hp = engine.state.player.hp;
+
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.hp, player_hp);
+    assert_eq!(engine.state.enemies[0].entity.hp, 57);
+}
+
+#[test]
 fn blood_vial_and_mark_of_pain_apply_at_real_combat_start() {
     let mut engine = engine_without_start_with_relics(
         &["Blood Vial", "Mark of Pain"],
