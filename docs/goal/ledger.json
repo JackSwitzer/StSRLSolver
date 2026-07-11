@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T04:48:14.942894+00:00",
+ "updated": "2026-07-11T04:50:46.606387+00:00",
  "status_counts": {
-  "unverified": 547,
-  "verified": 120
+  "unverified": 546,
+  "verified": 121
  },
  "rows": [
   {
@@ -4422,8 +4422,8 @@
    "class": "BlessingOfTheForge",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/BlessingOfTheForge.java",
    "methods_ref": "reference/extracted/methods/potion/BlessingOfTheForge.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -287,6 +287,25 @@ fn blessing_of_the_forge_upgrades_hand_via_runtime_action_path() {
 }
 
 #[test]
+fn blessing_of_the_forge_upgrades_each_eligible_hand_card_once() {
+    // Source-derived (verify potion/BlessingOfTheForge): ArmamentsAction(true)
+    // iterates the current hand and calls upgrade only when canUpgrade is true.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.hand = make_deck(&["Strike", "Defend+", "Daze", "Miracle"]);
+    engine.state.potions[0] = "BlessingOfTheForge".to_string();
+
+    use_potion(&mut engine, 0, -1);
+
+    assert_eq!(hand_names(&engine), vec!["Strike+", "Defend+", "Daze", "Miracle+"]);
+    assert!(engine.state.potions[0].is_empty());
+}
+
+#[test]
 fn bottled_miracle_and_cunning_potion_use_runtime_hooks() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike"]),
