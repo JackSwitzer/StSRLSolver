@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T06:14:51.914065+00:00",
+ "updated": "2026-07-11T06:17:19.926906+00:00",
  "status_counts": {
-  "unverified": 525,
-  "verified": 142
+  "unverified": 524,
+  "verified": 143
  },
  "rows": [
   {
@@ -4782,8 +4782,8 @@
    "class": "SteroidPotion",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/SteroidPotion.java",
    "methods_ref": "reference/extracted/methods/potion/SteroidPotion.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

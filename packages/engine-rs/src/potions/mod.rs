@@ -173,7 +173,8 @@ fn potion_potency(potion_id: &str) -> Option<(i32, i32)> {
         // DexterityPotion.java getPotency ignores ascension and always returns 2.
         "Dexterity Potion" | "DexterityPotion" => Some((2, 2)),
         "Focus Potion" | "FocusPotion" => Some((2, 1)),
-        "SteroidPotion" | "Flex Potion" => Some((5, 3)),
+        // SteroidPotion.java getPotency ignores ascension and always returns 5.
+        "SteroidPotion" | "Flex Potion" => Some((5, 5)),
         // SpeedPotion.java getPotency ignores ascension and always returns 5.
         "SpeedPotion" => Some((5, 5)),
         "Weak Potion" | "WeakenPotion" => Some((3, 2)),
@@ -1060,6 +1061,15 @@ mod tests {
         apply_potion_scaled(&mut state, "SpeedPotion", -1, 11);
         assert_eq!(state.player.status(sid::DEXTERITY), 5);
         assert_eq!(state.player.status(sid::LOSE_DEXTERITY), 5);
+    }
+
+    #[test]
+    fn test_a11_steroid_potion_stays_at_five() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/SteroidPotion.java
+        let mut state = make_test_state();
+        apply_potion_scaled(&mut state, "SteroidPotion", -1, 11);
+        assert_eq!(state.player.status(sid::STRENGTH), 5);
+        assert_eq!(state.player.status(sid::LOSE_STRENGTH), 5);
     }
 
     #[test]
