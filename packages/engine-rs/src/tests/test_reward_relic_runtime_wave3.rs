@@ -4434,6 +4434,22 @@ fn sacred_bark_is_boss_reachable_and_refreshes_owned_potion_potency() {
 }
 
 #[test]
+fn snecko_eye_is_reachable_from_the_watcher_boss_relic_pool() {
+    // Source: SneckoEye.java constructs canonical ID "Snecko Eye" at BOSS
+    // tier, so it must be selectable after a Watcher boss combat.
+    let offered = (0..128).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_boss_reward_screen();
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0].choices.iter().any(|choice| {
+                matches!(choice, RewardChoice::Named { label, .. } if label == "Snecko Eye")
+            })
+        })
+    });
+    assert!(offered);
+}
+
+#[test]
 fn claiming_matryoshka_mutates_next_two_chests_then_expires() {
     let mut engine = RunEngine::new(321, 20);
     engine.debug_set_reward_screen(single_relic_reward_screen("Matryoshka"));

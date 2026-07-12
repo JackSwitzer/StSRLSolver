@@ -1,4 +1,4 @@
-//! Snecko Eye: Set CONFUSION + SNECKO_EYE flags + 2 extra draw at combat start.
+//! Snecko Eye: Set CONFUSION + SNECKO_EYE at combat start.
 //! Requires complex_hook because it sets multiple interacting statuses.
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
@@ -14,7 +14,6 @@ fn hook(
 ) {
     engine.state.player.set_status(sid::SNECKO_EYE, 1);
     engine.state.player.set_status(sid::CONFUSION, 1);
-    engine.state.player.set_status(sid::BAG_OF_PREP_DRAW, 2);
 }
 
 static TRIGGERS: [TriggeredEffect; 1] = [

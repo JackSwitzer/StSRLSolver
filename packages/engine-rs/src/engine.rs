@@ -1469,10 +1469,16 @@ impl CombatEngine {
             replay_window: false,
         });
 
-        // Draw cards (default 5 + Draw/Machine Learning power + Ring of the Serpent)
+        // Draw cards. SneckoEye.java raises masterHandSize by two for every
+        // turn; removing the relic restores the ordinary five-card baseline.
         let ml = self.state.player.status(sid::DRAW);
         let serpent = self.state.player.status(sid::RING_OF_SERPENT_DRAW);
-        self.draw_cards(5 + ml + serpent);
+        let snecko_eye = if self.state.player.status(sid::SNECKO_EYE) > 0 {
+            2
+        } else {
+            0
+        };
+        self.draw_cards(5 + ml + serpent + snecko_eye);
 
         // TurnStartExtraDraw: one-shot extra draw from relics (Bag of Prep, etc.)
         let extra_draw = self.state.player.status(sid::TURN_START_EXTRA_DRAW);
@@ -1893,16 +1899,11 @@ impl CombatEngine {
             }
         }
 
-        // Energy check — Confusion: any card could cost 0-3, so playable if energy >= 0
-        if self.state.player.status(sid::CONFUSION) > 0 && card.cost >= 0 {
-            if self.state.energy < 0 {
-                return false;
-            }
-        } else {
-            let cost = self.effective_cost_inst(card, card_inst);
-            if cost > self.state.energy {
-                return false;
-            }
+        // ConfusionPower.java randomizes the instance when it is drawn, so
+        // ordinary energy legality uses that already-materialized cost.
+        let cost = self.effective_cost_inst(card, card_inst);
+        if cost > self.state.energy {
+            return false;
         }
 
         // Entangled: can't play attacks
@@ -2029,11 +2030,6 @@ impl CombatEngine {
             return 0;
         }
 
-        // Confusion/SneckoEye: MCTS approximation (deterministic midpoint)
-        if self.state.player.status(sid::CONFUSION) > 0 {
-            return 1;
-        }
-
         // Instance cost overrides CardDef cost when set (>= 0)
         let mut cost = if card_inst.cost >= 0 {
             card_inst.cost as i32
@@ -2049,8 +2045,8 @@ impl CombatEngine {
         cost
     }
 
-    /// Effective cost with RNG for actual card play (Confusion randomization).
-    /// Called from play_card where &mut self is available.
+    /// Effective cost for actual card play.
+    /// Confusion has already randomized the instance in draw_cards.
     fn effective_cost_mut_inst(&mut self, card: &CardDef, card_inst: CardInstance) -> i32 {
         // X-cost cards: cost is consumed separately in card_effects
         if card.cost == -1 {
@@ -2070,11 +2066,6 @@ impl CombatEngine {
         }
         if self.state.player.status(sid::BULLET_TIME) > 0 {
             return 0;
-        }
-
-        // Confusion/SneckoEye: randomize card costs 0-3
-        if self.state.player.status(sid::CONFUSION) > 0 {
-            return self.rng.random(3);
         }
 
         // Instance cost overrides CardDef cost when set (>= 0)
@@ -3429,11 +3420,19 @@ impl CombatEngine {
                 shuffles += 1;
             }
 
-            if let Some(drawn) = self.state.draw_pile.pop() {
+            if let Some(mut drawn) = self.state.draw_pile.pop() {
+                let card_def = self.card_registry.card_def_by_id(drawn.def_id);
+                // ConfusionPower.java::onCardDraw consumes cardRandomRng for
+                // every non-negative-cost card, permanently sets both cost
+                // and costForTurn to 0..3, and clears freeToPlayOnce.
+                if self.state.player.status(sid::CONFUSION) > 0 && card_def.cost >= 0 {
+                    let new_cost = self.card_random_rng.random(3) as i8;
+                    drawn.set_permanent_cost(new_cost);
+                    drawn.flags &= !CardInstance::FLAG_FREE;
+                }
                 self.state.hand.push(drawn);
 
                 // Extract card info for power triggers
-                let card_def = self.card_registry.card_def_by_id(drawn.def_id);
                 let card_type = card_def.card_type;
 
                 // Evolve: draw extra cards when drawing a Status
