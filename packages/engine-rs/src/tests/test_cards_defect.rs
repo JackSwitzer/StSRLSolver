@@ -586,6 +586,54 @@ mod defect_card_java_parity_tests {
         assert_eq!(upgraded.state.enemies[0].entity.hp, 36);
     });
 
+    defect_test!(amplify_variants_replay_power_cards_consume_charges_and_expire, {
+        // Amplify.java applies one charge, upgraded to two. AmplifyPower plays
+        // each next non-purge Power card one additional time, consumes one
+        // charge per original card, and removes unused charges at turn end.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Amplify.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/AmplifyPower.java
+        let mut base = bare_engine(&[], vec![enemy("JawWorm", 60, 0)]);
+        base.state.hand = make_deck(&["Amplify", "Defragment", "Capacitor"]);
+        base.state.energy = 3;
+        assert!(play_self(&mut base, "Amplify"));
+        assert_eq!(base.state.player.status(sid::AMPLIFY), 1);
+        assert!(play_self(&mut base, "Defragment"));
+        assert_eq!(base.state.player.focus(), 2);
+        assert_eq!(base.state.player.status(sid::AMPLIFY), 0);
+        assert!(play_self(&mut base, "Capacitor"));
+        assert_eq!(base.state.orb_slots.get_slot_count(), 2);
+
+        let mut upgraded = bare_engine(&[], vec![enemy("JawWorm", 60, 0)]);
+        upgraded.state.hand = make_deck(&["Amplify+", "Defragment", "Capacitor"]);
+        upgraded.state.energy = 3;
+        assert!(play_self(&mut upgraded, "Amplify+"));
+        assert_eq!(upgraded.state.player.status(sid::AMPLIFY), 2);
+        assert!(play_self(&mut upgraded, "Defragment"));
+        assert_eq!(upgraded.state.player.focus(), 2);
+        assert_eq!(upgraded.state.player.status(sid::AMPLIFY), 1);
+        assert!(play_self(&mut upgraded, "Capacitor"));
+        assert_eq!(upgraded.state.orb_slots.get_slot_count(), 4);
+        assert_eq!(upgraded.state.player.status(sid::AMPLIFY), 0);
+
+        let mut expires = bare_engine(&[], vec![enemy("JawWorm", 60, 0)]);
+        expires.state.hand = make_deck(&["Amplify"]);
+        expires.state.energy = 1;
+        assert!(play_self(&mut expires, "Amplify"));
+        assert_eq!(expires.state.player.status(sid::AMPLIFY), 1);
+        expires.execute_action(&Action::EndTurn);
+        assert_eq!(expires.state.player.status(sid::AMPLIFY), 0);
+
+        let mut purge = bare_engine(&[], vec![enemy("JawWorm", 60, 0)]);
+        purge.state.player.set_status(sid::AMPLIFY, 1);
+        let mut purge_power = purge.card_registry.make_card("Defragment");
+        purge_power.flags |= crate::combat_types::CardInstance::FLAG_PURGE;
+        purge.state.hand = vec![purge_power];
+        purge.state.energy = 1;
+        assert!(play_self(&mut purge, "Defragment"));
+        assert_eq!(purge.state.player.focus(), 1);
+        assert_eq!(purge.state.player.status(sid::AMPLIFY), 1);
+    });
+
     defect_test!(biased_cognition_gives_focus, {
         let mut e = bare_engine(&["Biased Cognition"], vec![enemy("JawWorm", 40, 0)]);
         ensure_in_hand(&mut e, "Biased Cognition");
