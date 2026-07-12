@@ -11,6 +11,11 @@ HARNESS="$REPO/packages/harness-java"
 OUT_DIR="$REPO/data/traces/recordings"
 mkdir -p "$OUT_DIR"
 
+if pgrep -f "jre/bin/java.*ModTheSpire" >/dev/null 2>&1; then
+  echo "[play_record] a game instance is already running (or a stuck zombie in UE state — reboot clears those). Refusing to double-launch." >&2
+  exit 1
+fi
+
 "$REPO/scripts/check_patches.sh"
 
 if [[ ! -f "$HARNESS/target/TraceLab.jar" || -n "$(find "$HARNESS/src" -newer "$HARNESS/target/TraceLab.jar" -type f 2>/dev/null | head -1)" ]]; then
