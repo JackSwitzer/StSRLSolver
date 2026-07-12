@@ -472,8 +472,56 @@ mod silent_card_java_parity_tests {
     }
     card_pair_test!(after_image,
         "After Image", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["after_image"],
-        "After Image+", 0, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["after_image"],
+        "After Image+", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["after_image", "innate"],
     );
+
+    #[test]
+    fn after_image_upgrade_is_innate_and_existing_stacks_fire_before_new_stack() {
+        // AfterImage.java keeps cost 1 on upgrade and sets isInnate. The card
+        // queues ApplyPowerAction(1), while AfterImagePower.onUseCard fires
+        // before the played card's queued power stack resolves: the first copy
+        // gives no block, the second gives 1, and the next card gives 2.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/AfterImage.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/AfterImagePower.java
+        let opening_state = combat_state_with(
+            make_deck(&[
+                "Strike", "Strike", "Strike", "Strike", "Strike",
+                "Strike", "Strike", "Strike", "Strike", "After Image+",
+            ]),
+            vec![enemy_no_intent("JawWorm", 60, 60)],
+            3,
+        );
+        let opening = engine_with_state(opening_state);
+        assert!(opening.state.hand.iter().any(|card| {
+            opening.card_registry.card_name(card.def_id) == "After Image+"
+        }));
+
+        let state = combat_state_with(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 60, 60)],
+            3,
+        );
+        let mut engine = engine_with_state(state);
+        engine.state.hand = make_deck(&["After Image", "After Image+", "Strike"]);
+        engine.state.draw_pile.clear();
+        engine.state.discard_pile.clear();
+        engine.state.energy = 3;
+
+        assert!(play_self(&mut engine, "After Image"));
+        assert_eq!(engine.state.energy, 2);
+        assert_eq!(engine.state.player.status(sid::AFTER_IMAGE), 1);
+        assert_eq!(engine.state.player.block, 0);
+
+        assert!(play_self(&mut engine, "After Image+"));
+        assert_eq!(engine.state.energy, 1);
+        assert_eq!(engine.state.player.status(sid::AFTER_IMAGE), 2);
+        assert_eq!(engine.state.player.block, 1);
+
+        assert!(play_on_enemy(&mut engine, "Strike", 0));
+        assert_eq!(engine.state.energy, 0);
+        assert_eq!(engine.state.player.block, 3);
+        assert_eq!(engine.state.enemies[0].entity.hp, 54);
+    }
     card_pair_test!(alchemize,
         "Alchemize", 1, -1, -1, -1, CardType::Skill, CardTarget::None, true, None, &["alchemize"],
         "Alchemize+", 0, -1, -1, -1, CardType::Skill, CardTarget::None, true, None, &["alchemize"],

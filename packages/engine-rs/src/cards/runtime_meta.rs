@@ -104,6 +104,7 @@ pub fn runtime_traits_for_card(id: &str, cost: i32) -> CardRuntimeTraits {
                 | "Backstab"
                 | "Backstab+"
                 | "Infinite Blades+"
+                | "After Image+"
                 | "Alpha+"
                 | "BattleHymn+"
                 | "Establishment+"
