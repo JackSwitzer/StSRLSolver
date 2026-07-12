@@ -1248,6 +1248,56 @@ fn gambling_chip_is_watcher_reachable_and_redraws_selected_opening_cards() {
 }
 
 #[test]
+fn warped_tongs_rummage_grants_the_fixed_relic_and_upgrades_only_eligible_cards() {
+    // AccursedBlacksmith.java's Rummage branch always obtains Pain and the
+    // SPECIAL WarpedTongs relic. WarpedTongs queues UpgradeRandomCardAction,
+    // which excludes upgraded and Status cards and consumes one
+    // shuffleRng.randomLong only when an eligible card exists.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/events/shrines/AccursedBlacksmith.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/WarpedTongs.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/UpgradeRandomCardAction.java
+    let event = crate::events::typed_shrine_events().into_iter()
+        .find(|event| event.name == "Accursed Blacksmith")
+        .expect("Accursed Blacksmith event");
+    let mut engine = RunEngine::new(42, 0);
+    engine.debug_set_typed_event_state(event);
+    assert!(engine.step_with_result(&RunAction::EventChoice(1)).action_accepted);
+    assert!(engine.run_state.deck.iter().any(|card| card == "Pain"));
+    let screen = engine.current_reward_screen().expect("Warped Tongs reward");
+    assert_eq!(screen.items.len(), 1);
+    assert_eq!(screen.items[0].label, "WarpedTongs");
+    assert!(engine.step_with_result(&RunAction::SelectRewardItem(0)).action_accepted);
+    assert!(engine.run_state.relics.iter().any(|relic| relic == "WarpedTongs"));
+
+    engine.run_state.deck = vec![
+        "Burn".to_string(),
+        "Strike+".to_string(),
+        "Defend".to_string(),
+    ];
+    engine.run_state.relics.retain(|relic| relic == "WarpedTongs");
+    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    let combat = engine.debug_combat_engine_mut();
+    let hand_names = combat.state.hand.iter()
+        .map(|card| combat.card_registry.card_name(card.def_id))
+        .collect::<Vec<_>>();
+    assert!(hand_names.contains(&"Burn"));
+    assert!(hand_names.contains(&"Strike+"));
+    assert!(hand_names.contains(&"Defend+"));
+    assert_eq!(combat.rng_counters()["card"], 1);
+
+    combat.state.hand = crate::tests::support::make_deck(&["Burn", "Strike+"]);
+    let shuffle_before = combat.rng_counters()["card"];
+    combat.emit_event(crate::effects::runtime::GameEvent::empty(
+        crate::effects::trigger::Trigger::TurnStartPostDrawLate,
+    ));
+    assert_eq!(combat.rng_counters()["card"], shuffle_before);
+    assert!(combat.state.hand.iter().all(|card| {
+        matches!(combat.card_registry.card_name(card.def_id), "Burn" | "Strike+")
+    }));
+}
+
+#[test]
 fn incense_burner_is_reachable_from_watcher_relic_rewards() {
     // RelicLibrary.java registers IncenseBurner; IncenseBurner.java constructs
     // the shared relic at RARE tier under canonical ID "Incense Burner".

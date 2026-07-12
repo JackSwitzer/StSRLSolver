@@ -82,9 +82,9 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
                     EventEffect::UpgradeCard,
                 ),
                 supported(
-                    "Rummage (obtain random relic, gain Pain curse)",
+                    "Rummage (obtain Warped Tongs, gain Pain curse)",
                     vec![
-                        EventProgramOp::gain_relic("random relic"),
+                        EventProgramOp::gain_relic("WarpedTongs"),
                         EventProgramOp::Reward(EventReward::Curse {
                             label: "Pain".to_string(),
                         }),
