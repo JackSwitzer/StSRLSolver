@@ -119,6 +119,32 @@ fn ironclad_wave7_battle_trance_bloodletting_and_offering_run_through_typed_effe
 }
 
 #[test]
+fn battle_trance_plus_draws_four_then_no_draw_expires_at_turn_end() {
+    // Sources: BattleTrance.java queues DrawCardAction(4) before applying
+    // NoDrawPower; NoDrawPower.java removes itself at the player's turn end.
+    let mut engine = one_enemy_engine("JawWorm", 60);
+    engine.state.hand = make_deck(&["Battle Trance+"]);
+    engine.state.draw_pile = make_deck(&[
+        "Strike", "Defend", "Bash", "Shrug It Off", "Inflame", "Strike", "Defend",
+        "Bash", "Strike",
+    ]);
+
+    assert!(play_self(&mut engine, "Battle Trance+"));
+    assert_eq!(engine.state.hand.len(), 4);
+    assert_eq!(engine.state.energy, 3);
+    assert_eq!(engine.state.player.status(sid::NO_DRAW), 1);
+
+    let hand_before_blocked_draw = engine.state.hand.len();
+    engine.draw_cards(1);
+    assert_eq!(engine.state.hand.len(), hand_before_blocked_draw);
+
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.status(sid::NO_DRAW), 0);
+    assert_eq!(engine.state.hand.len(), 5);
+}
+
+#[test]
 fn ironclad_wave7_combust_inflame_and_shrug_it_off_follow_engine_path() {
     let mut combust = one_enemy_engine("JawWorm", 50);
     combust.state.hand = make_deck(&["Combust+"]);

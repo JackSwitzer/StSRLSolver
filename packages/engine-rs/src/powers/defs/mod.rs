@@ -62,6 +62,7 @@ pub static POWER_DEFS: &[&EntityDef] = &[
     &turn_end::DEF_OMEGA,
     &turn_end::DEF_LIKE_WATER,
     &turn_end::DEF_STUDY,
+    &turn_end::DEF_NO_DRAW,
 
     // -- Card Play --
     &card_play::DEF_AFTER_IMAGE,
@@ -134,6 +135,7 @@ pub static RUNTIME_PLAYER_POWER_DEFS: &[&EntityDef] = &[
     &turn_end::DEF_OMEGA,
     &turn_end::DEF_LIKE_WATER,
     &turn_end::DEF_STUDY,
+    &turn_end::DEF_NO_DRAW,
     &card_play::DEF_AFTER_IMAGE,
     &card_play::DEF_RAGE,
     &card_play::DEF_HEATSINK,

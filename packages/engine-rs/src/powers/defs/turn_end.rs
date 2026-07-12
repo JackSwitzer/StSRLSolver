@@ -165,6 +165,34 @@ pub static DEF_STUDY: EntityDef = EntityDef {
 };
 
 // ===========================================================================
+// No Draw — TurnEnd: remove the one-turn draw restriction
+// ===========================================================================
+
+// Source: powers/NoDrawPower.java::atEndOfTurn queues removal of power ID
+// "No Draw" when the player's turn ends.
+static NO_DRAW_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::SetStatus(
+    Target::Player,
+    sid::NO_DRAW,
+    AmountSource::Fixed(0),
+))];
+
+static NO_DRAW_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::TurnEnd,
+    condition: TriggerCondition::Always,
+    effects: &NO_DRAW_EFFECTS,
+    counter: None,
+}];
+
+pub static DEF_NO_DRAW: EntityDef = EntityDef {
+    id: "no_draw",
+    name: "No Draw",
+    kind: EntityKind::Power,
+    triggers: &NO_DRAW_TRIGGERS,
+    complex_hook: None,
+    status_guard: Some(sid::NO_DRAW),
+};
+
+// ===========================================================================
 // Tests
 // ===========================================================================
 

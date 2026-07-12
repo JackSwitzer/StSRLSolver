@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T16:14:20.583550+00:00",
+ "updated": "2026-07-12T16:18:12.958655+00:00",
  "status_counts": {
-  "verified": 312,
-  "unverified": 355
+  "verified": 313,
+  "unverified": 354
  },
  "rows": [
   {
@@ -252,8 +252,8 @@
    "class": "BattleTrance",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/BattleTrance.java",
    "methods_ref": "reference/extracted/methods/card/BattleTrance.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
