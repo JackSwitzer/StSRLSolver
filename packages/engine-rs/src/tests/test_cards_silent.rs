@@ -437,6 +437,39 @@ mod silent_card_java_parity_tests {
         "Adrenaline", 0, -1, -1, 1, CardType::Skill, CardTarget::None, true, None, &["draw"],
         "Adrenaline+", 0, -1, -1, 2, CardType::Skill, CardTarget::None, true, None, &["draw"],
     );
+
+    #[test]
+    fn adrenaline_variants_gain_full_energy_when_the_two_card_draw_hits_hand_cap() {
+        // Adrenaline.java queues 1 Energy (2 upgraded), then DrawCardAction(2),
+        // costs zero, and exhausts. With ten cards before play, removing
+        // Adrenaline leaves one hand slot, so only one queued draw fits.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Adrenaline.java
+        for (card_id, expected_energy) in [("Adrenaline", 1), ("Adrenaline+", 2)] {
+            let state = combat_state_with(
+                Vec::new(),
+                vec![enemy_no_intent("JawWorm", 40, 40)],
+                0,
+            );
+            let mut engine = engine_with_state(state);
+            engine.state.hand = make_deck(&[
+                card_id,
+                "Strike", "Strike", "Strike",
+                "Defend", "Defend", "Defend",
+                "Neutralize", "Survivor", "Backflip",
+            ]);
+            engine.state.draw_pile = make_deck(&["Strike", "Defend", "Neutralize"]);
+            engine.state.discard_pile.clear();
+            engine.state.energy = 0;
+
+            assert!(play_self(&mut engine, card_id));
+            assert_eq!(engine.state.energy, expected_energy);
+            assert_eq!(engine.state.hand.len(), 10);
+            assert_eq!(engine.state.draw_pile.len(), 2);
+            assert!(engine.state.exhaust_pile.iter().any(|card| {
+                engine.card_registry.card_name(card.def_id) == card_id
+            }));
+        }
+    }
     card_pair_test!(after_image,
         "After Image", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["after_image"],
         "After Image+", 0, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["after_image"],

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T15:26:15.625851+00:00",
+ "updated": "2026-07-12T15:27:55.921230+00:00",
  "status_counts": {
-  "verified": 293,
-  "unverified": 374
+  "verified": 294,
+  "unverified": 373
  },
  "rows": [
   {
@@ -52,8 +52,8 @@
    "class": "Adrenaline",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Adrenaline.java",
    "methods_ref": "reference/extracted/methods/card/Adrenaline.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
