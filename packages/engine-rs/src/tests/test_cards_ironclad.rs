@@ -330,6 +330,25 @@ mod ironclad_card_java_parity_tests {
     }
 
     #[test]
+    fn bash_plus_deals_damage_before_applying_its_vulnerable() {
+        // Source: Bash.java queues DamageAction before ApplyPowerAction;
+        // upgradeDamage(2) and upgradeMagicNumber(1) produce 10 damage and 3 Vulnerable.
+        let mut engine = engine_for(
+            &["Bash+"],
+            &[],
+            &[],
+            vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
+            3,
+        );
+
+        assert!(play_on_enemy(&mut engine, "Bash+", 0));
+
+        assert_eq!(engine.state.enemies[0].entity.hp, 30);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 3);
+        assert_eq!(engine.state.energy, 1);
+    }
+
+    #[test]
     fn body_slam_uses_current_block() {
         let mut e = engine_for(&["Body Slam"], &[], &[], vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 3);
         e.state.player.block = 13;

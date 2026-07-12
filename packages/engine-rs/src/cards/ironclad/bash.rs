@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Ironclad Basic: Bash ---- (cost 2, 8 dmg, 2 vuln; +2/+1)
+        // Source: cards/red/Bash.java costs 2 and queues 8 damage before
+        // applying 2 Vulnerable; the upgrade adds 2 damage and 1 Vulnerable.
     insert(cards, CardDef {
                 id: "Bash", name: "Bash", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 8, base_block: -1,
