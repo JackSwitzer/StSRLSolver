@@ -157,6 +157,27 @@ fn defect_wave12_barrage_zero_orb_count_deals_no_damage() {
     assert!(play_on_enemy(&mut barrage, "Barrage", 0));
     assert_eq!(barrage.state.enemies[0].entity.hp, 60);
 }
+
+#[test]
+fn barrage_hit_count_is_exactly_the_number_of_non_empty_orbs() {
+    // Sources: Barrage.java sets damage 4 and upgradeDamage(2);
+    // BarrageAction.java queues one DamageAction for each non-EmptyOrbSlot.
+    for (card_id, per_hit) in [("Barrage", 4), ("Barrage+", 6)] {
+        for orb_count in 0..=3 {
+            let mut engine = one_enemy_engine(60, 3);
+            engine.init_defect_orbs(3);
+            for _ in 0..orb_count {
+                engine.channel_orb(OrbType::Frost);
+            }
+            engine.state.hand = make_deck(&[card_id]);
+
+            assert!(play_on_enemy(&mut engine, card_id, 0));
+
+            assert_eq!(engine.state.enemies[0].entity.hp, 60 - per_hit * orb_count);
+            assert_eq!(engine.state.energy, 2);
+        }
+    }
+}
 #[test]
 fn defect_wave12_rip_and_tear_chooses_a_fresh_random_target_for_each_hit() {
     let seed = (0u64..128)

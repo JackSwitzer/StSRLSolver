@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T16:09:20.143875+00:00",
+ "updated": "2026-07-12T16:11:04.513622+00:00",
  "status_counts": {
-  "verified": 309,
-  "unverified": 358
+  "verified": 310,
+  "unverified": 357
  },
  "rows": [
   {
@@ -222,8 +222,8 @@
    "class": "Barrage",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Barrage.java",
    "methods_ref": "reference/extracted/methods/card/Barrage.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
