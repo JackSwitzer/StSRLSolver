@@ -2538,13 +2538,30 @@ impl RunEngine {
 
     fn generate_card_reward_choices(&mut self, count: usize) -> Vec<RewardChoice> {
         let mut cards = Vec::new();
+        let rare_chance = if self
+            .run_state
+            .relics
+            .iter()
+            .any(|relic| relic == "Nloth's Gift")
+        {
+            // NlothsGift.java::changeRareCardRewardChance multiplies the
+            // room's rare chance by exactly three; AbstractRoom leaves the
+            // uncommon chance unchanged, so the extra rare share displaces
+            // common cards.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/NlothsGift.java
+            0.21
+        } else {
+            0.07
+        };
+        let uncommon_chance = 0.33;
+        let common_chance = 1.0 - uncommon_chance - rare_chance;
         for choice_index in 0..count {
             let roll: f32 = self.rng.gen();
-            let card = if roll < 0.6 {
+            let card = if roll < common_chance {
                 // Common
                 let idx = self.rng.gen_range(0..WATCHER_COMMON_CARDS.len());
                 WATCHER_COMMON_CARDS[idx]
-            } else if roll < 0.93 {
+            } else if roll < common_chance + uncommon_chance {
                 // Uncommon
                 let idx = self.rng.gen_range(0..WATCHER_UNCOMMON_CARDS.len());
                 WATCHER_UNCOMMON_CARDS[idx]
@@ -4929,7 +4946,7 @@ impl RunEngine {
         }
     }
 
-    fn normalize_event_runtime_state(&self, event: &mut TypedEventDef) {
+    fn normalize_event_runtime_state(&mut self, event: &mut TypedEventDef) {
         self.normalize_event_runtime_statuses(event);
         if event.name == "Dead Adventurer" {
             *event = crate::events::dead_adventurer_event(self.run_state.ascension);
@@ -4951,6 +4968,34 @@ impl RunEngine {
             let damage = (self.run_state.max_hp / 10).max(1);
             let gold = if self.run_state.ascension >= 15 { 50 } else { 75 };
             event.options[0].text = format!("Touch (take {damage} damage, gain {gold} gold)");
+        } else if event.name == "N'loth" && event.options.len() == 3 {
+            // Nloth.java copies and shuffles the player's relic list, then
+            // offers the first two entries. RunEngine's shared run RNG cannot
+            // reproduce miscRng tick counts, but preserves the semantic random
+            // sample without replacement required by the event.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/events/shrines/Nloth.java
+            let mut candidates = self.run_state.relics.clone();
+            if candidates.len() < 2 {
+                for option in event.options.iter_mut().take(2) {
+                    option.status = EventRuntimeStatus::Blocked {
+                        reason: "requires at least two owned relics".to_string(),
+                    };
+                }
+                return;
+            }
+            let first_index = self.rng.gen_range(0..candidates.len());
+            let first = candidates.remove(first_index);
+            let second_index = self.rng.gen_range(0..candidates.len());
+            let second = candidates.remove(second_index);
+            let already_has_gift = self
+                .run_state
+                .relics
+                .iter()
+                .any(|relic| relic == "Nloth's Gift");
+            for (option, relic_id) in event.options.iter_mut().take(2).zip([first, second]) {
+                option.text = format!("Trade {relic_id} for N'loth's Gift");
+                option.program = crate::events::nloth_trade_program(&relic_id, already_has_gift);
+            }
         }
     }
 

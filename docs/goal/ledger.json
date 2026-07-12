@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T03:00:40.929543+00:00",
+ "updated": "2026-07-12T03:04:50.730441+00:00",
  "status_counts": {
-  "unverified": 399,
-  "verified": 268
+  "unverified": 398,
+  "verified": 269
  },
  "rows": [
   {
@@ -5802,8 +5802,8 @@
    "class": "NlothsGift",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/NlothsGift.java",
    "methods_ref": "reference/extracted/methods/relic/NlothsGift.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

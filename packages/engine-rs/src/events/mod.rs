@@ -8,6 +8,7 @@ mod beyond;
 mod shrines;
 
 pub(crate) use exordium::dead_adventurer_event;
+pub(crate) use shrines::nloth_trade_program;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventDef {

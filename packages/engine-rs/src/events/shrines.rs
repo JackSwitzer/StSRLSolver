@@ -54,6 +54,23 @@ fn note_for_yourself_choose_state() -> TypedEventDef {
     )
 }
 
+fn nloth_complete_event() -> TypedEventDef {
+    event(
+        "N'loth (complete)",
+        vec![supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing)],
+    )
+}
+
+pub(crate) fn nloth_trade_program(relic_id: &str, already_has_gift: bool) -> EventProgram {
+    let mut ops = Vec::new();
+    if !already_has_gift {
+        ops.push(EventProgramOp::remove_relic(relic_id));
+    }
+    ops.push(EventProgramOp::obtain_relic("Nloth's Gift"));
+    ops.push(EventProgramOp::continue_event(nloth_complete_event()));
+    EventProgram::from_ops(ops)
+}
+
 pub fn typed_shrine_events() -> Vec<TypedEventDef> {
     vec![
         event(
@@ -226,12 +243,12 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
             vec![
                 supported(
                     "Trade relic 1 (exchange for N'loth's Gift)",
-                    vec![EventProgramOp::gain_relic("N'loth's Gift")],
+                    vec![EventProgramOp::nothing()],
                     EventEffect::GainRelic,
                 ),
                 supported(
                     "Trade relic 2 (exchange for N'loth's Gift)",
-                    vec![EventProgramOp::gain_relic("N'loth's Gift")],
+                    vec![EventProgramOp::nothing()],
                     EventEffect::GainRelic,
                 ),
                 supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),

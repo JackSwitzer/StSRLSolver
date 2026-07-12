@@ -1,4 +1,4 @@
-use crate::decision::{DecisionAction, RewardItemKind, RewardScreenSource};
+use crate::decision::{DecisionAction, RewardChoice, RewardItemKind, RewardScreenSource};
 use crate::events::{typed_events_for_act, typed_shrine_events, EventRuntimeStatus};
 use crate::run::{RunAction, RunEngine, RunPhase};
 use crate::status_ids::sid;
@@ -424,6 +424,89 @@ fn nloths_mask_trade_removes_one_nonboss_chest_relic_then_expires() {
         boss.run_state.relic_flags.counters[crate::relic_flags::counter::NLOTHS_MASK],
         1
     );
+}
+
+#[test]
+fn nloths_gift_trade_sacrifices_an_offer_and_triples_rare_rewards() {
+    // Nloth.java shuffles owned relics and offers two distinct sacrifices. It
+    // removes the chosen relic before obtaining Nloth's Gift; if the Gift is
+    // already owned, Java instead keeps the offered relic and grants Circlet.
+    let event = shrine_event("N'loth");
+    let mut engine = RunEngine::new(71, 0);
+    engine
+        .run_state
+        .relics
+        .extend(["Anchor".to_string(), "Lantern".to_string()]);
+    let relics_before = engine.run_state.relics.clone();
+    engine.debug_set_typed_event_state(event.clone());
+    assert!(engine.step_with_result(&RunAction::EventChoice(0)).action_accepted);
+    assert_eq!(engine.current_phase(), RunPhase::Event);
+    assert_eq!(engine.run_state.relics.len(), relics_before.len());
+    assert!(engine
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == "Nloth's Gift"));
+    assert_eq!(
+        relics_before
+            .iter()
+            .filter(|relic| !engine.run_state.relics.contains(relic))
+            .count(),
+        1
+    );
+    assert!(engine.step_with_result(&RunAction::EventChoice(0)).action_accepted);
+    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+
+    let mut duplicate = RunEngine::new(73, 0);
+    duplicate.run_state.relics.extend([
+        "Nloth's Gift".to_string(),
+        "Anchor".to_string(),
+        "Lantern".to_string(),
+    ]);
+    let relics_before = duplicate.run_state.relics.clone();
+    duplicate.debug_set_typed_event_state(event);
+    assert!(duplicate.step_with_result(&RunAction::EventChoice(0)).action_accepted);
+    assert!(relics_before
+        .iter()
+        .all(|relic| duplicate.run_state.relics.contains(relic)));
+    assert!(duplicate.run_state.relics.iter().any(|relic| relic == "Circlet"));
+
+    // NlothsGift.java returns rareCardChance * 3. The production reward path
+    // therefore moves the common/rare boundary from 7% to 21% while leaving
+    // the 33% uncommon share unchanged. Sample the seeded engine path broadly
+    // enough that the exact multiplier produces a stable >2x rare count.
+    const RARES: &[&str] = &[
+        "Alpha", "Blasphemy", "Brilliance", "ConjureBlade", "DevaForm",
+        "Devotion", "Establishment", "Fasting2", "Judgement", "LessonLearned",
+        "MasterReality", "MentalFortress", "Omniscience", "Ragnarok",
+        "Adaptation", "Scrawl", "SpiritShield", "Vault", "Wish",
+    ];
+    let count_rares = |engine: &RunEngine| {
+        engine
+            .current_reward_screen()
+            .expect("combat reward screen")
+            .items
+            .iter()
+            .flat_map(|item| item.choices.iter())
+            .filter(|choice| {
+                matches!(choice, RewardChoice::Card { card_id, .. } if RARES.contains(&card_id.as_str()))
+            })
+            .count()
+    };
+    let mut baseline_rares = 0;
+    let mut gift_rares = 0;
+    for seed in 0..256 {
+        let mut baseline = RunEngine::new(seed, 0);
+        baseline.debug_build_combat_reward_screen(crate::map::RoomType::Monster);
+        baseline_rares += count_rares(&baseline);
+
+        let mut gift = RunEngine::new(seed, 0);
+        gift.run_state.relics.push("Nloth's Gift".to_string());
+        gift.debug_build_combat_reward_screen(crate::map::RoomType::Monster);
+        gift_rares += count_rares(&gift);
+    }
+    assert!(baseline_rares > 0);
+    assert!(gift_rares > baseline_rares * 2);
 }
 
 #[test]
