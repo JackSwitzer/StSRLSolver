@@ -175,6 +175,22 @@ fn ironclad_wave6_cleave_and_bludgeon_follow_the_attack_preamble() {
 }
 
 #[test]
+fn bludgeon_variants_spend_three_energy_for_one_source_sized_hit() {
+    // Source: Bludgeon.java queues one DamageAction for 32 damage at cost 3;
+    // upgradeDamage(10) changes only the hit to 42.
+    for (card_id, expected_damage) in [("Bludgeon", 32), ("Bludgeon+", 42)] {
+        let mut engine = one_enemy_engine("JawWorm", 60);
+        engine.state.hand = make_deck(&[card_id]);
+
+        assert!(play_on_enemy(&mut engine, card_id, 0));
+
+        assert_eq!(engine.state.enemies[0].entity.hp, 60 - expected_damage);
+        assert_eq!(engine.state.energy, 0);
+        assert_eq!(discard_prefix_count(&engine, "Bludgeon"), 1);
+    }
+}
+
+#[test]
 fn ironclad_wave6_clash_and_heavy_blade_cover_legality_and_strength_scaling() {
     let mut blocked = one_enemy_engine("JawWorm", 50);
     blocked.state.hand = make_deck(&["Clash", "Defend"]);

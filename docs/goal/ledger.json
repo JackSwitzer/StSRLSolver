@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T16:41:57.955612+00:00",
+ "updated": "2026-07-12T16:43:39.433327+00:00",
  "status_counts": {
-  "verified": 322,
-  "unverified": 345
+  "verified": 323,
+  "unverified": 344
  },
  "rows": [
   {
@@ -382,8 +382,8 @@
    "class": "Bludgeon",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/Bludgeon.java",
    "methods_ref": "reference/extracted/methods/card/Bludgeon.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
