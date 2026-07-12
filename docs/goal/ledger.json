@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T02:12:53.317398+00:00",
+ "updated": "2026-07-12T02:16:19.766995+00:00",
  "status_counts": {
-  "unverified": 410,
-  "verified": 257
+  "unverified": 409,
+  "verified": 258
  },
  "rows": [
   {
@@ -5302,8 +5302,8 @@
    "class": "EmptyCage",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/EmptyCage.java",
    "methods_ref": "reference/extracted/methods/relic/EmptyCage.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -4502,6 +4502,81 @@ fn tiny_house_applies_immediate_stats_then_opens_ordered_gold_and_potion_rewards
 }
 
 #[test]
+fn empty_cage_auto_removes_small_pools_and_otherwise_requires_two_rl_choices() {
+    // Sources: EmptyCage.java is BOSS tier and uses masterDeck.getPurgeableCards;
+    // CardGroup.java excludes only Necronomicurse, CurseOfTheBell, and
+    // AscendersBane. Pools of at most two are deleted immediately; larger
+    // pools open an exact two-card grid selection.
+    let offered = (0..128).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_boss_reward_screen();
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0].choices.iter().any(|choice| {
+                matches!(choice, RewardChoice::Named { label, .. } if label == "Empty Cage")
+            })
+        })
+    });
+    assert!(offered);
+
+    let mut automatic = RunEngine::new(41, 0);
+    automatic.run_state.deck = vec!["AscendersBane".to_string(), "Eruption".to_string()];
+    automatic.debug_set_reward_screen(relic_choice_reward_screen(&["Empty Cage"]));
+    assert!(automatic
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(automatic
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+    assert_eq!(automatic.run_state.deck, vec!["AscendersBane".to_string()]);
+
+    let mut selected = RunEngine::new(42, 0);
+    selected.run_state.deck = vec![
+        "Strike".to_string(),
+        "Defend".to_string(),
+        "Eruption".to_string(),
+        "Vigilance".to_string(),
+        "CurseOfTheBell".to_string(),
+    ];
+    selected.debug_set_reward_screen(relic_choice_reward_screen(&["Empty Cage"]));
+    assert!(selected
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(selected
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+    assert_eq!(
+        selected.current_reward_screen().expect("first purge").items[0]
+            .choices
+            .len(),
+        4
+    );
+
+    for _ in 0..2 {
+        assert!(selected
+            .step_with_result(&RunAction::SelectRewardItem(0))
+            .action_accepted);
+        assert!(selected
+            .step_with_result(&RunAction::ChooseRewardOption {
+                item_index: 0,
+                choice_index: 0,
+            })
+            .action_accepted);
+    }
+    assert_eq!(selected.run_state.deck.len(), 3);
+    assert!(selected
+        .run_state
+        .deck
+        .iter()
+        .any(|card| card == "CurseOfTheBell"));
+}
+
+#[test]
 fn claiming_matryoshka_mutates_next_two_chests_then_expires() {
     let mut engine = RunEngine::new(321, 20);
     engine.debug_set_reward_screen(single_relic_reward_screen("Matryoshka"));

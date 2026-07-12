@@ -234,6 +234,7 @@ pub mod runic_dome;
 pub mod runic_pyramid;
 pub mod sacred_bark;
 pub mod tiny_house;
+pub mod empty_cage;
 
 // ===========================================================================
 // Registry — static array of all relic EntityDefs
@@ -406,6 +407,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &runic_pyramid::DEF,
     &sacred_bark::DEF,
     &tiny_house::DEF,
+    &empty_cage::DEF,
 ];
 
 pub fn relic_def_by_id(id: &str) -> Option<&'static EntityDef> {

@@ -661,6 +661,7 @@ pub struct RunEngine {
     pending_bottled_lightning_selection: bool,
     pending_bottled_tornado_selection: bool,
     pending_calling_bell_rewards: bool,
+    pending_empty_cage_removals: usize,
 
     // Canonical stack of active decisions.
     decision_stack: DecisionStack,
@@ -738,6 +739,7 @@ impl RunEngine {
             pending_bottled_lightning_selection: false,
             pending_bottled_tornado_selection: false,
             pending_calling_bell_rewards: false,
+            pending_empty_cage_removals: 0,
             decision_stack: DecisionStack::new(),
             current_event: None,
             pending_event_combat: None,
@@ -2991,10 +2993,13 @@ impl RunEngine {
             matches!(&choice, RewardChoice::Named { label, .. } if label == "Calling Bell");
         let chose_tiny_house =
             matches!(&choice, RewardChoice::Named { label, .. } if label == "Tiny House");
+        let chose_empty_cage =
+            matches!(&choice, RewardChoice::Named { label, .. } if label == "Empty Cage");
         let astrolabe_card_pick = item_label == "deck_selection_astrolabe";
         let bottled_flame_card_pick = item_label == "deck_selection_bottled_flame";
         let bottled_lightning_card_pick = item_label == "deck_selection_bottled_lightning";
         let bottled_tornado_card_pick = item_label == "deck_selection_bottled_tornado";
+        let empty_cage_card_pick = item_label == "deck_selection_empty_cage";
 
         match (kind, choice) {
             (RewardItemKind::CardChoice, RewardChoice::Card { card_id, .. }) => {
@@ -3063,6 +3068,10 @@ impl RunEngine {
             self.build_calling_bell_reward_screen();
         } else if chose_tiny_house {
             self.build_tiny_house_reward_screen();
+        } else if chose_empty_cage && self.pending_empty_cage_removals > 0 {
+            self.build_empty_cage_selection_screen();
+        } else if empty_cage_card_pick && self.pending_empty_cage_removals > 0 {
+            self.build_empty_cage_selection_screen();
         }
         if (bottled_flame_card_pick
             || bottled_lightning_card_pick
@@ -3104,6 +3113,12 @@ impl RunEngine {
             "deck_selection_note_for_yourself" => {
                 self.remove_master_deck_card(*deck_index);
                 set_note_for_yourself_card(card_id.clone());
+                true
+            }
+            "deck_selection_empty_cage" => {
+                self.remove_master_deck_card(*deck_index);
+                self.pending_empty_cage_removals =
+                    self.pending_empty_cage_removals.saturating_sub(1);
                 true
             }
             _ => false,
@@ -3384,6 +3399,7 @@ impl RunEngine {
                 self.run_state.max_hp += 5;
                 self.heal_run_player(5);
             }
+            "Empty Cage" | "EmptyCage" => self.prepare_empty_cage_on_equip(),
             // Source: reference/extracted/methods/relic/Whetstone.java upgrades
             // up to two upgradable ATTACK cards and checks bottled upgrades.
             "Whetstone" => self.upgrade_random_cards_by_type(crate::cards::CardType::Attack, 2),
@@ -3480,6 +3496,59 @@ impl RunEngine {
         } else {
             self.pending_astrolabe_selection = true;
         }
+    }
+
+    fn prepare_empty_cage_on_equip(&mut self) {
+        // CardGroup.getPurgeableCards excludes exactly these three curses.
+        // EmptyCage.java removes the whole pool immediately when it has at
+        // most two entries, otherwise it requires exactly two selections.
+        let purgeable: Vec<usize> = self
+            .run_state
+            .deck
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, card)| Self::is_purgeable_master_deck_card(card).then_some(idx))
+            .collect();
+        if purgeable.len() <= 2 {
+            for idx in purgeable.into_iter().rev() {
+                self.remove_master_deck_card(idx);
+            }
+            self.pending_empty_cage_removals = 0;
+        } else {
+            self.pending_empty_cage_removals = 2;
+        }
+    }
+
+    fn build_empty_cage_selection_screen(&mut self) {
+        let choices = self
+            .run_state
+            .deck
+            .iter()
+            .enumerate()
+            .filter(|(_, card)| Self::is_purgeable_master_deck_card(card))
+            .map(|(index, card_id)| RewardChoice::Card {
+                index,
+                card_id: card_id.clone(),
+            })
+            .collect();
+        let mut screen = RewardScreen {
+            source: RewardScreenSource::BossCombat,
+            ordered: true,
+            active_item: None,
+            items: vec![RewardItem {
+                index: 0,
+                kind: RewardItemKind::CardChoice,
+                state: RewardItemState::Available,
+                label: "deck_selection_empty_cage".to_string(),
+                claimable: true,
+                active: false,
+                skip_allowed: false,
+                skip_label: None,
+                choices,
+            }],
+        };
+        Self::refresh_reward_screen(&mut screen);
+        self.reward_screen = Some(screen);
     }
 
     fn build_astrolabe_selection_screen(&mut self) {
@@ -4374,6 +4443,9 @@ impl RunEngine {
             // TinyHouse.java constructs canonical ID "Tiny House" at BOSS
             // tier and opens its own follow-up reward screen on equip.
             "Tiny House",
+            // EmptyCage.java constructs canonical ID "Empty Cage" at BOSS
+            // tier and opens an exact two-card purge selection when needed.
+            "Empty Cage",
             "HolyWater",
             "VioletLotus",
             "Astrolabe",
