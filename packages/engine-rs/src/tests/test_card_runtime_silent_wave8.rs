@@ -61,6 +61,23 @@ fn silent_wave8_registry_exports_match_typed_primary_surface() {
 }
 
 #[test]
+fn backstab_plus_starts_in_hand_then_deals_fifteen_and_exhausts_for_free() {
+    // Source: Backstab.java sets cost 0, baseDamage 11, isInnate and exhaust;
+    // upgradeDamage(4) makes the upgraded damage exactly 15.
+    let mut deck = make_deck_n("Defend", 9);
+    deck.push(global_registry().make_card("Backstab+"));
+    let mut engine = engine_with(deck, 40, 0);
+
+    assert_eq!(hand_count(&engine, "Backstab+"), 1);
+    let energy_before = engine.state.energy;
+    assert!(play_on_enemy(&mut engine, "Backstab+", 0));
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 25);
+    assert_eq!(engine.state.energy, energy_before);
+    assert_eq!(exhaust_prefix_count(&engine, "Backstab"), 1);
+}
+
+#[test]
 fn silent_wave8_single_target_typed_attacks_follow_java_oracle_on_engine_path() {
     let mut engine = engine_without_start(
         Vec::new(),

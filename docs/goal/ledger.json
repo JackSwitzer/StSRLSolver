@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T16:02:25.503601+00:00",
+ "updated": "2026-07-12T16:03:58.796803+00:00",
  "status_counts": {
-  "verified": 305,
-  "unverified": 362
+  "verified": 306,
+  "unverified": 361
  },
  "rows": [
   {
@@ -182,8 +182,8 @@
    "class": "Backstab",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Backstab.java",
    "methods_ref": "reference/extracted/methods/card/Backstab.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
