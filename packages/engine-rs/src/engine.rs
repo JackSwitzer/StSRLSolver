@@ -3063,14 +3063,6 @@ impl CombatEngine {
             &ctx,
         ));
 
-        // Consume Gremlin Horn draw/energy.
-        let ghd = self.state.player.status(sid::GREMLIN_HORN_DRAW);
-        if ghd > 0 {
-            self.state.player.set_status(sid::GREMLIN_HORN_DRAW, 0);
-            self.draw_cards(1);
-            self.state.energy += 1;
-        }
-
         // Corpse Explosion: deal damage equal to enemy max HP to all other enemies.
         let ce = self.state.enemies[enemy_idx]
             .entity

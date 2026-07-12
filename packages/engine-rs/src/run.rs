@@ -4425,6 +4425,8 @@ impl RunEngine {
             "Blue Candle",
             // HornCleat.java uses canonical ID "HornCleat" and UNCOMMON tier.
             "HornCleat",
+            // GremlinHorn.java uses canonical ID "Gremlin Horn" and UNCOMMON tier.
+            "Gremlin Horn",
             // Boot.java uses canonical ID "Boot" and COMMON tier.
             "Boot",
             // ToyOrnithopter.java uses canonical ID "Toy Ornithopter" and

@@ -1118,6 +1118,43 @@ fn horn_cleat_is_watcher_reachable_and_grants_fourteen_block_only_on_turn_two() 
 }
 
 #[test]
+fn gremlin_horn_is_watcher_reachable_and_suppresses_the_final_enemy_proc() {
+    // GremlinHorn.java constructs an UNCOMMON shared relic. onMonsterDeath
+    // queues one Energy then one draw only when another monster is not
+    // basically dead; killing the final enemy must not grant either effect.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/GremlinHorn.java
+    let seed = (0..2048).find(|seed| {
+        let mut engine = RunEngine::new(*seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| item.label == "Gremlin Horn")
+        })
+    }).expect("Gremlin Horn reward seed");
+
+    let mut engine = RunEngine::new(seed, 0);
+    engine.debug_build_combat_reward_screen(RoomType::Elite);
+    let relic_index = engine.current_reward_screen().expect("elite rewards").items.iter()
+        .position(|item| item.label == "Gremlin Horn")
+        .expect("Gremlin Horn reward");
+    assert!(engine.step_with_result(&RunAction::SelectRewardItem(relic_index)).action_accepted);
+    engine.debug_enter_specific_combat(&["JawWorm", "Cultist"]);
+
+    let combat = engine.debug_combat_engine_mut();
+    combat.state.energy = 0;
+    combat.state.hand.clear();
+    combat.state.draw_pile = crate::tests::support::make_deck(&["Defend", "Strike"]);
+    combat.state.enemies[0].entity.hp = 0;
+    combat.finalize_enemy_death(0);
+    assert_eq!(combat.state.energy, 1);
+    assert_eq!(combat.state.hand.len(), 1);
+
+    combat.state.enemies[1].entity.hp = 0;
+    combat.finalize_enemy_death(1);
+    assert_eq!(combat.state.energy, 1);
+    assert_eq!(combat.state.hand.len(), 1);
+}
+
+#[test]
 fn incense_burner_is_reachable_from_watcher_relic_rewards() {
     // RelicLibrary.java registers IncenseBurner; IncenseBurner.java constructs
     // the shared relic at RARE tier under canonical ID "Incense Burner".
@@ -2916,6 +2953,13 @@ fn orrery_is_shop_reachable_and_opens_five_independent_card_rewards() {
     // Java: decompiled/java-src/com/megacrit/cardcrawl/screens/CombatRewardScreen.java
     let seed = (0..256).find(|seed| {
         let mut engine = RunEngine::new(*seed, 0);
+        engine.run_state.relics.extend([
+            "Frozen Egg 2".to_string(),
+            "Molten Egg 2".to_string(),
+            "Toxic Egg 2".to_string(),
+            "CeramicFish".to_string(),
+        ]);
+        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
         engine.debug_enter_shop();
         engine.get_shop().is_some_and(|shop| {
             shop.relics.iter().any(|(relic, _)| relic == "Orrery")
