@@ -5692,7 +5692,14 @@ impl RunEngine {
                 EventProgramFlow::Continue
             }
             EventProgramOp::ObtainRelic { label } => {
-                self.add_relic_reward(label);
+                let obtained = if self.run_state.relics.iter().any(|owned| owned == label) {
+                    // DrugDealer.java explicitly substitutes Circlet when its
+                    // special relic is already owned.
+                    "Circlet"
+                } else {
+                    label.as_str()
+                };
+                self.add_relic_reward(obtained);
                 EventProgramFlow::Continue
             }
             EventProgramOp::DeckMutation(mutation) => {

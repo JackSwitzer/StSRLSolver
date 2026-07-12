@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T02:25:07.969788+00:00",
+ "updated": "2026-07-12T02:28:20.989199+00:00",
  "status_counts": {
-  "unverified": 407,
-  "verified": 260
+  "unverified": 406,
+  "verified": 261
  },
  "rows": [
   {
@@ -5752,8 +5752,8 @@
    "class": "MutagenicStrength",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/MutagenicStrength.java",
    "methods_ref": "reference/extracted/methods/relic/MutagenicStrength.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

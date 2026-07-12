@@ -1,6 +1,7 @@
 use crate::decision::{DecisionAction, RewardItemKind, RewardScreenSource};
 use crate::events::{typed_events_for_act, EventRuntimeStatus};
 use crate::run::{RunAction, RunEngine, RunPhase};
+use crate::status_ids::sid;
 
 fn typed_event(act: i32, name: &str) -> crate::events::TypedEventDef {
     typed_events_for_act(act)
@@ -89,13 +90,57 @@ fn drug_dealer_all_three_supported_branches_use_canonical_runtime_paths() {
     relic_engine.debug_set_typed_event_state(dealer);
     let relic_step = relic_engine.step_with_result(&RunAction::EventChoice(2));
     assert!(relic_step.action_accepted);
-    assert_eq!(relic_engine.current_phase(), RunPhase::CardReward);
-    let relic_screen = relic_engine.current_reward_screen().expect("relic screen");
-    assert_eq!(relic_screen.items[0].kind, RewardItemKind::Relic);
-    let relic_id = relic_screen.items[0].label.clone();
-    let claim = relic_engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(claim.action_accepted);
-    assert!(relic_engine.run_state.relics.iter().any(|relic| relic == &relic_id));
+    // DrugDealer.java::buttonEffect uses spawnRelicAndObtain during the event;
+    // no additional reward-screen action exists.
+    assert_eq!(relic_engine.current_phase(), RunPhase::MapChoice);
+    assert!(relic_engine
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == "MutagenicStrength"));
+}
+
+#[test]
+fn drug_dealer_mutagenic_strength_uses_canonical_id_and_next_combat_effect() {
+    // MutagenicStrength.java::atBattleStart applies 3 Strength and 3
+    // LoseStrength. DrugDealer.java obtains this exact ID immediately and uses
+    // Circlet instead if the relic is already owned.
+    let dealer = typed_event(2, "Drug Dealer");
+    let mut engine = RunEngine::new(37, 0);
+    engine.debug_set_typed_event_state(dealer.clone());
+
+    assert!(engine
+        .step_with_result(&RunAction::EventChoice(2))
+        .action_accepted);
+    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    let combat = engine.debug_combat_engine_mut();
+    assert_eq!(combat.state.player.status(sid::STRENGTH), 3);
+    assert_eq!(combat.state.player.status(sid::LOSE_STRENGTH), 3);
+
+    let mut duplicate = RunEngine::new(41, 0);
+    duplicate
+        .run_state
+        .relics
+        .push("MutagenicStrength".to_string());
+    duplicate.debug_set_typed_event_state(dealer);
+    assert!(duplicate
+        .step_with_result(&RunAction::EventChoice(2))
+        .action_accepted);
+    assert_eq!(
+        duplicate
+            .run_state
+            .relics
+            .iter()
+            .filter(|relic| relic.as_str() == "MutagenicStrength")
+            .count(),
+        1
+    );
+    assert!(duplicate
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == "Circlet"));
 }
 
 #[test]

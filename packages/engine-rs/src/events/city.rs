@@ -276,7 +276,10 @@ pub fn typed_act2_events() -> Vec<TypedEventDef> {
                 ),
                 supported(
                     "Inject mutagens (gain Mutagenic Strength relic)",
-                    vec![EventProgramOp::gain_relic("Mutagenic Strength")],
+                    // DrugDealer.java immediately obtains the canonical relic ID
+                    // and substitutes Circlet when MutagenicStrength is owned.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/events/city/DrugDealer.java
+                    vec![EventProgramOp::obtain_relic("MutagenicStrength")],
                     EventEffect::GainRelic,
                 ),
             ],
