@@ -2634,7 +2634,7 @@ impl RunEngine {
         ];
         const UNCOMMON: &[&str] = &[
             "Blue Candle", "Darkstone Periapt", "Eternal Feather", "InkBottle",
-            "Kunai", "Letter Opener", "Ornamental Fan",
+            "Kunai", "Letter Opener", "Ornamental Fan", "White Beast Statue",
         ];
         const RARE: &[&str] = &[
             "Bird Faced Urn", "Calipers", "Du-Vu Doll", "FossilizedHelix",
@@ -3735,6 +3735,7 @@ impl RunEngine {
             "Sundial",
             "Toxic Egg 2",
             "Yang",
+            "White Beast Statue",
         ];
         const RARE: &[&str] = &[
             "Bird Faced Urn",
@@ -4191,6 +4192,9 @@ impl RunEngine {
             "Sundial",
             // Duality.java declares canonical ID "Yang" and UNCOMMON tier.
             "Yang",
+            // WhiteBeast.java declares canonical ID "White Beast Statue" at
+            // UNCOMMON tier; AbstractRoom forces potion chance to 100.
+            "White Beast Statue",
             // PenNib.java uses canonical ID "Pen Nib" and COMMON tier.
             "Pen Nib",
             // Pear.java uses canonical ID "Pear" and UNCOMMON tier.
@@ -4350,7 +4354,7 @@ impl RunEngine {
             "Blue Candle", "Bottled Flame", "Bottled Lightning", "Bottled Tornado",
             "Darkstone Periapt", "Eternal Feather", "Frozen Egg 2", "InkBottle",
             "Kunai", "Letter Opener", "Matryoshka", "Molten Egg 2",
-            "Ornamental Fan", "Toxic Egg 2",
+            "Ornamental Fan", "Toxic Egg 2", "White Beast Statue",
         ];
 
         let pool = if self.rng.gen_bool(0.75) { COMMON } else { UNCOMMON };

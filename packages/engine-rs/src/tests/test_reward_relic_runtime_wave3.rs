@@ -4355,6 +4355,9 @@ fn choosing_black_star_from_relic_choice_doubles_future_elite_relic_rewards() {
 
 #[test]
 fn white_beast_statue_flag_guarantees_potion_reward_on_ordered_screen() {
+    // Sources: WhiteBeast.java constructs canonical UNCOMMON ID
+    // "White Beast Statue"; AbstractRoom.java::addPotionToRewards overrides
+    // the potion chance to exactly 100 while the relic is owned.
     let mut engine = RunEngine::new(5, 20);
     engine.debug_set_reward_screen(single_relic_reward_screen("White Beast Statue"));
     let claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
@@ -4369,6 +4372,22 @@ fn white_beast_statue_flag_guarantees_potion_reward_on_ordered_screen() {
     assert!(screen.items[0].claimable);
     assert_eq!(screen.items[1].kind, RewardItemKind::CardChoice);
     assert!(!screen.items[1].claimable);
+}
+
+#[test]
+fn white_beast_statue_is_reachable_from_uncommon_watcher_relic_rewards() {
+    // Source: WhiteBeast.java constructs canonical ID "White Beast Statue" at
+    // UNCOMMON tier, so ordinary Watcher relic generation must include it.
+    let offered = (0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic && item.label == "White Beast Statue"
+            })
+        })
+    });
+    assert!(offered);
 }
 
 #[test]
