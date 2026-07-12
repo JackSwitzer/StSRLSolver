@@ -3575,6 +3575,7 @@ impl RunEngine {
             }
             "Cauldron" => self.build_cauldron_reward_screen(),
             "DollysMirror" => self.build_dollys_mirror_selection_screen(),
+            "Orrery" => self.build_orrery_reward_screen(),
             "Old Coin" | "OldCoin" => {
                 // OldCoin.java::onEquip calls AbstractPlayer.gainGold(300),
                 // which also preserves Ectoplasm's gain-gold prohibition.
@@ -3703,6 +3704,37 @@ impl RunEngine {
                 skip_label: None,
                 choices,
             }],
+        };
+        Self::refresh_reward_screen(&mut screen);
+        self.reward_screen = Some(screen);
+        self.phase = RunPhase::CardReward;
+    }
+
+    fn build_orrery_reward_screen(&mut self) {
+        // Orrery.onEquip queues four card rewards. CombatRewardScreen then
+        // appends ShopRoom's ordinary card reward, producing five independent
+        // choices before returning to the same shop.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Orrery.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/screens/CombatRewardScreen.java
+        let choice_count = self.card_reward_choice_count();
+        let mut items = (0..5)
+            .map(|index| RewardItem {
+                index,
+                kind: RewardItemKind::CardChoice,
+                state: RewardItemState::Available,
+                label: "orrery_card_reward".to_string(),
+                claimable: index == 0,
+                active: false,
+                skip_allowed: true,
+                skip_label: Some("Skip".to_string()),
+                choices: self.generate_card_reward_choices(choice_count),
+            })
+            .collect::<Vec<_>>();
+        let mut screen = RewardScreen {
+            source: RewardScreenSource::Shop,
+            ordered: true,
+            active_item: None,
+            items: std::mem::take(&mut items),
         };
         Self::refresh_reward_screen(&mut screen);
         self.reward_screen = Some(screen);
@@ -5224,7 +5256,7 @@ impl RunEngine {
             relics.push((relic, final_price));
         }
         const SHOP_RELICS: &[&str] = &[
-            "TheAbacus", "Brimstone", "Cauldron", "Chemical X", "ClockworkSouvenir", "DollysMirror", "Frozen Eye", "HandDrill", "Lee's Waffle", "Medical Kit", "Melange",
+            "TheAbacus", "Brimstone", "Cauldron", "Chemical X", "ClockworkSouvenir", "DollysMirror", "Frozen Eye", "HandDrill", "Lee's Waffle", "Medical Kit", "Melange", "Orrery",
             "Membership Card",
             "OrangePellets", "Runic Capacitor", "Sling", "Strange Spoon",
             "PrismaticShard", "Toolbox", "TwistedFunnel",

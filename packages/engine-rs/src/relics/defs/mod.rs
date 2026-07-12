@@ -224,6 +224,7 @@ pub mod waffle;
 pub mod membership_card;
 pub mod cauldron;
 pub mod dollys_mirror;
+pub mod orrery;
 pub mod ancient_tea_set;
 pub mod astrolabe;
 pub mod medical_kit;
@@ -406,6 +407,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &membership_card::DEF,
     &cauldron::DEF,
     &dollys_mirror::DEF,
+    &orrery::DEF,
     &ancient_tea_set::DEF,
     &astrolabe::DEF,
     &medical_kit::DEF,

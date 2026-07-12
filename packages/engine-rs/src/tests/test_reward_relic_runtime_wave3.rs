@@ -2871,6 +2871,69 @@ fn dollys_mirror_is_shop_reachable_and_obtains_one_unbottled_card_copy() {
 }
 
 #[test]
+fn orrery_is_shop_reachable_and_opens_five_independent_card_rewards() {
+    // Orrery.java queues four RewardItems; CombatRewardScreen.setupItemReward
+    // appends ShopRoom's normal reward for five ordered, skippable card picks.
+    // Each RewardItem constructs its own choices through getRewardCards.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Orrery.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/screens/CombatRewardScreen.java
+    let seed = (0..256).find(|seed| {
+        let mut engine = RunEngine::new(*seed, 0);
+        engine.debug_enter_shop();
+        engine.get_shop().is_some_and(|shop| {
+            shop.relics.iter().any(|(relic, _)| relic == "Orrery")
+        })
+    }).expect("Orrery shop seed");
+
+    let mut engine = RunEngine::new(seed, 0);
+    engine.run_state.gold = 10_000;
+    engine.run_state.relics.extend([
+        "Frozen Egg 2".to_string(),
+        "Molten Egg 2".to_string(),
+        "Toxic Egg 2".to_string(),
+        "CeramicFish".to_string(),
+    ]);
+    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine.debug_enter_shop();
+    let relic_index = engine.get_shop().expect("shop").relics.iter()
+        .position(|(relic, _)| relic == "Orrery")
+        .expect("Orrery offer");
+    assert!(engine.step_with_result(&RunAction::ShopBuyRelic(relic_index)).action_accepted);
+
+    assert_eq!(engine.current_phase(), RunPhase::CardReward);
+    let gold_after_purchase = engine.run_state.gold;
+    let screen = engine.current_reward_screen().expect("Orrery rewards");
+    assert_eq!(screen.source, RewardScreenSource::Shop);
+    assert_eq!(screen.items.len(), 5);
+    assert!(screen.items.iter().all(|item| {
+        item.kind == RewardItemKind::CardChoice
+            && item.skip_allowed
+            && item.choices.len() == 3
+            && item.choices.iter().all(|choice| {
+                matches!(choice, RewardChoice::Card { card_id, .. } if card_id.ends_with('+'))
+            })
+    }));
+
+    assert!(engine.step_with_result(&RunAction::SelectRewardItem(0)).action_accepted);
+    let selected_card = match &engine.current_reward_screen().expect("reward").items[0].choices[0] {
+        RewardChoice::Card { card_id, .. } => card_id.clone(),
+        _ => panic!("Orrery must offer cards"),
+    };
+    assert!(engine.step_with_result(&RunAction::ChooseRewardOption {
+        item_index: 0,
+        choice_index: 0,
+    }).action_accepted);
+    assert!(engine.run_state.deck.contains(&selected_card));
+    assert_eq!(engine.run_state.gold, gold_after_purchase + 9);
+
+    for item_index in 1..5 {
+        assert!(engine.step_with_result(&RunAction::SkipRewardItem(item_index)).action_accepted);
+    }
+    assert_eq!(engine.current_phase(), RunPhase::Shop);
+    assert!(engine.get_shop().is_some());
+}
+
+#[test]
 fn chemical_x_is_reachable_only_from_the_shop_relic_slot() {
     // ChemicalX.java declares canonical ID "Chemical X" and constructs
     // RelicTier.SHOP.

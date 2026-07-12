@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T14:56:15.522922+00:00",
+ "updated": "2026-07-12T15:00:28.120311+00:00",
  "status_counts": {
-  "unverified": 383,
-  "verified": 284
+  "unverified": 382,
+  "verified": 285
  },
  "rows": [
   {
@@ -5912,8 +5912,8 @@
    "class": "Orrery",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Orrery.java",
    "methods_ref": "reference/extracted/methods/relic/Orrery.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
