@@ -74,19 +74,13 @@ fn prayer_wheel_and_question_card_expand_reward_structure() {
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.relics.push("Prayer Wheel".to_string());
     engine.run_state.relics.push("Question Card".to_string());
-    engine.run_state.relics.push("Sozu".to_string());
     engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
     engine.debug_build_combat_reward_screen(RoomType::Monster);
 
     let screen = engine
         .current_reward_screen()
         .expect("combat reward screen should exist");
-    assert_eq!(screen.items.len(), 2, "two Prayer Wheel card items should remain when potion rewards are blocked");
-    assert!(screen.items
-        .iter()
-        .all(|item| item.kind == RewardItemKind::CardChoice));
-    assert!(screen.items[0].claimable);
-    assert!(!screen.items[1].claimable);
+    assert_eq!(screen.items.iter().filter(|item| item.kind == RewardItemKind::CardChoice).count(), 2);
     assert!(screen
         .items
         .iter()
@@ -222,25 +216,62 @@ fn white_beast_adds_potion_reward_item_before_card_choice() {
 }
 
 #[test]
-fn combat_reward_screen_starts_on_first_decision_item_not_automatic_gold() {
+fn sozu_keeps_potion_reward_claimable_but_obtains_nothing() {
+    // AbstractRoom.addPotionToRewards does not check Sozu. RewardItem checks
+    // it only on claim, returns true, and does not call obtainPotion.
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.relics.push("Sozu".to_string());
+    engine.run_state.relics.push("White Beast Statue".to_string());
     engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
     engine.debug_build_combat_reward_screen(RoomType::Monster);
 
     let screen = engine
         .current_reward_screen()
         .expect("reward screen should exist");
-    assert_eq!(screen.items.len(), 1);
-    assert_eq!(screen.items[0].kind, RewardItemKind::CardChoice);
+    assert_eq!(screen.items.len(), 2);
+    assert_eq!(screen.items[0].kind, RewardItemKind::Potion);
     assert!(screen.items[0].claimable);
-    assert_eq!(
-        engine.get_legal_decision_actions(),
-        vec![
-            DecisionAction::ClaimRewardItem { item_index: 0 },
-            DecisionAction::SkipRewardItem { item_index: 0 },
-        ]
-    );
+    let before = engine.run_state.potions.clone();
+    assert!(engine.step_with_result(&RunAction::SelectRewardItem(0)).action_accepted);
+    assert_eq!(engine.run_state.potions, before);
+    assert_eq!(engine.get_legal_decision_actions(), vec![
+        DecisionAction::ClaimRewardItem { item_index: 1 },
+        DecisionAction::SkipRewardItem { item_index: 1 },
+    ]);
+}
+
+#[test]
+fn full_inventory_leaves_a_potion_reward_unclaimed_without_sozu() {
+    // RewardItem.claimReward returns false when obtainPotion cannot find a
+    // PotionSlot, so the reward remains available instead of disappearing.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/rewards/RewardItem.java
+    let mut engine = RunEngine::new(43, 0);
+    engine.run_state.potions = vec![
+        "BlockPotion".to_string(),
+        "FirePotion".to_string(),
+        "SwiftPotion".to_string(),
+    ];
+    engine.debug_set_reward_screen(RewardScreen {
+        source: RewardScreenSource::Combat,
+        ordered: true,
+        active_item: None,
+        items: vec![RewardItem {
+            index: 0,
+            kind: RewardItemKind::Potion,
+            state: RewardItemState::Available,
+            label: "EnergyPotion".to_string(),
+            claimable: true,
+            active: false,
+            skip_allowed: true,
+            skip_label: Some("Skip".to_string()),
+            choices: Vec::new(),
+        }],
+    });
+    let before = engine.run_state.potions.clone();
+    assert!(engine.step_with_result(&RunAction::SelectRewardItem(0)).action_accepted);
+    assert_eq!(engine.run_state.potions, before);
+    assert_eq!(engine.current_reward_screen().expect("reward").items[0].state,
+        RewardItemState::Available);
 }
 
 #[test]

@@ -1983,7 +1983,8 @@ impl RunEngine {
         }
         // BustedCrown.java, CoffeeDripper.java, CursedKey.java, Ectoplasm.java,
         // FusionHammer.java, RunicDome.java, VelvetChoker.java, and
-        // PhilosopherStone.java each increment energyMaster once in onEquip.
+        // PhilosopherStone.java and Sozu.java each increment energyMaster once
+        // in onEquip.
         let combat_energy = 3
             + i32::from(
                 self.run_state
@@ -2024,6 +2025,11 @@ impl RunEngine {
                 self.run_state
                     .relic_flags
                     .has(crate::relic_flags::flag::PHILOSOPHERS_STONE),
+            )
+            + i32::from(
+                self.run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::SOZU),
             );
         // DuVuDoll.java::onEquip/onMasterDeckChange counts every card whose
         // type is CURSE; atBattleStart grants that counter as Strength.
@@ -3394,6 +3400,17 @@ impl RunEngine {
                 "Bottled Flame" | "Bottled Lightning" | "Bottled Tornado"
             );
 
+        // RewardItem.claimReward leaves a potion reward unclaimed when the
+        // inventory is full, but Sozu's earlier branch returns true and
+        // consumes the reward harmlessly.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/rewards/RewardItem.java
+        if kind == RewardItemKind::Potion
+            && !self.run_state.relic_flags.has(crate::relic_flags::flag::SOZU)
+            && !self.run_state.potions.iter().any(|potion| potion.is_empty())
+        {
+            return;
+        }
+
         match kind {
             RewardItemKind::Relic => self.add_relic_reward(&label),
             RewardItemKind::Potion => self.add_potion_reward(&label),
@@ -4660,6 +4677,9 @@ impl RunEngine {
             "SacredBark",
             "Velvet Choker",
             "Snecko Eye",
+            // Sozu.java constructs canonical ID "Sozu" at BOSS tier and
+            // increments energyMaster on equip.
+            "Sozu",
             // TinyHouse.java constructs canonical ID "Tiny House" at BOSS
             // tier and opens its own follow-up reward screen on equip.
             "Tiny House",
@@ -4718,16 +4738,9 @@ impl RunEngine {
         if room_type == RoomType::Boss {
             return false;
         }
-        if self
-            .run_state
-            .relic_flags
-            .has(crate::relic_flags::flag::SOZU)
-        {
-            return false;
-        }
-        if !self.run_state.potions.iter().any(|p| p.is_empty()) {
-            return false;
-        }
+        // AbstractRoom.addPotionToRewards rolls independently of Sozu and
+        // available inventory slots. RewardItem handles both at claim time.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/rooms/AbstractRoom.java
         if self
             .run_state
             .relic_flags

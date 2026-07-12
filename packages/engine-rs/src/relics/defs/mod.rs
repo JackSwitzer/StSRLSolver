@@ -237,6 +237,7 @@ pub mod omamori;
 pub mod runic_dome;
 pub mod runic_pyramid;
 pub mod sacred_bark;
+pub mod sozu;
 pub mod tiny_house;
 pub mod empty_cage;
 pub mod white_beast;
@@ -415,6 +416,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &runic_dome::DEF,
     &runic_pyramid::DEF,
     &sacred_bark::DEF,
+    &sozu::DEF,
     &tiny_house::DEF,
     &empty_cage::DEF,
     &white_beast::DEF,

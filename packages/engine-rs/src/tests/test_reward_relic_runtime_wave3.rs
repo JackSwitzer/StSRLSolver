@@ -137,6 +137,54 @@ fn violet_lotus_is_reachable_from_the_watcher_boss_relic_pool() {
 }
 
 #[test]
+fn sozu_is_boss_reachable_grants_energy_and_blocks_obtaining_not_reward_generation() {
+    // Sozu.java constructs a BOSS relic and increments energyMaster once.
+    // AbstractRoom still creates potion rewards; RewardItem consumes one
+    // harmlessly when Sozu is owned, and StorePotion refuses the purchase.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Sozu.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/rooms/AbstractRoom.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/rewards/RewardItem.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/shop/StorePotion.java
+    assert!(crate::gameplay::global_registry().relic("Sozu").is_some());
+    assert!((0..128).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_boss_reward_screen();
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0].choices.iter().any(|choice| {
+                matches!(choice, RewardChoice::Named { label, .. } if label == "Sozu")
+            })
+        })
+    }));
+
+    let mut engine = RunEngine::new(1401, 0);
+    engine.debug_set_reward_screen(relic_choice_reward_screen(&["Sozu"]));
+    assert!(engine.step_with_result(&RunAction::SelectRewardItem(0)).action_accepted);
+    assert!(engine.step_with_result(&RunAction::ChooseRewardOption {
+        item_index: 0,
+        choice_index: 0,
+    }).action_accepted);
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    let combat = engine.get_combat_engine().expect("Sozu combat");
+    assert_eq!((combat.state.max_energy, combat.state.energy), (4, 4));
+
+    engine.run_state.relics.push("White Beast Statue".to_string());
+    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine.debug_build_combat_reward_screen(RoomType::Monster);
+    let potion_index = engine.current_reward_screen().expect("rewards").items.iter()
+        .position(|item| item.kind == RewardItemKind::Potion)
+        .expect("Sozu must not suppress potion generation");
+    let potions_before = engine.run_state.potions.clone();
+    assert!(engine.step_with_result(&RunAction::SelectRewardItem(potion_index)).action_accepted);
+    assert_eq!(engine.run_state.potions, potions_before);
+
+    engine.run_state.gold = 10_000;
+    engine.debug_enter_shop();
+    assert_eq!(engine.get_shop().expect("shop").potions.len(), 3);
+    assert!(engine.get_legal_decision_actions().iter()
+        .all(|action| !matches!(action, DecisionAction::ShopBuyPotion(_))));
+}
+
+#[test]
 fn runic_pyramid_is_reachable_from_the_watcher_boss_relic_pool() {
     // Source: RunicPyramid.java constructs canonical ID "Runic Pyramid" at
     // BOSS tier, so it must be selectable after a Watcher boss combat.
@@ -4232,8 +4280,6 @@ fn claiming_question_card_expands_later_card_reward_choices() {
     // Source: QuestionCard.java::changeNumberOfCardsInReward returns the
     // incoming count plus exactly one, under canonical ID "Question Card".
     let mut engine = RunEngine::new(42, 20);
-    engine.run_state.relics.push("Sozu".to_string());
-    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
     engine.debug_set_reward_screen(single_relic_reward_screen("Question Card"));
 
     let claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
@@ -4288,8 +4334,6 @@ fn claiming_prayer_wheel_adds_second_ordered_card_reward_item() {
     // CombatRewardScreen.java adds its second card reward only for a regular
     // MonsterRoom, excluding elite and boss subclasses.
     let mut engine = RunEngine::new(7, 20);
-    engine.run_state.relics.push("Sozu".to_string());
-    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
     engine.debug_set_reward_screen(single_relic_reward_screen("Prayer Wheel"));
 
     let claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
@@ -4311,26 +4355,27 @@ fn claiming_prayer_wheel_adds_second_ordered_card_reward_item() {
     let screen = engine
         .current_reward_screen()
         .expect("prayer wheel should mutate later combat rewards");
-    assert_eq!(screen.items.len(), 2);
-    assert!(screen
-        .items
-        .iter()
-        .all(|item| item.kind == RewardItemKind::CardChoice));
-    assert!(screen.items[0].claimable);
-    assert!(!screen.items[1].claimable);
+    let card_indices: Vec<usize> = screen.items.iter()
+        .filter(|item| item.kind == RewardItemKind::CardChoice)
+        .map(|item| item.index)
+        .collect();
+    assert_eq!(card_indices.len(), 2);
+    if let Some(potion) = screen.items.iter().find(|item| item.kind == RewardItemKind::Potion) {
+        assert!(engine.step_with_result(&RunAction::SkipRewardItem(potion.index)).action_accepted);
+    }
 
-    let open_first = engine.step_with_result(&RunAction::SelectRewardItem(0));
+    let open_first = engine.step_with_result(&RunAction::SelectRewardItem(card_indices[0]));
     assert!(open_first.action_accepted);
     let pick_first = engine.step_with_result(&RunAction::ChooseRewardOption {
-        item_index: 0,
+        item_index: card_indices[0],
         choice_index: 0,
     });
     assert!(pick_first.action_accepted);
     assert_eq!(
         pick_first.legal_decision_actions,
         vec![
-            DecisionAction::ClaimRewardItem { item_index: 1 },
-            DecisionAction::SkipRewardItem { item_index: 1 },
+            DecisionAction::ClaimRewardItem { item_index: card_indices[1] },
+            DecisionAction::SkipRewardItem { item_index: card_indices[1] },
         ]
     );
 }
