@@ -1,5 +1,8 @@
 use crate::cards::prelude::*;
 
+// Sources: decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Apotheosis.java
+// and decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ApotheosisAction.java
+
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Colorless Rare ----
         // Apotheosis: 2 cost, upgrade all cards in deck, exhaust (upgrade: cost 1)

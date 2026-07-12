@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T15:48:37.852364+00:00",
+ "updated": "2026-07-12T15:50:47.524065+00:00",
  "status_counts": {
-  "verified": 300,
-  "unverified": 367
+  "verified": 301,
+  "unverified": 366
  },
  "rows": [
   {
@@ -132,8 +132,8 @@
    "class": "Apotheosis",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Apotheosis.java",
    "methods_ref": "reference/extracted/methods/card/Apotheosis.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
