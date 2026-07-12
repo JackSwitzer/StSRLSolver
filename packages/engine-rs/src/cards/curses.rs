@@ -26,6 +26,8 @@ pub fn register_curses(cards: &mut HashMap<&'static str, CardDef>) {
                 effect_data: &[], complex_hook: None,
         });
         insert(cards, CardDef {
+            // Source: cards/curses/AscendersBane.java sets cost -2, Ethereal,
+            // and leaves both use() and upgrade() empty.
             id: "AscendersBane", name: "Ascender's Bane", card_type: CardType::Curse,
             target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,
             base_magic: -1, exhaust: false, enter_stance: None,

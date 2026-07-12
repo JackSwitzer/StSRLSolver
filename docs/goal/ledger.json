@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T15:55:04.532396+00:00",
+ "updated": "2026-07-12T15:59:10.113868+00:00",
  "status_counts": {
-  "verified": 302,
-  "unverified": 365
+  "verified": 303,
+  "unverified": 364
  },
  "rows": [
   {
@@ -152,8 +152,8 @@
    "class": "AscendersBane",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/curses/AscendersBane.java",
    "methods_ref": "reference/extracted/methods/card/AscendersBane.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

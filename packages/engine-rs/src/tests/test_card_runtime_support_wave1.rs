@@ -7,6 +7,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/status/Void.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Parasite.java
 
+use crate::actions::Action;
 use crate::cards::global_registry;
 use crate::effects::types::{CardRuntimeTrigger, EndTurnHandRule, OnDrawRule, WhileInHandRule};
 use crate::tests::support::*;
@@ -118,4 +119,40 @@ fn support_wave1_void_loses_energy_when_drawn() {
 
     assert_eq!(engine.state.energy, energy_before - 1);
     assert_eq!(hand_count(&engine, "Void"), 1);
+}
+
+#[test]
+fn ascenders_bane_is_unplayable_unupgradable_and_exhausts_as_ethereal() {
+    // Source: cards/curses/AscendersBane.java sets cost to -2, sets
+    // isEthereal, and implements neither use() nor upgrade().
+    let registry = global_registry();
+    let bane = registry.get("AscendersBane").expect("Ascender's Bane is registered");
+    assert_eq!(bane.cost, -2);
+    assert!(bane.runtime_traits().unplayable);
+    assert!(bane.runtime_traits().ethereal);
+    assert!(registry.get("AscendersBane+").is_none());
+
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.relics.push("Runic Pyramid".to_string());
+    engine.state.hand = make_deck(&["AscendersBane", "Strike"]);
+
+    let bane_idx = engine
+        .state
+        .hand
+        .iter()
+        .position(|card| engine.card_registry.card_name(card.def_id) == "AscendersBane")
+        .unwrap();
+    assert!(!engine.get_legal_actions().iter().any(|action| {
+        matches!(action, Action::PlayCard { card_idx, .. } if *card_idx == bane_idx)
+    }));
+
+    end_turn(&mut engine);
+
+    assert_eq!(exhaust_prefix_count(&engine, "AscendersBane"), 1);
+    assert_eq!(hand_count(&engine, "Strike"), 1);
 }
