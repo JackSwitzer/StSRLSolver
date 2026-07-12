@@ -1,6 +1,7 @@
 #![cfg(test)]
 
 // Java oracle sources:
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/BandageUp.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/DramaticEntrance.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/GoodInstincts.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Magnetism.java
@@ -105,6 +106,28 @@ fn colorless_wave1_attack_and_block_cards_follow_java_oracle_on_engine_path() {
     assert_eq!(engine.state.enemies[0].entity.hp, 13);
     assert_eq!(engine.state.enemies[1].entity.hp, 20);
     assert_eq!(exhaust_prefix_count(&engine, "Dramatic Entrance"), 2);
+}
+
+#[test]
+fn bandage_up_heals_four_or_six_for_free_then_exhausts() {
+    // Source: BandageUp.java queues HealAction for magicNumber 4, costs 0,
+    // Exhausts, and upgradeMagicNumber(2) raises the heal to 6.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.player.hp = 60;
+
+    for (card_id, expected_hp) in [("Bandage Up", 64), ("Bandage Up+", 70)] {
+        ensure_in_hand(&mut engine, card_id);
+        assert!(play_self(&mut engine, card_id));
+        assert_eq!(engine.state.player.hp, expected_hp);
+        assert_eq!(engine.state.energy, 3);
+    }
+
+    assert_eq!(exhaust_prefix_count(&engine, "Bandage Up"), 2);
 }
 
 #[test]

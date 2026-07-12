@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T16:05:35.975440+00:00",
+ "updated": "2026-07-12T16:07:53.202307+00:00",
  "status_counts": {
-  "verified": 307,
-  "unverified": 360
+  "verified": 308,
+  "unverified": 359
  },
  "rows": [
   {
@@ -202,8 +202,8 @@
    "class": "BandageUp",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/BandageUp.java",
    "methods_ref": "reference/extracted/methods/card/BandageUp.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
