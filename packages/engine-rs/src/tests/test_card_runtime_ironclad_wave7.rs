@@ -10,7 +10,7 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/cards/red/ShrugItOff.java
 
 use crate::cards::{CardTarget, CardType, global_registry};
-use crate::effects::declarative::{AmountSource as A, BoolFlag as BF, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
 use crate::status_ids::sid;
 use crate::tests::support::*;
 
@@ -31,7 +31,7 @@ fn ironclad_wave7_registry_exports_match_typed_runtime_progress() {
         battle_trance.effect_data,
         &[
             E::Simple(SE::DrawCards(A::Magic)),
-            E::Simple(SE::SetFlag(BF::NoDraw)),
+            E::Simple(SE::AddStatus(T::Player, sid::NO_DRAW, A::Fixed(1))),
         ]
     );
 
@@ -142,6 +142,19 @@ fn battle_trance_plus_draws_four_then_no_draw_expires_at_turn_end() {
 
     assert_eq!(engine.state.player.status(sid::NO_DRAW), 0);
     assert_eq!(engine.state.hand.len(), 5);
+
+    // NoDrawPower.java is a DEBUFF, so Artifact consumes itself after the
+    // Battle Trance draw and prevents the restriction from being installed.
+    let mut artifact = one_enemy_engine("JawWorm", 60);
+    artifact.state.player.set_status(sid::ARTIFACT, 1);
+    artifact.state.hand = make_deck(&["Battle Trance"]);
+    artifact.state.draw_pile = make_deck(&["Strike", "Defend", "Bash", "Inflame"]);
+    assert!(play_self(&mut artifact, "Battle Trance"));
+    assert_eq!(artifact.state.hand.len(), 3);
+    assert_eq!(artifact.state.player.status(sid::ARTIFACT), 0);
+    assert_eq!(artifact.state.player.status(sid::NO_DRAW), 0);
+    artifact.draw_cards(1);
+    assert_eq!(artifact.state.hand.len(), 4);
 }
 
 #[test]

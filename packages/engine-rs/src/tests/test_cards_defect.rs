@@ -641,6 +641,32 @@ mod defect_card_java_parity_tests {
         assert_eq!(e.state.player.focus(), 4);
     });
 
+    defect_test!(biased_cognition_bias_and_focus_loss_obey_artifact, {
+        // Sources: BiasedCognition.java applies Focus before BiasPower;
+        // BiasPower.java is a DEBUFF and applies negative FocusPower each turn.
+        let mut blocked_on_play = bare_engine(&[], vec![enemy("JawWorm", 40, 0)]);
+        blocked_on_play.state.player.set_status(sid::ARTIFACT, 1);
+        blocked_on_play.state.hand = make_deck(&["Biased Cognition+"]);
+        assert!(play_self(&mut blocked_on_play, "Biased Cognition+"));
+        assert_eq!(blocked_on_play.state.player.focus(), 5);
+        assert_eq!(blocked_on_play.state.player.status(sid::ARTIFACT), 0);
+        assert_eq!(blocked_on_play.state.player.status(sid::BIASED_COG_FOCUS_LOSS), 0);
+        end_turn(&mut blocked_on_play);
+        assert_eq!(blocked_on_play.state.player.focus(), 5);
+
+        let mut blocked_tick = bare_engine(&[], vec![enemy("JawWorm", 40, 0)]);
+        blocked_tick.state.hand = make_deck(&["Biased Cognition"]);
+        assert!(play_self(&mut blocked_tick, "Biased Cognition"));
+        assert_eq!(blocked_tick.state.player.focus(), 4);
+        assert_eq!(blocked_tick.state.player.status(sid::BIASED_COG_FOCUS_LOSS), 1);
+        blocked_tick.state.player.set_status(sid::ARTIFACT, 1);
+        end_turn(&mut blocked_tick);
+        assert_eq!(blocked_tick.state.player.focus(), 4);
+        assert_eq!(blocked_tick.state.player.status(sid::ARTIFACT), 0);
+        end_turn(&mut blocked_tick);
+        assert_eq!(blocked_tick.state.player.focus(), 3);
+    });
+
     defect_test!(buffer_installs_buffer, {
         let mut e = bare_engine(&["Buffer"], vec![enemy("JawWorm", 40, 0)]);
         ensure_in_hand(&mut e, "Buffer");

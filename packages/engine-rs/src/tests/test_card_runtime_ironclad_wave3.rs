@@ -50,7 +50,11 @@ mod ironclad_wave3_card_runtime_tests {
             battle_trance.effect_data,
             &[
                 Effect::Simple(SE::DrawCards(A::Magic)),
-                Effect::Simple(SE::SetFlag(crate::effects::declarative::BoolFlag::NoDraw)),
+                Effect::Simple(SE::AddStatus(
+                    crate::effects::declarative::Target::Player,
+                    sid::NO_DRAW,
+                    A::Fixed(1),
+                )),
             ]
         );
 

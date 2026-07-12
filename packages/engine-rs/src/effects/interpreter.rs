@@ -806,6 +806,8 @@ fn is_debuff(status: StatusId) -> bool {
         || status == sid::FRAIL
         || status == sid::POISON
         || status == sid::CONSTRICTED
+        || status == sid::NO_DRAW
+        || status == sid::BIASED_COG_FOCUS_LOSS
 }
 
 fn apply_status(
@@ -817,12 +819,20 @@ fn apply_status(
 ) {
     match target {
         Target::Player => {
-            add_player_status(engine, status, amount);
+            if is_debuff(status) {
+                crate::powers::apply_debuff(&mut engine.state.player, status, amount);
+            } else {
+                add_player_status(engine, status, amount);
+            }
         }
         // Card effects do not currently install owner-aware runtime handlers.
         // Treat SelfEntity as player until self-owned status handlers become explicit.
         Target::SelfEntity => {
-            add_player_status(engine, status, amount);
+            if is_debuff(status) {
+                crate::powers::apply_debuff(&mut engine.state.player, status, amount);
+            } else {
+                add_player_status(engine, status, amount);
+            }
         }
         Target::SelectedEnemy => {
             let idx = ctx.target_idx;

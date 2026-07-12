@@ -1457,13 +1457,12 @@ impl CombatEngine {
             }
         }
 
-        // Biased Cognition: lose Focus at start of each turn
+        // BiasPower.java applies a negative FocusPower at turn start. Because
+        // that FocusPower is a DEBUFF, a later Artifact can block each tick.
+        // Source: powers/BiasPower.java and powers/FocusPower.java.
         let bias_loss = self.state.player.status(sid::BIASED_COG_FOCUS_LOSS);
         if bias_loss > 0 {
-            let current_focus = self.state.player.focus();
-            self.state
-                .player
-                .set_status(sid::FOCUS, current_focus - bias_loss);
+            powers::apply_debuff(&mut self.state.player, sid::FOCUS, -bias_loss);
         }
 
         // === POWER HOOKS handled by the owner-aware TurnStart event above:

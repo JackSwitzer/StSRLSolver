@@ -3,7 +3,7 @@ mod ironclad_wave2_card_runtime_tests {
     use crate::actions::Action;
     use crate::cards::{CardDef, CardTarget, CardType};
     use crate::effects::declarative::{
-        AmountSource, BoolFlag, CardFilter, ChoiceAction, Effect, Pile, SimpleEffect, Target,
+        AmountSource, CardFilter, ChoiceAction, Effect, Pile, SimpleEffect, Target,
     };
     use crate::engine::{ChoiceOption, ChoiceReason, CombatEngine, CombatPhase};
     use crate::status_ids::sid;
@@ -108,7 +108,11 @@ mod ironclad_wave2_card_runtime_tests {
             battle_trance.effect_data,
             &[
                 Effect::Simple(SimpleEffect::DrawCards(AmountSource::Magic)),
-                Effect::Simple(SimpleEffect::SetFlag(BoolFlag::NoDraw)),
+                Effect::Simple(SimpleEffect::AddStatus(
+                    Target::Player,
+                    sid::NO_DRAW,
+                    AmountSource::Fixed(1),
+                )),
             ],
         );
 

@@ -205,6 +205,20 @@ mod interaction_tests {
             assert_eq!(engine.state.player.status(sid::BERSERK), 1);
             assert_eq!(engine.state.energy, 4);
         }
+
+        // VulnerablePower is a DEBUFF even when Berserk applies it to self.
+        let mut artifact = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 50, 50)],
+            3,
+        );
+        force_player_turn(&mut artifact);
+        artifact.state.player.set_status(sid::ARTIFACT, 1);
+        artifact.state.hand = make_deck(&["Berserk"]);
+        assert!(play_self(&mut artifact, "Berserk"));
+        assert_eq!(artifact.state.player.status(sid::ARTIFACT), 0);
+        assert_eq!(artifact.state.player.status(sid::VULNERABLE), 0);
+        assert_eq!(artifact.state.player.status(sid::BERSERK), 1);
     }
 
     // =========================================================================
