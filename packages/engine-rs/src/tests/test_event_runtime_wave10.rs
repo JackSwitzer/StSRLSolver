@@ -1,6 +1,7 @@
 use crate::decision::{RewardItemKind, RewardScreenSource};
 use crate::events::{typed_events_for_act, typed_shrine_events, EventProgramOp, EventRuntimeStatus};
 use crate::run::{RunAction, RunEngine, RunPhase};
+use crate::status_ids::sid;
 
 // Java oracle:
 // - decompiled/java-src/com/megacrit/cardcrawl/events/shrines/Bonfire.java
@@ -142,6 +143,42 @@ fn bonfire_curse_offer_grants_spirit_poop_then_circlet_if_repeated() {
     });
     assert!(second.action_accepted);
     assert!(engine.run_state.relics.iter().any(|relic| relic == "Circlet"));
+}
+
+#[test]
+fn spirit_poop_from_bonfire_has_no_gameplay_hook() {
+    // SpiritPoop.java contains only construction, description, and makeCopy;
+    // it has no equip, combat-start, turn, or reward callback.
+    let mut engine = RunEngine::new(77, 0);
+    engine.run_state.deck = vec!["Pain".to_string()];
+    engine.debug_set_typed_event_state(typed_shrine_event("Bonfire Elementals"));
+    engine.step_with_result(&RunAction::EventChoice(0));
+    engine.step_with_result(&RunAction::SelectRewardItem(0));
+    assert!(engine
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+    assert!(engine.run_state.relics.iter().any(|relic| relic == "Spirit Poop"));
+
+    engine.run_state.deck = [
+        "Strike", "Strike", "Strike", "Strike", "Defend", "Defend", "Defend", "Defend",
+        "Eruption", "Vigilance",
+    ]
+    .iter()
+    .map(|card| (*card).to_string())
+    .collect();
+    engine
+        .run_state
+        .relics
+        .retain(|relic| matches!(relic.as_str(), "PureWater" | "Spirit Poop"));
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    let combat = engine.get_combat_engine().expect("Spirit Poop combat");
+    assert_eq!(combat.state.energy, 3);
+    assert_eq!(combat.state.hand.len(), 6); // ordinary draw plus Pure Water only
+    assert_eq!(combat.state.player.status(sid::STRENGTH), 0);
+    assert_eq!(combat.state.player.status(sid::DEXTERITY), 0);
 }
 
 #[test]

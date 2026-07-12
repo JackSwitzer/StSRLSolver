@@ -3205,6 +3205,9 @@ impl RunEngine {
     fn resolve_bonfire_offer(&mut self, card_id: &str) {
         match event_card_rarity(card_id) {
             Some(EventCardRarity::Curse) => {
+                // Bonfire.java grants Spirit Poop for the first offered Curse
+                // and Circlet when the special relic is already owned.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/events/shrines/Bonfire.java
                 if self
                     .run_state
                     .relics

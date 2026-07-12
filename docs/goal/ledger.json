@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T03:20:43.638668+00:00",
+ "updated": "2026-07-12T03:22:14.502348+00:00",
  "status_counts": {
-  "unverified": 394,
-  "verified": 273
+  "unverified": 393,
+  "verified": 274
  },
  "rows": [
   {
@@ -6282,8 +6282,8 @@
    "class": "SpiritPoop",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/SpiritPoop.java",
    "methods_ref": "reference/extracted/methods/relic/SpiritPoop.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
