@@ -227,6 +227,32 @@ fn ball_lightning_plus_deals_ten_then_channels_one_lightning_into_a_full_slot() 
 }
 
 #[test]
+fn beam_cell_variants_deal_damage_before_vulnerable_for_zero_energy() {
+    // Source: BeamCell.java queues DamageAction before ApplyPowerAction at
+    // cost 0; its upgrade changes 3/1 damage/Vulnerable to 4/2.
+    for (card_id, expected_hp, expected_vulnerable) in
+        [("Beam Cell", 37, 1), ("Beam Cell+", 36, 2)]
+    {
+        let mut engine = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            0,
+        );
+        force_player_turn(&mut engine);
+        engine.state.hand = make_deck(&[card_id]);
+
+        assert!(play_on_enemy(&mut engine, card_id, 0));
+
+        assert_eq!(engine.state.enemies[0].entity.hp, expected_hp);
+        assert_eq!(
+            engine.state.enemies[0].entity.status(sid::VULNERABLE),
+            expected_vulnerable
+        );
+        assert_eq!(engine.state.energy, 0);
+    }
+}
+
+#[test]
 fn test_card_runtime_defect_wave2_coolheaded_fusion_darkness_and_rainbow_cover_channel_draw_and_exhaust_paths() {
     let mut coolheaded = engine_without_start(
         Vec::new(),
