@@ -407,9 +407,16 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
         // -- Add temp card to a pile --
         SimpleEffect::AddCard(name, pile, ref amount_src) => {
             let count = resolve_card_amount(engine, ctx, amount_src).max(0);
-            for _ in 0..count {
-                let card = engine.temp_card(name);
-                push_to_pile(engine, pile, card);
+            if pile == Pile::Hand {
+                // MakeTempCardInHandAction sends cards beyond the ten-card hand
+                // cap to discard rather than deleting them, and applies Master
+                // Reality to each copy. Source: MakeTempCardInHandAction.java.
+                engine.add_temp_cards_to_hand(name, count);
+            } else {
+                for _ in 0..count {
+                    let card = engine.temp_card(name);
+                    push_to_pile(engine, pile, card);
+                }
             }
             // Shuffle draw pile if cards were added to it
             if pile == Pile::Draw && count > 0 {

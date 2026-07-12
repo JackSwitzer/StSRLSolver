@@ -8,8 +8,8 @@ mod silent_wave2 {
     use crate::engine::{ChoiceReason, CombatEngine, CombatPhase};
     use crate::status_ids::sid;
     use crate::tests::support::{
-        combat_state_with, enemy, enemy_no_intent, force_player_turn, hand_count, make_deck,
-        play_on_enemy, play_self, TEST_SEED,
+        combat_state_with, discard_prefix_count, enemy, enemy_no_intent, force_player_turn,
+        hand_count, make_deck, play_on_enemy, play_self, TEST_SEED,
     };
 
     fn engine_for(
@@ -283,5 +283,36 @@ mod silent_wave2 {
         );
         assert!(play_self(&mut engine, "Blade Dance"));
         assert_eq!(hand_names(&engine), vec!["Shiv", "Shiv", "Shiv"]);
+    }
+
+    #[test]
+    fn blade_dance_plus_spills_shivs_over_the_hand_cap_into_discard() {
+        // Sources: BladeDance.java creates 4 Shivs when upgraded;
+        // MakeTempCardInHandAction.java caps hand at 10 and discards overflow.
+        let mut engine = engine_for(
+            &[
+                "Blade Dance+",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+            ],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            3,
+        );
+
+        assert!(play_self(&mut engine, "Blade Dance+"));
+
+        assert_eq!(engine.state.hand.len(), 10);
+        assert_eq!(hand_count(&engine, "Shiv"), 2);
+        assert_eq!(discard_prefix_count(&engine, "Shiv"), 2);
+        assert_eq!(discard_prefix_count(&engine, "Blade Dance"), 1);
+        assert_eq!(engine.state.energy, 2);
     }
 }
