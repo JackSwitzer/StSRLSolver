@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T15:44:49.683236+00:00",
+ "updated": "2026-07-12T15:48:37.852364+00:00",
  "status_counts": {
-  "verified": 299,
-  "unverified": 368
+  "verified": 300,
+  "unverified": 367
  },
  "rows": [
   {
@@ -122,8 +122,8 @@
    "class": "Anger",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/Anger.java",
    "methods_ref": "reference/extracted/methods/card/Anger.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

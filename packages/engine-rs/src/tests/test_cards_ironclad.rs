@@ -114,6 +114,59 @@ mod ironclad_card_java_parity_tests {
 
     card_pair_test!(bash, "Bash", "Bash+", 2, 8, -1, 2, 2, 10, -1, 3, CardType::Attack, CardTarget::Enemy, false);
     card_pair_test!(anger, "Anger", "Anger+", 0, 6, -1, -1, 0, 8, -1, -1, CardType::Attack, CardTarget::Enemy, false);
+
+    #[test]
+    fn anger_variants_damage_then_add_a_stat_equivalent_discard_copy() {
+        // Anger.java deals 6 (8 upgraded), then adds one
+        // makeStatEquivalentCopy to discard. The ordinary played card also
+        // reaches discard, while a purge-on-use original disappears; the copy
+        // preserves costs, misc, upgrade/free/bottle state but not purge,
+        // retain, or exhaust-on-use flags.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Anger.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/AbstractCard.java
+        for (card_id, damage) in [("Anger", 6), ("Anger+", 8)] {
+            let mut engine = engine_for(
+                &[card_id],
+                &[],
+                &[],
+                vec![enemy("JawWorm", 50, 50, 1, 0, 1)],
+                0,
+            );
+            assert!(play_on_enemy(&mut engine, card_id, 0));
+            assert_eq!(engine.state.enemies[0].entity.hp, 50 - damage);
+            assert_eq!(discard_prefix_count(&engine, card_id), 2);
+        }
+
+        let mut dynamic = engine_for(
+            &[],
+            &[],
+            &[],
+            vec![enemy("JawWorm", 50, 50, 1, 0, 1)],
+            0,
+        );
+        let mut original = dynamic.card_registry.make_card("Anger+");
+        original.cost = 2;
+        original.base_cost = 2;
+        original.misc = 7;
+        original.flags |= crate::combat_types::CardInstance::FLAG_FREE
+            | crate::combat_types::CardInstance::FLAG_INNATE
+            | crate::combat_types::CardInstance::FLAG_RETAINED
+            | crate::combat_types::CardInstance::FLAG_PURGE
+            | crate::combat_types::CardInstance::FLAG_EXHAUST_ON_USE;
+        dynamic.state.hand = vec![original];
+
+        assert!(play_on_enemy(&mut dynamic, "Anger+", 0));
+        assert_eq!(dynamic.state.enemies[0].entity.hp, 42);
+        assert_eq!(dynamic.state.discard_pile.len(), 1);
+        let copy = dynamic.state.discard_pile[0];
+        assert_eq!((copy.cost, copy.base_cost, copy.misc), (2, 2, 7));
+        assert!(copy.is_upgraded());
+        assert!(copy.is_free());
+        assert_ne!(copy.flags & crate::combat_types::CardInstance::FLAG_INNATE, 0);
+        assert_eq!(copy.flags & crate::combat_types::CardInstance::FLAG_RETAINED, 0);
+        assert_eq!(copy.flags & crate::combat_types::CardInstance::FLAG_PURGE, 0);
+        assert_eq!(copy.flags & crate::combat_types::CardInstance::FLAG_EXHAUST_ON_USE, 0);
+    }
     card_pair_test!(armaments, "Armaments", "Armaments+", 1, -1, 5, -1, 1, -1, 5, -1, CardType::Skill, CardTarget::SelfTarget, false);
     card_pair_test!(body_slam, "Body Slam", "Body Slam+", 1, 0, -1, -1, 0, 0, -1, -1, CardType::Attack, CardTarget::Enemy, false);
     card_pair_test!(clash, "Clash", "Clash+", 0, 14, -1, -1, 0, 18, -1, -1, CardType::Attack, CardTarget::Enemy, false);

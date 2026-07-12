@@ -449,7 +449,15 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         // -- Copy played card to a pile (Anger: copy to discard) --
         SimpleEffect::CopyThisCardTo(pile) => {
-            push_to_pile(engine, pile, ctx.card_inst);
+            let mut copy = ctx.card_inst;
+            // AbstractCard.makeStatEquivalentCopy preserves upgrade, current
+            // costs, misc, freeToPlayOnce, and bottle flags, but not transient
+            // retain, purge-on-use, or exhaust-on-use state.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/AbstractCard.java
+            copy.flags &= crate::combat_types::CardInstance::FLAG_UPGRADED
+                | crate::combat_types::CardInstance::FLAG_FREE
+                | crate::combat_types::CardInstance::FLAG_INNATE;
+            push_to_pile(engine, pile, copy);
             if pile == Pile::Draw {
                 engine.shuffle_draw_pile();
             }
