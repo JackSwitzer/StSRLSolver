@@ -88,6 +88,31 @@ fn silent_wave7_adrenaline_blur_and_footwork_run_on_engine_path() {
 }
 
 #[test]
+fn blur_does_not_decrement_during_vaults_skipped_enemy_round() {
+    // Sources: Blur.java installs one BlurPower; GameActionManager.java skips
+    // monsters.applyEndOfTurnPowers() under Vault but still checks Blur before
+    // start-of-turn block loss.
+    let mut engine = one_enemy_engine("JawWorm", 50, 0);
+    engine.state.energy = 10;
+    engine.state.hand = make_deck(&["Blur", "Vault"]);
+
+    assert!(play_self(&mut engine, "Blur"));
+    assert_eq!(engine.state.player.block, 5);
+    assert_eq!(engine.state.player.status(sid::BLUR), 1);
+    assert!(play_self(&mut engine, "Vault"));
+
+    assert_eq!(engine.state.player.block, 5);
+    assert_eq!(engine.state.player.status(sid::BLUR), 1);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.block, 5);
+    assert_eq!(engine.state.player.status(sid::BLUR), 0);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.block, 0);
+}
+
+#[test]
 fn silent_wave7_prepared_uses_draw_then_discard_choice_on_engine_path() {
     let mut engine = one_enemy_engine("JawWorm", 50, 0);
     engine.state.draw_pile = make_deck(&["Strike", "Defend", "Neutralize"]);

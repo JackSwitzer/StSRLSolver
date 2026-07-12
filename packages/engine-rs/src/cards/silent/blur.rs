@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Uncommon: Blur ---- (cost 1, 5 block, block not removed next turn; +3 block)
+        // Sources: cards/green/Blur.java costs 1, queues 5 block then one
+        // BlurPower, and upgrades only block by 3; BlurPower.java stacks turns.
     insert(cards, CardDef {
                 id: "Blur", name: "Blur", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 5,

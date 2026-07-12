@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T16:43:39.433327+00:00",
+ "updated": "2026-07-12T16:46:59.018168+00:00",
  "status_counts": {
-  "verified": 323,
-  "unverified": 344
+  "verified": 324,
+  "unverified": 343
  },
  "rows": [
   {
@@ -392,8 +392,8 @@
    "class": "Blur",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Blur.java",
    "methods_ref": "reference/extracted/methods/card/Blur.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

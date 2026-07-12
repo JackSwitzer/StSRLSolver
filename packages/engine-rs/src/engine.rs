@@ -1432,14 +1432,21 @@ impl CombatEngine {
                     0
                 };
             }
-            // Blur: decrement after use (Java: BlurPower is turn-based, decrements at end of round)
-            if blur {
+            // GameActionManager checks Blur for block retention before queued
+            // atEndOfRound reduction resolves. Vault skips that entire
+            // applyEndOfTurnPowers pass, so it must retain without decrementing.
+            // Sources: GameActionManager.java and powers/BlurPower.java.
+            if blur && !self.state.skip_enemy_turn {
                 let blur_val = self.state.player.status(sid::BLUR);
                 self.state
                     .player
                     .set_status(sid::BLUR, (blur_val - 1).max(0));
             }
         }
+
+        // The skip marker must survive through the Blur/block-loss check above,
+        // but applies to exactly one enemy round.
+        self.state.skip_enemy_turn = false;
 
         // LoseStrength/LoseDexterity at end of the previous turn.
         // Turn 1 has no "previous turn", so combat-start temporary strength
@@ -1866,7 +1873,6 @@ impl CombatEngine {
         // wasted a turn under Vault. Now we gate debuff + Intangible decrement
         // inside the same branch as the enemy-turn execution.
         if self.state.skip_enemy_turn {
-            self.state.skip_enemy_turn = false;
             // Vault skipped the enemy turn -- do NOT decrement debuffs or
             // Intangible; they persist into the next round. Matches Java.
         } else {
