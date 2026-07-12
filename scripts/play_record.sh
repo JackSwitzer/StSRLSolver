@@ -11,6 +11,8 @@ HARNESS="$REPO/packages/harness-java"
 OUT_DIR="$REPO/data/traces/recordings"
 mkdir -p "$OUT_DIR"
 
+"$REPO/scripts/check_patches.sh"
+
 if [[ ! -f "$HARNESS/target/TraceLab.jar" || -n "$(find "$HARNESS/src" -newer "$HARNESS/target/TraceLab.jar" -type f 2>/dev/null | head -1)" ]]; then
   echo "[play_record] building TraceLab.jar"
   JAVA_HOME="${TRACELAB_JAVA_HOME:-/opt/homebrew/opt/openjdk@11}" /opt/homebrew/bin/mvn -q -f "$HARNESS/pom.xml" clean package

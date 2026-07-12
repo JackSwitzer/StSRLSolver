@@ -59,8 +59,7 @@ public class RecordHooks {
     @SpirePatch(clz = com.megacrit.cardcrawl.events.RoomEventDialog.class,
             method = "getSelectedOption")
     public static class RoomEventChoicePatch {
-        public static void Postfix(com.megacrit.cardcrawl.events.RoomEventDialog __instance,
-                                   int __result) {
+        public static void Postfix(int __result) {
             recordEventChoice(__result);
         }
     }
@@ -68,8 +67,7 @@ public class RecordHooks {
     @SpirePatch(clz = com.megacrit.cardcrawl.events.GenericEventDialog.class,
             method = "getSelectedOption")
     public static class GenericEventChoicePatch {
-        public static void Postfix(com.megacrit.cardcrawl.events.GenericEventDialog __instance,
-                                   int __result) {
+        public static void Postfix(int __result) {
             recordEventChoice(__result);
         }
     }
