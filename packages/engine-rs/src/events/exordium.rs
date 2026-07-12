@@ -277,7 +277,18 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
                     vec![
                         EventProgramOp::combat_branch(
                             ["FungiBeast", "FungiBeast", "FungiBeast"],
-                            vec![EventProgramOp::gain_relic("Odd Mushroom")],
+                            vec![
+                                // Mushrooms.java rolls inclusive 20..30 gold
+                                // after the fight, then rewards Odd Mushroom or
+                                // Circlet when the special relic is already owned.
+                                // Java: decompiled/java-src/com/megacrit/cardcrawl/events/exordium/Mushrooms.java
+                                EventProgramOp::random_outcome_table(
+                                    (20..=30)
+                                        .map(|gold| vec![EventProgramOp::gold(gold)])
+                                        .collect(),
+                                ),
+                                EventProgramOp::gain_unique_relic_or_circlet("Odd Mushroom"),
+                            ],
                         ),
                     ],
                     EventEffect::GainRelic,

@@ -75,6 +75,7 @@ pub enum EventReward {
     Gold { amount: i32 },
     MaxHp { amount: i32 },
     Relic { label: String },
+    UniqueRelicOrCirclet { label: String },
     Potion { count: usize },
     Card { count: usize },
     StoredNoteCard,
@@ -265,6 +266,12 @@ impl EventProgramOp {
 
     pub fn gain_relic(label: impl Into<String>) -> Self {
         Self::Reward(EventReward::Relic { label: label.into() })
+    }
+
+    pub fn gain_unique_relic_or_circlet(label: impl Into<String>) -> Self {
+        Self::Reward(EventReward::UniqueRelicOrCirclet {
+            label: label.into(),
+        })
     }
 
     pub fn gain_potion(count: usize) -> Self {

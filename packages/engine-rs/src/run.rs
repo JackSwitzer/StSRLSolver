@@ -5807,6 +5807,24 @@ impl RunEngine {
                     choices: Vec::new(),
                 });
             }
+            EventReward::UniqueRelicOrCirclet { label } => {
+                let relic_id = if self.run_state.relics.iter().any(|owned| owned == label) {
+                    "Circlet".to_string()
+                } else {
+                    label.clone()
+                };
+                reward_items.push(RewardItem {
+                    index: reward_items.len(),
+                    kind: RewardItemKind::Relic,
+                    state: RewardItemState::Available,
+                    label: relic_id,
+                    claimable: reward_items.is_empty(),
+                    active: false,
+                    skip_allowed: false,
+                    skip_label: None,
+                    choices: Vec::new(),
+                });
+            }
             EventReward::Potion { count } => {
                 for _ in 0..*count {
                     reward_items.push(RewardItem {

@@ -170,7 +170,8 @@ pub fn calculate_incoming_damage(
         final_damage *= WRATH_MULT;
     }
 
-    // 2. Vulnerable (Odd Mushroom: 1.25 instead of 1.50)
+    // 2. Vulnerable (Odd Mushroom: 1.25 instead of 1.50).
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/VulnerablePower.java
     if vulnerable {
         final_damage *= if odd_mushroom { VULN_MULT_ODD_MUSHROOM } else { VULN_MULT };
     }
