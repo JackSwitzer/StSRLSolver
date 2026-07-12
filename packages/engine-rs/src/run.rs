@@ -4419,6 +4419,8 @@ impl RunEngine {
             "Bag of Preparation",
             // BirdFacedUrn.java uses this canonical ID and RARE tier.
             "Bird Faced Urn",
+            // DeadBranch.java uses canonical ID "Dead Branch" and RARE tier.
+            "Dead Branch",
             // BloodVial.java uses this canonical ID and COMMON tier.
             "Blood Vial",
             // BlueCandle.java uses this canonical ID and UNCOMMON tier.

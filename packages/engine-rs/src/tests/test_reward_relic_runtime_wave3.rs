@@ -1155,6 +1155,61 @@ fn gremlin_horn_is_watcher_reachable_and_suppresses_the_final_enemy_proc() {
 }
 
 #[test]
+fn dead_branch_is_watcher_reachable_and_generates_on_nonterminal_exhausts() {
+    // DeadBranch.java constructs a RARE shared relic. Every exhaust while a
+    // monster remains queues one returnTrulyRandomCardInCombat copy, which
+    // consumes cardRandom, respects Master Reality, and spills a full-hand
+    // copy to discard through MakeTempCardInHandAction.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/DeadBranch.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
+    let seed = (0..4096).find(|seed| {
+        let mut engine = RunEngine::new(*seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| item.label == "Dead Branch")
+        })
+    }).expect("Dead Branch reward seed");
+
+    let mut engine = RunEngine::new(seed, 0);
+    engine.debug_build_combat_reward_screen(RoomType::Elite);
+    let relic_index = engine.current_reward_screen().expect("elite rewards").items.iter()
+        .position(|item| item.label == "Dead Branch")
+        .expect("Dead Branch reward");
+    assert!(engine.step_with_result(&RunAction::SelectRewardItem(relic_index)).action_accepted);
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+
+    let combat = engine.debug_combat_engine_mut();
+    combat.state.hand = crate::tests::support::make_deck(&["Miracle"]);
+    combat.state.draw_pile.clear();
+    combat.state.discard_pile.clear();
+    let card_random_before = combat.rng_counters()["cardRandom"];
+    combat.execute_action(&Action::PlayCard { card_idx: 0, target_idx: -1 });
+    assert_eq!(combat.rng_counters()["cardRandom"], card_random_before + 1);
+    assert_eq!(combat.state.hand.len(), 1);
+    let generated = combat.state.hand[0];
+    assert_ne!(combat.card_registry.card_name(generated.def_id), "LessonLearned");
+    assert!(!generated.is_upgraded());
+
+    combat.state.player.set_status(crate::status_ids::sid::MASTER_REALITY, 1);
+    combat.state.hand = crate::tests::support::make_deck(&["Defend"; 10]);
+    let discard_before = combat.state.discard_pile.len();
+    let card_random_before = combat.rng_counters()["cardRandom"];
+    combat.trigger_on_exhaust();
+    assert_eq!(combat.rng_counters()["cardRandom"], card_random_before + 1);
+    assert_eq!(combat.state.hand.len(), 10);
+    assert_eq!(combat.state.discard_pile.len(), discard_before + 1);
+    assert!(combat.state.discard_pile.last().expect("overflow card").is_upgraded());
+
+    combat.state.enemies[0].entity.hp = 0;
+    let zones_before = (combat.state.hand.len(), combat.state.discard_pile.len());
+    let card_random_before = combat.rng_counters()["cardRandom"];
+    combat.trigger_on_exhaust();
+    assert_eq!(combat.rng_counters()["cardRandom"], card_random_before);
+    assert_eq!((combat.state.hand.len(), combat.state.discard_pile.len()), zones_before);
+}
+
+#[test]
 fn incense_burner_is_reachable_from_watcher_relic_rewards() {
     // RelicLibrary.java registers IncenseBurner; IncenseBurner.java constructs
     // the shared relic at RARE tier under canonical ID "Incense Burner".

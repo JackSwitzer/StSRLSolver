@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T15:07:48.721668+00:00",
+ "updated": "2026-07-12T15:11:57.673834+00:00",
  "status_counts": {
-  "unverified": 380,
-  "verified": 287
+  "unverified": 379,
+  "verified": 288
  },
  "rows": [
   {
@@ -5232,8 +5232,8 @@
    "class": "DeadBranch",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/DeadBranch.java",
    "methods_ref": "reference/extracted/methods/relic/DeadBranch.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

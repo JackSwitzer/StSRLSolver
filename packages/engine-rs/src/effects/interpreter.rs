@@ -1841,7 +1841,7 @@ pub fn generate_random_cards(
     }
 }
 
-fn generate_random_card(
+pub(crate) fn generate_random_card(
     engine: &mut CombatEngine,
     pool: GeneratedCardPool,
 ) -> Option<crate::combat_types::CardInstance> {
@@ -1852,7 +1852,10 @@ fn generate_random_card(
     if pool_cards.is_empty() {
         return None;
     }
-    let choice_index = if matches!(pool, GeneratedCardPool::WatcherPower) {
+    let choice_index = if matches!(
+        pool,
+        GeneratedCardPool::WatcherPower | GeneratedCardPool::WatcherAny
+    ) {
         // AbstractDungeon.returnTrulyRandomCardInCombat(type) selects from
         // the source color pools with cardRandomRng.
         engine.card_random_rng.random((pool_cards.len() - 1) as i32) as usize
