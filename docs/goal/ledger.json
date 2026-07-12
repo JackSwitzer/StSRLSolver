@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T03:19:01.975262+00:00",
+ "updated": "2026-07-12T03:20:43.638668+00:00",
  "status_counts": {
-  "unverified": 395,
-  "verified": 272
+  "unverified": 394,
+  "verified": 273
  },
  "rows": [
   {
@@ -5132,8 +5132,8 @@
    "class": "Circlet",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Circlet.java",
    "methods_ref": "reference/extracted/methods/relic/Circlet.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

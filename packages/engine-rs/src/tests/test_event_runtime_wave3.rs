@@ -510,6 +510,44 @@ fn nloths_gift_trade_sacrifices_an_offer_and_triples_rare_rewards() {
 }
 
 #[test]
+fn repeated_face_fallbacks_create_separate_gameplay_inert_circlets() {
+    // Circlet.java initializes each copy with display counter 1, while onEquip
+    // only flashes and onUnequip is empty. With all five faces owned,
+    // FaceTrader.getRandomFace returns a new Circlet on every trade.
+    let mut engine = RunEngine::new(75, 0);
+    engine.run_state.relics.extend(
+        ["CultistMask", "FaceOfCleric", "GremlinMask", "NlothsMask", "SsserpentHead"]
+            .iter()
+            .map(|face| (*face).to_string()),
+    );
+    for _ in 0..2 {
+        engine.debug_set_typed_event_state(shrine_event("FaceTrader"));
+        engine.step(&RunAction::EventChoice(0));
+        assert!(engine.step_with_result(&RunAction::EventChoice(1)).action_accepted);
+    }
+    assert_eq!(
+        engine
+            .run_state
+            .relics
+            .iter()
+            .filter(|relic| relic.as_str() == "Circlet")
+            .count(),
+        2
+    );
+
+    engine
+        .run_state
+        .relics
+        .retain(|relic| matches!(relic.as_str(), "PureWater" | "Circlet"));
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    let combat = engine.get_combat_engine().expect("Circlet combat");
+    assert_eq!(combat.state.energy, 3);
+    assert_eq!(combat.state.hand.len(), 6); // ordinary draw plus Pure Water only
+    assert_eq!(combat.state.player.status(sid::STRENGTH), 0);
+    assert_eq!(combat.state.player.status(sid::DEXTERITY), 0);
+}
+
+#[test]
 fn nest_branches_cover_direct_gold_and_specific_card_reward() {
     let nest = typed_event(2, "Nest");
     assert!(nest

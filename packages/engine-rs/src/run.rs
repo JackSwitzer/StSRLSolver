@@ -3347,6 +3347,10 @@ impl RunEngine {
                 self.run_state.relics.push(relic_id.to_string());
             }
         } else {
+            // Circlet.java gives every fallback copy its own presentation-only
+            // counter and has no gameplay hook; duplicate Circlets therefore
+            // remain separate owned relic entries.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Circlet.java
             self.run_state.relics.push(relic_id.to_string());
         }
         self.run_state.relic_flags.rebuild(&self.run_state.relics);
