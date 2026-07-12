@@ -1073,7 +1073,7 @@ impl CombatEngine {
         if let Some(&sel) = ctx.selected.first() {
             if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
                 if idx < self.state.hand.len() {
-                    self.state.hand[idx].flags |= 0x04; // UPGRADED flag
+                    self.card_registry.upgrade_card(&mut self.state.hand[idx]);
                 }
             }
         }
@@ -1999,7 +1999,10 @@ impl CombatEngine {
                 };
                 cost == 0 || card.is_free()
             }
-            CardFilter::Upgradeable => !card.is_upgraded(),
+            CardFilter::Upgradeable => {
+                !card.is_upgraded()
+                    && self.card_registry.get(&format!("{}+", def.id)).is_some()
+            }
         }
     }
 

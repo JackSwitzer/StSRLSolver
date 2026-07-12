@@ -1,5 +1,8 @@
 use crate::cards::prelude::*;
 
+// Sources: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Armaments.java
+// and decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ArmamentsAction.java
+
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Ironclad Common: Armaments ---- (cost 1, 5 block, upgrade 1 card in hand; upgrade: all cards)
     insert(cards, CardDef {

@@ -168,6 +168,80 @@ mod ironclad_card_java_parity_tests {
         assert_eq!(copy.flags & crate::combat_types::CardInstance::FLAG_EXHAUST_ON_USE, 0);
     }
     card_pair_test!(armaments, "Armaments", "Armaments+", 1, -1, 5, -1, 1, -1, 5, -1, CardType::Skill, CardTarget::SelfTarget, false);
+
+    #[test]
+    fn armaments_base_auto_or_selects_only_can_upgrade_cards_and_plus_upgrades_all() {
+        // Armaments.java grants 5 Block before ArmamentsAction. Base skips
+        // cards whose canUpgrade is false, does nothing with zero candidates,
+        // auto-upgrades one candidate, and opens a mandatory choice for many;
+        // Armaments+ upgrades every eligible hand card without a choice.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Armaments.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ArmamentsAction.java
+        let mut none = engine_for(
+            &["Armaments", "AscendersBane", "Strike+"], &[], &[],
+            vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 1,
+        );
+        assert!(play_self(&mut none, "Armaments"));
+        assert_eq!(none.phase, crate::engine::CombatPhase::PlayerTurn);
+        assert_eq!(none.state.player.block, 5);
+        assert!(none.state.hand.iter().any(|card| {
+            none.card_registry.card_name(card.def_id) == "AscendersBane"
+                && !card.is_upgraded()
+        }));
+
+        let mut one = engine_for(
+            &["Armaments", "AscendersBane", "Strike"], &[], &[],
+            vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 1,
+        );
+        assert!(play_self(&mut one, "Armaments"));
+        assert_eq!(one.phase, crate::engine::CombatPhase::PlayerTurn);
+        assert!(one.state.hand.iter().any(|card| {
+            one.card_registry.card_name(card.def_id) == "Strike+"
+        }));
+
+        let mut many = engine_for(
+            &["Armaments", "Strike", "AscendersBane", "Defend"], &[], &[],
+            vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 1,
+        );
+        assert!(play_self(&mut many, "Armaments"));
+        assert_eq!(many.phase, crate::engine::CombatPhase::AwaitingChoice);
+        assert_eq!(many.state.player.block, 5);
+        let choice = many.choice.as_ref().expect("Armaments choice");
+        assert_eq!(choice.options.len(), 2);
+        assert!(choice.options.iter().all(|option| {
+            matches!(option, crate::engine::ChoiceOption::HandCard(index)
+                if many.card_registry.card_name(many.state.hand[*index].def_id) != "AscendersBane")
+        }));
+        let defend_choice = choice.options.iter().position(|option| {
+            matches!(option, crate::engine::ChoiceOption::HandCard(index)
+                if many.card_registry.card_name(many.state.hand[*index].def_id) == "Defend")
+        }).expect("Defend choice");
+        many.execute_action(&Action::Choose(defend_choice));
+        assert!(many.state.hand.iter().any(|card| {
+            many.card_registry.card_name(card.def_id) == "Defend+"
+        }));
+        assert!(many.state.hand.iter().any(|card| {
+            many.card_registry.card_name(card.def_id) == "Strike"
+        }));
+
+        let mut plus = engine_for(
+            &["Armaments+", "Strike", "AscendersBane", "Defend", "Strike+"], &[], &[],
+            vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 1,
+        );
+        assert!(play_self(&mut plus, "Armaments+"));
+        assert_eq!(plus.phase, crate::engine::CombatPhase::PlayerTurn);
+        assert_eq!(plus.state.player.block, 5);
+        assert!(plus.state.hand.iter().any(|card| {
+            plus.card_registry.card_name(card.def_id) == "Defend+"
+        }));
+        assert_eq!(plus.state.hand.iter().filter(|card| {
+            plus.card_registry.card_name(card.def_id) == "Strike+"
+        }).count(), 2);
+        assert!(plus.state.hand.iter().any(|card| {
+            plus.card_registry.card_name(card.def_id) == "AscendersBane"
+                && !card.is_upgraded()
+        }));
+    }
     card_pair_test!(body_slam, "Body Slam", "Body Slam+", 1, 0, -1, -1, 0, 0, -1, -1, CardType::Attack, CardTarget::Enemy, false);
     card_pair_test!(clash, "Clash", "Clash+", 0, 14, -1, -1, 0, 18, -1, -1, CardType::Attack, CardTarget::Enemy, false);
     card_pair_test!(cleave, "Cleave", "Cleave+", 1, 8, -1, -1, 1, 11, -1, -1, CardType::Attack, CardTarget::AllEnemy, false);

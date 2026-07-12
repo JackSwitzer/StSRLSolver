@@ -1297,6 +1297,17 @@ fn execute_choose_cards(
         return;
     }
 
+    if ctx.card.id == "Armaments"
+        && source == Pile::Hand
+        && action == ChoiceAction::Upgrade
+        && options.len() == 1
+    {
+        if let ChoiceOption::HandCard(index) = options[0] {
+            engine.card_registry.upgrade_card(&mut engine.state.hand[index]);
+        }
+        return;
+    }
+
     // MeditateAction is mandatory. When the whole discard pile fits, Java
     // moves it without opening grid select.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/MeditateAction.java
@@ -1402,7 +1413,11 @@ fn matches_filter(
             };
             current_cost == 0 || card.is_free()
         }
-        CardFilter::Upgradeable => !card.is_upgraded(),
+        CardFilter::Upgradeable => {
+            let def = engine.card_registry.card_def_by_id(card.def_id);
+            !card.is_upgraded()
+                && engine.card_registry.get(&format!("{}+", def.id)).is_some()
+        }
     }
 }
 
