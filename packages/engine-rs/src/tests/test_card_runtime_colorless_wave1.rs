@@ -2,6 +2,7 @@
 
 // Java oracle sources:
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/BandageUp.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Bite.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/DramaticEntrance.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/GoodInstincts.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Magnetism.java
@@ -128,6 +129,38 @@ fn bandage_up_heals_four_or_six_for_free_then_exhausts() {
     }
 
     assert_eq!(exhaust_prefix_count(&engine, "Bandage Up"), 2);
+}
+
+#[test]
+fn bite_variants_heal_after_nonlethal_damage_but_not_after_final_lethal_damage() {
+    // Source: Bite.java queues 7 damage then HealAction(2), upgrading both by
+    // one. DamageAction.java clears queued post-combat actions after a final kill.
+    for (card_id, damage, healing) in [("Bite", 7, 2), ("Bite+", 8, 3)] {
+        let mut nonlethal = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            3,
+        );
+        force_player_turn(&mut nonlethal);
+        nonlethal.state.player.hp = 50;
+        nonlethal.state.hand = make_deck(&[card_id]);
+        assert!(play_on_enemy(&mut nonlethal, card_id, 0));
+        assert_eq!(nonlethal.state.enemies[0].entity.hp, 40 - damage);
+        assert_eq!(nonlethal.state.player.hp, 50 + healing);
+        assert_eq!(nonlethal.state.energy, 2);
+
+        let mut lethal = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", damage, damage)],
+            3,
+        );
+        force_player_turn(&mut lethal);
+        lethal.state.player.hp = 50;
+        lethal.state.hand = make_deck(&[card_id]);
+        assert!(play_on_enemy(&mut lethal, card_id, 0));
+        assert!(lethal.state.enemies[0].entity.is_dead());
+        assert_eq!(lethal.state.player.hp, 50);
+    }
 }
 
 #[test]
