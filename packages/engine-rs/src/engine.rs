@@ -2403,14 +2403,16 @@ impl CombatEngine {
             card_inst = updated;
         }
 
-        self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+        let mut after_card_event = crate::effects::runtime::GameEvent::from_trigger(
             crate::effects::trigger::Trigger::OnAfterCardPlayed,
             &crate::effects::trigger::TriggerContext {
                 card_type: Some(card.card_type),
                 is_first_turn: self.state.turn == 1,
                 target_idx,
             },
-        ));
+        );
+        after_card_event.card_inst = Some(card_inst);
+        self.emit_event(after_card_event);
         if self.state.combat_over || self.phase != CombatPhase::PlayerTurn {
             self.clear_runtime_play_contexts();
             return;

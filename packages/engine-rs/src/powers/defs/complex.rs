@@ -136,7 +136,18 @@ fn hook_thousand_cuts(
         return;
     }
 
-    let damage = player_power_amount(engine, owner, sid::THOUSAND_CUTS);
+    let mut damage = player_power_amount(engine, owner, sid::THOUSAND_CUTS);
+    if let Some(card_inst) = event.card_inst {
+        let card = engine.card_registry.card_def_by_id(card_inst.def_id);
+        if matches!(card.id, "A Thousand Cuts" | "A Thousand Cuts+") {
+            // AThousandCuts queues ApplyPowerAction. Java runs the existing
+            // power's onAfterCardPlayed before that queued stack resolves, so
+            // this copy cannot trigger its newly applied amount on itself.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/AThousandCuts.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ThousandCutsPower.java
+            damage -= card.base_magic;
+        }
+    }
     if damage <= 0 {
         return;
     }

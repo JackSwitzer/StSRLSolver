@@ -315,6 +315,50 @@ mod silent_card_java_parity_tests {
         "A Thousand Cuts", 2, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["thousand_cuts"],
         "A Thousand Cuts+", 2, -1, -1, 2, CardType::Power, CardTarget::SelfTarget, false, None, &["thousand_cuts"],
     );
+
+    #[test]
+    fn a_thousand_cuts_cards_install_stack_and_trigger_the_java_power() {
+        // AThousandCuts.java costs 2 and applies ThousandCutsPower for magic
+        // 1, upgraded to 2. ThousandCutsPower stacks additively and its
+        // onAfterCardPlayed THORNS matrix hits every enemy after each card.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/AThousandCuts.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ThousandCutsPower.java
+        let state = combat_state_with(
+            Vec::new(),
+            vec![
+                enemy_no_intent("JawWorm", 40, 40),
+                enemy_no_intent("Cultist", 35, 35),
+            ],
+            8,
+        );
+        let mut engine = engine_with_state(state);
+        engine.state.hand = make_deck(&[
+            "A Thousand Cuts",
+            "Defend",
+            "A Thousand Cuts+",
+            "Defend",
+        ]);
+        engine.state.draw_pile.clear();
+        engine.state.discard_pile.clear();
+
+        assert!(play_self(&mut engine, "A Thousand Cuts"));
+        assert_eq!(engine.state.player.status(sid::THOUSAND_CUTS), 1);
+        assert_eq!(engine.state.enemies[0].entity.hp, 40);
+        assert_eq!(engine.state.enemies[1].entity.hp, 35);
+
+        assert!(play_self(&mut engine, "Defend"));
+        assert_eq!(engine.state.enemies[0].entity.hp, 39);
+        assert_eq!(engine.state.enemies[1].entity.hp, 34);
+
+        assert!(play_self(&mut engine, "A Thousand Cuts+"));
+        assert_eq!(engine.state.player.status(sid::THOUSAND_CUTS), 3);
+        assert_eq!(engine.state.enemies[0].entity.hp, 38);
+        assert_eq!(engine.state.enemies[1].entity.hp, 33);
+
+        assert!(play_self(&mut engine, "Defend"));
+        assert_eq!(engine.state.enemies[0].entity.hp, 35);
+        assert_eq!(engine.state.enemies[1].entity.hp, 30);
+    }
     card_pair_test!(adrenaline,
         "Adrenaline", 0, -1, -1, 1, CardType::Skill, CardTarget::None, true, None, &["draw"],
         "Adrenaline+", 0, -1, -1, 2, CardType::Skill, CardTarget::None, true, None, &["draw"],
