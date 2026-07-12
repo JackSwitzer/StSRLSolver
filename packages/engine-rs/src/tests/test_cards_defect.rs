@@ -168,6 +168,33 @@ mod defect_card_java_parity_tests {
         for case in cases { assert_stats(case); }
     });
 
+    defect_test!(aggregate_variants_gain_truncated_energy_from_current_draw_pile, {
+        // Aggregate.java costs 1 and passes magic 4 to AggregateEnergyAction;
+        // the upgrade reduces that divisor to 3. The action samples the
+        // current draw pile and uses integer division with no minimum gain.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Aggregate.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/AggregateEnergyAction.java
+        for (card_id, divisor, draw_counts) in [
+            ("Aggregate", 4, [3_usize, 4, 7, 8]),
+            ("Aggregate+", 3, [2_usize, 3, 5, 6]),
+        ] {
+            for draw_count in draw_counts {
+                let mut engine = bare_engine(&[], vec![enemy("JawWorm", 40, 0)]);
+                engine.state.hand = make_deck(&[card_id]);
+                engine.state.draw_pile = make_deck_n("Strike", draw_count);
+                engine.state.discard_pile.clear();
+                engine.state.energy = 1;
+
+                assert!(play_self(&mut engine, card_id));
+                assert_eq!(
+                    engine.state.energy,
+                    draw_count as i32 / divisor,
+                    "{card_id} with {draw_count} cards in draw pile",
+                );
+            }
+        }
+    });
+
     defect_test!(registry_rare_power_and_orb_finishers, {
         let cases = [
             StatCase { id: "Fusion", cost: 2, damage: -1, block: -1, magic: 1, card_type: CardType::Skill, exhaust: false },
