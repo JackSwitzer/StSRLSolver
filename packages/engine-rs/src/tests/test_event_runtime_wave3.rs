@@ -2,6 +2,7 @@ use crate::decision::{DecisionAction, RewardItemKind, RewardScreenSource};
 use crate::events::{typed_events_for_act, typed_shrine_events, EventRuntimeStatus};
 use crate::run::{RunAction, RunEngine, RunPhase};
 use crate::status_ids::sid;
+use crate::tests::support::{ensure_in_hand, play_on_enemy};
 
 fn typed_event(act: i32, name: &str) -> crate::events::TypedEventDef {
     typed_events_for_act(act)
@@ -242,6 +243,45 @@ fn face_of_cleric_trade_reaches_next_victory_and_obeys_healing_rules() {
     resolve_real_combat_victory(&mut blocked);
     assert_eq!(blocked.run_state.max_hp, max_before + 1);
     assert_eq!(blocked.run_state.current_hp, 40);
+}
+
+#[test]
+fn gremlin_mask_trade_applies_one_artifact_aware_weak_in_next_combat() {
+    // GremlinMask.java::atBattleStart applies WeakPower(player, 1, false).
+    // FaceTrader.java filters owned faces, allowing the trade to be forced to
+    // GremlinMask by owning the other four candidates.
+    let mut engine = RunEngine::new(55, 0);
+    engine.run_state.relics.extend(
+        ["CultistMask", "FaceOfCleric", "NlothsMask", "SsserpentHead"]
+            .iter()
+            .map(|face| (*face).to_string()),
+    );
+    engine.debug_set_typed_event_state(shrine_event("FaceTrader"));
+    engine.step(&RunAction::EventChoice(0));
+    assert!(engine.step_with_result(&RunAction::EventChoice(1)).action_accepted);
+    assert!(engine
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == "GremlinMask"));
+
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    let combat = engine.debug_combat_engine_mut();
+    assert_eq!(combat.state.player.status(sid::WEAKENED), 1);
+    ensure_in_hand(combat, "Strike");
+    let hp_before = combat.state.enemies[0].entity.hp;
+    assert!(play_on_enemy(combat, "Strike", 0));
+    assert_eq!(combat.state.enemies[0].entity.hp, hp_before - 4);
+
+    let mut artifact = RunEngine::new(57, 0);
+    artifact.run_state.relics.extend([
+        "ClockworkSouvenir".to_string(),
+        "GremlinMask".to_string(),
+    ]);
+    artifact.debug_enter_specific_combat(&["JawWorm"]);
+    let combat = artifact.get_combat_engine().expect("artifact combat");
+    assert_eq!(combat.state.player.status(sid::WEAKENED), 0);
+    assert_eq!(combat.state.player.status(sid::ARTIFACT), 0);
 }
 
 #[test]

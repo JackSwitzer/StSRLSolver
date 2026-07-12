@@ -1555,6 +1555,11 @@ impl EffectRuntime {
                         .state
                         .get(hidden_status_slot(self.instances[instance_idx].def.id, status_id).unwrap());
                     self.write_status(engine, instance_idx, owner, status_id, current + amount);
+                } else if is_debuff(status_id) {
+                    // ApplyPowerAction routes player debuffs through immunity
+                    // and Artifact checks; direct status mutation bypasses both.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ApplyPowerAction.java
+                    crate::powers::apply_debuff(&mut engine.state.player, status_id, amount);
                 } else {
                     engine.state.player.add_status(status_id, amount);
                 }

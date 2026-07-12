@@ -38,6 +38,7 @@ pub mod blood_vial;
 pub mod bloody_idol;
 pub mod twisted_funnel;
 pub mod mutagenic_strength;
+pub mod gremlin_mask;
 pub mod philosophers_stone;
 pub mod chemical_x;
 pub mod frozen_eye;
@@ -274,6 +275,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &bloody_idol::DEF,
     &twisted_funnel::DEF,
     &mutagenic_strength::DEF,
+    &gremlin_mask::DEF,
     &philosophers_stone::DEF,
     &chemical_x::DEF,
     &frozen_eye::DEF,
