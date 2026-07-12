@@ -115,6 +115,33 @@ mod silent_wave2 {
     }
 
     #[test]
+    fn backflip_uses_source_block_upgrade_and_draw_count() {
+        // Source: Backflip.java queues GainBlockAction(this.block), followed by
+        // DrawCardAction(p, 2); upgradeBlock(3) changes 5 block to 8.
+        for (card_id, dexterity, expected_block) in
+            [("Backflip", 0, 5), ("Backflip+", 2, 10)]
+        {
+            let mut engine = engine_for(
+                &[card_id],
+                &["Strike", "Defend", "Neutralize"],
+                &[],
+                vec![enemy_no_intent("JawWorm", 40, 40)],
+                3,
+            );
+            engine.state.player.set_status(sid::DEXTERITY, dexterity);
+
+            assert!(play_self(&mut engine, card_id));
+
+            assert_eq!(engine.state.player.block, expected_block);
+            assert_eq!(engine.state.energy, 2);
+            assert_eq!(engine.state.hand.len(), 2);
+            assert_eq!(engine.state.draw_pile.len(), 1);
+            assert_eq!(hand_count(&engine, "Defend"), 1);
+            assert_eq!(hand_count(&engine, "Neutralize"), 1);
+        }
+    }
+
+    #[test]
     fn silent_wave2_dagger_throw_creates_real_discard_choice_and_enables_sneaky_strike_refund() {
         let mut engine = engine_for(
             &["Dagger Throw", "Sneaky Strike", "Strike"],

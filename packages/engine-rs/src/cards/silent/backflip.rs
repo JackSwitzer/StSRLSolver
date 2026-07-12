@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Common: Backflip ---- (cost 1, 5 block, draw 2; +3 block)
+        // Source: cards/green/Backflip.java costs 1, queues block before drawing
+        // exactly 2 cards, and upgrades only its base block from 5 to 8.
     insert(cards, CardDef {
                 id: "Backflip", name: "Backflip", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 5,
