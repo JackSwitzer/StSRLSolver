@@ -100,6 +100,39 @@ fn blizzard_typed_runtime_damages_all_enemies_when_frost_has_been_channeled() {
 }
 
 #[test]
+fn blizzard_plus_uses_historical_frost_count_and_normal_attack_modifiers() {
+    // Source: Blizzard.java counts orbsChanneledThisCombat, sets baseDamage to
+    // frostCount * magicNumber, then calls calculateCardDamage(null).
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![
+            enemy_no_intent("JawWorm", 50, 50),
+            enemy_no_intent("Cultist", 50, 50),
+        ],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.init_defect_orbs(3);
+    for _ in 0..3 {
+        engine.channel_orb(OrbType::Frost);
+    }
+    for _ in 0..3 {
+        engine.evoke_front_orb();
+    }
+    assert_eq!(engine.state.orb_slots.occupied_count(), 0);
+    assert_eq!(engine.state.player.status(sid::FROST_CHANNELED), 3);
+    engine.state.player.set_status(sid::STRENGTH, 2);
+    engine.state.enemies[0].entity.set_status(sid::VULNERABLE, 1);
+    engine.state.hand = make_deck(&["Blizzard+"]);
+
+    assert!(play_self(&mut engine, "Blizzard+"));
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 34);
+    assert_eq!(engine.state.enemies[1].entity.hp, 39);
+    assert_eq!(engine.state.energy, 2);
+}
+
+#[test]
 fn blizzard_typed_registry_surface_is_present() {
     let blizzard = global_registry().get("Blizzard").expect("Blizzard");
     assert_eq!(

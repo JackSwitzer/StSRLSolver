@@ -592,7 +592,10 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         // -- Deal flat damage (no strength/stance modifiers) --
         SimpleEffect::DealDamage(target, ref amount_src) => {
-            if matches!(amount_src, AmountSource::DrawPileSize)
+            if matches!(
+                amount_src,
+                AmountSource::DrawPileSize | AmountSource::StatusValueTimesMagic(_)
+            )
                 && matches!(
                     target,
                     Target::SelectedEnemy | Target::AllEnemies | Target::RandomEnemy
