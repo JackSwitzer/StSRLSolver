@@ -1757,8 +1757,11 @@ fn tiny_chest_forces_every_fourth_mystery_room_to_treasure_and_resets() {
     }
 
     engine.debug_enter_mystery_room();
-    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
-    assert!(engine.run_state.gold >= 50);
+    assert_eq!(engine.current_phase(), RunPhase::CardReward);
+    assert!(engine.current_reward_screen().is_some_and(|screen| {
+        screen.source == RewardScreenSource::Treasure
+            && screen.items.iter().any(|item| item.kind == RewardItemKind::Relic)
+    }));
     assert_eq!(
         engine.run_state.relic_flags.counters[crate::relic_flags::counter::TINY_CHEST],
         0

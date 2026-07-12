@@ -154,8 +154,10 @@ fn matryoshka_treasure_room_builds_ordered_chest_reward_screen() {
         .expect("treasure reward screen should exist");
     assert_eq!(screen.source, RewardScreenSource::Treasure);
     assert_eq!(screen.items.len(), 3);
-    assert_eq!(screen.items[0].kind, RewardItemKind::Gold);
-    assert_eq!(screen.items[1].kind, RewardItemKind::Relic);
+    // Matryoshka.onChestOpen queues its extra relic before AbstractChest.open
+    // appends the chest's optional gold and normal relic rewards.
+    assert_eq!(screen.items[0].kind, RewardItemKind::Relic);
+    assert_eq!(screen.items[1].kind, RewardItemKind::Gold);
     assert_eq!(screen.items[2].kind, RewardItemKind::Relic);
     assert!(screen.items[0].claimable);
     assert!(!screen.items[1].claimable);
@@ -171,7 +173,7 @@ fn matryoshka_treasure_room_builds_ordered_chest_reward_screen() {
 }
 
 #[test]
-fn matryoshka_chest_rewards_preserve_gold_then_relic_then_extra_relic_order() {
+fn matryoshka_chest_rewards_preserve_extra_then_gold_then_chest_relic_order() {
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.relics.push("Matryoshka".to_string());
     engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
@@ -184,33 +186,33 @@ fn matryoshka_chest_rewards_preserve_gold_then_relic_then_extra_relic_order() {
     let screen = engine
         .current_reward_screen()
         .expect("treasure reward screen should exist");
-    let gold_amount = screen.items[0]
+    let extra_relic = screen.items[0].label.clone();
+    let gold_amount = screen.items[1]
         .label
         .parse::<i32>()
         .expect("gold reward should be numeric");
-    let first_relic = screen.items[1].label.clone();
-    let second_relic = screen.items[2].label.clone();
+    let chest_relic = screen.items[2].label.clone();
     let gold_before = engine.run_state.gold;
 
-    let claim_gold = engine.step_with_result(&RunAction::SelectRewardItem(0));
+    let claim_extra = engine.step_with_result(&RunAction::SelectRewardItem(0));
+    assert!(claim_extra.action_accepted);
+    assert!(engine.run_state.relics.iter().any(|relic| relic == &extra_relic));
+    assert_eq!(
+        claim_extra.legal_decision_actions,
+        vec![DecisionAction::ClaimRewardItem { item_index: 1 }]
+    );
+
+    let claim_gold = engine.step_with_result(&RunAction::SelectRewardItem(1));
     assert!(claim_gold.action_accepted);
     assert_eq!(engine.run_state.gold, gold_before + gold_amount);
     assert_eq!(
         claim_gold.legal_decision_actions,
-        vec![DecisionAction::ClaimRewardItem { item_index: 1 }]
-    );
-
-    let claim_first_relic = engine.step_with_result(&RunAction::SelectRewardItem(1));
-    assert!(claim_first_relic.action_accepted);
-    assert!(engine.run_state.relics.iter().any(|relic| relic == &first_relic));
-    assert_eq!(
-        claim_first_relic.legal_decision_actions,
         vec![DecisionAction::ClaimRewardItem { item_index: 2 }]
     );
 
-    let claim_second_relic = engine.step_with_result(&RunAction::SelectRewardItem(2));
-    assert!(claim_second_relic.action_accepted);
-    assert!(engine.run_state.relics.iter().any(|relic| relic == &second_relic));
+    let claim_chest_relic = engine.step_with_result(&RunAction::SelectRewardItem(2));
+    assert!(claim_chest_relic.action_accepted);
+    assert!(engine.run_state.relics.iter().any(|relic| relic == &chest_relic));
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert!(engine.current_reward_screen().is_none());
 }
@@ -238,7 +240,7 @@ fn matryoshka_extra_chest_reward_uses_only_common_or_uncommon_tiers() {
         engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
         engine.run_state.relic_flags.init_relic_counter("Matryoshka");
         engine.debug_build_treasure_reward_screen();
-        let extra = &engine.current_reward_screen().expect("treasure").items[2].label;
+        let extra = &engine.current_reward_screen().expect("treasure").items[0].label;
         saw_common |= COMMON.contains(&extra.as_str());
         saw_uncommon |= UNCOMMON.contains(&extra.as_str());
         assert!(COMMON.contains(&extra.as_str()) || UNCOMMON.contains(&extra.as_str()));

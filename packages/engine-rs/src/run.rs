@@ -1451,22 +1451,13 @@ impl RunEngine {
                 self.enter_mystery_room();
             }
             RoomType::Treasure => {
-                if self
-                    .run_state
-                    .relic_flags
-                    .has(crate::relic_flags::flag::MATRYOSHKA)
-                    && self.run_state.relic_flags.counters
-                        [crate::relic_flags::counter::MATRYOSHKA_USES]
-                        > 0
-                {
-                    self.build_treasure_reward_screen();
-                    self.phase = RunPhase::CardReward;
-                } else {
-                    // Gain gold + go to map
-                    let gold = self.rng.gen_range(50..=80);
-                    self.adjust_run_gold(gold);
-                    self.phase = RunPhase::MapChoice;
-                }
+                // AbstractChest.open always creates a non-boss relic reward;
+                // optional gold is a separate ordered reward. Keep the reward
+                // screen available even without Matryoshka so chest callbacks
+                // such as NlothsMask can mutate the relic reward.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/rewards/chests/AbstractChest.java
+                self.build_treasure_reward_screen();
+                self.phase = RunPhase::CardReward;
             }
             RoomType::Boss => {
                 self.enter_combat(false, true);
@@ -2847,30 +2838,7 @@ impl RunEngine {
             self.run_state.relic_flags.counters[crate::relic_flags::counter::MATRYOSHKA_USES] -= 1;
         }
 
-        let mut items = vec![
-            RewardItem {
-                index: 0,
-                kind: RewardItemKind::Gold,
-                state: RewardItemState::Available,
-                label: gold.to_string(),
-                claimable: true,
-                active: false,
-                skip_allowed: false,
-                skip_label: None,
-                choices: Vec::new(),
-            },
-            RewardItem {
-                index: 1,
-                kind: RewardItemKind::Relic,
-                state: RewardItemState::Available,
-                label: self.roll_reward_relic_id(),
-                claimable: false,
-                active: false,
-                skip_allowed: false,
-                skip_label: None,
-                choices: Vec::new(),
-            },
-        ];
+        let mut items = Vec::new();
 
         if extra_relic {
             items.push(RewardItem {
@@ -2886,6 +2854,56 @@ impl RunEngine {
                 skip_label: None,
                 choices: Vec::new(),
             });
+        }
+
+        items.push(RewardItem {
+            index: items.len(),
+            kind: RewardItemKind::Gold,
+            state: RewardItemState::Available,
+            label: gold.to_string(),
+            claimable: items.is_empty(),
+            active: false,
+            skip_allowed: false,
+            skip_label: None,
+            choices: Vec::new(),
+        });
+        items.push(RewardItem {
+            index: items.len(),
+            kind: RewardItemKind::Relic,
+            state: RewardItemState::Available,
+            label: self.roll_reward_relic_id(),
+            claimable: false,
+            active: false,
+            skip_allowed: false,
+            skip_label: None,
+            choices: Vec::new(),
+        });
+
+        let has_nloths_mask = self
+            .run_state
+            .relics
+            .iter()
+            .any(|relic| relic == "NlothsMask");
+        if has_nloths_mask
+            && self.run_state.relic_flags.counters
+                [crate::relic_flags::counter::NLOTHS_MASK]
+                > 0
+        {
+            // NlothsMask.java::onChestOpenAfter runs after Matryoshka's
+            // onChestOpen reward and the chest's own relic reward are queued.
+            // AbstractRoom.removeOneRelicFromRewards removes the first relic.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/NlothsMask.java
+            self.run_state.relic_flags.counters[crate::relic_flags::counter::NLOTHS_MASK] = -2;
+            if let Some(index) = items
+                .iter()
+                .position(|item| item.kind == RewardItemKind::Relic)
+            {
+                items.remove(index);
+            }
+        }
+
+        for (index, item) in items.iter_mut().enumerate() {
+            item.index = index;
         }
 
         let mut screen = RewardScreen {
@@ -5274,21 +5292,8 @@ impl RunEngine {
             MysteryResult::Monster => self.enter_combat(false, false),
             MysteryResult::Shop => self.enter_shop(),
             MysteryResult::Treasure => {
-                if self
-                    .run_state
-                    .relic_flags
-                    .has(crate::relic_flags::flag::MATRYOSHKA)
-                    && self.run_state.relic_flags.counters
-                        [crate::relic_flags::counter::MATRYOSHKA_USES]
-                        > 0
-                {
-                    self.build_treasure_reward_screen();
-                    self.phase = RunPhase::CardReward;
-                } else {
-                    let gold = self.rng.gen_range(50..=80);
-                    self.adjust_run_gold(gold);
-                    self.phase = RunPhase::MapChoice;
-                }
+                self.build_treasure_reward_screen();
+                self.phase = RunPhase::CardReward;
             }
             MysteryResult::Event => self.enter_event(),
         }

@@ -59,7 +59,8 @@ pub mod counter {
     pub const ANCIENT_TEA_SET: usize = 7; // Armed by entering a rest room; consumed next combat
     pub const GIRYA: usize          = 8;  // Permanent campfire lifts, capped at 3
     pub const TINY_CHEST: usize     = 9;  // Mystery rooms since last forced chest
-    pub const NUM_COUNTERS: usize   = 10;
+    pub const NLOTHS_MASK: usize    = 10; // One non-boss chest relic removal
+    pub const NUM_COUNTERS: usize   = 11;
 }
 
 /// Relic flags for a run. Populated from Vec<String> relics on add/remove.
@@ -140,6 +141,7 @@ impl RelicFlags {
             "Omamori" => self.counters[counter::OMAMORI_USES] = 2,
             "Matryoshka" => self.counters[counter::MATRYOSHKA_USES] = 2,
             "Tiny Chest" | "TinyChest" => self.counters[counter::TINY_CHEST] = 0,
+            "NlothsMask" => self.counters[counter::NLOTHS_MASK] = 1,
             _ => {}
         }
     }

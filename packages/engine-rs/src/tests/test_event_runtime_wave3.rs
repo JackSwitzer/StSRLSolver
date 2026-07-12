@@ -379,6 +379,54 @@ fn ssserpent_head_trade_pays_on_every_mystery_entry_through_gain_gold() {
 }
 
 #[test]
+fn nloths_mask_trade_removes_one_nonboss_chest_relic_then_expires() {
+    // NlothsMask.java starts at one charge. onChestOpenAfter(false) removes
+    // the first relic reward and changes the counter to the used-up sentinel
+    // -2; the boss-chest callback receives true and must leave it untouched.
+    let mut engine = RunEngine::new(67, 0);
+    engine.run_state.relics.extend(
+        ["CultistMask", "FaceOfCleric", "GremlinMask", "SsserpentHead"]
+            .iter()
+            .map(|face| (*face).to_string()),
+    );
+    engine.debug_set_typed_event_state(shrine_event("FaceTrader"));
+    engine.step(&RunAction::EventChoice(0));
+    assert!(engine.step_with_result(&RunAction::EventChoice(1)).action_accepted);
+    assert!(engine
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == "NlothsMask"));
+    assert_eq!(
+        engine.run_state.relic_flags.counters[crate::relic_flags::counter::NLOTHS_MASK],
+        1
+    );
+
+    engine.debug_build_treasure_reward_screen();
+    let screen = engine.current_reward_screen().expect("non-boss chest rewards");
+    assert_eq!(
+        screen.items.iter().filter(|item| item.kind == RewardItemKind::Relic).count(),
+        0
+    );
+    assert_eq!(
+        engine.run_state.relic_flags.counters[crate::relic_flags::counter::NLOTHS_MASK],
+        -2
+    );
+
+    let mut boss = RunEngine::new(69, 0);
+    boss.run_state.relics.push("NlothsMask".to_string());
+    boss.run_state.relic_flags.init_relic_counter("NlothsMask");
+    boss.debug_build_boss_reward_screen();
+    assert!(boss.current_reward_screen().is_some_and(|screen| {
+        screen.items.iter().any(|item| item.kind == RewardItemKind::Relic)
+    }));
+    assert_eq!(
+        boss.run_state.relic_flags.counters[crate::relic_flags::counter::NLOTHS_MASK],
+        1
+    );
+}
+
+#[test]
 fn nest_branches_cover_direct_gold_and_specific_card_reward() {
     let nest = typed_event(2, "Nest");
     assert!(nest

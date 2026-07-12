@@ -63,16 +63,16 @@ mod run_java_parity_tests {
     }
 
     #[test]
-    fn treasure_room_grants_java_style_gold_band() {
+    fn treasure_room_opens_an_ordered_chest_reward_screen() {
         let mut engine = RunEngine::new(42, 0);
         resolve_opening_neow(&mut engine);
         set_first_reachable_room(&mut engine, RoomType::Treasure);
-        let gold_before = engine.run_state.gold;
         let actions = engine.get_legal_actions();
         engine.step(&actions[0]);
-        let gained = engine.run_state.gold - gold_before;
-        assert!((50..=80).contains(&gained), "treasure gain {gained} not in 50..=80");
-        assert_eq!(engine.phase, RunPhase::MapChoice);
+        assert_eq!(engine.phase, RunPhase::CardReward);
+        let screen = engine.current_reward_screen().expect("treasure rewards");
+        assert_eq!(screen.source, crate::decision::RewardScreenSource::Treasure);
+        assert!(screen.items.iter().any(|item| item.kind == crate::decision::RewardItemKind::Relic));
     }
 
     #[test]

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T02:55:06.955553+00:00",
+ "updated": "2026-07-12T03:00:40.929543+00:00",
  "status_counts": {
-  "unverified": 400,
-  "verified": 267
+  "unverified": 399,
+  "verified": 268
  },
  "rows": [
   {
@@ -5812,8 +5812,8 @@
    "class": "NlothsMask",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/NlothsMask.java",
    "methods_ref": "reference/extracted/methods/relic/NlothsMask.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
