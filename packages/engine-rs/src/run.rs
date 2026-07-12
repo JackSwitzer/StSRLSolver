@@ -1100,16 +1100,58 @@ impl RunEngine {
     }
 
     fn get_map_actions(&self) -> Vec<RunAction> {
+        self.available_map_destinations()
+            .iter()
+            .enumerate()
+            .map(|(i, _)| RunAction::ChoosePath(i))
+            .collect()
+    }
+
+    fn available_map_destinations(&self) -> Vec<(usize, usize, RoomType, bool)> {
         if self.run_state.map_y < 0 {
-            // First move: choose from starting nodes
-            let starts = self.map.get_start_nodes();
-            starts.iter().enumerate().map(|(i, _)| RunAction::ChoosePath(i)).collect()
-        } else {
-            let x = self.run_state.map_x as usize;
-            let y = self.run_state.map_y as usize;
-            let next = self.map.get_next_nodes(x, y);
-            next.iter().enumerate().map(|(i, _)| RunAction::ChoosePath(i)).collect()
+            return self
+                .map
+                .get_start_nodes()
+                .iter()
+                .map(|node| (node.x, node.y, node.room_type, false))
+                .collect();
         }
+
+        let x = self.run_state.map_x as usize;
+        let y = self.run_state.map_y as usize;
+        let normal = self.map.get_next_nodes(x, y);
+        let mut destinations = normal
+            .iter()
+            .map(|node| (node.x, node.y, node.room_type, false))
+            .collect::<Vec<_>>();
+        let can_fly = self
+            .run_state
+            .relics
+            .iter()
+            .any(|relic| relic == "WingedGreaves")
+            && self.run_state.relic_flags.counters
+                [crate::relic_flags::counter::WINGED_GREAVES]
+                > 0;
+        let Some(target_y) = normal.first().map(|node| node.y) else {
+            return destinations;
+        };
+        if can_fly {
+            // MapRoomNode.wingedIsConnectedTo accepts every visible node whose
+            // y matches an ordinary outgoing edge. Ordinary edges stay first;
+            // only the additional nodes consume Winged Greaves charges.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/map/MapRoomNode.java
+            for node in self.map.get_nodes_at_floor(target_y) {
+                if node.room_type == RoomType::None
+                    || destinations
+                        .iter()
+                        .any(|(nx, ny, _, _)| *nx == node.x && *ny == node.y)
+                {
+                    continue;
+                }
+                destinations.push((node.x, node.y, node.room_type, true));
+            }
+        }
+        destinations
     }
 
     fn get_neow_actions(&self) -> Vec<RunAction> {
@@ -1418,22 +1460,21 @@ impl RunEngine {
             _ => return 0.0,
         };
 
-        let (next_x, next_y, room_type) = if self.run_state.map_y < 0 {
-            // First move: pick starting node
-            let starts: Vec<_> = self.map.get_start_nodes().iter().map(|n| (n.x, n.y, n.room_type)).collect();
-            if path_idx >= starts.len() {
-                return 0.0;
-            }
-            starts[path_idx]
-        } else {
-            let x = self.run_state.map_x as usize;
-            let y = self.run_state.map_y as usize;
-            let next: Vec<_> = self.map.get_next_nodes(x, y).iter().map(|n| (n.x, n.y, n.room_type)).collect();
-            if path_idx >= next.len() {
-                return 0.0;
-            }
-            next[path_idx]
+        let destinations = self.available_map_destinations();
+        let Some(&(next_x, next_y, room_type, used_winged_greaves)) =
+            destinations.get(path_idx)
+        else {
+            return 0.0;
         };
+
+        if used_winged_greaves {
+            let counter = &mut self.run_state.relic_flags.counters
+                [crate::relic_flags::counter::WINGED_GREAVES];
+            *counter -= 1;
+            if *counter <= 0 {
+                *counter = -2;
+            }
+        }
 
         self.run_state.map_x = next_x as i32;
         self.run_state.map_y = next_y as i32;
@@ -4281,6 +4322,9 @@ impl RunEngine {
             // Matryoshka.java uses canonical ID "Matryoshka", UNCOMMON tier,
             // and canSpawn excludes non-endless runs after floor 40.
             "Matryoshka",
+            // WingBoots.java declares canonical ID WingedGreaves at RARE tier
+            // and canSpawn excludes non-endless runs after floor 40.
+            "WingedGreaves",
             // MawBank.java uses canonical ID "MawBank", COMMON tier, and
             // canSpawn excludes floors after 48 and the current shop room.
             "MawBank",
@@ -4371,6 +4415,7 @@ impl RunEngine {
             .filter(|relic| *relic != "Darkstone Periapt" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Dream Catcher" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Matryoshka" || self.run_state.floor <= 40)
+            .filter(|relic| *relic != "WingedGreaves" || self.run_state.floor <= 40)
             .filter(|relic| *relic != "MawBank" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "MealTicket" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Meat on the Bone" || self.run_state.floor <= 48)
@@ -4421,6 +4466,7 @@ impl RunEngine {
                     .filter(|relic| *relic != "Darkstone Periapt" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Dream Catcher" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Matryoshka" || self.run_state.floor <= 40)
+                    .filter(|relic| *relic != "WingedGreaves" || self.run_state.floor <= 40)
                     .filter(|relic| *relic != "MawBank" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "MealTicket" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Meat on the Bone" || self.run_state.floor <= 48)
@@ -6556,6 +6602,36 @@ impl RunEngine {
             event_card_color(card_id),
             Some(EventCardColor::Red | EventCardColor::Green | EventCardColor::Blue)
         )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_prepare_winged_path_source(&mut self) -> usize {
+        for y in (0..self.map.height.saturating_sub(1)).rev() {
+            for x in 0..self.map.width {
+                let normal = self.map.get_next_nodes(x, y);
+                if normal.is_empty() {
+                    continue;
+                }
+                let normal_coords = normal
+                    .iter()
+                    .map(|node| (node.x, node.y))
+                    .collect::<Vec<_>>();
+                let normal_len = normal.len();
+                let target_y = normal[0].y;
+                let has_winged_extra = self.map.get_nodes_at_floor(target_y).iter().any(|node| {
+                    node.room_type != RoomType::None
+                        && !normal_coords.contains(&(node.x, node.y))
+                });
+                if has_winged_extra {
+                    self.run_state.map_x = x as i32;
+                    self.run_state.map_y = y as i32;
+                    self.phase = RunPhase::MapChoice;
+                    self.refresh_decision_stack();
+                    return normal_len;
+                }
+            }
+        }
+        panic!("generated map has no source with an off-edge next-row node");
     }
 
     #[cfg(test)]

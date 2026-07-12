@@ -2519,6 +2519,55 @@ fn prismatic_shard_is_shop_only_adds_orb_slot_and_all_color_rewards() {
 }
 
 #[test]
+fn winged_greaves_offers_three_nonedge_map_jumps_then_expires() {
+    // WingBoots.java constructs WingedGreaves with counter 3 and canSpawn
+    // through floor 40. MapRoomNode permits every visible node on the next row;
+    // only a non-edge choice decrements the counter, with the third setting -2.
+    let offered_seed = 102;
+    let mut after_cutoff = RunEngine::new(offered_seed, 0);
+    after_cutoff.run_state.floor = 41;
+    after_cutoff.debug_build_combat_reward_screen(RoomType::Elite);
+    assert!(after_cutoff.current_reward_screen().is_some_and(|screen| {
+        screen.items.iter().all(|item| item.label != "WingedGreaves")
+    }));
+
+    let mut engine = RunEngine::new(offered_seed, 0);
+    engine.run_state.floor = 40;
+    engine.debug_build_combat_reward_screen(RoomType::Elite);
+    let relic_index = engine
+        .current_reward_screen()
+        .expect("elite rewards")
+        .items
+        .iter()
+        .position(|item| item.label == "WingedGreaves")
+        .expect("WingedGreaves reward");
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(relic_index))
+        .action_accepted);
+    assert_eq!(
+        engine.run_state.relic_flags.counters[crate::relic_flags::counter::WINGED_GREAVES],
+        3
+    );
+
+    for expected_counter in [2, 1, -2] {
+        let normal_count = engine.debug_prepare_winged_path_source();
+        let actions = engine.get_legal_actions();
+        assert!(actions.len() > normal_count);
+        assert!(engine
+            .step_with_result(&RunAction::ChoosePath(normal_count))
+            .action_accepted);
+        assert_eq!(
+            engine.run_state.relic_flags.counters
+                [crate::relic_flags::counter::WINGED_GREAVES],
+            expected_counter
+        );
+    }
+
+    let normal_count = engine.debug_prepare_winged_path_source();
+    assert_eq!(engine.get_legal_actions().len(), normal_count);
+}
+
+#[test]
 fn chemical_x_is_reachable_only_from_the_shop_relic_slot() {
     // ChemicalX.java declares canonical ID "Chemical X" and constructs
     // RelicTier.SHOP.
