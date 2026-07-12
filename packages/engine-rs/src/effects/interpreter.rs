@@ -602,7 +602,9 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
         SimpleEffect::DealDamage(target, ref amount_src) => {
             if matches!(
                 amount_src,
-                AmountSource::DrawPileSize | AmountSource::StatusValueTimesMagic(_)
+                AmountSource::DrawPileSize
+                    | AmountSource::StatusValueTimesMagic(_)
+                    | AmountSource::PlayerBlock
             )
                 && matches!(
                     target,
