@@ -4825,7 +4825,7 @@ impl RunEngine {
             "TheAbacus", "Brimstone", "Chemical X", "ClockworkSouvenir", "Frozen Eye", "HandDrill", "Lee's Waffle", "Medical Kit", "Melange",
             "Membership Card",
             "OrangePellets", "Runic Capacitor", "Sling", "Strange Spoon",
-            "TwistedFunnel",
+            "Toolbox", "TwistedFunnel",
         ];
         let registry = gameplay_registry();
         let candidates: Vec<&str> = SHOP_RELICS

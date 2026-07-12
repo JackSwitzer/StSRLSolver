@@ -2400,6 +2400,66 @@ fn clockwork_souvenir_is_reachable_only_from_the_shop_relic_slot() {
 }
 
 #[test]
+fn toolbox_is_shop_only_and_resolves_three_colorless_choices_before_opening_draw() {
+    // Toolbox.java constructs a SHOP-tier relic. atBattleStartPreDraw queues
+    // ChooseOneColorless, which rolls three distinct source-pool cards with
+    // cardRandom and adds the selected copy before the ordinary opening draw.
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "Toolbox")
+        }));
+    }
+
+    let offered_seed = (0..1024)
+        .find(|seed| {
+            let mut engine = RunEngine::new(*seed, 0);
+            engine.debug_enter_shop();
+            engine.get_shop().is_some_and(|shop| {
+                shop.relics.iter().any(|(relic, _)| relic == "Toolbox")
+            })
+        })
+        .expect("Toolbox should be reachable from the SHOP-tier slot");
+
+    let mut engine = RunEngine::new(offered_seed, 0);
+    engine.run_state.gold = 999;
+    engine.debug_enter_shop();
+    let idx = engine
+        .get_shop()
+        .expect("shop")
+        .relics
+        .iter()
+        .position(|(relic, _)| relic == "Toolbox")
+        .expect("Toolbox offer");
+    assert!(engine.step_with_result(&RunAction::ShopBuyRelic(idx)).action_accepted);
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+
+    let combat = engine.debug_combat_engine_mut();
+    assert_eq!(combat.phase, crate::engine::CombatPhase::AwaitingChoice);
+    assert_eq!(combat.state.hand.len(), 1); // Pure Water resolves before Toolbox
+    let choice = combat.choice.as_ref().expect("Toolbox choice");
+    assert_eq!(choice.options.len(), 3);
+    let offered = choice
+        .options
+        .iter()
+        .map(|option| match option {
+            crate::engine::ChoiceOption::GeneratedCard(card) => card.def_id,
+            _ => panic!("Toolbox must offer generated cards"),
+        })
+        .collect::<Vec<_>>();
+    assert_ne!(offered[0], offered[1]);
+    assert_ne!(offered[0], offered[2]);
+    assert_ne!(offered[1], offered[2]);
+    assert!(combat.rng_counters()["cardRandom"] >= 3);
+
+    combat.execute_action(&Action::Choose(0));
+    assert_eq!(combat.phase, crate::engine::CombatPhase::PlayerTurn);
+    assert_eq!(combat.state.hand.len(), 7); // Miracle + selected card + five-card draw
+    assert!(combat.state.hand.iter().any(|card| card.def_id == offered[0]));
+}
+
+#[test]
 fn chemical_x_is_reachable_only_from_the_shop_relic_slot() {
     // ChemicalX.java declares canonical ID "Chemical X" and constructs
     // RelicTier.SHOP.

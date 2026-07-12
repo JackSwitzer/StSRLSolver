@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T03:22:14.502348+00:00",
+ "updated": "2026-07-12T03:26:46.937681+00:00",
  "status_counts": {
-  "unverified": 393,
-  "verified": 274
+  "unverified": 392,
+  "verified": 275
  },
  "rows": [
   {
@@ -6492,8 +6492,8 @@
    "class": "Toolbox",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Toolbox.java",
    "methods_ref": "reference/extracted/methods/relic/Toolbox.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

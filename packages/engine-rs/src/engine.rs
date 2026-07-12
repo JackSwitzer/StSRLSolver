@@ -166,6 +166,7 @@ pub struct CombatEngine {
     /// queued copy reuses this value without spending energy a second time.
     pub(crate) runtime_last_x_energy_on_use: i32,
     pub(crate) runtime_x_energy_override: Option<i32>,
+    pub(crate) pending_combat_start_resume: bool,
     pub(crate) pending_end_turn_resume: bool,
     pub runtime_card_total_unblocked_damage: i32,
     pub runtime_card_enemy_killed: bool,
@@ -207,6 +208,7 @@ impl CombatEngine {
             runtime_replay_window: false,
             runtime_last_x_energy_on_use: 0,
             runtime_x_energy_override: None,
+            pending_combat_start_resume: false,
             pending_end_turn_resume: false,
             runtime_card_total_unblocked_damage: 0,
             runtime_card_enemy_killed: false,
@@ -318,9 +320,14 @@ impl CombatEngine {
 
     /// Start combat: apply relic effects, shuffle draw pile, draw initial hand.
     pub fn start_combat(&mut self) {
-        if self.phase != CombatPhase::NotStarted {
+        let resuming_after_choice = self.pending_combat_start_resume;
+        if self.phase != CombatPhase::NotStarted && !resuming_after_choice {
             return;
         }
+
+        if resuming_after_choice {
+            self.pending_combat_start_resume = false;
+        } else {
 
         self.rebuild_effect_runtime();
 
@@ -356,6 +363,11 @@ impl CombatEngine {
         self.emit_event(crate::effects::runtime::GameEvent::empty(
             crate::effects::trigger::Trigger::CombatStart,
         ));
+        if self.phase == CombatPhase::AwaitingChoice {
+            self.pending_combat_start_resume = true;
+            return;
+        }
+        }
 
         // Channel orbs from combat-start relics (need engine context)
         if self.state.player.status(sid::CHANNEL_DARK_START) > 0 {
@@ -526,6 +538,7 @@ impl CombatEngine {
             runtime_replay_window: self.runtime_replay_window,
             runtime_last_x_energy_on_use: self.runtime_last_x_energy_on_use,
             runtime_x_energy_override: self.runtime_x_energy_override,
+            pending_combat_start_resume: self.pending_combat_start_resume,
             pending_end_turn_resume: self.pending_end_turn_resume,
             runtime_card_total_unblocked_damage: self.runtime_card_total_unblocked_damage,
             runtime_card_enemy_killed: self.runtime_card_enemy_killed,
@@ -708,6 +721,10 @@ impl CombatEngine {
 
         if self.state.combat_over {
             self.clear_runtime_play_contexts();
+            return;
+        }
+        if self.pending_combat_start_resume {
+            self.start_combat();
             return;
         }
         if self.pending_end_turn_resume {
