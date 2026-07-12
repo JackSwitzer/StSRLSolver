@@ -1,7 +1,9 @@
 use crate::decision::{RewardItemKind, RewardScreenSource};
 use crate::events::{typed_events_for_act, typed_shrine_events, EventRuntimeStatus, TypedEventDef};
 use crate::run::{RunAction, RunEngine, RunPhase};
+use crate::actions::Action;
 use crate::cards::CardType;
+use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
 use crate::status_ids::sid;
 use crate::tests::support::{ensure_in_hand, play_on_enemy};
 
@@ -250,4 +252,66 @@ fn cursed_tome_necronomicon_obtains_curse_and_replays_normal_and_x_attacks_once(
         .action_accepted);
     assert!(!traded.run_state.relics.iter().any(|relic| relic == "Necronomicon"));
     assert!(!traded.run_state.deck.iter().any(|card| card == "Necronomicurse"));
+}
+
+#[test]
+fn cursed_tome_nilrys_codex_pauses_end_turn_for_three_card_draw_pile_choice() {
+    // CursedTome.randomBook excludes the two owned books and therefore offers
+    // Nilry's Codex. NilrysCodex.onPlayerEndTurn queues CodexAction, which
+    // consumes cardRandom rolls until it has three distinct source-pool cards;
+    // the selected copy is then inserted at a random draw-pile position.
+    let mut engine = RunEngine::new(105, 20);
+    engine.run_state.relics.extend([
+        "Necronomicon".to_string(),
+        "Enchiridion".to_string(),
+    ]);
+    engine.debug_set_typed_event_state(typed_event(2, "Cursed Tome"));
+    for _ in 0..5 {
+        assert!(engine.step_with_result(&RunAction::EventChoice(0)).action_accepted);
+    }
+    let screen = engine.current_reward_screen().expect("forced Codex reward");
+    assert_eq!(screen.items[0].label, "Nilry's Codex");
+    assert!(engine.step_with_result(&RunAction::SelectRewardItem(0)).action_accepted);
+
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    let combat = engine.debug_combat_engine_mut();
+    let total_cards_before = combat.state.hand.len()
+        + combat.state.draw_pile.len()
+        + combat.state.discard_pile.len()
+        + combat.state.exhaust_pile.len();
+    let card_random_before = combat.rng_counters()["cardRandom"];
+    combat.execute_action(&Action::EndTurn);
+    assert_eq!(combat.phase, CombatPhase::AwaitingChoice);
+    let choice = combat.choice.as_ref().expect("Codex choice");
+    assert_eq!(choice.reason, ChoiceReason::DiscoverCard);
+    assert_eq!(choice.options.len(), 3);
+    let offered = choice
+        .options
+        .iter()
+        .map(|option| match option {
+            ChoiceOption::GeneratedCard(card) => card.def_id,
+            _ => panic!("Codex must offer generated cards"),
+        })
+        .collect::<Vec<_>>();
+    assert_ne!(offered[0], offered[1]);
+    assert_ne!(offered[0], offered[2]);
+    assert_ne!(offered[1], offered[2]);
+
+    let selected = offered[0];
+    combat.execute_action(&Action::Choose(0));
+    assert_eq!(combat.phase, CombatPhase::PlayerTurn);
+    let total_cards_after = combat.state.hand.len()
+        + combat.state.draw_pile.len()
+        + combat.state.discard_pile.len()
+        + combat.state.exhaust_pile.len();
+    assert_eq!(total_cards_after, total_cards_before + 1);
+    assert!(combat
+        .state
+        .hand
+        .iter()
+        .chain(combat.state.draw_pile.iter())
+        .chain(combat.state.discard_pile.iter())
+        .chain(combat.state.exhaust_pile.iter())
+        .any(|card| card.def_id == selected));
+    assert!(combat.rng_counters()["cardRandom"] >= card_random_before + 4);
 }

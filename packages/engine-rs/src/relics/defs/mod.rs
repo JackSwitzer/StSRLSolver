@@ -208,6 +208,7 @@ pub mod ring_of_serpent;
 pub mod violet_lotus;
 pub mod red_skull;
 pub mod enchiridion;
+pub mod nilrys_codex;
 pub mod warped_tongs;
 pub mod gambling_chip;
 pub mod hovering_kite;
@@ -383,6 +384,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &violet_lotus::DEF,
     &red_skull::DEF,
     &enchiridion::DEF,
+    &nilrys_codex::DEF,
     &warped_tongs::DEF,
     &gambling_chip::DEF,
     &hovering_kite::DEF,

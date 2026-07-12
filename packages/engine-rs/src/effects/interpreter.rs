@@ -1863,7 +1863,7 @@ fn generate_random_card(
     Some(engine.temp_card(choice))
 }
 
-fn generate_unique_random_cards(
+pub(crate) fn generate_unique_random_cards(
     engine: &mut CombatEngine,
     pool: GeneratedCardPool,
     option_count: usize,
@@ -1944,6 +1944,28 @@ fn generated_card_pool(engine: &CombatEngine, pool: GeneratedCardPool) -> Vec<&'
                     })
                 )
             })
+            .map(|def| def.id)
+            .collect(),
+        GeneratedCardPool::WatcherAny => engine
+            .card_registry
+            .all_card_defs()
+            .iter()
+            .filter(|def| !def.id.ends_with('+'))
+            .filter(|def| {
+                matches!(
+                    generated_card_meta(def.id),
+                    Some(GeneratedCardMeta {
+                        rarity: GeneratedPoolRarity::Common
+                            | GeneratedPoolRarity::Uncommon
+                            | GeneratedPoolRarity::Rare,
+                        watcher: true,
+                        ..
+                    })
+                )
+            })
+            // returnTrulyRandomCardInCombat excludes HEALING-tagged cards.
+            // Lesson Learned is the Watcher's only normal-rarity healing card.
+            .filter(|def| def.id != "LessonLearned")
             .map(|def| def.id)
             .collect(),
         GeneratedCardPool::AnyColorAttackRarityWeighted => weighted_any_color_attack_ids(engine)

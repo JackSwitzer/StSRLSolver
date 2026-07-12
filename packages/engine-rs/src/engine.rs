@@ -126,6 +126,9 @@ pub struct ChoiceContext {
     pub returned_card_cost_override: Option<i8>,
     /// Whether cards returned from discard should be marked retained.
     pub retain_returned_cards: bool,
+    /// Codex-style generated choice: add the selection to a random draw-pile
+    /// position instead of the hand.
+    pub generated_to_draw: bool,
 }
 
 /// The Rust combat engine. Wraps CombatState + card registry + RNG.
@@ -163,6 +166,7 @@ pub struct CombatEngine {
     /// queued copy reuses this value without spending energy a second time.
     pub(crate) runtime_last_x_energy_on_use: i32,
     pub(crate) runtime_x_energy_override: Option<i32>,
+    pub(crate) pending_end_turn_resume: bool,
     pub runtime_card_total_unblocked_damage: i32,
     pub runtime_card_enemy_killed: bool,
 }
@@ -203,6 +207,7 @@ impl CombatEngine {
             runtime_replay_window: false,
             runtime_last_x_energy_on_use: 0,
             runtime_x_energy_override: None,
+            pending_end_turn_resume: false,
             runtime_card_total_unblocked_damage: 0,
             runtime_card_enemy_killed: false,
         }
@@ -521,6 +526,7 @@ impl CombatEngine {
             runtime_replay_window: self.runtime_replay_window,
             runtime_last_x_energy_on_use: self.runtime_last_x_energy_on_use,
             runtime_x_energy_override: self.runtime_x_energy_override,
+            pending_end_turn_resume: self.pending_end_turn_resume,
             runtime_card_total_unblocked_damage: self.runtime_card_total_unblocked_damage,
             runtime_card_enemy_killed: self.runtime_card_enemy_killed,
         }
@@ -576,6 +582,13 @@ impl CombatEngine {
         }
     }
 
+    pub(crate) fn begin_codex_choice(&mut self, options: Vec<ChoiceOption>) {
+        self.begin_discovery_choice(options, 1, 1, 1, GeneratedCostRule::Base);
+        if let Some(choice) = self.choice.as_mut() {
+            choice.generated_to_draw = true;
+        }
+    }
+
     pub fn begin_choice_with_aux(
         &mut self,
         reason: ChoiceReason,
@@ -618,6 +631,7 @@ impl CombatEngine {
             generated_selected_cost_rule: None,
             returned_card_cost_override: None,
             retain_returned_cards: false,
+            generated_to_draw: false,
         });
     }
 
@@ -694,6 +708,10 @@ impl CombatEngine {
 
         if self.state.combat_over {
             self.clear_runtime_play_contexts();
+            return;
+        }
+        if self.pending_end_turn_resume {
+            self.end_turn();
             return;
         }
         self.drive_choice_owned_runtime();
@@ -933,7 +951,19 @@ impl CombatEngine {
                         &mut card,
                         selected_cost_rule,
                     );
-                    if self.state.hand.len() < 10 {
+                    if ctx.generated_to_draw {
+                        if self.state.draw_pile.is_empty() {
+                            self.state.draw_pile.push(card);
+                        } else {
+                            // CardGroup.addToRandomSpot uses cardRandomRng and
+                            // inserts before one existing index.
+                            let index = self
+                                .card_random_rng
+                                .random((self.state.draw_pile.len() - 1) as i32)
+                                as usize;
+                            self.state.draw_pile.insert(index, card);
+                        }
+                    } else if self.state.hand.len() < 10 {
                         self.state.hand.push(card);
                     } else {
                         self.state.discard_pile.push(card);
@@ -1558,17 +1588,25 @@ impl CombatEngine {
         if self.phase != CombatPhase::PlayerTurn {
             return;
         }
-        self.rebuild_effect_runtime();
+        if self.pending_end_turn_resume {
+            self.pending_end_turn_resume = false;
+        } else {
+            self.rebuild_effect_runtime();
 
-        // Clear Entangled (only lasts one turn)
-        self.state.player.set_status(sid::ENTANGLED, 0);
+            // Clear Entangled (only lasts one turn)
+            self.state.player.set_status(sid::ENTANGLED, 0);
 
-        // ---- STS end-of-turn order: relics -> powers/buffs -> status cards -> discard ----
+            // ---- STS end-of-turn order: relics -> powers/buffs -> status cards -> discard ----
 
-        // Unified dispatch for end-of-turn relics + powers
-        self.emit_event(crate::effects::runtime::GameEvent::empty(
-            crate::effects::trigger::Trigger::TurnEnd,
-        ));
+            // Unified dispatch for end-of-turn relics + powers
+            self.emit_event(crate::effects::runtime::GameEvent::empty(
+                crate::effects::trigger::Trigger::TurnEnd,
+            ));
+            if self.phase == CombatPhase::AwaitingChoice {
+                self.pending_end_turn_resume = true;
+                return;
+            }
+        }
 
         if self.state.combat_over {
             return;

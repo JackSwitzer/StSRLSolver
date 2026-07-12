@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T03:14:53.855074+00:00",
+ "updated": "2026-07-12T03:19:01.975262+00:00",
  "status_counts": {
-  "unverified": 396,
-  "verified": 271
+  "unverified": 395,
+  "verified": 272
  },
  "rows": [
   {
@@ -5782,8 +5782,8 @@
    "class": "NilrysCodex",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/NilrysCodex.java",
    "methods_ref": "reference/extracted/methods/relic/NilrysCodex.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
