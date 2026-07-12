@@ -1987,6 +1987,16 @@ impl RunEngine {
         // FusionHammer.java, RunicDome.java, VelvetChoker.java, and
         // PhilosopherStone.java and Sozu.java each increment energyMaster once
         // in onEquip.
+        let slavers_collar_energy = i32::from(
+            self.run_state.relics.iter().any(|relic| relic == "SlaversCollar")
+                && expanded.iter().any(|enemy| matches!(enemy.as_str(),
+                    "GremlinNob" | "Lagavulin" | "Sentry" | "BookOfStabbing"
+                    | "GremlinLeader" | "TaskMaster" | "Nemesis" | "Reptomancer"
+                    | "GiantHead" | "Hexaghost" | "SlimeBoss" | "TheGuardian"
+                    | "BronzeAutomaton" | "TheCollector" | "TheChamp" | "AwakenedOne"
+                    | "TimeEater" | "Donu" | "Deca" | "TheHeart" | "CorruptHeart"
+                    | "SpireShield" | "SpireSpear")),
+        );
         let combat_energy = 3
             + i32::from(
                 self.run_state
@@ -2032,7 +2042,11 @@ impl RunEngine {
                 self.run_state
                     .relic_flags
                     .has(crate::relic_flags::flag::SOZU),
-            );
+            )
+            // SlaversCollar.beforeEnergyPrep increments only for this combat;
+            // onVictory decrements it again, so RunState does not persist it.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/SlaversCollar.java
+            + slavers_collar_energy;
         // DuVuDoll.java::onEquip/onMasterDeckChange counts every card whose
         // type is CURSE; atBattleStart grants that counter as Strength.
         let du_vu_curses = deck_instances
@@ -4715,6 +4729,9 @@ impl RunEngine {
             // PandorasBox.java constructs canonical ID "Pandora's Box" at
             // BOSS tier and replaces starter-tagged Strikes and Defends.
             "Pandora's Box",
+            // SlaversCollar.java constructs canonical ID SlaversCollar at
+            // BOSS tier and changes energyMaster only in elite/boss combats.
+            "SlaversCollar",
         ];
 
         let registry = gameplay_registry();

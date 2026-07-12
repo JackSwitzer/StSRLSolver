@@ -235,18 +235,19 @@ fn girya_applies_strength_from_lift_counter_on_combat_start() {
 }
 
 #[test]
-fn slavers_collar_grants_one_extra_energy_on_boss_turn_start() {
-    // Java oracle: decompiled/java-src/com/megacrit/cardcrawl/relics/SlaversCollar.java
-    let mut state = combat_state_with(
-        make_deck(&["Strike"]),
-        vec![enemy_no_intent("Hexaghost", 30, 30)],
-        3,
-    );
-    state.relics.push("SlaversCollar".to_string());
-
-    let engine = engine_with_state(state);
-
-    assert_eq!(engine.state.energy, 4);
+fn slavers_collar_changes_master_energy_only_for_elite_and_boss_combats() {
+    // SlaversCollar.beforeEnergyPrep increments energyMaster for eliteTrigger
+    // or a BOSS enemy, and onVictory removes that temporary increment.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/SlaversCollar.java
+    for (enemy, expected) in [("JawWorm", 3), ("GremlinNob", 4), ("Hexaghost", 4)] {
+        let mut run = crate::run::RunEngine::new(42, 0);
+        run.run_state.relics.push("SlaversCollar".to_string());
+        run.run_state.relic_flags.rebuild(&run.run_state.relics);
+        run.debug_enter_specific_combat(&[enemy]);
+        let combat = run.get_combat_engine().expect("combat");
+        assert_eq!(combat.state.max_energy, expected, "{enemy}");
+        assert_eq!(combat.state.energy, expected, "{enemy}");
+    }
 }
 
 #[test]
