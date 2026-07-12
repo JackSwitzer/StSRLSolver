@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T15:22:21.905521+00:00",
+ "updated": "2026-07-12T15:24:12.819862+00:00",
  "status_counts": {
-  "verified": 291,
-  "unverified": 376
+  "verified": 292,
+  "unverified": 375
  },
  "rows": [
   {
@@ -22,8 +22,8 @@
    "class": "Accuracy",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Accuracy.java",
    "methods_ref": "reference/extracted/methods/card/Accuracy.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

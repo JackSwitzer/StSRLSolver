@@ -179,6 +179,34 @@ mod silent_card_java_parity_tests {
         "Accuracy", 1, -1, -1, 4, CardType::Power, CardTarget::SelfTarget, false, None, &["accuracy"],
         "Accuracy+", 1, -1, -1, 6, CardType::Power, CardTarget::SelfTarget, false, None, &["accuracy"],
     );
+
+    #[test]
+    fn accuracy_cards_stack_and_modify_both_shiv_variants_on_play() {
+        // Accuracy.java applies 4 Accuracy for one energy and upgrades magic
+        // by 2. AccuracyPower stacks additively; base Shiv damage is 4 and
+        // upgraded Shiv damage is 6 before the shared Accuracy amount.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Accuracy.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/AccuracyPower.java
+        let state = combat_state_with(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 100, 100)],
+            5,
+        );
+        let mut engine = engine_with_state(state);
+        engine.state.hand = make_deck(&["Accuracy", "Shiv", "Accuracy+", "Shiv+"]);
+        engine.state.draw_pile.clear();
+        engine.state.discard_pile.clear();
+
+        assert!(play_self(&mut engine, "Accuracy"));
+        assert_eq!(engine.state.player.status(sid::ACCURACY), 4);
+        assert!(play_on_enemy(&mut engine, "Shiv", 0));
+        assert_eq!(engine.state.enemies[0].entity.hp, 92);
+
+        assert!(play_self(&mut engine, "Accuracy+"));
+        assert_eq!(engine.state.player.status(sid::ACCURACY), 10);
+        assert!(play_on_enemy(&mut engine, "Shiv+", 0));
+        assert_eq!(engine.state.enemies[0].entity.hp, 76);
+    }
     card_pair_test!(all_out_attack,
         "All-Out Attack", 1, 10, -1, -1, CardType::Attack, CardTarget::AllEnemy, false, None, &["discard_random"],
         "All-Out Attack+", 1, 14, -1, -1, CardType::Attack, CardTarget::AllEnemy, false, None, &["discard_random"],
