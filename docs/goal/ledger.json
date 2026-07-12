@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T15:59:10.113868+00:00",
+ "updated": "2026-07-12T16:00:56.153877+00:00",
  "status_counts": {
-  "verified": 303,
-  "unverified": 364
+  "verified": 304,
+  "unverified": 363
  },
  "rows": [
   {
@@ -162,8 +162,8 @@
    "class": "AutoShields",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/AutoShields.java",
    "methods_ref": "reference/extracted/methods/card/AutoShields.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

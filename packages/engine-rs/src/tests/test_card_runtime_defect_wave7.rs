@@ -85,16 +85,21 @@ fn defect_wave7_registry_exports_match_typed_runtime_progress() {
 
 #[test]
 fn defect_wave7_auto_shields_boot_sequence_and_leap_follow_engine_path() {
+    // Source: AutoShields.java checks currentBlock == 0 before queuing its
+    // GainBlockAction, and upgrades its 11 base block by 4 without changing cost.
     let mut auto_shields_open = one_enemy_engine(40);
-    auto_shields_open.state.hand = make_deck(&["Auto Shields+"]);
-    assert!(play_self(&mut auto_shields_open, "Auto Shields+"));
-    assert_eq!(auto_shields_open.state.player.block, 15);
+    auto_shields_open.state.player.set_status(sid::DEXTERITY, 2);
+    auto_shields_open.state.hand = make_deck(&["Auto Shields"]);
+    assert!(play_self(&mut auto_shields_open, "Auto Shields"));
+    assert_eq!(auto_shields_open.state.player.block, 13);
+    assert_eq!(auto_shields_open.state.energy, 2);
 
     let mut auto_shields_blocked = one_enemy_engine(40);
     auto_shields_blocked.state.player.block = 3;
     auto_shields_blocked.state.hand = make_deck(&["Auto Shields+"]);
     assert!(play_self(&mut auto_shields_blocked, "Auto Shields+"));
     assert_eq!(auto_shields_blocked.state.player.block, 3);
+    assert_eq!(auto_shields_blocked.state.energy, 2);
 
     let mut boot_sequence = one_enemy_engine(40);
     boot_sequence.state.hand = make_deck(&["BootSequence+"]);
