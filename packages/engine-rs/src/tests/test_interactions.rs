@@ -150,6 +150,35 @@ mod interaction_tests {
             "Block should be retained with Barricade active");
     }
 
+    #[test]
+    fn barricade_card_installs_once_and_retains_block_across_turns() {
+        // Source: Barricade.java applies BarricadePower only if no power with
+        // ID "Barricade" exists; its upgrade changes only the cost from 3 to 2.
+        let mut engine = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 50, 50)],
+            10,
+        );
+        force_player_turn(&mut engine);
+        engine.state.hand = make_deck(&["Barricade", "Barricade+", "Defend"]);
+
+        assert!(play_self(&mut engine, "Barricade"));
+        assert_eq!(engine.state.player.status(sid::BARRICADE), 1);
+        assert_eq!(engine.state.energy, 7);
+
+        assert!(play_self(&mut engine, "Barricade+"));
+        assert_eq!(engine.state.player.status(sid::BARRICADE), 1);
+        assert_eq!(engine.state.energy, 5);
+
+        assert!(play_self(&mut engine, "Defend"));
+        assert_eq!(engine.state.player.block, 5);
+        end_turn(&mut engine);
+
+        assert_eq!(engine.state.player.block, 5);
+        assert_eq!(discard_prefix_count(&engine, "Barricade"), 0);
+        assert_eq!(exhaust_prefix_count(&engine, "Barricade"), 0);
+    }
+
     // =========================================================================
     // 6b. Without Barricade, block decays
     // =========================================================================
