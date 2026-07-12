@@ -1185,9 +1185,15 @@ impl EffectRuntime {
             SimpleEffect::ModifyMaxHp(amount_src) => {
                 let amount = self.resolve_amount(engine, instance_idx, owner, amount_src);
                 engine.state.player.max_hp = (engine.state.player.max_hp + amount).max(1);
-                engine.state.player.hp = (engine.state.player.hp + amount)
-                    .max(0)
-                    .min(engine.state.player.max_hp);
+                if amount > 0 {
+                    // AbstractCreature.java::increaseMaxHp routes the matching
+                    // current-HP gain through heal(), preserving Mark of the
+                    // Bloom and Magic Flower hooks for relic-owned effects.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/core/AbstractCreature.java
+                    engine.state.heal_player(amount);
+                } else {
+                    engine.state.player.hp = engine.state.player.hp.min(engine.state.player.max_hp);
+                }
             }
             SimpleEffect::ModifyMaxEnergy(amount_src) => {
                 let amount = self.resolve_amount(engine, instance_idx, owner, amount_src);

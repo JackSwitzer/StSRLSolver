@@ -4927,6 +4927,12 @@ impl RunEngine {
             let max_hp_loss = ((self.run_state.max_hp * max_hp_percent) / 100).max(1);
             event.options[1].text = format!("Take {damage} damage");
             event.options[2].text = format!("Lose {max_hp_loss} max HP");
+        } else if event.name == "FaceTrader" && event.options.len() == 3 {
+            // FaceTrader.java snapshots maxHealth/10 (minimum one) and the
+            // A15-dependent gold reward when constructing the event.
+            let damage = (self.run_state.max_hp / 10).max(1);
+            let gold = if self.run_state.ascension >= 15 { 50 } else { 75 };
+            event.options[0].text = format!("Touch (take {damage} damage, gain {gold} gold)");
         }
     }
 
@@ -5747,6 +5753,42 @@ impl RunEngine {
                     let payout = if *bet_on_owner { 250 } else { 100 };
                     self.adjust_run_gold(payout);
                 }
+                EventProgramFlow::Continue
+            }
+            EventProgramOp::ResolveFaceTraderTouch => {
+                // FaceTrader.java gains gold before applying maxHealth/10
+                // NORMAL damage. Outside combat this resolves to the same raw
+                // HP loss after Ectoplasm/Bloody Idol gold hooks.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/events/shrines/FaceTrader.java
+                let gold = if self.run_state.ascension >= 15 { 50 } else { 75 };
+                let damage = (self.run_state.max_hp / 10).max(1);
+                self.adjust_run_gold(gold);
+                self.run_state.current_hp = (self.run_state.current_hp - damage).max(0);
+                if self.run_state.current_hp <= 0 {
+                    EventProgramFlow::Died
+                } else {
+                    EventProgramFlow::Continue
+                }
+            }
+            EventProgramOp::ObtainRandomFace => {
+                const FACE_IDS: &[&str] = &[
+                    "CultistMask",
+                    "FaceOfCleric",
+                    "GremlinMask",
+                    "NlothsMask",
+                    "SsserpentHead",
+                ];
+                let candidates = FACE_IDS
+                    .iter()
+                    .copied()
+                    .filter(|face| !self.run_state.relics.iter().any(|owned| owned == face))
+                    .collect::<Vec<_>>();
+                let face = if candidates.is_empty() {
+                    "Circlet"
+                } else {
+                    candidates[self.rng.gen_range(0..candidates.len())]
+                };
+                self.add_relic_reward(face);
                 EventProgramFlow::Continue
             }
             EventProgramOp::RemoveRelic { label } => {

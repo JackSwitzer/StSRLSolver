@@ -129,6 +129,8 @@ pub enum EventProgramOp {
     DamageAndGold { damage: i32, gold: i32 },
     LosePercentHp { percent: i32 },
     ResolveJoustBet { bet_on_owner: bool },
+    ResolveFaceTraderTouch,
+    ObtainRandomFace,
     RemoveRelic { label: String },
     ObtainRelic { label: String },
     DeckMutation(EventDeckMutation),
@@ -247,6 +249,14 @@ impl EventProgramOp {
 
     pub fn joust_bet(bet_on_owner: bool) -> Self {
         Self::ResolveJoustBet { bet_on_owner }
+    }
+
+    pub fn face_trader_touch() -> Self {
+        Self::ResolveFaceTraderTouch
+    }
+
+    pub fn obtain_random_face() -> Self {
+        Self::ObtainRandomFace
     }
 
     pub fn remove_relic(label: impl Into<String>) -> Self {

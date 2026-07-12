@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T02:40:52.852612+00:00",
+ "updated": "2026-07-12T02:45:56.718762+00:00",
  "status_counts": {
-  "unverified": 404,
-  "verified": 263
+  "unverified": 403,
+  "verified": 264
  },
  "rows": [
   {
@@ -5332,8 +5332,8 @@
    "class": "FaceOfCleric",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/FaceOfCleric.java",
    "methods_ref": "reference/extracted/methods/relic/FaceOfCleric.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

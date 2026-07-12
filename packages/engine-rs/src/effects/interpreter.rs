@@ -754,9 +754,15 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
         SimpleEffect::ModifyMaxHp(ref amount_src) => {
             let amount = resolve_card_amount(engine, ctx, amount_src);
             engine.state.player.max_hp = (engine.state.player.max_hp + amount).max(1);
-            engine.state.player.hp = (engine.state.player.hp + amount)
-                .max(0)
-                .min(engine.state.player.max_hp);
+            if amount > 0 {
+                // AbstractCreature.java::increaseMaxHp raises maxHealth first,
+                // then routes the same amount through heal(), so Mark of the
+                // Bloom and Magic Flower still modify the current-HP increase.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/core/AbstractCreature.java
+                engine.state.heal_player(amount);
+            } else {
+                engine.state.player.hp = engine.state.player.hp.min(engine.state.player.max_hp);
+            }
         }
 
         // -- Modify max energy --

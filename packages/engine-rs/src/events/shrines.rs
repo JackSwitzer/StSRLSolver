@@ -14,6 +14,25 @@ fn event(name: &str, options: Vec<TypedEventOption>) -> TypedEventDef {
     }
 }
 
+fn face_trader_main_event() -> TypedEventDef {
+    event(
+        "FaceTrader",
+        vec![
+            supported(
+                "Touch",
+                vec![EventProgramOp::face_trader_touch()],
+                EventEffect::DamageAndGold(0, 0),
+            ),
+            supported(
+                "Trade for a face",
+                vec![EventProgramOp::obtain_random_face()],
+                EventEffect::GainRelic,
+            ),
+            supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+        ],
+    )
+}
+
 fn note_for_yourself_choose_state() -> TypedEventDef {
     event(
         "NoteForYourself",
@@ -116,18 +135,16 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
         ),
         event(
             "FaceTrader",
-            vec![
-                supported(
-                    "Touch (take dmg, gain gold, swap face relic)",
-                    vec![
-                        EventProgramOp::hp(-5),
-                        EventProgramOp::gold(100),
-                        EventProgramOp::gain_relic("Face Trader reward"),
-                    ],
-                    EventEffect::GainRelic,
-                ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
-            ],
+            vec![supported(
+                "Approach the Face Trader",
+                vec![
+                    // FaceTrader.java first reveals a second screen containing
+                    // touch, trade, and leave; the intro choice has no reward.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/events/shrines/FaceTrader.java
+                    EventProgramOp::continue_event(face_trader_main_event()),
+                ],
+                EventEffect::Nothing,
+            )],
         ),
         event(
             "Fountain of Cleansing",

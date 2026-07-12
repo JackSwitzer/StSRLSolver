@@ -1,5 +1,5 @@
 use crate::decision::{DecisionAction, RewardItemKind, RewardScreenSource};
-use crate::events::{typed_events_for_act, EventRuntimeStatus};
+use crate::events::{typed_events_for_act, typed_shrine_events, EventRuntimeStatus};
 use crate::run::{RunAction, RunEngine, RunPhase};
 use crate::status_ids::sid;
 
@@ -8,6 +8,22 @@ fn typed_event(act: i32, name: &str) -> crate::events::TypedEventDef {
         .into_iter()
         .find(|event| event.name == name)
         .unwrap_or_else(|| panic!("missing typed event {name} in act {act}"))
+}
+
+fn shrine_event(name: &str) -> crate::events::TypedEventDef {
+    typed_shrine_events()
+        .into_iter()
+        .find(|event| event.name == name)
+        .unwrap_or_else(|| panic!("missing typed shrine event {name}"))
+}
+
+fn resolve_real_combat_victory(engine: &mut RunEngine) {
+    let combat = engine.debug_combat_engine_mut();
+    combat.state.enemies[0].entity.hp = 0;
+    combat.finalize_enemy_death(0);
+    combat.check_combat_end();
+    assert!(combat.state.player_won);
+    engine.debug_resolve_current_combat_outcome();
 }
 
 #[test]
@@ -141,6 +157,91 @@ fn drug_dealer_mutagenic_strength_uses_canonical_id_and_next_combat_effect() {
         .relics
         .iter()
         .any(|relic| relic == "Circlet"));
+}
+
+#[test]
+fn face_trader_stages_touch_values_and_never_grants_a_face_on_touch() {
+    // FaceTrader.java has a one-choice intro, then touch/trade/leave. Touch
+    // deals maxHealth / 10 damage (minimum one) and grants 75 gold, or 50 at A15.
+    let event = shrine_event("FaceTrader");
+    assert_eq!(event.options.len(), 1);
+
+    let mut a0 = RunEngine::new(47, 0);
+    let gold_before = a0.run_state.gold;
+    let relics_before = a0.run_state.relics.clone();
+    a0.debug_set_typed_event_state(event.clone());
+    assert!(a0.step_with_result(&RunAction::EventChoice(0)).action_accepted);
+    assert_eq!(a0.current_phase(), RunPhase::Event);
+    let main = a0.debug_current_event().expect("Face Trader main screen");
+    assert_eq!(main.options.len(), 3);
+    assert_eq!(main.options[0].text, "Touch (take 7 damage, gain 75 gold)");
+    assert!(a0.step_with_result(&RunAction::EventChoice(0)).action_accepted);
+    assert_eq!(a0.current_phase(), RunPhase::MapChoice);
+    assert_eq!(a0.run_state.current_hp, 65);
+    assert_eq!(a0.run_state.gold, gold_before + 75);
+    assert_eq!(a0.run_state.relics, relics_before);
+
+    let mut a15 = RunEngine::new(49, 15);
+    a15.run_state.max_hp = 100;
+    a15.run_state.current_hp = 100;
+    let gold_before = a15.run_state.gold;
+    a15.debug_set_typed_event_state(event);
+    a15.step(&RunAction::EventChoice(0));
+    a15.step(&RunAction::EventChoice(0));
+    assert_eq!(a15.run_state.current_hp, 90);
+    assert_eq!(a15.run_state.gold, gold_before + 50);
+}
+
+#[test]
+fn face_of_cleric_trade_reaches_next_victory_and_obeys_healing_rules() {
+    // FaceTrader.java filters owned faces before its miscRng-backed choice.
+    // FaceOfCleric.java::onVictory calls increaseMaxHp(1, true): max HP rises
+    // every victory and the accompanying one-HP heal can be blocked by Bloom.
+    let event = shrine_event("FaceTrader");
+    let other_faces = ["CultistMask", "GremlinMask", "NlothsMask", "SsserpentHead"];
+    let mut engine = RunEngine::new(51, 0);
+    engine
+        .run_state
+        .relics
+        .extend(other_faces.iter().map(|face| (*face).to_string()));
+    engine.run_state.current_hp = 40;
+    engine.debug_set_typed_event_state(event.clone());
+    engine.step(&RunAction::EventChoice(0));
+    assert!(engine.step_with_result(&RunAction::EventChoice(1)).action_accepted);
+    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+    assert!(engine
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == "FaceOfCleric"));
+
+    let max_before = engine.run_state.max_hp;
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    resolve_real_combat_victory(&mut engine);
+    assert_eq!(engine.run_state.max_hp, max_before + 1);
+    assert_eq!(engine.run_state.current_hp, 41);
+
+    let mut blocked = RunEngine::new(53, 0);
+    blocked.run_state.relics.extend([
+        "FaceOfCleric".to_string(),
+        "Mark of the Bloom".to_string(),
+    ]);
+    blocked.run_state.relic_flags.rebuild(&blocked.run_state.relics);
+    blocked.run_state.current_hp = 40;
+    let max_before = blocked.run_state.max_hp;
+    blocked.debug_enter_specific_combat(&["JawWorm"]);
+    assert_eq!(
+        blocked
+            .get_combat_engine()
+            .expect("blocked combat")
+            .state
+            .player
+            .status(sid::HAS_MARK_OF_BLOOM),
+        1
+    );
+    resolve_real_combat_victory(&mut blocked);
+    assert_eq!(blocked.run_state.max_hp, max_before + 1);
+    assert_eq!(blocked.run_state.current_hp, 40);
 }
 
 #[test]
