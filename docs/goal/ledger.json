@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T02:32:20.702407+00:00",
+ "updated": "2026-07-12T02:40:52.852612+00:00",
  "status_counts": {
-  "unverified": 405,
-  "verified": 262
+  "unverified": 404,
+  "verified": 263
  },
  "rows": [
   {
@@ -5422,8 +5422,8 @@
    "class": "GoldenIdol",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/GoldenIdol.java",
    "methods_ref": "reference/extracted/methods/relic/GoldenIdol.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

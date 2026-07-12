@@ -69,9 +69,21 @@ mod event_java_parity_tests {
         assert!(matches!(
             golden_idol.options[0].program.ops.as_slice(),
             [
-                EventProgramOp::LosePercentHp { percent: 25 },
-                EventProgramOp::Reward(_)
-            ]
+                EventProgramOp::ObtainRelic { label },
+                EventProgramOp::ContinueEvent { .. }
+            ] if label == "Golden Idol"
+        ));
+        let consequence = match &golden_idol.options[0].program.ops[1] {
+            EventProgramOp::ContinueEvent { event } => event,
+            _ => unreachable!("checked above"),
+        };
+        assert!(matches!(
+            consequence.options[2].program.ops.as_slice(),
+            [EventProgramOp::AdjustMaxHpPercentByAscension {
+                base_percent: -8,
+                asc15_percent: -10,
+                minimum_loss: 1,
+            }]
         ));
 
         let cleric = typed_event(1, "The Cleric");

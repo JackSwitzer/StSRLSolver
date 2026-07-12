@@ -121,6 +121,11 @@ pub enum EventProgramOp {
     AdjustGold { amount: i32 },
     AdjustMaxHp { amount: i32 },
     AdjustMaxHpPercent { percent: i32 },
+    AdjustMaxHpPercentByAscension {
+        base_percent: i32,
+        asc15_percent: i32,
+        minimum_loss: i32,
+    },
     DamageAndGold { damage: i32, gold: i32 },
     LosePercentHp { percent: i32 },
     ResolveJoustBet { bet_on_owner: bool },
@@ -218,6 +223,18 @@ impl EventProgramOp {
 
     pub fn max_hp_percent(percent: i32) -> Self {
         Self::AdjustMaxHpPercent { percent }
+    }
+
+    pub fn max_hp_percent_by_ascension(
+        base_percent: i32,
+        asc15_percent: i32,
+        minimum_loss: i32,
+    ) -> Self {
+        Self::AdjustMaxHpPercentByAscension {
+            base_percent,
+            asc15_percent,
+            minimum_loss,
+        }
     }
 
     pub fn damage_and_gold(damage: i32, gold: i32) -> Self {
@@ -414,8 +431,8 @@ impl EventEffect {
             Self::Nothing => vec![EventProgramOp::Nothing],
             Self::UpgradeCard => vec![EventProgramOp::upgrade_card(1)],
             Self::GoldenIdolTake => vec![
-                EventProgramOp::LosePercentHp { percent: 25 },
-                EventProgramOp::AdjustGold { amount: 300 },
+                EventProgramOp::obtain_relic("Golden Idol"),
+                EventProgramOp::continue_event(exordium::golden_idol_consequence_event()),
             ],
             Self::TransformCard => vec![EventProgramOp::transform_card(1)],
             Self::DuplicateCard => vec![EventProgramOp::duplicate_card(1)],

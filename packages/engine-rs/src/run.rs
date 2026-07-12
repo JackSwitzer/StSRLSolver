@@ -409,6 +409,17 @@ fn adjust_run_gold_state(run_state: &mut RunState, amount: i32) {
     }
 }
 
+fn golden_idol_combat_gold(base_gold: i32, has_golden_idol: bool) -> i32 {
+    if !has_golden_idol {
+        return base_gold;
+    }
+
+    // RewardItem.java::applyGoldBonus adds MathUtils.round(base * 0.25f)
+    // to non-treasure, non-stolen gold rewards.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/rewards/RewardItem.java
+    base_gold + ((base_gold as f32) * 0.25).round() as i32
+}
+
 fn upgrade_obtained_card_for_eggs(run_state: &RunState, card_id: &str) -> String {
     if card_id.ends_with('+') {
         return card_id.to_string();
@@ -2443,39 +2454,54 @@ impl RunEngine {
                     return reward;
                 }
 
-                // Gold reward is an automatic combat outcome, not a selectable reward action.
-                if !self.run_state.relic_flags.has(crate::relic_flags::flag::ECTOPLASM) {
-                    let mut gold = self.rng.gen_range(10..=20);
-                    if self.run_state.relic_flags.has(crate::relic_flags::flag::GOLDEN_IDOL) {
-                        gold = (gold as f32 * 1.25) as i32;
-                    }
-                    self.adjust_run_gold(gold);
-                }
-
-                // Check if this was elite
                 let room_type = if self.run_state.map_y >= 0 {
                     self.map.rows[self.run_state.map_y as usize][self.run_state.map_x as usize].room_type
                 } else {
                     RoomType::Monster
                 };
+                let is_boss = self.run_state.floor >= 16 || room_type == RoomType::Boss;
+                let is_final_heart = self.run_state.act == 4
+                    && combat_enemy_ids.len() == 1
+                    && combat_enemy_ids[0] == "CorruptHeart";
+
+                // AbstractRoom.java creates exactly one gold reward band per
+                // ordinary, elite, or boss room. RewardItem.java then applies
+                // Golden Idol's rounded 25% bonus to that complete base amount.
+                // The run engine auto-claims combat gold because it has no gold
+                // reward decision item, preserving the same final run state.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/rooms/AbstractRoom.java
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/rewards/RewardItem.java
+                if !is_final_heart {
+                    let base_gold = if is_boss {
+                        let rolled = self.rng.gen_range(95..=105);
+                        if self.run_state.ascension >= 13 {
+                            ((rolled as f32) * 0.75).round() as i32
+                        } else {
+                            rolled
+                        }
+                    } else if room_type == RoomType::Elite {
+                        self.rng.gen_range(25..=35)
+                    } else {
+                        self.rng.gen_range(10..=20)
+                    };
+                    let gold = golden_idol_combat_gold(
+                        base_gold,
+                        self.run_state
+                            .relic_flags
+                            .has(crate::relic_flags::flag::GOLDEN_IDOL),
+                    );
+                    self.adjust_run_gold(gold);
+                }
 
                 if room_type == RoomType::Elite {
                     self.run_state.elites_killed += 1;
-                    if !self.run_state.relic_flags.has(crate::relic_flags::flag::ECTOPLASM) {
-                        let extra_gold = self.rng.gen_range(25..=35);
-                        self.adjust_run_gold(extra_gold);
-                    }
                 }
 
                 // Check if boss
-                let is_boss = self.run_state.floor >= 16 || room_type == RoomType::Boss;
                 if is_boss {
                     self.run_state.bosses_killed += 1;
                     reward += 5.0; // Boss kill bonus
-                    if self.run_state.act == 4
-                        && combat_enemy_ids.len() == 1
-                        && combat_enemy_ids[0] == "CorruptHeart"
-                    {
+                    if is_final_heart {
                         self.combat_engine = None;
                         self.resolve_terminal_run_victory();
                         return reward;
@@ -4889,6 +4915,18 @@ impl RunEngine {
         self.normalize_event_runtime_statuses(event);
         if event.name == "Dead Adventurer" {
             *event = crate::events::dead_adventurer_event(self.run_state.ascension);
+        } else if event.name == "Golden Idol" && event.options.len() == 3 {
+            // GoldenIdolEvent.java calculates both displayed consequences from
+            // maxHealth when the event is constructed.
+            let (damage_percent, max_hp_percent) = if self.run_state.ascension >= 15 {
+                (35, 10)
+            } else {
+                (25, 8)
+            };
+            let damage = (self.run_state.max_hp * damage_percent) / 100;
+            let max_hp_loss = ((self.run_state.max_hp * max_hp_percent) / 100).max(1);
+            event.options[1].text = format!("Take {damage} damage");
+            event.options[2].text = format!("Lose {max_hp_loss} max HP");
         }
     }
 
@@ -5441,7 +5479,8 @@ impl RunEngine {
             return 0.0;
         }
 
-        if let Some(event) = next_event {
+        if let Some(mut event) = next_event {
+            self.normalize_event_runtime_state(&mut event);
             self.current_event = Some(event);
             self.phase = RunPhase::Event;
             self.refresh_decision_stack();
@@ -5649,6 +5688,29 @@ impl RunEngine {
                     (self.run_state.max_hp * percent) / 100
                 } else {
                     -((self.run_state.max_hp * (-percent)) / 100)
+                };
+                self.run_state.max_hp = (self.run_state.max_hp + amount).max(1);
+                self.run_state.current_hp = self.run_state.current_hp.min(self.run_state.max_hp);
+                if self.run_state.current_hp <= 0 {
+                    EventProgramFlow::Died
+                } else {
+                    EventProgramFlow::Continue
+                }
+            }
+            EventProgramOp::AdjustMaxHpPercentByAscension {
+                base_percent,
+                asc15_percent,
+                minimum_loss,
+            } => {
+                let percent = if self.run_state.ascension >= 15 {
+                    *asc15_percent
+                } else {
+                    *base_percent
+                };
+                let amount = if percent >= 0 {
+                    (self.run_state.max_hp * percent) / 100
+                } else {
+                    -((self.run_state.max_hp * (-percent)) / 100).max(*minimum_loss)
                 };
                 self.run_state.max_hp = (self.run_state.max_hp + amount).max(1);
                 self.run_state.current_hp = self.run_state.current_hp.min(self.run_state.max_hp);
@@ -8471,33 +8533,114 @@ mod tests {
     }
 
     #[test]
-    fn test_golden_idol_costs_hp() {
+    fn golden_idol_event_obtains_relic_then_offers_source_consequences() {
+        // GoldenIdolEvent.java first obtains Golden Idol (or Circlet), then
+        // offers Injury, 25/35% damage, or 8/10% max-HP loss. It never grants
+        // 300 gold merely for taking the idol.
         let mut engine = RunEngine::new(42, 0);
         engine.run_state.max_hp = 72;
         engine.run_state.current_hp = 72;
         let gold_before = engine.run_state.gold;
+        let event = crate::events::typed_events_for_act(1)
+            .into_iter()
+            .find(|event| event.name == "Golden Idol")
+            .expect("Golden Idol event");
+        engine.debug_set_typed_event_state(event.clone());
 
-        // Set up Golden Idol event manually
-        engine.debug_set_event_state(EventDef {
-            name: "Golden Idol".to_string(),
-            options: vec![
-                EventOption {
-                    text: "Take".into(),
-                    effect: EventEffect::GoldenIdolTake,
-                },
-                EventOption {
-                    text: "Leave".into(),
-                    effect: EventEffect::Nothing,
-                },
-            ],
-        });
+        assert!(engine
+            .step_with_result(&RunAction::EventChoice(0))
+            .action_accepted);
+        assert_eq!(engine.current_phase(), RunPhase::Event);
+        assert_eq!(engine.run_state.current_hp, 72);
+        assert_eq!(engine.run_state.gold, gold_before);
+        assert!(engine
+            .run_state
+            .relics
+            .iter()
+            .any(|relic| relic == "Golden Idol"));
+        let consequence = engine.debug_current_event().expect("consequence screen");
+        assert_eq!(consequence.options.len(), 3);
+        assert_eq!(consequence.options[1].text, "Take 18 damage");
+        assert_eq!(consequence.options[2].text, "Lose 5 max HP");
 
-        engine.step(&RunAction::EventChoice(0));
+        let deck_before = engine.run_state.deck.len();
+        assert!(engine
+            .step_with_result(&RunAction::EventChoice(0))
+            .action_accepted);
+        assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+        assert_eq!(engine.run_state.deck.len(), deck_before + 1);
+        assert_eq!(engine.run_state.deck.last().map(String::as_str), Some("Injury"));
 
-        // Should lose 25% of 72 = 18 HP
-        assert_eq!(engine.run_state.current_hp, 72 - 18);
-        // Should gain 300 gold
-        assert_eq!(engine.run_state.gold, gold_before + 300);
+        let mut damage = RunEngine::new(43, 0);
+        damage.run_state.max_hp = 72;
+        damage.run_state.current_hp = 72;
+        damage.debug_set_typed_event_state(event.clone());
+        damage.step(&RunAction::EventChoice(0));
+        damage.step(&RunAction::EventChoice(1));
+        assert_eq!(damage.run_state.current_hp, 54);
+
+        let mut asc15 = RunEngine::new(44, 15);
+        asc15.run_state.max_hp = 100;
+        asc15.run_state.current_hp = 100;
+        asc15.debug_set_typed_event_state(event.clone());
+        asc15.step(&RunAction::EventChoice(0));
+        asc15.step(&RunAction::EventChoice(2));
+        assert_eq!(asc15.run_state.max_hp, 90);
+        assert_eq!(asc15.run_state.current_hp, 90);
+
+        let mut duplicate = RunEngine::new(45, 0);
+        duplicate.run_state.relics.push("Golden Idol".to_string());
+        duplicate.run_state.relic_flags.rebuild(&duplicate.run_state.relics);
+        duplicate.debug_set_typed_event_state(event);
+        duplicate.step(&RunAction::EventChoice(0));
+        assert_eq!(
+            duplicate
+                .run_state
+                .relics
+                .iter()
+                .filter(|relic| relic.as_str() == "Golden Idol")
+                .count(),
+            1
+        );
+        assert!(duplicate.run_state.relics.iter().any(|relic| relic == "Circlet"));
+    }
+
+    #[test]
+    fn golden_idol_combat_gold_uses_one_room_band_and_rounded_bonus() {
+        // AbstractRoom.java awards exactly one 10..20, 25..35, or 95..105
+        // room band (boss gold is 75% at A13). RewardItem.java then adds
+        // round(base * 0.25), so a base reward of 10 becomes 13, not 12.
+        fn resolve_gold(seed: u64, ascension: i32, room_type: RoomType, idol: bool) -> i32 {
+            let mut engine = RunEngine::new(seed, ascension);
+            engine.run_state.floor = if room_type == RoomType::Boss { 16 } else { 1 };
+            engine.run_state.map_x = 0;
+            engine.run_state.map_y = 0;
+            engine.map.rows[0][0].room_type = room_type;
+            if idol {
+                engine.run_state.relics.push("Golden Idol".to_string());
+                engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+            }
+            let gold_before = engine.run_state.gold;
+            engine.debug_enter_specific_combat(&["Cultist"]);
+            engine.debug_force_current_combat_outcome(true);
+            engine.debug_resolve_current_combat_outcome();
+            engine.run_state.gold - gold_before
+        }
+
+        assert_eq!(golden_idol_combat_gold(10, true), 13);
+        for (room_type, range) in [
+            (RoomType::Monster, 10..=20),
+            (RoomType::Elite, 25..=35),
+            (RoomType::Boss, 95..=105),
+        ] {
+            let base = resolve_gold(77, 0, room_type, false);
+            let idol = resolve_gold(77, 0, room_type, true);
+            assert!(range.contains(&base), "{room_type:?} base gold was {base}");
+            assert_eq!(idol, golden_idol_combat_gold(base, true));
+        }
+
+        let a13_boss = resolve_gold(79, 13, RoomType::Boss, false);
+        assert!((71..=79).contains(&a13_boss));
     }
 
     #[test]
