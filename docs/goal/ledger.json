@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T02:51:35.565880+00:00",
+ "updated": "2026-07-12T02:55:06.955553+00:00",
  "status_counts": {
-  "unverified": 401,
-  "verified": 266
+  "unverified": 400,
+  "verified": 267
  },
  "rows": [
   {
@@ -6292,8 +6292,8 @@
    "class": "SsserpentHead",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/SsserpentHead.java",
    "methods_ref": "reference/extracted/methods/relic/SsserpentHead.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

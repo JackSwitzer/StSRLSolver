@@ -319,6 +319,66 @@ fn cultist_mask_trade_is_naturally_reachable_and_gameplay_inert() {
 }
 
 #[test]
+fn ssserpent_head_trade_pays_on_every_mystery_entry_through_gain_gold() {
+    // SsserpentHead.java::onEnterRoom gains exactly 50 gold for EventRoom.
+    // AbstractDungeon invokes relic onEnterRoom hooks before EventRoom reveals
+    // the mystery result, so a monster result still pays. AbstractPlayer's
+    // canonical gainGold path lets Ectoplasm block it and Bloody Idol heal once.
+    let mut engine = RunEngine::new(61, 0);
+    engine.run_state.relics.extend(
+        ["CultistMask", "FaceOfCleric", "GremlinMask", "NlothsMask"]
+            .iter()
+            .map(|face| (*face).to_string()),
+    );
+    engine.debug_set_typed_event_state(shrine_event("FaceTrader"));
+    engine.step(&RunAction::EventChoice(0));
+    assert!(engine.step_with_result(&RunAction::EventChoice(1)).action_accepted);
+    assert!(engine
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == "SsserpentHead"));
+
+    let gold_before = engine.run_state.gold;
+    engine.debug_force_event_rolls(&[0]);
+    engine.debug_enter_mystery_room();
+    assert_eq!(engine.current_phase(), RunPhase::Combat);
+    assert_eq!(engine.run_state.gold, gold_before + 50);
+
+    let mut ectoplasm = RunEngine::new(63, 0);
+    ectoplasm.run_state.relics.extend([
+        "SsserpentHead".to_string(),
+        "Ectoplasm".to_string(),
+    ]);
+    ectoplasm
+        .run_state
+        .relic_flags
+        .rebuild(&ectoplasm.run_state.relics);
+    let gold_before = ectoplasm.run_state.gold;
+    ectoplasm.debug_force_event_rolls(&[99]);
+    ectoplasm.debug_enter_mystery_room();
+    assert_eq!(ectoplasm.current_phase(), RunPhase::Event);
+    assert_eq!(ectoplasm.run_state.gold, gold_before);
+
+    let mut bloody_idol = RunEngine::new(65, 0);
+    bloody_idol.run_state.relics.extend([
+        "SsserpentHead".to_string(),
+        "Bloody Idol".to_string(),
+    ]);
+    bloody_idol
+        .run_state
+        .relic_flags
+        .rebuild(&bloody_idol.run_state.relics);
+    bloody_idol.run_state.current_hp = 40;
+    let gold_before = bloody_idol.run_state.gold;
+    bloody_idol.debug_force_event_rolls(&[99]);
+    bloody_idol.debug_enter_mystery_room();
+    assert_eq!(bloody_idol.current_phase(), RunPhase::Event);
+    assert_eq!(bloody_idol.run_state.gold, gold_before + 50);
+    assert_eq!(bloody_idol.run_state.current_hp, 45);
+}
+
+#[test]
 fn nest_branches_cover_direct_gold_and_specific_card_reward() {
     let nest = typed_event(2, "Nest");
     assert!(nest

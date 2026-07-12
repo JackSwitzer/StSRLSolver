@@ -28,7 +28,7 @@ pub mod flag {
     pub const MEAL_TICKET: u64      = 1 << 21;  // Heal 15 at shop
     pub const DREAM_CATCHER: u64    = 1 << 22;  // Card reward at rest
     pub const JUZU_BRACELET: u64    = 1 << 23;  // No ? room monsters
-    pub const SSSERPENT_HEAD: u64   = 1 << 24;  // +50g on event card add
+    pub const SSSERPENT_HEAD: u64   = 1 << 24;  // +50g on EventRoom entry
     pub const THE_COURIER: u64      = 1 << 25;  // Shop has card removal + discount
     pub const MATRYOSHKA: u64       = 1 << 26;  // 2 free relics from first 2 chests
     pub const MARK_OF_BLOOM: u64    = 1 << 27;  // No healing

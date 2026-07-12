@@ -5186,6 +5186,19 @@ impl RunEngine {
     }
 
     fn enter_mystery_room(&mut self) {
+        if self
+            .run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::SSSERPENT_HEAD)
+        {
+            // SsserpentHead.java::onEnterRoom gains 50 gold whenever the map
+            // room is an EventRoom. This fires before EventRoom.onPlayerEntry
+            // reveals whether the mystery room becomes combat, shop, treasure,
+            // or an event.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/SsserpentHead.java
+            self.adjust_run_gold(50);
+        }
+
         // EventHelper.java::roll fills a 100-entry table in this order:
         // MONSTER, SHOP, TREASURE, then EVENT. (Elite entries require the
         // Deadly Events modifier, which the standard run engine does not use.)
