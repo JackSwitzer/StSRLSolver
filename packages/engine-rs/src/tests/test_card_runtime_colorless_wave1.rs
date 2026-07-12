@@ -3,6 +3,7 @@
 // Java oracle sources:
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/BandageUp.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Bite.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Blind.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/DramaticEntrance.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/GoodInstincts.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Magnetism.java
@@ -161,6 +162,42 @@ fn bite_variants_heal_after_nonlethal_damage_but_not_after_final_lethal_damage()
         assert!(lethal.state.enemies[0].entity.is_dead());
         assert_eq!(lethal.state.player.hp, 50);
     }
+}
+
+#[test]
+fn blind_targets_one_enemy_while_blind_plus_targets_every_living_enemy() {
+    // Source: Blind.java applies 2 Weak to the selected enemy at base; its
+    // upgrade loops every monster with a separate ApplyPowerAction.
+    let mut base = engine_without_start(
+        Vec::new(),
+        vec![
+            enemy_no_intent("JawWorm", 40, 40),
+            enemy_no_intent("Cultist", 40, 40),
+        ],
+        0,
+    );
+    force_player_turn(&mut base);
+    base.state.hand = make_deck(&["Blind"]);
+    assert!(play_on_enemy(&mut base, "Blind", 1));
+    assert_eq!(base.state.enemies[0].entity.status(sid::WEAKENED), 0);
+    assert_eq!(base.state.enemies[1].entity.status(sid::WEAKENED), 2);
+
+    let mut upgraded = engine_without_start(
+        Vec::new(),
+        vec![
+            enemy_no_intent("JawWorm", 40, 40),
+            enemy_no_intent("Cultist", 40, 40),
+        ],
+        0,
+    );
+    force_player_turn(&mut upgraded);
+    upgraded.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+    upgraded.state.hand = make_deck(&["Blind+"]);
+    assert!(play_self(&mut upgraded, "Blind+"));
+    assert_eq!(upgraded.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+    assert_eq!(upgraded.state.enemies[0].entity.status(sid::WEAKENED), 0);
+    assert_eq!(upgraded.state.enemies[1].entity.status(sid::WEAKENED), 2);
+    assert_eq!(upgraded.state.energy, 0);
 }
 
 #[test]
