@@ -4423,6 +4423,8 @@ impl RunEngine {
             "Blood Vial",
             // BlueCandle.java uses this canonical ID and UNCOMMON tier.
             "Blue Candle",
+            // HornCleat.java uses canonical ID "HornCleat" and UNCOMMON tier.
+            "HornCleat",
             // Boot.java uses canonical ID "Boot" and COMMON tier.
             "Boot",
             // ToyOrnithopter.java uses canonical ID "Toy Ornithopter" and

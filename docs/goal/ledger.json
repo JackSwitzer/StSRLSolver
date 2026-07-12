@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T15:00:28.120311+00:00",
+ "updated": "2026-07-12T15:03:12.641506+00:00",
  "status_counts": {
-  "unverified": 382,
-  "verified": 285
+  "unverified": 381,
+  "verified": 286
  },
  "rows": [
   {
@@ -5492,8 +5492,8 @@
    "class": "HornCleat",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/HornCleat.java",
    "methods_ref": "reference/extracted/methods/relic/HornCleat.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -1081,6 +1081,43 @@ fn ice_cream_is_reachable_from_watcher_relic_rewards() {
 }
 
 #[test]
+fn horn_cleat_is_watcher_reachable_and_grants_fourteen_block_only_on_turn_two() {
+    // HornCleat.java constructs an UNCOMMON shared relic, resets its counter
+    // at battle start, increments it at each turn start, and grants exactly 14
+    // Block when the counter reaches two before disabling itself for combat.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/HornCleat.java
+    let seed = (0..2048).find(|seed| {
+        let mut engine = RunEngine::new(*seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| item.label == "HornCleat")
+        })
+    }).expect("HornCleat reward seed");
+
+    let mut engine = RunEngine::new(seed, 0);
+    engine.debug_build_combat_reward_screen(RoomType::Elite);
+    let relic_index = engine.current_reward_screen().expect("elite rewards").items.iter()
+        .position(|item| item.label == "HornCleat")
+        .expect("HornCleat reward");
+    assert!(engine.step_with_result(&RunAction::SelectRewardItem(relic_index)).action_accepted);
+    assert!(engine.run_state.relics.iter().any(|relic| relic == "HornCleat"));
+
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    let combat = engine.debug_combat_engine_mut();
+    assert_eq!(combat.state.turn, 1);
+    assert_eq!(combat.hidden_effect_value(
+        "HornCleat", crate::effects::runtime::EffectOwner::PlayerRelic { slot: 1 }, 0), 1);
+    combat.execute_action(&Action::EndTurn);
+    assert_eq!(combat.state.turn, 2);
+    assert_eq!(combat.state.player.block, 14);
+    assert_eq!(combat.hidden_effect_value(
+        "HornCleat", crate::effects::runtime::EffectOwner::PlayerRelic { slot: 1 }, 0), -1);
+    combat.execute_action(&Action::EndTurn);
+    assert_eq!(combat.state.turn, 3);
+    assert_eq!(combat.state.player.block, 0);
+}
+
+#[test]
 fn incense_burner_is_reachable_from_watcher_relic_rewards() {
     // RelicLibrary.java registers IncenseBurner; IncenseBurner.java constructs
     // the shared relic at RARE tier under canonical ID "Incense Burner".
