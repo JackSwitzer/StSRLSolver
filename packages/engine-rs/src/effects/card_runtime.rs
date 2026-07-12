@@ -48,8 +48,8 @@ pub fn apply_cost_modifiers(engine: &CombatEngine, card: &CardDef, base_cost: i3
         if let CardRuntimeTrigger::ModifyCost(rule) = trigger {
             match rule {
                 CostModifierRule::ReduceOnHpLoss => {
-                    let hp_lost = engine.state.player.status(sid::HP_LOSS_THIS_COMBAT);
-                    cost = (cost - hp_lost).max(0);
+                    let damage_events = engine.state.player.status(sid::HP_LOSS_THIS_COMBAT);
+                    cost = (cost - damage_events).max(0);
                 }
                 CostModifierRule::ReducePerPower => {
                     let power_count =

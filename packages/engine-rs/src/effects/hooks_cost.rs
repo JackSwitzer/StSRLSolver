@@ -5,10 +5,10 @@ use crate::combat_types::CardInstance;
 use crate::state::CombatState;
 use crate::status_ids::sid;
 
-/// Blood for Blood: reduce cost by HP lost this combat.
+/// Blood for Blood: reduce cost by positive damage events this combat.
 pub fn hook_cost_reduce_on_hp_loss(state: &CombatState, _card: &CardDef, _card_inst: CardInstance, cost: i32) -> i32 {
-    let hp_lost = state.player.status(sid::HP_LOSS_THIS_COMBAT);
-    (cost - hp_lost).max(0)
+    let damage_events = state.player.status(sid::HP_LOSS_THIS_COMBAT);
+    (cost - damage_events).max(0)
 }
 
 /// Force Field: reduce cost by number of active powers on player.

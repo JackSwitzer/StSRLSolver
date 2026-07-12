@@ -142,7 +142,25 @@ mod ironclad_wave4_card_runtime_tests {
     #[test]
     fn blood_for_blood_uses_the_hp_loss_cost_path_on_engine_play() {
         let mut engine = engine_for(&["Blood for Blood"], &[], &[], 60, 2);
-        engine.player_lose_hp(2);
+        // Sources: AbstractPlayer.java increments damagedThisCombat once for
+        // each positive damage event; BloodForBlood.java reduces cost by one
+        // from each tookDamage() callback, independent of damage amount.
+        engine.player_lose_hp(10);
+        let card_idx = engine
+            .state
+            .hand
+            .iter()
+            .position(|card| engine.card_registry.card_name(card.def_id) == "Blood for Blood")
+            .unwrap();
+        assert!(!engine.get_legal_actions().iter().any(|action| {
+            matches!(action, Action::PlayCard { card_idx: idx, .. } if *idx == card_idx)
+        }));
+
+        engine.player_lose_hp(1);
+        assert_eq!(engine.state.player.status(crate::status_ids::sid::HP_LOSS_THIS_COMBAT), 2);
+        assert!(engine.get_legal_actions().iter().any(|action| {
+            matches!(action, Action::PlayCard { card_idx: idx, .. } if *idx == card_idx)
+        }));
         let hp_before = engine.state.enemies[0].entity.hp;
 
         assert!(play_on_enemy(&mut engine, "Blood for Blood", 0));

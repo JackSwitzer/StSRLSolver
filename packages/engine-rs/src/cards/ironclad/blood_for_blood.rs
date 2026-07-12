@@ -1,8 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // ---- Ironclad Uncommon: Blood for Blood ----
-    // cost 4, 18 dmg, -1 cost per HP loss; upgrade: cost 3, +4 dmg
+    // Sources: cards/red/BloodForBlood.java costs 4, deals 18 damage, and
+    // tookDamage() reduces cost once per positive damage event. Its upgrade
+    // lowers the current/base cost by 1 and adds 4 damage.
     insert(cards, CardDef {
         id: "Blood for Blood",
         name: "Blood for Blood",

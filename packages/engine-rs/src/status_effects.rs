@@ -48,6 +48,7 @@ pub fn process_end_turn_hand_cards(state: &mut CombatState, card_registry: &Card
                         if hp_damage > 0 {
                             state.player.hp -= hp_damage;
                             state.total_damage_taken += hp_damage;
+                            state.player.add_status(sid::HP_LOSS_THIS_COMBAT, 1);
                         }
                     }
                     EndTurnHandRule::Regret => {
@@ -56,6 +57,7 @@ pub fn process_end_turn_hand_cards(state: &mut CombatState, card_registry: &Card
                         if hp_loss > 0 {
                             state.player.hp -= hp_loss;
                             state.total_damage_taken += hp_loss;
+                            state.player.add_status(sid::HP_LOSS_THIS_COMBAT, 1);
                         }
                     }
                     EndTurnHandRule::Weak => {
@@ -121,6 +123,11 @@ pub fn process_pain_on_card_play(state: &mut CombatState, card_registry: &CardRe
         if total_loss > 0 {
             state.player.hp -= total_loss;
             state.total_damage_taken += total_loss;
+            // Each Pain queues its own LoseHPAction and therefore its own
+            // AbstractPlayer.damage event.
+            state
+                .player
+                .add_status(sid::HP_LOSS_THIS_COMBAT, pain_count);
         }
     }
 

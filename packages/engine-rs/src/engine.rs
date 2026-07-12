@@ -2718,10 +2718,14 @@ impl CombatEngine {
         self.state.player.hp -= amount;
         self.state.total_damage_taken += amount;
 
-        // Track cumulative HP loss for Blood for Blood cost reduction
+        // AbstractPlayer.damagedThisCombat increments once per positive damage
+        // event, regardless of HP amount; BloodForBlood.tookDamage() reduces
+        // cost once per event. The legacy status name stores that event count.
+        // Source: AbstractPlayer.java::damage/updateCardsOnDamage and
+        // cards/red/BloodForBlood.java.
         self.state
             .player
-            .add_status(sid::HP_LOSS_THIS_COMBAT, amount);
+            .add_status(sid::HP_LOSS_THIS_COMBAT, 1);
 
         // Fire on_hp_loss relics via unified dispatch (Centennial Puzzle, Self-Forming Clay, Runic Cube, Red Skull)
         {
