@@ -1210,6 +1210,44 @@ fn dead_branch_is_watcher_reachable_and_generates_on_nonterminal_exhausts() {
 }
 
 #[test]
+fn gambling_chip_is_watcher_reachable_and_redraws_selected_opening_cards() {
+    // GamblingChip.java constructs a RARE shared relic, resets activated
+    // before opening draw, then queues GamblingChipAction once after the draw.
+    // The action permits zero through all hand cards and redraws the selected
+    // count after moving them to discard.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/GamblingChip.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/GamblingChipAction.java
+    let seed = (0..4096).find(|seed| {
+        let mut engine = RunEngine::new(*seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| item.label == "Gambling Chip")
+        })
+    }).expect("Gambling Chip reward seed");
+
+    let mut engine = RunEngine::new(seed, 0);
+    engine.debug_build_combat_reward_screen(RoomType::Elite);
+    let relic_index = engine.current_reward_screen().expect("elite rewards").items.iter()
+        .position(|item| item.label == "Gambling Chip")
+        .expect("Gambling Chip reward");
+    assert!(engine.step_with_result(&RunAction::SelectRewardItem(relic_index)).action_accepted);
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+
+    let combat = engine.debug_combat_engine_mut();
+    assert_eq!(combat.phase, crate::engine::CombatPhase::AwaitingChoice);
+    let choice = combat.choice.as_ref().expect("Gambling Chip choice");
+    assert_eq!(choice.reason, crate::engine::ChoiceReason::DiscardFromHand);
+    assert_eq!(choice.min_picks, 0);
+    assert_eq!(choice.max_picks, 6); // five-card draw plus Pure Water's Miracle
+    let hand_before = combat.state.hand.len();
+    combat.execute_action(&Action::Choose(0));
+    combat.execute_action(&Action::ConfirmSelection);
+    assert_eq!(combat.phase, crate::engine::CombatPhase::PlayerTurn);
+    assert_eq!(combat.state.hand.len(), hand_before);
+    assert_eq!(combat.state.discard_pile.len(), 1);
+}
+
+#[test]
 fn incense_burner_is_reachable_from_watcher_relic_rewards() {
     // RelicLibrary.java registers IncenseBurner; IncenseBurner.java constructs
     // the shared relic at RARE tier under canonical ID "Incense Burner".

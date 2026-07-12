@@ -1,5 +1,6 @@
 //! Gambling Chip: discard any number of cards and redraw that many at start of combat.
 //! Uses a complex hook because it opens an interactive discard choice.
+//! Source: decompiled/java-src/com/megacrit/cardcrawl/relics/GamblingChip.java.
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
