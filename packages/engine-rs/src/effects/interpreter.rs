@@ -1700,6 +1700,15 @@ fn execute_generate_random_cards_to_hand(
     cost_rule: GeneratedCostRule,
 ) {
     let count = resolve_card_amount(engine, ctx, &count_src).max(0) as usize;
+    generate_random_cards_to_hand(engine, pool, count, cost_rule);
+}
+
+pub(crate) fn generate_random_cards_to_hand(
+    engine: &mut CombatEngine,
+    pool: GeneratedCardPool,
+    count: usize,
+    cost_rule: GeneratedCostRule,
+) {
     for _ in 0..count {
         if engine.state.hand.len() >= 10 {
             break;
@@ -1843,7 +1852,14 @@ fn generate_random_card(
     if pool_cards.is_empty() {
         return None;
     }
-    let choice = pool_cards[engine.rng_gen_range(0..pool_cards.len())];
+    let choice_index = if matches!(pool, GeneratedCardPool::WatcherPower) {
+        // AbstractDungeon.returnTrulyRandomCardInCombat(type) selects from
+        // the source color pools with cardRandomRng.
+        engine.card_random_rng.random((pool_cards.len() - 1) as i32) as usize
+    } else {
+        engine.rng_gen_range(0..pool_cards.len())
+    };
+    let choice = pool_cards[choice_index];
     Some(engine.temp_card(choice))
 }
 
@@ -1911,6 +1927,25 @@ fn generated_card_pool(engine: &CombatEngine, pool: GeneratedCardPool) -> Vec<&'
             .filter(|def| def.card_type == CardType::Power && !def.id.ends_with('+'))
             .map(|def| def.id)
             .collect(),
+        GeneratedCardPool::WatcherPower => engine
+            .card_registry
+            .all_card_defs()
+            .iter()
+            .filter(|def| !def.id.ends_with('+'))
+            .filter(|def| {
+                matches!(
+                    generated_card_meta(def.id),
+                    Some(GeneratedCardMeta {
+                        card_type: CardType::Power,
+                        rarity: GeneratedPoolRarity::Common
+                            | GeneratedPoolRarity::Uncommon
+                            | GeneratedPoolRarity::Rare,
+                        watcher: true,
+                    })
+                )
+            })
+            .map(|def| def.id)
+            .collect(),
         GeneratedCardPool::AnyColorAttackRarityWeighted => weighted_any_color_attack_ids(engine)
             .into_iter()
             .collect(),
@@ -1927,7 +1962,11 @@ pub fn apply_generated_cost_rule(
             card.cost = 0;
         }
         GeneratedCostRule::ZeroIfPositiveThisTurn => {
-            if card.cost > 0 {
+            // Fresh CardInstances use cost=-1 as "read base_cost". Java's
+            // generated-card actions test the card's real cost, not this Rust
+            // sentinel, before setting a turn-only zero cost.
+            let current_cost = if card.cost >= 0 { card.cost } else { card.base_cost };
+            if current_cost > 0 {
                 card.cost = 0;
             }
         }

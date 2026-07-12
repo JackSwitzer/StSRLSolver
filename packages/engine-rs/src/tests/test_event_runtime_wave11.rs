@@ -1,6 +1,7 @@
 use crate::decision::{RewardItemKind, RewardScreenSource};
 use crate::events::{typed_events_for_act, EventRuntimeStatus, TypedEventDef};
 use crate::run::{RunAction, RunEngine, RunPhase};
+use crate::cards::CardType;
 
 // Java oracle:
 // - decompiled/java-src/com/megacrit/cardcrawl/events/city/Colosseum.java
@@ -126,4 +127,45 @@ fn cursed_tome_stop_reading_takes_three_and_returns_to_map_without_reward() {
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(engine.run_state.current_hp, 71);
     assert!(engine.current_reward_screen().is_none());
+}
+
+#[test]
+fn cursed_tome_enchiridion_adds_one_zero_cost_watcher_power_prebattle() {
+    // CursedTome.randomBook excludes books already owned, so owning the other
+    // two forces Enchiridion. Enchiridion.atPreBattle consumes one cardRandom
+    // roll from the Watcher's source Power pools, sets non-X cost to zero for
+    // the turn, and adds the copy before the normal opening draw.
+    let mut engine = RunEngine::new(97, 20);
+    engine.run_state.relics.extend([
+        "Necronomicon".to_string(),
+        "Nilry's Codex".to_string(),
+    ]);
+    engine.debug_set_typed_event_state(typed_event(2, "Cursed Tome"));
+    for _ in 0..4 {
+        assert!(engine.step_with_result(&RunAction::EventChoice(0)).action_accepted);
+    }
+    assert!(engine.step_with_result(&RunAction::EventChoice(0)).action_accepted);
+    let screen = engine.current_reward_screen().expect("forced Enchiridion reward");
+    assert_eq!(screen.items[0].label, "Enchiridion");
+    assert!(engine.step_with_result(&RunAction::SelectRewardItem(0)).action_accepted);
+    assert!(engine.run_state.relics.iter().any(|relic| relic == "Enchiridion"));
+
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    let combat = engine.get_combat_engine().expect("Enchiridion combat");
+    const WATCHER_POWERS: &[&str] = &[
+        "BattleHymn", "DevaForm", "Devotion", "Discipline", "Establishment",
+        "Fasting2", "Wireheading", "LikeWater", "MasterReality",
+        "MentalFortress", "Nirvana", "Adaptation", "Study",
+    ];
+    let generated = combat
+        .state
+        .hand
+        .iter()
+        .find(|card| combat.card_registry.card_def_by_id(card.def_id).card_type == CardType::Power)
+        .expect("one generated Power in opening hand");
+    let generated_id = combat.card_registry.card_def_by_id(generated.def_id).id;
+    assert!(WATCHER_POWERS.contains(&generated_id));
+    assert_eq!(generated.cost, 0);
+    assert_eq!(combat.state.hand.len(), 7); // five-card draw + Miracle + Enchiridion Power
+    assert_eq!(combat.rng_counters()["cardRandom"], 1);
 }

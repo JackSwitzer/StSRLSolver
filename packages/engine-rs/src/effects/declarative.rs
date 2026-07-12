@@ -213,6 +213,8 @@ pub enum GeneratedCardPool {
     Attack,
     Skill,
     Power,
+    /// Watcher's source common/uncommon/rare Power pools.
+    WatcherPower,
     Colorless,
     AnyColorAttackRarityWeighted,
 }

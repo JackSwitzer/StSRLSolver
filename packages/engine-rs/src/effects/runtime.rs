@@ -725,6 +725,21 @@ impl EffectRuntime {
                 Effect::ChooseScaledNamedOptions(option_specs) => {
                     self.execute_choose_scaled_named_options(engine, instance_idx, owner, option_specs);
                 }
+                Effect::GenerateRandomCardsToHand {
+                    pool,
+                    count,
+                    cost_rule,
+                } => {
+                    let count = self
+                        .resolve_amount(engine, instance_idx, owner, *count)
+                        .max(0) as usize;
+                    crate::effects::interpreter::generate_random_cards_to_hand(
+                        engine,
+                        *pool,
+                        count,
+                        *cost_rule,
+                    );
+                }
                 _ => {}
             }
             if engine.state.combat_over {
