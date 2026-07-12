@@ -204,6 +204,29 @@ fn test_card_runtime_defect_wave2_ball_lightning_beam_cell_and_compile_driver_re
 }
 
 #[test]
+fn ball_lightning_plus_deals_ten_then_channels_one_lightning_into_a_full_slot() {
+    // Source: BallLightning.java queues DamageAction for 7 damage before one
+    // ChannelAction(new Lightning()); upgradeDamage(3) makes the attack 10.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.init_defect_orbs(1);
+    engine.channel_orb(OrbType::Frost);
+    engine.state.hand = make_deck(&["Ball Lightning+"]);
+
+    assert!(play_on_enemy(&mut engine, "Ball Lightning+", 0));
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 30);
+    assert_eq!(engine.state.player.block, 5);
+    assert_eq!(engine.state.energy, 2);
+    assert_eq!(engine.state.orb_slots.occupied_count(), 1);
+    assert_eq!(engine.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
+}
+
+#[test]
 fn test_card_runtime_defect_wave2_coolheaded_fusion_darkness_and_rainbow_cover_channel_draw_and_exhaust_paths() {
     let mut coolheaded = engine_without_start(
         Vec::new(),
