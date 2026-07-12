@@ -61,7 +61,8 @@ pub mod counter {
     pub const TINY_CHEST: usize     = 9;  // Mystery rooms since last forced chest
     pub const NLOTHS_MASK: usize    = 10; // One non-boss chest relic removal
     pub const WINGED_GREAVES: usize = 11; // Remaining non-edge map jumps
-    pub const NUM_COUNTERS: usize   = 12;
+    pub const NEOWS_LAMENT: usize   = 12; // Remaining 1-HP combats
+    pub const NUM_COUNTERS: usize   = 13;
 }
 
 /// Relic flags for a run. Populated from Vec<String> relics on add/remove.
@@ -144,6 +145,7 @@ impl RelicFlags {
             "Tiny Chest" | "TinyChest" => self.counters[counter::TINY_CHEST] = 0,
             "NlothsMask" => self.counters[counter::NLOTHS_MASK] = 1,
             "WingedGreaves" => self.counters[counter::WINGED_GREAVES] = 3,
+            "NeowsBlessing" => self.counters[counter::NEOWS_LAMENT] = 3,
             _ => {}
         }
     }

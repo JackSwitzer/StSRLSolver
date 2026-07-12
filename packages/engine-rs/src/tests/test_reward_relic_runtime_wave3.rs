@@ -215,6 +215,27 @@ fn slavers_collar_is_reachable_from_the_watcher_boss_relic_pool() {
 }
 
 #[test]
+fn neows_lament_choice_initializes_three_persistent_one_hp_combats() {
+    // NeowReward.THREE_ENEMY_KILL obtains NeowsLament; its constructor starts
+    // counter=3, and atBattleStart decrements before setting every monster to
+    // one HP. Java canonical relic ID is NeowsBlessing.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/neow/NeowReward.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/NeowsLament.java
+    let mut engine = RunEngine::new(1501, 0);
+    let option = engine.current_decision_context().neow.expect("Neow").options
+        .iter().find(|option| option.label.contains("next three combats"))
+        .expect("Neow's Lament option").index;
+    assert!(engine.step_with_result(&RunAction::ChooseNeowOption(option)).action_accepted);
+    assert!(engine.run_state.relics.contains(&"NeowsBlessing".to_string()));
+    assert_eq!(engine.run_state.relic_flags.counters[crate::relic_flags::counter::NEOWS_LAMENT], 3);
+
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    let combat = engine.get_combat_engine().expect("lament combat");
+    assert_eq!(combat.state.enemies[0].entity.hp, 1);
+    assert_eq!(combat.state.relic_counters[crate::relic_flags::counter::NEOWS_LAMENT], 2);
+}
+
+#[test]
 fn runic_pyramid_is_reachable_from_the_watcher_boss_relic_pool() {
     // Source: RunicPyramid.java constructs canonical ID "Runic Pyramid" at
     // BOSS tier, so it must be selectable after a Watcher boss combat.

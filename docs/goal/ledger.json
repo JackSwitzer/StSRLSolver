@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T04:10:27.637357+00:00",
+ "updated": "2026-07-12T04:13:59.750985+00:00",
  "status_counts": {
-  "unverified": 386,
-  "verified": 281
+  "unverified": 385,
+  "verified": 282
  },
  "rows": [
   {
@@ -5772,8 +5772,8 @@
    "class": "NeowsLament",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/NeowsLament.java",
    "methods_ref": "reference/extracted/methods/relic/NeowsLament.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -1339,6 +1339,7 @@ fn counter_names() -> [&'static str; relic_flags::counter::NUM_COUNTERS] {
         "TinyChestRooms",
         "NlothsMaskUses",
         "WingedGreavesUses",
+        "NeowsLamentUses",
     ]
 }
 

@@ -664,7 +664,7 @@ enum NeowChoiceEffect {
     GainCards,
     GainGold,
     UpgradeRandomCard,
-    GainRelic,
+    NeowsLament,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -817,8 +817,11 @@ impl RunEngine {
                 effect: NeowChoiceEffect::UpgradeRandomCard,
             },
             NeowChoiceOption {
-                label: "Gain a random relic".to_string(),
-                effect: NeowChoiceEffect::GainRelic,
+                // NeowReward category 1 includes THREE_ENEMY_KILL, which
+                // obtains NeowsLament under canonical ID NeowsBlessing.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/neow/NeowReward.java
+                label: "Enemies in your next three combats have 1 HP".to_string(),
+                effect: NeowChoiceEffect::NeowsLament,
             },
         ];
 
@@ -835,10 +838,7 @@ impl RunEngine {
             NeowChoiceEffect::GainCards => self.apply_event_deck_mutation(&EventDeckMutation::GainCard { count: 3 }),
             NeowChoiceEffect::GainGold => self.adjust_run_gold(100),
             NeowChoiceEffect::UpgradeRandomCard => self.upgrade_random_cards(1),
-            NeowChoiceEffect::GainRelic => {
-                let relic = self.roll_reward_relic_id();
-                self.add_relic_reward(&relic);
-            }
+            NeowChoiceEffect::NeowsLament => self.add_relic_reward("NeowsBlessing"),
         }
     }
 
