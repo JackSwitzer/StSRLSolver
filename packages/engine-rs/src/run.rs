@@ -3323,6 +3323,10 @@ impl RunEngine {
                     self.pending_empty_cage_removals.saturating_sub(1);
                 true
             }
+            "deck_selection_dollys_mirror" => {
+                obtain_master_deck_card_state(&mut self.run_state, card_id.clone());
+                true
+            }
             _ => false,
         }
     }
@@ -3570,6 +3574,7 @@ impl RunEngine {
                 }
             }
             "Cauldron" => self.build_cauldron_reward_screen(),
+            "DollysMirror" => self.build_dollys_mirror_selection_screen(),
             "Old Coin" | "OldCoin" => {
                 // OldCoin.java::onEquip calls AbstractPlayer.gainGold(300),
                 // which also preserves Ectoplasm's gain-gold prohibition.
@@ -3669,6 +3674,35 @@ impl RunEngine {
             ordered: true,
             active_item: None,
             items: std::mem::take(&mut items),
+        };
+        Self::refresh_reward_screen(&mut screen);
+        self.reward_screen = Some(screen);
+        self.phase = RunPhase::CardReward;
+    }
+
+    fn build_dollys_mirror_selection_screen(&mut self) {
+        // DollysMirror.onEquip opens a mandatory one-card master-deck grid.
+        // update makes a stat-equivalent copy, clears all bottle flags, and
+        // obtains the copy normally before returning to the shop.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/DollysMirror.java
+        let choices = self.run_state.deck.iter().cloned().enumerate()
+            .map(|(index, card_id)| RewardChoice::Card { index, card_id })
+            .collect();
+        let mut screen = RewardScreen {
+            source: RewardScreenSource::Shop,
+            ordered: true,
+            active_item: None,
+            items: vec![RewardItem {
+                index: 0,
+                kind: RewardItemKind::CardChoice,
+                state: RewardItemState::Available,
+                label: "deck_selection_dollys_mirror".to_string(),
+                claimable: true,
+                active: false,
+                skip_allowed: false,
+                skip_label: None,
+                choices,
+            }],
         };
         Self::refresh_reward_screen(&mut screen);
         self.reward_screen = Some(screen);
@@ -5190,7 +5224,7 @@ impl RunEngine {
             relics.push((relic, final_price));
         }
         const SHOP_RELICS: &[&str] = &[
-            "TheAbacus", "Brimstone", "Cauldron", "Chemical X", "ClockworkSouvenir", "Frozen Eye", "HandDrill", "Lee's Waffle", "Medical Kit", "Melange",
+            "TheAbacus", "Brimstone", "Cauldron", "Chemical X", "ClockworkSouvenir", "DollysMirror", "Frozen Eye", "HandDrill", "Lee's Waffle", "Medical Kit", "Melange",
             "Membership Card",
             "OrangePellets", "Runic Capacitor", "Sling", "Strange Spoon",
             "PrismaticShard", "Toolbox", "TwistedFunnel",

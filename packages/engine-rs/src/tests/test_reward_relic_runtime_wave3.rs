@@ -2816,6 +2816,61 @@ fn cauldron_is_shop_reachable_and_opens_five_ordered_potion_rewards() {
 }
 
 #[test]
+fn dollys_mirror_is_shop_reachable_and_obtains_one_unbottled_card_copy() {
+    // DollysMirror.java is SHOP tier. Its mandatory grid makes a stat-
+    // equivalent copy, clears all bottle flags, then ShowCardAndObtainEffect
+    // dispatches normal card-obtain callbacks before returning to the shop.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/DollysMirror.java
+    let seed = (0..256).find(|seed| {
+        let mut engine = RunEngine::new(*seed, 0);
+        engine.debug_enter_shop();
+        engine.get_shop().is_some_and(|shop| {
+            shop.relics.iter().any(|(relic, _)| relic == "DollysMirror")
+        })
+    }).expect("DollysMirror shop seed");
+
+    let mut engine = RunEngine::new(seed, 0);
+    engine.run_state.deck = vec![
+        "Strike".to_string(),
+        "Defend".to_string(),
+        "Wallop+".to_string(),
+    ];
+    engine.run_state.bottled_flame_card = Some("Wallop+".to_string());
+    engine.run_state.relics.push("CeramicFish".to_string());
+    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine.run_state.gold = 10_000;
+    engine.debug_enter_shop();
+    let relic_index = engine.get_shop().expect("shop").relics.iter()
+        .position(|(relic, _)| relic == "DollysMirror")
+        .expect("DollysMirror offer");
+    assert!(engine.step_with_result(&RunAction::ShopBuyRelic(relic_index)).action_accepted);
+    assert_eq!(engine.current_phase(), RunPhase::CardReward);
+    let gold_after_purchase = engine.run_state.gold;
+    let screen = engine.current_reward_screen().expect("mirror selection");
+    assert_eq!(screen.source, RewardScreenSource::Shop);
+    assert!(!screen.items[0].skip_allowed);
+    let wallop_choice = screen.items[0].choices.iter().position(|choice| {
+        matches!(choice, RewardChoice::Card { card_id, .. } if card_id == "Wallop+")
+    }).expect("Wallop+ choice");
+    assert!(engine.step_with_result(&RunAction::SelectRewardItem(0)).action_accepted);
+    assert!(engine.step_with_result(&RunAction::ChooseRewardOption {
+        item_index: 0,
+        choice_index: wallop_choice,
+    }).action_accepted);
+    assert_eq!(engine.current_phase(), RunPhase::Shop);
+    assert_eq!(engine.run_state.deck.iter().filter(|card| *card == "Wallop+").count(), 2);
+    assert_eq!(engine.run_state.gold, gold_after_purchase + 9);
+
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    let combat = engine.get_combat_engine().expect("mirror combat");
+    let innate_wallops = combat.state.master_deck.iter().filter(|card| {
+        combat.card_registry.card_name(card.def_id) == "Wallop+"
+            && card.flags & crate::combat_types::CardInstance::FLAG_INNATE != 0
+    }).count();
+    assert_eq!(innate_wallops, 1);
+}
+
+#[test]
 fn chemical_x_is_reachable_only_from_the_shop_relic_slot() {
     // ChemicalX.java declares canonical ID "Chemical X" and constructs
     // RelicTier.SHOP.
