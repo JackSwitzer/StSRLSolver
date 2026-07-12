@@ -5771,6 +5771,9 @@ impl RunEngine {
                 }
             }
             EventProgramOp::ObtainRandomFace => {
+                // FaceTrader.java::getRandomFace filters these exact canonical
+                // IDs and falls back to Circlet only when all five are owned.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/events/shrines/FaceTrader.java
                 const FACE_IDS: &[&str] = &[
                     "CultistMask",
                     "FaceOfCleric",

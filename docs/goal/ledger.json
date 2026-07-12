@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T02:49:27.153217+00:00",
+ "updated": "2026-07-12T02:51:35.565880+00:00",
  "status_counts": {
-  "unverified": 402,
-  "verified": 265
+  "unverified": 401,
+  "verified": 266
  },
  "rows": [
   {
@@ -5182,8 +5182,8 @@
    "class": "CultistMask",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/CultistMask.java",
    "methods_ref": "reference/extracted/methods/relic/CultistMask.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

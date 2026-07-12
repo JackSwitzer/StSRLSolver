@@ -285,6 +285,40 @@ fn gremlin_mask_trade_applies_one_artifact_aware_weak_in_next_combat() {
 }
 
 #[test]
+fn cultist_mask_trade_is_naturally_reachable_and_gameplay_inert() {
+    // CultistMask.java::atBattleStart queues only relic flash, SFXAction, and
+    // TalkAction. Those presentation effects must not fabricate any combat
+    // status, energy, or draw mutation in the simulator.
+    let mut engine = RunEngine::new(59, 0);
+    engine.run_state.relics.extend(
+        ["FaceOfCleric", "GremlinMask", "NlothsMask", "SsserpentHead"]
+            .iter()
+            .map(|face| (*face).to_string()),
+    );
+    engine.debug_set_typed_event_state(shrine_event("FaceTrader"));
+    engine.step(&RunAction::EventChoice(0));
+    assert!(engine.step_with_result(&RunAction::EventChoice(1)).action_accepted);
+    assert!(engine
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == "CultistMask"));
+
+    engine
+        .run_state
+        .relics
+        .retain(|relic| matches!(relic.as_str(), "PureWater" | "CultistMask"));
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    let combat = engine.get_combat_engine().expect("Cultist Mask combat");
+    assert!(combat.state.relics.iter().any(|relic| relic == "CultistMask"));
+    assert_eq!(combat.state.player.status(sid::STRENGTH), 0);
+    assert_eq!(combat.state.player.status(sid::DEXTERITY), 0);
+    assert_eq!(combat.state.player.status(sid::WEAKENED), 0);
+    assert_eq!(combat.state.energy, 3);
+    assert_eq!(combat.state.hand.len(), 6); // normal five-card draw plus Pure Water's Miracle
+}
+
+#[test]
 fn nest_branches_cover_direct_gold_and_specific_card_reward() {
     let nest = typed_event(2, "Nest");
     assert!(nest
