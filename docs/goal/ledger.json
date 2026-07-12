@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-11T20:04:03.882552+00:00",
+ "updated": "2026-07-12T02:04:33.582492+00:00",
  "status_counts": {
-  "unverified": 413,
-  "verified": 254
+  "unverified": 412,
+  "verified": 255
  },
  "rows": [
   {
@@ -6172,8 +6172,8 @@
    "class": "SacredBark",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/SacredBark.java",
    "methods_ref": "reference/extracted/methods/relic/SacredBark.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

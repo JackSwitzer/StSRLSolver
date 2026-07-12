@@ -4281,6 +4281,9 @@ impl RunEngine {
             // RunicPyramid.java constructs canonical ID "Runic Pyramid" at
             // BOSS tier; DiscardAtEndOfTurnAction.java supplies its behavior.
             "Runic Pyramid",
+            // SacredBark.java constructs canonical ID "SacredBark" at BOSS
+            // tier and reinitializes all currently owned potion data on equip.
+            "SacredBark",
             "Velvet Choker",
             "Snecko Eye",
             "HolyWater",

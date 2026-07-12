@@ -1,3 +1,4 @@
+use crate::actions::Action;
 use crate::decision::{
     DecisionAction, RewardChoice, RewardItem, RewardItemKind, RewardItemState, RewardScreen,
     RewardScreenSource,
@@ -4391,6 +4392,45 @@ fn choosing_sacred_bark_uses_only_real_reward_choice_actions() {
     assert!(choose.action_accepted);
     assert!(engine.run_state.relic_flags.has(crate::relic_flags::flag::SACRED_BARK));
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+}
+
+#[test]
+fn sacred_bark_is_boss_reachable_and_refreshes_owned_potion_potency() {
+    // Sources: SacredBark.java is BOSS tier and calls initializeData on every
+    // currently owned potion; BlockPotion.java has constant potency 12, which
+    // AbstractPotion doubles while SacredBark is owned.
+    let offered = (0..128).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_boss_reward_screen();
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0].choices.iter().any(|choice| {
+                matches!(choice, RewardChoice::Named { label, .. } if label == "SacredBark")
+            })
+        })
+    });
+    assert!(offered);
+
+    let mut engine = RunEngine::new(42, 0);
+    engine.run_state.potions[0] = "Block Potion".to_string();
+    engine.debug_set_reward_screen(relic_choice_reward_screen(&["SacredBark"]));
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(engine
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+
+    let combat = engine.debug_combat_engine_mut();
+    combat.execute_action(&Action::UsePotion {
+        potion_idx: 0,
+        target_idx: -1,
+    });
+    assert_eq!(combat.state.player.block, 24);
+    assert!(combat.state.potions[0].is_empty());
 }
 
 #[test]
