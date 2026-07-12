@@ -4450,6 +4450,58 @@ fn snecko_eye_is_reachable_from_the_watcher_boss_relic_pool() {
 }
 
 #[test]
+fn tiny_house_applies_immediate_stats_then_opens_ordered_gold_and_potion_rewards() {
+    // Source: TinyHouse.java is BOSS tier; onEquip upgrades one upgradeable
+    // master-deck card, increases max HP by 5 with healing, then adds 50 gold
+    // and one miscRng potion to an ordered combat reward screen.
+    let offered = (0..128).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_boss_reward_screen();
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0].choices.iter().any(|choice| {
+                matches!(choice, RewardChoice::Named { label, .. } if label == "Tiny House")
+            })
+        })
+    });
+    assert!(offered);
+
+    let mut engine = RunEngine::new(42, 0);
+    engine.run_state.deck = vec!["Eruption".to_string()];
+    engine.run_state.current_hp = 40;
+    engine.run_state.max_hp = 72;
+    let gold_before = engine.run_state.gold;
+    engine.debug_set_reward_screen(relic_choice_reward_screen(&["Tiny House"]));
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert!(engine
+        .step_with_result(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .action_accepted);
+
+    assert_eq!(engine.run_state.deck, vec!["Eruption+".to_string()]);
+    assert_eq!((engine.run_state.current_hp, engine.run_state.max_hp), (45, 77));
+    assert_eq!(engine.run_state.gold, gold_before);
+    let screen = engine.current_reward_screen().expect("Tiny House rewards");
+    assert_eq!(screen.items.len(), 2);
+    assert_eq!((screen.items[0].kind, screen.items[0].label.as_str()), (RewardItemKind::Gold, "50"));
+    assert_eq!(screen.items[1].kind, RewardItemKind::Potion);
+    assert!(screen.items[0].claimable);
+    assert!(!screen.items[1].claimable);
+
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(0))
+        .action_accepted);
+    assert_eq!(engine.run_state.gold, gold_before + 50);
+    assert!(engine
+        .step_with_result(&RunAction::SelectRewardItem(1))
+        .action_accepted);
+    assert!(engine.run_state.potions.iter().any(|potion| !potion.is_empty()));
+}
+
+#[test]
 fn claiming_matryoshka_mutates_next_two_chests_then_expires() {
     let mut engine = RunEngine::new(321, 20);
     engine.debug_set_reward_screen(single_relic_reward_screen("Matryoshka"));

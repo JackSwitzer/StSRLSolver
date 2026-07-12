@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T02:09:10.381830+00:00",
+ "updated": "2026-07-12T02:12:53.317398+00:00",
  "status_counts": {
-  "unverified": 411,
-  "verified": 256
+  "unverified": 410,
+  "verified": 257
  },
  "rows": [
   {
@@ -6482,8 +6482,8 @@
    "class": "TinyHouse",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/TinyHouse.java",
    "methods_ref": "reference/extracted/methods/relic/TinyHouse.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

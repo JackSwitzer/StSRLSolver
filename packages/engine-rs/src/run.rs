@@ -2989,6 +2989,8 @@ impl RunEngine {
             matches!(&choice, RewardChoice::Named { label, .. } if label == "Astrolabe");
         let chose_calling_bell =
             matches!(&choice, RewardChoice::Named { label, .. } if label == "Calling Bell");
+        let chose_tiny_house =
+            matches!(&choice, RewardChoice::Named { label, .. } if label == "Tiny House");
         let astrolabe_card_pick = item_label == "deck_selection_astrolabe";
         let bottled_flame_card_pick = item_label == "deck_selection_bottled_flame";
         let bottled_lightning_card_pick = item_label == "deck_selection_bottled_lightning";
@@ -3059,6 +3061,8 @@ impl RunEngine {
             self.build_astrolabe_selection_screen();
         } else if chose_calling_bell && self.pending_calling_bell_rewards {
             self.build_calling_bell_reward_screen();
+        } else if chose_tiny_house {
+            self.build_tiny_house_reward_screen();
         }
         if (bottled_flame_card_pick
             || bottled_lightning_card_pick
@@ -3372,6 +3376,13 @@ impl RunEngine {
                     self.run_state.current_hp =
                         (self.run_state.current_hp + 7).min(self.run_state.max_hp);
                 }
+            }
+            "Tiny House" | "TinyHouse" => {
+                // TinyHouse.java shuffles all upgradeable master-deck cards,
+                // upgrades exactly the first, then increases max HP by 5.
+                self.upgrade_one_random_master_deck_card();
+                self.run_state.max_hp += 5;
+                self.heal_run_player(5);
             }
             // Source: reference/extracted/methods/relic/Whetstone.java upgrades
             // up to two upgradable ATTACK cards and checks bottled upgrades.
@@ -3741,6 +3752,43 @@ impl RunEngine {
         self.pending_calling_bell_rewards = false;
     }
 
+    fn build_tiny_house_reward_screen(&mut self) {
+        // TinyHouse.java adds gold first, then a miscRng-selected potion, and
+        // opens the current room's ordered combat reward screen.
+        let potion = self.roll_reward_potion_id();
+        let mut screen = RewardScreen {
+            source: RewardScreenSource::BossCombat,
+            ordered: true,
+            active_item: None,
+            items: vec![
+                RewardItem {
+                    index: 0,
+                    kind: RewardItemKind::Gold,
+                    state: RewardItemState::Available,
+                    label: "50".to_string(),
+                    claimable: true,
+                    active: false,
+                    skip_allowed: false,
+                    skip_label: None,
+                    choices: Vec::new(),
+                },
+                RewardItem {
+                    index: 1,
+                    kind: RewardItemKind::Potion,
+                    state: RewardItemState::Available,
+                    label: potion,
+                    claimable: false,
+                    active: false,
+                    skip_allowed: true,
+                    skip_label: Some("Skip".to_string()),
+                    choices: Vec::new(),
+                },
+            ],
+        };
+        Self::refresh_reward_screen(&mut screen);
+        self.reward_screen = Some(screen);
+    }
+
     fn remove_relic_reward(&mut self, relic_id: &str) {
         let matches = |owned: &str| match relic_id {
             "Golden Idol" | "GoldenIdol" => matches!(owned, "Golden Idol" | "GoldenIdol"),
@@ -3837,6 +3885,43 @@ impl RunEngine {
                 // each SKILL it upgrades.
                 self.run_state.bottled_lightning_card = Some(upgraded);
             }
+        }
+    }
+
+    fn upgrade_one_random_master_deck_card(&mut self) {
+        let registry = crate::cards::global_registry();
+        let eligible: Vec<usize> = self
+            .run_state
+            .deck
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, card_id)| {
+                if card_id.ends_with('+') || registry.get(&format!("{card_id}+")).is_none() {
+                    None
+                } else {
+                    Some(idx)
+                }
+            })
+            .collect();
+        if eligible.is_empty() {
+            return;
+        }
+
+        // TinyHouse.java consumes miscRng.randomLong() to seed a shuffle and
+        // upgrades the first result. RunEngine's shared run stream preserves
+        // the semantic random choice until run-level streams are split.
+        let deck_idx = eligible[self.rng.gen_range(0..eligible.len())];
+        let original = self.run_state.deck[deck_idx].clone();
+        let upgraded = format!("{original}+");
+        self.run_state.deck[deck_idx] = upgraded.clone();
+        if self.run_state.bottled_flame_card.as_deref() == Some(original.as_str()) {
+            self.run_state.bottled_flame_card = Some(upgraded.clone());
+        }
+        if self.run_state.bottled_lightning_card.as_deref() == Some(original.as_str()) {
+            self.run_state.bottled_lightning_card = Some(upgraded.clone());
+        }
+        if self.run_state.bottled_tornado_card.as_deref() == Some(original.as_str()) {
+            self.run_state.bottled_tornado_card = Some(upgraded);
         }
     }
 
@@ -4286,6 +4371,9 @@ impl RunEngine {
             "SacredBark",
             "Velvet Choker",
             "Snecko Eye",
+            // TinyHouse.java constructs canonical ID "Tiny House" at BOSS
+            // tier and opens its own follow-up reward screen on equip.
+            "Tiny House",
             "HolyWater",
             "VioletLotus",
             "Astrolabe",
