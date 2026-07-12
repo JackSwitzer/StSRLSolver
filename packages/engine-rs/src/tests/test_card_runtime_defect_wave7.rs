@@ -15,7 +15,8 @@ use crate::effects::types::{CardRuntimeTraits, CardBlockHint};
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
 use crate::tests::support::{
-    end_turn, enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_self,
+    end_turn, enemy_no_intent, engine_with, engine_without_start, exhaust_prefix_count,
+    force_player_turn, hand_count, make_deck, make_deck_n, play_self,
 };
 
 fn one_enemy_engine(hp: i32) -> crate::engine::CombatEngine {
@@ -115,6 +116,24 @@ fn defect_wave7_auto_shields_boot_sequence_and_leap_follow_engine_path() {
     leap.state.hand = make_deck(&["Leap+"]);
     assert!(play_self(&mut leap, "Leap+"));
     assert_eq!(leap.state.player.block, 12);
+}
+
+#[test]
+fn boot_sequence_plus_starts_in_hand_blocks_for_free_and_exhausts() {
+    // Source: BootSequence.java sets Innate and Exhaust, costs 0, starts at 10
+    // block, and upgradeBlock(3) makes the upgraded block 13.
+    let mut deck = make_deck_n("Defend", 9);
+    deck.push(global_registry().make_card("BootSequence+"));
+    let mut engine = engine_with(deck, 40, 0);
+    engine.state.player.set_status(sid::DEXTERITY, 2);
+
+    assert_eq!(hand_count(&engine, "BootSequence+"), 1);
+    let energy_before = engine.state.energy;
+    assert!(play_self(&mut engine, "BootSequence+"));
+
+    assert_eq!(engine.state.player.block, 15);
+    assert_eq!(engine.state.energy, energy_before);
+    assert_eq!(exhaust_prefix_count(&engine, "BootSequence"), 1);
 }
 
 #[test]

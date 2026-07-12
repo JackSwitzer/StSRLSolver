@@ -9,7 +9,8 @@ mod test_card_runtime_defect_wave4;
 mod test_card_runtime_defect_wave7;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // Boot Sequence: 0 cost, 10 block, innate, exhaust.
+    // Source: cards/blue/BootSequence.java costs 0, is Innate and Exhaust,
+    // gains 10 block, and upgrades only that block by 3.
     insert(cards, CardDef {
         id: "BootSequence", name: "Boot Sequence", card_type: CardType::Skill,
         target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: 10,
