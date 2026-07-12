@@ -1319,7 +1319,7 @@ impl EffectRuntime {
             crate::effects::declarative::CardFilter::ZeroCost => {
                 let def = engine.card_registry.card_def_by_id(card.def_id);
                 let current_cost = if card.cost >= 0 { card.cost as i32 } else { def.cost };
-                current_cost == 0
+                current_cost == 0 || card.is_free()
             }
             crate::effects::declarative::CardFilter::Upgradeable => !card.is_upgraded(),
         }

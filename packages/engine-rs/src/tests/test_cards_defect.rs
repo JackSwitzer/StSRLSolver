@@ -543,12 +543,47 @@ mod defect_card_java_parity_tests {
     });
 
     defect_test!(all_for_one_returns_zero_cost_cards_from_discard, {
-        let mut e = bare_engine(&["All For One"], vec![enemy("JawWorm", 40, 0)]);
-        ensure_in_hand(&mut e, "All For One");
-        e.state.discard_pile = make_deck(&["Zap+", "Turbo", "Strike"]);
-        play_on_enemy(&mut e, "All For One", 0);
-        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Zap+"));
-        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Turbo"));
+        // AllForOne.java deals 10 (14 upgraded), then AllCostToHandAction scans
+        // discard in order for current cost 0 OR freeToPlayOnce. Its queued
+        // DiscardToHandActions move the earliest matches until hand size ten.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/AllForOne.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/AllCostToHandAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/DiscardToHandAction.java
+        let mut e = bare_engine(&[], vec![enemy("JawWorm", 50, 0)]);
+        e.state.hand = make_deck(&[
+            "All For One",
+            "Defend", "Defend", "Defend", "Defend",
+            "Defend", "Defend", "Defend", "Defend",
+        ]);
+        e.state.energy = 2;
+        let mut temporary_zero = e.card_registry.make_card("Strike");
+        temporary_zero.cost = 0;
+        let free_defend = e.card_registry.make_card("Defend").set_free(true);
+        let mut raised_zero = e.card_registry.make_card("Zap+");
+        raised_zero.cost = 1;
+        let turbo = e.card_registry.make_card("Turbo");
+        e.state.discard_pile = vec![temporary_zero, free_defend, raised_zero, turbo];
+
+        assert!(play_on_enemy(&mut e, "All For One", 0));
+        assert_eq!(e.state.enemies[0].entity.hp, 40);
+        assert_eq!(e.state.hand.len(), 10);
+        let returned = e.state.hand.iter().rev().take(2)
+            .map(|card| e.card_registry.card_name(card.def_id))
+            .collect::<Vec<_>>();
+        assert_eq!(returned, vec!["Defend", "Strike"]);
+        assert!(e.state.hand.last().expect("free Defend").is_free());
+        assert!(e.state.discard_pile.iter().any(|card| {
+            e.card_registry.card_name(card.def_id) == "Zap+" && card.cost == 1
+        }));
+        assert!(e.state.discard_pile.iter().any(|card| {
+            e.card_registry.card_name(card.def_id) == "Turbo"
+        }));
+
+        let mut upgraded = bare_engine(&[], vec![enemy("JawWorm", 50, 0)]);
+        upgraded.state.hand = make_deck(&["All For One+"]);
+        upgraded.state.energy = 2;
+        assert!(play_on_enemy(&mut upgraded, "All For One+", 0));
+        assert_eq!(upgraded.state.enemies[0].entity.hp, 36);
     });
 
     defect_test!(biased_cognition_gives_focus, {

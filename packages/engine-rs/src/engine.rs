@@ -1997,7 +1997,7 @@ impl CombatEngine {
                 } else {
                     def.cost
                 };
-                cost == 0
+                cost == 0 || card.is_free()
             }
             CardFilter::Upgradeable => !card.is_upgraded(),
         }

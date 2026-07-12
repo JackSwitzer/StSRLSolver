@@ -1387,7 +1387,12 @@ fn matches_filter(
         }
         CardFilter::ZeroCost => {
             let def = engine.card_registry.card_def_by_id(card.def_id);
-            def.cost == 0
+            let current_cost = if card.cost >= 0 {
+                card.cost as i32
+            } else {
+                def.cost
+            };
+            current_cost == 0 || card.is_free()
         }
         CardFilter::Upgradeable => !card.is_upgraded(),
     }
@@ -1530,16 +1535,20 @@ fn execute_for_each(
             if pile == Pile::Hand {
                 return; // No-op: already in hand
             }
-            // Collect matching cards from the source pile, then add to hand
+            // DiscardToHandAction resolves queued cards in discard scan order,
+            // stopping naturally when the hand reaches ten.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/AllCostToHandAction.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/DiscardToHandAction.java
             let hand_capacity = 10 - engine.state.hand.len();
             let pile_ref = get_pile_mut(engine, pile);
-            let mut moved = Vec::new();
-            for &i in matching.iter().rev() {
-                if i < pile_ref.len() && moved.len() < hand_capacity {
-                    moved.push(pile_ref.remove(i));
-                }
+            let selected = matching.into_iter().take(hand_capacity).collect::<Vec<_>>();
+            let moved = selected
+                .iter()
+                .filter_map(|index| pile_ref.get(*index).copied())
+                .collect::<Vec<_>>();
+            for index in selected.into_iter().rev() {
+                pile_ref.remove(index);
             }
-            // pile_ref borrow ends here (temporary)
             engine.state.hand.extend(moved);
         }
 
