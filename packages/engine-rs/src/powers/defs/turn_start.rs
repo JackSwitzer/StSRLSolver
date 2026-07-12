@@ -122,6 +122,9 @@ pub static DEF_BRUTALITY: EntityDef = EntityDef {
 // Berserk — TurnStart: gain energy equal to stacks
 // ===========================================================================
 
+// Source: powers/BerserkPower.java::atStartOfTurn queues GainEnergyAction for
+// the power's stack amount on every turn start.
+
 static BERSERK_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::GainEnergy(
     AmountSource::StatusValue(sid::BERSERK),
 ))];

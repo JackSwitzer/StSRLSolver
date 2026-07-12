@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T16:19:48.475170+00:00",
+ "updated": "2026-07-12T16:21:55.149739+00:00",
  "status_counts": {
-  "verified": 314,
-  "unverified": 353
+  "verified": 315,
+  "unverified": 352
  },
  "rows": [
   {
@@ -282,8 +282,8 @@
    "class": "Berserk",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/Berserk.java",
    "methods_ref": "reference/extracted/methods/card/Berserk.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Ironclad Rare: Berserk ---- (cost 0, power, 2 vuln to self, +1 energy/turn; -1 vuln)
+        // Sources: cards/red/Berserk.java costs 0, applies 2 self-Vulnerable
+        // then one BerserkPower; the upgrade reduces only Vulnerable by 1.
     insert(cards, CardDef {
                 id: "Berserk", name: "Berserk", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
