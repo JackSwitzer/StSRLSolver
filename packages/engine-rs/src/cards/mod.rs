@@ -2021,7 +2021,7 @@ mod tests {
             "Poisoned Stab", "Prepared", "Quick Slash", "Slice",
             "Sneaky Strike", "Sucker Punch",
             // Uncommon
-            "Accuracy", "All-Out Attack", "Backstab", "Blur", "Bouncing Flask",
+            "Accuracy", "All Out Attack", "Backstab", "Blur", "Bouncing Flask",
             "Calculated Gamble", "Caltrops", "Catalyst", "Choke", "Concentrate",
             "Crippling Cloud", "Dash", "Distraction", "Endless Agony", "Envenom",
             "Escape Plan", "Eviscerate", "Expertise", "Finisher", "Flechettes",

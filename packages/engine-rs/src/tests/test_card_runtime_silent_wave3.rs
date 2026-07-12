@@ -77,7 +77,7 @@ mod silent_wave3 {
         );
         assert!(bane.complex_hook.is_none());
 
-        let all_out_attack = reg.get("All-Out Attack").expect("All-Out Attack");
+        let all_out_attack = reg.get("All Out Attack").expect("All Out Attack");
         assert_eq!(
             all_out_attack.effect_data,
             &[
@@ -145,7 +145,7 @@ mod silent_wave3 {
             .any(|card| die_die_die.card_registry.card_name(card.def_id) == "Die Die Die"));
 
         let mut all_out = engine_for(
-            &["All-Out Attack", "Strike", "Defend"],
+            &["All Out Attack", "Strike", "Defend"],
             &[],
             vec![
                 enemy_no_intent("JawWorm", 40, 40),
@@ -154,7 +154,7 @@ mod silent_wave3 {
             3,
         );
         let before_hand = all_out.state.hand.len();
-        assert!(play_self(&mut all_out, "All-Out Attack"));
+        assert!(play_self(&mut all_out, "All Out Attack"));
         assert_eq!(all_out.state.enemies[0].entity.hp, 30);
         assert_eq!(all_out.state.enemies[1].entity.hp, 25);
         assert_eq!(all_out.state.hand.len(), before_hand - 2);

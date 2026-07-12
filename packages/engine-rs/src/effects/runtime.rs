@@ -1480,6 +1480,14 @@ impl EffectRuntime {
             return;
         }
 
+        if pile == Pile::Hand && engine.state.hand.len() <= count {
+            while let Some(card) = engine.state.hand.pop() {
+                engine.state.discard_pile.push(card);
+                engine.on_card_discarded(card);
+            }
+            return;
+        }
+
         for _ in 0..count {
             let len = match pile {
                 Pile::Hand => engine.state.hand.len(),
@@ -1490,7 +1498,7 @@ impl EffectRuntime {
             if len == 0 {
                 break;
             }
-            let idx = engine.rng_gen_range(0..len);
+            let idx = engine.card_random_rng.random((len - 1) as i32) as usize;
             let source = match pile {
                 Pile::Hand => &mut engine.state.hand,
                 Pile::Draw => &mut engine.state.draw_pile,

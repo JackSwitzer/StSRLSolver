@@ -52,7 +52,7 @@ fn tiny_primitive_wave2_registry_exports_show_the_typed_primary_surfaces() {
     );
     assert!(ftl.complex_hook.is_none());
 
-    let all_out_attack = reg.get("All-Out Attack").expect("All-Out Attack");
+    let all_out_attack = reg.get("All Out Attack").expect("All Out Attack");
     assert_eq!(all_out_attack.card_type, CardType::Attack);
     assert_eq!(all_out_attack.target, CardTarget::AllEnemy);
     assert_eq!(
@@ -157,9 +157,9 @@ fn tiny_primitive_wave2_ftl_bane_feed_and_all_out_attack_follow_the_typed_runtim
     assert_eq!(feed.state.player.hp, hp_before + 3);
 
     let mut all_out_attack = single_enemy_engine(40, 3);
-    all_out_attack.state.hand = make_deck(&["All-Out Attack", "Strike"]);
+    all_out_attack.state.hand = make_deck(&["All Out Attack", "Strike"]);
     let hand_before = all_out_attack.state.hand.len();
-    assert!(play_self(&mut all_out_attack, "All-Out Attack"));
+    assert!(play_self(&mut all_out_attack, "All Out Attack"));
     assert_eq!(all_out_attack.state.enemies[0].entity.hp, 30);
     assert_eq!(all_out_attack.state.hand.len(), hand_before - 2);
     assert_eq!(all_out_attack.state.discard_pile.len(), 2);

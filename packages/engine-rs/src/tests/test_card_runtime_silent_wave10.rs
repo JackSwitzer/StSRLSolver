@@ -19,7 +19,7 @@ use crate::tests::support::*;
 fn silent_wave10_registry_exports_show_typed_primary_surfaces() {
     let registry = global_registry();
 
-    let all_out_attack = registry.get("All-Out Attack").expect("All-Out Attack should exist");
+    let all_out_attack = registry.get("All Out Attack").expect("All Out Attack should exist");
     assert_eq!(all_out_attack.card_type, CardType::Attack);
     assert_eq!(all_out_attack.target, CardTarget::AllEnemy);
     assert_eq!(
@@ -102,13 +102,13 @@ fn silent_wave10_typed_primary_surfaces_follow_java_oracle_on_engine_path() {
         3,
     );
     force_player_turn(&mut aoa);
-    aoa.state.hand = make_deck(&["All-Out Attack", "Strike", "Defend"]);
+    aoa.state.hand = make_deck(&["All Out Attack", "Strike", "Defend"]);
     let hp0 = aoa.state.enemies[0].entity.hp;
     let hp1 = aoa.state.enemies[1].entity.hp;
-    assert!(play_on_enemy(&mut aoa, "All-Out Attack", 0));
+    assert!(play_on_enemy(&mut aoa, "All Out Attack", 0));
     assert_eq!(aoa.state.enemies[0].entity.hp, hp0 - 10);
     assert_eq!(aoa.state.enemies[1].entity.hp, hp1 - 10);
-    assert_eq!(discard_prefix_count(&aoa, "All-Out Attack"), 1);
+    assert_eq!(discard_prefix_count(&aoa, "All Out Attack"), 1);
     assert_eq!(aoa.state.discard_pile.len(), 2);
     assert_eq!(aoa.state.hand.len(), 1);
     assert_eq!(aoa.state.player.status(sid::DISCARDED_THIS_TURN), 1);

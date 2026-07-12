@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T15:36:45.756597+00:00",
+ "updated": "2026-07-12T15:40:30.171459+00:00",
  "status_counts": {
-  "verified": 297,
-  "unverified": 370
+  "verified": 298,
+  "unverified": 369
  },
  "rows": [
   {
@@ -92,8 +92,8 @@
    "class": "AllOutAttack",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/AllOutAttack.java",
    "methods_ref": "reference/extracted/methods/card/AllOutAttack.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

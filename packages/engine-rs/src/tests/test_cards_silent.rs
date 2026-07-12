@@ -254,8 +254,8 @@ mod silent_card_java_parity_tests {
         assert_eq!(engine.state.enemies[0].entity.hp, 76);
     }
     card_pair_test!(all_out_attack,
-        "All-Out Attack", 1, 10, -1, -1, CardType::Attack, CardTarget::AllEnemy, false, None, &["discard_random"],
-        "All-Out Attack+", 1, 14, -1, -1, CardType::Attack, CardTarget::AllEnemy, false, None, &["discard_random"],
+        "All Out Attack", 1, 10, -1, -1, CardType::Attack, CardTarget::AllEnemy, false, None, &["discard_random"],
+        "All Out Attack+", 1, 14, -1, -1, CardType::Attack, CardTarget::AllEnemy, false, None, &["discard_random"],
     );
     card_pair_test!(backstab,
         "Backstab", 0, 11, -1, -1, CardType::Attack, CardTarget::Enemy, true, None, &["innate"],
@@ -735,17 +735,53 @@ mod silent_card_java_parity_tests {
 
     #[test]
     fn all_out_attack_hits_all_enemies() {
+        // AllOutAttack.java uses canonical ID "All Out Attack", deals 10 to
+        // every enemy (14 upgraded), then DiscardAction randomly discards one.
+        // With more than one card, that action consumes one cardRandomRng tick
+        // and triggers manual-discard callbacks; with one card it consumes no RNG.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/AllOutAttack.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DiscardAction.java
         let enemies = vec![
-            enemy("A", 40, 40, 1, 0, 1),
-            enemy("B", 40, 40, 1, 0, 1),
-            enemy("C", 40, 40, 1, 0, 1),
+            enemy("A", 50, 50, 1, 0, 1),
+            enemy("B", 50, 50, 1, 0, 1),
         ];
-        let mut engine = engine_with_enemies(make_deck_n("All-Out Attack", 8), enemies, 3);
-        ensure_in_hand(&mut engine, "All-Out Attack");
-        assert!(play_self(&mut engine, "All-Out Attack"));
-        assert_eq!(engine.state.enemies[0].entity.hp, 30);
-        assert_eq!(engine.state.enemies[1].entity.hp, 30);
-        assert_eq!(engine.state.enemies[2].entity.hp, 30);
+        let mut engine = engine_with_enemies(Vec::new(), enemies, 1);
+        engine.state.hand = make_deck(&["All Out Attack", "Tactician", "Strike", "Defend"]);
+        engine.state.draw_pile.clear();
+        engine.state.discard_pile.clear();
+        engine.state.energy = 1;
+        let mut oracle = engine.card_random_rng.clone();
+        let expected_index = oracle.random(2) as usize;
+        let expected_discard = ["Tactician", "Strike", "Defend"][expected_index];
+        let card_random_before = engine.rng_counters()["cardRandom"];
+        let card_before = engine.rng_counters()["card"];
+
+        assert!(play_self(&mut engine, "All Out Attack"));
+        assert_eq!(engine.state.enemies[0].entity.hp, 40);
+        assert_eq!(engine.state.enemies[1].entity.hp, 40);
+        assert_eq!(engine.rng_counters()["cardRandom"], card_random_before + 1);
+        assert_eq!(engine.rng_counters()["card"], card_before);
+        assert!(engine.state.discard_pile.iter().any(|card| {
+            engine.card_registry.card_name(card.def_id) == expected_discard
+        }));
+        assert_eq!(engine.state.player.status(sid::DISCARDED_THIS_TURN), 1);
+        assert_eq!(engine.state.energy, i32::from(expected_discard == "Tactician"));
+
+        let mut upgraded = engine_with_enemies(
+            Vec::new(),
+            vec![enemy("A", 50, 50, 1, 0, 1), enemy("B", 50, 50, 1, 0, 1)],
+            1,
+        );
+        upgraded.state.hand = make_deck(&["All Out Attack+", "Tactician"]);
+        upgraded.state.draw_pile.clear();
+        upgraded.state.discard_pile.clear();
+        upgraded.state.energy = 1;
+        let card_random_before = upgraded.rng_counters()["cardRandom"];
+        assert!(play_self(&mut upgraded, "All Out Attack+"));
+        assert_eq!(upgraded.state.enemies[0].entity.hp, 36);
+        assert_eq!(upgraded.state.enemies[1].entity.hp, 36);
+        assert_eq!(upgraded.rng_counters()["cardRandom"], card_random_before);
+        assert_eq!(upgraded.state.energy, 1);
     }
 
     #[test]

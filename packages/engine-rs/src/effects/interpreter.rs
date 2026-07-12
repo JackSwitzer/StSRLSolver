@@ -1623,12 +1623,23 @@ fn execute_discard_random_cards_from_pile(
         return;
     }
 
+    // DiscardAction takes a no-RNG whole-hand branch when hand size is at
+    // most the requested amount. All Out Attack requests exactly one.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DiscardAction.java
+    if pile == Pile::Hand && engine.state.hand.len() <= count {
+        while let Some(card) = engine.state.hand.pop() {
+            engine.state.discard_pile.push(card);
+            engine.on_card_discarded(card);
+        }
+        return;
+    }
+
     for _ in 0..count {
         let len = get_pile_mut(engine, pile).len();
         if len == 0 {
             break;
         }
-        let idx = engine.rng_gen_range(0..len);
+        let idx = engine.card_random_rng.random((len - 1) as i32) as usize;
         let source = get_pile_mut(engine, pile);
         let card = source.remove(idx);
         engine.state.discard_pile.push(card);
