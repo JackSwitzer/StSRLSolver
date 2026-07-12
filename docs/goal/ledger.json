@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T15:24:12.819862+00:00",
+ "updated": "2026-07-12T15:26:15.625851+00:00",
  "status_counts": {
-  "verified": 292,
-  "unverified": 375
+  "verified": 293,
+  "unverified": 374
  },
  "rows": [
   {
@@ -32,8 +32,8 @@
    "class": "Acrobatics",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Acrobatics.java",
    "methods_ref": "reference/extracted/methods/card/Acrobatics.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

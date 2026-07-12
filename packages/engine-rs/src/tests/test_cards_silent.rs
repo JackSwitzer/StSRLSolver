@@ -103,6 +103,52 @@ mod silent_card_java_parity_tests {
         "Acrobatics", 1, -1, -1, 3, CardType::Skill, CardTarget::None, false, None, &["draw", "discard"],
         "Acrobatics+", 1, -1, -1, 4, CardType::Skill, CardTarget::None, false, None, &["draw", "discard"],
     );
+
+    #[test]
+    fn acrobatics_variants_draw_before_mandatory_manual_discard() {
+        // Acrobatics.java queues DrawCardAction(3) then DiscardAction(1,
+        // false); the upgrade adds exactly one draw. DiscardAction's selected
+        // card is a manual discard, so Tactician grants its one Energy.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Acrobatics.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Tactician.java
+        for (card_id, draw_count) in [("Acrobatics", 3), ("Acrobatics+", 4)] {
+            let state = combat_state_with(
+                Vec::new(),
+                vec![enemy_no_intent("JawWorm", 40, 40)],
+                3,
+            );
+            let mut engine = engine_with_state(state);
+            engine.state.hand = make_deck(&[card_id, "Tactician"]);
+            engine.state.draw_pile = make_deck(&[
+                "Strike",
+                "Defend",
+                "Neutralize",
+                "Survivor",
+            ]);
+            engine.state.discard_pile.clear();
+            engine.state.energy = 3;
+
+            assert!(play_self(&mut engine, card_id));
+            assert_eq!(engine.phase, crate::engine::CombatPhase::AwaitingChoice);
+            assert_eq!(engine.state.hand.len(), 1 + draw_count);
+            let choice = engine.choice.as_ref().expect("Acrobatics discard choice");
+            assert_eq!(choice.min_picks, 1);
+            assert_eq!(choice.max_picks, 1);
+            assert_eq!(choice.options.len(), 1 + draw_count);
+            let tactician_choice = choice.options.iter().position(|option| {
+                matches!(option, crate::engine::ChoiceOption::HandCard(index)
+                    if engine.card_registry.card_name(engine.state.hand[*index].def_id) == "Tactician")
+            }).expect("Tactician discard option");
+            engine.execute_action(&Action::Choose(tactician_choice));
+
+            assert_eq!(engine.phase, crate::engine::CombatPhase::PlayerTurn);
+            assert_eq!(engine.state.hand.len(), draw_count);
+            assert_eq!(engine.state.energy, 3);
+            assert!(engine.state.discard_pile.iter().any(|card| {
+                engine.card_registry.card_name(card.def_id) == "Tactician"
+            }));
+        }
+    }
     card_pair_test!(backflip,
         "Backflip", 1, -1, 5, 2, CardType::Skill, CardTarget::SelfTarget, false, None, &["draw"],
         "Backflip+", 1, -1, 8, 2, CardType::Skill, CardTarget::SelfTarget, false, None, &["draw"],

@@ -1,5 +1,7 @@
 use crate::cards::prelude::*;
 
+// Source: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Acrobatics.java
+
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Silent Common: Acrobatics ---- (cost 1, draw 3, discard 1; +1 draw)
     insert(cards, CardDef {
