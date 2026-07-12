@@ -27,10 +27,8 @@ fn test_event_runtime_wave5_mind_bloom_awake_installs_mark_and_blocks_future_hea
 
     let awake = engine.step_with_result(&RunAction::EventChoice(1));
     assert!(awake.action_accepted);
-    assert_eq!(engine.current_phase(), RunPhase::CardReward);
-
-    let claim_mark = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(claim_mark.action_accepted);
+    // MindBloom.java::buttonEffect obtains the relic during this choice; it
+    // does not interpose a reward-screen decision.
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
 
     assert!(engine
@@ -46,6 +44,27 @@ fn test_event_runtime_wave5_mind_bloom_awake_installs_mark_and_blocks_future_hea
     assert!(sleep.action_accepted);
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(engine.run_state.current_hp, 20);
+}
+
+#[test]
+fn mark_of_the_bloom_acquired_from_mind_bloom_blocks_next_combat_heal() {
+    // MarkOfTheBloom.java::onPlayerHeal always returns 0. MindBloom.java obtains
+    // the relic immediately in "I am Awake", so the next combat must install
+    // that behavior without any extra reward-screen action.
+    let mut engine = RunEngine::new(29, 0);
+    engine.run_state.current_hp = 20;
+    engine.debug_set_typed_event_state(typed_event(3, "Mind Bloom"));
+
+    assert!(engine
+        .step_with_result(&RunAction::EventChoice(1))
+        .action_accepted);
+    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    let combat = engine.debug_combat_engine_mut();
+    assert_eq!(combat.state.player.hp, 20);
+    combat.state.heal_player(12);
+    assert_eq!(combat.state.player.hp, 20);
 }
 
 #[test]

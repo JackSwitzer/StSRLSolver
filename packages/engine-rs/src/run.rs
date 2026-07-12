@@ -5691,6 +5691,10 @@ impl RunEngine {
                 self.remove_relic_reward(label);
                 EventProgramFlow::Continue
             }
+            EventProgramOp::ObtainRelic { label } => {
+                self.add_relic_reward(label);
+                EventProgramFlow::Continue
+            }
             EventProgramOp::DeckMutation(mutation) => {
                 self.apply_event_deck_mutation(mutation);
                 EventProgramFlow::Continue

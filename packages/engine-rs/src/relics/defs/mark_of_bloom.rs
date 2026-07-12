@@ -1,4 +1,7 @@
 //! Mark of the Bloom: Set MARK_OF_BLOOM flag at combat start (prevents healing).
+//!
+//! Source: `reference/extracted/methods/relic/MarkOfTheBloom.java` —
+//! `onPlayerHeal` returns zero for every incoming heal amount.
 
 use crate::effects::declarative::{Effect, SimpleEffect, Target, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
@@ -19,7 +22,8 @@ static TRIGGERS: [TriggeredEffect; 1] = [
 ];
 
 pub static DEF: EntityDef = EntityDef {
-    id: "MarkOfTheBloom",
+    // MarkOfTheBloom.java declares the exact runtime ID with spaces.
+    id: "Mark of the Bloom",
     name: "Mark of the Bloom",
     kind: EntityKind::Relic,
     triggers: &TRIGGERS,

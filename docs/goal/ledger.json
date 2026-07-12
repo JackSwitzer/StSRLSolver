@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T02:19:25.973352+00:00",
+ "updated": "2026-07-12T02:25:07.969788+00:00",
  "status_counts": {
-  "unverified": 408,
-  "verified": 259
+  "unverified": 407,
+  "verified": 260
  },
  "rows": [
   {
@@ -5642,8 +5642,8 @@
    "class": "MarkOfTheBloom",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/MarkOfTheBloom.java",
    "methods_ref": "reference/extracted/methods/relic/MarkOfTheBloom.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -124,6 +124,7 @@ pub enum EventProgramOp {
     LosePercentHp { percent: i32 },
     ResolveJoustBet { bet_on_owner: bool },
     RemoveRelic { label: String },
+    ObtainRelic { label: String },
     DeckMutation(EventDeckMutation),
     Reward(EventReward),
     Nothing,
@@ -232,6 +233,12 @@ impl EventProgramOp {
 
     pub fn remove_relic(label: impl Into<String>) -> Self {
         Self::RemoveRelic {
+            label: label.into(),
+        }
+    }
+
+    pub fn obtain_relic(label: impl Into<String>) -> Self {
+        Self::ObtainRelic {
             label: label.into(),
         }
     }
