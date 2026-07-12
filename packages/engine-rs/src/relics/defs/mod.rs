@@ -222,6 +222,7 @@ pub mod meal_ticket;
 pub mod juzu_bracelet;
 pub mod waffle;
 pub mod membership_card;
+pub mod cauldron;
 pub mod ancient_tea_set;
 pub mod astrolabe;
 pub mod medical_kit;
@@ -402,6 +403,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &juzu_bracelet::DEF,
     &waffle::DEF,
     &membership_card::DEF,
+    &cauldron::DEF,
     &ancient_tea_set::DEF,
     &astrolabe::DEF,
     &medical_kit::DEF,

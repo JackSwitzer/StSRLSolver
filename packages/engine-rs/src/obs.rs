@@ -335,6 +335,7 @@ pub fn encode_run_state(engine: &RunEngine, obs: &mut [f32; RUN_DIM]) {
             crate::decision::RewardScreenSource::Campfire => {},
             crate::decision::RewardScreenSource::Event => obs[off + 5] = 1.0,
             crate::decision::RewardScreenSource::Treasure => obs[off + 6] = 1.0,
+            crate::decision::RewardScreenSource::Shop => {},
             crate::decision::RewardScreenSource::Unknown
                 if reward_screen_looks_like_treasure(&screen) =>
             {

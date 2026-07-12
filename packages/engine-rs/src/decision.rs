@@ -32,6 +32,7 @@ pub enum RewardScreenSource {
     Campfire,
     Event,
     Treasure,
+    Shop,
     Unknown,
 }
 

@@ -3105,6 +3105,12 @@ impl RunEngine {
                 return 0.0;
             }
 
+            if source == RewardScreenSource::Shop {
+                self.phase = RunPhase::Shop;
+                self.refresh_decision_stack();
+                return 0.0;
+            }
+
             // Check if at last row (floor 15) — enter boss
             if self.run_state.map_y >= 0 && self.run_state.map_y as usize >= self.map.height - 1 {
                 // Boss fight next
@@ -3563,6 +3569,7 @@ impl RunEngine {
                     shop.remove_price = ((shop.remove_price as f32) * 0.5).round() as i32;
                 }
             }
+            "Cauldron" => self.build_cauldron_reward_screen(),
             "Old Coin" | "OldCoin" => {
                 // OldCoin.java::onEquip calls AbstractPlayer.gainGold(300),
                 // which also preserves Ectoplasm's gain-gold prohibition.
@@ -3637,6 +3644,35 @@ impl RunEngine {
             "Pandora's Box" | "PandorasBox" => self.apply_pandoras_box(),
             _ => {}
         }
+    }
+
+    fn build_cauldron_reward_screen(&mut self) {
+        // Cauldron.onEquip queues exactly five PotionHelper random potions and
+        // opens CombatRewardScreen over the shop. No card reward survives, and
+        // the player returns to the same shop after resolving the five items.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Cauldron.java
+        let mut items: Vec<RewardItem> = (0..5)
+            .map(|index| RewardItem {
+                index,
+                kind: RewardItemKind::Potion,
+                state: RewardItemState::Available,
+                label: self.roll_reward_potion_id(),
+                claimable: index == 0,
+                active: false,
+                skip_allowed: true,
+                skip_label: Some("Skip".to_string()),
+                choices: Vec::new(),
+            })
+            .collect();
+        let mut screen = RewardScreen {
+            source: RewardScreenSource::Shop,
+            ordered: true,
+            active_item: None,
+            items: std::mem::take(&mut items),
+        };
+        Self::refresh_reward_screen(&mut screen);
+        self.reward_screen = Some(screen);
+        self.phase = RunPhase::CardReward;
     }
 
     fn apply_pandoras_box(&mut self) {
@@ -5154,7 +5190,7 @@ impl RunEngine {
             relics.push((relic, final_price));
         }
         const SHOP_RELICS: &[&str] = &[
-            "TheAbacus", "Brimstone", "Chemical X", "ClockworkSouvenir", "Frozen Eye", "HandDrill", "Lee's Waffle", "Medical Kit", "Melange",
+            "TheAbacus", "Brimstone", "Cauldron", "Chemical X", "ClockworkSouvenir", "Frozen Eye", "HandDrill", "Lee's Waffle", "Medical Kit", "Melange",
             "Membership Card",
             "OrangePellets", "Runic Capacitor", "Sling", "Strange Spoon",
             "PrismaticShard", "Toolbox", "TwistedFunnel",

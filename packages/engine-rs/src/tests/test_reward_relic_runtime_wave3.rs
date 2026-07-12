@@ -2773,6 +2773,49 @@ fn winged_greaves_offers_three_nonedge_map_jumps_then_expires() {
 }
 
 #[test]
+fn cauldron_is_shop_reachable_and_opens_five_ordered_potion_rewards() {
+    // Cauldron.java is SHOP tier. onEquip queues exactly five random potions,
+    // opens the reward screen, removes any card reward, and returns to the
+    // underlying shop after the ordered rewards resolve.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Cauldron.java
+    let seed = (0..256).find(|seed| {
+        let mut engine = RunEngine::new(*seed, 0);
+        engine.debug_enter_shop();
+        engine.get_shop().is_some_and(|shop| {
+            shop.relics.iter().any(|(relic, _)| relic == "Cauldron")
+        })
+    }).expect("Cauldron shop seed");
+
+    let mut engine = RunEngine::new(seed, 0);
+    engine.run_state.gold = 10_000;
+    engine.debug_enter_shop();
+    let relic_index = engine.get_shop().expect("shop").relics.iter()
+        .position(|(relic, _)| relic == "Cauldron")
+        .expect("Cauldron offer");
+    assert!(engine.step_with_result(&RunAction::ShopBuyRelic(relic_index)).action_accepted);
+    assert_eq!(engine.current_phase(), RunPhase::CardReward);
+    let screen = engine.current_reward_screen().expect("Cauldron rewards");
+    assert_eq!(screen.source, RewardScreenSource::Shop);
+    assert_eq!(screen.items.len(), 5);
+    assert!(screen.items.iter().all(|item| item.kind == RewardItemKind::Potion));
+
+    for item_index in 0..3 {
+        assert!(engine.step_with_result(&RunAction::SelectRewardItem(item_index)).action_accepted);
+    }
+    assert!(engine.run_state.potions.iter().all(|potion| !potion.is_empty()));
+
+    // AbstractPlayer.obtainPotion returns false when full, leaving the reward
+    // available; it can still be skipped to finish Cauldron's screen.
+    assert!(engine.step_with_result(&RunAction::SelectRewardItem(3)).action_accepted);
+    assert_eq!(engine.current_reward_screen().expect("reward").items[3].state,
+        RewardItemState::Available);
+    assert!(engine.step_with_result(&RunAction::SkipRewardItem(3)).action_accepted);
+    assert!(engine.step_with_result(&RunAction::SkipRewardItem(4)).action_accepted);
+    assert_eq!(engine.current_phase(), RunPhase::Shop);
+    assert!(engine.get_shop().is_some());
+}
+
+#[test]
 fn chemical_x_is_reachable_only_from_the_shop_relic_slot() {
     // ChemicalX.java declares canonical ID "Chemical X" and constructs
     // RelicTier.SHOP.
