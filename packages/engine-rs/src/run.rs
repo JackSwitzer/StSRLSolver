@@ -118,7 +118,10 @@ pub enum RunPhase {
 // Card pool for rewards
 // ---------------------------------------------------------------------------
 
-/// Act 1 Watcher card pool for rewards.
+/// Watcher source card pools used by rewards, shops, and truly-random cards.
+/// CardLibrary.addPurpleCards excludes BASIC cards and sorts the registered
+/// cards into these rarity pools during AbstractDungeon.initializeCardPools.
+/// Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
 /// Uses CardRegistry IDs (PascalCase, no spaces) to match card lookups.
 /// Cards not in CardRegistry fall back to `get_or_default()` for defensive safety,
 /// but the audited runtime now treats the Rust registry as canonical.
@@ -127,26 +130,25 @@ const WATCHER_COMMON_CARDS: &[&str] = &[
     "CutThroughFate", "EmptyBody", "EmptyFist", "Evaluate",
     "FlurryOfBlows", "FlyingSleeves", "FollowUp", "Halt",
     "JustLucky", "PathToVictory", "Prostrate",
-    "Protect", "SashWhip", "ClearTheMind",
+    "Protect", "SashWhip", "ClearTheMind", "ThirdEye",
 ];
 
 const WATCHER_UNCOMMON_CARDS: &[&str] = &[
-    "BattleHymn", "CarveReality", "Conclude", "DeceiveReality",
-    "EmptyMind", "FearNoEvil", "ForeignInfluence", "Indignation",
-    "InnerPeace", "LikeWater", "Meditate", "Nirvana",
-    "Perseverance", "ReachHeaven", "SandsOfTime", "SignatureMove",
-    "Smite", "Study", "Swivel", "TalkToTheHand",
-    "Tantrum", "ThirdEye", "Wallop", "WaveOfTheHand",
-    "Weave", "WheelKick", "WindmillStrike", "WreathOfFlame",
+    "Adaptation", "BattleHymn", "CarveReality", "Collect", "Conclude",
+    "DeceiveReality", "EmptyMind", "Fasting2", "FearNoEvil",
+    "ForeignInfluence", "Indignation", "InnerPeace", "LikeWater",
+    "Meditate", "MentalFortress", "Nirvana", "Perseverance", "Pray",
+    "ReachHeaven", "Sanctity", "SandsOfTime", "SignatureMove", "Study",
+    "Swivel", "TalkToTheHand", "Tantrum", "Vengeance", "Wallop",
+    "WaveOfTheHand", "Weave", "WheelKick", "WindmillStrike",
+    "Wireheading", "Worship", "WreathOfFlame",
 ];
 
 const WATCHER_RARE_CARDS: &[&str] = &[
-    "Alpha", "Blasphemy", "Brilliance", "ConjureBlade",
-    "DevaForm", "Devotion", "Establishment", "Fasting2",
-    "Judgement", "LessonLearned", "MasterReality",
-    "MentalFortress", "Omniscience", "Ragnarok",
-    "Adaptation", "Scrawl", "SpiritShield", "Vault",
-    "Wish",
+    "Alpha", "Blasphemy", "Brilliance", "ConjureBlade", "DeusExMachina",
+    "DevaForm", "Devotion", "Establishment", "Judgement", "LessonLearned",
+    "MasterReality", "Omniscience", "Ragnarok", "Scrawl", "SpiritShield",
+    "Vault", "Wish",
 ];
 
 // AbstractDungeon.addColorlessCards supplies these non-special cards to the
@@ -3618,20 +3620,40 @@ impl RunEngine {
             "War Paint" | "WarPaint" => {
                 self.upgrade_random_cards_by_type(crate::cards::CardType::Skill, 2)
             }
-            // D27 partial fix: Pandora's Box. Java replaces all Strikes and Defends
-            // in master_deck with `returnTrulyRandomCard()` from the player's class
-            // common pool. We remove the starter basics now (the "transform" side);
-            // filling with random commons needs the class-aware card pool + a seeded
-            // card_random_rng stream (D52) that we haven't built yet. Until that
-            // lands, post-Pandora runs have a smaller starter deck instead of
-            // silently-unchanged basics. This is strictly closer to Java than the
-            // pre-fix behavior (silently do nothing).
-            "Pandora's Box" | "PandorasBox" => {
-                self.run_state
-                    .deck
-                    .retain(|card| !matches!(card.as_str(), "Strike" | "Defend"));
-            }
+            "Pandora's Box" | "PandorasBox" => self.apply_pandoras_box(),
             _ => {}
+        }
+    }
+
+    fn apply_pandoras_box(&mut self) {
+        // PandorasBox.java removes cards by the STARTER_STRIKE/STARTER_DEFEND
+        // tags, then returnTrulyRandomCard draws uniformly from the complete
+        // class source pools. Confirmation obtains each previewed card through
+        // FastCardObtainEffect, preserving Egg and on-obtain relic callbacks.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/PandorasBox.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+        let before = self.run_state.deck.len();
+        self.run_state.deck.retain(|card| {
+            !matches!(card.as_str(), "Strike" | "Strike+" | "Defend" | "Defend+")
+        });
+        let count = before - self.run_state.deck.len();
+        if count == 0 {
+            return;
+        }
+
+        let pool_len = WATCHER_COMMON_CARDS.len()
+            + WATCHER_UNCOMMON_CARDS.len()
+            + WATCHER_RARE_CARDS.len();
+        for _ in 0..count {
+            let idx = self.rng.gen_range(0..pool_len);
+            let card = if idx < WATCHER_COMMON_CARDS.len() {
+                WATCHER_COMMON_CARDS[idx]
+            } else if idx < WATCHER_COMMON_CARDS.len() + WATCHER_UNCOMMON_CARDS.len() {
+                WATCHER_UNCOMMON_CARDS[idx - WATCHER_COMMON_CARDS.len()]
+            } else {
+                WATCHER_RARE_CARDS[idx - WATCHER_COMMON_CARDS.len() - WATCHER_UNCOMMON_CARDS.len()]
+            };
+            obtain_master_deck_card_state(&mut self.run_state, card.to_string());
         }
     }
 
@@ -4690,6 +4712,9 @@ impl RunEngine {
             "VioletLotus",
             "Astrolabe",
             "Black Star",
+            // PandorasBox.java constructs canonical ID "Pandora's Box" at
+            // BOSS tier and replaces starter-tagged Strikes and Defends.
+            "Pandora's Box",
         ];
 
         let registry = gameplay_registry();
@@ -9168,63 +9193,51 @@ mod tests {
         assert!(!has_remove_after, "Should not offer card removal after first use");
     }
 
-    // =========================================================================
-    // D27 Pandora's Box -- partial fix regression test.
-    // Java: replaces all Strikes/Defends in masterDeck with random commons.
-    // Rust (partial): removes Strikes/Defends on equip; filling with random
-    // commons deferred until D52 RNG stream partition lands.
-    // =========================================================================
-
     #[test]
-    fn pandora_box_removes_strikes_and_defends_from_master_deck_on_equip() {
+    fn pandora_box_replaces_every_starter_tagged_card_one_for_one() {
+        // PandorasBox.java removes STARTER_STRIKE/STARTER_DEFEND cards, rolls
+        // one returnTrulyRandomCard per removal, previews relic callbacks, and
+        // obtains all replacements through FastCardObtainEffect.
         let mut engine = RunEngine::new(42, 0);
-        // Watcher starter at this entry point is 4 Strike_P + 4 Defend_P + 2
-        // class cards -- but RunEngine::new seeds Ironclad by default. For the
-        // D27 assertion we only care that Strike_X / Defend_X get purged, not
-        // which class. Inject a mixed-class deck to exercise all color arms.
         engine.run_state.deck = vec![
             "Strike".to_string(),
-            "Strike".to_string(),
+            "Strike+".to_string(),
             "Defend".to_string(),
-            "Defend".to_string(),
-            "Bash".to_string(), // non-starter, should survive
-            "ShrugItOff".to_string(), // non-starter, should survive
+            "Defend+".to_string(),
+            "Perfected Strike".to_string(),
+            "Eruption".to_string(),
+            "Vigilance".to_string(),
         ];
+        engine.run_state.gold = 100;
+        engine.run_state.relics.extend([
+            "Frozen Egg 2".to_string(),
+            "Molten Egg 2".to_string(),
+            "Toxic Egg 2".to_string(),
+            "CeramicFish".to_string(),
+        ]);
+        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
         engine.add_relic_reward("Pandora's Box");
-        assert!(
-            !engine
-                .run_state
-                .deck
-                .iter()
-                .any(|c| matches!(c.as_str(), "Strike" | "Defend")),
-            "Pandora's Box should remove all Strikes/Defends; deck was {:?}",
-            engine.run_state.deck
-        );
-        assert!(
-            engine.run_state.deck.contains(&"Bash".to_string())
-                && engine.run_state.deck.contains(&"ShrugItOff".to_string()),
-            "Non-starter cards must be preserved; deck was {:?}",
-            engine.run_state.deck
-        );
-        // Partial-fix caveat: Java replaces the removed basics 1-for-1 with
-        // random commons. We do NOT yet add commons back (needs class-common
-        // pool + card_random_rng from D52). Assert deck size equals the
-        // non-starter count to catch any future silent change.
-        assert_eq!(
-            engine.run_state.deck.len(),
-            2,
-            "partial fix: 4 basics removed, 2 non-starters kept, nothing added yet"
-        );
+        assert_eq!(engine.run_state.deck.len(), 7);
+        assert_eq!(&engine.run_state.deck[..3], &["Perfected Strike", "Eruption", "Vigilance"]);
+        assert!(engine.run_state.deck.iter().all(|card| {
+            !matches!(card.as_str(), "Strike" | "Strike+" | "Defend" | "Defend+")
+        }));
+        assert!(engine.run_state.deck[3..].iter().all(|card| card.ends_with('+')));
+        assert!(engine.run_state.deck[3..].iter().all(|card| {
+            let base = card.trim_end_matches('+');
+            WATCHER_COMMON_CARDS.contains(&base)
+                || WATCHER_UNCOMMON_CARDS.contains(&base)
+                || WATCHER_RARE_CARDS.contains(&base)
+        }));
+        assert_eq!(engine.run_state.gold, 136);
     }
 
     #[test]
-    fn pandora_box_partial_fix_handles_deck_without_basics() {
-        // Edge case: if all Strikes/Defends were already removed (e.g. by
-        // Neow+shops), Pandora's Box should be a no-op and not crash.
+    fn pandora_box_without_starter_tags_leaves_the_deck_unchanged() {
         let mut engine = RunEngine::new(42, 0);
-        engine.run_state.deck = vec!["Bash".to_string(), "ShrugItOff".to_string()];
-        let pre_len = engine.run_state.deck.len();
+        engine.run_state.deck = vec!["Perfected Strike".to_string(), "Eruption".to_string()];
+        let before = engine.run_state.deck.clone();
         engine.add_relic_reward("Pandora's Box");
-        assert_eq!(engine.run_state.deck.len(), pre_len);
+        assert_eq!(engine.run_state.deck, before);
     }
 }

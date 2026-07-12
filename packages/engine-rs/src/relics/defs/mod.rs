@@ -230,6 +230,7 @@ pub mod strange_spoon;
 pub mod old_coin;
 pub mod smiling_mask;
 pub mod peace_pipe;
+pub mod pandoras_box;
 pub mod shovel;
 pub mod unceasing_top;
 pub mod tiny_chest;
@@ -409,6 +410,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &old_coin::DEF,
     &smiling_mask::DEF,
     &peace_pipe::DEF,
+    &pandoras_box::DEF,
     &shovel::DEF,
     &unceasing_top::DEF,
     &tiny_chest::DEF,

@@ -185,6 +185,21 @@ fn sozu_is_boss_reachable_grants_energy_and_blocks_obtaining_not_reward_generati
 }
 
 #[test]
+fn pandoras_box_is_reachable_from_the_watcher_boss_relic_pool() {
+    // PandorasBox.java constructs canonical ID "Pandora's Box" at BOSS tier.
+    assert!(crate::gameplay::global_registry().relic("Pandora's Box").is_some());
+    assert!((0..128).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_boss_reward_screen();
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items[0].choices.iter().any(|choice| {
+                matches!(choice, RewardChoice::Named { label, .. } if label == "Pandora's Box")
+            })
+        })
+    }));
+}
+
+#[test]
 fn runic_pyramid_is_reachable_from_the_watcher_boss_relic_pool() {
     // Source: RunicPyramid.java constructs canonical ID "Runic Pyramid" at
     // BOSS tier, so it must be selectable after a Watcher boss combat.
