@@ -2460,6 +2460,65 @@ fn toolbox_is_shop_only_and_resolves_three_colorless_choices_before_opening_draw
 }
 
 #[test]
+fn prismatic_shard_is_shop_only_adds_orb_slot_and_all_color_rewards() {
+    // PrismaticShard.java constructs a SHOP relic and gives non-Defect Watcher
+    // one orb slot on equip. AbstractDungeon.getRewardCards switches each
+    // rarity-preserving card pick to CardLibrary.getAnyColorCard.
+    for seed in 0..128 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "PrismaticShard")
+        }));
+    }
+    let offered_seed = (0..1024)
+        .find(|seed| {
+            let mut engine = RunEngine::new(*seed, 0);
+            engine.debug_enter_shop();
+            engine.get_shop().is_some_and(|shop| {
+                shop.relics
+                    .iter()
+                    .any(|(relic, _)| relic == "PrismaticShard")
+            })
+        })
+        .expect("PrismaticShard should be reachable from the SHOP-tier slot");
+
+    let mut engine = RunEngine::new(offered_seed, 0);
+    engine.run_state.gold = 999;
+    engine.debug_enter_shop();
+    let idx = engine
+        .get_shop()
+        .expect("shop")
+        .relics
+        .iter()
+        .position(|(relic, _)| relic == "PrismaticShard")
+        .expect("PrismaticShard offer");
+    assert!(engine.step_with_result(&RunAction::ShopBuyRelic(idx)).action_accepted);
+
+    let mut saw_off_color = false;
+    for _ in 0..32 {
+        engine.debug_build_combat_reward_screen(RoomType::Monster);
+        saw_off_color |= engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().flat_map(|item| item.choices.iter()).any(|choice| {
+                matches!(choice, RewardChoice::Card { card_id, .. } if RunEngine::debug_is_off_color_reward_card(card_id))
+            })
+        });
+    }
+    assert!(saw_off_color);
+
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    assert_eq!(
+        engine
+            .get_combat_engine()
+            .expect("Prismatic Shard combat")
+            .state
+            .orb_slots
+            .get_slot_count(),
+        1
+    );
+}
+
+#[test]
 fn chemical_x_is_reachable_only_from_the_shop_relic_slot() {
     // ChemicalX.java declares canonical ID "Chemical X" and constructs
     // RelicTier.SHOP.

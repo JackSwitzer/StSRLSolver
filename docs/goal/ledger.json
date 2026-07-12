@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T03:26:46.937681+00:00",
+ "updated": "2026-07-12T03:30:52.007715+00:00",
  "status_counts": {
-  "unverified": 392,
-  "verified": 275
+  "unverified": 391,
+  "verified": 276
  },
  "rows": [
   {
@@ -6042,8 +6042,8 @@
    "class": "PrismaticShard",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/PrismaticShard.java",
    "methods_ref": "reference/extracted/methods/relic/PrismaticShard.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

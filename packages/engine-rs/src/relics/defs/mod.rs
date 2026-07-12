@@ -210,6 +210,7 @@ pub mod red_skull;
 pub mod enchiridion;
 pub mod nilrys_codex;
 pub mod toolbox;
+pub mod prismatic_shard;
 pub mod warped_tongs;
 pub mod gambling_chip;
 pub mod hovering_kite;
@@ -387,6 +388,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &enchiridion::DEF,
     &nilrys_codex::DEF,
     &toolbox::DEF,
+    &prismatic_shard::DEF,
     &warped_tongs::DEF,
     &gambling_chip::DEF,
     &hovering_kite::DEF,

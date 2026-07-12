@@ -1968,6 +1968,15 @@ impl RunEngine {
             deck_instances,
             combat_energy,
         );
+        if self
+            .run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::PRISMATIC_SHARD)
+        {
+            // PrismaticShard.java::onEquip gives Watcher one master orb slot.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/PrismaticShard.java
+            combat_state.orb_slots = crate::orbs::OrbSlots::new(1);
+        }
         combat_state
             .player
             .set_status(crate::status_ids::sid::DU_VU_DOLL_CURSES, du_vu_curses);
@@ -2538,6 +2547,10 @@ impl RunEngine {
 
     fn generate_card_reward_choices(&mut self, count: usize) -> Vec<RewardChoice> {
         let mut cards = Vec::new();
+        let prismatic = self
+            .run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::PRISMATIC_SHARD);
         let rare_chance = if self
             .run_state
             .relics
@@ -2557,22 +2570,49 @@ impl RunEngine {
         let common_chance = 1.0 - uncommon_chance - rare_chance;
         for choice_index in 0..count {
             let roll: f32 = self.rng.gen();
-            let card = if roll < common_chance {
-                // Common
-                let idx = self.rng.gen_range(0..WATCHER_COMMON_CARDS.len());
-                WATCHER_COMMON_CARDS[idx]
+            let rarity = if roll < common_chance {
+                EventCardRarity::Common
             } else if roll < common_chance + uncommon_chance {
-                // Uncommon
-                let idx = self.rng.gen_range(0..WATCHER_UNCOMMON_CARDS.len());
-                WATCHER_UNCOMMON_CARDS[idx]
+                EventCardRarity::Uncommon
             } else {
-                // Rare
-                let idx = self.rng.gen_range(0..WATCHER_RARE_CARDS.len());
-                WATCHER_RARE_CARDS[idx]
+                EventCardRarity::Rare
+            };
+            let card = if prismatic {
+                // AbstractDungeon.getRewardCards calls getAnyColorCard for a
+                // PrismaticShard owner, preserving the rolled rarity while
+                // sampling red, green, blue, and purple source pools.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+                let mut candidates = [
+                    EventCardColor::Red,
+                    EventCardColor::Green,
+                    EventCardColor::Blue,
+                    EventCardColor::Purple,
+                ]
+                .iter()
+                .flat_map(|color| matching_event_cards(*color, rarity))
+                .filter(|card_id| {
+                    crate::cards::global_registry().get(card_id.as_str()).is_some()
+                        && !cards.iter().any(|choice| {
+                            matches!(choice, RewardChoice::Card { card_id: chosen, .. } if chosen == card_id)
+                        })
+                })
+                .collect::<Vec<_>>();
+                if candidates.is_empty() {
+                    candidates = matching_event_cards(EventCardColor::Purple, rarity);
+                }
+                candidates[self.rng.gen_range(0..candidates.len())].clone()
+            } else {
+                let pool = match rarity {
+                    EventCardRarity::Common => WATCHER_COMMON_CARDS,
+                    EventCardRarity::Uncommon => WATCHER_UNCOMMON_CARDS,
+                    EventCardRarity::Rare => WATCHER_RARE_CARDS,
+                    _ => unreachable!("reward rarity is common, uncommon, or rare"),
+                };
+                pool[self.rng.gen_range(0..pool.len())].to_string()
             };
             cards.push(RewardChoice::Card {
                 index: choice_index,
-                card_id: self.upgrade_reward_card_if_needed(card),
+                card_id: self.upgrade_reward_card_if_needed(&card),
             });
         }
         cards
@@ -4825,7 +4865,7 @@ impl RunEngine {
             "TheAbacus", "Brimstone", "Chemical X", "ClockworkSouvenir", "Frozen Eye", "HandDrill", "Lee's Waffle", "Medical Kit", "Melange",
             "Membership Card",
             "OrangePellets", "Runic Capacitor", "Sling", "Strange Spoon",
-            "Toolbox", "TwistedFunnel",
+            "PrismaticShard", "Toolbox", "TwistedFunnel",
         ];
         let registry = gameplay_registry();
         let candidates: Vec<&str> = SHOP_RELICS
@@ -6508,6 +6548,14 @@ impl RunEngine {
     #[cfg(test)]
     pub(crate) fn debug_force_event_rolls(&mut self, rolls: &[usize]) {
         self.forced_event_rolls = rolls.to_vec();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_is_off_color_reward_card(card_id: &str) -> bool {
+        matches!(
+            event_card_color(card_id),
+            Some(EventCardColor::Red | EventCardColor::Green | EventCardColor::Blue)
+        )
     }
 
     #[cfg(test)]
