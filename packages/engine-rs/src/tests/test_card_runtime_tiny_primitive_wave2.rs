@@ -165,3 +165,26 @@ fn tiny_primitive_wave2_ftl_bane_feed_and_all_out_attack_follow_the_typed_runtim
     assert_eq!(all_out_attack.state.discard_pile.len(), 2);
     assert_eq!(all_out_attack.state.player.status(sid::DISCARDED_THIS_TURN), 1);
 }
+
+#[test]
+fn bane_deals_one_or_two_source_sized_hits_based_on_poison() {
+    // Sources: Bane.java queues its DamageAction before BaneAction and upgrades
+    // 7 damage by 3; BaneAction deals its copy only while Poison is present.
+    for (card_id, poison, expected_damage) in [
+        ("Bane", 0, 7),
+        ("Bane", 2, 14),
+        ("Bane+", 0, 10),
+        ("Bane+", 2, 20),
+    ] {
+        let mut engine = single_enemy_engine(50, 3);
+        engine.state.hand = make_deck(&[card_id]);
+        if poison > 0 {
+            engine.state.enemies[0].entity.set_status(sid::POISON, poison);
+        }
+
+        assert!(play_on_enemy(&mut engine, card_id, 0));
+
+        assert_eq!(engine.state.enemies[0].entity.hp, 50 - expected_damage);
+        assert_eq!(engine.state.energy, 2);
+    }
+}

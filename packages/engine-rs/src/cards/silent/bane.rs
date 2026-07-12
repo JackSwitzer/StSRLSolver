@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Common: Bane ---- (cost 1, 7 dmg, double if poisoned; +3 dmg)
+        // Source: cards/green/Bane.java queues 7 damage, then BaneAction queues
+        // the same damage again only if the living target has Poison; +3 damage.
     insert(cards, CardDef {
                 id: "Bane", name: "Bane", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 7, base_block: -1,

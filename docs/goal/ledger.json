@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T16:07:53.202307+00:00",
+ "updated": "2026-07-12T16:09:20.143875+00:00",
  "status_counts": {
-  "verified": 308,
-  "unverified": 359
+  "verified": 309,
+  "unverified": 358
  },
  "rows": [
   {
@@ -212,8 +212,8 @@
    "class": "Bane",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Bane.java",
    "methods_ref": "reference/extracted/methods/card/Bane.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
