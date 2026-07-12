@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T03:38:16.911715+00:00",
+ "updated": "2026-07-12T03:55:37.273348+00:00",
  "status_counts": {
-  "unverified": 390,
-  "verified": 277
+  "unverified": 389,
+  "verified": 278
  },
  "rows": [
   {
@@ -6422,8 +6422,8 @@
    "class": "Courier",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Courier.java",
    "methods_ref": "reference/extracted/methods/relic/Courier.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

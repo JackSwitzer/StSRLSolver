@@ -76,14 +76,17 @@ mod run_java_parity_tests {
     }
 
     #[test]
-    fn shop_room_generates_five_cards_and_base_remove_price() {
+    fn shop_room_generates_seven_cards_three_potions_and_base_remove_price() {
+        // Merchant.java creates five colored cards plus one uncommon and one
+        // rare colorless card; ShopScreen.java::initPotions creates 3 potions.
         let mut engine = RunEngine::new(42, 0);
         set_first_reachable_room(&mut engine, RoomType::Shop);
         resolve_opening_neow(&mut engine);
         let actions = engine.get_legal_actions();
         engine.step(&actions[0]);
         let shop = engine.get_shop().expect("shop should exist");
-        assert_eq!(shop.cards.len(), 5);
+        assert_eq!(shop.cards.len(), 7);
+        assert_eq!(shop.potions.len(), 3);
         assert_eq!(shop.remove_price, 75);
     }
 
@@ -124,6 +127,8 @@ mod run_java_parity_tests {
 
     #[test]
     fn shop_buy_card_spends_gold_and_removes_the_offer() {
+        // ShopScreen.purchaseCard removes the bought card without Courier;
+        // Merchant.java supplied seven offers, so six remain.
         let mut engine = RunEngine::new(42, 0);
         resolve_opening_neow(&mut engine);
         engine.run_state.gold = 999;
@@ -140,7 +145,7 @@ mod run_java_parity_tests {
         assert_eq!(engine.run_state.deck.len(), deck_before + 1);
         assert_eq!(engine.run_state.deck.last(), Some(&card));
         assert_eq!(engine.run_state.gold, 999 - price);
-        assert_eq!(engine.get_shop().expect("shop stays open").cards.len(), 4);
+        assert_eq!(engine.get_shop().expect("shop stays open").cards.len(), 6);
         assert_eq!(engine.phase, RunPhase::Shop);
     }
 

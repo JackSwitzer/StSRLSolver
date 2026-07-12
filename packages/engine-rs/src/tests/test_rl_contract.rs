@@ -338,6 +338,7 @@ fn shop_and_event_decision_contexts_are_stable_and_bridged() {
     engine.debug_set_shop_state(ShopState {
         cards: vec![("Wallop".to_string(), 80), ("Scrawl".to_string(), 150)],
         relics: Vec::new(),
+        potions: Vec::new(),
         remove_price: 50,
         removal_used: false,
     });

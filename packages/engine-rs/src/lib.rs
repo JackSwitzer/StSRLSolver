@@ -1043,6 +1043,14 @@ impl StSEngine {
                         items.append(item)?;
                     }
                     shop_dict.set_item("cards", items)?;
+                    let potions = PyList::empty_bound(py);
+                    for (potion, price) in &shop.potions {
+                        let item = PyDict::new_bound(py);
+                        item.set_item("potion", potion.as_str())?;
+                        item.set_item("price", *price)?;
+                        potions.append(item)?;
+                    }
+                    shop_dict.set_item("potions", potions)?;
                     shop_dict.set_item("remove_price", shop.remove_price)?;
                     shop_dict.set_item("removal_used", shop.removal_used)?;
                     d.set_item("shop", shop_dict)?;
@@ -1133,6 +1141,13 @@ impl StSEngine {
                 "shop".to_string(),
                 "Leave the shop".to_string(),
             )
+        } else if id >= SHOP_POTION_BASE {
+            let idx = id - SHOP_POTION_BASE;
+            let potion_info = self.inner.get_shop()
+                .and_then(|s| s.potions.get(idx as usize))
+                .map(|(potion, price)| format!("{} ({}g)", potion, price))
+                .unwrap_or_else(|| format!("potion_{}", idx));
+            (format!("shop_buy_potion_{}", idx), "shop".to_string(), format!("Buy {}", potion_info))
         } else if id >= SHOP_REMOVE_BASE {
             let idx = id - SHOP_REMOVE_BASE;
             let card = self
@@ -1491,6 +1506,16 @@ fn build_decision_context_dict<'py>(
             offers.append(offer_dict)?;
         }
         shop_dict.set_item("offers", offers)?;
+        let potion_offers = PyList::empty_bound(py);
+        for offer in &shop.potion_offers {
+            let offer_dict = PyDict::new_bound(py);
+            offer_dict.set_item("index", offer.index)?;
+            offer_dict.set_item("potion_id", &offer.potion_id)?;
+            offer_dict.set_item("price", offer.price)?;
+            offer_dict.set_item("affordable", offer.affordable)?;
+            potion_offers.append(offer_dict)?;
+        }
+        shop_dict.set_item("potion_offers", potion_offers)?;
         shop_dict.set_item("remove_price", shop.remove_price)?;
         shop_dict.set_item("removal_used", shop.removal_used)?;
         shop_dict.set_item("removable_cards", shop.removable_cards)?;
@@ -1534,6 +1559,7 @@ const NEOW_BASE: i32 = 1_000_000;
 const SHOP_BUY_BASE: i32 = 300;
 const SHOP_RELIC_BASE: i32 = 325;
 const SHOP_REMOVE_BASE: i32 = 350;
+const SHOP_POTION_BASE: i32 = 375;
 const SHOP_LEAVE: i32 = 399;
 const EVENT_BASE: i32 = 400;
 const RUN_POTION_BASE: i32 = 450;
@@ -1984,6 +2010,7 @@ impl PyRunEngine {
             run::RunAction::CampfireDig => CAMP_DIG,
             run::RunAction::ShopBuyCard(i) => SHOP_BUY_BASE + *i as i32,
             run::RunAction::ShopBuyRelic(i) => SHOP_RELIC_BASE + *i as i32,
+            run::RunAction::ShopBuyPotion(i) => SHOP_POTION_BASE + *i as i32,
             run::RunAction::ShopRemoveCard(i) => SHOP_REMOVE_BASE + *i as i32,
             run::RunAction::ShopLeave => SHOP_LEAVE,
             run::RunAction::EventChoice(i) => EVENT_BASE + *i as i32,
@@ -2033,6 +2060,8 @@ impl PyRunEngine {
             ));
         } else if action_id == SHOP_LEAVE {
             return Some(run::RunAction::ShopLeave);
+        } else if action_id >= SHOP_POTION_BASE {
+            return Some(run::RunAction::ShopBuyPotion((action_id - SHOP_POTION_BASE) as usize));
         } else if action_id >= SHOP_REMOVE_BASE {
             return Some(run::RunAction::ShopRemoveCard(
                 (action_id - SHOP_REMOVE_BASE) as usize,

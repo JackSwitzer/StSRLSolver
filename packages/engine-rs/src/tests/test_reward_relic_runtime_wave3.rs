@@ -765,6 +765,7 @@ fn ectoplasm_is_act_one_only_blocks_gold_gains_and_still_allows_spending() {
     engine.debug_set_shop_state(ShopState {
         cards: vec![("Strike".to_string(), 40)],
         relics: Vec::new(),
+        potions: Vec::new(),
         remove_price: 75,
         removal_used: false,
     });
@@ -932,6 +933,7 @@ fn egg_relics_use_canonical_ids_floor_cutoffs_and_upgrade_all_obtain_paths() {
         engine.debug_set_shop_state(ShopState {
             cards: vec![(card_id.to_string(), 40)],
             relics: Vec::new(),
+            potions: Vec::new(),
             remove_price: 75,
             removal_used: false,
         });
@@ -1255,6 +1257,103 @@ fn smiling_mask_keeps_card_removal_at_fifty_after_other_discounts_and_ramp() {
         .action_accepted);
     assert_eq!(engine.run_state.purge_cost, 150);
     assert_eq!(engine.get_shop().expect("shop").remove_price, 50);
+}
+
+#[test]
+fn courier_discounts_and_refills_every_shop_stock_kind_in_place() {
+    // Courier.java sets the 0.8 multiplier and canSpawn permits floor 48 but
+    // not floor 49 or ShopRoom. ShopScreen.purchaseCard, StoreRelic, and
+    // StorePotion replace the purchased slot while Courier is owned.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Courier.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/shop/ShopScreen.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/shop/StoreRelic.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/shop/StorePotion.java
+    assert!((0..2048).any(|seed| {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.floor = 48;
+        engine.debug_build_combat_reward_screen(RoomType::Elite);
+        engine.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| item.kind == RewardItemKind::Relic && item.label == "The Courier")
+        })
+    }));
+    for seed in 0..256 {
+        let mut late = RunEngine::new(seed, 0);
+        late.run_state.floor = 49;
+        late.debug_build_combat_reward_screen(RoomType::Elite);
+        assert!(late.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().all(|item| item.label != "The Courier")
+        }));
+        let mut shop = RunEngine::new(seed, 0);
+        shop.debug_enter_shop();
+        assert!(shop.get_shop().is_some_and(|stock| {
+            stock.relics.iter().all(|(relic, _)| relic != "The Courier")
+        }));
+    }
+
+    let mut baseline = RunEngine::new(1301, 0);
+    baseline.run_state.gold = 10_000;
+    baseline.debug_enter_shop();
+    let baseline_stock = baseline.get_shop().expect("baseline shop").clone();
+
+    let mut engine = RunEngine::new(1301, 0);
+    engine.run_state.gold = 10_000;
+    engine.debug_set_reward_screen(single_relic_reward_screen("The Courier"));
+    assert!(engine.step_with_result(&RunAction::SelectRewardItem(0)).action_accepted);
+    engine.debug_enter_shop();
+    let discounted = engine.get_shop().expect("Courier shop").clone();
+    assert_eq!((discounted.cards.len(), discounted.relics.len(), discounted.potions.len()), (7, 3, 3));
+    assert!(engine.get_legal_decision_actions().contains(&DecisionAction::ShopBuyPotion(0)));
+    for ((_, full), (_, courier)) in baseline_stock.cards.iter().zip(&discounted.cards) {
+        assert_eq!(*courier, ((*full as f32) * 0.8).round() as i32);
+    }
+    for ((_, full), (_, courier)) in baseline_stock.relics.iter().zip(&discounted.relics) {
+        assert_eq!(*courier, ((*full as f32) * 0.8).round() as i32);
+    }
+    for ((_, full), (_, courier)) in baseline_stock.potions.iter().zip(&discounted.potions) {
+        assert_eq!(*courier, ((*full as f32) * 0.8).round() as i32);
+    }
+
+    let bought_card = discounted.cards[0].clone();
+    let bought_type = crate::cards::global_registry()
+        .get(bought_card.0.strip_suffix('+').unwrap_or(&bought_card.0))
+        .expect("shop card definition").card_type;
+    let gold_before = engine.run_state.gold;
+    assert!(engine.step_with_result(&RunAction::ShopBuyCard(0)).action_accepted);
+    let after_card = engine.get_shop().expect("shop after card");
+    assert_eq!(after_card.cards.len(), 7);
+    assert_eq!(engine.run_state.gold, gold_before - bought_card.1);
+    let replacement_type = crate::cards::global_registry()
+        .get(after_card.cards[0].0.strip_suffix('+').unwrap_or(&after_card.cards[0].0))
+        .expect("replacement card definition").card_type;
+    assert_eq!(replacement_type, bought_type);
+
+    let potion_price = engine.get_shop().expect("shop").potions[0].1;
+    let gold_before = engine.run_state.gold;
+    assert!(engine.step_with_result(&RunAction::ShopBuyPotion(0)).action_accepted);
+    assert_eq!(engine.get_shop().expect("shop").potions.len(), 3);
+    assert_eq!(engine.run_state.gold, gold_before - potion_price);
+    assert!(engine.run_state.potions.iter().any(|potion| !potion.is_empty()));
+
+    let bought_relic = engine.get_shop().expect("shop").relics[0].clone();
+    let gold_before = engine.run_state.gold;
+    assert!(engine.step_with_result(&RunAction::ShopBuyRelic(0)).action_accepted);
+    assert_eq!(engine.get_shop().expect("shop").relics.len(), 3);
+    assert_eq!(engine.run_state.gold, gold_before - bought_relic.1);
+    assert!(engine.run_state.relics.contains(&bought_relic.0));
+    assert!(!matches!(engine.get_shop().expect("shop").relics[0].0.as_str(),
+        "Old Coin" | "Smiling Mask" | "MawBank" | "The Courier"));
+
+    // StoreRelic checks the purchased ID too, so buying Courier refills its
+    // own slot even when it was not owned before the purchase.
+    let mut direct = RunEngine::new(1303, 0);
+    direct.run_state.gold = 500;
+    direct.debug_set_shop_state(ShopState {
+        cards: Vec::new(), relics: vec![("The Courier".to_string(), 150)],
+        potions: Vec::new(), remove_price: 75, removal_used: false,
+    });
+    assert!(direct.step_with_result(&RunAction::ShopBuyRelic(0)).action_accepted);
+    assert_eq!(direct.get_shop().expect("shop").relics.len(), 1);
+    assert_ne!(direct.get_shop().expect("shop").relics[0].0, "The Courier");
 }
 
 #[test]
@@ -2523,7 +2622,14 @@ fn winged_greaves_offers_three_nonedge_map_jumps_then_expires() {
     // WingBoots.java constructs WingedGreaves with counter 3 and canSpawn
     // through floor 40. MapRoomNode permits every visible node on the next row;
     // only a non-edge choice decrements the counter, with the third setting -2.
-    let offered_seed = 102;
+    let offered_seed = (0..2048).find(|seed| {
+        let mut candidate = RunEngine::new(*seed, 0);
+        candidate.run_state.floor = 40;
+        candidate.debug_build_combat_reward_screen(RoomType::Elite);
+        candidate.current_reward_screen().is_some_and(|screen| {
+            screen.items.iter().any(|item| item.label == "WingedGreaves")
+        })
+    }).expect("WingedGreaves reachable seed");
     let mut after_cutoff = RunEngine::new(offered_seed, 0);
     after_cutoff.run_state.floor = 41;
     after_cutoff.debug_build_combat_reward_screen(RoomType::Elite);
@@ -3482,6 +3588,7 @@ fn ceramic_fish_is_reachable_before_floor_49_and_pays_for_shop_card_obtains() {
     engine.debug_set_shop_state(ShopState {
         cards: vec![("Strike".to_string(), 50)],
         relics: Vec::new(),
+        potions: Vec::new(),
         remove_price: 75,
         removal_used: false,
     });

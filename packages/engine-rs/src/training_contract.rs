@@ -1506,6 +1506,7 @@ mod tests {
         shop_engine.debug_set_shop_state(ShopState {
             cards: vec![("Wallop".to_string(), 50)],
             relics: Vec::new(),
+            potions: Vec::new(),
             remove_price: 75,
             removal_used: false,
         });

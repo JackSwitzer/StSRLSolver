@@ -76,6 +76,8 @@ pub enum RunAction {
     ShopBuyCard(usize),
     /// Shop: buy a relic (index into shop relic offerings)
     ShopBuyRelic(usize),
+    /// Shop: buy a potion (index into shop potion offerings)
+    ShopBuyPotion(usize),
     /// Shop: remove a card (index into deck)
     ShopRemoveCard(usize),
     /// Shop: skip/leave shop
@@ -145,6 +147,24 @@ const WATCHER_RARE_CARDS: &[&str] = &[
     "MentalFortress", "Omniscience", "Ragnarok",
     "Adaptation", "Scrawl", "SpiritShield", "Vault",
     "Wish",
+];
+
+// AbstractDungeon.addColorlessCards supplies these non-special cards to the
+// merchant's fixed uncommon and rare colorless slots.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/shop/Merchant.java
+const SHOP_COLORLESS_UNCOMMON_CARDS: &[&str] = &[
+    "Bandage Up", "Blind", "Dark Shackles", "Deep Breath", "Discovery",
+    "Dramatic Entrance", "Enlightenment", "Finesse", "Flash of Steel",
+    "Forethought", "Good Instincts", "Impatience", "Jack Of All Trades",
+    "Madness", "Mind Blast", "Panacea", "PanicButton", "Purity",
+    "Swift Strike", "Trip",
+];
+
+const SHOP_COLORLESS_RARE_CARDS: &[&str] = &[
+    "Apotheosis", "Chrysalis", "HandOfGreed", "Magnetism",
+    "Master of Strategy", "Mayhem", "Metamorphosis", "Panache",
+    "Sadistic Nature", "Secret Technique", "Secret Weapon", "The Bomb",
+    "Thinking Ahead", "Transmutation", "Violence",
 ];
 
 const MATCH_AND_KEEP_COLORLESS_UNCOMMON_CARDS: &[&str] = &[
@@ -300,6 +320,9 @@ pub struct ShopState {
     pub cards: Vec<(String, i32)>,
     /// Relics available for purchase: (relic_id, price)
     pub relics: Vec<(String, i32)>,
+    /// Potions available for purchase: (potion_id, price)
+    #[serde(default)]
+    pub potions: Vec<(String, i32)>,
     /// Card removal price
     pub remove_price: i32,
     /// Whether the player has already used their one card removal this shop visit
@@ -1255,6 +1278,15 @@ impl RunEngine {
             for (i, (_, price)) in shop.relics.iter().enumerate() {
                 if self.run_state.gold >= *price {
                     actions.push(RunAction::ShopBuyRelic(i));
+                }
+            }
+            let can_obtain_potion = !self.run_state.relic_flags.has(crate::relic_flags::flag::SOZU)
+                && self.run_state.potions.iter().any(|potion| potion.is_empty());
+            if can_obtain_potion {
+                for (i, (_, price)) in shop.potions.iter().enumerate() {
+                    if self.run_state.gold >= *price {
+                        actions.push(RunAction::ShopBuyPotion(i));
+                    }
                 }
             }
             if !shop.removal_used && self.run_state.gold >= shop.remove_price {
@@ -3492,6 +3524,9 @@ impl RunEngine {
                     for (_, price) in &mut shop.relics {
                         *price = ((*price as f32) * 0.5).round() as i32;
                     }
+                    for (_, price) in &mut shop.potions {
+                        *price = ((*price as f32) * 0.5).round() as i32;
+                    }
                     shop.remove_price = ((shop.remove_price as f32) * 0.5).round() as i32;
                 }
             }
@@ -4325,6 +4360,9 @@ impl RunEngine {
             // WingBoots.java declares canonical ID WingedGreaves at RARE tier
             // and canSpawn excludes non-endless runs after floor 40.
             "WingedGreaves",
+            // Courier.java declares canonical ID "The Courier", UNCOMMON
+            // tier, and excludes floors after 48 plus the current shop room.
+            "The Courier",
             // MawBank.java uses canonical ID "MawBank", COMMON tier, and
             // canSpawn excludes floors after 48 and the current shop room.
             "MawBank",
@@ -4416,6 +4454,7 @@ impl RunEngine {
             .filter(|relic| *relic != "Dream Catcher" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Matryoshka" || self.run_state.floor <= 40)
             .filter(|relic| *relic != "WingedGreaves" || self.run_state.floor <= 40)
+            .filter(|relic| *relic != "The Courier" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "MawBank" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "MealTicket" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Meat on the Bone" || self.run_state.floor <= 48)
@@ -4436,7 +4475,7 @@ impl RunEngine {
                     || (self.run_state.floor < 48 && self.campfire_relic_count() < 2)
             })
             .filter(|relic| {
-                !in_shop || !matches!(*relic, "Old Coin" | "Smiling Mask")
+                !in_shop || !matches!(*relic, "Old Coin" | "Smiling Mask" | "The Courier")
             })
             .filter(|relic| *relic != "Juzu Bracelet" || self.run_state.floor <= 48)
             .filter(|relic| *relic != "Question Card" || self.run_state.floor <= 48)
@@ -4467,6 +4506,7 @@ impl RunEngine {
                     .filter(|relic| *relic != "Dream Catcher" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Matryoshka" || self.run_state.floor <= 40)
                     .filter(|relic| *relic != "WingedGreaves" || self.run_state.floor <= 40)
+                    .filter(|relic| *relic != "The Courier" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "MawBank" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "MealTicket" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Meat on the Bone" || self.run_state.floor <= 48)
@@ -4490,7 +4530,7 @@ impl RunEngine {
                                 && self.campfire_relic_count() < 2)
                     })
                     .filter(|relic| {
-                        !in_shop || !matches!(*relic, "Old Coin" | "Smiling Mask")
+                        !in_shop || !matches!(*relic, "Old Coin" | "Smiling Mask" | "The Courier")
                     })
                     .filter(|relic| *relic != "Juzu Bracelet" || self.run_state.floor <= 48)
                     .filter(|relic| *relic != "Question Card" || self.run_state.floor <= 48)
@@ -4856,35 +4896,194 @@ impl RunEngine {
     // Shop step
     // =======================================================================
 
+    fn rounded_shop_price(price: i32, multiplier: f32) -> i32 {
+        ((price as f32) * multiplier).round() as i32
+    }
+
+    fn apply_shop_entry_discounts(&self, mut price: i32) -> i32 {
+        // ShopScreen.init applies these to already-priced stock in this exact
+        // order, rounding after every multiplier.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/shop/ShopScreen.java
+        if self.run_state.ascension >= 16 {
+            price = Self::rounded_shop_price(price, 1.1);
+        }
+        if self.run_state.relic_flags.has(crate::relic_flags::flag::THE_COURIER) {
+            price = Self::rounded_shop_price(price, 0.8);
+        }
+        if self.run_state.relic_flags.has(crate::relic_flags::flag::MEMBERSHIP_CARD) {
+            price = Self::rounded_shop_price(price, 0.5);
+        }
+        price
+    }
+
+    fn apply_shop_replacement_discounts(&self, mut price: i32) -> i32 {
+        // StoreRelic/StorePotion round each replacement discount after the
+        // merchant variance has already been rounded.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/shop/ShopScreen.java
+        if self.run_state.relic_flags.has(crate::relic_flags::flag::THE_COURIER) {
+            price = Self::rounded_shop_price(price, 0.8);
+        }
+        if self.run_state.relic_flags.has(crate::relic_flags::flag::MEMBERSHIP_CARD) {
+            price = Self::rounded_shop_price(price, 0.5);
+        }
+        price
+    }
+
+    fn roll_shop_colored_card(
+        &mut self,
+        card_type: crate::cards::CardType,
+        exclude: Option<&str>,
+    ) -> (String, i32) {
+        // ShopRoom disables reward alternation: 3% rare, 37% uncommon, 60%
+        // common. getCardFromPool falls through when a rarity has no card of
+        // the requested type (notably Watcher common powers).
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/rooms/ShopRoom.java
+        let roll = self.rng.gen_range(0..100);
+        let ordered: [(&[&str], i32); 3] = if roll < 3 {
+            [(WATCHER_RARE_CARDS, 150), (WATCHER_UNCOMMON_CARDS, 75), (WATCHER_COMMON_CARDS, 50)]
+        } else if roll < 40 {
+            [(WATCHER_UNCOMMON_CARDS, 75), (WATCHER_RARE_CARDS, 150), (WATCHER_COMMON_CARDS, 50)]
+        } else {
+            [(WATCHER_COMMON_CARDS, 50), (WATCHER_UNCOMMON_CARDS, 75), (WATCHER_RARE_CARDS, 150)]
+        };
+        let registry = crate::cards::global_registry();
+        for (pool, base_price) in ordered {
+            let candidates: Vec<&str> = pool.iter().copied()
+                .filter(|id| exclude != Some(*id))
+                .filter(|id| registry.get(id).is_some_and(|card| card.card_type == card_type))
+                .collect();
+            if !candidates.is_empty() {
+                let card = candidates[self.rng.gen_range(0..candidates.len())];
+                let price = self.rng.gen_range((base_price * 9 / 10)..=(base_price * 11 / 10));
+                return (card.to_string(), price);
+            }
+        }
+        ("Scrawl".to_string(), self.rng.gen_range(135..=165))
+    }
+
+    fn roll_shop_colorless_card(&mut self, rare: bool) -> (String, i32) {
+        let (pool, base_price) = if rare {
+            (SHOP_COLORLESS_RARE_CARDS, 150)
+        } else {
+            (SHOP_COLORLESS_UNCOMMON_CARDS, 75)
+        };
+        let card = pool[self.rng.gen_range(0..pool.len())];
+        // ShopScreen.initCards multiplies colorless prices by 1.2 before the
+        // float-to-int truncation.
+        let min = ((base_price as f32) * 0.9 * 1.2) as i32;
+        let max = ((base_price as f32) * 1.1 * 1.2) as i32;
+        (card.to_string(), self.rng.gen_range(min..=max))
+    }
+
+    fn is_shop_colorless_card(card_id: &str) -> bool {
+        let card_id = card_id.strip_suffix('+').unwrap_or(card_id);
+        SHOP_COLORLESS_UNCOMMON_CARDS.contains(&card_id)
+            || SHOP_COLORLESS_RARE_CARDS.contains(&card_id)
+    }
+
+    fn roll_courier_replacement_card(&mut self, purchased: &str) -> (String, i32) {
+        let (card, raw_price) = if Self::is_shop_colorless_card(purchased) {
+            let rare = self.rng.gen_bool(0.3);
+            self.roll_shop_colorless_card(rare)
+        } else {
+            let base_id = purchased.strip_suffix('+').unwrap_or(purchased);
+            let card_type = crate::cards::global_registry().get(base_id)
+                .map(|card| card.card_type)
+                .unwrap_or(crate::cards::CardType::Skill);
+            self.roll_shop_colored_card(card_type, None)
+        };
+        // ShopScreen.setPrice applies all card multipliers in float and then
+        // truncates once, unlike relic/potion refill rounding.
+        let mut multiplier = 1.0;
+        if self.run_state.relic_flags.has(crate::relic_flags::flag::THE_COURIER) {
+            multiplier *= 0.8;
+        }
+        if self.run_state.relic_flags.has(crate::relic_flags::flag::MEMBERSHIP_CARD) {
+            multiplier *= 0.5;
+        }
+        (self.upgrade_reward_card_if_needed(&card), ((raw_price as f32) * multiplier) as i32)
+    }
+
+    fn potion_base_shop_price(potion_id: &str) -> i32 {
+        let key: String = potion_id.chars().filter(|ch| ch.is_ascii_alphanumeric())
+            .flat_map(|ch| ch.to_lowercase()).collect();
+        if matches!(key.as_str(), "ambrosia" | "cultistpotion" | "fruitjuice" | "sneckooil" | "fairypotion" | "smokebomb" | "entropicbrew") {
+            100
+        } else if matches!(key.as_str(), "stancepotion" | "regenpotion" | "ancientpotion" | "liquidbronze" | "gamblersbrew" | "essenceofsteel" | "duplicationpotion" | "distilledchaos" | "liquidmemories") {
+            75
+        } else {
+            50
+        }
+    }
+
+    fn roll_shop_potion(&mut self) -> (String, i32) {
+        let potion = self.roll_reward_potion_id();
+        let base = Self::potion_base_shop_price(&potion);
+        let min = ((base as f32) * 0.95).round() as i32;
+        let max = ((base as f32) * 1.05).round() as i32;
+        (potion, self.rng.gen_range(min..=max))
+    }
+
+    fn relic_base_shop_price(relic_id: &str) -> i32 {
+        // AbstractRelic.getPrice: COMMON=150, UNCOMMON=250, RARE=300.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/AbstractRelic.java
+        if matches!(relic_id,
+            "Blue Candle" | "Bottled Flame" | "Bottled Lightning" | "Bottled Tornado"
+            | "The Courier" | "Darkstone Periapt" | "Yang" | "Eternal Feather"
+            | "Frozen Egg 2" | "InkBottle" | "Kunai" | "Letter Opener" | "Matryoshka"
+            | "Meat on the Bone" | "Mercury Hourglass" | "Molten Egg 2" | "Mummified Hand"
+            | "Ornamental Fan" | "Pantograph" | "Pear" | "Question Card" | "Shuriken"
+            | "Singing Bowl" | "Sundial" | "Toxic Egg 2" | "White Beast Statue") {
+            250
+        } else if matches!(relic_id,
+            "Bird Faced Urn" | "Calipers" | "Du-Vu Doll" | "FossilizedHelix" | "Ginger"
+            | "Girya" | "Ice Cream" | "Incense Burner" | "Lizard Tail" | "Magic Flower"
+            | "Mango" | "Old Coin" | "Peace Pipe" | "Pocketwatch" | "Prayer Wheel"
+            | "Shovel" | "StoneCalendar" | "Thread and Needle" | "Tingsha" | "Torii"
+            | "Tough Bandages" | "TungstenRod" | "Turnip" | "Unceasing Top"
+            | "WingedGreaves") {
+            300
+        } else {
+            150
+        }
+    }
+
+    fn roll_relic_merchant_price(&mut self, relic_id: &str) -> i32 {
+        let base = Self::relic_base_shop_price(relic_id);
+        let min = ((base as f32) * 0.95).round() as i32;
+        let max = ((base as f32) * 1.05).round() as i32;
+        self.rng.gen_range(min..=max)
+    }
+
+    fn roll_courier_replacement_relic(&mut self) -> (String, i32) {
+        // StoreRelic excludes these four on every Courier refill.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/shop/StoreRelic.java
+        let relic = (0..64).map(|_| self.roll_shop_reward_relic_id())
+            .find(|id| !matches!(id.as_str(), "Old Coin" | "Smiling Mask" | "MawBank" | "The Courier"))
+            .unwrap_or_else(|| "Circlet".to_string());
+        let raw_price = self.roll_relic_merchant_price(&relic);
+        (relic, self.apply_shop_replacement_discounts(raw_price))
+    }
+
     fn enter_shop(&mut self) {
-        // Generate shop cards (5 cards) and removal option
+        // Merchant.java creates two attacks, two skills, one power, then one
+        // uncommon and one rare colorless card. ShopScreen chooses one of the
+        // five colored cards for the half-price sale before global discounts.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/shop/Merchant.java
         let mut cards = Vec::new();
-        for _ in 0..5 {
-            let roll: f32 = self.rng.gen();
-            let card = if roll < 0.5 {
-                let idx = self.rng.gen_range(0..WATCHER_COMMON_CARDS.len());
-                WATCHER_COMMON_CARDS[idx]
-            } else if roll < 0.85 {
-                let idx = self.rng.gen_range(0..WATCHER_UNCOMMON_CARDS.len());
-                WATCHER_UNCOMMON_CARDS[idx]
-            } else {
-                let idx = self.rng.gen_range(0..WATCHER_RARE_CARDS.len());
-                WATCHER_RARE_CARDS[idx]
-            };
-            let price = if roll < 0.5 {
-                self.rng.gen_range(45..=80)
-            } else if roll < 0.85 {
-                self.rng.gen_range(68..=120)
-            } else {
-                self.rng.gen_range(135..=200)
-            };
-            // Membership Card: 50% shop discount
-            let final_price = if self.run_state.relic_flags.has(crate::relic_flags::flag::MEMBERSHIP_CARD) {
-                ((price as f32) * 0.5).round() as i32
-            } else {
-                price
-            };
-            cards.push((self.upgrade_reward_card_if_needed(card), final_price));
+        let first_attack = self.roll_shop_colored_card(crate::cards::CardType::Attack, None);
+        let second_attack = self.roll_shop_colored_card(crate::cards::CardType::Attack, Some(first_attack.0.as_str()));
+        let first_skill = self.roll_shop_colored_card(crate::cards::CardType::Skill, None);
+        let second_skill = self.roll_shop_colored_card(crate::cards::CardType::Skill, Some(first_skill.0.as_str()));
+        cards.extend([first_attack, second_attack, first_skill, second_skill]);
+        cards.push(self.roll_shop_colored_card(crate::cards::CardType::Power, None));
+        let sale_idx = self.rng.gen_range(0..5);
+        cards[sale_idx].1 /= 2;
+        cards.push(self.roll_shop_colorless_card(false));
+        cards.push(self.roll_shop_colorless_card(true));
+        for (card, price) in &mut cards {
+            *card = self.upgrade_reward_card_if_needed(card);
+            *price = self.apply_shop_entry_discounts(*price);
         }
 
         let remove_price = self.compute_shop_remove_price();
@@ -4895,16 +5094,8 @@ impl RunEngine {
         let mut relics = Vec::new();
         for _ in 0..2 {
             let relic = self.roll_shop_reward_relic_id();
-            let price = self.rng.gen_range(143..=158);
-            let final_price = if self
-                .run_state
-                .relic_flags
-                .has(crate::relic_flags::flag::MEMBERSHIP_CARD)
-            {
-                ((price as f32) * 0.5).round() as i32
-            } else {
-                price
-            };
+            let price = self.roll_relic_merchant_price(&relic);
+            let final_price = self.apply_shop_entry_discounts(price);
             relics.push((relic, final_price));
         }
         const SHOP_RELICS: &[&str] = &[
@@ -4928,20 +5119,18 @@ impl RunEngine {
         // AbstractRelic.java::getPrice returns 150 for SHOP tier; StoreRelic
         // applies merchantRng.random(0.95f, 1.05f).
         let shop_price = self.rng.gen_range(143..=158);
-        let shop_price = if self
-            .run_state
-            .relic_flags
-            .has(crate::relic_flags::flag::MEMBERSHIP_CARD)
-        {
-            ((shop_price as f32) * 0.5).round() as i32
-        } else {
-            shop_price
-        };
+        let shop_price = self.apply_shop_entry_discounts(shop_price);
         relics.push((shop_relic.to_string(), shop_price));
+
+        let potions = (0..3).map(|_| {
+            let (potion, price) = self.roll_shop_potion();
+            (potion, self.apply_shop_entry_discounts(price))
+        }).collect();
 
         self.current_shop = Some(ShopState {
             cards,
             relics,
+            potions,
             remove_price,
             removal_used: false,
         });
@@ -4961,18 +5150,21 @@ impl RunEngine {
     fn step_shop(&mut self, action: &RunAction) -> f32 {
         match action {
             RunAction::ShopBuyCard(idx) => {
-                if let Some(ref mut shop) = self.current_shop {
-                    if *idx < shop.cards.len() {
-                        let (card, price) = shop.cards[*idx].clone();
-                        if self.run_state.gold >= price {
-                            self.run_state.gold -= price;
-                            if self.run_state.relic_flags.has(crate::relic_flags::flag::MAW_BANK) {
-                                self.run_state.relic_flags.counters
-                                    [crate::relic_flags::counter::MAW_BANK_GOLD] = -2;
-                            }
-                            obtain_master_deck_card_state(&mut self.run_state, card);
-                            shop.cards.remove(*idx);
-                        }
+                let purchase = self.current_shop.as_ref().and_then(|shop| {
+                    shop.cards.get(*idx).cloned()
+                        .filter(|(_, price)| self.run_state.gold >= *price)
+                });
+                if let Some((card, price)) = purchase {
+                    self.run_state.gold -= price;
+                    if self.run_state.relic_flags.has(crate::relic_flags::flag::MAW_BANK) {
+                        self.run_state.relic_flags.counters[crate::relic_flags::counter::MAW_BANK_GOLD] = -2;
+                    }
+                    obtain_master_deck_card_state(&mut self.run_state, card.clone());
+                    let replacement = self.run_state.relic_flags.has(crate::relic_flags::flag::THE_COURIER)
+                        .then(|| self.roll_courier_replacement_card(&card));
+                    if let Some(shop) = self.current_shop.as_mut() {
+                        if let Some(replacement) = replacement { shop.cards[*idx] = replacement; }
+                        else { shop.cards.remove(*idx); }
                     }
                 }
                 // Stay in shop for more purchases
@@ -4987,8 +5179,38 @@ impl RunEngine {
                 if let Some((relic, price)) = purchase {
                     self.adjust_run_gold(-price);
                     self.add_relic_reward(&relic);
+                    let replacement = (relic == "The Courier"
+                        || self.run_state.relic_flags.has(crate::relic_flags::flag::THE_COURIER))
+                        .then(|| self.roll_courier_replacement_relic());
                     if let Some(shop) = self.current_shop.as_mut() {
-                        shop.relics.remove(*idx);
+                        if let Some(replacement) = replacement { shop.relics[*idx] = replacement; }
+                        else { shop.relics.remove(*idx); }
+                    }
+                }
+                return 0.0;
+            }
+            RunAction::ShopBuyPotion(idx) => {
+                let purchase = self.current_shop.as_ref().and_then(|shop| {
+                    shop.potions.get(*idx).cloned().filter(|(_, price)| {
+                        self.run_state.gold >= *price
+                            && !self.run_state.relic_flags.has(crate::relic_flags::flag::SOZU)
+                            && self.run_state.potions.iter().any(|potion| potion.is_empty())
+                    })
+                });
+                if let Some((potion, price)) = purchase {
+                    self.run_state.gold -= price;
+                    if self.run_state.relic_flags.has(crate::relic_flags::flag::MAW_BANK) {
+                        self.run_state.relic_flags.counters[crate::relic_flags::counter::MAW_BANK_GOLD] = -2;
+                    }
+                    self.add_potion_reward(&potion);
+                    let replacement = self.run_state.relic_flags.has(crate::relic_flags::flag::THE_COURIER)
+                        .then(|| {
+                            let (potion, raw_price) = self.roll_shop_potion();
+                            (potion, self.apply_shop_replacement_discounts(raw_price))
+                        });
+                    if let Some(shop) = self.current_shop.as_mut() {
+                        if let Some(replacement) = replacement { shop.potions[*idx] = replacement; }
+                        else { shop.potions.remove(*idx); }
                     }
                 }
                 return 0.0;

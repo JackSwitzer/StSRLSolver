@@ -175,9 +175,18 @@ pub struct ShopRelicOfferContext {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShopPotionOfferContext {
+    pub index: usize,
+    pub potion_id: String,
+    pub price: i32,
+    pub affordable: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShopDecisionContext {
     pub offers: Vec<ShopCardOfferContext>,
     pub relic_offers: Vec<ShopRelicOfferContext>,
+    pub potion_offers: Vec<ShopPotionOfferContext>,
     pub remove_price: i32,
     pub removal_used: bool,
     pub removable_cards: usize,
@@ -313,6 +322,7 @@ pub enum DecisionAction {
     CampfireDig,
     ShopBuyCard(usize),
     ShopBuyRelic(usize),
+    ShopBuyPotion(usize),
     ShopRemoveCard(usize),
     ShopLeave,
     EventChoice(usize),
@@ -341,6 +351,7 @@ impl DecisionAction {
             Self::CampfireDig => RunAction::CampfireDig,
             Self::ShopBuyCard(idx) => RunAction::ShopBuyCard(*idx),
             Self::ShopBuyRelic(idx) => RunAction::ShopBuyRelic(*idx),
+            Self::ShopBuyPotion(idx) => RunAction::ShopBuyPotion(*idx),
             Self::ShopRemoveCard(idx) => RunAction::ShopRemoveCard(*idx),
             Self::ShopLeave => RunAction::ShopLeave,
             Self::EventChoice(idx) => RunAction::EventChoice(*idx),
@@ -372,6 +383,7 @@ impl DecisionAction {
             RunAction::CampfireDig => Self::CampfireDig,
             RunAction::ShopBuyCard(idx) => Self::ShopBuyCard(*idx),
             RunAction::ShopBuyRelic(idx) => Self::ShopBuyRelic(*idx),
+            RunAction::ShopBuyPotion(idx) => Self::ShopBuyPotion(*idx),
             RunAction::ShopRemoveCard(idx) => Self::ShopRemoveCard(*idx),
             RunAction::ShopLeave => Self::ShopLeave,
             RunAction::EventChoice(idx) => Self::EventChoice(*idx),
@@ -408,6 +420,10 @@ pub(crate) fn build_shop_context(shop: &ShopState, gold: i32, deck_len: usize) -
                 affordable: gold >= *price,
             })
             .collect(),
+        potion_offers: shop.potions.iter().enumerate()
+            .map(|(index, (potion_id, price))| ShopPotionOfferContext {
+                index, potion_id: potion_id.clone(), price: *price, affordable: gold >= *price,
+            }).collect(),
         remove_price: shop.remove_price,
         removal_used: shop.removal_used,
         removable_cards: if !shop.removal_used && deck_len > 5 { deck_len } else { 0 },
