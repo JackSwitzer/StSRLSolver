@@ -159,6 +159,10 @@ pub struct CombatEngine {
     pub(crate) runtime_play_target_idx: Option<i32>,
     pub(crate) runtime_play_stack: Vec<(CardInstance, i32)>,
     pub runtime_replay_window: bool,
+    /// Raw energyOnUse captured for the current X-cost card. Necronomicon's
+    /// queued copy reuses this value without spending energy a second time.
+    pub(crate) runtime_last_x_energy_on_use: i32,
+    pub(crate) runtime_x_energy_override: Option<i32>,
     pub runtime_card_total_unblocked_damage: i32,
     pub runtime_card_enemy_killed: bool,
 }
@@ -197,6 +201,8 @@ impl CombatEngine {
             runtime_play_target_idx: None,
             runtime_play_stack: Vec::new(),
             runtime_replay_window: false,
+            runtime_last_x_energy_on_use: 0,
+            runtime_x_energy_override: None,
             runtime_card_total_unblocked_damage: 0,
             runtime_card_enemy_killed: false,
         }
@@ -513,6 +519,8 @@ impl CombatEngine {
             runtime_play_target_idx: self.runtime_play_target_idx,
             runtime_play_stack: self.runtime_play_stack.clone(),
             runtime_replay_window: self.runtime_replay_window,
+            runtime_last_x_energy_on_use: self.runtime_last_x_energy_on_use,
+            runtime_x_energy_override: self.runtime_x_energy_override,
             runtime_card_total_unblocked_damage: self.runtime_card_total_unblocked_damage,
             runtime_card_enemy_killed: self.runtime_card_enemy_killed,
         }
@@ -2376,13 +2384,28 @@ impl CombatEngine {
         if !self.state.combat_over {
             let is_attack = card.card_type == CardType::Attack;
             let effective = self.effective_cost_inst(&card, card_inst);
+            let meets_cost_threshold = if card.cost == -1 {
+                self.runtime_last_x_energy_on_use >= 2
+            } else {
+                effective >= 2
+            };
             if self.state.has_relic("Necronomicon")
                 && is_attack
-                && effective >= 2
+                && meets_cost_threshold
                 && self.state.player.status(sid::NECRONOMICON_USED) == 0
             {
                 self.state.player.set_status(sid::NECRONOMICON_USED, 1);
-                self.execute_card_effects_with_enemy_on_use(&card, card_inst, target_idx);
+                // Necronomicon.java queues a same-instance copy with the
+                // original energyOnUse, target, and autoplay/free flags.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Necronomicon.java
+                if card.cost == -1 {
+                    self.runtime_x_energy_override = Some(self.runtime_last_x_energy_on_use);
+                }
+                self.execute_card_effects_with_enemy_on_use(
+                    &card,
+                    card_inst.set_free(true),
+                    target_idx,
+                );
             }
         }
 

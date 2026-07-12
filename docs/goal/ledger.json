@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-12T03:09:25.432550+00:00",
+ "updated": "2026-07-12T03:14:53.855074+00:00",
  "status_counts": {
-  "unverified": 397,
-  "verified": 270
+  "unverified": 396,
+  "verified": 271
  },
  "rows": [
   {
@@ -5762,8 +5762,8 @@
    "class": "Necronomicon",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Necronomicon.java",
    "methods_ref": "reference/extracted/methods/relic/Necronomicon.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

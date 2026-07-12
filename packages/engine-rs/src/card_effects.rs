@@ -244,7 +244,11 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     // Sources: ChemicalX.java defines BOOST 2; CollectAction.java and
     // ConjureBladeAction.java add exactly 2 when the player owns "Chemical X".
     let x_value = if card.cost == -1 {
-        let x = engine.state.energy;
+        let x = engine
+            .runtime_x_energy_override
+            .take()
+            .unwrap_or(engine.state.energy);
+        engine.runtime_last_x_energy_on_use = x;
         let x_is_free = card_inst.is_free()
             || (card.card_type == CardType::Attack
                 && engine.state.player.status(sid::NEXT_ATTACK_FREE) > 0)
@@ -260,6 +264,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
             0
         }
     } else {
+        engine.runtime_last_x_energy_on_use = 0;
         0
     };
 

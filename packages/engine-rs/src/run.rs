@@ -3372,6 +3372,15 @@ impl RunEngine {
                     !self.bottled_tornado_choices().is_empty();
             }
             "Calling Bell" => self.pending_calling_bell_rewards = true,
+            "Necronomicon" => {
+                // Necronomicon.java::onEquip obtains one Necronomicurse via
+                // ShowCardAndObtainEffect, including Omamori interception.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Necronomicon.java
+                obtain_master_deck_card_state(
+                    &mut self.run_state,
+                    "Necronomicurse".to_string(),
+                );
+            }
             "Lee's Waffle" => {
                 // Waffle.java::onEquip increases max HP by 7 without healing,
                 // then separately heals by maxHealth. Mark of the Bloom blocks
@@ -3934,6 +3943,19 @@ impl RunEngine {
         {
             self.run_state.relics.remove(index);
             self.run_state.relic_flags.rebuild(&self.run_state.relics);
+            if relic_id == "Necronomicon" {
+                // onUnequip removes the first Necronomicurse after the relic
+                // has left the player, so the curse's removal hook does not
+                // recreate it.
+                if let Some(card_index) = self
+                    .run_state
+                    .deck
+                    .iter()
+                    .position(|card| card == "Necronomicurse")
+                {
+                    self.run_state.deck.remove(card_index);
+                }
+            }
         }
     }
 
@@ -6163,20 +6185,16 @@ impl RunEngine {
     fn roll_cursed_tome_book_id(&mut self) -> String {
         const CURSED_TOME_BOOKS: &[&str] = &["Necronomicon", "Enchiridion", "Nilry's Codex"];
 
-        let registry = gameplay_registry();
-        let mut candidates: Vec<&str> = CURSED_TOME_BOOKS
+        // CursedTome.java::randomBook considers these exact three SPECIAL
+        // relics, excludes owned books, and uses Circlet only when all three
+        // are already owned. They must not be filtered through ordinary relic
+        // reward registry metadata.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/events/city/CursedTome.java
+        let candidates: Vec<&str> = CURSED_TOME_BOOKS
             .iter()
             .copied()
-            .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
             .filter(|id| !self.run_state.relics.iter().any(|owned| owned == id))
             .collect();
-        if candidates.is_empty() {
-            candidates = CURSED_TOME_BOOKS
-                .iter()
-                .copied()
-                .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
-                .collect();
-        }
         if candidates.is_empty() {
             return "Circlet".to_string();
         }
