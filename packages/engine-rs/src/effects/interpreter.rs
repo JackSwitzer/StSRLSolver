@@ -388,7 +388,15 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             if amount > 0 {
                 engine.heal_player(amount);
             } else if amount < 0 {
-                engine.player_lose_hp(-amount);
+                // LoseHPAction uses HP_LOSS DamageInfo: it bypasses block but
+                // still runs IntangiblePlayerPower and TungstenRod reductions.
+                // Sources: LoseHPAction.java, IntangiblePlayerPower.java,
+                // TungstenRod.java, and AbstractPlayer.java::damage.
+                let intangible = engine.state.player.status(sid::INTANGIBLE) > 0;
+                let tungsten = engine.state.has_relic("Tungsten Rod")
+                    || engine.state.has_relic("TungstenRod");
+                let hp_loss = damage::apply_hp_loss(-amount, intangible, tungsten);
+                engine.player_lose_hp(hp_loss);
             }
         }
 

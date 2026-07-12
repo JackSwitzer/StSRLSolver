@@ -119,6 +119,38 @@ fn ironclad_wave7_battle_trance_bloodletting_and_offering_run_through_typed_effe
 }
 
 #[test]
+fn bloodletting_hp_loss_obeys_intangible_and_tungsten_before_gaining_energy() {
+    // Source: Bloodletting.java queues LoseHPAction(3) before GainEnergyAction;
+    // HP_LOSS still passes IntangiblePlayerPower and TungstenRod in player.damage.
+    let mut ordinary = one_enemy_engine("JawWorm", 60);
+    ordinary.state.hand = make_deck(&["Bloodletting+"]);
+    let hp_before = ordinary.state.player.hp;
+    assert!(play_self(&mut ordinary, "Bloodletting+"));
+    assert_eq!(ordinary.state.player.hp, hp_before - 3);
+    assert_eq!(ordinary.state.energy, 6);
+    assert_eq!(ordinary.state.player.status(sid::HP_LOSS_THIS_COMBAT), 1);
+
+    let mut intangible = one_enemy_engine("JawWorm", 60);
+    intangible.state.player.set_status(sid::INTANGIBLE, 1);
+    intangible.state.hand = make_deck(&["Bloodletting"]);
+    let hp_before = intangible.state.player.hp;
+    assert!(play_self(&mut intangible, "Bloodletting"));
+    assert_eq!(intangible.state.player.hp, hp_before - 1);
+    assert_eq!(intangible.state.energy, 5);
+    assert_eq!(intangible.state.player.status(sid::HP_LOSS_THIS_COMBAT), 1);
+
+    let mut prevented = one_enemy_engine("JawWorm", 60);
+    prevented.state.player.set_status(sid::INTANGIBLE, 1);
+    prevented.state.relics.push("Tungsten Rod".to_string());
+    prevented.state.hand = make_deck(&["Bloodletting"]);
+    let hp_before = prevented.state.player.hp;
+    assert!(play_self(&mut prevented, "Bloodletting"));
+    assert_eq!(prevented.state.player.hp, hp_before);
+    assert_eq!(prevented.state.energy, 5);
+    assert_eq!(prevented.state.player.status(sid::HP_LOSS_THIS_COMBAT), 0);
+}
+
+#[test]
 fn battle_trance_plus_draws_four_then_no_draw_expires_at_turn_end() {
     // Sources: BattleTrance.java queues DrawCardAction(4) before applying
     // NoDrawPower; NoDrawPower.java removes itself at the player's turn end.
