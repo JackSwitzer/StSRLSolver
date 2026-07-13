@@ -521,12 +521,21 @@ mod defect_card_java_parity_tests {
         }
     });
 
-    defect_test!(fusion_channels_plasma, {
-        let mut e = filled_engine(&["Fusion"], 40, 0);
-        e.init_defect_orbs(1);
-        ensure_in_hand(&mut e, "Fusion");
-        play_self(&mut e, "Fusion");
-        assert_eq!(e.state.orb_slots.slots[0].orb_type, OrbType::Plasma);
+    defect_test!(fusion_channels_exactly_one_plasma_and_upgrade_only_lowers_cost, {
+        // Fusion.java sets magicNumber to 1 and enqueues one ChannelAction per
+        // magicNumber. Its upgrade changes only the base cost from 2 to 1.
+        // Java: reference/extracted/methods/card/Fusion.java
+        for (card_id, expected_energy) in [("Fusion", 1), ("Fusion+", 2)] {
+            let mut e = bare_engine(&[], vec![enemy("JawWorm", 40, 0)]);
+            e.init_defect_orbs(3);
+            e.state.hand = make_deck(&[card_id]);
+            e.state.energy = 3;
+
+            assert!(play_self(&mut e, card_id));
+            assert_eq!(e.state.energy, expected_energy);
+            assert_eq!(e.state.orb_slots.occupied_count(), 1);
+            assert_eq!(e.state.orb_slots.slots[0].orb_type, OrbType::Plasma);
+        }
     });
 
     defect_test!(fission_removes_orbs_and_refunds_energy, {
