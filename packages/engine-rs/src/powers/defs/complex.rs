@@ -187,7 +187,7 @@ fn hook_panache(
         return;
     }
 
-    if event.kind != Trigger::OnUseCard || engine.state.combat_over {
+    if event.kind != Trigger::OnCardPlayedPost || engine.state.combat_over {
         return;
     }
 
@@ -205,7 +205,11 @@ fn hook_panache(
 
     let living = engine.state.living_enemy_indices();
     for idx in living {
-        engine.deal_damage_to_enemy(idx, damage);
+        // PanachePower queues a pure matrix with DamageType.THORNS. This uses
+        // block/Intangible/Buffer/Invincible but skips NORMAL-only Slow,
+        // Flight, Curl Up, Malleable, and offensive modifiers.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/PanachePower.java
+        engine.deal_thorns_damage_to_enemy(idx, damage);
         if engine.state.combat_over {
             break;
         }
@@ -691,7 +695,11 @@ pub static DEF_PANACHE: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &[
         TriggeredEffect {
-            trigger: Trigger::OnUseCard,
+            // Panache's ApplyPowerAction is queued before UseCardAction, so a
+            // newly played Panache is installed in time to count itself and a
+            // stacked Panache contributes its new damage to this same play.
+            // Java: cards/colorless/Panache.java and powers/PanachePower.java.
+            trigger: Trigger::OnCardPlayedPost,
             condition: TriggerCondition::Always,
             effects: &[],
             counter: None,

@@ -2482,6 +2482,15 @@ impl CombatEngine {
             }
         }
 
+        // Power ApplyPowerActions resolve before UseCardAction invokes
+        // onUseCard. Rebuild here so newly installed powers such as Panache
+        // can observe this same card in the post-card dispatch.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
+        if card.card_type == CardType::Power {
+            self.install_power(&card);
+        }
+
         // ---- Post-effects dispatch: relic + power triggers ----
         // Unified dispatch handles: relic counters (Fan, Kunai, Shuriken, etc.),
         // AfterImage (OnAnyCardPlayed), Rage (OnAttackPlayed), Heatsink, Storm,
@@ -2614,10 +2623,6 @@ impl CombatEngine {
         }
 
         let post_play_dest = effects::card_runtime::post_play_destination(&card);
-
-        if card.card_type == CardType::Power {
-            self.install_power(&card);
-        }
 
         let exhausts_on_use = card.exhaust
             || card_inst.flags & CardInstance::FLAG_EXHAUST_ON_USE != 0

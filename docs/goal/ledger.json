@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T12:11:28.859025+00:00",
+ "updated": "2026-07-13T12:15:38.620018+00:00",
  "status_counts": {
-  "verified": 481,
-  "unverified": 186
+  "verified": 482,
+  "unverified": 185
  },
  "rows": [
   {
@@ -2382,8 +2382,8 @@
    "class": "Panache",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Panache.java",
    "methods_ref": "reference/extracted/methods/card/Panache.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

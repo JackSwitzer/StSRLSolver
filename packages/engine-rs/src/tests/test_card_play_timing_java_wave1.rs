@@ -62,6 +62,49 @@ fn panache_bursts_on_the_fifth_real_card_play_and_resets_its_counter() {
 
 #[test]
 // Java oracle:
+// decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Panache.java
+// decompiled/java-src/com/megacrit/cardcrawl/powers/PanachePower.java
+fn panache_counts_its_own_play_stacks_damage_and_bursts_as_thorns() {
+    let mut grounded = enemy_no_intent("JawWorm", 100, 100);
+    grounded.entity.block = 4;
+    grounded.entity.set_status(sid::SLOW, 5);
+    grounded.entity.set_status(sid::FLIGHT, 3);
+    grounded.entity.set_status(sid::CURL_UP, 12);
+    grounded.entity.set_status(sid::MALLEABLE, 3);
+    let mut intangible = enemy_no_intent("Cultist", 100, 100);
+    intangible.entity.set_status(sid::INTANGIBLE, 1);
+
+    let mut engine = engine_with_state(combat_state_with(
+        Vec::new(),
+        vec![grounded, intangible],
+        3,
+    ));
+    engine.state.hand = make_deck(&[
+        "Panache", "Panache+", "Defend", "Defend", "Defend",
+    ]);
+    engine.state.draw_pile.clear();
+    engine.state.discard_pile.clear();
+
+    assert!(play_self(&mut engine, "Panache"));
+    assert_eq!(engine.hidden_effect_value("panache", EffectOwner::PlayerPower, 0), 1);
+    assert!(play_self(&mut engine, "Panache+"));
+    assert_eq!(engine.state.player.status(sid::PANACHE), 24);
+    assert_eq!(engine.hidden_effect_value("panache", EffectOwner::PlayerPower, 0), 2);
+    assert!(play_self(&mut engine, "Defend"));
+    assert!(play_self(&mut engine, "Defend"));
+    assert!(play_self(&mut engine, "Defend"));
+
+    assert_eq!(engine.hidden_effect_value("panache", EffectOwner::PlayerPower, 0), 0);
+    assert_eq!(engine.state.enemies[0].entity.hp, 80);
+    assert_eq!(engine.state.enemies[0].entity.block, 0);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::FLIGHT), 3);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::CURL_UP), 12);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::MALLEABLE), 3);
+    assert_eq!(engine.state.enemies[1].entity.hp, 99);
+}
+
+#[test]
+// Java oracle:
 // decompiled/java-src/com/megacrit/cardcrawl/powers/ThousandCutsPower.java
 fn thousand_cuts_hits_all_enemies_after_a_real_card_play() {
     let enemies = vec![

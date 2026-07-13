@@ -60,7 +60,7 @@ fn panache_runtime_hook_counts_cards_and_resets_after_five() {
             &DEF_PANACHE,
             &mut engine,
             EffectOwner::PlayerPower,
-            GameEvent::empty(Trigger::OnUseCard),
+            GameEvent::empty(Trigger::OnCardPlayedPost),
             &mut runtime_state,
         );
         assert_eq!(runtime_state.get(0), expected_count);
@@ -72,7 +72,7 @@ fn panache_runtime_hook_counts_cards_and_resets_after_five() {
         &DEF_PANACHE,
         &mut engine,
         EffectOwner::PlayerPower,
-        GameEvent::empty(Trigger::OnUseCard),
+        GameEvent::empty(Trigger::OnCardPlayedPost),
         &mut runtime_state,
     );
 
