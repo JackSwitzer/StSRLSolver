@@ -28,7 +28,7 @@ fn defect_wave14_registry_exports_seek_on_the_typed_search_surface() {
             source: P::Draw,
             filter: CardFilter::All,
             action: ChoiceAction::MoveToHand,
-            min_picks: A::Fixed(1),
+            min_picks: A::Magic,
             max_picks: A::Magic,
             post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
         }]
@@ -42,7 +42,7 @@ fn defect_wave14_registry_exports_seek_on_the_typed_search_surface() {
             source: P::Draw,
             filter: CardFilter::All,
             action: ChoiceAction::MoveToHand,
-            min_picks: A::Fixed(1),
+            min_picks: A::Magic,
             max_picks: A::Magic,
             post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
         }]
@@ -137,13 +137,15 @@ fn seek_plus_searches_the_draw_pile_with_the_declarative_choice_surface() {
         engine.choice.as_ref().map(|choice| choice.reason.clone()),
         Some(ChoiceReason::SearchDrawPile),
     );
+    assert_eq!(engine.choice.as_ref().map(|choice| choice.min_picks), Some(2));
 
     engine.execute_action(&Action::Choose(0));
+    engine.execute_action(&Action::Choose(1));
     engine.execute_action(&Action::ConfirmSelection);
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
-    assert_eq!(engine.state.hand.len(), 1);
-    assert_eq!(engine.state.draw_pile.len(), 2);
+    assert_eq!(engine.state.hand.len(), 2);
+    assert_eq!(engine.state.draw_pile.len(), 1);
 }
 
 #[test]

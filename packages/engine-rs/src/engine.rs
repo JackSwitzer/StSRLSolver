@@ -1257,28 +1257,42 @@ impl CombatEngine {
     }
 
     fn resolve_search_draw_pile(&mut self, ctx: ChoiceContext) {
-        // Secret Weapon / Secret Technique: move selected card from draw pile to hand
-        let mut indices: Vec<usize> = ctx
+        // BetterDrawPileToHandAction moves cards in selection order and sends
+        // each overflow card to discard. Secret Weapon/Technique use the same
+        // movement rule for their single selection.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/BetterDrawPileToHandAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/AttackFromDeckToHandAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/SkillFromDeckToHandAction.java
+        let selected_cards: Vec<(usize, CardInstance)> = ctx
             .selected
             .iter()
-            .filter_map(|&i| {
-                if let ChoiceOption::DrawCard(idx) = ctx.options[i] {
-                    Some(idx)
+            .filter_map(|&choice_index| {
+                if let ChoiceOption::DrawCard(draw_index) = ctx.options[choice_index] {
+                    self.state
+                        .draw_pile
+                        .get(draw_index)
+                        .copied()
+                        .map(|card| (draw_index, card))
                 } else {
                     None
                 }
             })
             .collect();
+        let mut indices: Vec<usize> = selected_cards
+            .iter()
+            .map(|(draw_index, _)| *draw_index)
+            .collect();
         indices.sort_unstable_by(|a, b| b.cmp(a));
         for idx in indices {
             if idx < self.state.draw_pile.len() {
-                if self.state.hand.len() == 10 {
-                    let card = self.state.draw_pile.remove(idx);
-                    self.state.discard_pile.push(card);
-                } else {
-                    let card = self.state.draw_pile.remove(idx);
-                    self.state.hand.push(card);
-                }
+                self.state.draw_pile.remove(idx);
+            }
+        }
+        for (_, card) in selected_cards {
+            if self.state.hand.len() >= 10 {
+                self.state.discard_pile.push(card);
+            } else {
+                self.state.hand.push(card);
             }
         }
     }
@@ -2271,13 +2285,14 @@ impl CombatEngine {
                 if matches!(source, Pile::Draw | Pile::Discard | Pile::Exhaust) {
                     let min_required =
                         self.choice_min_picks_for_legality(card, card_inst, *min_picks);
-                    // BetterDiscardPileToHandAction is a legal no-op when the
-                    // discard pile is empty; Hologram itself has no canUse
-                    // restriction tied to that pile.
+                    // BetterDiscardPileToHandAction and BetterDrawPileToHandAction
+                    // are legal no-ops when their source pile is empty; the
+                    // corresponding cards have no canUse restriction for it.
                     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/BetterDiscardPileToHandAction.java
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/BetterDrawPileToHandAction.java
                     let empty_source_is_allowed = matches!(
                         card.id,
-                        "Exhume" | "Exhume+" | "Hologram" | "Hologram+"
+                        "Exhume" | "Exhume+" | "Hologram" | "Hologram+" | "Seek" | "Seek+"
                     );
                     if min_required > 0
                         && !empty_source_is_allowed

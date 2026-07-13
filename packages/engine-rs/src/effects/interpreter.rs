@@ -1425,13 +1425,18 @@ fn execute_choose_cards(
         .map(|(i, _)| make_choice_option(source, i))
         .collect();
 
-    if matches!(ctx.card.id, "Omniscience" | "Omniscience+")
+    let uses_sorted_draw_grid = (matches!(ctx.card.id, "Omniscience" | "Omniscience+")
         && matches!(source, Pile::Draw)
-        && matches!(action, ChoiceAction::PlayForFree)
-    {
-        // OmniscienceAction copies the draw pile, then stably sorts by name,
-        // rarity descending, and finally moves Status cards to the end.
+        && matches!(action, ChoiceAction::PlayForFree))
+        || (matches!(ctx.card.id, "Seek" | "Seek+")
+            && matches!(source, Pile::Draw)
+            && matches!(action, ChoiceAction::MoveToHand));
+    if uses_sorted_draw_grid {
+        // OmniscienceAction and BetterDrawPileToHandAction both copy the draw
+        // pile, then stably sort by name, rarity descending, and finally move
+        // Status cards to the end before opening grid selection.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/OmniscienceAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/BetterDrawPileToHandAction.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
         options.sort_by(|left, right| {
             let ChoiceOption::DrawCard(left_idx) = left else {
@@ -1469,11 +1474,30 @@ fn execute_choose_cards(
     let is_meditate = matches!(ctx.card.id, "Meditate" | "Meditate+")
         && matches!(source, Pile::Discard)
         && matches!(action, ChoiceAction::MoveToHand);
+    let is_seek = matches!(ctx.card.id, "Seek" | "Seek+")
+        && matches!(source, Pile::Draw)
+        && matches!(action, ChoiceAction::MoveToHand);
     let requested_min = resolve_card_amount(engine, ctx, &min_picks_src).max(0) as usize;
     let requested_max = resolve_card_amount(engine, ctx, &max_picks_src).max(0) as usize;
     let max_picks = requested_max.min(options.len());
 
     if max_picks == 0 {
+        return;
+    }
+
+    // Mandatory BetterDrawPileToHandAction moves the whole draw pile directly
+    // when it contains no more cards than Seek requests. Cards beyond the hand
+    // limit go to discard in draw-pile iteration order.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/BetterDrawPileToHandAction.java
+    if is_seek && options.len() <= max_picks {
+        let cards = std::mem::take(&mut engine.state.draw_pile);
+        for card in cards {
+            if engine.state.hand.len() >= 10 {
+                engine.state.discard_pile.push(card);
+            } else {
+                engine.state.hand.push(card);
+            }
+        }
         return;
     }
 
