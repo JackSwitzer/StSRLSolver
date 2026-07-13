@@ -288,8 +288,8 @@ mod silent_card_java_parity_tests {
         }
     }
     card_pair_test!(flying_knee,
-        "Flying Knee", 1, 8, -1, 1, CardType::Attack, CardTarget::Enemy, false, None, &["next_turn_energy"],
-        "Flying Knee+", 1, 11, -1, 1, CardType::Attack, CardTarget::Enemy, false, None, &["next_turn_energy"],
+        "Flying Knee", 1, 8, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["next_turn_energy"],
+        "Flying Knee+", 1, 11, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["next_turn_energy"],
     );
     card_pair_test!(outmaneuver,
         "Outmaneuver", 1, -1, -1, 2, CardType::Skill, CardTarget::None, false, None, &["next_turn_energy"],

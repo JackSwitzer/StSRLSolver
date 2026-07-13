@@ -66,7 +66,15 @@ mod silent_wave2 {
         assert_eq!(deadly_poison.base_magic, 5);
 
         let flying_knee = reg.get("Flying Knee").expect("Flying Knee should exist");
-        assert_eq!(flying_knee.base_magic, 1);
+        assert_eq!(flying_knee.base_magic, -1);
+        assert_eq!(
+            flying_knee.effect_data,
+            &[Effect::Simple(SE::AddStatus(
+                T::Player,
+                sid::ENERGIZED,
+                A::Fixed(1),
+            ))]
+        );
 
         let quick_slash = reg.get("Quick Slash").expect("Quick Slash should exist");
         assert_eq!(quick_slash.effect_data.len(), 1);
@@ -216,6 +224,30 @@ mod silent_wave2 {
         assert!(play_on_enemy(&mut flying_knee, "Flying Knee", 0));
         assert_eq!(flying_knee.state.enemies[0].entity.hp, hp_before - 8);
         assert_eq!(flying_knee.state.player.status(sid::ENERGIZED), 1);
+        flying_knee.execute_action(&Action::EndTurn);
+        assert_eq!(flying_knee.state.energy, 4);
+        assert_eq!(flying_knee.state.player.status(sid::ENERGIZED), 0);
+    }
+
+    #[test]
+    fn flying_knee_lethal_damage_clears_the_queued_energized_power() {
+        // FlyingKnee.java queues DamageAction before ApplyPowerAction.
+        // DamageAction clears post-combat actions after the final monster dies,
+        // and GameActionManager does not preserve ApplyPowerAction.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/FlyingKnee.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DamageAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+        let mut engine = engine_for(
+            &["Flying Knee"],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 8, 8)],
+            1,
+        );
+
+        assert!(play_on_enemy(&mut engine, "Flying Knee", 0));
+        assert!(engine.state.enemies[0].entity.is_dead());
+        assert_eq!(engine.state.player.status(sid::ENERGIZED), 0);
     }
 
     #[test]

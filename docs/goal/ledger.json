@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T08:51:02.796662+00:00",
+ "updated": "2026-07-13T08:54:10.946619+00:00",
  "status_counts": {
-  "verified": 414,
-  "unverified": 253
+  "verified": 415,
+  "unverified": 252
  },
  "rows": [
   {
@@ -1562,8 +1562,8 @@
    "class": "FlyingKnee",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/FlyingKnee.java",
    "methods_ref": "reference/extracted/methods/card/FlyingKnee.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

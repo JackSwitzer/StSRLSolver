@@ -230,6 +230,15 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
     match *simple {
         // -- Status application --
         SimpleEffect::AddStatus(target, status, ref amount_src) => {
+            // DamageAction clears queued non-damage/non-heal/non-block actions
+            // when the last monster dies. ApplyPowerAction is among those
+            // removed, so effects such as Flying Knee's Energized do not land
+            // after a lethal preceding hit.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DamageAction.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+            if engine.state.combat_over || engine.state.is_victory() {
+                return;
+            }
             let amount = resolve_card_amount(engine, ctx, amount_src);
             apply_status(engine, ctx, target, status, amount);
         }
