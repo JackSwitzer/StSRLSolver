@@ -304,6 +304,34 @@ fn nuclear_battery_channels_plasma_prebattle_in_relic_ownership_order() {
 }
 
 #[test]
+fn runic_capacitor_adds_three_live_slots_on_first_turn_up_to_ten() {
+    // Source: reference/extracted/methods/relic/RunicCapacitor.java and
+    // IncreaseMaxOrbAction.java. The first turn requests three live slots;
+    // AbstractPlayer refuses each remaining gain after maxOrbs reaches ten.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    engine.init_defect_orbs(3);
+    engine.state.relics.push("Runic Capacitor".to_string());
+    engine.start_combat();
+    assert_eq!(engine.state.orb_slots.get_slot_count(), 6);
+    assert_eq!(engine.state.player.status(crate::status_ids::sid::ORB_SLOTS), 3);
+
+    let mut capped = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    capped.init_defect_orbs(9);
+    capped.state.relics.push("Runic Capacitor".to_string());
+    capped.start_combat();
+    assert_eq!(capped.state.orb_slots.get_slot_count(), 10);
+    assert_eq!(capped.state.player.status(crate::status_ids::sid::ORB_SLOTS), 1);
+}
+
+#[test]
 fn orb_wave1_emotion_chip_pulses_front_orb_on_next_turn_start_like_java() {
     let mut engine = engine_without_start(
         Vec::new(),

@@ -3067,6 +3067,17 @@ fn dollys_mirror_is_shop_reachable_and_obtains_one_unbottled_card_copy() {
     // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/DollysMirror.java
     let seed = (0..256).find(|seed| {
         let mut engine = RunEngine::new(*seed, 0);
+        // Shop generation consumes RNG while building all offers, so seed
+        // discovery must reproduce the complete purchase setup below.
+        engine.run_state.deck = vec![
+            "Strike".to_string(),
+            "Defend".to_string(),
+            "Wallop+".to_string(),
+        ];
+        engine.run_state.bottled_flame_card = Some("Wallop+".to_string());
+        engine.run_state.relics.push("CeramicFish".to_string());
+        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine.run_state.gold = 10_000;
         engine.debug_enter_shop();
         engine.get_shop().is_some_and(|shop| {
             shop.relics.iter().any(|(relic, _)| relic == "DollysMirror")
@@ -3513,6 +3524,25 @@ fn melange_is_reachable_only_from_the_shop_relic_slot() {
         .step_with_result(&RunAction::ShopBuyRelic(idx))
         .action_accepted);
     assert!(engine.run_state.relics.iter().any(|relic| relic == "Melange"));
+}
+
+#[test]
+fn watcher_shops_exclude_other_colors_shop_relics() {
+    // RelicLibrary.java registers Brimstone with addRed, TwistedFunnel with
+    // addGreen, and RunicCapacitor with addBlue. Only addPurple(Melange) joins
+    // the Watcher's color-specific SHOP-tier pool.
+    for seed in 0..512 {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.debug_enter_shop();
+        assert!(engine.get_shop().is_some_and(|shop| {
+            shop.relics.iter().all(|(relic, _)| {
+                !matches!(
+                    relic.as_str(),
+                    "Brimstone" | "TwistedFunnel" | "Runic Capacitor"
+                )
+            })
+        }));
+    }
 }
 
 #[test]

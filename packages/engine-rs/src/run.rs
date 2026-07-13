@@ -6132,10 +6132,10 @@ impl RunEngine {
             relics.push((relic, final_price));
         }
         const SHOP_RELICS: &[&str] = &[
-            "TheAbacus", "Brimstone", "Cauldron", "Chemical X", "ClockworkSouvenir", "DollysMirror", "Frozen Eye", "HandDrill", "Lee's Waffle", "Medical Kit", "Melange", "Orrery",
+            "TheAbacus", "Cauldron", "Chemical X", "ClockworkSouvenir", "DollysMirror", "Frozen Eye", "HandDrill", "Lee's Waffle", "Medical Kit", "Melange", "Orrery",
             "Membership Card",
-            "OrangePellets", "Runic Capacitor", "Sling", "Strange Spoon",
-            "PrismaticShard", "Toolbox", "TwistedFunnel",
+            "OrangePellets", "Sling", "Strange Spoon",
+            "PrismaticShard", "Toolbox",
         ];
         let registry = gameplay_registry();
         let candidates: Vec<&str> = SHOP_RELICS

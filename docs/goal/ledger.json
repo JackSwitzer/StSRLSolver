@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T23:08:56.095837+00:00",
+ "updated": "2026-07-13T23:14:15.260705+00:00",
  "status_counts": {
-  "verified": 654,
-  "unverified": 13
+  "verified": 655,
+  "unverified": 12
  },
  "rows": [
   {
@@ -6132,8 +6132,8 @@
    "class": "RunicCapacitor",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/RunicCapacitor.java",
    "methods_ref": "reference/extracted/methods/relic/RunicCapacitor.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
