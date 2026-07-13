@@ -2400,8 +2400,7 @@ fn set_bool_flag(engine: &mut CombatEngine, flag: BoolFlag) {
             engine.state.blasphemy_active = true;
         }
         BoolFlag::BulletTime => {
-            engine.state.player.set_status(sid::BULLET_TIME, 1);
-            engine.state.player.set_status(sid::NO_DRAW, 1);
+            engine.apply_bullet_time();
         }
     }
 }

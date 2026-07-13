@@ -2080,10 +2080,6 @@ impl CombatEngine {
         if card.card_type == CardType::Skill && self.state.player.status(sid::CORRUPTION) > 0 {
             return 0;
         }
-        if self.state.player.status(sid::BULLET_TIME) > 0 {
-            return 0;
-        }
-
         // Instance cost overrides CardDef cost when set (>= 0)
         let mut cost = if card_inst.cost >= 0 {
             card_inst.cost as i32
@@ -2118,10 +2114,6 @@ impl CombatEngine {
         if card.card_type == CardType::Skill && self.state.player.status(sid::CORRUPTION) > 0 {
             return 0;
         }
-        if self.state.player.status(sid::BULLET_TIME) > 0 {
-            return 0;
-        }
-
         // Instance cost overrides CardDef cost when set (>= 0)
         let mut cost = if card_inst.cost >= 0 {
             card_inst.cost as i32
@@ -3158,7 +3150,6 @@ impl CombatEngine {
             0
         } else if card_inst.is_free()
             || self.state.player.status(sid::NEXT_ATTACK_FREE) > 0
-            || self.state.player.status(sid::BULLET_TIME) > 0
         {
             0
         } else if card_inst.cost >= 0 {
@@ -3700,6 +3691,34 @@ impl CombatEngine {
                 self.state.hand.push(card);
             } else {
                 self.state.discard_pile.push(card);
+            }
+        }
+    }
+
+    pub(crate) fn apply_bullet_time(&mut self) {
+        // BulletTime.use queues NoDrawPower before ApplyBulletTimeAction.
+        // No Draw is a debuff and may be blocked by Artifact; the cost action
+        // still runs and calls setCostForTurn(-9) on cards currently in hand.
+        // AbstractCard.setCostForTurn clamps that to zero only when the current
+        // cost is non-negative, leaving X-cost and unplayable cards unchanged.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/BulletTime.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ApplyBulletTimeAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/AbstractCard.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NoDrawPower.java
+        crate::powers::apply_debuff(&mut self.state.player, sid::NO_DRAW, 1);
+
+        let registry = self.card_registry;
+        for card in &mut self.state.hand {
+            let def = registry.card_def_by_id(card.def_id);
+            let cost_for_turn = if card.cost >= 0 {
+                card.cost
+            } else if card.base_cost >= 0 {
+                card.base_cost
+            } else {
+                def.cost as i8
+            };
+            if cost_for_turn >= 0 {
+                card.set_cost_for_turn(0);
             }
         }
     }

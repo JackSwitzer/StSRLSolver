@@ -203,7 +203,7 @@ pub enum BoolFlag {
     NextAttackFree,
     /// Die at start of next turn (Blasphemy).
     Blasphemy,
-    /// All cards cost 0 this turn + no draw (Bullet Time).
+    /// Current non-X hand cards cost 0 this turn + apply No Draw (Bullet Time).
     BulletTime,
 }
 

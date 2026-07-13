@@ -811,12 +811,70 @@ mod silent_card_java_parity_tests {
     }
 
     #[test]
-    fn bullet_time_sets_statuses() {
-        let mut engine = engine_with(make_deck_n("Bullet Time", 8), 40, 0);
-        ensure_in_hand(&mut engine, "Bullet Time");
+    fn bullet_time_zeroes_only_the_current_non_x_hand_and_no_draw_obeys_artifact() {
+        // BulletTime.java queues NoDrawPower then ApplyBulletTimeAction. The
+        // latter loops the current hand and calls setCostForTurn(-9), which
+        // AbstractCard clamps to zero only for cards whose costForTurn is
+        // non-negative. X-cost cards stay X, and cards drawn later are not
+        // modified. NoDrawPower is a DEBUFF, so Artifact can negate it without
+        // preventing the subsequent hand-cost action.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/BulletTime.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ApplyBulletTimeAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/AbstractCard.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NoDrawPower.java
+        let mut engine = engine_with_enemies(
+            Vec::new(),
+            vec![enemy("Dummy", 50, 50, 1, 0, 1)],
+            4,
+        );
+        engine.state.hand = make_deck(&["Bullet Time", "Strike", "Skewer"]);
+        engine.state.energy = 4;
+
         assert!(play_self(&mut engine, "Bullet Time"));
-        assert_eq!(engine.state.player.status(sid::BULLET_TIME), 1);
         assert_eq!(engine.state.player.status(sid::NO_DRAW), 1);
+        assert_eq!(engine.state.player.status(sid::BULLET_TIME), 0);
+        let strike = engine.state.hand.iter().find(|card| {
+            engine.card_registry.card_name(card.def_id) == "Strike"
+        }).expect("Strike in hand");
+        let skewer = engine.state.hand.iter().find(|card| {
+            engine.card_registry.card_name(card.def_id) == "Skewer"
+        }).expect("Skewer in hand");
+        assert_eq!(strike.cost, 0);
+        assert_eq!(skewer.cost, -1);
+        assert!(play_on_enemy(&mut engine, "Strike", 0));
+        assert!(play_on_enemy(&mut engine, "Skewer", 0));
+        assert_eq!(engine.state.enemies[0].entity.hp, 37);
+        assert_eq!(engine.state.energy, 0);
+
+        let mut artifact = engine_with_enemies(
+            Vec::new(),
+            vec![enemy("Dummy", 50, 50, 1, 0, 1)],
+            2,
+        );
+        artifact.state.hand = make_deck(&["Bullet Time+", "Strike"]);
+        artifact.state.draw_pile = make_deck(&["Bash"]);
+        artifact.state.player.set_status(sid::ARTIFACT, 1);
+        artifact.state.energy = 2;
+
+        assert!(play_self(&mut artifact, "Bullet Time+"));
+        assert_eq!(artifact.state.player.status(sid::ARTIFACT), 0);
+        assert_eq!(artifact.state.player.status(sid::NO_DRAW), 0);
+        artifact.draw_cards(1);
+        let strike_idx = artifact.state.hand.iter().position(|card| {
+            artifact.card_registry.card_name(card.def_id) == "Strike"
+        }).expect("pre-existing Strike");
+        let bash_idx = artifact.state.hand.iter().position(|card| {
+            artifact.card_registry.card_name(card.def_id) == "Bash"
+        }).expect("later-drawn Bash");
+        let legal = artifact.get_legal_actions();
+        assert!(legal.iter().any(|action| matches!(
+            action,
+            Action::PlayCard { card_idx, .. } if *card_idx == strike_idx
+        )));
+        assert!(!legal.iter().any(|action| matches!(
+            action,
+            Action::PlayCard { card_idx, .. } if *card_idx == bash_idx
+        )));
     }
 
     #[test]

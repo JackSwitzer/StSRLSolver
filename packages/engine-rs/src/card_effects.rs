@@ -253,8 +253,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
             || (card.card_type == CardType::Attack
                 && engine.state.player.status(sid::NEXT_ATTACK_FREE) > 0)
             || (card.card_type == CardType::Skill
-                && engine.state.player.status(sid::CORRUPTION) > 0)
-            || engine.state.player.status(sid::BULLET_TIME) > 0;
+                && engine.state.player.status(sid::CORRUPTION) > 0);
         if !x_is_free {
             engine.state.energy = 0;
         }

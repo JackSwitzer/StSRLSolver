@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T04:40:54.448287+00:00",
+ "updated": "2026-07-13T04:45:57.120301+00:00",
  "status_counts": {
-  "verified": 329,
-  "unverified": 338
+  "verified": 330,
+  "unverified": 337
  },
  "rows": [
   {
@@ -472,8 +472,8 @@
    "class": "BulletTime",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/BulletTime.java",
    "methods_ref": "reference/extracted/methods/card/BulletTime.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
