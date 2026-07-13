@@ -77,6 +77,46 @@ fn purity_still_uses_zero_to_many_exhaust_selection_up_to_its_cap() {
 }
 
 #[test]
+fn purity_upgrade_raises_the_optional_exhaust_cap_from_three_to_five() {
+    // Purity.java passes (magicNumber, false, true, true) to ExhaustAction:
+    // selection is non-random, any-number, and may be confirmed at zero.
+    // upgradeMagicNumber(2) changes only the cap from three to five.
+    let registry = global_registry();
+    let base = registry.get("Purity").expect("Purity");
+    let upgraded = registry.get("Purity+").expect("Purity+");
+    assert_eq!((base.cost, base.base_magic, base.exhaust), (0, 3, true));
+    assert_eq!(
+        (upgraded.cost, upgraded.base_magic, upgraded.exhaust),
+        (0, 5, true)
+    );
+
+    let mut zero = engine_for(&["Purity", "Strike", "Defend", "Bash"], &[], &[], 3);
+    assert!(play_self(&mut zero, "Purity"));
+    assert_eq!(zero.choice.as_ref().expect("base choice").min_picks, 0);
+    zero.execute_action(&Action::ConfirmSelection);
+    assert_eq!(zero.phase, CombatPhase::PlayerTurn);
+    assert_eq!(zero.state.hand.len(), 3);
+    assert_eq!(zero.state.exhaust_pile.len(), 1);
+
+    let mut five = engine_for(
+        &["Purity+", "Strike", "Defend", "Bash", "Strike", "Defend", "Bash"],
+        &[],
+        &[],
+        3,
+    );
+    assert!(play_self(&mut five, "Purity+"));
+    let choice = five.choice.as_ref().expect("upgraded choice");
+    assert_eq!((choice.min_picks, choice.max_picks), (0, 5));
+    for option_idx in 0..5 {
+        five.execute_action(&Action::Choose(option_idx));
+    }
+    five.execute_action(&Action::ConfirmSelection);
+    assert_eq!(five.phase, CombatPhase::PlayerTurn);
+    assert_eq!(five.state.hand.len(), 1);
+    assert_eq!(five.state.exhaust_pile.len(), 6);
+}
+
+#[test]
 fn secret_technique_now_uses_declarative_skill_search() {
     let def = CombatEngine::new(combat_state_with(vec![], vec![], 3), TEST_SEED)
         .card_registry

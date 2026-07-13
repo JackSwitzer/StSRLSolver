@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T12:55:06.052129+00:00",
+ "updated": "2026-07-13T12:57:23.768933+00:00",
  "status_counts": {
-  "verified": 494,
-  "unverified": 173
+  "verified": 495,
+  "unverified": 172
  },
  "rows": [
   {
@@ -2562,8 +2562,8 @@
    "class": "Purity",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Purity.java",
    "methods_ref": "reference/extracted/methods/card/Purity.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
