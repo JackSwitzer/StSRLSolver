@@ -1,10 +1,13 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Ironclad Uncommon: Spot Weakness ---- (cost 1, +3 str if enemy attacking; +1 magic)
+        // SpotWeakness.java targets SELF_AND_ENEMY and delegates to
+        // SpotWeaknessAction: gain 3 Strength only when the selected monster's
+        // intent base damage is nonnegative. Upgrade raises Strength by one.
+        // Java: reference/extracted/methods/card/SpotWeakness.java
     insert(cards, CardDef {
                 id: "Spot Weakness", name: "Spot Weakness", card_type: CardType::Skill,
-                target: CardTarget::Enemy, cost: 1, base_damage: -1, base_block: -1,
+                target: CardTarget::SelfAndEnemy, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: 3, exhaust: false, enter_stance: None,
                 effect_data: &[
                     E::Conditional(
@@ -16,7 +19,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
             });
     insert(cards, CardDef {
                 id: "Spot Weakness+", name: "Spot Weakness+", card_type: CardType::Skill,
-                target: CardTarget::Enemy, cost: 1, base_damage: -1, base_block: -1,
+                target: CardTarget::SelfAndEnemy, cost: 1, base_damage: -1, base_block: -1,
                 base_magic: 4, exhaust: false, enter_stance: None,
                 effect_data: &[
                     E::Conditional(

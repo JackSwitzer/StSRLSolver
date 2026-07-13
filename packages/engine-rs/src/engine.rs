@@ -464,7 +464,7 @@ impl CombatEngine {
             let card = self.card_registry.card_def_by_id(card_inst.def_id);
             if self.can_play_card_inst(card, *card_inst) {
                 match card.target {
-                    CardTarget::Enemy => {
+                    CardTarget::Enemy | CardTarget::SelfAndEnemy => {
                         for &enemy_idx in &living {
                             actions.push(Action::PlayCard {
                                 card_idx: hand_idx,
@@ -1164,12 +1164,12 @@ impl CombatEngine {
                     self.state.hand[idx].cost = 0;
                     self.state.hand[idx].flags |= crate::combat_types::CardInstance::FLAG_FREE;
                     // Play it (target -1 = self; for targeted cards MCTS will handle)
-                    let target = if self
-                        .card_registry
-                        .card_def_by_id(self.state.hand[idx].def_id)
-                        .target
-                        == CardTarget::Enemy
-                    {
+                    let target = if matches!(
+                        self.card_registry
+                            .card_def_by_id(self.state.hand[idx].def_id)
+                            .target,
+                        CardTarget::Enemy | CardTarget::SelfAndEnemy
+                    ) {
                         self.state
                             .targetable_enemy_indices()
                             .first()
@@ -1219,7 +1219,7 @@ impl CombatEngine {
         };
         let (card, _) = self.omniscience_autoplay.remove(queue_idx);
         let def = self.card_registry.card_def_by_id(card.def_id).clone();
-        let target = if def.target == CardTarget::Enemy {
+        let target = if matches!(def.target, CardTarget::Enemy | CardTarget::SelfAndEnemy) {
             let living = self.state.targetable_enemy_indices();
             if living.is_empty() {
                 -1

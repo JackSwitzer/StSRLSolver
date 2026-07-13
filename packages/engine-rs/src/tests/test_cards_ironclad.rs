@@ -915,7 +915,39 @@ mod ironclad_card_java_parity_tests {
         assert_eq!(exhaust_prefix_count(&engine, "Shockwave"), 1);
     }
 
-    card_pair_test!(spot_weakness, "Spot Weakness", "Spot Weakness+", 1, -1, -1, 3, 1, -1, -1, 4, CardType::Skill, CardTarget::Enemy, false);
+    card_pair_test!(spot_weakness, "Spot Weakness", "Spot Weakness+", 1, -1, -1, 3, 1, -1, -1, 4, CardType::Skill, CardTarget::SelfAndEnemy, false);
+
+    #[test]
+    fn spot_weakness_plus_gains_strength_only_from_an_attacking_intent() {
+        // SpotWeaknessAction checks getIntentBaseDmg() >= 0. An ATTACK_DEBUFF
+        // intent therefore grants the upgraded four Strength, while a BLOCK
+        // intent spends and discards the card without granting Strength.
+        let mut attacking = enemy_no_intent("JawWorm", 40, 40);
+        attacking.intent = crate::combat_types::Intent::AttackDebuff {
+            damage: 5,
+            hits: 1,
+            effects: 0,
+        };
+        let mut blocking = enemy_no_intent("Sentry", 40, 40);
+        blocking.intent = crate::combat_types::Intent::Block {
+            amount: 8,
+            effects: 0,
+        };
+        let mut engine = engine_for(
+            &["Spot Weakness+", "Spot Weakness+"],
+            &[],
+            &[],
+            vec![attacking, blocking],
+            2,
+        );
+
+        assert!(play_on_enemy(&mut engine, "Spot Weakness+", 1));
+        assert_eq!(engine.state.player.status(sid::STRENGTH), 0);
+        assert!(play_on_enemy(&mut engine, "Spot Weakness+", 0));
+        assert_eq!(engine.state.player.status(sid::STRENGTH), 4);
+        assert_eq!(engine.state.energy, 0);
+        assert_eq!(discard_prefix_count(&engine, "Spot Weakness"), 2);
+    }
     card_pair_test!(uppercut, "Uppercut", "Uppercut+", 2, 13, -1, 1, 2, 13, -1, 2, CardType::Attack, CardTarget::Enemy, false);
     card_pair_test!(whirlwind, "Whirlwind", "Whirlwind+", -1, 5, -1, -1, -1, 8, -1, -1, CardType::Attack, CardTarget::AllEnemy, false);
 

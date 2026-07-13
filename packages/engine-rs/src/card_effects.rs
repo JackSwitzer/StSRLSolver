@@ -404,7 +404,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         let double_damage = engine.state.player.status(sid::DOUBLE_DAMAGE) > 0;
 
         match card.target {
-            CardTarget::Enemy => {
+            CardTarget::Enemy | CardTarget::SelfAndEnemy => {
                 if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
                     let tidx = target_idx as usize;
                     let enemy_vuln = engine.state.enemies[tidx].entity.is_vulnerable();

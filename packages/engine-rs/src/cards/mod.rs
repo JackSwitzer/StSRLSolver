@@ -62,6 +62,8 @@ pub enum CardType {
 pub enum CardTarget {
     /// Single enemy (requires target selection)
     Enemy,
+    /// Select one enemy while the card's effect is applied to the player.
+    SelfAndEnemy,
     /// All enemies (no target needed)
     AllEnemy,
     /// Self only
