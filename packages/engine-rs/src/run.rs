@@ -273,7 +273,7 @@ const ACT2_ELITE_ENCOUNTERS: &[&[&str]] = &[
 
 const ACT3_WEAK_ENCOUNTERS: &[&[&str]] = &[
     &["Darkling", "Darkling", "Darkling"],
-    &["OrbWalker"],
+    &["Orb Walker"],
     &["Repulsor"],
 ];
 
@@ -2027,6 +2027,19 @@ impl RunEngine {
             enemy.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 1);
         }
 
+        // Source: reference/extracted/methods/monster/OrbWalker.java. Attack
+        // values change at A2; GenericStrengthUp changes from 3 to 5 at A17.
+        for enemy in enemy_states.iter_mut().filter(|enemy| matches!(enemy.id.as_str(),
+            "OrbWalker" | "Orb Walker"))
+        {
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
+                if self.run_state.ascension >= 2 { 11 } else { 10 });
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
+                if self.run_state.ascension >= 2 { 16 } else { 15 });
+            enemy.entity.set_status(crate::status_ids::sid::GENERIC_STRENGTH_UP,
+                if self.run_state.ascension >= 17 { 5 } else { 3 });
+        }
+
         // Source: reference/extracted/methods/monster/BanditLeader.java.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "BanditLeader") {
             let (cross_slash, agonizing_slash) = if self.run_state.ascension >= 2 {
@@ -2798,8 +2811,15 @@ impl RunEngine {
                 let hp = base + self.rng.gen_range(0..=width);
                 (hp, hp)
             }
-            "OrbWalker" => {
-                let hp = if a20 { 100 } else { 90 };
+            "OrbWalker" | "Orb Walker" => {
+                // Source: reference/extracted/methods/monster/OrbWalker.java:
+                // inclusive 90..96, or 92..102 at ascension 7.
+                let (base, width) = if self.run_state.ascension >= 7 {
+                    (92, 10)
+                } else {
+                    (90, 6)
+                };
+                let hp = base + self.rng.gen_range(0..=width);
                 (hp, hp)
             }
             "Repulsor" => {
@@ -8789,6 +8809,113 @@ mod tests {
         assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::INTANGIBLE), 1);
         assert_eq!(combat.ai_rng.counter, 1,
             "the mid window without two Tri Attacks consumes only RollMoveAction");
+    }
+
+    #[test]
+    fn orb_walker_stats_ai_burn_zones_strength_and_ticks_match_java() {
+        // Sources: reference/extracted/methods/monster/OrbWalker.java and
+        // decompiled GenericStrengthUpPower.java plus
+        // MakeTempCardInDiscardAndDeckAction.java.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=512 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("Orb Walker").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("Orb Walker").0);
+        }
+        assert_eq!(low_hp, (90..=96).collect());
+        assert_eq!(high_hp, (92..=102).collect());
+
+        for (ascension, hp_range, laser, claw, growth) in [
+            (0, 90..=96, 10, 15, 3),
+            (2, 90..=96, 11, 16, 3),
+            (7, 92..=102, 11, 16, 3),
+            (17, 92..=102, 11, 16, 5),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["Orb Walker".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            let walker = &combat.state.enemies[0];
+            assert_eq!(walker.id, "Orb Walker");
+            assert!(hp_range.contains(&walker.entity.hp));
+            assert_eq!(walker.entity.status(crate::status_ids::sid::STARTING_DMG), laser);
+            assert_eq!(walker.entity.status(crate::status_ids::sid::STR_AMT), claw);
+            assert_eq!(walker.entity.status(crate::status_ids::sid::GENERIC_STRENGTH_UP), growth);
+            match walker.move_id {
+                crate::enemies::move_ids::OW_LASER => {
+                    assert_eq!(walker.move_damage(), laser);
+                    assert_eq!(walker.effect(crate::combat_types::mfx::BURN_DRAW_DISCARD), Some(1));
+                    assert!(matches!(walker.intent,
+                        crate::combat_types::Intent::AttackDebuff { .. }));
+                }
+                crate::enemies::move_ids::OW_CLAW => assert_eq!(walker.move_damage(), claw),
+                other => panic!("invalid Orb Walker opener {other}"),
+            }
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        let mut low = crate::enemies::create_enemy("Orb Walker", 96, 96);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut low, 39, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(low.move_id, crate::enemies::move_ids::OW_CLAW);
+        crate::enemies::roll_next_move_with_num(&mut low, 39);
+        assert_eq!(low.move_id, crate::enemies::move_ids::OW_CLAW);
+        crate::enemies::roll_next_move_with_num(&mut low, 39);
+        assert_eq!(low.move_id, crate::enemies::move_ids::OW_LASER);
+
+        let mut high = crate::enemies::create_enemy("Orb Walker", 96, 96);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut high, 40, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(high.move_id, crate::enemies::move_ids::OW_LASER);
+        crate::enemies::roll_next_move_with_num(&mut high, 40);
+        assert_eq!(high.move_id, crate::enemies::move_ids::OW_LASER);
+        crate::enemies::roll_next_move_with_num(&mut high, 40);
+        assert_eq!(high.move_id, crate::enemies::move_ids::OW_CLAW);
+
+        let mut run = RunEngine::new(42, 17);
+        run.enter_specific_combat(vec!["Orb Walker".to_string()]);
+        let combat = run.combat_engine.as_mut().unwrap();
+        combat.state.enemies[0].set_move(crate::enemies::move_ids::OW_LASER, 11, 1, 0);
+        combat.state.enemies[0].move_effects.clear();
+        combat.state.enemies[0].add_effect(
+            crate::combat_types::mfx::BURN_DRAW_DISCARD, 1);
+        let filler = combat.card_registry.make_card("Strike");
+        combat.state.draw_pile.push(filler);
+        let ai_before = combat.ai_rng.counter;
+        let card_random_before = combat.card_random_rng.counter;
+        run.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        let combat = run.combat_engine.as_ref().unwrap();
+        let draw_burns = combat.state.draw_pile.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) == "Burn").count();
+        let hand_burns = combat.state.hand.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) == "Burn").count();
+        let discard_burns = combat.state.discard_pile.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) == "Burn").count();
+        assert_eq!((draw_burns + hand_burns, discard_burns), (1, 1));
+        assert_eq!(combat.card_random_rng.counter, card_random_before + 1);
+        assert_eq!(combat.ai_rng.counter, ai_before + 1);
+        assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::STRENGTH), 5);
+
+        let player_hp = combat.state.player.hp;
+        let combat = run.combat_engine.as_mut().unwrap();
+        let burn_id = combat.card_registry.make_card("Burn").def_id;
+        combat.state.hand.retain(|card| card.def_id != burn_id);
+        combat.state.enemies[0].set_move(crate::enemies::move_ids::OW_CLAW, 16, 1, 0);
+        combat.state.enemies[0].move_effects.clear();
+        run.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        let combat = run.combat_engine.as_ref().unwrap();
+        assert_eq!(combat.state.player.hp, player_hp - 21,
+            "Claw uses the five Strength gained after the previous round");
+        assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::STRENGTH), 10);
+
+        let mut pair = RunEngine::new(42, 17);
+        pair.enter_specific_combat(vec!["Orb Walker".to_string(), "Orb Walker".to_string()]);
+        let combat = pair.combat_engine.as_ref().unwrap();
+        assert_eq!(combat.state.enemies.len(), 2);
+        assert!(combat.state.enemies.iter().all(|enemy| enemy.id == "Orb Walker"));
+        assert_eq!(combat.ai_rng.counter, 2,
+            "each event Orb Walker consumes its own opening roll");
     }
 
     #[test]

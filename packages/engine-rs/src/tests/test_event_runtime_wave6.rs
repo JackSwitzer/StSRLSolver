@@ -99,7 +99,7 @@ mod event_runtime_wave6_tests {
         assert_eq!(engine.current_phase(), RunPhase::Combat);
         let combat = engine.get_combat_engine().expect("event combat");
         assert_eq!(combat.state.enemies.len(), 2);
-        assert!(combat.state.enemies.iter().all(|enemy| enemy.id == "OrbWalker"));
+        assert!(combat.state.enemies.iter().all(|enemy| enemy.id == "Orb Walker"));
 
         engine.debug_force_current_combat_outcome(true);
         engine.debug_resolve_current_combat_outcome();

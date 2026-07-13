@@ -707,9 +707,12 @@ mod enemy_ai_java_parity_tests {
         let e = make("OrbWalker", 90);
         expect_one_of(&e, &[move_ids::OW_LASER, move_ids::OW_CLAW]);
         match e.move_id {
-            x if x == move_ids::OW_LASER => expect_move(&e, move_ids::OW_LASER, 10, 1, 0, &[(mfx::BURN, 1)]),
+            x if x == move_ids::OW_LASER => expect_move(&e, move_ids::OW_LASER, 10, 1, 0, &[(mfx::BURN_DRAW_DISCARD, 1)]),
             _ => expect_move(&e, move_ids::OW_CLAW, 15, 1, 0, &[]),
         }
+        expect_status(&e, sid::STARTING_DMG, 10);
+        expect_status(&e, sid::STR_AMT, 15);
+        expect_status(&e, sid::GENERIC_STRENGTH_UP, 3);
 
         let e = make("Spiker", 170);
         expect_move(&e, move_ids::SPIKER_ATTACK, 7, 1, 0, &[]);
@@ -783,12 +786,25 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::DARK_REINCARNATE, 0, 0, 0, &[]);
 
         let mut e = make("OrbWalker", 90);
-        roll_times(&mut e, 1);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 39, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::OW_CLAW, 15, 1, 0, &[]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::OW_LASER, 10, 1, 0, &[(mfx::BURN, 1)]);
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 39);
         expect_move(&e, move_ids::OW_CLAW, 15, 1, 0, &[]);
+        roll_with_num(&mut e, 39);
+        expect_move(&e, move_ids::OW_LASER, 10, 1, 0,
+            &[(mfx::BURN_DRAW_DISCARD, 1)]);
+
+        let mut high = make("OrbWalker", 90);
+        roll_initial_move_with_num_and_rng(
+            &mut high, 40, &mut crate::seed::StsRandom::new(0));
+        expect_move(&high, move_ids::OW_LASER, 10, 1, 0,
+            &[(mfx::BURN_DRAW_DISCARD, 1)]);
+        roll_with_num(&mut high, 40);
+        expect_move(&high, move_ids::OW_LASER, 10, 1, 0,
+            &[(mfx::BURN_DRAW_DISCARD, 1)]);
+        roll_with_num(&mut high, 40);
+        expect_move(&high, move_ids::OW_CLAW, 15, 1, 0, &[]);
 
         let mut e = make("Spiker", 170);
         roll_times(&mut e, 1);

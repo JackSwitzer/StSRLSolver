@@ -5,7 +5,7 @@
 //! the most common/expected move pattern for fast simulation.
 
 use crate::state::EnemyCombatState;
-use crate::combat_types::mfx;
+use crate::combat_types::{fx, mfx, Intent};
 use crate::status_ids::sid;
 
 
@@ -52,7 +52,7 @@ pub fn known_enemy_ids() -> &'static [(&'static str, &'static str)] {
         ("BookOfStabbing", "Book of Stabbing"),
         ("TaskMaster", "Taskmaster"),
         ("Darkling", "Darkling"),
-        ("OrbWalker", "Orb Walker"),
+        ("Orb Walker", "Orb Walker"),
         ("Repulsor", "Repulsor"),
         ("WrithingMass", "Writhing Mass"),
         ("GiantHead", "Giant Head"),
@@ -800,9 +800,17 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::REGROW, 1);
         }
         "OrbWalker" | "Orb Walker" => {
-            // First turn: Laser (10 damage + burn)
+            // Source: reference/extracted/methods/monster/OrbWalker.java.
             enemy.set_move(move_ids::OW_LASER, 10, 1, 0);
-            enemy.add_effect(mfx::BURN, 1);
+            enemy.add_effect(mfx::BURN_DRAW_DISCARD, 1);
+            enemy.intent = Intent::AttackDebuff {
+                damage: 10,
+                hits: 1,
+                effects: fx::BURN,
+            };
+            enemy.entity.set_status(sid::STARTING_DMG, 10);
+            enemy.entity.set_status(sid::STR_AMT, 15);
+            enemy.entity.set_status(sid::GENERIC_STRENGTH_UP, 3);
         }
         "Spiker" => {
             // Has Thorns 3. First turn: attack (7 damage)

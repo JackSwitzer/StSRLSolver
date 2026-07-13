@@ -385,7 +385,7 @@ impl CombatEngine {
                 | "SnakeDagger" | "Snake Dagger" | "Darkling" | "Deca" | "Donu"
                 | "Exploder" | "GiantHead" | "Giant Head"
                 | "GremlinLeader" | "Gremlin Leader" | "Healer" | "Mystic"
-                | "Maw" | "Nemesis")) {
+                | "Maw" | "Nemesis" | "OrbWalker" | "Orb Walker")) {
             if enemy.id == "Centurion" {
                 enemy.entity.set_status(sid::COUNT, living_enemy_count);
             }
@@ -2246,6 +2246,15 @@ impl CombatEngine {
                 self.state
                     .player
                     .set_status(sid::INTANGIBLE, intangible - 1);
+            }
+
+            // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/
+            // GenericStrengthUpPower.java (`atEndOfRound`). Orb Walker's
+            // pre-battle power grants its stored Strength after every round.
+            for enemy in &mut self.state.enemies {
+                if enemy.is_alive() {
+                    powers::apply_generic_strength_up(&mut enemy.entity);
+                }
             }
         }
 

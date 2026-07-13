@@ -35,7 +35,7 @@ pub fn typed_act3_events() -> Vec<TypedEventDef> {
                     "Open (gain relic, fight)",
                     vec![
                         EventProgramOp::combat_branch(
-                            ["OrbWalker", "OrbWalker"],
+                            ["Orb Walker", "Orb Walker"],
                             vec![EventProgramOp::gain_relic("random relic")],
                         ),
                     ],

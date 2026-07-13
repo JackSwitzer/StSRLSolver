@@ -1,5 +1,5 @@
 use crate::state::EnemyCombatState;
-use crate::combat_types::mfx;
+use crate::combat_types::{fx, mfx, Intent};
 use super::{last_move, last_two_moves};
 use super::move_ids;
 use crate::status_ids::sid;
@@ -66,18 +66,30 @@ pub(super) fn roll_darkling(
     }
 }
 
-pub(super) fn roll_orb_walker(enemy: &mut EnemyCombatState, _num: i32) {
-    // Alternate: Claw (15) and Laser (10 + Burn)
-    if last_two_moves(enemy, move_ids::OW_CLAW) {
-        enemy.set_move(move_ids::OW_LASER, 10, 1, 0);
-        enemy.add_effect(mfx::BURN, 1);
-    } else if last_two_moves(enemy, move_ids::OW_LASER) {
-        enemy.set_move(move_ids::OW_CLAW, 15, 1, 0);
-    } else if last_move(enemy, move_ids::OW_LASER) {
-        enemy.set_move(move_ids::OW_CLAW, 15, 1, 0);
+pub(super) fn roll_orb_walker(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/OrbWalker.java (`getMove`).
+    let laser_damage = enemy.entity.status(sid::STARTING_DMG).max(10);
+    let claw_damage = enemy.entity.status(sid::STR_AMT).max(15);
+    let laser = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::OW_LASER, laser_damage, 1, 0);
+        enemy.add_effect(mfx::BURN_DRAW_DISCARD, 1);
+        enemy.intent = Intent::AttackDebuff {
+            damage: laser_damage as i16,
+            hits: 1,
+            effects: fx::BURN,
+        };
+    };
+    let claw = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::OW_CLAW, claw_damage, 1, 0);
+    };
+
+    if num < 40 {
+        if !last_two_moves(enemy, move_ids::OW_CLAW) { claw(enemy); }
+        else { laser(enemy); }
+    } else if !last_two_moves(enemy, move_ids::OW_LASER) {
+        laser(enemy);
     } else {
-        enemy.set_move(move_ids::OW_LASER, 10, 1, 0);
-        enemy.add_effect(mfx::BURN, 1);
+        claw(enemy);
     }
 }
 

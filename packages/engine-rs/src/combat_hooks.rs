@@ -572,6 +572,22 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             engine.state.discard_pile.push(engine.card_registry.make_card("Burn"));
         }
     }
+    if let Some(amt) = get_fx(&effects, mfx::BURN_DRAW_DISCARD) {
+        // Source: reference/extracted/methods/monster/OrbWalker.java and
+        // MakeTempCardInDiscardAndDeckAction.java. Each copy goes to a random
+        // draw-pile position and to discard, in that order.
+        for _ in 0..amt {
+            let draw_burn = engine.card_registry.make_card("Burn");
+            if engine.state.draw_pile.is_empty() {
+                engine.state.draw_pile.push(draw_burn);
+            } else {
+                let idx = engine.card_random_rng.random(
+                    engine.state.draw_pile.len() as i32 - 1) as usize;
+                engine.state.draw_pile.insert(idx, draw_burn);
+            }
+            engine.state.discard_pile.push(engine.card_registry.make_card("Burn"));
+        }
+    }
     if let Some(amt) = get_fx(&effects, mfx::BURN_PLUS) {
         for _ in 0..amt {
             engine.state.discard_pile.push(engine.card_registry.make_card("Burn+"));
