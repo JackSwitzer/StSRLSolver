@@ -777,6 +777,44 @@ mod ironclad_card_java_parity_tests {
     card_pair_test!(feed, "Feed", "Feed+", 1, 10, -1, 3, 1, 12, -1, 4, CardType::Attack, CardTarget::Enemy, true);
     card_pair_test!(fiend_fire, "Fiend Fire", "Fiend Fire+", 2, 7, -1, -1, 2, 10, -1, -1, CardType::Attack, CardTarget::Enemy, true);
     card_pair_test!(immolate, "Immolate", "Immolate+", 2, 21, -1, -1, 2, 28, -1, -1, CardType::Attack, CardTarget::AllEnemy, false);
+
+    #[test]
+    fn immolate_aoe_adds_burn_only_when_combat_continues() {
+        // Immolate.java queues 21 AoE (28 upgraded) then one Burn. When the
+        // AoE is final lethal, DamageAllEnemiesAction clears the later
+        // MakeTempCardInDiscardAction before it resolves.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Immolate.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DamageAllEnemiesAction.java
+        for (card, damage) in [("Immolate", 21), ("Immolate+", 28)] {
+            let mut engine = engine_for(
+                &[card],
+                &[],
+                &[],
+                vec![
+                    enemy_no_intent("JawWorm", 50, 50),
+                    enemy_no_intent("Cultist", 50, 50),
+                ],
+                2,
+            );
+
+            assert!(play_self(&mut engine, card));
+
+            assert_eq!(engine.state.enemies[0].entity.hp, 50 - damage);
+            assert_eq!(engine.state.enemies[1].entity.hp, 50 - damage);
+            assert_eq!(discard_prefix_count(&engine, "Burn"), 1);
+        }
+
+        let mut lethal = engine_for(
+            &["Immolate"],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 21, 21)],
+            2,
+        );
+        assert!(play_self(&mut lethal, "Immolate"));
+        assert!(lethal.state.is_victory());
+        assert_eq!(discard_prefix_count(&lethal, "Burn"), 0);
+    }
     card_pair_test!(impervious, "Impervious", "Impervious+", 2, -1, 30, -1, 2, -1, 40, -1, CardType::Skill, CardTarget::SelfTarget, true);
     card_pair_test!(juggernaut, "Juggernaut", "Juggernaut+", 2, -1, -1, 5, 2, -1, -1, 7, CardType::Power, CardTarget::SelfTarget, false);
     card_pair_test!(limit_break, "Limit Break", "Limit Break+", 1, -1, -1, -1, 1, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, true, false);

@@ -418,6 +418,14 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         // -- Add temp card to a pile --
         SimpleEffect::AddCard(name, pile, ref amount_src) => {
+            // DamageAction and DamageAllEnemiesAction clear queued card-
+            // manipulation actions after the final enemy dies. AddCard models
+            // MakeTempCard actions, so it must not survive a preceding lethal.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DamageAllEnemiesAction.java
+            if engine.state.combat_over || engine.state.is_victory() {
+                return;
+            }
             let count = resolve_card_amount(engine, ctx, amount_src).max(0);
             if pile == Pile::Hand {
                 // MakeTempCardInHandAction sends cards beyond the ten-card hand
