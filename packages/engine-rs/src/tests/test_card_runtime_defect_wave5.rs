@@ -297,5 +297,7 @@ fn test_card_runtime_defect_wave5_heatsinks_hello_world_and_loop_install_runtime
     assert!(play_self(&mut loop_card, "Loop+"));
     assert_eq!(loop_card.state.player.status(sid::LOOP), 2);
     end_turn(&mut loop_card);
-    assert_eq!(loop_card.state.enemies[0].entity.hp, 54);
+    // LoopPower.atStartOfTurn repeats the front passive once per stack, after
+    // the ordinary end-turn passive: three Lightning triggers total.
+    assert_eq!(loop_card.state.enemies[0].entity.hp, 51);
 }

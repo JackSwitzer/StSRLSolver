@@ -1579,6 +1579,24 @@ impl CombatEngine {
             }
         }
 
+        // LoopPower.atStartOfTurn calls both callbacks on the front orb once
+        // per stack. GameActionManager clears old block synchronously after
+        // invoking powers but before their queued actions resolve, so Loop's
+        // Frost Block belongs to the new turn and cannot protect the intervening
+        // enemy turn.
+        // Java: powers/LoopPower.java and actions/GameActionManager.java.
+        let loop_count = self.state.player.status(sid::LOOP).max(0);
+        for _ in 0..loop_count {
+            self.apply_front_orb_start_of_turn_passive();
+            if self.state.combat_over {
+                return;
+            }
+            self.apply_front_orb_end_of_turn_passive();
+            if self.state.combat_over {
+                return;
+            }
+        }
+
         // ---- Start-of-turn orb passives (Plasma) ----
         self.apply_orb_start_of_turn();
 
@@ -1890,36 +1908,6 @@ impl CombatEngine {
         self.apply_orb_end_of_turn();
         if self.state.combat_over {
             return;
-        }
-
-        // Loop: trigger front orb passive again
-        let loop_count = self.state.player.status(sid::LOOP);
-        if loop_count > 0 && self.state.orb_slots.has_orbs() {
-            let focus = self.state.player.focus();
-            let front = &mut self.state.orb_slots.slots[0];
-            if !front.is_empty() {
-                let effect = match front.orb_type {
-                    crate::orbs::OrbType::Lightning => {
-                        let damage = front.passive_with_focus(focus);
-                        PassiveEffect::LightningDamage(damage)
-                    }
-                    crate::orbs::OrbType::Frost => {
-                        let block = front.passive_with_focus(focus);
-                        PassiveEffect::FrostBlock(block)
-                    }
-                    crate::orbs::OrbType::Dark => {
-                        let gain = front.passive_with_focus(focus);
-                        front.evoke_amount += gain;
-                        PassiveEffect::None
-                    }
-                    crate::orbs::OrbType::Plasma => PassiveEffect::PlasmaEnergy(front.base_passive),
-                    crate::orbs::OrbType::Empty => PassiveEffect::None,
-                };
-                self.apply_passive_effect(effect);
-                if self.state.combat_over {
-                    return;
-                }
-            }
         }
 
         // Late end-of-turn runtime hooks that must happen after orb passives.

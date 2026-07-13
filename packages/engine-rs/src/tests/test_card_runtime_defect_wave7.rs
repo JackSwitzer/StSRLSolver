@@ -192,7 +192,32 @@ fn defect_wave7_buffer_heatsinks_hello_world_and_loop_follow_engine_path() {
     assert!(play_self(&mut loop_card, "Loop+"));
     assert_eq!(loop_card.state.player.status(sid::LOOP), 2);
     end_turn(&mut loop_card);
-    assert_eq!(loop_card.state.enemies[0].entity.hp, 54);
+    assert_eq!(loop_card.state.enemies[0].entity.hp, 51);
+}
+
+#[test]
+fn loop_source_frost_repeats_after_enemy_turn_and_old_block_clear() {
+    // LoopPower.atStartOfTurn invokes front-orb onStartOfTurn/onEndOfTurn once
+    // per amount. The ordinary Frost passive gives 2 Block before the enemy's
+    // 5-damage turn; Loop+ gives 4 fresh Block only at the following turn start,
+    // after GameActionManager has cleared the old Block.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy("JawWorm", 40, 40, 1, 5, 1)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.init_defect_orbs(1);
+    engine.channel_orb(OrbType::Frost);
+    engine.state.hand = make_deck(&["Loop+"]);
+    let hp_before = engine.state.player.hp;
+
+    assert!(play_self(&mut engine, "Loop+"));
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.hp, hp_before - 3);
+    assert_eq!(engine.state.player.block, 4);
+    assert_eq!(engine.state.player.status(sid::LOOP), 2);
 }
 
 #[test]

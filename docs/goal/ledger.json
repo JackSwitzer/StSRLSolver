@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T10:59:21.339872+00:00",
+ "updated": "2026-07-13T11:03:52.828763+00:00",
  "status_counts": {
-  "verified": 456,
-  "unverified": 211
+  "verified": 457,
+  "unverified": 210
  },
  "rows": [
   {
@@ -2082,8 +2082,8 @@
    "class": "Loop",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Loop.java",
    "methods_ref": "reference/extracted/methods/card/Loop.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
