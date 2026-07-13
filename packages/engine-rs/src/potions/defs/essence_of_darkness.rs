@@ -13,13 +13,25 @@ static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
 /// complex_hook because it reads max_slots and channels via engine.
 fn essence_of_darkness_hook(
     engine: &mut CombatEngine,
-    _owner: crate::effects::runtime::EffectOwner,
+    owner: crate::effects::runtime::EffectOwner,
     _event: &crate::effects::runtime::GameEvent,
     _state: &mut crate::effects::runtime::EffectState,
 ) {
+    let potency = match owner {
+        crate::effects::runtime::EffectOwner::PotionSlot { .. } => {
+            crate::potions::effective_potency_runtime(&engine.state, "EssenceOfDarkness")
+        }
+        _ => return,
+    };
     let slots = engine.state.orb_slots.get_slot_count();
+    // Source: reference/extracted/methods/potion/EssenceOfDarkness.java and
+    // decompiled/java-src/com/megacrit/cardcrawl/actions/defect/
+    // EssenceOfDarknessAction.java. The action channels `potency` Dark orbs
+    // once for every orb slot.
     for _ in 0..slots {
-        engine.channel_orb(OrbType::Dark);
+        for _ in 0..potency {
+            engine.channel_orb(OrbType::Dark);
+        }
     }
 }
 

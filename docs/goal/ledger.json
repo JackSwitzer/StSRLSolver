@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T21:55:08.164435+00:00",
+ "updated": "2026-07-13T21:58:12.033805+00:00",
  "status_counts": {
-  "verified": 625,
-  "unverified": 42
+  "verified": 626,
+  "unverified": 41
  },
  "rows": [
   {
@@ -4552,8 +4552,8 @@
    "class": "EssenceOfDarkness",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/EssenceOfDarkness.java",
    "methods_ref": "reference/extracted/methods/potion/EssenceOfDarkness.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

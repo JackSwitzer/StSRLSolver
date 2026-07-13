@@ -502,11 +502,15 @@ pub(crate) fn apply_potion_scaled(
         }
 
         "EssenceOfDarkness" => {
-            // Channel Dark orbs equal to orb slot count
+            // EssenceOfDarknessAction channels `potency` Dark orbs for every
+            // orb slot; Sacred Bark doubles its base potency of one.
             let slots = state.orb_slots.get_slot_count();
+            let potency = effective_potency(potion_id, ascension, bark_mult);
             for _ in 0..slots {
-                let focus = state.player.focus();
-                state.orb_slots.channel(crate::orbs::OrbType::Dark, focus);
+                for _ in 0..potency {
+                    let focus = state.player.focus();
+                    state.orb_slots.channel(crate::orbs::OrbType::Dark, focus);
+                }
             }
             true
         }

@@ -850,7 +850,25 @@ fn ambrosia_essence_of_darkness_and_capacity_use_runtime_action_path() {
         .slots
         .iter()
         .all(|orb| orb.orb_type == crate::orbs::OrbType::Dark));
+    assert_eq!(engine.state.enemies[0].entity.hp, 40);
 
+    // EssenceOfDarkness.java supplies potency one to
+    // EssenceOfDarknessAction, whose nested loops channel once per slot per
+    // potency. AbstractPotion.getPotency doubles that potency with Sacred Bark,
+    // so two slots channel four Dark orbs and evoke the first two for 6 each.
+    engine.init_defect_orbs(2);
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "EssenceOfDarkness".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.enemies[0].entity.hp, 28);
+    assert!(engine
+        .state
+        .orb_slots
+        .slots
+        .iter()
+        .all(|orb| orb.orb_type == crate::orbs::OrbType::Dark));
+
+    engine.state.relics.retain(|relic| relic != "SacredBark");
     engine.state.potions[0] = "PotionOfCapacity".to_string();
     use_potion(&mut engine, 0, -1);
     assert_eq!(engine.state.player.status(sid::ORB_SLOTS), 2);
