@@ -804,7 +804,7 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 // ===========================================================================
 
 /// Debuff status IDs that should route through apply_debuff (handles Artifact).
-fn is_debuff(status: StatusId) -> bool {
+fn is_debuff(status: StatusId, amount: i32) -> bool {
     status == sid::WEAKENED
         || status == sid::VULNERABLE
         || status == sid::FRAIL
@@ -817,6 +817,10 @@ fn is_debuff(status: StatusId) -> bool {
         // LoseStrengthPower is explicitly PowerType.DEBUFF, so Artifact can
         // make Flex's Strength gain permanent.
         || status == sid::LOSE_STRENGTH
+        // FocusPower.updateDescription classifies negative applications as
+        // DEBUFF and positive applications as BUFF.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/FocusPower.java
+        || (status == sid::FOCUS && amount < 0)
 }
 
 fn apply_status(
@@ -828,7 +832,7 @@ fn apply_status(
 ) {
     match target {
         Target::Player => {
-            if is_debuff(status) {
+            if is_debuff(status, amount) {
                 crate::powers::apply_debuff(&mut engine.state.player, status, amount);
             } else {
                 add_player_status(engine, status, amount);
@@ -837,7 +841,7 @@ fn apply_status(
         // Card effects do not currently install owner-aware runtime handlers.
         // Treat SelfEntity as player until self-owned status handlers become explicit.
         Target::SelfEntity => {
-            if is_debuff(status) {
+            if is_debuff(status, amount) {
                 crate::powers::apply_debuff(&mut engine.state.player, status, amount);
             } else {
                 add_player_status(engine, status, amount);
@@ -847,7 +851,7 @@ fn apply_status(
             let idx = ctx.target_idx;
             if idx >= 0 && (idx as usize) < engine.state.enemies.len() {
                 let i = idx as usize;
-                if is_debuff(status) {
+                if is_debuff(status, amount) {
                     engine.apply_player_debuff_to_enemy(i, status, amount);
                 } else {
                     engine.state.enemies[i].entity.add_status(status, amount);
@@ -857,7 +861,7 @@ fn apply_status(
         Target::AllEnemies => {
             let living = engine.state.living_enemy_indices();
             for i in living {
-                if is_debuff(status) {
+                if is_debuff(status, amount) {
                     engine.apply_player_debuff_to_enemy(i, status, amount);
                 } else {
                     engine.state.enemies[i].entity.add_status(status, amount);
@@ -877,7 +881,7 @@ fn apply_status(
                     .card_random_rng
                     .random_range(0, (living.len() - 1) as i32) as usize;
                 let idx = living[selected];
-                if is_debuff(status) {
+                if is_debuff(status, amount) {
                     engine.apply_player_debuff_to_enemy(idx, status, amount);
                 } else {
                     engine.state.enemies[idx].entity.add_status(status, amount);
@@ -2693,14 +2697,16 @@ mod tests {
 
     #[test]
     fn test_is_debuff() {
-        assert!(is_debuff(sid::WEAKENED));
-        assert!(is_debuff(sid::VULNERABLE));
-        assert!(is_debuff(sid::FRAIL));
-        assert!(is_debuff(sid::POISON));
-        assert!(is_debuff(sid::CORPSE_EXPLOSION));
-        assert!(is_debuff(sid::LOSE_STRENGTH));
-        assert!(!is_debuff(sid::STRENGTH));
-        assert!(!is_debuff(sid::VIGOR));
+        assert!(is_debuff(sid::WEAKENED, 1));
+        assert!(is_debuff(sid::VULNERABLE, 1));
+        assert!(is_debuff(sid::FRAIL, 1));
+        assert!(is_debuff(sid::POISON, 1));
+        assert!(is_debuff(sid::CORPSE_EXPLOSION, 1));
+        assert!(is_debuff(sid::LOSE_STRENGTH, 1));
+        assert!(is_debuff(sid::FOCUS, -3));
+        assert!(!is_debuff(sid::FOCUS, 3));
+        assert!(!is_debuff(sid::STRENGTH, 1));
+        assert!(!is_debuff(sid::VIGOR, 1));
     }
 }
 

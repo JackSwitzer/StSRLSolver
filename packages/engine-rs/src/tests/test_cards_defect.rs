@@ -663,12 +663,53 @@ mod defect_card_java_parity_tests {
         assert_eq!(artifact.state.enemies[0].entity.status(sid::WEAKENED), 0);
     });
 
-    defect_test!(hyperbeam_loses_focus, {
-        let mut e = filled_engine(&["Hyperbeam"], 40, 0);
-        ensure_in_hand(&mut e, "Hyperbeam");
-        e.state.player.set_status(sid::FOCUS, 4);
-        play_on_enemy(&mut e, "Hyperbeam", 0);
-        assert_eq!(e.state.player.focus(), 1);
+    defect_test!(hyperbeam_aoe_and_negative_focus_match_java_action_order, {
+        // Hyperbeam.java deals 26 AoE (34 upgraded), then applies
+        // FocusPower(-3). FocusPower.java marks a negative instance DEBUFF, so
+        // Artifact blocks it. DamageAllEnemiesAction clears the queued Focus
+        // loss when the AoE ends combat.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Hyperbeam.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/FocusPower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DamageAllEnemiesAction.java
+        let mut base = bare_engine(
+            &[],
+            vec![
+                enemy_no_intent("JawWorm", 50, 50),
+                enemy_no_intent("Cultist", 50, 50),
+            ],
+        );
+        base.state.hand = make_deck(&["Hyperbeam"]);
+        base.state.player.set_status(sid::FOCUS, 4);
+        assert!(play_self(&mut base, "Hyperbeam"));
+        assert_eq!(base.state.enemies[0].entity.hp, 24);
+        assert_eq!(base.state.enemies[1].entity.hp, 24);
+        assert_eq!(base.state.player.focus(), 1);
+
+        let mut artifact = bare_engine(
+            &[],
+            vec![
+                enemy_no_intent("JawWorm", 50, 50),
+                enemy_no_intent("Cultist", 50, 50),
+            ],
+        );
+        artifact.state.hand = make_deck(&["Hyperbeam+"]);
+        artifact.state.player.set_status(sid::FOCUS, 4);
+        artifact.state.player.set_status(sid::ARTIFACT, 1);
+        assert!(play_self(&mut artifact, "Hyperbeam+"));
+        assert_eq!(artifact.state.enemies[0].entity.hp, 16);
+        assert_eq!(artifact.state.enemies[1].entity.hp, 16);
+        assert_eq!(artifact.state.player.focus(), 4);
+        assert_eq!(artifact.state.player.status(sid::ARTIFACT), 0);
+
+        let mut lethal = bare_engine(
+            &[],
+            vec![enemy_no_intent("JawWorm", 26, 26)],
+        );
+        lethal.state.hand = make_deck(&["Hyperbeam"]);
+        lethal.state.player.set_status(sid::FOCUS, 4);
+        assert!(play_self(&mut lethal, "Hyperbeam"));
+        assert!(lethal.state.is_victory());
+        assert_eq!(lethal.state.player.focus(), 4);
     });
 
     defect_test!(meteo_strike_channels_plasma, {

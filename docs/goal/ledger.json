@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T10:14:38.937786+00:00",
+ "updated": "2026-07-13T10:17:50.055776+00:00",
  "status_counts": {
-  "verified": 437,
-  "unverified": 230
+  "verified": 438,
+  "unverified": 229
  },
  "rows": [
   {
@@ -1832,8 +1832,8 @@
    "class": "Hyperbeam",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Hyperbeam.java",
    "methods_ref": "reference/extracted/methods/card/Hyperbeam.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
