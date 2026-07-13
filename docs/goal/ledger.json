@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T16:04:03.133758+00:00",
+ "updated": "2026-07-13T16:06:20.964141+00:00",
  "status_counts": {
-  "verified": 548,
-  "unverified": 119
+  "verified": 549,
+  "unverified": 118
  },
  "rows": [
   {
@@ -3202,8 +3202,8 @@
    "class": "Survivor",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Survivor.java",
    "methods_ref": "reference/extracted/methods/card/Survivor.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

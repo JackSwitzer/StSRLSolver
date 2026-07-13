@@ -99,6 +99,51 @@ mod silent_card_java_parity_tests {
         "Survivor", 1, -1, 8, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["discard"],
         "Survivor+", 1, -1, 11, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["discard"],
     );
+
+    #[test]
+    fn survivor_blocks_before_its_mandatory_discard() {
+        // Survivor queues 8 Block before a fixed, non-random DiscardAction(1),
+        // and upgrades only the Block by 3. DiscardAction opens selection when
+        // more than one card remains, but auto-discards a singleton hand.
+        // Java: reference/extracted/methods/card/Survivor.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DiscardAction.java
+        let mut selected = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            1,
+        );
+        force_player_turn(&mut selected);
+        selected.state.hand = make_deck(&["Survivor", "Strike", "Defend"]);
+        assert!(play_self(&mut selected, "Survivor"));
+        assert_eq!(selected.state.player.block, 8);
+        assert_eq!(selected.phase, crate::engine::CombatPhase::AwaitingChoice);
+        let strike_option = selected
+            .choice
+            .as_ref()
+            .expect("Survivor discard choice")
+            .options
+            .iter()
+            .position(|option| matches!(option, crate::engine::ChoiceOption::HandCard(index)
+                if selected.card_registry.card_name(selected.state.hand[*index].def_id) == "Strike"))
+            .expect("Strike discard option");
+        selected.execute_action(&Action::Choose(strike_option));
+        assert_eq!(selected.phase, crate::engine::CombatPhase::PlayerTurn);
+        assert_eq!(hand_count(&selected, "Defend"), 1);
+        assert_eq!(discard_prefix_count(&selected, "Strike"), 1);
+
+        let mut automatic = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            1,
+        );
+        force_player_turn(&mut automatic);
+        automatic.state.hand = make_deck(&["Survivor+", "Strike"]);
+        assert!(play_self(&mut automatic, "Survivor+"));
+        assert_eq!(automatic.state.player.block, 11);
+        assert_eq!(automatic.phase, crate::engine::CombatPhase::PlayerTurn);
+        assert!(automatic.state.hand.is_empty());
+        assert_eq!(discard_prefix_count(&automatic, "Strike"), 1);
+    }
     card_pair_test!(acrobatics,
         "Acrobatics", 1, -1, -1, 3, CardType::Skill, CardTarget::None, false, None, &["draw", "discard"],
         "Acrobatics+", 1, -1, -1, 4, CardType::Skill, CardTarget::None, false, None, &["draw", "discard"],
