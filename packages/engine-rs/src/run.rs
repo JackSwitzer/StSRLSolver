@@ -1909,6 +1909,17 @@ impl RunEngine {
                 if self.run_state.ascension >= 17 { 1 } else { 0 });
         }
 
+        // Source: reference/extracted/methods/monster/Snecko.java.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "Snecko") {
+            enemy.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
+                if self.run_state.ascension >= 2 { 18 } else { 15 });
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
+                if self.run_state.ascension >= 2 { 10 } else { 8 });
+            enemy.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI,
+                if self.run_state.ascension >= 17 { 1 } else { 0 });
+        }
+
         // Source: reference/extracted/methods/monster/Centurion.java.
         let monster_count = enemy_states.len() as i32;
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "Centurion") {
@@ -2896,6 +2907,17 @@ impl RunEngine {
                     (57, 7)
                 } else {
                     (54, 6)
+                };
+                let hp = base + self.rng.gen_range(0..=width);
+                (hp, hp)
+            }
+            "Snecko" => {
+                // Source: reference/extracted/methods/monster/Snecko.java:
+                // inclusive 114..120, or 120..125 at ascension 7+.
+                let (base, width) = if self.run_state.ascension >= 7 {
+                    (120, 5)
+                } else {
+                    (114, 6)
                 };
                 let hp = base + self.rng.gen_range(0..=width);
                 (hp, hp)
@@ -8528,6 +8550,106 @@ mod tests {
             "a lethal hit must not trigger Malleable");
         assert_eq!(combat.state.enemies[0].entity.status(
             crate::status_ids::sid::MALLEABLE), 3);
+    }
+
+    #[test]
+    fn snecko_stats_ai_debuffs_confusion_and_ticks_match_java() {
+        // Source: reference/extracted/methods/monster/Snecko.java.
+        // HP is uniformly inclusive, both attacks change at A2, Tail adds
+        // Weak at A17, and the forced Glare still consumes rollMove's AI draw.
+        let mut low_hp = std::collections::BTreeSet::new();
+        let mut high_hp = std::collections::BTreeSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("Snecko").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("Snecko").0);
+        }
+        assert_eq!(low_hp, (114..=120).collect());
+        assert_eq!(high_hp, (120..=125).collect());
+
+        for (ascension, bite, tail, high_ai, hp_range) in [
+            (0, 15, 8, 0, 114..=120),
+            (2, 18, 10, 0, 114..=120),
+            (7, 18, 10, 0, 120..=125),
+            (17, 18, 10, 1, 120..=125),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["Snecko".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert!(hp_range.contains(&enemy.entity.hp));
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG), bite);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), tail);
+            assert_eq!(enemy.entity.status(
+                crate::status_ids::sid::HIGH_ASCENSION_AI), high_ai);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::FIRST_MOVE), 0);
+            assert_eq!(enemy.move_id, crate::enemies::move_ids::SNECKO_GLARE);
+            assert_eq!(enemy.effect(crate::combat_types::mfx::CONFUSED), Some(1));
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        // Glare installs Confusion only when it resolves. ConfusionPower then
+        // consumes cardRandomRng once for every newly drawn non-X card, leaves
+        // X-cost cards alone, and randomizes each eligible card to 0..=3.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ConfusionPower.java.
+        let mut glare = RunEngine::new(42, 0);
+        glare.enter_specific_combat(vec!["Snecko".to_string()]);
+        let combat = glare.combat_engine.as_mut().unwrap();
+        combat.state.hand.clear();
+        combat.state.discard_pile.clear();
+        combat.state.draw_pile = [
+            "ConjureBlade", "Strike", "Defend", "Vigilance", "Eruption",
+        ].into_iter().map(|id| combat.card_registry.make_card(id)).collect();
+        let card_random_before = combat.card_random_rng.counter;
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::CONFUSION), 1);
+        assert_eq!(combat.card_random_rng.counter, card_random_before + 4);
+        let x_cost = combat.state.hand.iter().find(|card|
+            combat.card_registry.card_name(card.def_id) == "ConjureBlade").unwrap();
+        assert_eq!(x_cost.cost, -1);
+        assert!(combat.state.hand.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) != "ConjureBlade")
+            .all(|card| (0..=3).contains(&card.cost)));
+        assert_eq!(combat.ai_rng.counter, 2);
+
+        // Glare uses ApplyPowerAction, so Artifact negates Confusion and is
+        // consumed before the following draw can randomize any card costs.
+        let mut artifact = RunEngine::new(42, 0);
+        artifact.enter_specific_combat(vec!["Snecko".to_string()]);
+        let combat = artifact.combat_engine.as_mut().unwrap();
+        combat.state.player.set_status(crate::status_ids::sid::ARTIFACT, 1);
+        let card_random_before = combat.card_random_rng.counter;
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::ARTIFACT), 0);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::CONFUSION), 0);
+        assert_eq!(combat.card_random_rng.counter, card_random_before);
+
+        let mut a17 = RunEngine::new(42, 17);
+        a17.enter_specific_combat(vec!["Snecko".to_string()]);
+        let combat = a17.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+        crate::enemies::roll_next_move_with_num_and_rng(
+            &mut combat.state.enemies[0], 0, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::SNECKO_TAIL);
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(combat.state.player.hp, 490);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::WEAKENED), 2);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::VULNERABLE), 2);
+
+        let mut bite = RunEngine::new(42, 0);
+        bite.enter_specific_combat(vec!["Snecko".to_string()]);
+        let combat = bite.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+        crate::enemies::roll_next_move_with_num_and_rng(
+            &mut combat.state.enemies[0], 40, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::SNECKO_BITE);
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(combat.state.player.hp, 485);
     }
 
     #[test]

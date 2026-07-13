@@ -440,13 +440,24 @@ pub(super) fn roll_spheric_guardian(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_snecko(enemy: &mut EnemyCombatState, _num: i32) {
-    // First turn: Glare. Then alternate Tail (8 + Vuln 2) and Bite (15)
-    if last_move(enemy, move_ids::SNECKO_GLARE) || last_two_moves(enemy, move_ids::SNECKO_BITE) {
-        enemy.set_move(move_ids::SNECKO_TAIL, 8, 1, 0);
+pub(super) fn roll_snecko(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/Snecko.java (`getMove`).
+    // Glare is forced once. Afterwards low rolls use Tail, while high rolls
+    // use Bite unless two consecutive Bites force Tail.
+    if enemy.entity.status(sid::FIRST_MOVE) > 0 {
+        enemy.entity.set_status(sid::FIRST_MOVE, 0);
+        enemy.set_move(move_ids::SNECKO_GLARE, 0, 0, 0);
+        enemy.add_effect(mfx::CONFUSED, 1);
+    } else if num < 40 || last_two_moves(enemy, move_ids::SNECKO_BITE) {
+        let tail_damage = enemy.entity.status(sid::STR_AMT).max(8);
+        enemy.set_move(move_ids::SNECKO_TAIL, tail_damage, 1, 0);
+        if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
+            enemy.add_effect(mfx::WEAK, 2);
+        }
         enemy.add_effect(mfx::VULNERABLE, 2);
     } else {
-        enemy.set_move(move_ids::SNECKO_BITE, 15, 1, 0);
+        let bite_damage = enemy.entity.status(sid::STARTING_DMG).max(15);
+        enemy.set_move(move_ids::SNECKO_BITE, bite_damage, 1, 0);
     }
 }
 

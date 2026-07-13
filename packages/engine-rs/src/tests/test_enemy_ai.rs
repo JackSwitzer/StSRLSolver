@@ -457,6 +457,9 @@ mod enemy_ai_java_parity_tests {
 
         let e = make("Snecko", 114);
         expect_move(&e, move_ids::SNECKO_GLARE, 0, 0, 0, &[(mfx::CONFUSED, 1)]);
+        expect_status(&e, sid::FIRST_MOVE, 1);
+        expect_status(&e, sid::STARTING_DMG, 15);
+        expect_status(&e, sid::STR_AMT, 8);
 
         let e = make("BanditBear", 40);
         expect_move(&e, move_ids::BEAR_HUG, 0, 0, 0, &[(mfx::DEX_DOWN, 2)]);
@@ -684,13 +687,28 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SPHER_BLOCK_ATTACK, 10, 1, 15, &[]);
 
+        // Source: reference/extracted/methods/monster/Snecko.java.
         let mut e = make("Snecko", 114);
-        roll_times(&mut e, 1);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 99, &mut crate::seed::StsRandom::new(0));
+        expect_move(&e, move_ids::SNECKO_GLARE, 0, 0, 0, &[(mfx::CONFUSED, 1)]);
+        roll_with_num(&mut e, 39);
         expect_move(&e, move_ids::SNECKO_TAIL, 8, 1, 0, &[(mfx::VULNERABLE, 2)]);
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 40);
         expect_move(&e, move_ids::SNECKO_BITE, 15, 1, 0, &[]);
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 99);
         expect_move(&e, move_ids::SNECKO_BITE, 15, 1, 0, &[]);
+        roll_with_num(&mut e, 99);
+        expect_move(&e, move_ids::SNECKO_TAIL, 8, 1, 0, &[(mfx::VULNERABLE, 2)]);
+
+        let mut a17 = make("Snecko", 120);
+        a17.entity.set_status(sid::FIRST_MOVE, 0);
+        a17.entity.set_status(sid::STARTING_DMG, 18);
+        a17.entity.set_status(sid::STR_AMT, 10);
+        a17.entity.set_status(sid::HIGH_ASCENSION_AI, 1);
+        roll_with_num(&mut a17, 0);
+        expect_move(&a17, move_ids::SNECKO_TAIL, 10, 1, 0,
+            &[(mfx::WEAK, 2), (mfx::VULNERABLE, 2)]);
 
         // Source: reference/extracted/methods/monster/BanditBear.java.
         // Only the opener uses getMove; takeTurn then installs Lunge and Maul

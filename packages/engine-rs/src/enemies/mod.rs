@@ -714,9 +714,14 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::SPHER_INITIAL_BLOCK, 0, 0, 40);
         }
         "Snecko" => {
-            // First turn: Glare (debuff)
+            // Source: reference/extracted/methods/monster/Snecko.java.
+            // This is a placeholder for the source-rolled forced Glare opener.
             enemy.set_move(move_ids::SNECKO_GLARE, 0, 0, 0);
             enemy.add_effect(mfx::CONFUSED, 1);
+            enemy.entity.set_status(sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(sid::STARTING_DMG, 15);
+            enemy.entity.set_status(sid::STR_AMT, 8);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "BanditBear" | "Bear" => {
             // A0 constructor values. Ascension variants are patched at the

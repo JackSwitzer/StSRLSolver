@@ -388,7 +388,7 @@ impl CombatEngine {
                 | "Exploder" | "GiantHead" | "Giant Head"
                 | "GremlinLeader" | "Gremlin Leader" | "Healer" | "Mystic"
                 | "Maw" | "Nemesis" | "OrbWalker" | "Orb Walker"
-                | "Reptomancer" | "Repulsor" | "Serpent" | "SnakePlant"
+                | "Reptomancer" | "Repulsor" | "Serpent" | "SnakePlant" | "Snecko"
                 | "SpireGrowth" | "Spire Growth")) {
             if enemy.id == "Centurion" {
                 enemy.entity.set_status(sid::COUNT, living_enemy_count);

@@ -708,9 +708,11 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         engine.state.enemies[enemy_idx].entity.set_status(sid::BUFF_COUNT, 1);
     }
 
-    // Confused: apply Confusion to player
+    // Snecko's Glare applies Confusion through ApplyPowerAction, so Artifact
+    // blocks it like any other debuff.
+    // Source: reference/extracted/methods/monster/Snecko.java (`takeTurn`).
     if get_fx(&effects, mfx::CONFUSED).unwrap_or(0) > 0 {
-        engine.state.player.set_status(sid::CONFUSION, 1);
+        powers::apply_debuff_from_enemy(&mut engine.state.player, sid::CONFUSION, 1);
     }
 
     // Constrict: apply Constricted to player
