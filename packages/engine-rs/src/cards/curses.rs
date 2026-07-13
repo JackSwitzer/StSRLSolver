@@ -119,7 +119,9 @@ pub fn register_curses(cards: &mut HashMap<&'static str, CardDef>) {
             base_magic: -1, exhaust: true, enter_stance: None,
                 effect_data: &[], complex_hook: None,
         });
-        // Writhe: unplayable, innate
+        // Writhe.java is an unplayable cost -2 Curse whose only special flag
+        // is Innate. It is not Ethereal and cannot be upgraded.
+        // Java: reference/extracted/methods/card/Writhe.java
         insert(cards, CardDef {
             id: "Writhe", name: "Writhe", card_type: CardType::Curse,
             target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,

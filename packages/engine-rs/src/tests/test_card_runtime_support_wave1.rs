@@ -426,6 +426,43 @@ fn pride_is_playable_or_copies_itself_to_the_top_without_rng() {
 }
 
 #[test]
+fn writhe_is_an_unplayable_unupgradable_innate_non_ethereal_curse() {
+    // Writhe.java constructs a NONE-targeted cost -2 Curse, sets only
+    // isInnate, and leaves use() and upgrade() empty. Combat setup therefore
+    // moves it into the opening draw while it remains unplayable and persists
+    // normally if held.
+    // Java: reference/extracted/methods/card/Writhe.java
+    let registry = global_registry();
+    let writhe = registry.get("Writhe").expect("Writhe");
+    assert_eq!(writhe.target, CardTarget::None);
+    assert_eq!(writhe.cost, -2);
+    assert!(writhe.runtime_traits().innate);
+    assert!(writhe.runtime_traits().unplayable);
+    assert!(!writhe.runtime_traits().ethereal);
+    assert!(!writhe.exhaust);
+    assert!(registry.get("Writhe+").is_none());
+
+    let mut deck = make_deck_n("Defend", 9);
+    deck.push(registry.make_card("Writhe"));
+    let mut engine = engine_without_start(
+        deck,
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    engine.start_combat();
+
+    let writhe_idx = engine
+        .state
+        .hand
+        .iter()
+        .position(|card| engine.card_registry.card_name(card.def_id) == "Writhe")
+        .expect("Innate Writhe should be in the opening hand");
+    assert!(!engine.get_legal_actions().iter().any(|action| {
+        matches!(action, Action::PlayCard { card_idx, .. } if *card_idx == writhe_idx)
+    }));
+}
+
+#[test]
 fn decay_has_no_magic_stat_and_deals_two_thorns_damage_at_end_of_turn() {
     // Decay.java has cost -2, empty upgrade(), and no magic-number assignment.
     // Its end-turn queue auto-plays the card, whose use() deals a literal 2

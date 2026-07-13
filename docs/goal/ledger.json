@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T17:34:18.037310+00:00",
+ "updated": "2026-07-13T17:36:06.869223+00:00",
  "status_counts": {
-  "verified": 580,
-  "unverified": 87
+  "verified": 581,
+  "unverified": 86
  },
  "rows": [
   {
@@ -3692,8 +3692,8 @@
    "class": "Writhe",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Writhe.java",
    "methods_ref": "reference/extracted/methods/card/Writhe.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
