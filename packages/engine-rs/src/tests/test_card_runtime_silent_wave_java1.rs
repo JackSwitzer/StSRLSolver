@@ -270,6 +270,49 @@ fn choke_hp_loss_reaches_shifting_on_attacked() {
 }
 
 #[test]
+fn cloak_and_dagger_creates_source_count_shivs_with_master_reality_and_overflow() {
+    // CloakAndDagger.use gains 6 Block before MakeTempCardInHandAction creates
+    // one Shiv; upgradeMagicNumber(1) creates two. The played card has already
+    // left a ten-card hand when the action resolves, leaving one free slot; the
+    // second Shiv spills to discard. Master Reality upgrades both copies.
+    // Java: cards/green/CloakAndDagger.java and
+    // actions/common/MakeTempCardInHandAction.java.
+    let mut base = engine_for(
+        &["Cloak and Dagger"],
+        &[],
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        1,
+    );
+    assert!(play_self(&mut base, "Cloak and Dagger"));
+    assert_eq!(base.state.player.block, 6);
+    assert_eq!(hand_count(&base, "Shiv"), 1);
+
+    let mut plus_hand = vec!["Cloak and Dagger+"];
+    plus_hand.extend(std::iter::repeat("Defend").take(9));
+    let mut plus = engine_for(
+        &plus_hand,
+        &[],
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        1,
+    );
+    plus.state.player.set_status(sid::MASTER_REALITY, 1);
+
+    assert!(play_self(&mut plus, "Cloak and Dagger+"));
+    assert_eq!(plus.state.player.block, 6);
+    assert_eq!(plus.state.hand.len(), 10);
+    assert_eq!(hand_count(&plus, "Shiv+"), 1);
+    assert_eq!(
+        plus.state
+            .discard_pile
+            .iter()
+            .filter(|card| plus.card_registry.card_name(card.def_id) == "Shiv+")
+            .count(),
+        1
+    );
+    assert_eq!(plus.state.energy, 0);
+}
+
+#[test]
 fn nightmare_opens_a_single_card_choice_but_delayed_next_turn_copies_need_a_runtime_primitive() {
     let mut engine = engine_for(
         &["Nightmare", "Strike", "Defend"],
