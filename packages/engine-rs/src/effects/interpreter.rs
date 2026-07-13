@@ -1000,7 +1000,19 @@ fn multiply_status(
                 let i = idx as usize;
                 let current = engine.state.enemies[i].entity.status(status);
                 if current > 0 {
-                    engine.state.enemies[i].entity.set_status(status, current * multiplier);
+                    if status == sid::POISON {
+                        // DoublePoisonAction / TriplePoisonAction do not set the
+                        // final amount directly: they enqueue ApplyPowerAction
+                        // for the additional current or current*2 Poison. That
+                        // application is blocked by Artifact and receives Snake
+                        // Skull's +1 Poison constructor bonus.
+                        // Java: actions/unique/DoublePoisonAction.java,
+                        // TriplePoisonAction.java, and common/ApplyPowerAction.java.
+                        let additional = current * (multiplier - 1).max(0);
+                        engine.apply_player_debuff_to_enemy(i, status, additional);
+                    } else {
+                        engine.state.enemies[i].entity.set_status(status, current * multiplier);
+                    }
                 }
             }
         }

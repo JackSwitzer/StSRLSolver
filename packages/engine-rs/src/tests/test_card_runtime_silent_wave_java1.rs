@@ -12,7 +12,7 @@ use crate::engine::{ChoiceReason, CombatEngine, CombatPhase};
 use crate::status_ids::sid;
 use crate::tests::support::{
     combat_state_with, end_turn, enemy, enemy_no_intent, force_player_turn, hand_count, make_deck,
-    play_self, TEST_SEED,
+    play_on_enemy, play_self, TEST_SEED,
 };
 
 fn engine_for(
@@ -134,6 +134,40 @@ fn caltrops_stacks_and_retaliates_after_buffer_with_thorns_damage_rules() {
     assert_eq!(engine.state.player.hp, player_hp);
     assert_eq!(engine.state.player.status(sid::BUFFER), 0);
     assert_eq!(engine.state.enemies[0].entity.hp, 19);
+}
+
+#[test]
+fn catalyst_applies_only_the_extra_poison_through_apply_power_action() {
+    // DoublePoisonAction applies the current Poison amount again; upgraded
+    // TriplePoisonAction applies twice the current amount. Both use
+    // ApplyPowerAction, whose constructor adds Snecko Skull's +1 and whose
+    // update consumes Artifact instead of stacking the Poison debuff.
+    let make = |card_id: &str| {
+        engine_for(
+            &[card_id],
+            &[],
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            1,
+        )
+    };
+
+    let mut base = make("Catalyst");
+    base.state.enemies[0].entity.set_status(sid::POISON, 5);
+    assert!(play_on_enemy(&mut base, "Catalyst", 0));
+    assert_eq!(base.state.enemies[0].entity.status(sid::POISON), 10);
+
+    let mut skull = make("Catalyst+");
+    skull.state.relics.push("Snake Skull".to_string());
+    skull.state.enemies[0].entity.set_status(sid::POISON, 5);
+    assert!(play_on_enemy(&mut skull, "Catalyst+", 0));
+    assert_eq!(skull.state.enemies[0].entity.status(sid::POISON), 16);
+
+    let mut artifact = make("Catalyst");
+    artifact.state.enemies[0].entity.set_status(sid::POISON, 5);
+    artifact.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+    assert!(play_on_enemy(&mut artifact, "Catalyst", 0));
+    assert_eq!(artifact.state.enemies[0].entity.status(sid::POISON), 5);
+    assert_eq!(artifact.state.enemies[0].entity.status(sid::ARTIFACT), 0);
 }
 
 #[test]

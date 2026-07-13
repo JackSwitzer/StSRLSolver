@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T05:11:07.094018+00:00",
+ "updated": "2026-07-13T05:13:23.598082+00:00",
  "status_counts": {
-  "verified": 337,
-  "unverified": 330
+  "verified": 338,
+  "unverified": 329
  },
  "rows": [
   {
@@ -562,8 +562,8 @@
    "class": "Catalyst",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Catalyst.java",
    "methods_ref": "reference/extracted/methods/card/Catalyst.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
