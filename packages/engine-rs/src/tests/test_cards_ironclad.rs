@@ -8,7 +8,7 @@ mod ironclad_card_java_parity_tests {
     use crate::tests::support::{
         combat_state_with, ensure_in_hand, engine_with, engine_with_enemies, force_player_turn,
         make_deck, make_deck_n, play_card, play_on_enemy, play_self, TEST_SEED, enemy,
-        enemy_no_intent,
+        enemy_no_intent, end_turn,
         discard_prefix_count, exhaust_prefix_count,
     };
     use crate::cards::{CardDef, CardRegistry, CardTarget, CardType};
@@ -501,6 +501,34 @@ mod ironclad_card_java_parity_tests {
         assert_eq!(engine.state.enemies[1].entity.hp, 40);
     }
     card_pair_test!(flame_barrier, "Flame Barrier", "Flame Barrier+", 2, -1, 12, 4, 2, -1, 16, 6, CardType::Skill, CardTarget::SelfTarget, false);
+
+    #[test]
+    fn flame_barrier_plus_retaliates_per_fully_blocked_hit_then_expires() {
+        // FlameBarrier.java grants 16 Block and FlameBarrierPower(6) when
+        // upgraded. FlameBarrierPower.onAttacked has no positive-damage guard,
+        // so each of two fully blocked NORMAL hits returns 6 THORNS damage;
+        // atStartOfTurn then removes the power.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/FlameBarrier.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/FlameBarrierPower.java
+        let mut engine = engine_for(
+            &["Flame Barrier+"],
+            &[],
+            &[],
+            vec![enemy("Cultist", 60, 60, 1, 1, 2)],
+            2,
+        );
+
+        assert!(play_self(&mut engine, "Flame Barrier+"));
+        assert_eq!(engine.state.player.block, 16);
+        assert_eq!(engine.state.player.status(sid::FLAME_BARRIER), 6);
+        let player_hp = engine.state.player.hp;
+
+        end_turn(&mut engine);
+
+        assert_eq!(engine.state.player.hp, player_hp);
+        assert_eq!(engine.state.enemies[0].entity.hp, 48);
+        assert_eq!(engine.state.player.status(sid::FLAME_BARRIER), 0);
+    }
     card_pair_test!(ghostly_armor, "Ghostly Armor", "Ghostly Armor+", 1, -1, 10, -1, 1, -1, 13, -1, CardType::Skill, CardTarget::SelfTarget, false);
     card_pair_test!(hemokinesis, "Hemokinesis", "Hemokinesis+", 1, 15, -1, 2, 1, 20, -1, 2, CardType::Attack, CardTarget::Enemy, false);
     card_pair_test!(infernal_blade, "Infernal Blade", "Infernal Blade+", 1, -1, -1, -1, 0, -1, -1, -1, CardType::Skill, CardTarget::None, true);

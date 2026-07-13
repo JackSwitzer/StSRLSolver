@@ -151,6 +151,9 @@ pub static RUNTIME_PLAYER_POWER_DEFS: &[&EntityDef] = &[
     &complex::DEF_PANACHE,
     &complex::DEF_SADISTIC_NATURE,
     &complex::DEF_DISCIPLINE,
+    // Retaliation remains inline, but FlameBarrierPower.atStartOfTurn is
+    // owner-aware runtime behavior.
+    &complex::DEF_FLAME_BARRIER,
     &exhaust::DEF_FEEL_NO_PAIN,
     &exhaust::DEF_DARK_EMBRACE,
     &stance::DEF_MENTAL_FORTRESS,

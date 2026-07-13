@@ -290,7 +290,10 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 engine.deal_thorns_damage_to_enemy(enemy_idx, thorns);
             }
 
-            // Flame Barrier: deal FlameBarrier damage back per hit (Java: FlameBarrierPower.onAttacked)
+            // FlameBarrierPower.onAttacked retaliates once per sourced hit,
+            // including hits fully absorbed by Block; enemy attacks here are
+            // NORMAL, so the THORNS/HP_LOSS exclusions are already satisfied.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/FlameBarrierPower.java
             let flame_barrier = engine.state.player.status(sid::FLAME_BARRIER);
             if flame_barrier > 0 && engine.state.enemies[enemy_idx].is_alive() {
                 engine.deal_thorns_damage_to_enemy(enemy_idx, flame_barrier);

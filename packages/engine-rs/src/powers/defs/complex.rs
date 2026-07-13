@@ -29,6 +29,21 @@ fn hook_noop(
     _state: &mut EffectState,
 ) {}
 
+fn hook_flame_barrier(
+    engine: &mut CombatEngine,
+    owner: EffectOwner,
+    event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    // FlameBarrierPower.atStartOfTurn queues removal from the player. The
+    // onAttacked retaliation remains in combat_hooks because it needs the
+    // concrete attacking enemy for its sourced THORNS hit.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/FlameBarrierPower.java
+    if owner == EffectOwner::PlayerPower && event.kind == Trigger::TurnStart {
+        engine.state.player.set_status(sid::FLAME_BARRIER, 0);
+    }
+}
+
 fn hook_discipline(
     engine: &mut CombatEngine,
     owner: EffectOwner,
@@ -602,8 +617,13 @@ pub static DEF_FLAME_BARRIER: EntityDef = EntityDef {
     id: "flame_barrier",
     name: "Flame Barrier",
     kind: EntityKind::Power,
-    triggers: &[],
-    complex_hook: Some(hook_noop),
+    triggers: &[TriggeredEffect {
+        trigger: Trigger::TurnStart,
+        condition: TriggerCondition::Always,
+        effects: &[],
+        counter: None,
+    }],
+    complex_hook: Some(hook_flame_barrier),
     status_guard: Some(sid::FLAME_BARRIER),
 };
 
@@ -757,7 +777,7 @@ mod tests {
     #[test]
     fn test_complex_have_empty_triggers() {
         // These remaining hook-only powers still have no declarative trigger surface.
-        let defs = [&DEF_THORNS, &DEF_FLAME_BARRIER, &DEF_STATIC_DISCHARGE];
+        let defs = [&DEF_THORNS, &DEF_STATIC_DISCHARGE];
         for def in &defs {
             assert!(
                 def.triggers.is_empty(),
@@ -765,6 +785,11 @@ mod tests {
                 def.id
             );
         }
+
+        // FlameBarrierPower has inline onAttacked handling plus a runtime
+        // atStartOfTurn removal hook.
+        assert_eq!(DEF_FLAME_BARRIER.triggers.len(), 1);
+        assert_eq!(DEF_FLAME_BARRIER.triggers[0].trigger, Trigger::TurnStart);
     }
 }
 
