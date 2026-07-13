@@ -4277,6 +4277,13 @@ impl CombatEngine {
         for effect in effects {
             self.apply_passive_effect(effect);
         }
+        // GoldPlatedCables is a marker relic; AbstractPlayer owns its behavior
+        // and repeats the front non-empty orb's start callback.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+        // Java: reference/extracted/methods/relic/GoldPlatedCables.java
+        if self.state.has_relic("Cables") {
+            self.apply_front_orb_start_of_turn_passive();
+        }
     }
 
     fn apply_front_orb_start_of_turn_passive(&mut self) {
@@ -4404,11 +4411,7 @@ impl CombatEngine {
             return;
         }
         self.apply_orb_start_of_turn();
-        self.apply_all_orb_end_of_turn_passives();
-        if self.state.has_relic("Cables") {
-            self.apply_front_orb_start_of_turn_passive();
-            self.apply_front_orb_end_of_turn_passive();
-        }
+        self.apply_orb_end_of_turn();
     }
 
     // =======================================================================
