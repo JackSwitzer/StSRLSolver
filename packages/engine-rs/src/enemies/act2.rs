@@ -427,16 +427,21 @@ pub(super) fn roll_taskmaster(enemy: &mut EnemyCombatState, _num: i32) {
 }
 
 pub(super) fn roll_spheric_guardian(enemy: &mut EnemyCombatState) {
-    // Pattern: Initial Block -> Frail Attack -> Big Attack -> Block Attack -> repeat
-    if last_move(enemy, move_ids::SPHER_INITIAL_BLOCK) {
-        enemy.set_move(move_ids::SPHER_FRAIL_ATTACK, 10, 1, 0);
+    // Source: reference/extracted/methods/monster/SphericGuardian.java (`getMove`).
+    let damage = enemy.entity.status(sid::STARTING_DMG).max(10);
+    if enemy.entity.status(sid::FIRST_MOVE) > 0 {
+        enemy.entity.set_status(sid::FIRST_MOVE, 0);
+        let activate_block = enemy.entity.status(sid::BLOCK_AMT).max(25);
+        enemy.set_move(move_ids::SPHER_INITIAL_BLOCK, 0, 0, activate_block);
+    } else if enemy.entity.status(sid::FIRST_TURN) > 0 {
+        enemy.entity.set_status(sid::FIRST_TURN, 0);
+        enemy.set_move(move_ids::SPHER_FRAIL_ATTACK, damage, 1, 0);
         enemy.add_effect(mfx::FRAIL, 5);
     } else if last_move(enemy, move_ids::SPHER_BIG_ATTACK) {
-        enemy.set_move(move_ids::SPHER_BLOCK_ATTACK, 10, 1, 15);
-    } else if last_move(enemy, move_ids::SPHER_BLOCK_ATTACK) || last_move(enemy, move_ids::SPHER_FRAIL_ATTACK) {
-        enemy.set_move(move_ids::SPHER_BIG_ATTACK, 10, 2, 0);
+        let harden_block = enemy.entity.status(sid::STR_AMT).max(15);
+        enemy.set_move(move_ids::SPHER_BLOCK_ATTACK, damage, 1, harden_block);
     } else {
-        enemy.set_move(move_ids::SPHER_BIG_ATTACK, 10, 2, 0);
+        enemy.set_move(move_ids::SPHER_BIG_ATTACK, damage, 2, 0);
     }
 }
 

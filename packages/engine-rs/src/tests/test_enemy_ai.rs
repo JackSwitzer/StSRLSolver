@@ -452,8 +452,15 @@ mod enemy_ai_java_parity_tests {
         expect_status(&e, sid::STARTING_DMG, 7);
         expect_status(&e, sid::BLOCK_AMT, 1);
 
-        let e = make("SphericGuardian", 135);
-        expect_move(&e, move_ids::SPHER_INITIAL_BLOCK, 0, 0, 40, &[]);
+        let e = make("SphericGuardian", 20);
+        expect_move(&e, move_ids::SPHER_INITIAL_BLOCK, 0, 0, 25, &[]);
+        expect_status(&e, sid::FIRST_MOVE, 1);
+        expect_status(&e, sid::FIRST_TURN, 1);
+        expect_status(&e, sid::STARTING_DMG, 10);
+        expect_status(&e, sid::BLOCK_AMT, 25);
+        expect_status(&e, sid::BARRICADE, 1);
+        expect_status(&e, sid::ARTIFACT, 3);
+        assert_eq!(e.entity.block, 40);
 
         let e = make("Snecko", 114);
         expect_move(&e, move_ids::SNECKO_GLARE, 0, 0, 0, &[(mfx::CONFUSED, 1)]);
@@ -679,13 +686,19 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::TASK_SCOURING_WHIP, 7, 1, 0, &[(mfx::WOUND, 1)]);
 
-        let mut e = make("SphericGuardian", 135);
-        roll_times(&mut e, 1);
+        // Source: reference/extracted/methods/monster/SphericGuardian.java.
+        let mut e = make("SphericGuardian", 20);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 99, &mut crate::seed::StsRandom::new(0));
+        expect_move(&e, move_ids::SPHER_INITIAL_BLOCK, 0, 0, 25, &[]);
+        roll_with_num(&mut e, 99);
         expect_move(&e, move_ids::SPHER_FRAIL_ATTACK, 10, 1, 0, &[(mfx::FRAIL, 5)]);
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 99);
         expect_move(&e, move_ids::SPHER_BIG_ATTACK, 10, 2, 0, &[]);
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 99);
         expect_move(&e, move_ids::SPHER_BLOCK_ATTACK, 10, 1, 15, &[]);
+        roll_with_num(&mut e, 99);
+        expect_move(&e, move_ids::SPHER_BIG_ATTACK, 10, 2, 0, &[]);
 
         // Source: reference/extracted/methods/monster/Snecko.java.
         let mut e = make("Snecko", 114);

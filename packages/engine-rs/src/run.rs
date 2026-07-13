@@ -1920,6 +1920,22 @@ impl RunEngine {
                 if self.run_state.ascension >= 17 { 1 } else { 0 });
         }
 
+        // Source: reference/extracted/methods/monster/SphericGuardian.java.
+        for enemy in enemy_states.iter_mut().filter(|e| matches!(e.id.as_str(),
+            "SphericGuardian" | "Spheric Guardian"))
+        {
+            enemy.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(crate::status_ids::sid::FIRST_TURN, 1);
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
+                if self.run_state.ascension >= 2 { 11 } else { 10 });
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if self.run_state.ascension >= 17 { 35 } else { 25 });
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT, 15);
+            enemy.entity.set_status(crate::status_ids::sid::BARRICADE, 1);
+            enemy.entity.set_status(crate::status_ids::sid::ARTIFACT, 3);
+            enemy.entity.block = 40;
+        }
+
         // Source: reference/extracted/methods/monster/Centurion.java.
         let monster_count = enemy_states.len() as i32;
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "Centurion") {
@@ -2921,6 +2937,11 @@ impl RunEngine {
                 };
                 let hp = base + self.rng.gen_range(0..=width);
                 (hp, hp)
+            }
+            "SphericGuardian" | "Spheric Guardian" => {
+                // Source: reference/extracted/methods/monster/SphericGuardian.java:
+                // the constructor passes a fixed 20 HP and never calls setHp.
+                (20, 20)
             }
             "BronzeAutomaton" => {
                 let hp = if self.run_state.ascension >= 9 { 320 } else { 300 };
@@ -8650,6 +8671,96 @@ mod tests {
             crate::enemies::move_ids::SNECKO_BITE);
         combat.execute_action(&crate::actions::Action::EndTurn);
         assert_eq!(combat.state.player.hp, 485);
+    }
+
+    #[test]
+    fn spheric_guardian_stats_cycle_barricade_artifact_and_ticks_match_java() {
+        // Source: reference/extracted/methods/monster/SphericGuardian.java.
+        // The constructor is fixed at 20 HP. A2 raises all attacks to 11,
+        // while A17 raises only Activate's block from 25 to 35.
+        for (ascension, damage, activate_block) in [
+            (0, 10, 25), (2, 11, 25), (17, 11, 35),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            assert_eq!(run.roll_enemy_hp("SphericGuardian"), (20, 20));
+            run.enter_specific_combat(vec!["SphericGuardian".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!((enemy.entity.hp, enemy.entity.max_hp), (20, 20));
+            assert_eq!(enemy.entity.block, 40);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::BARRICADE), 1);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::ARTIFACT), 3);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG), damage);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::BLOCK_AMT), activate_block);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), 15);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::FIRST_MOVE), 0);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::FIRST_TURN), 1);
+            assert_eq!(enemy.move_id,
+                crate::enemies::move_ids::SPHER_INITIAL_BLOCK);
+            assert_eq!(enemy.move_block(), activate_block);
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        // BarricadePower preserves every accumulated block value. The exact
+        // source cycle is Activate -> Frail Attack -> two-hit Slam -> Harden,
+        // then Slam/Harden alternation; each queued RollMoveAction costs one
+        // AI RNG tick even though getMove ignores its integer.
+        let mut cycle = RunEngine::new(42, 17);
+        cycle.enter_specific_combat(vec!["SphericGuardian".to_string()]);
+        let combat = cycle.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(combat.state.enemies[0].entity.block, 75);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::SPHER_FRAIL_ATTACK);
+        assert_eq!(combat.ai_rng.counter, 2);
+
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(combat.state.player.hp, 489);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::FRAIL), 5);
+        assert_eq!(combat.state.enemies[0].entity.block, 75);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::SPHER_BIG_ATTACK);
+        assert_eq!(combat.ai_rng.counter, 3);
+
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(combat.state.player.hp, 467);
+        assert_eq!(combat.state.enemies[0].entity.block, 75);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::SPHER_BLOCK_ATTACK);
+        assert_eq!(combat.ai_rng.counter, 4);
+
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(combat.state.player.hp, 456);
+        assert_eq!(combat.state.enemies[0].entity.block, 90);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::SPHER_BIG_ATTACK);
+        assert_eq!(combat.ai_rng.counter, 5);
+
+        // usePreBattleAction's three Artifact stacks negate the first three
+        // debuffs without installing them, then allow the fourth through.
+        let entity = &mut combat.state.enemies[0].entity;
+        for remaining in [2, 1, 0] {
+            assert!(!crate::powers::apply_debuff(
+                entity, crate::status_ids::sid::WEAKENED, 1));
+            assert_eq!(entity.status(crate::status_ids::sid::ARTIFACT), remaining);
+            assert_eq!(entity.status(crate::status_ids::sid::WEAKENED), 0);
+        }
+        assert!(crate::powers::apply_debuff(
+            entity, crate::status_ids::sid::WEAKENED, 1));
+        assert_eq!(entity.status(crate::status_ids::sid::WEAKENED), 1);
+
+        // Frail is also an ApplyPowerAction and therefore respects player Artifact.
+        let mut protected = RunEngine::new(42, 0);
+        protected.enter_specific_combat(vec!["SphericGuardian".to_string()]);
+        let combat = protected.combat_engine.as_mut().unwrap();
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        combat.state.player.set_status(crate::status_ids::sid::ARTIFACT, 1);
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::ARTIFACT), 0);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::FRAIL), 0);
     }
 
     #[test]

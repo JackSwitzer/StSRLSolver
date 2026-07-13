@@ -710,8 +710,18 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "SphericGuardian" | "Spheric Guardian" => {
-            // First turn: Activate (gain 40 block)
-            enemy.set_move(move_ids::SPHER_INITIAL_BLOCK, 0, 0, 40);
+            // Source: reference/extracted/methods/monster/SphericGuardian.java.
+            // Pre-battle grants Barricade, Artifact 3, and 40 Block. The
+            // source-rolled opening Activate gains another 25 at A0.
+            enemy.set_move(move_ids::SPHER_INITIAL_BLOCK, 0, 0, 25);
+            enemy.entity.set_status(sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(sid::FIRST_TURN, 1);
+            enemy.entity.set_status(sid::STARTING_DMG, 10);
+            enemy.entity.set_status(sid::BLOCK_AMT, 25);
+            enemy.entity.set_status(sid::STR_AMT, 15);
+            enemy.entity.set_status(sid::BARRICADE, 1);
+            enemy.entity.set_status(sid::ARTIFACT, 3);
+            enemy.entity.block = 40;
         }
         "Snecko" => {
             // Source: reference/extracted/methods/monster/Snecko.java.

@@ -18,9 +18,13 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
 
     // Sources: MonsterStartTurnAction.java and MonsterGroup.java
     // (`applyPreTurnLogic`). Clear every monster's block once before any
-    // monster acts; block granted later in this queue must remain intact.
+    // monster acts unless BarricadePower preserves it; block granted later in
+    // this queue must remain intact.
+    // Source: reference/extracted/methods/monster/SphericGuardian.java.
     for enemy in &mut engine.state.enemies {
-        enemy.entity.block = 0;
+        if enemy.entity.status(sid::BARRICADE) == 0 {
+            enemy.entity.block = 0;
+        }
     }
 
     let num_enemies = engine.state.enemies.len();
