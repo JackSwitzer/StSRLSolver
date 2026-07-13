@@ -545,6 +545,77 @@ mod ironclad_card_java_parity_tests {
     card_pair_test!(demon_form, "Demon Form", "Demon Form+", 3, -1, -1, 2, 3, -1, -1, 3, CardType::Power, CardTarget::None, false);
     card_pair_test!(double_tap, "Double Tap", "Double Tap+", 1, -1, -1, 1, 1, -1, -1, 2, CardType::Skill, CardTarget::SelfTarget, false);
     card_pair_test!(exhume, "Exhume", "Exhume+", 1, -1, -1, -1, 0, -1, -1, -1, CardType::Skill, CardTarget::None, true);
+
+    #[test]
+    fn exhume_excludes_itself_and_uses_java_singleton_selection_rules() {
+        // ExhumeAction immediately returns a lone non-Exhume, but removes all
+        // Exhumes before a multi-card grid choice and no-ops if none remain.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ExhumeAction.java
+        let mut singleton = engine_for(
+            &["Exhume"],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            1,
+        );
+        singleton.state.exhaust_pile = make_deck(&["Strike"]);
+        assert!(singleton.get_legal_actions().contains(&Action::PlayCard {
+            card_idx: 0,
+            target_idx: -1,
+        }));
+        assert!(play_self(&mut singleton, "Exhume"));
+        assert_eq!(singleton.phase, crate::engine::CombatPhase::PlayerTurn);
+        assert_eq!(singleton.state.hand.len(), 1);
+        assert_eq!(
+            singleton.card_registry.card_name(singleton.state.hand[0].def_id),
+            "Strike"
+        );
+        assert_eq!(exhaust_prefix_count(&singleton, "Exhume"), 1);
+
+        let mut only_exhumes = engine_for(
+            &["Exhume+"],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            0,
+        );
+        only_exhumes.state.exhaust_pile = make_deck(&["Exhume", "Exhume+"]);
+        assert!(only_exhumes.get_legal_actions().contains(&Action::PlayCard {
+            card_idx: 0,
+            target_idx: -1,
+        }));
+        assert!(play_self(&mut only_exhumes, "Exhume+"));
+        assert_eq!(only_exhumes.phase, crate::engine::CombatPhase::PlayerTurn);
+        assert!(only_exhumes.state.hand.is_empty());
+        assert_eq!(exhaust_prefix_count(&only_exhumes, "Exhume"), 3);
+
+        let mut filtered_choice = engine_for(
+            &["Exhume"],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            1,
+        );
+        filtered_choice.state.exhaust_pile = make_deck(&["Exhume+", "Strike"]);
+        assert!(play_self(&mut filtered_choice, "Exhume"));
+        assert_eq!(filtered_choice.phase, crate::engine::CombatPhase::AwaitingChoice);
+        let choice = filtered_choice.choice.as_ref().expect("Exhume choice");
+        assert_eq!(choice.options.len(), 1);
+        assert!(matches!(
+            choice.options[0],
+            crate::engine::ChoiceOption::ExhaustCard(index)
+                if filtered_choice.card_registry.card_name(
+                    filtered_choice.state.exhaust_pile[index].def_id
+                ) == "Strike"
+        ));
+        filtered_choice.execute_action(&Action::Choose(0));
+        assert_eq!(filtered_choice.phase, crate::engine::CombatPhase::PlayerTurn);
+        assert_eq!(filtered_choice.state.hand.len(), 1);
+        assert_eq!(
+            filtered_choice.card_registry.card_name(filtered_choice.state.hand[0].def_id),
+            "Strike"
+        );
+    }
     card_pair_test!(feed, "Feed", "Feed+", 1, 10, -1, 3, 1, 12, -1, 4, CardType::Attack, CardTarget::Enemy, true);
     card_pair_test!(fiend_fire, "Fiend Fire", "Fiend Fire+", 2, 7, -1, -1, 2, 10, -1, -1, CardType::Attack, CardTarget::Enemy, true);
     card_pair_test!(immolate, "Immolate", "Immolate+", 2, 21, -1, -1, 2, 28, -1, -1, CardType::Attack, CardTarget::AllEnemy, false);

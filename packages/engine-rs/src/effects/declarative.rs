@@ -183,6 +183,8 @@ pub enum BulkAction {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CardFilter {
     All,
+    /// All cards except base/upgraded Exhume.
+    NonExhume,
     Attacks,
     /// Attack or Power cards only.
     AttackOrPower,

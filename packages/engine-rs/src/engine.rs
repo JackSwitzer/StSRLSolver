@@ -1993,6 +1993,9 @@ impl CombatEngine {
         let def = self.card_registry.card_def_by_id(card.def_id);
         match filter {
             CardFilter::All => true,
+            CardFilter::NonExhume => {
+                def.id.strip_suffix('+').unwrap_or(def.id) != "Exhume"
+            }
             CardFilter::Attacks => def.card_type == CardType::Attack,
             CardFilter::AttackOrPower => {
                 matches!(def.card_type, CardType::Attack | CardType::Power)
@@ -2063,7 +2066,9 @@ impl CombatEngine {
                 if matches!(source, Pile::Draw | Pile::Discard | Pile::Exhaust) {
                     let min_required =
                         self.choice_min_picks_for_legality(card, card_inst, *min_picks);
+                    let empty_source_is_allowed = matches!(card.id, "Exhume" | "Exhume+");
                     if min_required > 0
+                        && !empty_source_is_allowed
                         && self.available_choice_cards_in_pile(*source, *filter)
                             < min_required as usize
                     {

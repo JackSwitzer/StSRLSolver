@@ -1431,6 +1431,23 @@ fn execute_choose_cards(
         return;
     }
 
+    // ExhumeAction moves a lone non-Exhume card immediately. With a larger
+    // original exhaust pile it still opens grid select after hiding Exhumes,
+    // even when that leaves only one eligible option.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ExhumeAction.java
+    let is_exhume = matches!(ctx.card.id, "Exhume" | "Exhume+")
+        && source == Pile::Exhaust
+        && action == ChoiceAction::MoveToHand;
+    if is_exhume && pile.len() == 1 && options.len() == 1 {
+        if engine.state.hand.len() < 10 {
+            if let ChoiceOption::ExhaustCard(index) = options[0] {
+                let card = engine.state.exhaust_pile.remove(index);
+                engine.state.hand.push(card);
+            }
+        }
+        return;
+    }
+
     let reason = choice_reason_for_action(action, source);
     if matches!(action, ChoiceAction::CopyToHand | ChoiceAction::StoreCardForNextTurnCopies) {
         engine.begin_choice_with_action(
@@ -1488,6 +1505,10 @@ fn matches_filter(
 ) -> bool {
     match filter {
         CardFilter::All => true,
+        CardFilter::NonExhume => {
+            let id = engine.card_registry.card_def_by_id(card.def_id).id;
+            id.strip_suffix('+').unwrap_or(id) != "Exhume"
+        }
         CardFilter::Attacks => {
             engine.card_registry.card_def_by_id(card.def_id).card_type == CardType::Attack
         }

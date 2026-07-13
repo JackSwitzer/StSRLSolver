@@ -1285,6 +1285,10 @@ impl EffectRuntime {
     ) -> bool {
         match filter {
             crate::effects::declarative::CardFilter::All => true,
+            crate::effects::declarative::CardFilter::NonExhume => {
+                let id = engine.card_registry.card_def_by_id(card.def_id).id;
+                id.strip_suffix('+').unwrap_or(id) != "Exhume"
+            }
             crate::effects::declarative::CardFilter::Attacks => {
                 engine.card_registry.card_def_by_id(card.def_id).card_type == crate::cards::CardType::Attack
             }
