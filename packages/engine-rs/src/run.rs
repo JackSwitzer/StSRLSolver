@@ -2026,6 +2026,34 @@ impl RunEngine {
             enemy.entity.set_status(crate::status_ids::sid::IS_FIRST_MOVE, 1);
         }
 
+        // Source: reference/extracted/methods/monster/SpireShield.java
+        // (constructor and `usePreBattleAction`). Damage, HP, and Artifact use
+        // independent A3/A8/A18 thresholds. Shield begins to the player's left,
+        // so it is the initial Back Attack while the player faces right.
+        for enemy in enemy_states.iter_mut().filter(|e| matches!(e.id.as_str(),
+            "SpireShield" | "Spire Shield"))
+        {
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
+                if self.run_state.ascension >= 3 { 14 } else { 12 });
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
+                if self.run_state.ascension >= 3 { 38 } else { 34 });
+            enemy.entity.set_status(crate::status_ids::sid::ARTIFACT,
+                if self.run_state.ascension >= 18 { 2 } else { 1 });
+            enemy.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI,
+                if self.run_state.ascension >= 18 { 1 } else { 0 });
+            enemy.entity.set_status(crate::status_ids::sid::MOVE_COUNT, 0);
+            enemy.back_attack = true;
+        }
+        if enemy_states.iter().any(|enemy| matches!(enemy.id.as_str(),
+            "SpireShield" | "Spire Shield"))
+        {
+            for enemy in enemy_states.iter_mut().filter(|enemy| matches!(enemy.id.as_str(),
+                "SpireSpear" | "Spire Spear"))
+            {
+                enemy.back_attack = false;
+            }
+        }
+
         // Source: reference/extracted/methods/monster/Darkling.java.
         // HP is rolled separately; Nip has its own inclusive monsterHpRng
         // roll, and Chomp/Harden change at independent ascension thresholds.
@@ -3093,7 +3121,15 @@ impl RunEngine {
                 (hp, hp)
             }
             // Act 4 enemies
-            "SpireShield" | "SpireSpear" => {
+            "SpireShield" | "Spire Shield" => {
+                // Source: reference/extracted/methods/monster/SpireShield.java:
+                // fixed 110 HP, raised to fixed 125 at ascension 8.
+                let hp = if self.run_state.ascension >= 8 { 125 } else { 110 };
+                (hp, hp)
+            }
+            "SpireSpear" | "Spire Spear" => {
+                // Retain the draft Spear table until monster/SpireSpear is
+                // verified on the next ledger row.
                 let hp = if a20 { 220 } else { 200 };
                 (hp, hp)
             }

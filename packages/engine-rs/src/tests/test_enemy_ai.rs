@@ -7,7 +7,7 @@ mod enemy_ai_java_parity_tests {
     // /tmp/sts-decompiled/com/megacrit/cardcrawl/monsters/ending/*.java
 
     use crate::enemies::*;
-    use crate::combat_types::mfx;
+    use crate::combat_types::{mfx, Intent};
     use crate::status_ids::sid;
     use crate::enemies::move_ids;
     use crate::map::{DungeonMap, MapNode, RoomType};
@@ -1188,8 +1188,12 @@ mod enemy_ai_java_parity_tests {
     #[test]
     fn act4_initial_states_match_java() {
         let e = make("SpireShield", 200);
-        expect_move(&e, move_ids::SHIELD_BASH, 12, 1, 0, &[(mfx::STRENGTH_DOWN, 1)]);
+        // Source: reference/extracted/methods/monster/SpireShield.java.
+        expect_move(&e, move_ids::SHIELD_BASH, 12, 1, 0, &[]);
         expect_status(&e, sid::MOVE_COUNT, 0);
+        expect_status(&e, sid::STARTING_DMG, 12);
+        expect_status(&e, sid::STR_AMT, 34);
+        expect_status(&e, sid::ARTIFACT, 1);
 
         let e = make("SpireSpear", 200);
         expect_move(&e, move_ids::SPEAR_BURN_STRIKE, 5, 2, 0, &[(mfx::BURN, 2)]);
@@ -1200,12 +1204,31 @@ mod enemy_ai_java_parity_tests {
     #[test]
     fn act4_patterns_match_java() {
         let mut e = make("SpireShield", 200);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SHIELD_FORTIFY, 0, 0, 30, &[]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SHIELD_BASH, 12, 1, 0, &[(mfx::STRENGTH_DOWN, 1)]);
-        roll_times(&mut e, 1);
+        // Source: reference/extracted/methods/monster/SpireShield.java
+        // (`getMove`). Slot zero consumes one conditional boolean, slot one
+        // selects the other opening move, and slot two is always Smash.
+        let false_seed = (1..10_000).find(|&seed|
+            !crate::seed::StsRandom::new(seed).random_boolean()).unwrap();
+        let mut rng = crate::seed::StsRandom::new(false_seed);
+        roll_initial_move_with_num_and_rng(&mut e, 99, &mut rng);
+        expect_move(&e, move_ids::SHIELD_BASH, 12, 1, 0, &[]);
+        assert_eq!(rng.counter, 1);
+        roll_next_move_with_num_and_rng(&mut e, 99, &mut rng);
+        expect_move(&e, move_ids::SHIELD_FORTIFY, 0, 0, 30,
+            &[(mfx::BLOCK_ALL_ALLIES, 30)]);
+        assert_eq!(rng.counter, 1);
+        roll_next_move_with_num_and_rng(&mut e, 99, &mut rng);
         expect_move(&e, move_ids::SHIELD_SMASH, 34, 1, 0, &[]);
+        assert_eq!(rng.counter, 1);
+
+        e.entity.set_status(sid::MOVE_COUNT, 0);
+        let true_seed = (1..10_000).find(|&seed|
+            crate::seed::StsRandom::new(seed).random_boolean()).unwrap();
+        let mut rng = crate::seed::StsRandom::new(true_seed);
+        roll_initial_move_with_num_and_rng(&mut e, 0, &mut rng);
+        expect_move(&e, move_ids::SHIELD_FORTIFY, 0, 0, 30,
+            &[(mfx::BLOCK_ALL_ALLIES, 30)]);
+        assert_eq!(rng.counter, 1);
 
         let mut e = make("SpireSpear", 200);
         roll_times(&mut e, 1);
@@ -1214,6 +1237,112 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::SPEAR_SKEWER, 10, 3, 0, &[]);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SPEAR_PIERCER, 0, 0, 0, &[(mfx::STRENGTH, 2)]);
+    }
+
+    #[test]
+    fn spire_shield_stats_powers_moves_and_surrounded_match_java() {
+        // Source: reference/extracted/methods/monster/SpireShield.java and
+        // decompiled AbstractMonster.java (`applyBackAttack`).
+        for (ascension, hp, bash, smash, artifact, high_ai) in [
+            (0, 110, 12, 34, 1, 0),
+            (3, 110, 14, 38, 1, 0),
+            (8, 125, 14, 38, 1, 0),
+            (18, 125, 14, 38, 2, 1),
+        ] {
+            let mut run = run_engine(42, ascension);
+            run.debug_enter_specific_combat(&["SpireShield", "SpireSpear"]);
+            let combat = run.get_combat_engine().expect("Shield and Spear combat");
+            let shield = &combat.state.enemies[0];
+            assert_eq!((shield.entity.hp, shield.entity.max_hp), (hp, hp));
+            assert_eq!(shield.entity.status(sid::STARTING_DMG), bash);
+            assert_eq!(shield.entity.status(sid::STR_AMT), smash);
+            assert_eq!(shield.entity.status(sid::ARTIFACT), artifact);
+            assert_eq!(shield.entity.status(sid::HIGH_ASCENSION_AI), high_ai);
+            assert!(shield.back_attack);
+            assert!(!combat.state.enemies[1].back_attack);
+            assert!(matches!(shield.move_id,
+                move_ids::SHIELD_BASH | move_ids::SHIELD_FORTIFY));
+            assert_eq!(combat.ai_rng.counter, 2,
+                "rollMove integer plus slot-zero randomBoolean");
+        }
+
+        // Fortify queues GainBlockAction(30) for every monster, including self.
+        let mut fortify = run_engine(43, 0);
+        fortify.debug_enter_specific_combat(&["SpireShield", "SpireSpear"]);
+        let combat = fortify.debug_combat_engine_mut();
+        combat.state.enemies[0].set_move(move_ids::SHIELD_FORTIFY, 0, 0, 30);
+        combat.state.enemies[0].add_effect(mfx::BLOCK_ALL_ALLIES, 30);
+        combat.state.enemies[1].move_id = -1;
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(combat.state.enemies[0].entity.block, 30);
+        assert_eq!(combat.state.enemies[1].entity.block, 30);
+
+        // With an occupied orb Bash conditionally consumes one aiRng boolean
+        // and applies -1 Focus. Artifact blocks the selected negative power.
+        let focus_seed = (1..10_000).find(|&seed|
+            crate::seed::StsRandom::new(seed).random_boolean()).unwrap();
+        let mut bash = run_engine(44, 0);
+        bash.debug_enter_specific_combat(&["SpireShield", "SpireSpear"]);
+        let combat = bash.debug_combat_engine_mut();
+        combat.ai_rng = crate::seed::StsRandom::new(focus_seed);
+        combat.state.orb_slots = crate::orbs::OrbSlots::new(1);
+        combat.state.orb_slots.channel(crate::orbs::OrbType::Lightning, 0);
+        combat.state.player.set_status(sid::ARTIFACT, 1);
+        combat.state.enemies[0].set_move(move_ids::SHIELD_BASH, 12, 1, 0);
+        combat.state.enemies[0].intent = Intent::AttackDebuff {
+            damage: 12, hits: 1, effects: 0,
+        };
+        combat.state.enemies[1].entity.hp = 0;
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(combat.state.player.focus(), 0);
+        assert_eq!(combat.state.player.status(sid::ARTIFACT), 0);
+        assert_eq!(combat.ai_rng.counter, 2,
+            "Bash boolean followed by RollMove integer");
+
+        // Pre-A18 Smash gains its modified DamageInfo.output, not HP lost;
+        // initial Back Attack turns 34 into 51 even through full player Block.
+        let mut smash = run_engine(45, 0);
+        smash.debug_enter_specific_combat(&["SpireShield", "SpireSpear"]);
+        let combat = smash.debug_combat_engine_mut();
+        combat.state.player.set_status(sid::BARRICADE, 1);
+        combat.state.player.block = 100;
+        combat.state.enemies[0].set_move(move_ids::SHIELD_SMASH, 34, 1, 0);
+        combat.state.enemies[0].intent = Intent::AttackBlock {
+            damage: 34, hits: 1, block: 0, effects: 0,
+        };
+        combat.state.enemies[1].entity.hp = 0;
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(combat.state.enemies[0].entity.block, 51);
+        assert_eq!(combat.state.player.hp, combat.state.player.max_hp);
+
+        let mut high_smash = run_engine(46, 18);
+        high_smash.debug_enter_specific_combat(&["SpireShield", "SpireSpear"]);
+        let combat = high_smash.debug_combat_engine_mut();
+        combat.state.player.set_status(sid::BARRICADE, 1);
+        combat.state.player.block = 100;
+        combat.state.enemies[0].set_move(move_ids::SHIELD_SMASH, 38, 1, 0);
+        combat.state.enemies[0].intent = Intent::AttackBlock {
+            damage: 38, hits: 1, block: 0, effects: 0,
+        };
+        combat.state.enemies[1].entity.hp = 0;
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(combat.state.enemies[0].entity.block, 99);
+
+        // A targeted card turns the player toward that monster. Killing either
+        // partner removes Surrounded/BackAttack from the survivor.
+        let mut facing = run_engine(47, 0);
+        facing.debug_enter_specific_combat(&["SpireShield", "SpireSpear"]);
+        let combat = facing.debug_combat_engine_mut();
+        combat.state.hand = vec![combat.card_registry.make_card("Strike")];
+        combat.state.energy = 3;
+        combat.execute_action(&crate::actions::Action::PlayCard {
+            card_idx: 0,
+            target_idx: 0,
+        });
+        assert!(!combat.state.enemies[0].back_attack);
+        assert!(combat.state.enemies[1].back_attack);
+        assert!(combat.instant_kill_enemy(0));
+        assert!(!combat.state.enemies[1].back_attack);
     }
 
     #[test]
@@ -1289,6 +1418,8 @@ mod enemy_ai_java_parity_tests {
         let act4_elite = enter_forced_combat(4, 20, RoomType::Elite, 0);
         let combat = act4_elite.get_combat_engine().expect("combat engine");
         assert_eq!(combat.state.enemies[0].id, "SpireShield");
-        assert_eq!(combat.state.enemies[0].entity.hp, 220);
+        // Source: reference/extracted/methods/monster/SpireShield.java: fixed
+        // 125 HP at ascension 8+, rather than the draft's shared 220 table.
+        assert_eq!(combat.state.enemies[0].entity.hp, 125);
     }
 }

@@ -1,5 +1,5 @@
 use crate::state::EnemyCombatState;
-use crate::combat_types::mfx;
+use crate::combat_types::{mfx, Intent};
 use super::last_move;
 use super::move_ids;
 use crate::seed::StsRandom;
@@ -9,34 +9,54 @@ use crate::status_ids::sid;
 // Act 4 — The Ending
 // =========================================================================
 
-pub(super) fn roll_spire_shield(enemy: &mut EnemyCombatState) {
-    // Java: moveCount % 3 cycle. moveCount post-incremented.
-    // Bash: A3+ = 14, else 12. Smash: A3+ = 38, else 34.
-    // Fortify: 30 block to ALL monsters. Smash: A18 gains 99 block, else damage-dealt block.
+pub(super) fn roll_spire_shield(
+    enemy: &mut EnemyCombatState,
+    ai_rng: &mut StsRandom,
+) {
+    // Source: reference/extracted/methods/monster/SpireShield.java (`getMove`).
+    // Slot zero consumes a conditional randomBoolean in addition to the
+    // AbstractMonster.rollMove integer; slots one and two consume no extra RNG.
     let mc = enemy.entity.status(sid::MOVE_COUNT);
+    let bash_damage = enemy.entity.status(sid::STARTING_DMG).max(12);
+    let smash_damage = enemy.entity.status(sid::STR_AMT).max(34);
 
     match mc % 3 {
         0 => {
-            // 50/50 Fortify or Bash. Deterministic: Bash if not last, else Fortify.
-            if !last_move(enemy, move_ids::SHIELD_BASH) {
-                enemy.set_move(move_ids::SHIELD_BASH, 12, 1, 0);
-                enemy.add_effect(mfx::STRENGTH_DOWN, 1);
-            } else {
+            if ai_rng.random_boolean() {
                 enemy.set_move(move_ids::SHIELD_FORTIFY, 0, 0, 30);
+                enemy.add_effect(mfx::BLOCK_ALL_ALLIES, 30);
+            } else {
+                enemy.set_move(move_ids::SHIELD_BASH, bash_damage, 1, 0);
+                enemy.intent = Intent::AttackDebuff {
+                    damage: bash_damage as i16,
+                    hits: 1,
+                    effects: 0,
+                };
             }
         }
         1 => {
-            // The other of Bash/Fortify
             if !last_move(enemy, move_ids::SHIELD_BASH) {
-                enemy.set_move(move_ids::SHIELD_BASH, 12, 1, 0);
-                enemy.add_effect(mfx::STRENGTH_DOWN, 1);
+                enemy.set_move(move_ids::SHIELD_BASH, bash_damage, 1, 0);
+                enemy.intent = Intent::AttackDebuff {
+                    damage: bash_damage as i16,
+                    hits: 1,
+                    effects: 0,
+                };
             } else {
                 enemy.set_move(move_ids::SHIELD_FORTIFY, 0, 0, 30);
+                enemy.add_effect(mfx::BLOCK_ALL_ALLIES, 30);
             }
         }
         _ => {
-            // Smash (34 dmg + block)
-            enemy.set_move(move_ids::SHIELD_SMASH, 34, 1, 0);
+            enemy.set_move(move_ids::SHIELD_SMASH, smash_damage, 1, 0);
+            // Java's ATTACK_DEFEND intent does not encode the later dynamic
+            // GainBlockAction amount; execution derives it from DamageInfo.output.
+            enemy.intent = Intent::AttackBlock {
+                damage: smash_damage as i16,
+                hits: 1,
+                block: 0,
+                effects: 0,
+            };
         }
     }
     enemy.entity.set_status(sid::MOVE_COUNT, mc + 1);

@@ -390,7 +390,7 @@ impl CombatEngine {
                 | "Maw" | "Nemesis" | "OrbWalker" | "Orb Walker"
                 | "Reptomancer" | "Repulsor" | "Serpent" | "SnakePlant" | "Snecko"
                 | "SphericGuardian" | "Spheric Guardian" | "Spiker"
-                | "SpireGrowth" | "Spire Growth")) {
+                | "SpireGrowth" | "Spire Growth" | "SpireShield" | "Spire Shield")) {
             if enemy.id == "Centurion" {
                 enemy.entity.set_status(sid::COUNT, living_enemy_count);
             }
@@ -3671,6 +3671,17 @@ impl CombatEngine {
         }
 
         if matches!(self.state.enemies[enemy_idx].id.as_str(),
+            "SpireShield" | "Spire Shield" | "SpireSpear" | "Spire Spear")
+        {
+            // Source: reference/extracted/methods/monster/SpireShield.java
+            // (`die`). Once either partner dies, Surrounded and every
+            // BackAttack power are removed from the encounter.
+            for enemy in &mut self.state.enemies {
+                enemy.back_attack = false;
+            }
+        }
+
+        if matches!(self.state.enemies[enemy_idx].id.as_str(),
             "GremlinLeader" | "Gremlin Leader")
         {
             // Source: reference/extracted/methods/monster/GremlinLeader.java
@@ -4021,6 +4032,8 @@ impl CombatEngine {
         card_inst: CardInstance,
         target_idx: i32,
     ) {
+        self.update_surrounded_facing(card, target_idx);
+
         // SharpHidePower.onUseCard queues one THORNS hit for every living
         // owner when each Attack card use is constructed, including replayed
         // and autoplayed cards. Capture before resolution so killing the
@@ -4053,6 +4066,38 @@ impl CombatEngine {
             self.deal_thorns_damage_to_player(amount);
         }
         self.resolve_enemy_choke_hp_losses(choke_hp_losses);
+    }
+
+    fn update_surrounded_facing(&mut self, card: &CardDef, target_idx: i32) {
+        if !matches!(card.target, CardTarget::Enemy | CardTarget::SelfAndEnemy)
+            || target_idx < 0
+            || (target_idx as usize) >= self.state.enemies.len()
+            || !self.state.enemies.iter().any(|enemy|
+                matches!(enemy.id.as_str(), "SpireShield" | "Spire Shield")
+                    && enemy.is_alive())
+        {
+            return;
+        }
+
+        let target_idx = target_idx as usize;
+        if !matches!(self.state.enemies[target_idx].id.as_str(),
+            "SpireShield" | "Spire Shield" | "SpireSpear" | "Spire Spear")
+        {
+            return;
+        }
+
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/characters/
+        // AbstractPlayer.java (`updateInput`). Targeting either flanking
+        // monster turns the player toward it; AbstractMonster.applyBackAttack
+        // then marks the monster on the opposite side.
+        for (idx, enemy) in self.state.enemies.iter_mut().enumerate() {
+            if matches!(enemy.id.as_str(),
+                "SpireShield" | "Spire Shield" | "SpireSpear" | "Spire Spear")
+                && enemy.is_alive()
+            {
+                enemy.back_attack = idx != target_idx;
+            }
+        }
     }
 
     fn capture_enemy_choke_hp_losses(&self) -> Vec<(usize, i32)> {

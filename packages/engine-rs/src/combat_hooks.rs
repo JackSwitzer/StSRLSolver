@@ -288,6 +288,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     }
 
     // Attack
+    let mut enemy_attack_output = 0;
     let enemy = &engine.state.enemies[enemy_idx];
     let move_dmg = enemy.move_damage();
     if move_dmg > 0 {
@@ -316,6 +317,28 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         let has_tungsten = engine.state.has_relic("Tungsten Rod");
         let has_odd_mushroom = engine.state.has_relic("Odd Mushroom");
 
+        // AbstractMonster.applyPowers applies Back Attack after the target's
+        // damage modifiers but before Block. Intangible therefore remains one
+        // under the 1.5x multiplier. The flag is maintained by Spire Shield's
+        // Surrounded encounter logic.
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/monsters/
+        // AbstractMonster.java (`applyPowers` and `applyBackAttack`).
+        let modified = damage::calculate_incoming_damage(
+            per_hit_base,
+            0,
+            is_wrath,
+            player_vuln,
+            player_intangible,
+            false,
+            false,
+            has_odd_mushroom,
+        ).hp_loss;
+        enemy_attack_output = if enemy.back_attack {
+            ((modified as f64) * 1.5) as i32
+        } else {
+            modified
+        };
+
         let hits = enemy.move_hits();
         for _ in 0..hits {
             // AbstractPlayer.damage applies Intangible and block before
@@ -327,14 +350,14 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Torii.java
             // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/TungstenRod.java
             let result_before_buffer = damage::calculate_incoming_damage(
-                per_hit_base,
+                enemy_attack_output,
                 engine.state.player.block,
-                is_wrath,
-                player_vuln,
-                player_intangible,
                 false,
                 false,
-                has_odd_mushroom,
+                false,
+                false,
+                false,
+                false,
             );
 
             engine.state.player.block = result_before_buffer.block_remaining;
@@ -461,6 +484,24 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         let actual_hp_loss = (player_hp_before_move - engine.state.player.hp).max(0);
         let enemy = &mut engine.state.enemies[enemy_idx].entity;
         enemy.hp = (enemy.hp + actual_hp_loss).min(enemy.max_hp);
+    }
+
+    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
+        "SpireShield" | "Spire Shield")
+        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::SHIELD_SMASH
+        && engine.state.enemies[enemy_idx].is_alive()
+    {
+        // Source: reference/extracted/methods/monster/SpireShield.java
+        // (`takeTurn`, SMASH). A18 gains 99 Block; lower ascensions gain the
+        // attack's DamageInfo.output, independent of actual HP loss or Block.
+        let block = if engine.state.enemies[enemy_idx]
+            .entity.status(sid::HIGH_ASCENSION_AI) > 0
+        {
+            99
+        } else {
+            enemy_attack_output
+        };
+        engine.state.enemies[enemy_idx].entity.block += block;
     }
 
     // Block
@@ -803,6 +844,19 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         engine.state.enemies[enemy_idx]
             .entity
             .add_status(sid::STRENGTH, amt as i32);
+    }
+
+    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
+        "SpireShield" | "Spire Shield")
+        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::SHIELD_BASH
+    {
+        // Source: reference/extracted/methods/monster/SpireShield.java
+        // (`takeTurn`, BASH). The boolean is consumed only when at least one
+        // orb is occupied; either negative power is blocked by Artifact.
+        let focus_down = engine.state.orb_slots.occupied_count() > 0
+            && engine.ai_rng.random_boolean();
+        let status = if focus_down { sid::FOCUS } else { sid::STRENGTH };
+        powers::apply_debuff_from_enemy(&mut engine.state.player, status, -1);
     }
 
     // Strength down: reduce player Strength

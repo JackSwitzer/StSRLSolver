@@ -985,12 +985,20 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         // Act 4 — The Ending
         // =================================================================
         "SpireShield" | "Spire Shield" => {
-            // 3-move cycle. First turn: Bash or Fortify (50/50 in Java).
-            // Bash: 12 (A3+ = 14). Smash: 34 (A3+ = 38). Fortify: 30 block.
-            // Bash applies -1 Str or -1 Focus (random if player has orbs).
+            // Source: reference/extracted/methods/monster/SpireShield.java.
+            // These are the A0 constructor/pre-battle defaults; run spawning
+            // patches the independent A3/A8/A18 thresholds.
             enemy.set_move(move_ids::SHIELD_BASH, 12, 1, 0);
-            enemy.add_effect(mfx::STRENGTH_DOWN, 1);
+            enemy.intent = crate::combat_types::Intent::AttackDebuff {
+                damage: 12,
+                hits: 1,
+                effects: 0,
+            };
             enemy.entity.set_status(sid::MOVE_COUNT, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 12);
+            enemy.entity.set_status(sid::STR_AMT, 34);
+            enemy.entity.set_status(sid::ARTIFACT, 1);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "SpireSpear" | "Spire Spear" => {
             // 3-move cycle. First turn: Burn Strike (5x2 + Burns)
@@ -1159,7 +1167,7 @@ fn select_move(
         "Deca" => act3::roll_deca(enemy, num),
         "TimeEater" | "Time Eater" => act3::roll_time_eater(enemy, num),
         // Act 4
-        "SpireShield" | "Spire Shield" => act4::roll_spire_shield(enemy),
+        "SpireShield" | "Spire Shield" => act4::roll_spire_shield(enemy, ai_rng),
         "SpireSpear" | "Spire Spear" => act4::roll_spire_spear(enemy),
         "CorruptHeart" | "Corrupt Heart" => act4::roll_corrupt_heart(enemy, num, ai_rng),
         _ => {
@@ -1878,21 +1886,23 @@ mod tests {
     fn test_spire_shield_boss() {
         let mut enemy = create_enemy("SpireShield", 110, 110);
         assert_eq!(enemy.move_id, move_ids::SHIELD_BASH);
-        // Base damage: 12 (A3+ = 14)
+        // Source: reference/extracted/methods/monster/SpireShield.java.
         assert_eq!(enemy.move_damage(), 12);
-        assert_eq!(enemy.effect(mfx::STRENGTH_DOWN), Some(1));
+        assert_eq!(enemy.entity.status(sid::ARTIFACT), 1);
 
-        // mc=0 -> 0%3=0: Fortify (since last was Bash)
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        let false_seed = (1..10_000).find(|&seed|
+            !crate::seed::StsRandom::new(seed).random_boolean()).unwrap();
+        let mut rng = crate::seed::StsRandom::new(false_seed);
+        roll_initial_move_with_num_and_rng(&mut enemy, 0, &mut rng);
+        assert_eq!(enemy.move_id, move_ids::SHIELD_BASH);
+        assert_eq!(rng.counter, 1);
+
+        roll_next_move_with_num_and_rng(&mut enemy, 0, &mut rng);
         assert_eq!(enemy.move_id, move_ids::SHIELD_FORTIFY);
         assert_eq!(enemy.move_block(), 30);
+        assert_eq!(enemy.effect(mfx::BLOCK_ALL_ALLIES), Some(30));
 
-        // mc=1 -> 1%3=1: Bash (since last was Fortify)
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::SHIELD_BASH);
-
-        // mc=2 -> 2%3=2: Smash
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num_and_rng(&mut enemy, 0, &mut rng);
         assert_eq!(enemy.move_id, move_ids::SHIELD_SMASH);
         assert_eq!(enemy.move_damage(), 34);
     }
