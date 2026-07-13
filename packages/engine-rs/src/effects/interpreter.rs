@@ -1894,19 +1894,21 @@ fn execute_for_each(
 
     match action {
         BulkAction::Exhaust => {
-            // Move matching cards to exhaust pile (reverse order to preserve indices)
-            let pile_ref = get_pile_mut(engine, pile);
-            let mut exhausted = Vec::new();
+            // ExhaustAllNonAttackAction and BlockPerNonAttackAction add one
+            // ExhaustSpecificCardAction per snapshotted card to the top of the
+            // queue. Resolve in reverse hand order and fire each card's exhaust
+            // hooks before moving to the next card.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ExhaustAllNonAttackAction.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/BlockPerNonAttackAction.java
             for &i in matching.iter().rev() {
-                if i < pile_ref.len() {
-                    exhausted.push(pile_ref.remove(i));
+                let card = {
+                    let pile_ref = get_pile_mut(engine, pile);
+                    (i < pile_ref.len()).then(|| pile_ref.remove(i))
+                };
+                if let Some(card) = card {
+                    engine.state.exhaust_pile.push(card);
+                    engine.trigger_card_on_exhaust(card);
                 }
-            }
-            let exhausted_cards = exhausted.clone();
-            engine.state.exhaust_pile.extend(exhausted);
-            // Trigger on-exhaust hooks for each card
-            for card in exhausted_cards {
-                engine.trigger_card_on_exhaust(card);
             }
         }
 

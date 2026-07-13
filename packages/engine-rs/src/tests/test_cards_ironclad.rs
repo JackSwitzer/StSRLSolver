@@ -843,6 +843,49 @@ mod ironclad_card_java_parity_tests {
     card_pair_test!(seeing_red, "Seeing Red", "Seeing Red+", 1, -1, -1, 2, 0, -1, -1, 2, CardType::Skill, CardTarget::None, true);
     card_pair_test!(sentinel, "Sentinel", "Sentinel+", 1, -1, 5, 2, 1, -1, 8, 3, CardType::Skill, CardTarget::SelfTarget, false);
     card_pair_test!(sever_soul, "Sever Soul", "Sever Soul+", 2, 16, -1, -1, 2, 22, -1, -1, CardType::Attack, CardTarget::Enemy, false);
+
+    #[test]
+    fn sever_soul_exhausts_all_non_attacks_before_lethal_damage() {
+        // SeverSoul.java queues ExhaustAllNonAttackAction before DamageAction.
+        // Even when the 16-damage hit ends combat, Sentinel+ has already
+        // exhausted and granted three energy.
+        let mut engine = engine_for(
+            &["Sever Soul", "Sentinel+", "Defend", "Strike"],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 16, 16)],
+            2,
+        );
+
+        assert!(play_on_enemy(&mut engine, "Sever Soul", 0));
+
+        assert!(engine.state.player_won);
+        assert_eq!(engine.state.enemies[0].entity.hp, 0);
+        assert_eq!(engine.state.energy, 3);
+        assert_eq!(exhaust_prefix_count(&engine, "Sentinel"), 1);
+        assert_eq!(exhaust_prefix_count(&engine, "Defend"), 1);
+        assert_eq!(hand_count(&engine, "Strike"), 1);
+    }
+
+    #[test]
+    fn sever_soul_plus_deals_twenty_two_after_exhausting_every_non_attack() {
+        let mut engine = engine_for(
+            &["Sever Soul+", "Strike", "Defend", "Wound", "Inflame"],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 50, 50)],
+            2,
+        );
+
+        assert!(play_on_enemy(&mut engine, "Sever Soul+", 0));
+
+        assert_eq!(engine.state.enemies[0].entity.hp, 28);
+        assert_eq!(hand_count(&engine, "Strike"), 1);
+        assert_eq!(exhaust_prefix_count(&engine, "Defend"), 1);
+        assert_eq!(exhaust_prefix_count(&engine, "Wound"), 1);
+        assert_eq!(exhaust_prefix_count(&engine, "Inflame"), 1);
+        assert_eq!(discard_prefix_count(&engine, "Sever Soul"), 1);
+    }
     card_pair_test!(shockwave, "Shockwave", "Shockwave+", 2, -1, -1, 3, 2, -1, -1, 5, CardType::Skill, CardTarget::AllEnemy, true);
     card_pair_test!(spot_weakness, "Spot Weakness", "Spot Weakness+", 1, -1, -1, 3, 1, -1, -1, 4, CardType::Skill, CardTarget::Enemy, false);
     card_pair_test!(uppercut, "Uppercut", "Uppercut+", 2, 13, -1, 1, 2, 13, -1, 2, CardType::Attack, CardTarget::Enemy, false);
