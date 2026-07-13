@@ -2714,13 +2714,13 @@ mod watcher_card_java_parity_tests {
         assert!(play_self(&mut engine, "Vengeance"));
         assert!(play_self(&mut engine, "Vengeance+"));
         assert_eq!(engine.state.player.status(sid::WRATH_NEXT_TURN), 1);
-        assert_eq!(engine.state.player.status(sid::SIMMERING_FURY), 5);
+        assert_eq!(engine.state.player.status(sid::DRAW_CARD), 5);
 
         end_turn(&mut engine);
         assert_eq!(engine.state.stance, Stance::Wrath);
         assert_eq!(engine.state.hand.len(), 10);
         assert_eq!(engine.state.player.status(sid::WRATH_NEXT_TURN), 0);
-        assert_eq!(engine.state.player.status(sid::SIMMERING_FURY), 0);
+        assert_eq!(engine.state.player.status(sid::DRAW_CARD), 0);
     }
 
     #[test]

@@ -187,6 +187,35 @@ fn poisoned_stab_deals_damage_before_applying_source_poison() {
 }
 
 #[test]
+fn predator_stacks_shared_next_turn_draw_after_nonlethal_damage() {
+    // Predator.java queues 15 Damage then DrawCardNextTurnPower(2); upgrade
+    // changes only damage to 20. DrawCardNextTurnPower.java stacks under the
+    // single "Draw Card" ID, draws after the normal five, then removes itself.
+    let mut stacked = one_enemy_engine("JawWorm", 100, 0);
+    stacked.state.energy = 4;
+    stacked.state.hand = make_deck(&["Predator", "Predator+"]);
+    stacked.state.draw_pile = make_deck_n("Defend", 20);
+
+    assert!(play_on_enemy(&mut stacked, "Predator", 0));
+    assert!(play_on_enemy(&mut stacked, "Predator+", 0));
+    assert_eq!(stacked.state.enemies[0].entity.hp, 65);
+    assert_eq!(stacked.state.player.status(sid::DRAW_CARD), 4);
+    assert_eq!(stacked.state.energy, 0);
+
+    end_turn(&mut stacked);
+    assert_eq!(stacked.state.hand.len(), 9,
+        "normal five-card draw is followed by four Draw Card stacks");
+    assert_eq!(stacked.state.player.status(sid::DRAW_CARD), 0);
+
+    let mut lethal = one_enemy_engine("JawWorm", 15, 0);
+    lethal.state.hand = make_deck(&["Predator"]);
+    assert!(play_on_enemy(&mut lethal, "Predator", 0));
+    assert_eq!(lethal.state.enemies[0].entity.hp, 0);
+    assert_eq!(lethal.state.player.status(sid::DRAW_CARD), 0,
+        "lethal DamageAction clears the queued ApplyPowerAction");
+}
+
+#[test]
 fn blur_does_not_decrement_during_vaults_skipped_enemy_round() {
     // Sources: Blur.java installs one BlurPower; GameActionManager.java skips
     // monsters.applyEndOfTurnPowers() under Vault but still checks Blur before

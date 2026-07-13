@@ -13,7 +13,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 base_magic: 2, exhaust: false, enter_stance: None,
                 effect_data: &[
                     E::Simple(SE::SetStatus(T::Player, sid::WRATH_NEXT_TURN, A::Fixed(1))),
-                    E::Simple(SE::AddStatus(T::Player, sid::SIMMERING_FURY, A::Magic)),
+                    E::Simple(SE::AddStatus(T::Player, sid::DRAW_CARD, A::Magic)),
                 ], complex_hook: None,
             });
     insert(cards, CardDef {
@@ -22,7 +22,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 base_magic: 3, exhaust: false, enter_stance: None,
                 effect_data: &[
                     E::Simple(SE::SetStatus(T::Player, sid::WRATH_NEXT_TURN, A::Fixed(1))),
-                    E::Simple(SE::AddStatus(T::Player, sid::SIMMERING_FURY, A::Magic)),
+                    E::Simple(SE::AddStatus(T::Player, sid::DRAW_CARD, A::Magic)),
                 ], complex_hook: None,
             });
 }

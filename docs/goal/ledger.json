@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T12:44:15.667302+00:00",
+ "updated": "2026-07-13T12:46:47.723287+00:00",
  "status_counts": {
-  "verified": 490,
-  "unverified": 177
+  "verified": 491,
+  "unverified": 176
  },
  "rows": [
   {
@@ -2502,8 +2502,8 @@
    "class": "Predator",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Predator.java",
    "methods_ref": "reference/extracted/methods/card/Predator.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -1692,10 +1692,10 @@ impl CombatEngine {
         // then removes itself. This runs before ordinary post-draw powers such
         // as Foresight because Draw Card has priority 20.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DrawCardNextTurnPower.java
-        let next_turn_draw = self.state.player.status(sid::SIMMERING_FURY);
+        let next_turn_draw = self.state.player.status(sid::DRAW_CARD);
         if next_turn_draw > 0 {
             self.draw_cards(next_turn_draw);
-            self.state.player.set_status(sid::SIMMERING_FURY, 0);
+            self.state.player.set_status(sid::DRAW_CARD, 0);
         }
 
         // ---- Post-draw power effects (complex powers not in EntityDefs) ----
