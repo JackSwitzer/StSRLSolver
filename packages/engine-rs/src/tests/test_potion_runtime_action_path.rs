@@ -68,6 +68,30 @@ const COLORLESS_CHOICES: &[&str] = &[
 ];
 
 #[test]
+fn blood_potion_heals_twenty_percent_at_every_ascension_and_bark_doubles_it() {
+    // Source: reference/extracted/methods/potion/BloodPotion.java. getPotency
+    // always returns 20; use floors maxHealth * potency / 100 before healing.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.player.max_hp = 81;
+    engine.state.player.hp = 20;
+    engine.state.potions[0] = "BloodPotion".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.hp, 36);
+    assert!(engine.state.potions[0].is_empty());
+
+    engine.state.player.hp = 20;
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "Blood Potion".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.hp, 52);
+    assert!(engine.state.potions[0].is_empty());
+}
+
+#[test]
 fn generation_potions_use_engine_action_path_and_consume_slot() {
     // Java oracle:
     // - decompiled/java-src/com/megacrit/cardcrawl/potions/AttackPotion.java

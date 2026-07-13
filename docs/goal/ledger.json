@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T21:45:14.263116+00:00",
+ "updated": "2026-07-13T21:48:34.850678+00:00",
  "status_counts": {
-  "verified": 622,
-  "unverified": 45
+  "verified": 623,
+  "unverified": 44
  },
  "rows": [
   {
@@ -4442,8 +4442,8 @@
    "class": "BloodPotion",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/BloodPotion.java",
    "methods_ref": "reference/extracted/methods/potion/BloodPotion.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

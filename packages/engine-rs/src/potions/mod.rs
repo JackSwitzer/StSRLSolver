@@ -200,7 +200,8 @@ fn potion_potency(potion_id: &str) -> Option<(i32, i32)> {
         "HeartOfIron" => Some((6, 4)),
         "GhostInAJar" => Some((1, 1)),
         "DuplicationPotion" => Some((1, 1)),
-        "Blood Potion" | "BloodPotion" => Some((20, 15)),
+        // BloodPotion.java getPotency ignores ascension and always returns 20.
+        "Blood Potion" | "BloodPotion" => Some((20, 20)),
         // FruitJuice.java getPotency ignores ascension and always returns 5.
         "Fruit Juice" | "FruitJuice" => Some((5, 5)),
         "BottledMiracle" => Some((2, 1)),
@@ -820,10 +821,18 @@ mod tests {
 
     #[test]
     fn test_blood_potion() {
+        // Source: reference/extracted/methods/potion/BloodPotion.java.
+        // Potency is 20 at every ascension and is interpreted as percent max HP.
         let mut state = make_test_state();
-        state.player.hp = 60;
-        apply_potion(&mut state, "Blood Potion", -1);
-        assert_eq!(state.player.hp, 76);
+        state.player.max_hp = 81;
+        state.player.hp = 20;
+        apply_potion_scaled(&mut state, "Blood Potion", -1, 20);
+        assert_eq!(state.player.hp, 36);
+
+        state.player.hp = 20;
+        state.relics.push("SacredBark".to_string());
+        apply_potion_scaled(&mut state, "BloodPotion", -1, 20);
+        assert_eq!(state.player.hp, 52);
     }
 
     #[test]
