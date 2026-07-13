@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T06:02:24.543979+00:00",
+ "updated": "2026-07-13T06:04:02.626998+00:00",
  "status_counts": {
-  "verified": 349,
-  "unverified": 318
+  "verified": 350,
+  "unverified": 317
  },
  "rows": [
   {
@@ -702,8 +702,8 @@
    "class": "CompileDriver",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/CompileDriver.java",
    "methods_ref": "reference/extracted/methods/card/CompileDriver.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

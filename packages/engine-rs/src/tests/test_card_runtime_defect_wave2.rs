@@ -204,6 +204,30 @@ fn test_card_runtime_defect_wave2_ball_lightning_beam_cell_and_compile_driver_re
 }
 
 #[test]
+fn compile_driver_plus_draws_once_per_distinct_non_empty_orb_type() {
+    // Source: CompileDriver.java queues 7 damage then CompileDriverAction(1),
+    // and upgradeDamage(3) changes only damage. CompileDriverAction ignores
+    // Empty orbs and orb IDs already present in its list.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.init_defect_orbs(5);
+    engine.channel_orb(OrbType::Lightning);
+    engine.channel_orb(OrbType::Lightning);
+    engine.channel_orb(OrbType::Frost);
+    engine.state.hand = make_deck(&["Compile Driver+"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Zap"]);
+
+    assert!(play_on_enemy(&mut engine, "Compile Driver+", 0));
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 40);
+    assert_eq!(engine.state.hand.len(), 2);
+}
+
+#[test]
 fn ball_lightning_plus_deals_ten_then_channels_one_lightning_into_a_full_slot() {
     // Source: BallLightning.java queues DamageAction for 7 damage before one
     // ChannelAction(new Lightning()); upgradeDamage(3) makes the attack 10.
