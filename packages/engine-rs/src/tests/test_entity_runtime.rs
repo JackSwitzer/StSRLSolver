@@ -423,6 +423,8 @@ fn mercury_hourglass_uses_thorns_damage_ignoring_boot_slow_and_flight() {
 
 #[test]
 fn brimstone_buffs_player_and_all_enemies_on_turn_start() {
+    // Source: reference/extracted/methods/relic/Brimstone.java and
+    // decompiled/java-src/com/megacrit/cardcrawl/actions/common/ApplyPowerAction.java.
     let mut state = combat_state_with(
         Vec::new(),
         vec![enemy_no_intent("Cultist", 24, 24), enemy_no_intent("JawWorm", 40, 40)],
@@ -430,11 +432,19 @@ fn brimstone_buffs_player_and_all_enemies_on_turn_start() {
     );
     state.relics.push("Brimstone".to_string());
 
-    let engine = engine_with_state(state);
+    let mut engine = engine_with_state(state);
 
     assert_eq!(engine.state.player.strength(), 2);
     assert_eq!(engine.state.enemies[0].entity.strength(), 1);
     assert_eq!(engine.state.enemies[1].entity.strength(), 1);
+
+    // The trigger repeats every turn. Java still queues an action for every
+    // monster, but ApplyPowerAction skips a dead or escaped target.
+    engine.state.enemies[0].entity.hp = 0;
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.strength(), 4);
+    assert_eq!(engine.state.enemies[0].entity.strength(), 1);
+    assert_eq!(engine.state.enemies[1].entity.strength(), 2);
 }
 
 #[test]
