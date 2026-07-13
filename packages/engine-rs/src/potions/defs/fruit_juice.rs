@@ -33,7 +33,7 @@ fn fruit_juice_hook(
     // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FruitJuice.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/core/AbstractCreature.java
     engine.state.player.max_hp += amount;
-    engine.state.heal_player(amount);
+    engine.heal_player(amount);
 }
 
 pub static DEF: EntityDef = EntityDef {

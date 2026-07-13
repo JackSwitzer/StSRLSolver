@@ -3298,18 +3298,22 @@ impl CombatEngine {
     /// Centralized healing: delegates to CombatState::heal_player.
     pub fn heal_player(&mut self, amount: i32) {
         self.state.heal_player(amount);
-        if self.state.has_relic("Red Skull")
-            && self.hidden_effect_value(
-                "Red Skull",
-                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 },
-                0,
-            ) > 0
-            && self.state.player.hp > self.state.player.max_hp / 2
-        {
+        let red_skull = self
+            .state
+            .relics
+            .iter()
+            .position(|relic| relic == "Red Skull")
+            .map(|slot| crate::effects::runtime::EffectOwner::PlayerRelic {
+                slot: slot as u16,
+            });
+        if red_skull.is_some_and(|owner| {
+            self.hidden_effect_value("Red Skull", owner, 0) > 0
+                && self.state.player.hp > self.state.player.max_hp / 2
+        }) {
             self.state.player.add_status(sid::STRENGTH, -3);
             let _ = self.effect_runtime.set_hidden_value(
                 "Red Skull",
-                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 },
+                red_skull.expect("checked above"),
                 0,
                 0,
             );

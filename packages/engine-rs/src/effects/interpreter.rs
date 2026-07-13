@@ -877,7 +877,7 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                 // then routes the same amount through heal(), so Mark of the
                 // Bloom and Magic Flower still modify the current-HP increase.
                 // Java: decompiled/java-src/com/megacrit/cardcrawl/core/AbstractCreature.java
-                engine.state.heal_player(amount);
+                engine.heal_player(amount);
             } else {
                 engine.state.player.hp = engine.state.player.hp.min(engine.state.player.max_hp);
             }

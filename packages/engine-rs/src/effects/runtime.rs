@@ -1202,7 +1202,7 @@ impl EffectRuntime {
                     // current-HP gain through heal(), preserving Mark of the
                     // Bloom and Magic Flower hooks for relic-owned effects.
                     // Java: decompiled/java-src/com/megacrit/cardcrawl/core/AbstractCreature.java
-                    engine.state.heal_player(amount);
+                    engine.heal_player(amount);
                 } else {
                     engine.state.player.hp = engine.state.player.hp.min(engine.state.player.max_hp);
                 }

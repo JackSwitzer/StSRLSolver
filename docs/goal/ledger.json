@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T23:01:58.624234+00:00",
+ "updated": "2026-07-13T23:04:53.531190+00:00",
  "status_counts": {
-  "verified": 651,
-  "unverified": 16
+  "verified": 652,
+  "unverified": 15
  },
  "rows": [
   {
@@ -6092,8 +6092,8 @@
    "class": "RedSkull",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/RedSkull.java",
    "methods_ref": "reference/extracted/methods/relic/RedSkull.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

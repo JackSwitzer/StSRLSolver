@@ -109,6 +109,16 @@ fn relic_wave12_runtime_hp_loss_families_match_canonical_runtime() {
     engine.player_lose_hp(4);
 
     assert_eq!(engine.state.hand.len(), 5);
+
+    // RedSkull.java::onNotBloodied removes its three Strength when healing
+    // crosses above half HP, regardless of the relic's inventory slot.
+    engine.heal_player(6);
+    assert_eq!(engine.state.player.hp, 41);
+    assert_eq!(engine.state.player.strength(), 0);
+    assert_eq!(
+        engine.hidden_effect_value("Red Skull", EffectOwner::PlayerRelic { slot: 3 }, 0),
+        0
+    );
 }
 
 #[test]
