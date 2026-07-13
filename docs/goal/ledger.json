@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T04:53:11.236569+00:00",
+ "updated": "2026-07-13T04:59:04.945023+00:00",
  "status_counts": {
-  "verified": 332,
-  "unverified": 335
+  "verified": 333,
+  "unverified": 334
  },
  "rows": [
   {
@@ -502,8 +502,8 @@
    "class": "Burst",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Burst.java",
    "methods_ref": "reference/extracted/methods/card/Burst.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

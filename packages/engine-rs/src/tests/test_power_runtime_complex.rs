@@ -90,8 +90,11 @@ fn double_tap_def_is_wired_to_attack_play_events() {
 
 #[test]
 fn burst_def_is_wired_to_skill_play_events() {
-    assert_eq!(DEF_BURST.triggers.len(), 1);
+    // BurstPower handles both onUseCard replay and atEndOfTurn removal.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BurstPower.java
+    assert_eq!(DEF_BURST.triggers.len(), 2);
     assert_eq!(DEF_BURST.triggers[0].trigger, Trigger::OnSkillPlayed);
+    assert_eq!(DEF_BURST.triggers[1].trigger, Trigger::TurnEnd);
     assert!(DEF_BURST.complex_hook.is_some());
 }
 

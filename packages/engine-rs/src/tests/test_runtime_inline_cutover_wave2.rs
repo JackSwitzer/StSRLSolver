@@ -130,7 +130,10 @@ fn burst_replay_is_suppressed_when_time_warp_force_ends_the_turn() {
 
     assert!(play_self(&mut engine, "Defend"));
 
-    assert_eq!(engine.state.player.status(sid::BURST), 1);
+    // The forced turn end suppresses the replay, but BurstPower.atEndOfTurn
+    // still removes every unused charge.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BurstPower.java
+    assert_eq!(engine.state.player.status(sid::BURST), 0);
     assert_eq!(engine.state.turn, 2);
     assert!(engine.event_log.iter().any(|record| {
         record.phase == EventRecordPhase::Handled

@@ -534,6 +534,59 @@ mod silent_card_java_parity_tests {
         "Burst", 1, -1, -1, 1, CardType::Skill, CardTarget::SelfTarget, false, None, &["burst"],
         "Burst+", 1, -1, -1, 2, CardType::Skill, CardTarget::SelfTarget, false, None, &["burst"],
     );
+
+    #[test]
+    fn burst_stacks_replays_each_skill_and_expires_with_original_x_value() {
+        // Burst.java applies 1 BurstPower (2 upgraded). BurstPower replays one
+        // non-purge Skill per charge with the original energyOnUse, consumes a
+        // charge per original Skill, and removes all unused charges at turn end.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Burst.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BurstPower.java
+        let mut upgraded = engine_with_enemies(
+            Vec::new(),
+            vec![enemy("Dummy", 80, 80, 1, 0, 1)],
+            4,
+        );
+        upgraded.state.hand = make_deck(&["Burst+", "Defend", "Backflip"]);
+        upgraded.state.draw_pile = make_deck(&["Strike", "Strike", "Strike", "Strike"]);
+        upgraded.state.energy = 4;
+
+        assert!(play_self(&mut upgraded, "Burst+"));
+        assert_eq!(upgraded.state.player.status(sid::BURST), 2);
+        assert!(play_self(&mut upgraded, "Defend"));
+        assert_eq!(upgraded.state.player.block, 10);
+        assert_eq!(upgraded.state.player.status(sid::BURST), 1);
+        assert!(play_self(&mut upgraded, "Backflip"));
+        assert_eq!(upgraded.state.player.block, 20);
+        assert_eq!(upgraded.state.player.status(sid::BURST), 0);
+        assert_eq!(upgraded.state.hand.len(), 4);
+
+        let mut expires = engine_with_enemies(
+            Vec::new(),
+            vec![enemy("Dummy", 80, 80, 1, 0, 1)],
+            1,
+        );
+        expires.state.hand = make_deck(&["Burst"]);
+        expires.state.energy = 1;
+        assert!(play_self(&mut expires, "Burst"));
+        assert_eq!(expires.state.player.status(sid::BURST), 1);
+        expires.execute_action(&Action::EndTurn);
+        assert_eq!(expires.state.player.status(sid::BURST), 0);
+
+        let mut x_skill = engine_with_enemies(
+            Vec::new(),
+            vec![enemy("Dummy", 80, 80, 1, 0, 1)],
+            4,
+        );
+        x_skill.state.hand = make_deck(&["Burst", "Malaise"]);
+        x_skill.state.energy = 4;
+        assert!(play_self(&mut x_skill, "Burst"));
+        assert!(play_on_enemy(&mut x_skill, "Malaise", 0));
+        assert_eq!(x_skill.state.enemies[0].entity.status(sid::WEAKENED), 6);
+        assert_eq!(x_skill.state.enemies[0].entity.status(sid::STRENGTH), -6);
+        assert_eq!(x_skill.state.energy, 0);
+        assert_eq!(x_skill.state.player.status(sid::BURST), 0);
+    }
     card_pair_test!(corpse_explosion,
         "Corpse Explosion", 2, -1, -1, 6, CardType::Skill, CardTarget::Enemy, false, None, &["corpse_explosion"],
         "Corpse Explosion+", 2, -1, -1, 9, CardType::Skill, CardTarget::Enemy, false, None, &["corpse_explosion"],

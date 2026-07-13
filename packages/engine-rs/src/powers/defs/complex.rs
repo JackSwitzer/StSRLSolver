@@ -299,6 +299,14 @@ fn hook_burst(
     event: &GameEvent,
     _state: &mut EffectState,
 ) {
+    if event.kind == Trigger::TurnEnd {
+        // BurstPower.atEndOfTurn removes every unused charge.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BurstPower.java
+        if owner == EffectOwner::PlayerPower {
+            engine.state.player.set_status(sid::BURST, 0);
+        }
+        return;
+    }
     if !engine.runtime_replay_window || event.kind != Trigger::OnSkillPlayed || engine.state.combat_over {
         return;
     }
@@ -307,6 +315,9 @@ fn hook_burst(
         Some(card_inst) => card_inst,
         None => return,
     };
+    if card_inst.flags & crate::combat_types::CardInstance::FLAG_PURGE != 0 {
+        return;
+    }
 
     let remaining = player_power_amount(engine, owner, sid::BURST);
     if remaining <= 0 {
@@ -325,7 +336,16 @@ fn hook_burst(
     }
 
     let card = engine.card_registry.card_def_by_id(card_inst.def_id).clone();
-    engine.execute_card_effects_with_enemy_on_use(&card, card_inst, event.target_idx);
+    if card.cost == -1 {
+        // BurstPower copies the original energyOnUse into the queued free copy.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BurstPower.java
+        engine.runtime_x_energy_override = Some(engine.runtime_last_x_energy_on_use);
+    }
+    engine.execute_card_effects_with_enemy_on_use(
+        &card,
+        card_inst.set_free(true),
+        event.target_idx,
+    );
 }
 
 fn hook_amplify(
@@ -488,12 +508,20 @@ pub static DEF_BURST: EntityDef = EntityDef {
     id: "burst",
     name: "Burst",
     kind: EntityKind::Power,
-    triggers: &[TriggeredEffect {
-        trigger: Trigger::OnSkillPlayed,
-        condition: TriggerCondition::Always,
-        effects: &[],
-        counter: None,
-    }],
+    triggers: &[
+        TriggeredEffect {
+            trigger: Trigger::OnSkillPlayed,
+            condition: TriggerCondition::Always,
+            effects: &[],
+            counter: None,
+        },
+        TriggeredEffect {
+            trigger: Trigger::TurnEnd,
+            condition: TriggerCondition::Always,
+            effects: &[],
+            counter: None,
+        },
+    ],
     complex_hook: Some(hook_burst),
     status_guard: Some(sid::BURST),
 };
