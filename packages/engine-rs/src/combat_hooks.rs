@@ -393,6 +393,30 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         effects.iter().find(|e| e.0 == id).map(|e| e.1)
     }
 
+    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
+        "CorruptHeart" | "Corrupt Heart")
+        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::HEART_BUFF
+    {
+        // Source: reference/extracted/methods/monster/CorruptHeart.java
+        // (`takeTurn`, case 4). Each buff first cancels any negative Strength,
+        // then grants 2 Strength and applies the current escalation stage.
+        let strength = engine.state.enemies[enemy_idx].entity.strength();
+        if strength < 0 {
+            engine.state.enemies[enemy_idx].entity.set_status(sid::STRENGTH, 0);
+        }
+        engine.state.enemies[enemy_idx].entity.add_status(sid::STRENGTH, 2);
+        let buff_count = engine.state.enemies[enemy_idx].entity.status(sid::BUFF_COUNT);
+        match buff_count {
+            0 => engine.state.enemies[enemy_idx].entity.add_status(sid::ARTIFACT, 2),
+            1 => engine.state.enemies[enemy_idx].entity.add_status(sid::BEAT_OF_DEATH, 1),
+            2 => engine.state.enemies[enemy_idx].entity.set_status(sid::PAINFUL_STABS, 1),
+            3 => engine.state.enemies[enemy_idx].entity.add_status(sid::STRENGTH, 10),
+            _ => engine.state.enemies[enemy_idx].entity.add_status(sid::STRENGTH, 50),
+        }
+        engine.state.enemies[enemy_idx]
+            .entity.set_status(sid::BUFF_COUNT, buff_count + 1);
+    }
+
     // D59: enemy-applied debuffs use `apply_debuff_from_enemy` so Java's
     // `justApplied=true` semantics kick in and the first end-of-round
     // decrement is skipped. Without this, 1-stack Weak/Vuln/Frail vanishes
@@ -406,6 +430,23 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     }
     if let Some(amt) = get_fx(&effects, mfx::FRAIL) {
         powers::apply_debuff_from_enemy(&mut engine.state.player, sid::FRAIL, amt as i32);
+    }
+    if get_fx(&effects, mfx::HEART_STATUS_CARDS).unwrap_or(0) > 0 {
+        // Source: reference/extracted/methods/monster/CorruptHeart.java
+        // (`takeTurn`, case 3). Each MakeTempCardInDrawPileAction uses a
+        // random spot, in this exact action order.
+        for id in ["Dazed", "Slimed", "Wound", "Burn", "Void"] {
+            let card = engine.card_registry.make_card(id);
+            if engine.state.draw_pile.is_empty() {
+                engine.state.draw_pile.push(card);
+            } else {
+                let idx = engine.card_random_rng.random_range(
+                    0,
+                    (engine.state.draw_pile.len() - 1) as i32,
+                ) as usize;
+                engine.state.draw_pile.insert(idx, card);
+            }
+        }
     }
     if let Some(amt) = get_fx(&effects, mfx::STRENGTH).filter(|_| !champ_anger) {
         engine.state.enemies[enemy_idx]

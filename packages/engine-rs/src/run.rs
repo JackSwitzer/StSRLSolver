@@ -1890,6 +1890,25 @@ impl RunEngine {
             enemy.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 0);
         }
 
+        // Source: reference/extracted/methods/monster/CorruptHeart.java
+        // (constructor and `usePreBattleAction`). A4 damage, A9 HP, and A19
+        // powers are independent thresholds; HP alone cannot encode them.
+        for enemy in enemy_states.iter_mut().filter(|e| matches!(e.id.as_str(),
+            "CorruptHeart" | "Corrupt Heart")) {
+            let high_damage = self.run_state.ascension >= 4;
+            enemy.entity.set_status(crate::status_ids::sid::BLOOD_HIT_COUNT,
+                if high_damage { 15 } else { 12 });
+            enemy.entity.set_status(crate::status_ids::sid::ECHO_DMG,
+                if high_damage { 45 } else { 40 });
+            enemy.entity.set_status(crate::status_ids::sid::INVINCIBLE,
+                if self.run_state.ascension >= 19 { 200 } else { 300 });
+            enemy.entity.set_status(crate::status_ids::sid::BEAT_OF_DEATH,
+                if self.run_state.ascension >= 19 { 2 } else { 1 });
+            enemy.entity.set_status(crate::status_ids::sid::MOVE_COUNT, 0);
+            enemy.entity.set_status(crate::status_ids::sid::BUFF_COUNT, 0);
+            enemy.entity.set_status(crate::status_ids::sid::IS_FIRST_MOVE, 1);
+        }
+
         // Source: reference/extracted/methods/monster/BanditLeader.java.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "BanditLeader") {
             let (cross_slash, agonizing_slash) = if self.run_state.ascension >= 2 {
@@ -2643,7 +2662,8 @@ impl RunEngine {
                 (hp, hp)
             }
             "CorruptHeart" => {
-                let hp = if a20 { 800 } else { 750 };
+                // Source: CorruptHeart.java changes max HP at A9.
+                let hp = if self.run_state.ascension >= 9 { 800 } else { 750 };
                 (hp, hp)
             }
             _ => (40, 40),
@@ -8502,6 +8522,108 @@ mod tests {
         combat.state.enemies[0].add_effect(crate::combat_types::mfx::VULNERABLE, 2);
         crate::combat_hooks::do_enemy_turns(combat);
         assert_eq!(combat.state.player.status(crate::status_ids::sid::VULNERABLE), 2);
+    }
+
+    #[test]
+    fn corrupt_heart_stats_rng_debilitate_and_buff_cycle_match_java() {
+        // Source: reference/extracted/methods/monster/CorruptHeart.java.
+        for (ascension, hp, echo, blood_hits, invincible, beat) in [
+            (0, 750, 40, 12, 300, 1),
+            (4, 750, 45, 15, 300, 1),
+            (9, 800, 45, 15, 300, 1),
+            (19, 800, 45, 15, 200, 2),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["CorruptHeart".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!((enemy.entity.hp, enemy.entity.max_hp), (hp, hp));
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::ECHO_DMG), echo);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::BLOOD_HIT_COUNT),
+                blood_hits);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::INVINCIBLE), invincible);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::BEAT_OF_DEATH), beat);
+            assert_eq!(enemy.move_id, crate::enemies::move_ids::HEART_DEBILITATE);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::MOVE_COUNT), 0);
+            assert_eq!(combat.ai_rng.counter, 1,
+                "AbstractMonster.rollMove consumes the opening num");
+        }
+
+        let seed_for = |expected: bool| (1..10_000).find(|&seed| {
+            let mut rng = crate::seed::StsRandom::new(seed);
+            rng.random_boolean() == expected
+        }).unwrap();
+        for (boolean, first_attack) in [
+            (true, crate::enemies::move_ids::HEART_BLOOD_SHOTS),
+            (false, crate::enemies::move_ids::HEART_ECHO),
+        ] {
+            let mut enemy = crate::enemies::create_enemy("CorruptHeart", 750, 750);
+            let mut rng = crate::seed::StsRandom::new(seed_for(boolean));
+            crate::enemies::roll_initial_move_with_num_and_rng(&mut enemy, 37, &mut rng);
+            assert_eq!(enemy.move_id, crate::enemies::move_ids::HEART_DEBILITATE);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::MOVE_COUNT), 0);
+            assert_eq!(rng.counter, 0);
+
+            crate::enemies::roll_next_move_with_num_and_rng(&mut enemy, 37, &mut rng);
+            assert_eq!(enemy.move_id, first_attack);
+            assert_eq!(rng.counter, 1,
+                "cycle slot zero consumes CorruptHeart.getMove randomBoolean");
+            crate::enemies::roll_next_move_with_num_and_rng(&mut enemy, 37, &mut rng);
+            assert_eq!(enemy.move_id, if first_attack ==
+                crate::enemies::move_ids::HEART_ECHO {
+                    crate::enemies::move_ids::HEART_BLOOD_SHOTS
+                } else {
+                    crate::enemies::move_ids::HEART_ECHO
+                });
+            assert_eq!(rng.counter, 1);
+            crate::enemies::roll_next_move_with_num_and_rng(&mut enemy, 37, &mut rng);
+            assert_eq!(enemy.move_id, crate::enemies::move_ids::HEART_BUFF);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::MOVE_COUNT), 3);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::BUFF_COUNT), 0);
+            assert_eq!(rng.counter, 1);
+        }
+
+        let mut run = RunEngine::new(42, 0);
+        run.enter_specific_combat(vec!["CorruptHeart".to_string()]);
+        let combat = run.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+        combat.state.draw_pile = crate::tests::support::make_deck(&["Strike", "Defend"]);
+        let card_random_before = combat.card_random_rng.counter;
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::VULNERABLE), 2);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::WEAKENED), 2);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::FRAIL), 2);
+        let mut status_cards: Vec<&str> = combat.state.draw_pile.iter()
+            .map(|card| combat.card_registry.card_name(card.def_id))
+            .filter(|id| matches!(*id, "Dazed" | "Slimed" | "Wound" | "Burn" | "Void"))
+            .collect();
+        status_cards.sort_unstable();
+        assert_eq!(status_cards, ["Burn", "Dazed", "Slimed", "Void", "Wound"]);
+        assert_eq!(combat.card_random_rng.counter, card_random_before + 5);
+        assert_eq!(combat.ai_rng.counter, 3,
+            "next attack consumes rollMove num plus getMove boolean");
+
+        combat.state.enemies[0].entity.set_status(crate::status_ids::sid::STRENGTH, -5);
+        let expected_strength = [2, 4, 6, 18, 70];
+        for (stage, expected) in expected_strength.into_iter().enumerate() {
+            combat.state.enemies[0].set_move(
+                crate::enemies::move_ids::HEART_BUFF, 0, 0, 0);
+            crate::combat_hooks::do_enemy_turns(combat);
+            assert_eq!(combat.state.enemies[0].entity.status(
+                crate::status_ids::sid::STRENGTH), expected);
+            assert_eq!(combat.state.enemies[0].entity.status(
+                crate::status_ids::sid::BUFF_COUNT), stage as i32 + 1);
+            match stage {
+                0 => assert_eq!(combat.state.enemies[0].entity.status(
+                    crate::status_ids::sid::ARTIFACT), 2),
+                1 => assert_eq!(combat.state.enemies[0].entity.status(
+                    crate::status_ids::sid::BEAT_OF_DEATH), 2),
+                2 => assert_eq!(combat.state.enemies[0].entity.status(
+                    crate::status_ids::sid::PAINFUL_STABS), 1),
+                _ => {}
+            }
+        }
     }
 
     #[test]

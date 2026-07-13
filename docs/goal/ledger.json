@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T18:40:14.603714+00:00",
+ "updated": "2026-07-13T18:47:13.408867+00:00",
  "status_counts": {
-  "verified": 593,
-  "unverified": 74
+  "verified": 594,
+  "unverified": 73
  },
  "rows": [
   {
@@ -3862,8 +3862,8 @@
    "class": "CorruptHeart",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/ending/CorruptHeart.java",
    "methods_ref": "reference/extracted/methods/monster/CorruptHeart.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

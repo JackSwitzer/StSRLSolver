@@ -903,24 +903,21 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::SKEWER_COUNT, 3);
         }
         "CorruptHeart" | "Corrupt Heart" => {
+            // Source: reference/extracted/methods/monster/CorruptHeart.java.
+            // Ascension-dependent constructor/pre-battle values are patched at
+            // the run spawn site because create_enemy has no ascension input.
             enemy.set_move(move_ids::HEART_DEBILITATE, 0, 0, 0);
             enemy.add_effect(mfx::VULNERABLE, 2);
             enemy.add_effect(mfx::WEAK, 2);
             enemy.add_effect(mfx::FRAIL, 2);
+            enemy.add_effect(mfx::HEART_STATUS_CARDS, 1);
             enemy.entity.set_status(sid::MOVE_COUNT, 0);
             enemy.entity.set_status(sid::BUFF_COUNT, 0);
             enemy.entity.set_status(sid::IS_FIRST_MOVE, 1);
-            if hp >= 800 {
-                enemy.entity.set_status(sid::INVINCIBLE, 200);
-                enemy.entity.set_status(sid::BEAT_OF_DEATH, 2);
-                enemy.entity.set_status(sid::BLOOD_HIT_COUNT, 15);
-                enemy.entity.set_status(sid::ECHO_DMG, 45);
-            } else {
-                enemy.entity.set_status(sid::INVINCIBLE, 300);
-                enemy.entity.set_status(sid::BEAT_OF_DEATH, 1);
-                enemy.entity.set_status(sid::BLOOD_HIT_COUNT, 12);
-                enemy.entity.set_status(sid::ECHO_DMG, 40);
-            }
+            enemy.entity.set_status(sid::INVINCIBLE, 300);
+            enemy.entity.set_status(sid::BEAT_OF_DEATH, 1);
+            enemy.entity.set_status(sid::BLOOD_HIT_COUNT, 12);
+            enemy.entity.set_status(sid::ECHO_DMG, 40);
         }
 
         _ => {
@@ -1059,7 +1056,7 @@ fn select_move(
         // Act 4
         "SpireShield" | "Spire Shield" => act4::roll_spire_shield(enemy),
         "SpireSpear" | "Spire Spear" => act4::roll_spire_spear(enemy),
-        "CorruptHeart" | "Corrupt Heart" => act4::roll_corrupt_heart(enemy, num),
+        "CorruptHeart" | "Corrupt Heart" => act4::roll_corrupt_heart(enemy, num, ai_rng),
         _ => {
             if enemy.move_damage() > 0 {
                 enemy.set_move(2, 0, 0, 5);
@@ -1734,22 +1731,28 @@ mod tests {
         assert_eq!(enemy.entity.status(sid::BEAT_OF_DEATH), 1);
         assert_eq!(enemy.entity.status(sid::BLOOD_HIT_COUNT), 12);
 
-        // After Debilitate: moveCount=0, 0%3=0 -> Blood Shots
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::HEART_BLOOD_SHOTS);
-        assert_eq!(enemy.move_damage(), 2);
-        assert_eq!(enemy.move_hits(), 12);
+        // Source: reference/extracted/methods/monster/CorruptHeart.java.
+        // The first getMove call selects Debilitate and does not advance the
+        // cycle. Slot zero is random; slot one selects the other attack.
+        let mut rng = crate::seed::StsRandom::new(0);
+        roll_next_move(&mut enemy, &mut rng);
+        assert_eq!(enemy.move_id, move_ids::HEART_DEBILITATE);
+        assert_eq!(enemy.entity.status(sid::MOVE_COUNT), 0);
 
-        // moveCount=1, 1%3=1 -> Echo (since last wasn't Echo)
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::HEART_ECHO);
-        assert_eq!(enemy.move_damage(), 40);
+        roll_next_move(&mut enemy, &mut rng);
+        let first_attack = enemy.move_id;
+        assert!(matches!(first_attack,
+            move_ids::HEART_BLOOD_SHOTS | move_ids::HEART_ECHO));
+        roll_next_move(&mut enemy, &mut rng);
+        assert_eq!(enemy.move_id, if first_attack == move_ids::HEART_ECHO {
+            move_ids::HEART_BLOOD_SHOTS
+        } else {
+            move_ids::HEART_ECHO
+        });
 
-        // moveCount=2, 2%3=2 -> Buff (first buff: +2 Str + Artifact 2)
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move(&mut enemy, &mut rng);
         assert_eq!(enemy.move_id, move_ids::HEART_BUFF);
-        assert_eq!(enemy.effect(mfx::STRENGTH), Some(2));
-        assert_eq!(enemy.effect(mfx::ARTIFACT), Some(2));
+        assert_eq!(enemy.entity.status(sid::BUFF_COUNT), 0);
     }
 
     #[test]

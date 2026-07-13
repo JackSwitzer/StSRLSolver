@@ -865,8 +865,10 @@ mod enemy_tests {
     }
     #[test] fn heart_has_invincible() {
         let e = create_enemy("CorruptHeart", 750, 750);
-        // Heart should have Invincible status or beat of death
-        assert!(e.entity.status(sid::INVINCIBLE) > 0 || e.entity.status(sid::BEAT_OF_DEATH) > 0 || true);
+        // Source: reference/extracted/methods/monster/CorruptHeart.java
+        // (`usePreBattleAction`), before the A19 run-site override.
+        assert_eq!(e.entity.status(sid::INVINCIBLE), 300);
+        assert_eq!(e.entity.status(sid::BEAT_OF_DEATH), 1);
     }
     #[test] fn heart_blood_shots() {
         let mut e = create_enemy("CorruptHeart", 750, 750);

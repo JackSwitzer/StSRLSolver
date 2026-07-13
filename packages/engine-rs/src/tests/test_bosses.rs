@@ -590,35 +590,35 @@ mod boss_java_parity_tests {
     }
 
     #[test]
-    fn corrupt_heart_a9_and_a19_scaling_matches_java_expectations() {
+    fn corrupt_heart_constructor_defaults_do_not_infer_ascension_from_hp() {
+        // Source: reference/extracted/methods/monster/CorruptHeart.java.
+        // create_enemy has no ascension input; the run spawn site applies the
+        // independent A4/A9/A19 thresholds tested in run.rs.
         let enemy = create_enemy("CorruptHeart", 800, 800);
         assert_eq!(enemy.entity.hp, 800);
         assert_eq!(enemy.entity.max_hp, 800);
-        assert_eq!(enemy.entity.status(sid::INVINCIBLE), 200);
-        assert_eq!(enemy.entity.status(sid::BEAT_OF_DEATH), 2);
-        assert_eq!(enemy.entity.status(sid::BLOOD_HIT_COUNT), 15);
-        assert_eq!(enemy.entity.status(sid::ECHO_DMG), 45);
+        assert_eq!(enemy.entity.status(sid::INVINCIBLE), 300);
+        assert_eq!(enemy.entity.status(sid::BEAT_OF_DEATH), 1);
+        assert_eq!(enemy.entity.status(sid::BLOOD_HIT_COUNT), 12);
+        assert_eq!(enemy.entity.status(sid::ECHO_DMG), 40);
     }
 
     #[test]
     fn corrupt_heart_buff_cycle_matches_java() {
         let mut enemy = create_enemy("CorruptHeart", 750, 750);
+        let mut rng = crate::seed::StsRandom::new(0);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::HEART_BLOOD_SHOTS);
-        assert_eq!(enemy.move_damage(), 2);
-        assert_eq!(enemy.move_hits(), 12);
+        roll_next_move(&mut enemy, &mut rng);
+        assert_eq!(enemy.move_id, move_ids::HEART_DEBILITATE);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::HEART_ECHO);
-        assert_eq!(enemy.move_damage(), 40);
+        roll_next_move(&mut enemy, &mut rng);
+        let first_attack = enemy.move_id;
+        roll_next_move(&mut enemy, &mut rng);
+        assert_ne!(enemy.move_id, first_attack);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move(&mut enemy, &mut rng);
         assert_eq!(enemy.move_id, move_ids::HEART_BUFF);
-        assert_eq!(enemy.effect(mfx::STRENGTH), Some(2));
-        assert_eq!(enemy.effect(mfx::ARTIFACT), Some(2));
-
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::HEART_BLOOD_SHOTS);
+        assert_eq!(enemy.entity.status(sid::BUFF_COUNT), 0,
+            "CorruptHeart.takeTurn, not getMove, increments buffCount");
     }
 }
