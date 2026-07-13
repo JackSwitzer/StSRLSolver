@@ -735,12 +735,11 @@ mod enemy_ai_java_parity_tests {
         expect_status(&e, sid::REACTIVE, 1);
         expect_status(&e, sid::MALLEABLE, 1);
 
-        let e = make("SpireGrowth", 170);
-        expect_one_of(&e, &[move_ids::SG_QUICK_TACKLE, move_ids::SG_CONSTRICT]);
-        match e.move_id {
-            x if x == move_ids::SG_QUICK_TACKLE => expect_move(&e, move_ids::SG_QUICK_TACKLE, 16, 1, 0, &[]),
-            _ => expect_move(&e, move_ids::SG_CONSTRICT, 0, 0, 0, &[(mfx::CONSTRICT, 10)]),
-        }
+        let e = make("Serpent", 170);
+        expect_move(&e, move_ids::SG_QUICK_TACKLE, 16, 1, 0, &[]);
+        expect_status(&e, sid::STARTING_DMG, 16);
+        expect_status(&e, sid::STR_AMT, 22);
+        expect_status(&e, sid::BLOCK_AMT, 10);
 
         let e = make("Maw", 300);
         expect_move(&e, move_ids::MAW_ROAR, 0, 0, 0, &[(mfx::WEAK, 3), (mfx::FRAIL, 3)]);
@@ -852,24 +851,42 @@ mod enemy_ai_java_parity_tests {
         writhing_mass_reactive_reroll(&mut e);
         assert_ne!(e.move_id, move_ids::WM_BIG_HIT);
 
-        let mut e = make("SpireGrowth", 170);
-        e.move_id = move_ids::SG_QUICK_TACKLE;
-        e.move_history = vec![move_ids::SG_QUICK_TACKLE];
-        roll_times(&mut e, 1);
-        assert!(
-            matches!(e.move_id, move_ids::SG_QUICK_TACKLE | move_ids::SG_CONSTRICT),
-            "Java SpireGrowth should not go straight from one Quick Tackle to Smash when the player is not already Constricted"
-        );
-
-        e.move_id = move_ids::SG_CONSTRICT;
-        e.move_history = vec![move_ids::SG_CONSTRICT];
-        roll_times(&mut e, 1);
+        // Source: reference/extracted/methods/monster/SpireGrowth.java. COUNT
+        // mirrors player.hasPower("Constricted") for this context-free AI.
+        let mut e = make("Serpent", 170);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 49, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::SG_QUICK_TACKLE, 16, 1, 0, &[]);
 
-        e.move_id = move_ids::SG_SMASH;
-        e.move_history = vec![move_ids::SG_SMASH, move_ids::SG_SMASH];
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SG_QUICK_TACKLE, 16, 1, 0, &[]);
+        let mut high = make("Serpent", 170);
+        roll_initial_move_with_num_and_rng(
+            &mut high, 50, &mut crate::seed::StsRandom::new(0));
+        expect_move(&high, move_ids::SG_CONSTRICT, 0, 0, 0,
+            &[(mfx::CONSTRICT, 10)]);
+        assert!(matches!(high.intent, crate::combat_types::Intent::Debuff { .. }));
+
+        high.entity.set_status(sid::COUNT, 1);
+        roll_with_num(&mut high, 99);
+        expect_move(&high, move_ids::SG_SMASH, 22, 1, 0, &[]);
+        roll_with_num(&mut high, 99);
+        expect_move(&high, move_ids::SG_SMASH, 22, 1, 0, &[]);
+        roll_with_num(&mut high, 99);
+        expect_move(&high, move_ids::SG_QUICK_TACKLE, 16, 1, 0, &[]);
+
+        let mut repeated_tackle = make("Serpent", 170);
+        repeated_tackle.move_id = move_ids::SG_QUICK_TACKLE;
+        repeated_tackle.move_history = vec![move_ids::SG_QUICK_TACKLE];
+        roll_with_num(&mut repeated_tackle, 0);
+        expect_move(&repeated_tackle, move_ids::SG_CONSTRICT, 0, 0, 0,
+            &[(mfx::CONSTRICT, 10)]);
+
+        let mut a17 = make("Serpent", 190);
+        a17.entity.set_status(sid::HIGH_ASCENSION_AI, 1);
+        a17.entity.set_status(sid::BLOCK_AMT, 12);
+        roll_initial_move_with_num_and_rng(
+            &mut a17, 0, &mut crate::seed::StsRandom::new(0));
+        expect_move(&a17, move_ids::SG_CONSTRICT, 0, 0, 0,
+            &[(mfx::CONSTRICT, 12)]);
 
         let mut e = make("Maw", 300);
         crate::enemies::roll_initial_move_with_num_and_rng(

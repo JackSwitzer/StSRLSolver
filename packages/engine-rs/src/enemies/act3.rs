@@ -186,17 +186,31 @@ pub fn writhing_mass_reactive_reroll(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_spire_growth(enemy: &mut EnemyCombatState, _num: i32) {
-    // Constrict then alternate Quick Tackle (16) and Smash (22)
-    if last_move(enemy, move_ids::SG_CONSTRICT) || last_two_moves(enemy, move_ids::SG_SMASH) {
-        enemy.set_move(move_ids::SG_QUICK_TACKLE, 16, 1, 0);
-    } else if last_two_moves(enemy, move_ids::SG_QUICK_TACKLE) {
+pub(super) fn roll_spire_growth(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/SpireGrowth.java (`getMove`).
+    let tackle = enemy.entity.status(sid::STARTING_DMG).max(16);
+    let smash = enemy.entity.status(sid::STR_AMT).max(22);
+    let constrict = enemy.entity.status(sid::BLOCK_AMT).max(10) as i16;
+    let player_constricted = enemy.entity.status(sid::COUNT) > 0;
+    let high_ascension = enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0;
+    let set_constrict = |enemy: &mut EnemyCombatState| {
         enemy.set_move(move_ids::SG_CONSTRICT, 0, 0, 0);
-        enemy.add_effect(mfx::CONSTRICT, 10);
-    } else if last_move(enemy, move_ids::SG_QUICK_TACKLE) {
-        enemy.set_move(move_ids::SG_SMASH, 22, 1, 0);
+        enemy.add_effect(mfx::CONSTRICT, constrict);
+        enemy.intent = Intent::Debuff { effects: 0 };
+    };
+
+    if high_ascension && !player_constricted
+        && !last_move(enemy, move_ids::SG_CONSTRICT)
+    {
+        set_constrict(enemy);
+    } else if num < 50 && !last_two_moves(enemy, move_ids::SG_QUICK_TACKLE) {
+        enemy.set_move(move_ids::SG_QUICK_TACKLE, tackle, 1, 0);
+    } else if !player_constricted && !last_move(enemy, move_ids::SG_CONSTRICT) {
+        set_constrict(enemy);
+    } else if !last_two_moves(enemy, move_ids::SG_SMASH) {
+        enemy.set_move(move_ids::SG_SMASH, smash, 1, 0);
     } else {
-        enemy.set_move(move_ids::SG_QUICK_TACKLE, 16, 1, 0);
+        enemy.set_move(move_ids::SG_QUICK_TACKLE, tackle, 1, 0);
     }
 }
 

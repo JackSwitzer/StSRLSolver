@@ -284,7 +284,7 @@ const ACT3_STRONG_ENCOUNTERS: &[&[&str]] = &[
     &["Reptomancer"],
     &["Transient"],
     &["Maw"],
-    &["SpireGrowth"],
+    &["Serpent"],
 ];
 
 const ACT3_ELITE_ENCOUNTERS: &[&[&str]] = &[
@@ -2064,6 +2064,23 @@ impl RunEngine {
                 if self.run_state.ascension >= 2 { 13 } else { 11 });
         }
 
+        // Source: reference/extracted/methods/monster/SpireGrowth.java. The
+        // Java class uses canonical ID `Serpent`; damage changes at A2,
+        // Constricted at A17, and HP is patched separately below at A7.
+        for enemy in enemy_states.iter_mut().filter(|enemy| matches!(enemy.id.as_str(),
+            "Serpent" | "SpireGrowth" | "Spire Growth"))
+        {
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
+                if self.run_state.ascension >= 2 { 18 } else { 16 });
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
+                if self.run_state.ascension >= 2 { 25 } else { 22 });
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if self.run_state.ascension >= 17 { 12 } else { 10 });
+            enemy.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI,
+                if self.run_state.ascension >= 17 { 1 } else { 0 });
+            enemy.entity.set_status(crate::status_ids::sid::COUNT, 0);
+        }
+
         // Source: reference/extracted/methods/monster/Reptomancer.java.
         let repto_others = enemy_states.iter().filter(|enemy| enemy.id != "Reptomancer"
             && enemy.is_alive()).count() as i32;
@@ -2919,8 +2936,9 @@ impl RunEngine {
                 // constructor passes fixed 300 HP at every ascension.
                 (300, 300)
             }
-            "SpireGrowth" => {
-                let hp = if a20 { 190 } else { 170 };
+            "Serpent" | "SpireGrowth" | "Spire Growth" => {
+                // Source: SpireGrowth.java: fixed 170 HP, or 190 at A7.
+                let hp = if self.run_state.ascension >= 7 { 190 } else { 170 };
                 (hp, hp)
             }
             "AwakenedOne" => {
@@ -9052,6 +9070,83 @@ mod tests {
         crate::combat_hooks::do_enemy_turns(combat);
         assert_eq!(combat.state.player.hp, 487);
         assert_eq!(combat.ai_rng.counter, ai_before + 1);
+    }
+
+    #[test]
+    fn serpent_stats_ai_constricted_artifact_and_damage_type_match_java() {
+        // Sources: reference/extracted/methods/monster/SpireGrowth.java and
+        // decompiled/java-src/com/megacrit/cardcrawl/powers/ConstrictedPower.java.
+        for (ascension, hp, tackle, smash, constrict, high_ai) in [
+            (0, 170, 16, 22, 10, 0),
+            (2, 170, 18, 25, 10, 0),
+            (7, 190, 18, 25, 10, 0),
+            (17, 190, 18, 25, 12, 1),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["Serpent".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            let serpent = &combat.state.enemies[0];
+            assert_eq!(serpent.id, "Serpent");
+            assert_eq!((serpent.entity.hp, serpent.entity.max_hp), (hp, hp));
+            assert_eq!(serpent.entity.status(crate::status_ids::sid::STARTING_DMG),
+                tackle);
+            assert_eq!(serpent.entity.status(crate::status_ids::sid::STR_AMT), smash);
+            assert_eq!(serpent.entity.status(crate::status_ids::sid::BLOCK_AMT),
+                constrict);
+            assert_eq!(serpent.entity.status(crate::status_ids::sid::HIGH_ASCENSION_AI),
+                high_ai);
+            if ascension >= 17 {
+                assert_eq!(serpent.move_id, crate::enemies::move_ids::SG_CONSTRICT);
+                assert_eq!(serpent.effect(crate::combat_types::mfx::CONSTRICT),
+                    Some(12));
+            } else {
+                assert!(matches!(serpent.move_id,
+                    crate::enemies::move_ids::SG_QUICK_TACKLE
+                        | crate::enemies::move_ids::SG_CONSTRICT));
+            }
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        let mut blocked = RunEngine::new(42, 17);
+        blocked.enter_specific_combat(vec!["Serpent".to_string()]);
+        let combat = blocked.combat_engine.as_mut().unwrap();
+        combat.state.player.set_status(crate::status_ids::sid::ARTIFACT, 1);
+        combat.state.enemies[0].set_move(
+            crate::enemies::move_ids::SG_CONSTRICT, 0, 0, 0);
+        combat.state.enemies[0].move_effects.clear();
+        combat.state.enemies[0].add_effect(crate::combat_types::mfx::CONSTRICT, 12);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::ARTIFACT), 0);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::CONSTRICTED), 0,
+            "ApplyPowerAction is blocked by Artifact");
+
+        let mut applied = RunEngine::new(42, 0);
+        applied.enter_specific_combat(vec!["Serpent".to_string()]);
+        let combat = applied.combat_engine.as_mut().unwrap();
+        combat.state.enemies[0].set_move(
+            crate::enemies::move_ids::SG_CONSTRICT, 0, 0, 0);
+        combat.state.enemies[0].move_effects.clear();
+        combat.state.enemies[0].add_effect(crate::combat_types::mfx::CONSTRICT, 10);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::CONSTRICTED), 10);
+        assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::COUNT), 1,
+            "the next getMove observes the installed Constricted power");
+
+        // ConstrictedPower deals DamageInfo.THORNS at player end of turn: five
+        // block absorbs five of twelve, then Tungsten Rod removes one more.
+        let mut damage = RunEngine::new(42, 17);
+        damage.enter_specific_combat(vec!["Serpent".to_string()]);
+        let combat = damage.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+        combat.state.player.block = 5;
+        combat.state.player.set_status(crate::status_ids::sid::CONSTRICTED, 12);
+        combat.state.relics.push("Tungsten Rod".to_string());
+        combat.state.enemies[0].move_id = -1;
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(combat.state.player.hp, 494);
+        assert_eq!(combat.state.player.block, 0);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::CONSTRICTED), 12);
     }
 
     #[test]

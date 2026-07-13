@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T20:21:00.551110+00:00",
+ "updated": "2026-07-13T20:26:18.173607+00:00",
  "status_counts": {
-  "verified": 608,
-  "unverified": 59
+  "verified": 609,
+  "unverified": 58
  },
  "rows": [
   {
@@ -4182,8 +4182,8 @@
    "class": "SpireGrowth",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/beyond/SpireGrowth.java",
    "methods_ref": "reference/extracted/methods/monster/SpireGrowth.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -691,7 +691,10 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
 
     // Constrict: apply Constricted to player
     if let Some(amt) = get_fx(&effects, mfx::CONSTRICT) {
-        engine.state.player.add_status(sid::CONSTRICTED, amt as i32);
+        // Source: SpireGrowth.takeTurn uses ApplyPowerAction, so Artifact can
+        // block the debuff before ConstrictedPower is installed.
+        powers::apply_debuff_from_enemy(
+            &mut engine.state.player, sid::CONSTRICTED, amt as i32);
     }
 
     // Dexterity down: reduce player Dexterity
@@ -1213,6 +1216,14 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 .filter(|(idx, enemy)| *idx != enemy_idx && enemy.is_alive())
                 .count() as i32;
             engine.state.enemies[enemy_idx].entity.set_status(sid::COUNT, alive_count);
+        } else if matches!(engine.state.enemies[enemy_idx].id.as_str(),
+            "Serpent" | "SpireGrowth" | "Spire Growth")
+        {
+            // Source: SpireGrowth.getMove checks whether the player currently
+            // has Constricted before choosing its next intent.
+            let player_constricted = engine.state.player.status(sid::CONSTRICTED) > 0;
+            engine.state.enemies[enemy_idx].entity.set_status(
+                sid::COUNT, i32::from(player_constricted));
         } else if matches!(engine.state.enemies[enemy_idx].id.as_str(),
             "Healer" | "Mystic")
         {

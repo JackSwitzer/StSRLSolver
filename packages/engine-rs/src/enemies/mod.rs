@@ -60,7 +60,7 @@ pub fn known_enemy_ids() -> &'static [(&'static str, &'static str)] {
         ("Reptomancer", "Reptomancer"),
         ("Transient", "Transient"),
         ("Maw", "Maw"),
-        ("SpireGrowth", "Spire Growth"),
+    ("Serpent", "Spire Growth"),
         ("SpireShield", "Spire Shield"),
         ("SpireSpear", "Spire Spear"),
     ]
@@ -841,9 +841,14 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::MALLEABLE, 1);
             enemy.entity.set_status(sid::USED_MEGA_DEBUFF, 0);
         }
-        "SpireGrowth" | "Spire Growth" => {
-            // Has Constrict. First turn: Quick Tackle (16)
+        "Serpent" | "SpireGrowth" | "Spire Growth" => {
+            // Source: reference/extracted/methods/monster/SpireGrowth.java.
             enemy.set_move(move_ids::SG_QUICK_TACKLE, 16, 1, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 16);
+            enemy.entity.set_status(sid::STR_AMT, 22);
+            enemy.entity.set_status(sid::BLOCK_AMT, 10);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
+            enemy.entity.set_status(sid::COUNT, 0);
         }
         "Maw" => {
             // Source: reference/extracted/methods/monster/Maw.java. The
@@ -1100,7 +1105,9 @@ fn select_move(
         "Repulsor" => act3::roll_repulsor(enemy, num),
         "Exploder" => act3::roll_exploder(enemy, num),
         "WrithingMass" | "Writhing Mass" => act3::roll_writhing_mass(enemy, num),
-        "SpireGrowth" | "Spire Growth" => act3::roll_spire_growth(enemy, num),
+        "Serpent" | "SpireGrowth" | "Spire Growth" => {
+            act3::roll_spire_growth(enemy, num)
+        }
         "Maw" => act3::roll_maw(enemy, num),
         "Transient" => act3::roll_transient(enemy, num),
         "GiantHead" | "Giant Head" => act3::roll_giant_head(enemy, num),
@@ -1944,7 +1951,7 @@ mod tests {
             "Champ", "TheCollector",
             // Act 3
             "Darkling", "OrbWalker", "Spiker", "Repulsor", "Exploder",
-            "WrithingMass", "SpireGrowth", "Maw", "Transient",
+            "WrithingMass", "Serpent", "Maw", "Transient",
             "GiantHead", "Nemesis", "Reptomancer", "SnakeDagger",
             "AwakenedOne", "Donu", "Deca", "TimeEater",
             // Act 4
@@ -1987,7 +1994,7 @@ mod tests {
             "BronzeAutomaton", "BronzeOrb", "TorchHead",
             "Champ", "TheCollector",
             "Darkling", "OrbWalker", "Spiker", "Repulsor", "Exploder",
-            "WrithingMass", "SpireGrowth", "Maw", "Transient",
+            "WrithingMass", "Serpent", "Maw", "Transient",
             "GiantHead", "Nemesis", "Reptomancer", "SnakeDagger",
             "AwakenedOne", "Donu", "Deca", "TimeEater",
             "SpireShield", "SpireSpear", "CorruptHeart",

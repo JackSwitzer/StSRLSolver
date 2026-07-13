@@ -386,7 +386,8 @@ impl CombatEngine {
                 | "Exploder" | "GiantHead" | "Giant Head"
                 | "GremlinLeader" | "Gremlin Leader" | "Healer" | "Mystic"
                 | "Maw" | "Nemesis" | "OrbWalker" | "Orb Walker"
-                | "Reptomancer" | "Repulsor")) {
+                | "Reptomancer" | "Repulsor" | "Serpent"
+                | "SpireGrowth" | "Spire Growth")) {
             if enemy.id == "Centurion" {
                 enemy.entity.set_status(sid::COUNT, living_enemy_count);
             }
@@ -2164,10 +2165,12 @@ impl CombatEngine {
             return;
         }
 
-        // Constricted: deal Constricted damage to player at end of turn
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/
+        // ConstrictedPower.java. Its end-of-turn DamageInfo is THORNS, so it
+        // passes through block, Intangible, Buffer, and Tungsten Rod.
         let constricted = self.state.player.status(sid::CONSTRICTED);
         if constricted > 0 {
-            self.player_lose_hp_from_damage(constricted);
+            self.deal_thorns_damage_to_player(constricted);
             if self.state.combat_over {
                 return;
             }
