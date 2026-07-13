@@ -300,6 +300,54 @@ mod ironclad_card_java_parity_tests {
     card_pair_test!(warcry, "Warcry", "Warcry+", 0, -1, -1, 1, 0, -1, -1, 2, CardType::Skill, CardTarget::SelfTarget, true);
     card_pair_test!(wild_strike, "Wild Strike", "Wild Strike+", 1, 12, -1, -1, 1, 17, -1, -1, CardType::Attack, CardTarget::Enemy, false);
 
+    #[test]
+    fn wild_strike_inserts_wound_at_card_random_spot_unless_damage_ends_combat() {
+        // WildStrike.java queues DamageAction before a random-spot
+        // MakeTempCardInDrawPileAction. CardGroup.addToRandomSpot consumes one
+        // cardRandomRng tick for a nonempty pile and cannot replace the top
+        // card. A lethal final-enemy hit clears the queued card action.
+        // Java: reference/extracted/methods/card/WildStrike.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+        let mut engine = engine_for(
+            &["Wild Strike+"],
+            &["Strike", "Defend", "Bash"],
+            &[],
+            vec![enemy_no_intent("JawWorm", 50, 50)],
+            1,
+        );
+        let mut oracle = engine.card_random_rng.clone();
+        let expected_idx = oracle.random_range(0, 2) as usize;
+        let general_before = engine.rng.counter;
+
+        assert!(play_on_enemy(&mut engine, "Wild Strike+", 0));
+
+        assert_eq!(engine.state.enemies[0].entity.hp, 33);
+        assert_eq!(engine.card_random_rng.counter, oracle.counter);
+        assert_eq!(engine.rng.counter, general_before);
+        assert_eq!(
+            engine.card_registry.card_name(engine.state.draw_pile[expected_idx].def_id),
+            "Wound"
+        );
+        assert_eq!(
+            engine.card_registry.card_name(engine.state.draw_pile.last().unwrap().def_id),
+            "Bash"
+        );
+
+        let mut lethal = engine_for(
+            &["Wild Strike"],
+            &["Strike", "Defend"],
+            &[],
+            vec![enemy_no_intent("JawWorm", 12, 12)],
+            1,
+        );
+        let card_random_before = lethal.card_random_rng.counter;
+        assert!(play_on_enemy(&mut lethal, "Wild Strike", 0));
+        assert_eq!(lethal.state.enemies[0].entity.hp, 0);
+        assert_eq!(lethal.state.draw_pile.len(), 2);
+        assert_eq!(lethal.card_random_rng.counter, card_random_before);
+    }
+
     card_pair_test!(battle_trance, "Battle Trance", "Battle Trance+", 0, -1, -1, 3, 0, -1, -1, 4, CardType::Skill, CardTarget::None, false);
     card_pair_test!(blood_for_blood, "Blood for Blood", "Blood for Blood+", 4, 18, -1, -1, 3, 22, -1, -1, CardType::Attack, CardTarget::Enemy, false);
     card_pair_test!(bloodletting, "Bloodletting", "Bloodletting+", 0, -1, -1, 2, 0, -1, -1, 3, CardType::Skill, CardTarget::SelfTarget, false);
