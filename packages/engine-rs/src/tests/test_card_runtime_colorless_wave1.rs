@@ -70,6 +70,33 @@ fn jax_source_loses_fixed_three_hp_then_gains_two_or_three_strength() {
 }
 
 #[test]
+fn sadistic_nature_plus_deals_unmodified_thorns_damage_for_applied_debuffs() {
+    // SadisticNature.java costs zero and upgrades magic 5 -> 7. SadisticPower
+    // reacts when its owner applies an enemy debuff not blocked by Artifact and
+    // queues DamageInfo.THORNS; Flight therefore neither halves the seven damage
+    // nor loses a stack.
+    // Java: reference/extracted/methods/card/SadisticNature.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/SadisticPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/FlightPower.java
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("Byrd", 30, 30)],
+        0,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Sadistic Nature+", "Trip"]);
+    engine.state.enemies[0].entity.set_status(sid::FLIGHT, 3);
+
+    assert!(play_self(&mut engine, "Sadistic Nature+"));
+    assert_eq!(engine.state.player.status(sid::SADISTIC), 7);
+    assert!(play_on_enemy(&mut engine, "Trip", 0));
+
+    assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 2);
+    assert_eq!(engine.state.enemies[0].entity.hp, 23);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::FLIGHT), 3);
+}
+
+#[test]
 fn panacea_base_and_upgrade_stack_three_artifact_for_free_and_exhaust() {
     // Panacea.java applies magic 1 ArtifactPower (2 upgraded), costs zero,
     // targets self, and exhausts. Upgrade changes only the magic number.

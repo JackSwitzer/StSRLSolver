@@ -1,7 +1,11 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // Sadistic Nature: 0 cost, power, deal 5 dmg whenever you apply debuff
+    // SadisticNature.java applies magic 5 (7 upgraded) SadisticPower for zero
+    // energy. SadisticPower reacts to player-sourced, non-Artifact-blocked enemy
+    // debuffs except Shackled, dealing DamageInfo.THORNS.
+    // Java: reference/extracted/methods/card/SadisticNature.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/SadisticPower.java
     insert(cards, CardDef {
         id: "Sadistic Nature", name: "Sadistic Nature", card_type: CardType::Power,
         target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,

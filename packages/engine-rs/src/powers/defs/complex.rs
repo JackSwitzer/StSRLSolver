@@ -240,7 +240,11 @@ fn hook_sadistic_nature(
         return;
     }
 
-    engine.deal_damage_to_enemy(idx, damage);
+    // SadisticPower queues DamageInfo.THORNS. It therefore bypasses NORMAL-only
+    // Slow, Flight, Curl Up, and Malleable behavior while retaining block and
+    // target-side damage caps.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/SadisticPower.java
+    engine.deal_thorns_damage_to_enemy(idx, damage);
 }
 
 fn hook_envenom(
