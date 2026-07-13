@@ -5,7 +5,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Chaos.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Fission.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Reboot.java
-// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Redo.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Recursion.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Scrape.java
 
 use crate::actions::Action;
@@ -256,7 +256,12 @@ fn darkness_plus_channels_dark_then_triggers_dark_passive() {
 }
 
 #[test]
-fn redo_reuses_the_front_orb_type_on_the_typed_surface() {
+fn redo_rechannels_the_same_charged_dark_orb_instance() {
+    // RedoAction snapshots the front AbstractOrb object, queues an evoke, then
+    // passes that same object to ChannelAction(..., false). Dark.onEvoke does
+    // not reset evokeAmount, so the re-channeled Dark retains its charge.
+    // Sources: Recursion.java, actions/defect/RedoAction.java,
+    // actions/defect/ChannelAction.java, and orbs/Dark.java.
     let mut state = crate::tests::support::combat_state_with(
         make_deck(&["Redo"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -267,13 +272,40 @@ fn redo_reuses_the_front_orb_type_on_the_typed_surface() {
     force_player_turn(&mut engine);
     engine.state.turn = 1;
     engine.init_defect_orbs(3);
-    engine.channel_orb(OrbType::Plasma);
+    engine.channel_orb(OrbType::Dark);
+    engine.state.orb_slots.slots[0].evoke_amount = 18;
 
     assert!(play_self(&mut engine, "Redo"));
 
     assert_eq!(engine.state.orb_slots.occupied_count(), 1);
-    assert_eq!(engine.state.orb_slots.front_orb_type(), OrbType::Plasma);
-    assert_eq!(engine.state.energy, 4);
+    assert_eq!(engine.state.orb_slots.front_orb_type(), OrbType::Dark);
+    assert_eq!(engine.state.orb_slots.slots[0].evoke_amount, 18);
+    assert_eq!(engine.state.enemies[0].entity.hp, 22);
+}
+
+#[test]
+fn redo_does_not_rechannel_after_a_lethal_evoke() {
+    // Lightning.onEvoke queues damage ahead of RedoAction's ChannelAction.
+    // DamageAction clears post-combat non-damage actions after the last enemy
+    // dies, and ChannelAction is therefore removed.
+    // Sources: actions/defect/RedoAction.java, orbs/Lightning.java,
+    // actions/common/DamageAction.java, and actions/GameActionManager.java.
+    let mut state = crate::tests::support::combat_state_with(
+        make_deck(&["Redo"]),
+        vec![enemy_no_intent("JawWorm", 8, 8)],
+        3,
+    );
+    state.hand = make_deck(&["Redo"]);
+    let mut engine = crate::engine::CombatEngine::new(state, TEST_SEED);
+    force_player_turn(&mut engine);
+    engine.state.turn = 1;
+    engine.init_defect_orbs(3);
+    engine.channel_orb(OrbType::Lightning);
+
+    assert!(play_self(&mut engine, "Redo"));
+
+    assert!(engine.state.is_victory());
+    assert_eq!(engine.state.orb_slots.occupied_count(), 0);
 }
 
 #[test]

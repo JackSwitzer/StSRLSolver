@@ -522,16 +522,7 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
         }
 
         SimpleEffect::EvokeAndRechannelFrontOrb => {
-            if engine.state.orb_slots.occupied_count() > 0 {
-                let orb_type = engine.state.orb_slots.front_orb_type();
-                let focus = engine.state.player.focus();
-                let evoke = engine.state.orb_slots.evoke_front(focus);
-                engine.apply_evoke_effect(evoke);
-                if orb_type != crate::orbs::OrbType::Empty {
-                    let evoke = engine.state.orb_slots.channel(orb_type, focus);
-                    engine.apply_evoke_effect(evoke);
-                }
-            }
+            engine.evoke_and_rechannel_front_orb();
         }
 
         SimpleEffect::EvokeOrbWithoutRemoving => {

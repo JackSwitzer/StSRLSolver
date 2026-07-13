@@ -4566,6 +4566,49 @@ impl CombatEngine {
         self.apply_evoke_effect(effect);
     }
 
+    /// Evoke the first orb and re-channel that same instance, as Recursion's
+    /// RedoAction does. Reusing the object preserves a Dark orb's accumulated
+    /// evoke amount. The ChannelAction is non-damage work queued behind the
+    /// evoke, so lethal orb damage clears it before it can resolve.
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/RedoAction.java
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ChannelAction.java
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DarkOrbEvokeAction.java
+    pub(crate) fn evoke_and_rechannel_front_orb(&mut self) {
+        let Some(orb) = self
+            .state
+            .orb_slots
+            .slots
+            .first()
+            .filter(|orb| !orb.is_empty())
+            .cloned()
+        else {
+            return;
+        };
+
+        let focus = self.state.player.focus();
+        let effect = self.state.orb_slots.evoke_front(focus);
+        self.apply_evoke_effect(effect);
+        if self.state.combat_over || self.state.is_victory() {
+            return;
+        }
+
+        let Some(empty_idx) = self.state.orb_slots.slots.iter().position(|slot| slot.is_empty())
+        else {
+            return;
+        };
+        let orb_type = orb.orb_type;
+        self.state.orb_slots.slots[empty_idx] = orb;
+        match orb_type {
+            crate::orbs::OrbType::Lightning => {
+                self.state.player.add_status(sid::LIGHTNING_CHANNELED, 1);
+            }
+            crate::orbs::OrbType::Frost => {
+                self.state.player.add_status(sid::FROST_CHANNELED, 1);
+            }
+            _ => {}
+        }
+    }
+
     /// Trigger the front orb's evoke effect without removing it.
     pub fn evoke_front_orb_without_removing(&mut self) {
         let focus = self.state.player.focus();

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T13:43:08.722289+00:00",
+ "updated": "2026-07-13T13:47:23.308904+00:00",
  "status_counts": {
-  "verified": 504,
-  "unverified": 163
+  "verified": 505,
+  "unverified": 162
  },
  "rows": [
   {
@@ -2682,8 +2682,8 @@
    "class": "Recursion",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Recursion.java",
    "methods_ref": "reference/extracted/methods/card/Recursion.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
