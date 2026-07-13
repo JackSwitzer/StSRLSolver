@@ -523,6 +523,35 @@ mod ironclad_card_java_parity_tests {
     // ------------------------------------------------------------------
 
     #[test]
+    fn double_tap_stacks_and_replays_one_attack_per_stack() {
+        // DoubleTap.java applies one DoubleTapPower per base copy, and
+        // DoubleTapPower.onUseCard decrements one amount after queuing one
+        // purge-on-use copy of each Attack. Two stacks cover two Attacks.
+        // Java: reference/extracted/methods/card/DoubleTap.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DoubleTapPower.java
+        let mut engine = engine_for(
+            &["Double Tap", "Double Tap", "Strike", "Strike"],
+            &[],
+            &[],
+            vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
+            4,
+        );
+
+        assert!(play_self(&mut engine, "Double Tap"));
+        assert!(play_self(&mut engine, "Double Tap"));
+        assert_eq!(engine.state.player.status(sid::DOUBLE_TAP), 2);
+
+        assert!(play_on_enemy(&mut engine, "Strike", 0));
+        assert_eq!(engine.state.enemies[0].entity.hp, 28);
+        assert_eq!(engine.state.player.status(sid::DOUBLE_TAP), 1);
+
+        assert!(play_on_enemy(&mut engine, "Strike", 0));
+        assert_eq!(engine.state.enemies[0].entity.hp, 16);
+        assert_eq!(engine.state.player.status(sid::DOUBLE_TAP), 0);
+        assert_eq!(engine.state.energy, 0);
+    }
+
+    #[test]
     fn bash_applies_vulnerable() {
         let mut e = engine_with(make_deck_n("Bash", 5), 50, 0);
         ensure_in_hand(&mut e, "Bash");
