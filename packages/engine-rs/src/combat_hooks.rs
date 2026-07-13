@@ -1070,7 +1070,11 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 let high_hp = engine.state.enemies[enemy_idx]
                     .entity.status(sid::BLOCK_AMT) >= 18;
                 for _ in 0..2 {
-                    let hp = if high_hp { 40 } else { 38 };
+                    // TorchHead.java finalizes HP with an inclusive range.
+                    // Rust's run streams are not split yet, so use the shared
+                    // semantic stream here; combat aiRng remains untouched.
+                    let (base, width) = if high_hp { (40, 5) } else { (38, 2) };
+                    let hp = base + engine.rng.random_range(0, width);
                     let mut torch = enemies::create_enemy("TorchHead", hp, hp);
                     torch.is_minion = true;
                     enemies::roll_initial_move(&mut torch, &mut engine.ai_rng);
@@ -1086,7 +1090,9 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                     .map(|(idx, _)| idx)
                     .collect();
                 for idx in dead_slots {
-                    let hp = if high_hp { 40 } else { 38 };
+                    // Source: reference/extracted/methods/monster/TorchHead.java.
+                    let (base, width) = if high_hp { (40, 5) } else { (38, 2) };
+                    let hp = base + engine.rng.random_range(0, width);
                     let mut torch = enemies::create_enemy("TorchHead", hp, hp);
                     torch.is_minion = true;
                     enemies::roll_initial_move(&mut torch, &mut engine.ai_rng);

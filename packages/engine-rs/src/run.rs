@@ -3057,6 +3057,17 @@ impl RunEngine {
                 let hp = base + self.rng.gen_range(0..=6);
                 (hp, hp)
             }
+            "TorchHead" | "Torch Head" => {
+                // Source: reference/extracted/methods/monster/TorchHead.java:
+                // inclusive 38..40, raised to inclusive 40..45 at A9.
+                let (base, width) = if self.run_state.ascension >= 9 {
+                    (40, 5)
+                } else {
+                    (38, 2)
+                };
+                let hp = base + self.rng.gen_range(0..=width);
+                (hp, hp)
+            }
             "TheCollector" => {
                 // Source: reference/extracted/methods/monster/TheCollector.java:
                 // fixed 282 HP, raised to fixed 300 at ascension 9.

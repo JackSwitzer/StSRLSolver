@@ -797,6 +797,37 @@ mod enemy_ai_java_parity_tests {
     }
 
     #[test]
+    fn torch_head_hp_tackle_and_rng_match_java() {
+        // Source: reference/extracted/methods/monster/TorchHead.java.
+        // Its final setHp is inclusive 38..40 below A9 and 40..45 at A9+.
+        for (ascension, low, high) in [(0, 38, 40), (8, 38, 40), (9, 40, 45)] {
+            for seed in 80..96 {
+                let mut run = RunEngine::new(seed, ascension);
+                run.debug_enter_specific_combat(&["TorchHead"]);
+                let combat = run.get_combat_engine().expect("Torch Head combat");
+                let torch = &combat.state.enemies[0];
+                assert!((low..=high).contains(&torch.entity.hp),
+                    "A{ascension} HP {} outside {low}..={high}", torch.entity.hp);
+                assert_eq!(torch.entity.max_hp, torch.entity.hp);
+                expect_move(torch, move_ids::TORCH_TACKLE, 7, 1, 0, &[]);
+            }
+        }
+
+        let mut run = RunEngine::new(96, 0);
+        run.debug_enter_specific_combat(&["TorchHead"]);
+        let combat = run.debug_combat_engine_mut();
+        assert_eq!(combat.ai_rng.counter, 1,
+            "AbstractMonster.init calls rollMove once even though Tackle is fixed");
+        let player_hp = combat.state.player.hp;
+        let ai_before = combat.ai_rng.counter;
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.hp, player_hp - 7);
+        expect_move(&combat.state.enemies[0], move_ids::TORCH_TACKLE, 7, 1, 0, &[]);
+        assert_eq!(combat.ai_rng.counter, ai_before,
+            "takeTurn queues SetMoveAction, not RollMoveAction");
+    }
+
+    #[test]
     fn act3_initial_states_match_java() {
         let e = make("Darkling", 48);
         expect_one_of(&e, &[move_ids::DARK_HARDEN, move_ids::DARK_NIP]);
