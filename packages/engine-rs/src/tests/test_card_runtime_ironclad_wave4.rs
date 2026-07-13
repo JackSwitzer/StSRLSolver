@@ -115,6 +115,9 @@ mod ironclad_wave4_card_runtime_tests {
         let ghostly_armor = card("Ghostly Armor");
         assert_eq!(ghostly_armor.card_type, CardType::Skill);
         assert!(ghostly_armor.has_test_marker("ethereal"));
+        let ghostly_armor_plus = card("Ghostly Armor+");
+        assert_eq!(ghostly_armor_plus.base_block, 13);
+        assert!(ghostly_armor_plus.has_test_marker("ethereal"));
 
         let headbutt = card("Headbutt");
         assert_eq!(
@@ -252,18 +255,27 @@ mod ironclad_wave4_card_runtime_tests {
 
     #[test]
     fn ghostly_armor_grants_block_and_exhausts_if_unplayed() {
-        let mut played = engine_for(&["Ghostly Armor"], &[], &[], 50, 3);
-        let block_before = played.state.player.block;
+        // GhostlyArmor.java grants its current block (10/13), and upgrade()
+        // only adds 3 block. Both versions keep isEthereal=true.
+        // Java: reference/extracted/methods/card/GhostlyArmor.java
+        let mut played = engine_for(&["Ghostly Armor", "Ghostly Armor+"], &[], &[], 50, 3);
 
         assert!(play_self(&mut played, "Ghostly Armor"));
+        assert_eq!(played.state.player.block, 10);
+        assert!(play_self(&mut played, "Ghostly Armor+"));
+        assert_eq!(played.state.player.block, 23);
+        assert_eq!(discard_prefix_count(&played, "Ghostly Armor"), 2);
 
-        assert!(played.state.player.block >= block_before + 10);
-        assert_eq!(discard_prefix_count(&played, "Ghostly Armor"), 1);
-
-        let mut held = engine_for(&["Ghostly Armor"], &["Strike"], &[], 50, 3);
+        let mut held = engine_for(
+            &["Ghostly Armor", "Ghostly Armor+"],
+            &["Strike", "Strike", "Strike", "Strike", "Strike"],
+            &[],
+            50,
+            3,
+        );
         held.execute_action(&Action::EndTurn);
 
-        assert_eq!(exhaust_prefix_count(&held, "Ghostly Armor"), 1);
+        assert_eq!(exhaust_prefix_count(&held, "Ghostly Armor"), 2);
         assert_eq!(discard_prefix_count(&held, "Ghostly Armor"), 0);
     }
 

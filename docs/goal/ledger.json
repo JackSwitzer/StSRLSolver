@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T09:28:11.143287+00:00",
+ "updated": "2026-07-13T09:30:14.229799+00:00",
  "status_counts": {
-  "verified": 422,
-  "unverified": 245
+  "verified": 423,
+  "unverified": 244
  },
  "rows": [
   {
@@ -1672,8 +1672,8 @@
    "class": "GhostlyArmor",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/GhostlyArmor.java",
    "methods_ref": "reference/extracted/methods/card/GhostlyArmor.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

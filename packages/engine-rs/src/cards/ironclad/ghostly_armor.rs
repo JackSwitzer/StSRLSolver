@@ -2,7 +2,9 @@ use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // ---- Ironclad Uncommon: Ghostly Armor ----
-    // cost 1, 10 block, ethereal; upgrade: 13 block
+    // Ghostly Armor gains 10 block and is Ethereal; upgrading adds 3 block
+    // and deliberately leaves Ethereal in place.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/GhostlyArmor.java
     insert(cards, CardDef {
         id: "Ghostly Armor",
         name: "Ghostly Armor",
