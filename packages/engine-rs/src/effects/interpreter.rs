@@ -676,36 +676,11 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             for idx in living {
                 let mark = engine.state.enemies[idx].entity.status(sid::MARK);
                 if mark > 0 {
-                    // LoseHPAction creates HP_LOSS DamageInfo. AbstractMonster
-                    // bypasses block for HP_LOSS, but applies Intangible first
-                    // and Buffer's onAttackedToChangeDamage afterward.
-                    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/LoseHPAction.java
-                    // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/AbstractMonster.java
-                    let mut hp_loss = if engine.state.enemies[idx]
-                        .entity
-                        .status(sid::INTANGIBLE)
-                        > 0
-                    {
-                        1
-                    } else {
-                        mark
-                    };
-                    let buffer = engine.state.enemies[idx].entity.status(sid::BUFFER);
-                    if hp_loss > 0 && buffer > 0 {
-                        engine.state.enemies[idx]
-                            .entity
-                            .set_status(sid::BUFFER, buffer - 1);
-                        hp_loss = 0;
-                    }
-                    let hp_damage = hp_loss.min(engine.state.enemies[idx].entity.hp);
-                    engine.state.enemies[idx].entity.hp -= hp_damage;
-                    engine.state.total_damage_dealt += hp_damage;
+                    let hp_damage = engine.enemy_lose_hp_from_damage(idx, mark);
                     total_mark_damage += hp_damage;
-                    if engine.state.enemies[idx].entity.hp <= 0 {
-                        engine.state.enemies[idx].entity.hp = 0;
+                    if !engine.state.enemies[idx].is_alive() {
                         any_killed = true;
                     }
-                    engine.record_enemy_hp_damage(idx, hp_damage);
                 }
             }
             if total_mark_damage > 0 {

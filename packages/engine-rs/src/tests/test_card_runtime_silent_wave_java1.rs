@@ -171,6 +171,105 @@ fn catalyst_applies_only_the_extra_poison_through_apply_power_action() {
 }
 
 #[test]
+fn choke_uses_only_preexisting_stacks_then_stacks_the_upgraded_amount() {
+    // Choke.use queues its 12-damage action before ApplyPowerAction(ChokePower),
+    // while UseCardAction constructs the existing ChokePower LoseHPAction after
+    // those card actions. ChokePower is 3 base and Choke.upgrade adds 2 magic.
+    // Java: cards/green/Choke.java, powers/ChokePower.java, and
+    // actions/utility/UseCardAction.java.
+    let mut engine = engine_for(
+        &["Choke", "Choke+", "Defend"],
+        &[],
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        5,
+    );
+    engine.state.enemies[0].entity.block = 30;
+
+    assert!(play_on_enemy(&mut engine, "Choke", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp, 40, "Choke must not trigger itself");
+    assert_eq!(engine.state.enemies[0].entity.block, 18);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::CONSTRICTED), 3);
+
+    assert!(play_on_enemy(&mut engine, "Choke+", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp, 37);
+    assert_eq!(engine.state.enemies[0].entity.block, 6);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::CONSTRICTED), 8);
+
+    assert!(play_self(&mut engine, "Defend"));
+    assert_eq!(engine.state.enemies[0].entity.hp, 29);
+    assert_eq!(engine.state.enemies[0].entity.block, 6, "HP_LOSS bypasses Block");
+}
+
+#[test]
+fn choke_hp_loss_obeys_intangible_buffer_and_expires_at_enemy_turn_start() {
+    // AbstractMonster.damage caps HP_LOSS with Intangible before Buffer's
+    // onAttackedToChangeDamage, and ChokePower removes itself at start of turn.
+    // Java: monsters/AbstractMonster.java, powers/BufferPower.java, and
+    // powers/ChokePower.java.
+    let mut engine = engine_for(
+        &["Choke+", "Defend", "Deflect"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        4,
+    );
+
+    assert!(play_on_enemy(&mut engine, "Choke+", 0));
+    engine.state.enemies[0].entity.set_status(sid::INTANGIBLE, 1);
+    engine.state.enemies[0].entity.set_status(sid::BUFFER, 1);
+    let hp_after_choke = engine.state.enemies[0].entity.hp;
+
+    assert!(play_self(&mut engine, "Defend"));
+    assert_eq!(engine.state.enemies[0].entity.hp, hp_after_choke);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::BUFFER), 0);
+    assert!(play_self(&mut engine, "Deflect"));
+    assert_eq!(engine.state.enemies[0].entity.hp, hp_after_choke - 1);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::CONSTRICTED), 0);
+}
+
+#[test]
+fn choke_triggers_when_medical_kit_plays_a_status_card() {
+    // MedicalKit.onUseCard marks a played Status for exhaust, but it is still a
+    // normal UseCardAction and therefore still visits enemy ChokePower.onUseCard.
+    // Java: relics/MedicalKit.java and actions/utility/UseCardAction.java.
+    let mut engine = engine_for(
+        &["Wound"],
+        &[],
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        0,
+    );
+    engine.state.relics.push("Medical Kit".to_string());
+    engine.state.enemies[0].entity.set_status(sid::CONSTRICTED, 3);
+
+    assert!(play_self(&mut engine, "Wound"));
+    assert_eq!(engine.state.enemies[0].entity.hp, 37);
+    assert_eq!(engine.state.exhaust_pile.len(), 1);
+}
+
+#[test]
+fn choke_hp_loss_reaches_shifting_on_attacked() {
+    // AbstractMonster.damage invokes target powers' onAttacked even for
+    // HP_LOSS. ShiftingPower applies an equal temporary Strength loss after a
+    // positive hit, represented here by Strength plus its restoration counter.
+    // Java: monsters/AbstractMonster.java and powers/ShiftingPower.java.
+    let mut engine = engine_for(
+        &["Deflect"],
+        &[],
+        vec![enemy_no_intent("Transient", 40, 40)],
+        0,
+    );
+    engine.state.enemies[0].entity.set_status(sid::CONSTRICTED, 3);
+    engine.state.enemies[0].entity.set_status(sid::SHIFTING, 1);
+    engine.state.enemies[0].entity.set_status(sid::STRENGTH, 10);
+
+    assert!(play_self(&mut engine, "Deflect"));
+    assert_eq!(engine.state.enemies[0].entity.hp, 37);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::STRENGTH), 7);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::TEMP_STRENGTH_LOSS), 3);
+}
+
+#[test]
 fn nightmare_opens_a_single_card_choice_but_delayed_next_turn_copies_need_a_runtime_primitive() {
     let mut engine = engine_for(
         &["Nightmare", "Strike", "Defend"],

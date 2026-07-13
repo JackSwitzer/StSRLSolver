@@ -2159,11 +2159,13 @@ impl CombatEngine {
         if card.card_type == CardType::Status
             && (self.state.has_relic("Medical Kit") || self.state.has_relic("MedicalKit"))
         {
+            let choke_hp_losses = self.capture_enemy_choke_hp_losses();
             self.state.hand.remove(hand_idx);
             self.state.cards_played_this_turn += 1;
             self.state.total_cards_played += 1;
             self.state.exhaust_pile.push(card_inst);
             self.trigger_card_on_exhaust(card_inst);
+            self.resolve_enemy_choke_hp_losses(choke_hp_losses);
             {
                 let ctx = crate::effects::trigger::TriggerContext {
                     card_type: Some(card.card_type),
@@ -2182,6 +2184,7 @@ impl CombatEngine {
         if card.card_type == CardType::Curse
             && (self.state.has_relic("Blue Candle") || self.state.has_relic("BlueCandle"))
         {
+            let choke_hp_losses = self.capture_enemy_choke_hp_losses();
             self.state.hand.remove(hand_idx);
             self.state.cards_played_this_turn += 1;
             self.state.total_cards_played += 1;
@@ -2191,6 +2194,7 @@ impl CombatEngine {
             // rather than directly subtracting HP. Preserve the shared
             // Intangible/Buffer/Tungsten Rod pipeline.
             self.player_lose_hp_from_damage(1);
+            self.resolve_enemy_choke_hp_losses(choke_hp_losses);
             {
                 let ctx = crate::effects::trigger::TriggerContext {
                     card_type: Some(card.card_type),
@@ -3273,6 +3277,63 @@ impl CombatEngine {
         self.record_enemy_hp_damage(enemy_idx, hp_damage);
     }
 
+    /// Resolve a source-less `DamageInfo.HP_LOSS` hit against an enemy.
+    ///
+    /// HP_LOSS bypasses Block, but `AbstractMonster.damage` still applies
+    /// Intangible and the target's `onAttackedToChangeDamage` powers (Buffer,
+    /// then Invincible) before subtracting HP. ChokePower and MarkPower both
+    /// reach this path through `LoseHPAction`.
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/LoseHPAction.java
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/AbstractMonster.java
+    pub(crate) fn enemy_lose_hp_from_damage(&mut self, enemy_idx: usize, amount: i32) -> i32 {
+        if enemy_idx >= self.state.enemies.len() || !self.state.enemies[enemy_idx].is_alive() {
+            return 0;
+        }
+
+        let mut hp_damage = amount.max(0);
+        if hp_damage > 0 && self.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) > 0 {
+            hp_damage = 1;
+        }
+
+        if hp_damage > 0 {
+            let buffer = self.state.enemies[enemy_idx].entity.status(sid::BUFFER);
+            if buffer > 0 {
+                self.state.enemies[enemy_idx].entity.set_status(sid::BUFFER, buffer - 1);
+                hp_damage = 0;
+            }
+        }
+        if hp_damage > 0 {
+            hp_damage = powers::apply_invincible_cap_tracked(
+                &mut self.state.enemies[enemy_idx].entity,
+                hp_damage,
+            );
+        }
+
+        let hp_before = self.state.enemies[enemy_idx].entity.hp;
+        self.state.enemies[enemy_idx].entity.hp -= hp_damage;
+        let actual_hp_lost = hp_damage.min(hp_before).max(0);
+        self.state.total_damage_dealt += actual_hp_lost;
+
+        // ShiftingPower.onAttacked applies to every positive damage type. Its
+        // paired Strength loss/Shackled restoration is entirely blocked by
+        // Artifact; otherwise record both the loss and its later restoration.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ShiftingPower.java
+        if hp_damage > 0 && self.state.enemies[enemy_idx].entity.status(sid::SHIFTING) > 0 {
+            let artifact = self.state.enemies[enemy_idx].entity.status(sid::ARTIFACT);
+            if artifact > 0 {
+                self.state.enemies[enemy_idx].entity.set_status(sid::ARTIFACT, artifact - 1);
+            } else {
+                self.state.enemies[enemy_idx].entity.add_status(sid::STRENGTH, -hp_damage);
+                self.state.enemies[enemy_idx]
+                    .entity
+                    .add_status(sid::TEMP_STRENGTH_LOSS, hp_damage);
+            }
+        }
+
+        self.record_enemy_hp_damage(enemy_idx, actual_hp_lost);
+        actual_hp_lost
+    }
+
     pub(crate) fn execute_card_effects_with_enemy_on_use(
         &mut self,
         card: &CardDef,
@@ -3295,11 +3356,38 @@ impl CombatEngine {
             Vec::new()
         };
 
+        // ChokePower.onUseCard is invoked by the UseCardAction constructor
+        // after card.use has queued the card's actions. Capture the powers that
+        // existed at construction time, then resolve their LoseHPActions after
+        // the card's own actions. A newly applied Choke therefore does not
+        // trigger itself, while an existing stack does trigger on another Choke.
+        // Sources: decompiled/java-src/com/megacrit/cardcrawl/powers/ChokePower.java
+        // and actions/utility/UseCardAction.java.
+        let choke_hp_losses = self.capture_enemy_choke_hp_losses();
+
         crate::card_effects::execute_card_effects(self, card, card_inst, target_idx);
 
         // card.use actions precede Sharp Hide's DamageAction in Java's queue.
         for amount in sharp_hide_retaliations {
             self.deal_thorns_damage_to_player(amount);
+        }
+        self.resolve_enemy_choke_hp_losses(choke_hp_losses);
+    }
+
+    fn capture_enemy_choke_hp_losses(&self) -> Vec<(usize, i32)> {
+        self.state.enemies.iter()
+            .enumerate()
+            .filter(|(_, enemy)| enemy.is_alive())
+            .filter_map(|(idx, enemy)| {
+                let amount = enemy.entity.status(sid::CONSTRICTED);
+                (amount > 0).then_some((idx, amount))
+            })
+            .collect()
+    }
+
+    fn resolve_enemy_choke_hp_losses(&mut self, pending: Vec<(usize, i32)>) {
+        for (enemy_idx, amount) in pending {
+            self.enemy_lose_hp_from_damage(enemy_idx, amount);
         }
     }
 

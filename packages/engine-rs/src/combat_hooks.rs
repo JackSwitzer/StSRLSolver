@@ -53,6 +53,11 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
             replay_window: false,
         });
 
+        // ChokePower.atStartOfTurn removes the whole power. Vault never enters
+        // this enemy-turn flow, so a skipped turn correctly leaves Choke armed.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ChokePower.java
+        engine.state.enemies[i].entity.set_status(sid::CONSTRICTED, 0);
+
         // Enemy status countdowns still modeled directly in the turn-flow loop.
         let fading = engine.state.enemies[i].entity.status(sid::FADING);
         if fading > 0 {
