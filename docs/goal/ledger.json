@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T22:33:55.219073+00:00",
+ "updated": "2026-07-13T22:36:14.561593+00:00",
  "status_counts": {
-  "verified": 640,
-  "unverified": 27
+  "verified": 641,
+  "unverified": 26
  },
  "rows": [
   {
@@ -5242,8 +5242,8 @@
    "class": "DiscerningMonocle",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/DiscerningMonocle.java",
    "methods_ref": "reference/extracted/methods/relic/DiscerningMonocle.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

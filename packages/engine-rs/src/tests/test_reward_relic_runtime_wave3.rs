@@ -1576,6 +1576,33 @@ fn smiling_mask_keeps_card_removal_at_fifty_after_other_discounts_and_ramp() {
 }
 
 #[test]
+fn discerning_monocle_is_visual_only_and_does_not_discount_shop_prices() {
+    // Source: reference/extracted/methods/relic/DiscerningMonocle.java
+    // Its only room-entry behavior toggles the UI pulse. The otherwise-unused
+    // 0.8 constant never applies a ShopScreen discount.
+    let mut baseline = RunEngine::new(1301, 0);
+    baseline.debug_enter_shop();
+    let baseline_shop = baseline.get_shop().expect("baseline shop").clone();
+
+    let mut monocle = RunEngine::new(1301, 0);
+    monocle
+        .run_state
+        .relics
+        .push("Discerning Monocle".to_string());
+    monocle
+        .run_state
+        .relic_flags
+        .rebuild(&monocle.run_state.relics);
+    monocle.debug_enter_shop();
+    let monocle_shop = monocle.get_shop().expect("monocle shop");
+
+    assert_eq!(monocle_shop.cards, baseline_shop.cards);
+    assert_eq!(monocle_shop.relics, baseline_shop.relics);
+    assert_eq!(monocle_shop.potions, baseline_shop.potions);
+    assert_eq!(monocle_shop.remove_price, baseline_shop.remove_price);
+}
+
+#[test]
 fn courier_discounts_and_refills_every_shop_stock_kind_in_place() {
     // Courier.java sets the 0.8 multiplier and canSpawn permits floor 48 but
     // not floor 49 or ShopRoom. ShopScreen.purchaseCard, StoreRelic, and
