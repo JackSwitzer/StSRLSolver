@@ -4,6 +4,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/BandageUp.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Bite.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Blind.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/DarkShackles.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/DramaticEntrance.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/GoodInstincts.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Magnetism.java
@@ -198,6 +199,54 @@ fn blind_targets_one_enemy_while_blind_plus_targets_every_living_enemy() {
     assert_eq!(upgraded.state.enemies[0].entity.status(sid::WEAKENED), 0);
     assert_eq!(upgraded.state.enemies[1].entity.status(sid::WEAKENED), 2);
     assert_eq!(upgraded.state.energy, 0);
+}
+
+#[test]
+fn dark_shackles_temporarily_removes_strength_unless_artifact_blocks_it() {
+    // Source: DarkShackles.java applies StrengthPower(-9), then a matching
+    // GainStrengthPower(9) only when Artifact is absent; upgrading adds 6.
+    let mut base = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        0,
+    );
+    force_player_turn(&mut base);
+    base.state.enemies[0].entity.set_status(sid::STRENGTH, 5);
+    base.state.hand = make_deck(&["Dark Shackles"]);
+
+    assert!(play_on_enemy(&mut base, "Dark Shackles", 0));
+    assert_eq!(base.state.enemies[0].entity.status(sid::STRENGTH), -4);
+    assert_eq!(
+        base.state.enemies[0].entity.status(sid::TEMP_STRENGTH_LOSS),
+        9
+    );
+    assert_eq!(exhaust_prefix_count(&base, "Dark Shackles"), 1);
+
+    end_turn(&mut base);
+    assert_eq!(base.state.enemies[0].entity.status(sid::STRENGTH), 5);
+    assert_eq!(
+        base.state.enemies[0].entity.status(sid::TEMP_STRENGTH_LOSS),
+        0
+    );
+
+    let mut blocked = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        0,
+    );
+    force_player_turn(&mut blocked);
+    blocked.state.enemies[0].entity.set_status(sid::STRENGTH, 5);
+    blocked.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+    blocked.state.hand = make_deck(&["Dark Shackles+"]);
+
+    assert!(play_on_enemy(&mut blocked, "Dark Shackles+", 0));
+    assert_eq!(blocked.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+    assert_eq!(blocked.state.enemies[0].entity.status(sid::STRENGTH), 5);
+    assert_eq!(
+        blocked.state.enemies[0].entity.status(sid::TEMP_STRENGTH_LOSS),
+        0
+    );
+    assert_eq!(exhaust_prefix_count(&blocked, "Dark Shackles"), 1);
 }
 
 #[test]
