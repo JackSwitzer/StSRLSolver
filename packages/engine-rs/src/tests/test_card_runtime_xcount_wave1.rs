@@ -3,6 +3,7 @@
 // Java oracle references for this wave:
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ReinforcedBody.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Tempest.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/TempestAction.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Skewer.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/SkewerAction.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/ConjureBlade.java
@@ -107,6 +108,35 @@ fn xcount_wave1_tempest_plus_channels_x_plus_one_lightning_orbs() {
     assert_eq!(engine.state.orb_slots.slots[1].orb_type, OrbType::Lightning);
     assert_eq!(engine.state.orb_slots.slots[2].orb_type, OrbType::Lightning);
     assert_eq!(exhaust_prefix_count(&engine, "Tempest"), 1);
+}
+
+#[test]
+fn tempest_zero_energy_and_chemical_x_follow_tempest_action_effect_count() {
+    // TempestAction starts from energyOnUse, adds two for Chemical X and one
+    // when upgraded, and queues channels only when the resulting effect is > 0.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/TempestAction.java
+    for (card_id, chemical_x, expected_orbs) in [
+        ("Tempest", false, 0),
+        ("Tempest", true, 2),
+        ("Tempest+", false, 1),
+    ] {
+        let mut engine = one_enemy_engine(50, 0);
+        engine.init_defect_orbs(4);
+        if chemical_x {
+            engine.state.relics.push("Chemical X".to_string());
+        }
+        engine.state.hand = make_deck(&[card_id]);
+
+        assert!(play_self(&mut engine, card_id));
+
+        assert_eq!(engine.state.energy, 0, "{card_id}, Chemical X={chemical_x}");
+        assert_eq!(
+            engine.state.orb_slots.occupied_count(),
+            expected_orbs,
+            "{card_id}, Chemical X={chemical_x}"
+        );
+        assert_eq!(exhaust_prefix_count(&engine, "Tempest"), 1);
+    }
 }
 
 #[test]
