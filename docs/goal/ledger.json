@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T15:22:32.053344+00:00",
+ "updated": "2026-07-13T15:24:12.468877+00:00",
  "status_counts": {
-  "verified": 533,
-  "unverified": 134
+  "verified": 534,
+  "unverified": 133
  },
  "rows": [
   {
@@ -3022,8 +3022,8 @@
    "class": "Slimed",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/status/Slimed.java",
    "methods_ref": "reference/extracted/methods/card/Slimed.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -1,6 +1,7 @@
 #![cfg(test)]
 
 // Java oracle sources for this wave:
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/status/Slimed.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/status/Burn.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Decay.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Regret.java
@@ -76,6 +77,33 @@ fn support_wave1_registry_keeps_shared_support_cards_typed_runtime_metadata() {
     assert!(registry.get("Parasite").unwrap().runtime_traits().unplayable);
     assert!(registry.get("Dazed").unwrap().runtime_traits().ethereal);
     assert!(registry.get("Wound").unwrap().runtime_traits().unplayable);
+}
+
+#[test]
+fn slimed_is_a_one_cost_self_targeted_no_op_that_exhausts() {
+    // Slimed.java constructs a SELF-targeting Status at cost 1, sets exhaust,
+    // and leaves both use() and upgrade() empty.
+    let registry = global_registry();
+    let slimed = registry.get("Slimed").expect("Slimed");
+    assert_eq!(slimed.target, CardTarget::SelfTarget);
+    assert_eq!(slimed.cost, 1);
+    assert!(slimed.exhaust);
+    assert!(registry.get("Slimed+").is_none());
+
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        1,
+    );
+    force_player_turn(&mut engine);
+    engine.state.energy = 1;
+    engine.state.hand = make_deck(&["Slimed"]);
+
+    assert!(play_self(&mut engine, "Slimed"));
+
+    assert_eq!(engine.state.energy, 0);
+    assert_eq!(exhaust_prefix_count(&engine, "Slimed"), 1);
+    assert_eq!(discard_prefix_count(&engine, "Slimed"), 0);
 }
 
 #[test]

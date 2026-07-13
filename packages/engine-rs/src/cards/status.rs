@@ -2,9 +2,12 @@ use crate::cards::prelude::*;
 
 pub fn register_status(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Universal Status/Curse Cards ----
+        // Slimed.java is a one-cost, SELF-targeting Status with empty use and
+        // upgrade methods; playing it only exhausts the card.
+        // Java: reference/extracted/methods/card/Slimed.java
         insert(cards, CardDef {
             id: "Slimed", name: "Slimed", card_type: CardType::Status,
-            target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
+            target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
             base_magic: -1, exhaust: true, enter_stance: None,
                 effect_data: &[], complex_hook: None,
         });
