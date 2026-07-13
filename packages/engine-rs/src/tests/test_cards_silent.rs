@@ -780,8 +780,8 @@ mod silent_card_java_parity_tests {
         "Die Die Die+", 1, 17, -1, -1, CardType::Attack, CardTarget::AllEnemy, true, None, &[],
     );
     card_pair_test!(doppelganger,
-        "Doppelganger", -1, -1, -1, 0, CardType::Skill, CardTarget::None, true, None, &["x_cost"],
-        "Doppelganger+", -1, -1, -1, 1, CardType::Skill, CardTarget::None, true, None, &["x_cost"],
+        "Doppelganger", -1, -1, -1, -1, CardType::Skill, CardTarget::None, true, None, &["x_cost"],
+        "Doppelganger+", -1, -1, -1, -1, CardType::Skill, CardTarget::None, true, None, &["x_cost"],
     );
     card_pair_test!(glass_knife,
         "Glass Knife", 1, 8, -1, 2, CardType::Attack, CardTarget::Enemy, false, None, &["multi_hit", "glass_knife"],
@@ -1115,14 +1115,32 @@ mod silent_card_java_parity_tests {
     }
 
     #[test]
-    fn doppelganger_sets_next_turn_bonuses() {
-        let mut engine = engine_with(make_deck_n("Doppelganger", 8), 40, 0);
-        ensure_in_hand(&mut engine, "Doppelganger");
-        engine.state.energy = 3;
-        assert!(play_self(&mut engine, "Doppelganger"));
-        assert_eq!(engine.state.player.status(sid::DOPPELGANGER_DRAW), 3);
-        assert_eq!(engine.state.player.status(sid::DOPPELGANGER_ENERGY), 3);
-        assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Doppelganger"));
+    fn doppelganger_uses_x_upgrade_and_chemical_x_for_matching_next_turn_bonuses() {
+        // DoppelgangerAction.java starts with energyOnUse, adds Chemical X's
+        // 2, then adds 1 if upgraded. It applies equal next-turn energy/draw
+        // powers only when the resulting effect is positive.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DoppelgangerAction.java
+        for (card_id, energy, chemical_x, expected) in [
+            ("Doppelganger", 0, false, 0),
+            ("Doppelganger+", 0, false, 1),
+            ("Doppelganger", 3, false, 3),
+            ("Doppelganger+", 3, true, 6),
+        ] {
+            let mut engine = engine_with(make_deck_n("Strike", 8), 40, 0);
+            ensure_in_hand(&mut engine, card_id);
+            engine.state.energy = energy;
+            if chemical_x {
+                engine.state.relics.push("Chemical X".to_string());
+            }
+
+            assert!(play_self(&mut engine, card_id));
+            assert_eq!(engine.state.player.status(sid::DOPPELGANGER_DRAW), expected);
+            assert_eq!(engine.state.player.status(sid::DOPPELGANGER_ENERGY), expected);
+            assert_eq!(engine.state.energy, 0);
+            assert!(engine.state.exhaust_pile.iter().any(|c| {
+                engine.card_registry.card_name(c.def_id) == card_id
+            }));
+        }
     }
 
     #[test]
