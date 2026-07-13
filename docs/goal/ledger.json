@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T12:06:19.498455+00:00",
+ "updated": "2026-07-13T12:09:48.413197+00:00",
  "status_counts": {
-  "verified": 479,
-  "unverified": 188
+  "verified": 480,
+  "unverified": 187
  },
  "rows": [
   {
@@ -2362,8 +2362,8 @@
    "class": "Pain",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Pain.java",
    "methods_ref": "reference/extracted/methods/card/Pain.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -322,6 +322,16 @@ fn burn_variants_use_thorns_block_then_buffer_order_at_end_of_turn() {
 
 #[test]
 fn support_wave1_pain_triggers_when_any_other_card_is_played() {
+    // Pain.java is cost -2, has no upgrade, and queues LoseHPAction(1) from
+    // triggerOnOtherCardPlayed. AbstractPlayer.useCard queues card effects
+    // first, then Pain adds its loss to the top so it resolves before them.
+    let registry = global_registry();
+    let pain = registry.get("Pain").expect("Pain is registered");
+    assert_eq!(pain.cost, -2);
+    assert!(pain.runtime_traits().unplayable);
+    assert!(!pain.runtime_traits().ethereal);
+    assert!(registry.get("Pain+").is_none());
+
     let mut engine = engine_without_start(
         Vec::new(),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -334,6 +344,38 @@ fn support_wave1_pain_triggers_when_any_other_card_is_played() {
     assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(hp_before - engine.state.player.hp, 1);
     assert_eq!(hand_count(&engine, "Pain"), 1);
+
+    // The Pain action resolves before Buffer's ApplyPowerAction, so the newly
+    // installed Buffer survives and cannot prevent this HP loss.
+    let mut before_buffer = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut before_buffer);
+    before_buffer.state.hand = make_deck(&["Pain", "Buffer"]);
+    let hp_before = before_buffer.state.player.hp;
+
+    assert!(play_self(&mut before_buffer, "Buffer"));
+    assert_eq!(before_buffer.state.player.hp, hp_before - 1);
+    assert_eq!(before_buffer.state.player.status(sid::BUFFER), 1);
+
+    // CardGroup excludes the played card itself but leaves the other Pain to
+    // trigger; Blue Candle then contributes its own separate LoseHPAction.
+    let mut blue_candle = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        0,
+    );
+    force_player_turn(&mut blue_candle);
+    blue_candle.state.relics.push("Blue Candle".to_string());
+    blue_candle.state.hand = make_deck(&["Pain", "Pain"]);
+    let hp_before = blue_candle.state.player.hp;
+
+    assert!(play_self(&mut blue_candle, "Pain"));
+    assert_eq!(blue_candle.state.player.hp, hp_before - 2);
+    assert_eq!(hand_count(&blue_candle, "Pain"), 1);
+    assert_eq!(exhaust_prefix_count(&blue_candle, "Pain"), 1);
 }
 
 #[test]

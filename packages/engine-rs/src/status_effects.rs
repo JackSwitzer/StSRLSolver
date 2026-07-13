@@ -59,8 +59,10 @@ pub fn process_end_turn_hand_cards(engine: &mut CombatEngine) -> bool {
 
 /// Process Pain curse triggers when ANY card is played.
 ///
-/// Pain: deal 1 HP loss per Pain card in hand. This fires on every card play,
-/// not on draw or end of turn. HP_LOSS type (bypasses block).
+/// Pain: deal 1 HP loss per Pain card in hand. Each trigger adds LoseHPAction
+/// to the top after the played card queues its effects, so these resolve first.
+/// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Pain.java
+/// Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
 ///
 /// Returns `true` if the player died.
 pub fn process_pain_on_card_play(engine: &mut CombatEngine) -> bool {

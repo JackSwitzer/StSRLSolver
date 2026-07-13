@@ -85,7 +85,10 @@ pub fn register_curses(cards: &mut HashMap<&'static str, CardDef>) {
             base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[], complex_hook: None,
         });
-        // Pain: unplayable, lose 1 HP when played from hand
+        // Pain.java is an unplayable, unupgradable Curse. While it remains in
+        // hand, triggerOnOtherCardPlayed queues a separate LoseHPAction(1) for
+        // every other card played.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Pain.java
         insert(cards, CardDef {
             id: "Pain", name: "Pain", card_type: CardType::Curse,
             target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,

@@ -2295,8 +2295,13 @@ impl CombatEngine {
             self.state.hand.remove(hand_idx);
             self.state.cards_played_this_turn += 1;
             self.state.total_cards_played += 1;
+            let pain_killed = status_effects::process_pain_on_card_play(self);
             self.state.exhaust_pile.push(card_inst);
             self.trigger_card_on_exhaust(card_inst);
+            if pain_killed {
+                self.phase = CombatPhase::CombatOver;
+                return;
+            }
             self.resolve_enemy_choke_hp_losses(choke_hp_losses);
             {
                 let ctx = crate::effects::trigger::TriggerContext {
@@ -2320,8 +2325,13 @@ impl CombatEngine {
             self.state.hand.remove(hand_idx);
             self.state.cards_played_this_turn += 1;
             self.state.total_cards_played += 1;
+            let pain_killed = status_effects::process_pain_on_card_play(self);
             self.state.exhaust_pile.push(card_inst);
             self.trigger_card_on_exhaust(card_inst);
+            if pain_killed {
+                self.phase = CombatPhase::CombatOver;
+                return;
+            }
             // BlueCandle.java queues LoseHPAction(1), which uses HP_LOSS damage
             // rather than directly subtracting HP. Preserve the shared
             // Intangible/Buffer/Tungsten Rod pipeline.
@@ -2410,6 +2420,18 @@ impl CombatEngine {
             }
         }
 
+        // AbstractPlayer.useCard invokes hand.triggerOnOtherCardPlayed after
+        // the card's actions are queued. Pain adds LoseHPAction to the top, so
+        // each copy resolves after onPlayCard hooks but before card effects.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Pain.java
+        let pain_killed = status_effects::process_pain_on_card_play(self);
+        if pain_killed {
+            self.phase = CombatPhase::CombatOver;
+            self.clear_runtime_play_contexts();
+            return;
+        }
+
         // Execute effects (last_card_type refers to card played BEFORE this one)
         self.execute_card_effects_with_enemy_on_use(&card, card_inst, target_idx);
 
@@ -2458,14 +2480,6 @@ impl CombatEngine {
                         .push(self.card_registry.make_card("Dazed"));
                 }
             }
-        }
-
-        // Pain curse: deal 1 HP loss per Pain card in hand on every card play
-        let pain_killed = status_effects::process_pain_on_card_play(self);
-        if pain_killed {
-            self.phase = CombatPhase::CombatOver;
-            self.clear_runtime_play_contexts();
-            return;
         }
 
         // ---- Post-effects dispatch: relic + power triggers ----
