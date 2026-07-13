@@ -165,6 +165,14 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
                 amount: 0,
                 replay_window: false,
             });
+
+            // MalleablePower.atEndOfTurn restores a monster's escalating
+            // amount to its constructor basePower after that monster turn.
+            // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/MalleablePower.java.
+            if engine.state.enemies[i].id == "SnakePlant" {
+                let base = engine.state.enemies[i].entity.status(sid::BLOCK_AMT).max(3);
+                engine.state.enemies[i].entity.set_status(sid::MALLEABLE, base);
+            }
         }
     }
 }

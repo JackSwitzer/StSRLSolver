@@ -646,9 +646,13 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "SnakePlant" => {
-            // Has Malleable. First turn: Chomp (7x3)
+            // Source: reference/extracted/methods/monster/SnakePlant.java.
+            // The real opening intent is rolled during combat initialization.
             enemy.set_move(move_ids::SNAKE_CHOMP, 7, 3, 0);
-            enemy.entity.set_status(sid::MALLEABLE, 1);
+            enemy.entity.set_status(sid::STARTING_DMG, 7);
+            enemy.entity.set_status(sid::MALLEABLE, 3);
+            enemy.entity.set_status(sid::BLOCK_AMT, 3);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "Centurion" => {
             // Source: reference/extracted/methods/monster/Centurion.java.
@@ -1565,15 +1569,20 @@ mod tests {
 
     #[test]
     fn test_snake_plant_pattern() {
+        // Source: reference/extracted/methods/monster/SnakePlant.java.
         let mut enemy = create_enemy("SnakePlant", 77, 77);
         assert_eq!(enemy.move_id, move_ids::SNAKE_CHOMP);
         assert_eq!(enemy.move_damage(), 7);
         assert_eq!(enemy.move_hits(), 3);
+        assert_eq!(enemy.entity.status(sid::MALLEABLE), 3);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 64, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SNAKE_CHOMP);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 64);
+        assert_eq!(enemy.move_id, move_ids::SNAKE_CHOMP);
+        roll_next_move_with_num(&mut enemy, 64);
         assert_eq!(enemy.move_id, move_ids::SNAKE_SPORES);
         assert_eq!(enemy.effect(mfx::WEAK), Some(2));
         assert_eq!(enemy.effect(mfx::FRAIL), Some(2));

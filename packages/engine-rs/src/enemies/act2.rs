@@ -242,16 +242,28 @@ pub(super) fn roll_shelled_parasite(
     }
 }
 
-pub(super) fn roll_snake_plant(enemy: &mut EnemyCombatState, _num: i32) {
-    // 65% Chomp (7x3), 35% Spores (Weak 2 + Frail 2). Anti-repeat.
-    if last_two_moves(enemy, move_ids::SNAKE_CHOMP) {
-        enemy.set_move(move_ids::SNAKE_SPORES, 0, 0, 0);
-        enemy.add_effect(mfx::WEAK, 2);
-        enemy.add_effect(mfx::FRAIL, 2);
-    } else if last_move(enemy, move_ids::SNAKE_SPORES) {
-        enemy.set_move(move_ids::SNAKE_CHOMP, 7, 3, 0);
+pub(super) fn roll_snake_plant(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/SnakePlant.java (`getMove`).
+    // A17 forbids Spores if either of the previous two moves was Spores;
+    // lower ascensions only inspect the immediately previous move.
+    let chomp_damage = enemy.entity.status(sid::STARTING_DMG).max(7);
+    let history_len = enemy.move_history.len();
+    let used_spores_two_moves_ago = history_len >= 2
+        && enemy.move_history[history_len - 2] == move_ids::SNAKE_SPORES;
+    let choose_chomp = if num < 65 {
+        !last_two_moves(enemy, move_ids::SNAKE_CHOMP)
+    } else if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
+        last_move(enemy, move_ids::SNAKE_SPORES) || used_spores_two_moves_ago
     } else {
-        enemy.set_move(move_ids::SNAKE_CHOMP, 7, 3, 0);
+        last_move(enemy, move_ids::SNAKE_SPORES)
+    };
+
+    if choose_chomp {
+        enemy.set_move(move_ids::SNAKE_CHOMP, chomp_damage, 3, 0);
+    } else {
+        enemy.set_move(move_ids::SNAKE_SPORES, 0, 0, 0);
+        enemy.add_effect(mfx::FRAIL, 2);
+        enemy.add_effect(mfx::WEAK, 2);
     }
 }
 

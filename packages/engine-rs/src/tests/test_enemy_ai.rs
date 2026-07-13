@@ -418,7 +418,9 @@ mod enemy_ai_java_parity_tests {
 
         let e = make("SnakePlant", 75);
         expect_move(&e, move_ids::SNAKE_CHOMP, 7, 3, 0, &[]);
-        expect_status(&e, sid::MALLEABLE, 1);
+        expect_status(&e, sid::STARTING_DMG, 7);
+        expect_status(&e, sid::MALLEABLE, 3);
+        expect_status(&e, sid::BLOCK_AMT, 3);
 
         let e = make("Centurion", 76);
         expect_move(&e, move_ids::CENT_SLASH, 12, 1, 0, &[]);
@@ -568,13 +570,32 @@ mod enemy_ai_java_parity_tests {
         roll_with_num(&mut a17, 60);
         expect_move(&a17, move_ids::SP_DOUBLE_STRIKE, 6, 2, 0, &[]);
 
+        // Source: reference/extracted/methods/monster/SnakePlant.java.
         let mut e = make("SnakePlant", 75);
-        roll_times(&mut e, 1);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 64, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::SNAKE_CHOMP, 7, 3, 0, &[]);
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 64);
+        expect_move(&e, move_ids::SNAKE_CHOMP, 7, 3, 0, &[]);
+        roll_with_num(&mut e, 64);
         expect_move(&e, move_ids::SNAKE_SPORES, 0, 0, 0, &[(mfx::WEAK, 2), (mfx::FRAIL, 2)]);
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 99);
         expect_move(&e, move_ids::SNAKE_CHOMP, 7, 3, 0, &[]);
+
+        let mut pre_a17 = make("SnakePlant", 75);
+        pre_a17.move_id = move_ids::SNAKE_CHOMP;
+        pre_a17.move_history = vec![move_ids::SNAKE_SPORES];
+        roll_with_num(&mut pre_a17, 99);
+        expect_move(&pre_a17, move_ids::SNAKE_SPORES, 0, 0, 0,
+            &[(mfx::FRAIL, 2), (mfx::WEAK, 2)]);
+
+        let mut a17 = make("SnakePlant", 78);
+        a17.entity.set_status(sid::HIGH_ASCENSION_AI, 1);
+        a17.entity.set_status(sid::STARTING_DMG, 8);
+        a17.move_id = move_ids::SNAKE_CHOMP;
+        a17.move_history = vec![move_ids::SNAKE_SPORES];
+        roll_with_num(&mut a17, 99);
+        expect_move(&a17, move_ids::SNAKE_CHOMP, 8, 3, 0, &[]);
 
         // Centurion.java: low rolls Slash until two consecutive Slashes, then
         // Protects one random ally (or uses Fury when alone).
@@ -1193,7 +1214,7 @@ mod enemy_ai_java_parity_tests {
         let act2_strong = enter_forced_combat(2, 20, RoomType::Monster, 3);
         let combat = act2_strong.get_combat_engine().expect("combat engine");
         assert_eq!(combat.state.enemies[0].id, "SnakePlant");
-        assert_eq!(combat.state.enemies[0].entity.hp, 79);
+        assert!((78..=82).contains(&combat.state.enemies[0].entity.hp));
 
         let act2_elite = enter_forced_combat(2, 20, RoomType::Elite, 0);
         let combat = act2_elite.get_combat_engine().expect("combat engine");

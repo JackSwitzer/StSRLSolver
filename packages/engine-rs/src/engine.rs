@@ -388,7 +388,7 @@ impl CombatEngine {
                 | "Exploder" | "GiantHead" | "Giant Head"
                 | "GremlinLeader" | "Gremlin Leader" | "Healer" | "Mystic"
                 | "Maw" | "Nemesis" | "OrbWalker" | "Orb Walker"
-                | "Reptomancer" | "Repulsor" | "Serpent"
+                | "Reptomancer" | "Repulsor" | "Serpent" | "SnakePlant"
                 | "SpireGrowth" | "Spire Growth")) {
             if enemy.id == "Centurion" {
                 enemy.entity.set_status(sid::COUNT, living_enemy_count);
@@ -3610,9 +3610,12 @@ impl CombatEngine {
                 }
             }
 
-            // Malleable: gain escalating block on hit
+            // Malleable: gain escalating block on a positive, nonlethal
+            // NORMAL hit. Java checks `damageAmount < currentHealth` before
+            // damage, which is equivalent to `enemy_alive` after damage.
+            // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/MalleablePower.java.
             let malleable = self.state.enemies[enemy_idx].entity.status(sid::MALLEABLE);
-            if malleable > 0 {
+            if enemy_alive && malleable > 0 {
                 self.state.enemies[enemy_idx].entity.block += malleable;
                 self.state.enemies[enemy_idx]
                     .entity

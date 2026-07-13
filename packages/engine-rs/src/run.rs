@@ -1897,6 +1897,18 @@ impl RunEngine {
             enemy.entity.block = 14;
         }
 
+        // Sources: reference/extracted/methods/monster/SnakePlant.java and
+        // decompiled/java-src/com/megacrit/cardcrawl/powers/MalleablePower.java.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "SnakePlant") {
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
+                if self.run_state.ascension >= 2 { 8 } else { 7 });
+            enemy.entity.set_status(crate::status_ids::sid::MALLEABLE, 3);
+            // Preserve MalleablePower.basePower separately from its growing amount.
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT, 3);
+            enemy.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI,
+                if self.run_state.ascension >= 17 { 1 } else { 0 });
+        }
+
         // Source: reference/extracted/methods/monster/Centurion.java.
         let monster_count = enemy_states.len() as i32;
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "Centurion") {
@@ -2842,7 +2854,10 @@ impl RunEngine {
                 (hp, hp)
             }
             "SnakePlant" => {
-                let hp = if a20 { 79 } else { 75 };
+                // Source: reference/extracted/methods/monster/SnakePlant.java:
+                // inclusive 75..79, or 78..82 at ascension 7+.
+                let base = if a20 { 78 } else { 75 };
+                let hp = base + self.rng.gen_range(0..=4);
                 (hp, hp)
             }
             "Centurion" => {
@@ -8416,6 +8431,103 @@ mod tests {
             .collect::<Vec<_>>(), ["SlaverBlue", "SlaverBoss", "SlaverRed"]);
         assert_eq!(combat.ai_rng.counter, 3,
             "each Slavers group member consumes its opening rollMove draw");
+    }
+
+    #[test]
+    fn snake_plant_stats_ai_spores_malleable_and_ticks_match_java() {
+        // Source: reference/extracted/methods/monster/SnakePlant.java.
+        // HP is uniformly inclusive, Chomp changes at A2, its AI changes at
+        // A17, and every opening/turn-ending rollMove consumes one aiRng tick.
+        let mut low_hp = std::collections::BTreeSet::new();
+        let mut high_hp = std::collections::BTreeSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("SnakePlant").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("SnakePlant").0);
+        }
+        assert_eq!(low_hp, (75..=79).collect());
+        assert_eq!(high_hp, (78..=82).collect());
+
+        for (ascension, damage, high_ai, hp_range) in [
+            (0, 7, 0, 75..=79),
+            (2, 8, 0, 75..=79),
+            (7, 8, 0, 78..=82),
+            (17, 8, 1, 78..=82),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["SnakePlant".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert!(hp_range.contains(&enemy.entity.hp));
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG), damage);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::MALLEABLE), 3);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::BLOCK_AMT), 3);
+            assert_eq!(enemy.entity.status(
+                crate::status_ids::sid::HIGH_ASCENSION_AI), high_ai);
+            assert!(matches!(enemy.move_id,
+                crate::enemies::move_ids::SNAKE_CHOMP
+                    | crate::enemies::move_ids::SNAKE_SPORES));
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        let mut attack = RunEngine::new(42, 2);
+        attack.enter_specific_combat(vec!["SnakePlant".to_string()]);
+        let combat = attack.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+        combat.state.enemies[0].move_effects.clear();
+        combat.state.enemies[0].set_move(
+            crate::enemies::move_ids::SNAKE_CHOMP, 8, 3, 0);
+        let ai_before = combat.ai_rng.counter;
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.hp, 476);
+        assert_eq!(combat.ai_rng.counter, ai_before + 1);
+
+        let mut spores = RunEngine::new(42, 0);
+        spores.enter_specific_combat(vec!["SnakePlant".to_string()]);
+        let combat = spores.combat_engine.as_mut().unwrap();
+        combat.state.enemies[0].move_effects.clear();
+        combat.state.enemies[0].set_move(
+            crate::enemies::move_ids::SNAKE_SPORES, 0, 0, 0);
+        combat.state.enemies[0].add_effect(crate::combat_types::mfx::FRAIL, 2);
+        combat.state.enemies[0].add_effect(crate::combat_types::mfx::WEAK, 2);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::FRAIL), 2);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::WEAKENED), 2);
+
+        // MalleablePower.onAttacked gains basePower block only from positive,
+        // nonlethal NORMAL HP damage, increments its amount, then resets the
+        // amount to basePower at the end of the monster turn.
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/MalleablePower.java.
+        let mut malleable = RunEngine::new(42, 0);
+        malleable.enter_specific_combat(vec!["SnakePlant".to_string()]);
+        let combat = malleable.combat_engine.as_mut().unwrap();
+        let hp = combat.state.enemies[0].entity.hp;
+        combat.deal_damage_to_enemy(0, 1);
+        assert_eq!(combat.state.enemies[0].entity.hp, hp - 1);
+        assert_eq!(combat.state.enemies[0].entity.block, 3);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::MALLEABLE), 4);
+        combat.deal_damage_to_enemy(0, 5);
+        assert_eq!(combat.state.enemies[0].entity.hp, hp - 3);
+        assert_eq!(combat.state.enemies[0].entity.block, 4);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::MALLEABLE), 5);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::MALLEABLE), 3);
+
+        let mut lethal = RunEngine::new(42, 0);
+        lethal.enter_specific_combat(vec!["SnakePlant".to_string()]);
+        let combat = lethal.combat_engine.as_mut().unwrap();
+        combat.state.enemies[0].entity.hp = 1;
+        combat.state.enemies[0].entity.block = 0;
+        combat.deal_damage_to_enemy(0, 1);
+        assert_eq!(combat.state.enemies[0].entity.block, 0,
+            "a lethal hit must not trigger Malleable");
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::MALLEABLE), 3);
     }
 
     #[test]
