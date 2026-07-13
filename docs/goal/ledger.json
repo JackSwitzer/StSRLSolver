@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T06:11:29.404718+00:00",
+ "updated": "2026-07-13T06:19:58.057095+00:00",
  "status_counts": {
-  "verified": 353,
-  "unverified": 314
+  "verified": 354,
+  "unverified": 313
  },
  "rows": [
   {
@@ -772,8 +772,8 @@
    "class": "Coolheaded",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Coolheaded.java",
    "methods_ref": "reference/extracted/methods/card/Coolheaded.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

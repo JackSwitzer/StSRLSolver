@@ -277,6 +277,26 @@ fn beam_cell_variants_deal_damage_before_vulnerable_for_zero_energy() {
 }
 
 #[test]
+fn coolheaded_plus_channels_one_frost_then_draws_two() {
+    // Source: Coolheaded.java queues ChannelAction(new Frost()) before
+    // DrawCardAction(p, magicNumber), and upgradeMagicNumber(1) makes that draw 2.
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    force_player_turn(&mut engine);
+    engine.init_defect_orbs(1);
+    engine.channel_orb(OrbType::Lightning);
+    engine.state.hand = make_deck(&["Coolheaded+"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Zap"]);
+
+    assert!(play_self(&mut engine, "Coolheaded+"));
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 32);
+    assert_eq!(engine.state.orb_slots.slots.len(), 1);
+    assert_eq!(engine.state.orb_slots.slots[0].orb_type, OrbType::Frost);
+    assert_eq!(engine.state.hand.len(), 2);
+    assert_eq!(engine.state.energy, 2);
+}
+
+#[test]
 fn test_card_runtime_defect_wave2_coolheaded_fusion_darkness_and_rainbow_cover_channel_draw_and_exhaust_paths() {
     let mut coolheaded = engine_without_start(
         Vec::new(),
