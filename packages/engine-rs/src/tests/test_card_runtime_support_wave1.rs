@@ -7,10 +7,13 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Pain.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/status/Void.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Parasite.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Necronomicurse.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
 
 use crate::actions::Action;
 use crate::cards::global_registry;
 use crate::effects::types::{CardRuntimeTrigger, EndTurnHandRule, OnDrawRule, WhileInHandRule};
+use crate::status_ids::sid;
 use crate::tests::support::*;
 
 #[test]
@@ -102,6 +105,43 @@ fn curse_of_the_bell_is_unplayable_unupgradable_non_ethereal_and_unremovable() {
 
     assert_eq!(hand_count(&engine, "CurseOfTheBell"), 1);
     assert_eq!(exhaust_prefix_count(&engine, "CurseOfTheBell"), 0);
+}
+
+#[test]
+fn necronomicurse_is_unplayable_unremovable_and_returns_after_exhaust() {
+    let registry = global_registry();
+    let card = registry.get("Necronomicurse").expect("Necronomicurse");
+    assert_eq!(card.cost, -2);
+    assert!(card.runtime_traits().unplayable);
+    assert!(card.runtime_traits().unremovable);
+    assert!(!card.runtime_traits().ethereal);
+    assert!(registry.get("Necronomicurse+").is_none());
+
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.relics.push("Blue Candle".to_string());
+    engine.state.player.set_status(sid::DARK_EMBRACE, 1);
+    engine.rebuild_effect_runtime();
+    engine.state.hand = make_deck(&[
+        "Necronomicurse", "Defend", "Defend", "Defend", "Defend",
+        "Defend", "Defend", "Defend", "Defend", "Defend",
+    ]);
+    engine.state.draw_pile = make_deck(&["Strike"]);
+
+    assert!(play_self(&mut engine, "Necronomicurse"));
+
+    // CardGroup.moveToExhaustPile calls Dark Embrace before the card's own
+    // trigger. The draw fills the tenth hand slot, so MakeTempCardInHandAction
+    // spills the new curse into discard while the original remains exhausted.
+    assert_eq!(engine.state.player.hp, 79);
+    assert_eq!(hand_count(&engine, "Necronomicurse"), 0);
+    assert_eq!(hand_count(&engine, "Strike"), 1);
+    assert_eq!(discard_prefix_count(&engine, "Necronomicurse"), 1);
+    assert_eq!(exhaust_prefix_count(&engine, "Necronomicurse"), 1);
 }
 
 #[test]

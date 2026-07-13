@@ -65,7 +65,10 @@ pub fn register_curses(cards: &mut HashMap<&'static str, CardDef>) {
             base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[], complex_hook: None,
         });
-        // Necronomicurse: unplayable, cannot be removed
+        // Necronomicurse.java is an unplayable, unupgradable Curse. Its
+        // triggerOnExhaust creates a fresh copy in hand, and master-deck
+        // removal recreates it through NecronomicurseEffect.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Necronomicurse.java
         insert(cards, CardDef {
             id: "Necronomicurse", name: "Necronomicurse", card_type: CardType::Curse,
             target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,

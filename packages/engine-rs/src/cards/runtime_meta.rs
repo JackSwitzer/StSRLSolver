@@ -36,6 +36,8 @@ const WINDMILL_STRIKE_TRIGGERS: &[CardRuntimeTrigger] = &[
 ];
 const SENTINEL_TRIGGERS: &[CardRuntimeTrigger] =
     &[CardRuntimeTrigger::OnExhaust(OnExhaustRule::GainEnergy)];
+const NECRONOMICURSE_TRIGGERS: &[CardRuntimeTrigger] =
+    &[CardRuntimeTrigger::OnExhaust(OnExhaustRule::ReturnCopyToHand)];
 const BLOOD_FOR_BLOOD_TRIGGERS: &[CardRuntimeTrigger] =
     &[CardRuntimeTrigger::ModifyCost(CostModifierRule::ReduceOnHpLoss)];
 const FORCE_FIELD_TRIGGERS: &[CardRuntimeTrigger] =
@@ -186,6 +188,7 @@ pub fn runtime_triggers_for_card(id: &str) -> &'static [CardRuntimeTrigger] {
             WINDMILL_STRIKE_TRIGGERS
         }
         "Sentinel" | "Sentinel+" => SENTINEL_TRIGGERS,
+        "Necronomicurse" => NECRONOMICURSE_TRIGGERS,
         "Blood for Blood" | "Blood for Blood+" => BLOOD_FOR_BLOOD_TRIGGERS,
         "Force Field" | "Force Field+" => FORCE_FIELD_TRIGGERS,
         "Eviscerate" | "Eviscerate+" => EVISCERATE_TRIGGERS,

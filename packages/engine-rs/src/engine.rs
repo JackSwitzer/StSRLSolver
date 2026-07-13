@@ -4335,8 +4335,12 @@ impl CombatEngine {
 
     pub(crate) fn trigger_card_on_exhaust(&mut self, card_inst: CardInstance) {
         let card = self.card_registry.card_def_by_id(card_inst.def_id);
-        crate::effects::card_runtime::apply_on_exhaust(self, card, card_inst);
+        // CardGroup.moveToExhaustPile calls relic/power onExhaust hooks before
+        // the exhausted card's triggerOnExhaust hook. The order is observable
+        // at the hand limit (for example Dark Embrace + Necronomicurse).
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
         self.trigger_on_exhaust();
+        crate::effects::card_runtime::apply_on_exhaust(self, card, card_inst);
     }
 
     /// Obtain a random potion into the first empty potion slot, respecting Sozu.

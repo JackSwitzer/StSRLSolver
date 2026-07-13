@@ -81,6 +81,7 @@ pub enum OnRetainRule {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OnExhaustRule {
     GainEnergy,
+    ReturnCopyToHand,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

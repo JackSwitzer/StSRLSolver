@@ -226,6 +226,12 @@ pub fn apply_on_exhaust(engine: &mut CombatEngine, card: &CardDef, card_inst: Ca
             };
             match rule {
                 OnExhaustRule::GainEnergy => crate::effects::hooks_simple::hook_energy_on_exhaust(engine, &ctx),
+                // Necronomicurse.triggerOnExhaust queues a fresh makeCopy()
+                // through MakeTempCardInHandAction, including hand overflow.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Necronomicurse.java
+                OnExhaustRule::ReturnCopyToHand => {
+                    engine.add_temp_cards_to_hand(card.id, 1);
+                }
             }
         }
     }

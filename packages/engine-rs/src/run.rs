@@ -3387,6 +3387,15 @@ impl RunEngine {
         if card_id == "Parasite" {
             self.run_state.max_hp = (self.run_state.max_hp - 3).max(1);
             self.run_state.current_hp = self.run_state.current_hp.min(self.run_state.max_hp);
+        } else if card_id == "Necronomicurse" {
+            // onRemoveFromMasterDeck constructs NecronomicurseEffect, whose
+            // constructor immediately adds a fresh curse to the master deck.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Necronomicurse.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/vfx/NecronomicurseEffect.java
+            obtain_master_deck_card_state(
+                &mut self.run_state,
+                "Necronomicurse".to_string(),
+            );
         }
     }
 
@@ -9409,5 +9418,18 @@ mod tests {
         let before = engine.run_state.deck.clone();
         engine.add_relic_reward("Pandora's Box");
         assert_eq!(engine.run_state.deck, before);
+    }
+
+    #[test]
+    fn necronomicurse_normal_master_deck_removal_recreates_the_curse() {
+        let mut engine = RunEngine::new(42, 0);
+        engine.run_state.deck = vec!["Necronomicurse".to_string()];
+        engine.run_state.reconcile_deck_card_states();
+
+        assert_eq!(
+            engine.remove_master_deck_card(0),
+            Some("Necronomicurse".to_string())
+        );
+        assert_eq!(engine.run_state.deck, vec!["Necronomicurse"]);
     }
 }
