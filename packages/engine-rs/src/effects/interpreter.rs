@@ -357,10 +357,12 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                 multiplier = ctx.x_value.max(0);
             }
             // WallopAction passes target.lastDamageTaken straight to a
-            // GainBlockAction. Dexterity/Frail already affect card.block during
-            // applyPowers and do not modify this damage-derived action amount.
+            // GainBlockAction, and DoubleYourBlockAction directly adds the
+            // player's current Block. Neither amount re-enters the card
+            // Dexterity/Frail pipeline.
             // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/WallopAction.java
-            let block = if matches!(amount_src, AmountSource::TotalUnblockedDamage) {
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DoubleYourBlockAction.java
+            let block = if matches!(amount_src, AmountSource::TotalUnblockedDamage | AmountSource::PlayerBlock) {
                 base
             } else {
                 let dex = engine.state.player.dexterity();

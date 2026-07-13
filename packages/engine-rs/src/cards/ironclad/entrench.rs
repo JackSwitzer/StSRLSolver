@@ -1,7 +1,10 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // ---- Ironclad Uncommon: Entrench ---- (cost 2, double block; upgrade: cost 1)
+    // Entrench.java queues DoubleYourBlockAction, which directly adds the
+    // player's current Block. Upgrade changes only cost from 2 to 1.
+    // Java: reference/extracted/methods/card/Entrench.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DoubleYourBlockAction.java
     insert(cards, CardDef {
         id: "Entrench",
         name: "Entrench",

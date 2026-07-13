@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T07:48:03.239711+00:00",
+ "updated": "2026-07-13T07:49:40.690499+00:00",
  "status_counts": {
-  "verified": 394,
-  "unverified": 273
+  "verified": 395,
+  "unverified": 272
  },
  "rows": [
   {
@@ -1302,8 +1302,8 @@
    "class": "Entrench",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/Entrench.java",
    "methods_ref": "reference/extracted/methods/card/Entrench.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

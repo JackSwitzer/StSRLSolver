@@ -590,6 +590,30 @@ mod ironclad_card_java_parity_tests {
     }
 
     #[test]
+    fn entrench_doubles_current_block_without_dexterity_or_frail_modifiers() {
+        // DoubleYourBlockAction.java passes currentBlock straight to addBlock;
+        // it does not calculate a card Block amount, so +2 Dexterity and Frail
+        // leave 13 + 13 = 26 for both card variants.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DoubleYourBlockAction.java
+        for (card_id, energy) in [("Entrench", 2), ("Entrench+", 1)] {
+            let mut engine = engine_for(
+                &[card_id],
+                &[],
+                &[],
+                vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
+                energy,
+            );
+            engine.state.player.block = 13;
+            engine.state.player.set_status(sid::DEXTERITY, 2);
+            engine.state.player.set_status(sid::FRAIL, 1);
+
+            assert!(play_self(&mut engine, card_id));
+            assert_eq!(engine.state.player.block, 26);
+            assert_eq!(engine.state.energy, 0);
+        }
+    }
+
+    #[test]
     fn bash_applies_vulnerable() {
         let mut e = engine_with(make_deck_n("Bash", 5), 50, 0);
         ensure_in_hand(&mut e, "Bash");
