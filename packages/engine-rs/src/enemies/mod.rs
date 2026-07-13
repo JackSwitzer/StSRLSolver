@@ -633,9 +633,15 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::MYSTIC_ATTACK, 8, 1, 0);
         }
         "BookOfStabbing" | "Book of Stabbing" => {
-            // Multi-stab. Starts with stabCount=1, increases each turn
-            enemy.set_move(move_ids::BOOK_STAB, 6, 2, 0);
-            enemy.entity.set_status(sid::STAB_COUNT, 2);
+            // A0 constructor and pre-battle values. The actual opener is
+            // selected by getMove during CombatEngine::start_combat.
+            // Java: reference/extracted/methods/monster/BookOfStabbing.java
+            enemy.entity.set_status(sid::STARTING_DMG, 6);
+            enemy.entity.set_status(sid::STR_AMT, 21);
+            enemy.entity.set_status(sid::STAB_COUNT, 0);
+            enemy.entity.set_status(sid::BLOCK_AMT, 0);
+            enemy.entity.set_status(sid::PAINFUL_STABS, 1);
+            enemy.set_move(move_ids::BOOK_STAB, 6, 1, 0);
         }
         "GremlinLeader" | "Gremlin Leader" => {
             // First turn: Rally (summon gremlins)
@@ -1432,14 +1438,14 @@ mod tests {
     #[test]
     fn test_book_of_stabbing_escalation() {
         let mut enemy = create_enemy("BookOfStabbing", 162, 162);
+        // Source: reference/extracted/methods/monster/BookOfStabbing.java.
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 99, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(enemy.move_id, move_ids::BOOK_STAB);
+        assert_eq!(enemy.move_hits(), 1);
+        roll_next_move_with_num(&mut enemy, 99);
         assert_eq!(enemy.move_id, move_ids::BOOK_STAB);
         assert_eq!(enemy.move_hits(), 2);
-
-        // Roll: stab count increments
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::BOOK_STAB);
-        let new_count = enemy.entity.status(sid::STAB_COUNT);
-        assert!(new_count >= 3);
     }
 
     #[test]

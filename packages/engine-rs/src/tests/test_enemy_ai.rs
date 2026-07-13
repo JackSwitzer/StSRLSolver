@@ -421,8 +421,9 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::MYSTIC_ATTACK, 8, 1, 0, &[]);
 
         let e = make("BookOfStabbing", 160);
-        expect_move(&e, move_ids::BOOK_STAB, 6, 2, 0, &[]);
-        expect_status(&e, sid::STAB_COUNT, 2);
+        expect_move(&e, move_ids::BOOK_STAB, 6, 1, 0, &[]);
+        expect_status(&e, sid::PAINFUL_STABS, 1);
+        expect_status(&e, sid::STAB_COUNT, 0);
 
         let e = make("GremlinLeader", 140);
         expect_move(&e, move_ids::GL_RALLY, 0, 0, 0, &[]);
@@ -525,14 +526,36 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::MYSTIC_HEAL, 0, 0, 0, &[(mfx::HEAL_LOWEST_ALLY, 16)]);
 
         let mut e = make("BookOfStabbing", 160);
-        roll_times(&mut e, 1);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 99, &mut crate::seed::StsRandom::new(0));
+        expect_move(&e, move_ids::BOOK_STAB, 6, 1, 0, &[]);
+        expect_status(&e, sid::STAB_COUNT, 1);
+        roll_with_num(&mut e, 99);
+        expect_move(&e, move_ids::BOOK_STAB, 6, 2, 0, &[]);
+        expect_status(&e, sid::STAB_COUNT, 2);
+        roll_with_num(&mut e, 99);
+        expect_move(&e, move_ids::BOOK_BIG_STAB, 21, 1, 0, &[]);
+        expect_status(&e, sid::STAB_COUNT, 2);
+        roll_with_num(&mut e, 14);
         expect_move(&e, move_ids::BOOK_STAB, 6, 3, 0, &[]);
         expect_status(&e, sid::STAB_COUNT, 3);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::BOOK_BIG_STAB, 21, 1, 0, &[]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::BOOK_STAB, 6, 4, 0, &[]);
-        expect_status(&e, sid::STAB_COUNT, 4);
+
+        // A18 increments stabCount even when BIG_STAB is selected.
+        let mut a18 = make("BookOfStabbing", 168);
+        a18.entity.set_status(sid::STARTING_DMG, 7);
+        a18.entity.set_status(sid::STR_AMT, 24);
+        a18.entity.set_status(sid::BLOCK_AMT, 1);
+        roll_initial_move_with_num_and_rng(
+            &mut a18, 14, &mut crate::seed::StsRandom::new(0));
+        expect_move(&a18, move_ids::BOOK_BIG_STAB, 24, 1, 0, &[]);
+        expect_status(&a18, sid::STAB_COUNT, 1);
+        roll_with_num(&mut a18, 14);
+        expect_move(&a18, move_ids::BOOK_STAB, 7, 2, 0, &[]);
+        roll_with_num(&mut a18, 99);
+        expect_move(&a18, move_ids::BOOK_STAB, 7, 3, 0, &[]);
+        roll_with_num(&mut a18, 99);
+        expect_move(&a18, move_ids::BOOK_BIG_STAB, 24, 1, 0, &[]);
+        expect_status(&a18, sid::STAB_COUNT, 4);
 
         let mut e = make("GremlinLeader", 140);
         roll_times(&mut e, 1);

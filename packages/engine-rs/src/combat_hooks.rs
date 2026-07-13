@@ -258,6 +258,16 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             }
 
             if hp_loss > 0 {
+                // PainfulStabsPower.onInflictDamage queues one Wound per
+                // unblocked, non-THORNS hit. Enemy move damage here is NORMAL.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/PainfulStabsPower.java
+                if engine.state.enemies[enemy_idx]
+                    .entity
+                    .status(sid::PAINFUL_STABS) > 0
+                {
+                    engine.state.discard_pile.push(
+                        engine.card_registry.make_card("Wound"));
+                }
                 engine.player_lose_hp(hp_loss);
                 if engine.state.combat_over {
                     return;

@@ -125,20 +125,25 @@ pub(super) fn roll_mystic(enemy: &mut EnemyCombatState, _num: i32) {
     }
 }
 
-pub(super) fn roll_book_of_stabbing(enemy: &mut EnemyCombatState, _num: i32) {
-    // Multi-stab with increasing count. Stab count increases each time multi-stab is used.
+pub(super) fn roll_book_of_stabbing(enemy: &mut EnemyCombatState, num: i32) {
+    // Java: reference/extracted/methods/monster/BookOfStabbing.java (`getMove`).
     let stab_count = enemy.entity.status(sid::STAB_COUNT);
-    if last_two_moves(enemy, move_ids::BOOK_STAB) {
-        enemy.set_move(move_ids::BOOK_BIG_STAB, 21, 1, 0);
-        // Increment stab count on A18+
-    } else if last_move(enemy, move_ids::BOOK_BIG_STAB) {
+    let a18 = enemy.entity.status(sid::BLOCK_AMT) > 0;
+    let stab_damage = enemy.entity.status(sid::STARTING_DMG);
+    let big_stab_damage = enemy.entity.status(sid::STR_AMT);
+    if num < 15 && last_move(enemy, move_ids::BOOK_BIG_STAB) {
         let new_count = stab_count + 1;
         enemy.entity.set_status(sid::STAB_COUNT, new_count);
-        enemy.set_move(move_ids::BOOK_STAB, 6, new_count, 0);
+        enemy.set_move(move_ids::BOOK_STAB, stab_damage, new_count, 0);
+    } else if num < 15 || last_two_moves(enemy, move_ids::BOOK_STAB) {
+        if a18 {
+            enemy.entity.set_status(sid::STAB_COUNT, stab_count + 1);
+        }
+        enemy.set_move(move_ids::BOOK_BIG_STAB, big_stab_damage, 1, 0);
     } else {
         let new_count = stab_count + 1;
         enemy.entity.set_status(sid::STAB_COUNT, new_count);
-        enemy.set_move(move_ids::BOOK_STAB, 6, new_count, 0);
+        enemy.set_move(move_ids::BOOK_STAB, stab_damage, new_count, 0);
     }
 }
 

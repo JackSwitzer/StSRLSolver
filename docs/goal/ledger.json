@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T17:58:11.948631+00:00",
+ "updated": "2026-07-13T18:03:16.296980+00:00",
  "status_counts": {
-  "verified": 586,
-  "unverified": 81
+  "verified": 587,
+  "unverified": 80
  },
  "rows": [
   {
@@ -3792,8 +3792,8 @@
    "class": "BookOfStabbing",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/city/BookOfStabbing.java",
    "methods_ref": "reference/extracted/methods/monster/BookOfStabbing.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

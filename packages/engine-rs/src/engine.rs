@@ -374,7 +374,8 @@ impl CombatEngine {
                 | "Lagavulin" | "Sentry" | "TheGuardian" | "Hexaghost"
                 | "SlimeBoss" | "Apology Slime" | "ApologySlime"
                 | "AwakenedOne" | "Awakened One" | "BanditBear" | "Bear"
-                | "BanditChild" | "BanditPointy" | "Pointy" | "BanditLeader")) {
+                | "BanditChild" | "BanditPointy" | "Pointy" | "BanditLeader"
+                | "BookOfStabbing" | "Book of Stabbing")) {
             crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
         }
 

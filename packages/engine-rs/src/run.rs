@@ -1831,6 +1831,22 @@ impl RunEngine {
             enemy.set_move(crate::enemies::move_ids::BANDIT_MOCK, 0, 0, 0);
         }
 
+        // Source: reference/extracted/methods/monster/BookOfStabbing.java.
+        for enemy in enemy_states.iter_mut().filter(|e| matches!(e.id.as_str(),
+            "BookOfStabbing" | "Book of Stabbing")) {
+            let (stab, big_stab) = if self.run_state.ascension >= 3 {
+                (7, 24)
+            } else {
+                (6, 21)
+            };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, stab);
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT, big_stab);
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if self.run_state.ascension >= 18 { 1 } else { 0 });
+            enemy.entity.set_status(crate::status_ids::sid::STAB_COUNT, 0);
+            enemy.entity.set_status(crate::status_ids::sid::PAINFUL_STABS, 1);
+        }
+
         // Source: reference/extracted/methods/monster/AcidSlime_S.java.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "AcidSlime_S") {
             let damage = if self.run_state.ascension >= 2 { 4 } else { 3 };
@@ -2439,7 +2455,8 @@ impl RunEngine {
                 (hp, hp)
             }
             "BookOfStabbing" => {
-                let hp = if a20 { 168 } else { 160 };
+                let base = if self.run_state.ascension >= 8 { 168 } else { 160 };
+                let hp = base + self.rng.gen_range(0..=4);
                 (hp, hp)
             }
             "TaskMaster" => {
@@ -7782,6 +7799,64 @@ mod tests {
                 assert_eq!(combat.ai_rng.counter, 1);
             }
         }
+    }
+
+    #[test]
+    fn book_of_stabbing_stats_opening_rng_and_painful_stabs_match_java() {
+        // Source: reference/extracted/methods/monster/BookOfStabbing.java.
+        // HP is 160..164 (168..172 at A8), attacks are 6/21 (7/24 at A3),
+        // and every combat begins with Painful Stabs. AbstractMonster.rollMove
+        // consumes one opening aiRng value before getMove chooses Stab/Big Stab.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("BookOfStabbing").0);
+            let mut high = RunEngine::new(seed, 8);
+            high_hp.insert(high.roll_enemy_hp("BookOfStabbing").0);
+        }
+        assert_eq!(low_hp, (160..=164).collect());
+        assert_eq!(high_hp, (168..=172).collect());
+
+        for (ascension, stab, big_stab, a18) in
+            [(0, 6, 21, 0), (3, 7, 24, 0), (8, 7, 24, 0), (18, 7, 24, 1)]
+        {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["BookOfStabbing".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG), stab);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), big_stab);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::BLOCK_AMT), a18);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::PAINFUL_STABS), 1);
+            assert_eq!(combat.ai_rng.counter, 1);
+            match enemy.move_id {
+                crate::enemies::move_ids::BOOK_STAB => {
+                    assert_eq!(enemy.move_damage(), stab);
+                    assert_eq!(enemy.move_hits(),
+                        enemy.entity.status(crate::status_ids::sid::STAB_COUNT));
+                }
+                crate::enemies::move_ids::BOOK_BIG_STAB => {
+                    assert_eq!(enemy.move_damage(), big_stab);
+                    assert_eq!(enemy.move_hits(), 1);
+                }
+                other => panic!("unexpected Book opener {other}"),
+            }
+        }
+
+        // PainfulStabsPower.onInflictDamage adds one Wound for each hit that
+        // deals HP damage. A fully blocked first hit must not add one.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/PainfulStabsPower.java
+        let mut run = RunEngine::new(42, 0);
+        run.enter_specific_combat(vec!["BookOfStabbing".to_string()]);
+        let combat = run.combat_engine.as_mut().unwrap();
+        combat.state.enemies[0].set_move(
+            crate::enemies::move_ids::BOOK_STAB, 6, 2, 0);
+        combat.state.player.block = 6;
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        let wounds = combat.state.discard_pile.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) == "Wound").count();
+        assert_eq!(wounds, 1);
     }
 
     #[test]

@@ -781,18 +781,20 @@ mod enemy_tests {
     // ========== Book of Stabbing (Elite) ==========
 
     #[test] fn book_first_stab() {
-        let e = create_enemy("BookOfStabbing", 162, 162);
+        let mut e = create_enemy("BookOfStabbing", 162, 162);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 99, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, BOOK_STAB);
-        assert!(e.move_hits() >= 2);
+        assert_eq!(e.move_hits(), 1);
     }
     #[test] fn book_stab_count_increases() {
         let mut e = create_enemy("BookOfStabbing", 162, 162);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 99, &mut crate::seed::StsRandom::new(0));
         let initial_hits = e.move_hits();
-        roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
-        // After first turn, stab count should increase
-        if e.move_id == BOOK_STAB {
-            assert!(e.move_hits() >= initial_hits, "Book stab count should not decrease");
-        }
+        roll_next_move_with_num(&mut e, 99);
+        assert_eq!(e.move_id, BOOK_STAB);
+        assert_eq!(e.move_hits(), initial_hits + 1);
     }
 
     // ========== Nemesis (Elite) ==========
