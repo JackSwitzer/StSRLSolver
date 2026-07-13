@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Ironclad Rare: Brutality ---- (cost 0, power, lose 1 HP + draw 1 at turn start; upgrade: innate)
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Brutality.java
+    // Cost 0 and applies one Brutality stack; the upgrade changes only isInnate.
     insert(cards, CardDef {
                 id: "Brutality", name: "Brutality", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,

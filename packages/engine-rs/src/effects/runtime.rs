@@ -930,7 +930,7 @@ impl EffectRuntime {
                 if amount > 0 {
                     engine.heal_player(amount);
                 } else if amount < 0 {
-                    engine.player_lose_hp(-amount);
+                    engine.player_lose_hp_from_damage(-amount);
                 }
             }
             SimpleEffect::RemoveEnemyBlock(target) => {
@@ -1753,7 +1753,11 @@ impl EffectRuntime {
         event: &GameEvent,
     ) {
         match target {
-            Target::Player => engine.deal_damage_to_player(amount),
+            // The only player-targeted declarative damage power is Brutality,
+            // whose Java action is LoseHPAction (HP_LOSS), not normal attack
+            // damage. It bypasses block while retaining HP-loss mitigation.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BrutalityPower.java
+            Target::Player => engine.player_lose_hp_from_damage(amount),
             Target::SelfEntity => {
                 if let EffectOwner::EnemyPower { enemy_idx } = owner {
                     let idx = enemy_idx as usize;

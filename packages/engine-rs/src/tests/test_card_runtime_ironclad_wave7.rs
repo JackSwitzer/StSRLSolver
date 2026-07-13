@@ -119,9 +119,10 @@ fn ironclad_wave7_battle_trance_bloodletting_and_offering_run_through_typed_effe
 }
 
 #[test]
-fn bloodletting_hp_loss_obeys_intangible_and_tungsten_before_gaining_energy() {
+fn bloodletting_hp_loss_obeys_intangible_buffer_and_tungsten_before_gaining_energy() {
     // Source: Bloodletting.java queues LoseHPAction(3) before GainEnergyAction;
-    // HP_LOSS still passes IntangiblePlayerPower and TungstenRod in player.damage.
+    // HP_LOSS still passes IntangiblePlayerPower, BufferPower, and TungstenRod
+    // in AbstractPlayer.damage.
     let mut ordinary = one_enemy_engine("JawWorm", 60);
     ordinary.state.hand = make_deck(&["Bloodletting+"]);
     let hp_before = ordinary.state.player.hp;
@@ -138,6 +139,16 @@ fn bloodletting_hp_loss_obeys_intangible_and_tungsten_before_gaining_energy() {
     assert_eq!(intangible.state.player.hp, hp_before - 1);
     assert_eq!(intangible.state.energy, 5);
     assert_eq!(intangible.state.player.status(sid::HP_LOSS_THIS_COMBAT), 1);
+
+    let mut buffered = one_enemy_engine("JawWorm", 60);
+    buffered.state.player.set_status(sid::BUFFER, 1);
+    buffered.state.hand = make_deck(&["Bloodletting"]);
+    let hp_before = buffered.state.player.hp;
+    assert!(play_self(&mut buffered, "Bloodletting"));
+    assert_eq!(buffered.state.player.hp, hp_before);
+    assert_eq!(buffered.state.player.status(sid::BUFFER), 0);
+    assert_eq!(buffered.state.energy, 5);
+    assert_eq!(buffered.state.player.status(sid::HP_LOSS_THIS_COMBAT), 0);
 
     let mut prevented = one_enemy_engine("JawWorm", 60);
     prevented.state.player.set_status(sid::INTANGIBLE, 1);

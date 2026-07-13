@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T04:31:23.944362+00:00",
+ "updated": "2026-07-13T04:38:01.943757+00:00",
  "status_counts": {
-  "verified": 327,
-  "unverified": 340
+  "verified": 328,
+  "unverified": 339
  },
  "rows": [
   {
@@ -452,8 +452,8 @@
    "class": "Brutality",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/Brutality.java",
    "methods_ref": "reference/extracted/methods/card/Brutality.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

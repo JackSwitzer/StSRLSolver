@@ -1347,18 +1347,7 @@ impl CombatEngine {
         // loss, and ordinary death/revival hooks still run.
         if self.state.blasphemy_active {
             self.state.blasphemy_active = false;
-            let intangible = self.state.player.status(sid::INTANGIBLE) > 0;
-            let after_intangible = damage::apply_hp_loss(99_999, intangible, false);
-            let buffer = self.state.player.status(sid::BUFFER);
-            let hp_loss = if after_intangible > 0 && buffer > 0 {
-                self.state.player.set_status(sid::BUFFER, buffer - 1);
-                0
-            } else {
-                let tungsten = self.state.has_relic("Tungsten Rod")
-                    || self.state.has_relic("TungstenRod");
-                damage::apply_hp_loss(after_intangible, false, tungsten)
-            };
-            self.player_lose_hp(hp_loss);
+            self.player_lose_hp_from_damage(99_999);
             if self.state.combat_over {
                 return;
             }
@@ -1830,10 +1819,7 @@ impl CombatEngine {
         // Constricted: deal Constricted damage to player at end of turn
         let constricted = self.state.player.status(sid::CONSTRICTED);
         if constricted > 0 {
-            let intangible = self.state.player.status(sid::INTANGIBLE) > 0;
-            let has_tungsten = self.state.has_relic("Tungsten Rod");
-            let hp_loss = damage::apply_hp_loss(constricted, intangible, has_tungsten);
-            self.player_lose_hp(hp_loss);
+            self.player_lose_hp_from_damage(constricted);
             if self.state.combat_over {
                 return;
             }
@@ -1849,13 +1835,10 @@ impl CombatEngine {
         // Player poison tick (before enemy turns)
         let player_poison = self.state.player.status(sid::POISON);
         if player_poison > 0 {
-            let intangible = self.state.player.status(sid::INTANGIBLE) > 0;
-            let tungsten_rod = self.state.has_relic("Tungsten Rod");
-            let hp_loss = damage::apply_hp_loss(player_poison, intangible, tungsten_rod);
             // Decrement poison by 1
             let new_poison = player_poison - 1;
             self.state.player.set_status(sid::POISON, new_poison);
-            self.player_lose_hp(hp_loss);
+            self.player_lose_hp_from_damage(player_poison);
             if self.state.combat_over {
                 return;
             }
@@ -2205,18 +2188,7 @@ impl CombatEngine {
             // BlueCandle.java queues LoseHPAction(1), which uses HP_LOSS damage
             // rather than directly subtracting HP. Preserve the shared
             // Intangible/Buffer/Tungsten Rod pipeline.
-            let intangible = self.state.player.status(sid::INTANGIBLE) > 0;
-            let after_intangible = damage::apply_hp_loss(1, intangible, false);
-            let buffer = self.state.player.status(sid::BUFFER);
-            let hp_loss = if after_intangible > 0 && buffer > 0 {
-                self.state.player.set_status(sid::BUFFER, buffer - 1);
-                0
-            } else {
-                let tungsten = self.state.has_relic("Tungsten Rod")
-                    || self.state.has_relic("TungstenRod");
-                damage::apply_hp_loss(after_intangible, false, tungsten)
-            };
-            self.player_lose_hp(hp_loss);
+            self.player_lose_hp_from_damage(1);
             {
                 let ctx = crate::effects::trigger::TriggerContext {
                     card_type: Some(card.card_type),
@@ -2717,6 +2689,32 @@ impl CombatEngine {
 
     /// Centralized player HP loss (bypasses block). Checks fairy revive, fires on_hp_loss relics,
     /// and triggers Rupture.
+    pub(crate) fn player_lose_hp_from_damage(&mut self, amount: i32) {
+        if amount <= 0 {
+            return;
+        }
+
+        // LoseHPAction resolves as HP_LOSS DamageInfo. AbstractPlayer.damage
+        // applies Intangible first, skips block for HP_LOSS, then lets Buffer
+        // reduce positive damage to zero before Tungsten Rod's onLoseHpLast.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/LoseHPAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BufferPower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/TungstenRod.java
+        let intangible = self.state.player.status(sid::INTANGIBLE) > 0;
+        let after_intangible = damage::apply_hp_loss(amount, intangible, false);
+        let buffer = self.state.player.status(sid::BUFFER);
+        if after_intangible > 0 && buffer > 0 {
+            self.state.player.set_status(sid::BUFFER, buffer - 1);
+            return;
+        }
+
+        let tungsten = self.state.has_relic("Tungsten Rod")
+            || self.state.has_relic("TungstenRod");
+        let hp_loss = damage::apply_hp_loss(after_intangible, false, tungsten);
+        self.player_lose_hp(hp_loss);
+    }
+
     pub fn player_lose_hp(&mut self, amount: i32) {
         if amount <= 0 {
             return;

@@ -8,6 +8,7 @@ mod ironclad_card_java_parity_tests {
     use crate::tests::support::{
         combat_state_with, ensure_in_hand, engine_with, engine_with_enemies, force_player_turn,
         make_deck, make_deck_n, play_card, play_on_enemy, play_self, TEST_SEED, enemy,
+        enemy_no_intent,
         discard_prefix_count, exhaust_prefix_count,
     };
     use crate::cards::{CardDef, CardRegistry, CardTarget, CardType};
@@ -302,6 +303,56 @@ mod ironclad_card_java_parity_tests {
     card_pair_test!(berserk, "Berserk", "Berserk+", 0, -1, -1, 2, 0, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false);
     card_pair_test!(bludgeon, "Bludgeon", "Bludgeon+", 3, 32, -1, -1, 3, 42, -1, -1, CardType::Attack, CardTarget::Enemy, false);
     card_pair_test!(brutality, "Brutality", "Brutality+", 0, -1, -1, 1, 0, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false);
+
+    #[test]
+    fn brutality_applies_one_post_draw_hp_loss_stack_and_upgrade_is_innate_only() {
+        // Brutality.java applies exactly one stack for zero energy; its upgrade
+        // changes only isInnate. BrutalityPower.atStartOfTurnPostDraw queues one
+        // draw before LoseHPAction(amount), whose HP_LOSS damage can be stopped
+        // by Buffer without touching block.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Brutality.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BrutalityPower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/LoseHPAction.java
+        let base = card("Brutality");
+        let plus = card("Brutality+");
+        assert!(!base.runtime_traits().innate);
+        assert!(plus.runtime_traits().innate);
+        assert_eq!(
+            crate::powers::defs::DEF_BRUTALITY.triggers[0].trigger,
+            crate::effects::trigger::Trigger::TurnStartPostDraw,
+        );
+
+        for (card_id, buffered) in [("Brutality", false), ("Brutality+", true)] {
+            let mut engine = engine_for(
+                &[card_id],
+                &["Strike", "Defend", "Bash", "Inflame", "Anger", "Cleave"],
+                &[],
+                vec![enemy_no_intent("Dummy", 60, 60)],
+                0,
+            );
+            if buffered {
+                engine.state.player.set_status(sid::BUFFER, 1);
+                engine.state.player.block = 7;
+            }
+            let hp_before = engine.state.player.hp;
+
+            assert!(play_self(&mut engine, card_id));
+            assert_eq!(engine.state.player.status(sid::BRUTALITY), 1);
+            assert_eq!(engine.state.energy, 0);
+            engine.execute_action(&Action::EndTurn);
+
+            assert_eq!(engine.state.turn, 2, "{card_id}");
+            assert_eq!(engine.state.hand.len(), 6, "{card_id}");
+            if buffered {
+                assert_eq!(engine.state.player.hp, hp_before, "{card_id}");
+                assert_eq!(engine.state.player.status(sid::BUFFER), 0, "{card_id}");
+                assert_eq!(engine.state.player.block, 0, "old block clears before draw");
+            } else {
+                assert_eq!(engine.state.player.hp, hp_before - 1, "{card_id}");
+                assert_eq!(engine.state.player.status(sid::HP_LOSS_THIS_COMBAT), 1);
+            }
+        }
+    }
     card_pair_test!(corruption, "Corruption", "Corruption+", 3, -1, -1, -1, 2, -1, -1, -1, CardType::Power, CardTarget::SelfTarget, false);
     card_pair_test!(demon_form, "Demon Form", "Demon Form+", 3, -1, -1, 2, 3, -1, -1, 3, CardType::Power, CardTarget::None, false);
     card_pair_test!(double_tap, "Double Tap", "Double Tap+", 1, -1, -1, 1, 1, -1, -1, 2, CardType::Skill, CardTarget::SelfTarget, false);

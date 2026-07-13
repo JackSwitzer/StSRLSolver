@@ -91,19 +91,19 @@ pub static DEF_NOXIOUS_FUMES: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Brutality — TurnStart: draw 1 card, lose HP equal to stacks
+// Brutality — TurnStartPostDraw: draw 1 card, lose HP equal to stacks
 // ===========================================================================
 
-// Brutality loses HP equal to stacks. DealDamage(Player, ...) routes through
-// player_lose_hp which handles the HP loss correctly (ModifyHp with positive
-// StatusValue would heal instead).
+// BrutalityPower.atStartOfTurnPostDraw queues DrawCardAction followed by
+// LoseHPAction for its stack amount.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BrutalityPower.java
 static BRUTALITY_EFFECTS: [Effect; 2] = [
     Effect::Simple(SimpleEffect::DrawCards(AmountSource::StatusValue(sid::BRUTALITY))),
     Effect::Simple(SimpleEffect::DealDamage(Target::Player, AmountSource::StatusValue(sid::BRUTALITY))),
 ];
 
 static BRUTALITY_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnStart,
+    trigger: Trigger::TurnStartPostDraw,
     condition: TriggerCondition::Always,
     effects: &BRUTALITY_EFFECTS,
     counter: None,
@@ -561,7 +561,7 @@ mod tests {
     #[test]
     fn test_all_simple_turn_start_defs_have_correct_trigger() {
         let defs = [
-            &DEF_DEMON_FORM, &DEF_NOXIOUS_FUMES, &DEF_BRUTALITY,
+            &DEF_DEMON_FORM, &DEF_NOXIOUS_FUMES,
             &DEF_BERSERK, &DEF_INFINITE_BLADES, &DEF_BATTLE_HYMN,
             &DEF_WRAITH_FORM, &DEF_DEVA_FORM,
             &DEF_HELLO_WORLD, &DEF_MAGNETISM,
@@ -572,6 +572,9 @@ mod tests {
             assert!(!def.triggers.is_empty());
             assert_eq!(def.triggers[0].trigger, Trigger::TurnStart);
         }
+        // BrutalityPower overrides atStartOfTurnPostDraw, not atStartOfTurn.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BrutalityPower.java
+        assert_eq!(DEF_BRUTALITY.triggers[0].trigger, Trigger::TurnStartPostDraw);
         assert_eq!(DEF_DEVOTION.triggers[0].trigger, Trigger::TurnStartPostDraw);
     }
 

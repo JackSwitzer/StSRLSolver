@@ -217,7 +217,7 @@ fn execute_scaled_attack_damage(
             }
         }
         Target::Player | Target::SelfEntity => {
-            engine.player_lose_hp(base_damage);
+            engine.player_lose_hp_from_damage(base_damage);
         }
     }
 }
@@ -389,14 +389,10 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                 engine.heal_player(amount);
             } else if amount < 0 {
                 // LoseHPAction uses HP_LOSS DamageInfo: it bypasses block but
-                // still runs IntangiblePlayerPower and TungstenRod reductions.
+                // still runs Intangible, Buffer, and Tungsten Rod reductions.
                 // Sources: LoseHPAction.java, IntangiblePlayerPower.java,
-                // TungstenRod.java, and AbstractPlayer.java::damage.
-                let intangible = engine.state.player.status(sid::INTANGIBLE) > 0;
-                let tungsten = engine.state.has_relic("Tungsten Rod")
-                    || engine.state.has_relic("TungstenRod");
-                let hp_loss = damage::apply_hp_loss(-amount, intangible, tungsten);
-                engine.player_lose_hp(hp_loss);
+                // BufferPower.java, TungstenRod.java, and AbstractPlayer.java::damage.
+                engine.player_lose_hp_from_damage(-amount);
             }
         }
 
@@ -1122,12 +1118,12 @@ fn deal_flat_damage(
 ) {
     match target {
         Target::Player => {
-            engine.player_lose_hp(amount);
+            engine.player_lose_hp_from_damage(amount);
         }
         // Card effects do not currently install owner-aware runtime handlers.
         // Treat SelfEntity as player until self-owned status handlers become explicit.
         Target::SelfEntity => {
-            engine.player_lose_hp(amount);
+            engine.player_lose_hp_from_damage(amount);
         }
         Target::SelectedEnemy => {
             let idx = ctx.target_idx;
