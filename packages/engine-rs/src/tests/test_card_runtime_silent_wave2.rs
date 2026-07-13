@@ -329,6 +329,49 @@ mod silent_wave2 {
     }
 
     #[test]
+    fn sneaky_strike_refund_survives_mid_fight_kill_but_not_final_lethal() {
+        // SneakyStrike.java queues DamageAction before
+        // GainEnergyIfDiscardAction(2), and carries STRIKE. With Strike Dummy
+        // and one Strength, upgraded damage is 20. DamageAction preserves the
+        // queued refund when another monster lives but clears it on victory.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/SneakyStrike.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/GainEnergyIfDiscardAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/StrikeDummy.java
+        let mut mid_fight = engine_for(
+            &["Sneaky Strike+"],
+            &[],
+            &[],
+            vec![
+                enemy("JawWorm", 20, 20, 1, 0, 1),
+                enemy("Cultist", 40, 40, 1, 0, 1),
+            ],
+            2,
+        );
+        mid_fight.state.relics.push("StrikeDummy".to_string());
+        mid_fight.state.player.set_status(sid::STRENGTH, 1);
+        mid_fight.state.player.set_status(sid::DISCARDED_THIS_TURN, 1);
+
+        assert!(play_on_enemy(&mut mid_fight, "Sneaky Strike+", 0));
+        assert_eq!(mid_fight.state.enemies[0].entity.hp, 0);
+        assert_eq!(mid_fight.state.energy, 2);
+
+        let mut final_kill = engine_for(
+            &["Sneaky Strike+"],
+            &[],
+            &[],
+            vec![enemy("JawWorm", 20, 20, 1, 0, 1)],
+            2,
+        );
+        final_kill.state.relics.push("StrikeDummy".to_string());
+        final_kill.state.player.set_status(sid::STRENGTH, 1);
+        final_kill.state.player.set_status(sid::DISCARDED_THIS_TURN, 1);
+
+        assert!(play_on_enemy(&mut final_kill, "Sneaky Strike+", 0));
+        assert_eq!(final_kill.state.enemies[0].entity.hp, 0);
+        assert_eq!(final_kill.state.energy, 0);
+    }
+
+    #[test]
     fn silent_wave2_upgraded_variants_keep_the_same_runtime_shape() {
         let reg = global_registry();
 
