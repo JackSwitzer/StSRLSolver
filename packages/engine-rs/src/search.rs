@@ -1169,6 +1169,7 @@ pub(crate) fn run_state_hash(engine: &RunEngine) -> u64 {
     engine.run_state.run_won.hash(&mut hasher);
     engine.run_state.run_over.hash(&mut hasher);
     engine.run_state.deck.hash(&mut hasher);
+    engine.run_state.deck_card_states.hash(&mut hasher);
     engine.run_state.relics.hash(&mut hasher);
     engine.run_state.potions.hash(&mut hasher);
     engine.run_state.combats_won.hash(&mut hasher);

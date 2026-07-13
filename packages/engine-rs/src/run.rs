@@ -344,6 +344,11 @@ pub struct RunState {
     pub act: i32,
     pub ascension: i32,
     pub deck: Vec<String>,
+    /// Per-card persistent state aligned with `deck`. The string deck remains
+    /// the public/run-action surface; this snapshot carries Java CardSave.misc
+    /// across combats for cards such as Genetic Algorithm.
+    #[serde(default)]
+    pub deck_card_states: Vec<crate::combat_types::CardInstance>,
     pub relics: Vec<String>,
     pub potions: Vec<String>,
     pub max_potions: usize,
@@ -493,7 +498,11 @@ fn obtain_master_deck_card_state(run_state: &mut RunState, card_id: String) {
         return;
     }
     let card_id = upgrade_obtained_card_for_eggs(run_state, &card_id);
-    run_state.deck.push(card_id);
+    run_state.reconcile_deck_card_states();
+    run_state.deck.push(card_id.clone());
+    run_state
+        .deck_card_states
+        .push(crate::cards::global_registry().make_card(&card_id));
     // DarkstonePeriapt.java calls increaseMaxHp(6, true) after an obtained
     // curse. AbstractCreature.java increases max HP, then heals through the
     // ordinary relic-modified healing path.
@@ -549,6 +558,12 @@ impl RunState {
         let mut relic_flags = crate::relic_flags::RelicFlags::default();
         relic_flags.rebuild(&relics);
 
+        let registry = crate::cards::global_registry();
+        let deck_card_states = deck
+            .iter()
+            .map(|card_id| registry.make_card(card_id))
+            .collect();
+
         Self {
             current_hp: max_hp,
             max_hp,
@@ -557,6 +572,7 @@ impl RunState {
             act: 1,
             ascension,
             deck,
+            deck_card_states,
             relics,
             potions: vec!["".to_string(); 3],
             max_potions: 3,
@@ -581,6 +597,36 @@ impl RunState {
             event_shop_chance: default_event_shop_chance(),
             event_treasure_chance: default_event_treasure_chance(),
         }
+    }
+
+    fn reconcile_deck_card_states(&mut self) {
+        let registry = crate::cards::global_registry();
+        let mut prior = std::mem::take(&mut self.deck_card_states);
+        let mut reconciled = Vec::with_capacity(self.deck.len());
+
+        for card_id in &self.deck {
+            let mut card = registry.make_card(card_id);
+            let base_id = card_id.trim_end_matches('+');
+            if let Some(index) = prior.iter().position(|candidate| {
+                candidate.def_id != u16::MAX
+                    && registry
+                        .card_name(candidate.def_id)
+                        .trim_end_matches('+')
+                        == base_id
+            }) {
+                // Upgrade operations keep misc; transforms construct a fresh
+                // card and therefore do not match by base ID.
+                card.misc = prior.remove(index).misc;
+            }
+            reconciled.push(card);
+        }
+
+        self.deck_card_states = reconciled;
+    }
+
+    fn combat_deck_instances(&mut self) -> Vec<crate::combat_types::CardInstance> {
+        self.reconcile_deck_card_states();
+        self.deck_card_states.clone()
     }
 }
 
@@ -1956,9 +2002,7 @@ impl RunEngine {
 
         // Create combat state — convert deck strings to CardInstance
         let registry = crate::cards::global_registry();
-        let mut deck_instances: Vec<crate::combat_types::CardInstance> = self.run_state.deck.iter()
-            .map(|name| registry.make_card(name))
-            .collect();
+        let mut deck_instances = self.run_state.combat_deck_instances();
         if let Some(bottled) = self.run_state.bottled_flame_card.as_deref() {
             if let Some(card) = deck_instances.iter_mut().find(|card| {
                 registry.card_name(card.def_id).trim_end_matches('+')
@@ -2426,6 +2470,7 @@ impl RunEngine {
                     .iter()
                     .map(|card| engine.card_registry.card_name(card.def_id).to_string())
                     .collect();
+                self.run_state.deck_card_states = engine.state.master_deck.clone();
                 self.run_state.relic_flags.counters = engine.state.relic_counters;
                 self.run_state.lizard_tail_used = engine
                     .state
@@ -2466,6 +2511,7 @@ impl RunEngine {
                     .iter()
                     .map(|card| engine.card_registry.card_name(card.def_id).to_string())
                     .collect();
+                self.run_state.deck_card_states = engine.state.master_deck.clone();
                 if engine.state.pending_run_gold > 0
                     && !self
                         .run_state
@@ -3335,7 +3381,9 @@ impl RunEngine {
         if deck_index >= self.run_state.deck.len() {
             return None;
         }
+        self.run_state.reconcile_deck_card_states();
         let removed = self.run_state.deck.remove(deck_index);
+        self.run_state.deck_card_states.remove(deck_index);
         self.apply_master_deck_removal_hook(&removed);
         Some(removed)
     }

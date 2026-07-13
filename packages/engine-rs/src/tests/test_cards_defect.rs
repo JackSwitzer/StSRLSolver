@@ -200,7 +200,7 @@ mod defect_card_java_parity_tests {
             StatCase { id: "Fusion", cost: 2, damage: -1, block: -1, magic: 1, card_type: CardType::Skill, exhaust: false },
             StatCase { id: "Fusion+", cost: 1, damage: -1, block: -1, magic: 1, card_type: CardType::Skill, exhaust: false },
             StatCase { id: "Genetic Algorithm", cost: 1, damage: -1, block: 1, magic: 2, card_type: CardType::Skill, exhaust: true },
-            StatCase { id: "Genetic Algorithm+", cost: 1, damage: -1, block: 0, magic: 3, card_type: CardType::Skill, exhaust: true },
+            StatCase { id: "Genetic Algorithm+", cost: 1, damage: -1, block: 1, magic: 3, card_type: CardType::Skill, exhaust: true },
             StatCase { id: "Glacier", cost: 2, damage: -1, block: 7, magic: 2, card_type: CardType::Skill, exhaust: false },
             StatCase { id: "Glacier+", cost: 2, damage: -1, block: 10, magic: 2, card_type: CardType::Skill, exhaust: false },
             StatCase { id: "Heatsinks", cost: 1, damage: -1, block: -1, magic: 1, card_type: CardType::Power, exhaust: false },

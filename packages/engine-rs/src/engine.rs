@@ -1302,6 +1302,37 @@ impl CombatEngine {
         }
     }
 
+    pub(crate) fn sync_genetic_algorithm_master_deck(
+        &mut self,
+        before: CardInstance,
+        next_block: i16,
+    ) {
+        // IncreaseMiscAction updates both the combat instance and the matching
+        // UUID in AbstractDungeon.player.masterDeck. CardInstance has no UUID,
+        // but equal same-definition/misc copies are behaviorally interchangeable,
+        // so updating one matching member preserves the exact state multiset.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/IncreaseMiscAction.java
+        let def = self.card_registry.card_def_by_id(before.def_id);
+        let previous_block = if before.misc >= 0 {
+            before.misc
+        } else {
+            def.base_block.max(0) as i16
+        };
+        if let Some(card) = self.state.master_deck.iter_mut().find(|card| {
+            if card.def_id != before.def_id {
+                return false;
+            }
+            let current = if card.misc >= 0 {
+                card.misc
+            } else {
+                def.base_block.max(0) as i16
+            };
+            current == previous_block
+        }) {
+            card.misc = next_block;
+        }
+    }
+
     pub(crate) fn move_forethought_cards_to_bottom(&mut self, indices: &[usize]) {
         // HandCardSelectScreen.addToTop preserves click order, and each
         // moveToBottomOfDeck inserts at index zero. Capture the selected cards

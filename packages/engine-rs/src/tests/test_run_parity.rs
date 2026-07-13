@@ -441,4 +441,56 @@ mod run_java_parity_tests {
         assert!(engine.run_state.deck.iter().any(|card| card == "Wallop+"));
         assert!(!engine.run_state.deck.iter().any(|card| card == "Wallop"));
     }
+
+    // IncreaseMiscAction updates the matching card in player.masterDeck, and
+    // CardSave persists misc between combats.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/IncreaseMiscAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardSave.java
+    #[test]
+    fn genetic_algorithm_misc_syncs_through_run_state_into_the_next_combat() {
+        let mut engine = RunEngine::new(42, 0);
+        engine.run_state.deck = vec!["Genetic Algorithm".to_string()];
+        engine.run_state.deck_card_states.clear();
+        resolve_opening_neow(&mut engine);
+        set_first_reachable_room(&mut engine, RoomType::Monster);
+        let path = engine.get_legal_actions()[0].clone();
+        engine.step(&path);
+
+        let genetic_idx = engine
+            .get_combat_engine()
+            .expect("combat active")
+            .state
+            .hand
+            .iter()
+            .position(|card| {
+                engine
+                    .get_combat_engine()
+                    .expect("combat active")
+                    .card_registry
+                    .card_name(card.def_id)
+                    == "Genetic Algorithm"
+            })
+            .expect("Genetic Algorithm drawn");
+        engine.step(&RunAction::CombatAction(Action::PlayCard {
+            card_idx: genetic_idx,
+            target_idx: -1,
+        }));
+        assert_eq!(
+            engine
+                .get_combat_engine()
+                .expect("combat active")
+                .state
+                .player
+                .block,
+            1,
+        );
+
+        engine.debug_force_current_combat_outcome(true);
+        engine.debug_resolve_current_combat_outcome();
+        assert_eq!(engine.run_state.deck_card_states[0].misc, 3);
+
+        engine.debug_enter_specific_combat(&["JawWorm"]);
+        let next = engine.get_combat_engine().expect("next combat active");
+        assert_eq!(next.state.master_deck[0].misc, 3);
+    }
 }

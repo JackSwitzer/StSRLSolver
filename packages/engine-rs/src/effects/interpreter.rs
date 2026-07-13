@@ -719,6 +719,7 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
         SimpleEffect::ModifyPlayedCardBlock(ref amount_src) => {
             let delta = resolve_card_amount(engine, ctx, amount_src);
             if let Some(mut card) = engine.runtime_played_card {
+                let before = card;
                 let current = if card.misc >= 0 {
                     card.misc as i32
                 } else {
@@ -728,6 +729,9 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                 card.misc = next;
                 ctx.card_inst.misc = next;
                 engine.runtime_played_card = Some(card);
+                if matches!(ctx.card.id, "Genetic Algorithm" | "Genetic Algorithm+") {
+                    engine.sync_genetic_algorithm_master_deck(before, next);
+                }
             }
         }
 

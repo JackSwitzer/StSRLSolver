@@ -45,8 +45,8 @@ fn defect_wave15_registry_exports_typed_and_blocked_cards_honestly() {
     assert_eq!(
         genetic.effect_data,
         &[
-            E::Simple(SE::ModifyPlayedCardBlock(A::Magic)),
             E::Simple(SE::GainBlock(A::Block)),
+            E::Simple(SE::ModifyPlayedCardBlock(A::Magic)),
         ]
     );
     assert!(genetic.complex_hook.is_none());

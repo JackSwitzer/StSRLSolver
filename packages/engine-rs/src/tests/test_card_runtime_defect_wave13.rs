@@ -41,8 +41,8 @@ fn test_card_runtime_defect_wave13_registry_exports_blocked_melter_surface() {
     assert_eq!(
         genetic.effect_data,
         &[
-            E::Simple(SE::ModifyPlayedCardBlock(A::Magic)),
             E::Simple(SE::GainBlock(A::Block)),
+            E::Simple(SE::ModifyPlayedCardBlock(A::Magic)),
         ]
     );
     assert!(genetic.complex_hook.is_none());

@@ -852,6 +852,8 @@ impl EffectRuntime {
             SimpleEffect::ModifyPlayedCardBlock(amount_src) => {
                 let delta = self.resolve_amount(engine, instance_idx, owner, amount_src);
                 if let Some(mut card) = engine.runtime_played_card {
+                    let before = card;
+                    let def_id = card.def_id;
                     let current = if card.misc >= 0 {
                         card.misc as i32
                     } else {
@@ -863,6 +865,10 @@ impl EffectRuntime {
                     let next = (current + delta).max(0) as i16;
                     card.misc = next;
                     engine.runtime_played_card = Some(card);
+                    let card_id = engine.card_registry.card_def_by_id(def_id).id;
+                    if matches!(card_id, "Genetic Algorithm" | "Genetic Algorithm+") {
+                        engine.sync_genetic_algorithm_master_deck(before, next);
+                    }
                 }
             }
             SimpleEffect::ModifyPlayedCardDamage(amount_src) => {
