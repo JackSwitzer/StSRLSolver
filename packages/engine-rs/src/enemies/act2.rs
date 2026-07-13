@@ -1,5 +1,5 @@
 use crate::state::EnemyCombatState;
-use crate::combat_types::mfx;
+use crate::combat_types::{fx, mfx, Intent};
 use super::{last_move, last_two_moves};
 use super::move_ids;
 use crate::status_ids::sid;
@@ -172,16 +172,73 @@ pub(super) fn roll_byrd(
     }
 }
 
-pub(super) fn roll_shelled_parasite(enemy: &mut EnemyCombatState, _num: i32) {
-    // Cycle: Double Strike (6x2), Life Suck (10), Fell (18 + Frail 2)
-    if last_move(enemy, move_ids::SP_DOUBLE_STRIKE) {
-        enemy.set_move(move_ids::SP_LIFE_SUCK, 10, 1, 0);
-        enemy.add_effect(mfx::HEAL, 10);
-    } else if last_move(enemy, move_ids::SP_LIFE_SUCK) {
-        enemy.set_move(move_ids::SP_FELL, 18, 1, 0);
+pub(super) fn roll_shelled_parasite(
+    enemy: &mut EnemyCombatState,
+    num: i32,
+    ai_rng: &mut crate::seed::StsRandom,
+) {
+    // Source: reference/extracted/methods/monster/ShelledParasite.java
+    // (`getMove`).
+    let double_damage = enemy.entity.status(sid::STARTING_DMG).max(6);
+    let fell_damage = enemy.entity.status(sid::STR_AMT).max(18);
+    let suck_damage = enemy.entity.status(sid::BLOCK_AMT).max(10);
+    let fell = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::SP_FELL, fell_damage, 1, 0);
         enemy.add_effect(mfx::FRAIL, 2);
-    } else {
-        enemy.set_move(move_ids::SP_DOUBLE_STRIKE, 6, 2, 0);
+        enemy.intent = Intent::AttackDebuff {
+            damage: fell_damage as i16,
+            hits: 1,
+            effects: fx::FRAIL,
+        };
+    };
+    let double_strike = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::SP_DOUBLE_STRIKE, double_damage, 2, 0);
+    };
+    let life_suck = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::SP_LIFE_SUCK, suck_damage, 1, 0);
+        enemy.add_effect(mfx::HEAL, suck_damage as i16);
+        enemy.intent = Intent::AttackBuff {
+            damage: suck_damage as i16,
+            hits: 1,
+            effects: 0,
+        };
+    };
+
+    if enemy.entity.status(sid::FIRST_MOVE) > 0 {
+        enemy.entity.set_status(sid::FIRST_MOVE, 0);
+        if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
+            fell(enemy);
+        } else if ai_rng.random_boolean() {
+            double_strike(enemy);
+        } else {
+            life_suck(enemy);
+        }
+        return;
+    }
+
+    let mut roll = num;
+    loop {
+        if roll < 20 {
+            if !last_move(enemy, move_ids::SP_FELL) {
+                fell(enemy);
+                return;
+            }
+            roll = ai_rng.random_range(20, 99);
+        } else if roll < 60 {
+            if !last_two_moves(enemy, move_ids::SP_DOUBLE_STRIKE) {
+                double_strike(enemy);
+            } else {
+                life_suck(enemy);
+            }
+            return;
+        } else {
+            if !last_two_moves(enemy, move_ids::SP_LIFE_SUCK) {
+                life_suck(enemy);
+            } else {
+                double_strike(enemy);
+            }
+            return;
+        }
     }
 }
 

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T20:26:18.173607+00:00",
+ "updated": "2026-07-13T20:34:15.855176+00:00",
  "status_counts": {
-  "verified": 609,
-  "unverified": 58
+  "verified": 610,
+  "unverified": 57
  },
  "rows": [
   {
@@ -4192,8 +4192,8 @@
    "class": "ShelledParasite",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/city/ShelledParasite.java",
    "methods_ref": "reference/extracted/methods/monster/ShelledParasite.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

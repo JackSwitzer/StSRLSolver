@@ -248,7 +248,7 @@ const ACT1_BOSSES: &[&str] = &["TheGuardian", "Hexaghost", "SlimeBoss"];
 const ACT2_WEAK_ENCOUNTERS: &[&[&str]] = &[
     &["Byrd", "Byrd"],
     &["Chosen"],
-    &["ShelledParasite"],
+    &["Shelled Parasite"],
     &["Cultist", "Chosen"],
 ];
 
@@ -258,7 +258,7 @@ const ACT2_STRONG_ENCOUNTERS: &[&[&str]] = &[
     &["Cultist", "Cultist", "Cultist"],
     &["Byrd", "Byrd", "Byrd"],
     &["Chosen", "Cultist"],
-    &["ShelledParasite", "FungiBeast"],
+    &["Shelled Parasite", "FungiBeast"],
 ];
 
 const ACT2_ELITE_ENCOUNTERS: &[&[&str]] = &[
@@ -1878,6 +1878,25 @@ impl RunEngine {
             enemy.set_move(crate::enemies::move_ids::BYRD_PECK, 1, peck_count, 0);
         }
 
+        // Source: reference/extracted/methods/monster/ShelledParasite.java.
+        // Damage changes at A2, its opener is forced to Fell at A17, and
+        // usePreBattleAction grants both 14 Plated Armor and 14 block.
+        for enemy in enemy_states.iter_mut().filter(|e| matches!(e.id.as_str(),
+            "Shelled Parasite" | "ShelledParasite"))
+        {
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
+                if self.run_state.ascension >= 2 { 7 } else { 6 });
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
+                if self.run_state.ascension >= 2 { 21 } else { 18 });
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if self.run_state.ascension >= 2 { 12 } else { 10 });
+            enemy.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI,
+                if self.run_state.ascension >= 17 { 1 } else { 0 });
+            enemy.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(crate::status_ids::sid::PLATED_ARMOR, 14);
+            enemy.entity.block = 14;
+        }
+
         // Source: reference/extracted/methods/monster/Centurion.java.
         let monster_count = enemy_states.len() as i32;
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "Centurion") {
@@ -2798,8 +2817,15 @@ impl RunEngine {
                 let hp = base + self.rng.gen_range(0..=width);
                 (hp, hp)
             }
-            "ShelledParasite" => {
-                let hp = if a20 { 73 } else { 68 };
+            "Shelled Parasite" | "ShelledParasite" => {
+                // Source: ShelledParasite.java: inclusive 68..72, or 70..75
+                // at ascension 7.
+                let (base, width) = if self.run_state.ascension >= 7 {
+                    (70, 5)
+                } else {
+                    (68, 4)
+                };
+                let hp = base + self.rng.gen_range(0..=width);
                 (hp, hp)
             }
             "SnakePlant" => {
@@ -8513,6 +8539,125 @@ mod tests {
                 | crate::enemies::move_ids::BYRD_SWOOP
                 | crate::enemies::move_ids::BYRD_CAW));
         assert_eq!(combat.ai_rng.counter, before_stunned + 2);
+    }
+
+    #[test]
+    fn shelled_parasite_stats_ai_vampire_plating_and_stun_match_java() {
+        // Sources: reference/extracted/methods/monster/ShelledParasite.java,
+        // PlatedArmorPower.java, and VampireDamageAction.java.
+        let mut low_hp = std::collections::BTreeSet::new();
+        let mut high_hp = std::collections::BTreeSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("Shelled Parasite").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("Shelled Parasite").0);
+        }
+        assert_eq!(low_hp, (68..=72).collect());
+        assert_eq!(high_hp, (70..=75).collect());
+
+        for (ascension, hp_range, double, fell, suck, high_ai, ai_ticks) in [
+            (0, 68..=72, 6, 18, 10, 0, 2),
+            (2, 68..=72, 7, 21, 12, 0, 2),
+            (7, 70..=75, 7, 21, 12, 0, 2),
+            (17, 70..=75, 7, 21, 12, 1, 1),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["Shelled Parasite".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            let parasite = &combat.state.enemies[0];
+            assert_eq!(parasite.id, "Shelled Parasite");
+            assert!(hp_range.contains(&parasite.entity.hp));
+            assert_eq!(parasite.entity.status(crate::status_ids::sid::STARTING_DMG),
+                double);
+            assert_eq!(parasite.entity.status(crate::status_ids::sid::STR_AMT), fell);
+            assert_eq!(parasite.entity.status(crate::status_ids::sid::BLOCK_AMT), suck);
+            assert_eq!(parasite.entity.status(crate::status_ids::sid::HIGH_ASCENSION_AI),
+                high_ai);
+            assert_eq!(parasite.entity.status(crate::status_ids::sid::PLATED_ARMOR), 14);
+            assert_eq!(parasite.entity.block, 14);
+            assert_eq!(parasite.entity.status(crate::status_ids::sid::FIRST_MOVE), 0);
+            if ascension >= 17 {
+                assert_eq!(parasite.move_id, crate::enemies::move_ids::SP_FELL);
+                assert_eq!(parasite.move_damage(), fell);
+                assert_eq!(parasite.effect(crate::combat_types::mfx::FRAIL), Some(2));
+            } else {
+                assert!(matches!(parasite.move_id,
+                    crate::enemies::move_ids::SP_DOUBLE_STRIKE
+                        | crate::enemies::move_ids::SP_LIFE_SUCK));
+            }
+            assert_eq!(combat.ai_rng.counter, ai_ticks);
+        }
+
+        let mut fell_run = RunEngine::new(42, 17);
+        fell_run.enter_specific_combat(vec!["Shelled Parasite".to_string()]);
+        let combat = fell_run.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+        combat.state.enemies[0].set_move(
+            crate::enemies::move_ids::SP_FELL, 21, 1, 0);
+        combat.state.enemies[0].move_effects.clear();
+        combat.state.enemies[0].add_effect(crate::combat_types::mfx::FRAIL, 2);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.hp, 479);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::FRAIL), 2);
+
+        let mut vampire = RunEngine::new(42, 2);
+        vampire.enter_specific_combat(vec!["Shelled Parasite".to_string()]);
+        let combat = vampire.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+        combat.state.player.block = 5;
+        combat.state.enemies[0].entity.hp = 50;
+        combat.state.enemies[0].set_move(
+            crate::enemies::move_ids::SP_LIFE_SUCK, 12, 1, 0);
+        combat.state.enemies[0].move_effects.clear();
+        combat.state.enemies[0].add_effect(crate::combat_types::mfx::HEAL, 12);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.hp, 493);
+        assert_eq!(combat.state.enemies[0].entity.hp, 57,
+            "VampireDamageAction heals exactly lastDamageTaken after block");
+        assert_eq!(combat.state.enemies[0].entity.block, 14,
+            "Plated Armor grants its amount after the monster turn");
+
+        let mut break_armor = RunEngine::new(42, 0);
+        break_armor.enter_specific_combat(vec!["Shelled Parasite".to_string()]);
+        let combat = break_armor.combat_engine.as_mut().unwrap();
+        let hp_before = combat.state.enemies[0].entity.hp;
+        combat.deal_damage_to_enemy(0, 5);
+        assert_eq!(combat.state.enemies[0].entity.hp, hp_before);
+        assert_eq!(combat.state.enemies[0].entity.block, 9);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::PLATED_ARMOR), 14,
+            "fully blocked damage does not reduce Plated Armor");
+
+        combat.state.enemies[0].entity.block = 0;
+        combat.state.enemies[0].entity.set_status(crate::status_ids::sid::PLATED_ARMOR, 1);
+        combat.deal_damage_to_enemy(0, 1);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::PLATED_ARMOR), 0);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::SP_STUNNED);
+        assert!(matches!(combat.state.enemies[0].intent,
+            crate::combat_types::Intent::Stun));
+
+        let middle_seed = (1..10_000).find(|&seed| {
+            let mut rng = crate::seed::StsRandom::new(seed);
+            (20..60).contains(&rng.random(99))
+        }).unwrap();
+        combat.ai_rng = crate::seed::StsRandom::new(middle_seed);
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+        let ai_before = combat.ai_rng.counter;
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.hp, 500,
+            "armor break Stunned turn performs no attack");
+        assert_eq!(combat.ai_rng.counter, ai_before + 1);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::SP_DOUBLE_STRIKE);
+        assert_eq!(combat.state.enemies[0].move_history.last().copied(),
+            Some(crate::enemies::move_ids::SP_FELL),
+            "Stunned takeTurn installs Fell before its RollMoveAction");
     }
 
     #[test]

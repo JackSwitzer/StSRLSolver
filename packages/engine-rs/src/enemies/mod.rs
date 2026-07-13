@@ -44,7 +44,7 @@ pub fn known_enemy_ids() -> &'static [(&'static str, &'static str)] {
         ("SlimeBoss", "Slime Boss"),
         ("Byrd", "Byrd"),
         ("Chosen", "Chosen"),
-        ("ShelledParasite", "Shelled Parasite"),
+    ("Shelled Parasite", "Shelled Parasite"),
         ("SnakePlant", "Snake Plant"),
         ("Centurion", "Centurion"),
         ("Healer", "Mystic"),
@@ -635,9 +635,15 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::FLIGHT, 3);
         }
         "Shelled Parasite" | "ShelledParasite" => {
-            // Has Plated Armor 14. First turn: Double Strike (6x2)
+            // Source: reference/extracted/methods/monster/ShelledParasite.java.
             enemy.set_move(move_ids::SP_DOUBLE_STRIKE, 6, 2, 0);
             enemy.entity.set_status(sid::PLATED_ARMOR, 14);
+            enemy.entity.block = 14;
+            enemy.entity.set_status(sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(sid::STARTING_DMG, 6);
+            enemy.entity.set_status(sid::STR_AMT, 18);
+            enemy.entity.set_status(sid::BLOCK_AMT, 10);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "SnakePlant" => {
             // Has Malleable. First turn: Chomp (7x3)
@@ -1077,7 +1083,9 @@ fn select_move(
         "Chosen" => act2::roll_chosen(enemy, num),
         "Mugger" => act2::roll_mugger(enemy, num),
         "Byrd" => act2::roll_byrd(enemy, num, ai_rng),
-        "Shelled Parasite" | "ShelledParasite" => act2::roll_shelled_parasite(enemy, num),
+        "Shelled Parasite" | "ShelledParasite" => {
+            act2::roll_shelled_parasite(enemy, num, ai_rng)
+        }
         "SnakePlant" => act2::roll_snake_plant(enemy, num),
         "Centurion" => act2::roll_centurion(enemy, num),
         "Mystic" | "Healer" => act2::roll_healer(enemy, num),
@@ -1943,7 +1951,7 @@ mod tests {
             "GremlinNob", "Lagavulin", "Sentry",
             "TheGuardian", "Hexaghost", "SlimeBoss",
             // Act 2
-            "Chosen", "Mugger", "Byrd", "ShelledParasite", "SnakePlant",
+            "Chosen", "Mugger", "Byrd", "Shelled Parasite", "SnakePlant",
             "Centurion", "Healer", "BookOfStabbing", "GremlinLeader",
             "Taskmaster", "SphericGuardian", "Snecko",
             "BanditBear", "BanditLeader", "BanditChild",
@@ -1987,7 +1995,7 @@ mod tests {
             "GremlinWizard", "GremlinTsundere",
             "GremlinNob", "Lagavulin", "Sentry",
             "TheGuardian", "Hexaghost", "SlimeBoss",
-            "Chosen", "Mugger", "Byrd", "ShelledParasite", "SnakePlant",
+            "Chosen", "Mugger", "Byrd", "Shelled Parasite", "SnakePlant",
             "Centurion", "Healer", "BookOfStabbing", "GremlinLeader",
             "Taskmaster", "SphericGuardian", "Snecko",
             "BanditBear", "BanditLeader", "BanditChild",

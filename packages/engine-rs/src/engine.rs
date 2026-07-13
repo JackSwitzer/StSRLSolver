@@ -381,6 +381,7 @@ impl CombatEngine {
                 | "BronzeAutomaton" | "Bronze Automaton"
                 | "BronzeOrb" | "Bronze Orb" | "Byrd" | "Centurion"
                 | "Champ" | "TheChamp" | "Chosen" | "Mugger"
+                | "Shelled Parasite" | "ShelledParasite"
                 | "CorruptHeart" | "Corrupt Heart"
                 | "SnakeDagger" | "Snake Dagger" | "Darkling" | "Deca" | "Donu"
                 | "Exploder" | "GiantHead" | "Giant Head"
@@ -3555,8 +3556,22 @@ impl CombatEngine {
             // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/PlatedArmorPower.java
             let plated = self.state.enemies[enemy_idx].entity.status(sid::PLATED_ARMOR);
             if plated > 0 {
+                let remaining = plated - 1;
                 self.state.enemies[enemy_idx]
-                    .entity.set_status(sid::PLATED_ARMOR, plated - 1);
+                    .entity.set_status(sid::PLATED_ARMOR, remaining);
+                if remaining == 0 && matches!(self.state.enemies[enemy_idx].id.as_str(),
+                    "Shelled Parasite" | "ShelledParasite")
+                {
+                    // Source: PlatedArmorPower.onRemove invokes
+                    // ShelledParasite.changeState("ARMOR_BREAK"), which
+                    // replaces its current intent with one Stunned turn.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/
+                    // PlatedArmorPower.java.
+                    self.state.enemies[enemy_idx].set_move(
+                        crate::enemies::move_ids::SP_STUNNED, 0, 0, 0);
+                    self.state.enemies[enemy_idx].intent =
+                        crate::combat_types::Intent::Stun;
+                }
             }
 
             // FlightPower.onAttacked applies its half-damage survival check a

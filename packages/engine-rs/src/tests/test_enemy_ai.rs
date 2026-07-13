@@ -407,9 +407,14 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::BYRD_PECK, 1, 5, 0, &[]);
         expect_status(&e, sid::FLIGHT, 3);
 
-        let e = make("ShelledParasite", 68);
+        let e = make("Shelled Parasite", 68);
         expect_move(&e, move_ids::SP_DOUBLE_STRIKE, 6, 2, 0, &[]);
         expect_status(&e, sid::PLATED_ARMOR, 14);
+        expect_status(&e, sid::FIRST_MOVE, 1);
+        expect_status(&e, sid::STARTING_DMG, 6);
+        expect_status(&e, sid::STR_AMT, 18);
+        expect_status(&e, sid::BLOCK_AMT, 10);
+        assert_eq!(e.entity.block, 14);
 
         let e = make("SnakePlant", 75);
         expect_move(&e, move_ids::SNAKE_CHOMP, 7, 3, 0, &[]);
@@ -510,13 +515,55 @@ mod enemy_ai_java_parity_tests {
         roll_with_num(&mut e, 0);
         expect_move(&e, move_ids::BYRD_PECK, 1, 5, 0, &[]);
 
-        let mut e = make("ShelledParasite", 68);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SP_LIFE_SUCK, 10, 1, 0, &[(mfx::HEAL, 10)]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SP_FELL, 18, 1, 0, &[(mfx::FRAIL, 2)]);
-        roll_times(&mut e, 1);
+        // Source: reference/extracted/methods/monster/ShelledParasite.java.
+        let true_seed = (1..10_000).find(|&seed|
+            crate::seed::StsRandom::new(seed).random_boolean()).unwrap();
+        let mut e = make("Shelled Parasite", 68);
+        let mut true_rng = crate::seed::StsRandom::new(true_seed);
+        roll_initial_move_with_num_and_rng(&mut e, 99, &mut true_rng);
         expect_move(&e, move_ids::SP_DOUBLE_STRIKE, 6, 2, 0, &[]);
+        assert_eq!(true_rng.counter, 1,
+            "pre-A17 opener consumes aiRng.randomBoolean after rollMove num");
+
+        let false_seed = (1..10_000).find(|&seed|
+            !crate::seed::StsRandom::new(seed).random_boolean()).unwrap();
+        let mut life = make("Shelled Parasite", 68);
+        let mut false_rng = crate::seed::StsRandom::new(false_seed);
+        roll_initial_move_with_num_and_rng(&mut life, 0, &mut false_rng);
+        expect_move(&life, move_ids::SP_LIFE_SUCK, 10, 1, 0,
+            &[(mfx::HEAL, 10)]);
+        assert_eq!(false_rng.counter, 1);
+
+        let mut a17 = make("Shelled Parasite", 70);
+        a17.entity.set_status(sid::HIGH_ASCENSION_AI, 1);
+        let mut no_boolean = crate::seed::StsRandom::new(0);
+        roll_initial_move_with_num_and_rng(&mut a17, 99, &mut no_boolean);
+        expect_move(&a17, move_ids::SP_FELL, 18, 1, 0, &[(mfx::FRAIL, 2)]);
+        assert_eq!(no_boolean.counter, 0,
+            "A17 forced Fell consumes no conditional boolean");
+
+        let reroll_seed = (1..10_000).find(|&seed| {
+            let roll = crate::seed::StsRandom::new(seed).random_range(20, 99);
+            roll < 60
+        }).unwrap();
+        a17.move_id = move_ids::SP_FELL;
+        a17.move_history.clear();
+        let mut reroll_rng = crate::seed::StsRandom::new(reroll_seed);
+        roll_next_move_with_num_and_rng(&mut a17, 0, &mut reroll_rng);
+        expect_move(&a17, move_ids::SP_DOUBLE_STRIKE, 6, 2, 0, &[]);
+        assert_eq!(reroll_rng.counter, 1,
+            "repeated Fell rerolls with aiRng.random(20, 99)");
+
+        a17.move_id = move_ids::SP_DOUBLE_STRIKE;
+        a17.move_history = vec![move_ids::SP_DOUBLE_STRIKE];
+        roll_with_num(&mut a17, 20);
+        expect_move(&a17, move_ids::SP_LIFE_SUCK, 10, 1, 0,
+            &[(mfx::HEAL, 10)]);
+
+        a17.move_id = move_ids::SP_LIFE_SUCK;
+        a17.move_history = vec![move_ids::SP_LIFE_SUCK];
+        roll_with_num(&mut a17, 60);
+        expect_move(&a17, move_ids::SP_DOUBLE_STRIKE, 6, 2, 0, &[]);
 
         let mut e = make("SnakePlant", 75);
         roll_times(&mut e, 1);

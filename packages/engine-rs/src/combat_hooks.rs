@@ -213,6 +213,8 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         return;
     }
 
+    let player_hp_before_move = engine.state.player.hp;
+
     if engine.state.enemies[enemy_idx].id == "Exploder" {
         // Source: reference/extracted/methods/monster/Exploder.java
         // (`takeTurn`): turnCount increments before the queued move resolves.
@@ -424,6 +426,20 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 engine.deal_thorns_damage_to_enemy(enemy_idx, flame_barrier);
             }
         }
+    }
+
+    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
+        "Shelled Parasite" | "ShelledParasite")
+        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::SP_LIFE_SUCK
+        && engine.state.enemies[enemy_idx].is_alive()
+    {
+        // Source: VampireDamageAction heals the source for the target's
+        // lastDamageTaken, not the attack's printed base damage.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/
+        // VampireDamageAction.java.
+        let actual_hp_loss = (player_hp_before_move - engine.state.player.hp).max(0);
+        let enemy = &mut engine.state.enemies[enemy_idx].entity;
+        enemy.hp = (enemy.hp + actual_hp_loss).min(enemy.max_hp);
     }
 
     // Block
@@ -1055,6 +1071,19 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 &mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
         }
         return;
+    }
+
+    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
+        "Shelled Parasite" | "ShelledParasite")
+        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::SP_STUNNED
+    {
+        // Source: ShelledParasite.takeTurn case STUNNED first installs Fell,
+        // then its queued RollMoveAction records that Fell for getMove.
+        let damage = engine.state.enemies[enemy_idx]
+            .entity.status(sid::STR_AMT).max(18);
+        engine.state.enemies[enemy_idx].set_move(
+            enemies::move_ids::SP_FELL, damage, 1, 0);
+        engine.state.enemies[enemy_idx].add_effect(mfx::FRAIL, 2);
     }
 
     if matches!(engine.state.enemies[enemy_idx].id.as_str(),
