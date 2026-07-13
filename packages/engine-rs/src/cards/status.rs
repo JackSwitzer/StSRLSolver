@@ -20,6 +20,8 @@ pub fn register_status(cards: &mut HashMap<&'static str, CardDef>) {
             base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[], complex_hook: None,
         });
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/status/Burn.java
+        // Unplayable; while held at end of turn, queues 2 THORNS damage (4 upgraded).
         insert(cards, CardDef {
             id: "Burn", name: "Burn", card_type: CardType::Status,
             target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,

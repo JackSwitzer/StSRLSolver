@@ -91,6 +91,43 @@ fn support_wave1_end_turn_curse_and_status_hooks_fire_on_the_runtime_path() {
 }
 
 #[test]
+fn burn_variants_use_thorns_block_then_buffer_order_at_end_of_turn() {
+    // Burn.use queues self-targeted DamageAction with DamageType.THORNS for
+    // magicNumber 2 (4 upgraded). AbstractPlayer.damage applies Intangible,
+    // then block, then Buffer; Buffer consumes only if positive damage remains.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/status/Burn.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BufferPower.java
+    let mut ordinary = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("Dummy", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut ordinary);
+    ordinary.state.hand = make_deck(&["Burn", "Burn+"]);
+    let hp_before = ordinary.state.player.hp;
+    end_turn(&mut ordinary);
+    assert_eq!(ordinary.state.player.hp, hp_before - 6);
+    assert_eq!(ordinary.state.player.status(crate::status_ids::sid::HP_LOSS_THIS_COMBAT), 2);
+
+    let mut mitigated = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("Dummy", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut mitigated);
+    mitigated.state.hand = make_deck(&["Burn", "Burn+"]);
+    mitigated.state.player.block = 3;
+    mitigated.state.player.set_status(crate::status_ids::sid::BUFFER, 1);
+    let hp_before = mitigated.state.player.hp;
+    end_turn(&mut mitigated);
+    assert_eq!(mitigated.state.player.hp, hp_before);
+    assert_eq!(mitigated.state.player.block, 0);
+    assert_eq!(mitigated.state.player.status(crate::status_ids::sid::BUFFER), 0);
+    assert_eq!(mitigated.state.player.status(crate::status_ids::sid::HP_LOSS_THIS_COMBAT), 0);
+}
+
+#[test]
 fn support_wave1_pain_triggers_when_any_other_card_is_played() {
     let mut engine = engine_without_start(
         Vec::new(),

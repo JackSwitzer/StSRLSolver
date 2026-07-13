@@ -1652,8 +1652,7 @@ impl CombatEngine {
         }
 
         // 3. End-of-turn hand card triggers (Burn, Decay, Regret, Doubt, Shame)
-        let player_died =
-            status_effects::process_end_turn_hand_cards(&mut self.state, &self.card_registry);
+        let player_died = status_effects::process_end_turn_hand_cards(self);
         if player_died {
             self.phase = CombatPhase::CombatOver;
             return;
@@ -2299,8 +2298,7 @@ impl CombatEngine {
         }
 
         // Pain curse: deal 1 HP loss per Pain card in hand on every card play
-        let pain_killed =
-            status_effects::process_pain_on_card_play(&mut self.state, &self.card_registry);
+        let pain_killed = status_effects::process_pain_on_card_play(self);
         if pain_killed {
             self.phase = CombatPhase::CombatOver;
             self.clear_runtime_play_contexts();
@@ -3186,7 +3184,7 @@ impl CombatEngine {
         self.state.enemies.push(enemy);
     }
 
-    fn deal_thorns_damage_to_player(&mut self, damage: i32) {
+    pub(crate) fn deal_thorns_damage_to_player(&mut self, damage: i32) {
         // DamageInfo.THORNS still passes through final-receive powers, block,
         // Buffer, and Tungsten Rod. Torii and reactive Thorns/Flame Barrier
         // explicitly exclude THORNS damage.
