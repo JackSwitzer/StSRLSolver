@@ -393,16 +393,21 @@ mod card_registry_tests {
     fn miracle_base() {
         let c = reg().get("Miracle").unwrap().clone();
         assert_eq!(c.cost, 0);
+        assert_eq!(c.target, CardTarget::None);
         assert_eq!(c.base_magic, 1);
         assert!(c.exhaust);
+        assert!(c.runtime_traits().retain);
         assert!(c.has_test_marker("gain_energy"));
     }
 
     #[test]
     fn miracle_upgraded() {
         let c = reg().get("Miracle+").unwrap().clone();
+        assert_eq!(c.cost, 0);
+        assert_eq!(c.target, CardTarget::None);
         assert_eq!(c.base_magic, 2);
         assert!(c.exhaust);
+        assert!(c.runtime_traits().retain);
     }
 
     #[test]

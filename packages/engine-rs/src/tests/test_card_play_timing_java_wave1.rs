@@ -260,6 +260,32 @@ fn strange_spoon_uses_one_boolean_roll_and_sends_saved_exhaust_to_discard() {
 
 #[test]
 // Java oracle:
+// decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Miracle.java
+fn miracle_and_upgrade_self_retain_when_left_unplayed() {
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Miracle", "Miracle+"]);
+    engine.state.draw_pile.clear();
+    engine.state.discard_pile.clear();
+
+    end_turn(&mut engine);
+
+    let hand_names: Vec<_> = engine
+        .state
+        .hand
+        .iter()
+        .map(|card| engine.card_registry.card_name(card.def_id))
+        .collect();
+    assert_eq!(hand_names, vec!["Miracle", "Miracle+"]);
+    assert!(engine.state.discard_pile.is_empty());
+}
+
+#[test]
+// Java oracle:
 // decompiled/java-src/com/megacrit/cardcrawl/relics/UnceasingTop.java
 fn unceasing_top_does_not_draw_or_retry_while_no_draw_is_active() {
     let mut engine = engine_without_start(

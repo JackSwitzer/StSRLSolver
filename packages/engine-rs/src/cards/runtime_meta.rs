@@ -113,7 +113,12 @@ pub fn runtime_traits_for_card(id: &str, cost: i32) -> CardRuntimeTraits {
         ),
         retain: matches!(
             id,
-            "Crescendo"
+            // Miracle.java sets selfRetain in its constructor; upgrading changes
+            // only its description/energy branch, so both variants retain.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Miracle.java
+            "Miracle"
+                | "Miracle+"
+                | "Crescendo"
                 | "Crescendo+"
                 | "FlyingSleeves"
                 | "FlyingSleeves+"

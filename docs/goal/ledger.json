@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T11:34:50.318618+00:00",
+ "updated": "2026-07-13T11:37:32.789152+00:00",
  "status_counts": {
-  "verified": 469,
-  "unverified": 198
+  "verified": 470,
+  "unverified": 197
  },
  "rows": [
   {
@@ -2242,8 +2242,8 @@
    "class": "Miracle",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Miracle.java",
    "methods_ref": "reference/extracted/methods/card/Miracle.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
