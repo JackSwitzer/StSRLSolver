@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T06:55:00.094610+00:00",
+ "updated": "2026-07-13T06:58:43.190656+00:00",
  "status_counts": {
-  "verified": 368,
-  "unverified": 299
+  "verified": 369,
+  "unverified": 298
  },
  "rows": [
   {
@@ -952,8 +952,8 @@
    "class": "Decay",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Decay.java",
    "methods_ref": "reference/extracted/methods/card/Decay.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

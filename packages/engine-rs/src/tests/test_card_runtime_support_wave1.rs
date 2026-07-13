@@ -2,6 +2,7 @@
 
 // Java oracle sources for this wave:
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/status/Burn.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Decay.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/status/Regret.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Pain.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/status/Void.java
@@ -118,6 +119,33 @@ fn support_wave1_end_turn_curse_and_status_hooks_fire_on_the_runtime_path() {
 
     assert_eq!(hp_before - engine.state.player.hp, 7);
     assert_eq!(draw_prefix_count(&engine, "Pride"), 1);
+}
+
+#[test]
+fn decay_has_no_magic_stat_and_deals_two_thorns_damage_at_end_of_turn() {
+    // Decay.java has cost -2, empty upgrade(), and no magic-number assignment.
+    // Its end-turn queue auto-plays the card, whose use() deals a literal 2
+    // THORNS damage; one Block therefore leaves one HP damage.
+    let registry = global_registry();
+    let decay = registry.get("Decay").expect("Decay");
+    assert_eq!(decay.cost, -2);
+    assert_eq!(decay.base_magic, -1);
+    assert!(decay.runtime_traits().unplayable);
+    assert!(registry.get("Decay+").is_none());
+
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.player.block = 1;
+    engine.state.hand = make_deck(&["Decay"]);
+    let hp_before = engine.state.player.hp;
+
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.hp, hp_before - 1);
 }
 
 #[test]

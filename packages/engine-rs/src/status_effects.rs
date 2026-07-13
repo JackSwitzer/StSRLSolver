@@ -31,6 +31,7 @@ pub fn process_end_turn_hand_cards(engine: &mut CombatEngine) -> bool {
                         let raw = if card.base_magic > 0 { card.base_magic } else { 2 };
                         // Burn/Decay queue DamageAction with THORNS damage.
                         // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/status/Burn.java
+                        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Decay.java
                         engine.deal_thorns_damage_to_player(raw);
                     }
                     EndTurnHandRule::Regret => {

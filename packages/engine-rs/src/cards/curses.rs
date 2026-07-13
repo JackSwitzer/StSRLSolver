@@ -1,10 +1,12 @@
 use crate::cards::prelude::*;
 
 pub fn register_curses(cards: &mut HashMap<&'static str, CardDef>) {
+        // Source: reference/extracted/methods/card/Decay.java is an unplayable
+        // Curse with no magic number; its end-turn auto-play deals a literal 2.
         insert(cards, CardDef {
             id: "Decay", name: "Decay", card_type: CardType::Curse,
             target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,
-            base_magic: 2, exhaust: false, enter_stance: None,
+            base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[], complex_hook: None,
         });
         insert(cards, CardDef {
