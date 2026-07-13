@@ -1247,7 +1247,11 @@ fn evaluate_condition(engine: &CombatEngine, ctx: &CardPlayContext, cond: &Condi
         Condition::EnemyHasStatus(status) => {
             let idx = ctx.target_idx;
             if idx >= 0 && (idx as usize) < engine.state.enemies.len() {
-                engine.state.enemies[idx as usize].entity.status(status) > 0
+                // HeelHookAction/DropkickAction queue damage before their
+                // reward actions. A final kill clears those queued follow-ups,
+                // while killing one target in a multi-monster fight does not.
+                !engine.state.is_victory()
+                    && engine.state.enemies[idx as usize].entity.status(status) > 0
             } else {
                 false
             }

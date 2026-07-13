@@ -1356,6 +1356,7 @@ impl EffectRuntime {
                 let idx = event.target_idx;
                 idx >= 0
                     && (idx as usize) < engine.state.enemies.len()
+                    && !engine.state.is_victory()
                     && engine.state.enemies[idx as usize].entity.status(status_id) > 0
             }
             crate::effects::declarative::Condition::EnemyAlive => {

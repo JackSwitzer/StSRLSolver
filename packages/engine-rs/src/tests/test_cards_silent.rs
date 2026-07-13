@@ -492,6 +492,55 @@ mod silent_card_java_parity_tests {
         "Heel Hook", 1, 5, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["if_weak_energy_draw"],
         "Heel Hook+", 1, 8, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["if_weak_energy_draw"],
     );
+
+    #[test]
+    fn heel_hook_refunds_and_draws_on_weak_unless_its_damage_ends_combat() {
+        // HeelHookAction checks Weak, then queues DamageAction ahead of its
+        // GainEnergyAction and DrawCardAction. DamageAction clears both later
+        // actions only when that hit makes all monsters basically dead.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/HeelHookAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DamageAction.java
+        let mut ordinary = engine_with_enemies(
+            make_deck(&["Strike"]),
+            vec![enemy_no_intent("JawWorm", 20, 20)],
+            1,
+        );
+        ordinary.state.hand = make_deck(&["Heel Hook"]);
+        ordinary.state.draw_pile = make_deck(&["Defend"]);
+        assert!(play_on_enemy(&mut ordinary, "Heel Hook", 0));
+        assert_eq!(ordinary.state.enemies[0].entity.hp, 15);
+        assert_eq!(ordinary.state.energy, 0);
+        assert!(ordinary.state.hand.is_empty());
+
+        let mut surviving_fight = engine_with_enemies(
+            Vec::new(),
+            vec![
+                enemy_no_intent("JawWorm", 8, 8),
+                enemy_no_intent("Cultist", 20, 20),
+            ],
+            1,
+        );
+        surviving_fight.state.hand = make_deck(&["Heel Hook+"]);
+        surviving_fight.state.draw_pile = make_deck(&["Defend"]);
+        surviving_fight.state.enemies[0].entity.set_status(sid::WEAKENED, 1);
+        assert!(play_on_enemy(&mut surviving_fight, "Heel Hook+", 0));
+        assert!(surviving_fight.state.enemies[0].entity.is_dead());
+        assert_eq!(surviving_fight.state.energy, 1);
+        assert_eq!(hand_count(&surviving_fight, "Defend"), 1);
+
+        let mut final_kill = engine_with_enemies(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 8, 8)],
+            1,
+        );
+        final_kill.state.hand = make_deck(&["Heel Hook+"]);
+        final_kill.state.draw_pile = make_deck(&["Defend"]);
+        final_kill.state.enemies[0].entity.set_status(sid::WEAKENED, 1);
+        assert!(play_on_enemy(&mut final_kill, "Heel Hook+", 0));
+        assert!(final_kill.state.enemies[0].entity.is_dead());
+        assert_eq!(final_kill.state.energy, 0);
+        assert_eq!(hand_count(&final_kill, "Defend"), 0);
+    }
     card_pair_test!(infinite_blades,
         "Infinite Blades", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["infinite_blades"],
         "Infinite Blades+", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["infinite_blades", "innate"],

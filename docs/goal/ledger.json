@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T09:58:55.698150+00:00",
+ "updated": "2026-07-13T10:02:15.589620+00:00",
  "status_counts": {
-  "verified": 433,
-  "unverified": 234
+  "verified": 434,
+  "unverified": 233
  },
  "rows": [
   {
@@ -1792,8 +1792,8 @@
    "class": "HeelHook",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/HeelHook.java",
    "methods_ref": "reference/extracted/methods/card/HeelHook.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
