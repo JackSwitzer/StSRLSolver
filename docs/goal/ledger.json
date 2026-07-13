@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T07:42:20.760576+00:00",
+ "updated": "2026-07-13T07:43:57.085727+00:00",
  "status_counts": {
-  "verified": 392,
-  "unverified": 275
+  "verified": 393,
+  "unverified": 274
  },
  "rows": [
   {
@@ -1282,8 +1282,8 @@
    "class": "EndlessAgony",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/EndlessAgony.java",
    "methods_ref": "reference/extracted/methods/card/EndlessAgony.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

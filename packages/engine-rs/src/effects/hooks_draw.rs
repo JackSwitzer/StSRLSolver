@@ -12,6 +12,12 @@ pub fn hook_lose_energy_on_draw(engine: &mut CombatEngine, _card_inst: CardInsta
 pub fn hook_copy_on_draw(engine: &mut CombatEngine, card_inst: CardInstance) {
     if engine.state.hand.len() < 10 {
         engine.state.hand.push(card_inst);
+    } else {
+        // EndlessAgony.triggerWhenDrawn queues MakeTempCardInHandAction, which
+        // puts copies beyond the ten-card hand limit in the discard pile.
+        // Java: reference/extracted/methods/card/EndlessAgony.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
+        engine.state.discard_pile.push(card_inst);
     }
 }
 

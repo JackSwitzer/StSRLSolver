@@ -75,6 +75,9 @@ fn silent_wave9_primary_typed_damage_cards_follow_engine_path() {
 
 #[test]
 fn silent_wave9_existing_runtime_tags_still_drive_residual_semantics() {
+    // EndlessAgony.triggerWhenDrawn creates a stat-equivalent copy. With room,
+    // both copies enter the hand.
+    // Java: reference/extracted/methods/card/EndlessAgony.java
     let mut agony_engine = engine_without_start(
         make_deck(&["Endless Agony"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -84,4 +87,21 @@ fn silent_wave9_existing_runtime_tags_still_drive_residual_semantics() {
     agony_engine.draw_cards(1);
     assert_eq!(hand_count(&agony_engine, "Endless Agony"), 2);
 
+    // If drawing the original fills the tenth slot, MakeTempCardInHandAction
+    // sends the upgraded stat-equivalent copy to discard instead of deleting it.
+    let mut overflow = engine_without_start(
+        make_deck(&["Endless Agony+"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    overflow.state.hand = make_deck(&[
+        "Defend", "Defend", "Defend", "Defend", "Defend",
+        "Defend", "Defend", "Defend", "Defend",
+    ]);
+
+    overflow.draw_cards(1);
+
+    assert_eq!(overflow.state.hand.len(), 10);
+    assert_eq!(hand_count(&overflow, "Endless Agony+"), 1);
+    assert_eq!(discard_prefix_count(&overflow, "Endless Agony+"), 1);
 }
