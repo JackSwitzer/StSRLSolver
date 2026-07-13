@@ -1414,6 +1414,32 @@ mod ironclad_card_java_parity_tests {
     }
 
     #[test]
+    fn shrug_it_off_plus_gains_eleven_block_then_draws_exactly_one() {
+        // ShrugItOff.java queues GainBlockAction(this.block) before a one-card
+        // DrawCardAction. upgradeBlock(3) changes 8 Block to 11 without
+        // changing cost, draw count, target, or ordinary discard behavior.
+        let mut engine = engine_for(
+            &[],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 50, 50)],
+            1,
+        );
+        engine.state.hand = make_deck(&["Shrug It Off+"]);
+        engine.state.draw_pile = make_deck(&["Strike"]);
+        engine.state.discard_pile.clear();
+
+        assert!(play_self(&mut engine, "Shrug It Off+"));
+
+        assert_eq!(engine.state.player.block, 11);
+        assert_eq!(engine.state.energy, 0);
+        assert_eq!(engine.state.hand.len(), 1);
+        assert_eq!(hand_count(&engine, "Strike"), 1);
+        assert!(engine.state.draw_pile.is_empty());
+        assert_eq!(discard_prefix_count(&engine, "Shrug It Off"), 1);
+    }
+
+    #[test]
     fn sword_boomerang_hits_three_times_with_one_enemy() {
         let mut e = engine_for(&["Sword Boomerang"], &[], &[], vec![enemy("JawWorm", 60, 60, 1, 0, 1)], 3);
         let hp = e.state.enemies[0].entity.hp;
