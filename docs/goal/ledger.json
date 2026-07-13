@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T15:28:55.452941+00:00",
+ "updated": "2026-07-13T15:32:19.736309+00:00",
  "status_counts": {
-  "verified": 536,
-  "unverified": 131
+  "verified": 537,
+  "unverified": 130
  },
  "rows": [
   {
@@ -3062,8 +3062,8 @@
    "class": "Stack",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Stack.java",
    "methods_ref": "reference/extracted/methods/card/Stack.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

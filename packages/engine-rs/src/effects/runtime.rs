@@ -1413,6 +1413,7 @@ impl EffectRuntime {
             AmountSource::HandSize => engine.state.hand.len() as i32,
             AmountSource::PlayerBlock => engine.state.player.block,
             AmountSource::DiscardPileSize => engine.state.discard_pile.len() as i32,
+            AmountSource::DiscardPileSizePlusBlock => 0,
             AmountSource::CardMisc => 0,
             AmountSource::StatusValue(status_id) => {
                 self.read_status(engine, instance_idx, owner, status_id)

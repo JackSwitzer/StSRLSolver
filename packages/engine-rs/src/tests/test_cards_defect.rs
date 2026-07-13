@@ -133,6 +133,28 @@ mod defect_card_java_parity_tests {
         for case in cases { assert_stats(case); }
     });
 
+    defect_test!(stack_snapshots_discard_size_and_modifies_the_combined_upgraded_block_once, {
+        // Stack.applyPowers replaces baseBlock with the current discard-pile
+        // size, adds 3 when upgraded, and only then runs the ordinary block
+        // modifier pipeline. The played Stack reaches discard after use().
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Stack.java
+        let mut base = bare_engine(&[], vec![enemy_no_intent("JawWorm", 40, 40)]);
+        base.state.hand = make_deck(&["Stack"]);
+        base.state.discard_pile = make_deck(&["Strike", "Defend"]);
+        assert!(play_self(&mut base, "Stack"));
+        assert_eq!(base.state.player.block, 2);
+        assert_eq!(base.state.discard_pile.len(), 3);
+
+        let mut upgraded = bare_engine(&[], vec![enemy_no_intent("JawWorm", 40, 40)]);
+        upgraded.state.hand = make_deck(&["Stack+"]);
+        upgraded.state.discard_pile = make_deck(&["Strike", "Defend", "Zap", "Dualcast", "Leap"]);
+        upgraded.state.player.add_status(sid::DEXTERITY, 2);
+        upgraded.state.player.add_status(sid::FRAIL, 1);
+        assert!(play_self(&mut upgraded, "Stack+"));
+        assert_eq!(upgraded.state.player.block, 7); // floor((5 + 3 + 2) * 0.75)
+        assert_eq!(upgraded.state.discard_pile.len(), 6);
+    });
+
     defect_test!(hologram_matches_block_exhaust_and_discard_retrieval_edges, {
         // Hologram.java grants 3 Block, exhausts, then runs the mandatory
         // BetterDiscardPileToHandAction(1). That action is a no-op on an empty

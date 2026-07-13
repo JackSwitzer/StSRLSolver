@@ -982,7 +982,9 @@ fn find_declared_primary_attack_target(effects: &[Effect]) -> Option<Target> {
 fn has_declared_primary_block(effects: &[Effect]) -> bool {
     for effect in effects {
         match effect {
-            Effect::Simple(SimpleEffect::GainBlock(AmountSource::Block)) => return true,
+            Effect::Simple(SimpleEffect::GainBlock(
+                AmountSource::Block | AmountSource::DiscardPileSizePlusBlock,
+            )) => return true,
             Effect::Conditional(_, then_effects, else_effects) => {
                 if has_declared_primary_block(then_effects) {
                     return true;

@@ -1177,6 +1177,9 @@ pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &A
         AmountSource::HandSize => engine.state.hand.len() as i32,
         AmountSource::PlayerBlock => engine.state.player.block,
         AmountSource::DiscardPileSize => engine.state.discard_pile.len() as i32,
+        AmountSource::DiscardPileSizePlusBlock => {
+            engine.state.discard_pile.len() as i32 + ctx.card.base_block.max(0)
+        }
         AmountSource::CardMisc => ctx.card_inst.misc.max(0) as i32,
         AmountSource::DrawPileSize => engine.state.draw_pile.len() as i32,
         AmountSource::DrawPileDivN(n) => {

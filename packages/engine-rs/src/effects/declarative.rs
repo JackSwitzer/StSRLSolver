@@ -83,6 +83,8 @@ pub enum AmountSource {
     PlayerBlock,
     /// Discard pile size.
     DiscardPileSize,
+    /// Discard pile size plus CardDef.base_block (Stack's upgraded bonus).
+    DiscardPileSizePlusBlock,
     /// Current value of a status (e.g., read Metallicize stacks).
     StatusValue(crate::ids::StatusId),
     /// Current status value multiplied by the played card's base magic.
