@@ -43,7 +43,7 @@ fn watcher_wave6_registry_exports_match_declared_runtime_surface() {
 
     let flying_sleeves = registry.get("FlyingSleeves").expect("FlyingSleeves should be registered");
     assert!(flying_sleeves.has_test_marker("retain"));
-    assert_eq!(flying_sleeves.declared_extra_hits(), Some(A::Magic));
+    assert_eq!(flying_sleeves.declared_extra_hits(), Some(A::Fixed(2)));
 
     let vigilance = registry.get("Vigilance").expect("Vigilance should be registered");
     assert_eq!(vigilance.enter_stance, Some("Calm"));
@@ -100,7 +100,10 @@ fn watcher_wave6_flying_sleeves_retains_and_windmill_strike_scales_on_retain() {
     let mut windmill = one_enemy_engine("JawWorm", 80, 0);
     ensure_in_hand(&mut windmill, "WindmillStrike");
     end_turn(&mut windmill);
-    assert_eq!(windmill.state.player.status(sid::WINDMILL_STRIKE_BONUS), 4);
+    let retained = windmill.state.hand.iter()
+        .find(|card| windmill.card_registry.card_name(card.def_id) == "WindmillStrike")
+        .expect("Windmill Strike retained");
+    assert_eq!(retained.misc, 11);
     assert!(play_on_enemy(&mut windmill, "WindmillStrike", 0));
     assert_eq!(windmill.state.enemies[0].entity.hp, 69);
 }

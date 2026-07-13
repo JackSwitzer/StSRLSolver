@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Ironclad Uncommon: Power Through ---- (cost 1, 15 block, add 2 Wounds to hand; +5 block)
+    // PowerThrough.java queues two Wounds into hand, then gains 15 Block;
+    // upgrading changes only Block by +5.
+    // Source: reference/extracted/methods/card/PowerThrough.java
     insert(cards, CardDef {
                 id: "Power Through", name: "Power Through", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 15,

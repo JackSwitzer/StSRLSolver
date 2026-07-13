@@ -1,5 +1,9 @@
 use crate::cards::prelude::*;
 
+// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Indignation.java
+// Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/IndignationAction.java
+// The action checks stance at resolution: Wrath applies Vulnerable to every
+// monster; every other stance changes to Wrath without applying Vulnerable.
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Uncommon: Indignation ---- (cost 1, if in Wrath apply 3 vuln to all, else enter Wrath; +2 magic upgrade)
     insert(cards, CardDef {

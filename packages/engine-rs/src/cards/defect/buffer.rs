@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // Buffer: 2 cost, power, prevent next X HP loss.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Buffer.java
+    // Cost 2 and applies one Buffer stack; the upgrade raises magicNumber to 2.
     insert(cards, CardDef {
         id: "Buffer", name: "Buffer", card_type: CardType::Power,
         target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,

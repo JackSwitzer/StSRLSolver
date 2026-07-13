@@ -59,7 +59,7 @@ fn ironclad_wave13_registry_exports_promote_feed_and_reaper_to_typed_primary_sur
         &[
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::Conditional(
-                Cond::EnemyKilled,
+                Cond::EnemyKilledNonMinion,
                 &[E::Simple(SE::ModifyMaxHp(A::Magic))],
                 &[],
             ),
@@ -124,7 +124,7 @@ fn ironclad_wave13_fiend_fire_uses_the_typed_exhaust_then_damage_surface() {
             E::ForEachInPile {
                 pile: crate::effects::declarative::Pile::Hand,
                 filter: crate::effects::declarative::CardFilter::All,
-                action: BulkAction::Exhaust,
+                action: BulkAction::ExhaustRandom,
             },
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::ExtraHits(A::HandSizeAtPlay),

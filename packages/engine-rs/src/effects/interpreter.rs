@@ -1,7 +1,7 @@
 //! Declarative effect interpreter — walks Effect arrays and dispatches
 //! through proper engine methods.
 
-use crate::cards::{CardTarget, CardType};
+use crate::cards::CardType;
 use crate::damage;
 use crate::engine::{CombatEngine, CombatPhase, ChoiceOption, ChoiceReason};
 use crate::effects::declarative::*;
@@ -133,10 +133,6 @@ fn execute_scaled_attack_damage(
     let vigor = ctx.vigor;
 
     let double_damage = engine.state.player.status(sid::DOUBLE_DAMAGE) > 0;
-    if double_damage {
-        let dd = engine.state.player.status(sid::DOUBLE_DAMAGE);
-        engine.state.player.set_status(sid::DOUBLE_DAMAGE, dd - 1);
-    }
 
     match target {
         Target::SelectedEnemy => {
@@ -160,11 +156,7 @@ fn execute_scaled_attack_damage(
                     false,
                     enemy_intangible,
                 );
-                let block_return = engine.state.enemies[tidx].entity.status(sid::BLOCK_RETURN);
-                let hp_dmg = engine.deal_player_attack_hit_to_enemy(tidx, dmg);
-                if block_return > 0 && hp_dmg > 0 {
-                    engine.gain_block_player(block_return);
-                }
+                engine.deal_player_attack_hit_to_enemy(tidx, dmg);
             }
         }
         Target::AllEnemies => {
@@ -187,17 +179,19 @@ fn execute_scaled_attack_damage(
                     false,
                     enemy_intangible,
                 );
-                let block_return = engine.state.enemies[enemy_idx].entity.status(sid::BLOCK_RETURN);
-                let hp_dmg = engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
-                if block_return > 0 && hp_dmg > 0 {
-                    engine.gain_block_player(block_return);
-                }
+                engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
             }
         }
         Target::RandomEnemy => {
             let living = engine.state.living_enemy_indices();
             if !living.is_empty() {
-                let enemy_idx = living[engine.rng_gen_range(0..living.len())];
+                // AttackDamageRandomEnemyAction selects through cardRandomRng
+                // for every hit, including the one-enemy random(0, 0) case.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/AttackDamageRandomEnemyAction.java
+                let selected = engine
+                    .card_random_rng
+                    .random_range(0, (living.len() - 1) as i32) as usize;
+                let enemy_idx = living[selected];
                 let enemy_vuln = engine.state.enemies[enemy_idx].entity.is_vulnerable();
                 let enemy_intangible = engine.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) > 0;
                 let vuln_paper_frog = engine.state.has_relic("Paper Frog");
@@ -215,15 +209,11 @@ fn execute_scaled_attack_damage(
                     false,
                     enemy_intangible,
                 );
-                let block_return = engine.state.enemies[enemy_idx].entity.status(sid::BLOCK_RETURN);
-                let hp_dmg = engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
-                if block_return > 0 && hp_dmg > 0 {
-                    engine.gain_block_player(block_return);
-                }
+                engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
             }
         }
         Target::Player | Target::SelfEntity => {
-            engine.player_lose_hp(base_damage);
+            engine.player_lose_hp_from_damage(base_damage);
         }
     }
 }
@@ -236,6 +226,15 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
     match *simple {
         // -- Status application --
         SimpleEffect::AddStatus(target, status, ref amount_src) => {
+            // DamageAction clears queued non-damage/non-heal/non-block actions
+            // when the last monster dies. ApplyPowerAction is among those
+            // removed, so effects such as Flying Knee's Energized do not land
+            // after a lethal preceding hit.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DamageAction.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+            if engine.state.combat_over || engine.state.is_victory() {
+                return;
+            }
             let amount = resolve_card_amount(engine, ctx, amount_src);
             apply_status(engine, ctx, target, status, amount);
         }
@@ -251,23 +250,39 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         // -- Draw --
         SimpleEffect::DrawCards(ref amount_src) => {
+            // DamageAction clears queued non-combat actions when the final
+            // monster dies, so Wheel Kick's following DrawCardAction does not run.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DamageAction.java
+            if engine.state.combat_over || engine.state.is_victory() {
+                return;
+            }
             let count = resolve_card_amount(engine, ctx, amount_src);
-            engine.draw_cards(count);
+            ctx.last_drawn_card_types = engine.draw_cards(count);
         }
 
         SimpleEffect::DrawCardsThenDiscardDrawnNonZeroCost(ref amount_src) => {
-            let count = resolve_card_amount(engine, ctx, amount_src).max(0);
-            let hand_before = engine.state.hand.len();
-            if count > 0 {
-                engine.draw_cards(count);
-            }
-            let hand_after = engine.state.hand.len();
-            if hand_after <= hand_before {
+            // DamageAction removes queued non-combat actions after a lethal hit,
+            // so Scrape's following DrawCardAction never resolves on victory.
+            // Java: Scrape.java, DamageAction.java, and GameActionManager.java.
+            if engine.state.combat_over || engine.state.is_victory() {
                 return;
             }
+            let count = resolve_card_amount(engine, ctx, amount_src).max(0);
+            let hand_before = engine.state.hand.len();
+            let directly_drawn = if count > 0 {
+                // draw_cards returns only the requested DrawCardAction's cards;
+                // Evolve's recursively queued draws are intentionally excluded.
+                engine.draw_cards(count).len()
+            } else {
+                0
+            };
+            if directly_drawn == 0 {
+                return;
+            }
+            let direct_end = (hand_before + directly_drawn).min(engine.state.hand.len());
 
             let mut to_discard = Vec::new();
-            for idx in hand_before..hand_after {
+            for idx in hand_before..direct_end {
                 if let Some(card) = engine.state.hand.get(idx) {
                     let def = engine.card_registry.card_def_by_id(card.def_id);
                     let current_cost = if card.cost >= 0 {
@@ -275,12 +290,21 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                     } else {
                         def.cost
                     };
-                    if current_cost > 0 && !card.is_free() {
+                    // ScrapeFollowUpAction keeps only costForTurn == 0 or
+                    // freeToPlayOnce. X-cost (-1), Status/Curse (-2), and
+                    // positive-cost cards are all manually discarded.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/
+                    // defect/ScrapeFollowUpAction.java
+                    if current_cost != 0 && !card.is_free() {
                         to_discard.push(idx);
                     }
                 }
             }
-            for idx in to_discard.into_iter().rev() {
+            // Java walks DrawCardAction.drawnCards in draw order. Adjust each
+            // original index for earlier removals so discard hooks and RNG fire
+            // in that same order.
+            for (removed, original_idx) in to_discard.into_iter().enumerate() {
+                let idx = original_idx - removed;
                 if idx < engine.state.hand.len() {
                     let card = engine.state.hand.remove(idx);
                     engine.state.discard_pile.push(card);
@@ -299,7 +323,16 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         SimpleEffect::ExhaustRandomCardFromHand => {
             if !engine.state.hand.is_empty() {
-                let idx = engine.rng_gen_range(0..engine.state.hand.len());
+                // ExhaustAction auto-exhausts a singleton without RNG. Its
+                // random branch uses cardRandomRng only when more cards remain.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ExhaustAction.java
+                let idx = if engine.state.hand.len() == 1 {
+                    0
+                } else {
+                    engine
+                        .card_random_rng
+                        .random((engine.state.hand.len() - 1) as i32) as usize
+                };
                 let exhausted = engine.state.hand.remove(idx);
                 engine.state.exhaust_pile.push(exhausted);
                 engine.trigger_card_on_exhaust(exhausted);
@@ -307,25 +340,7 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
         }
 
         SimpleEffect::SetRandomHandCardCost(cost) => {
-            let eligible: Vec<usize> = engine.state.hand.iter()
-                .enumerate()
-                .filter(|(_, card)| {
-                    let current_cost = if card.cost >= 0 {
-                        card.cost as i32
-                    } else {
-                        engine.card_registry.card_def_by_id(card.def_id).cost
-                    };
-                    current_cost > 0
-                })
-                .map(|(idx, _)| idx)
-                .collect();
-
-            if !eligible.is_empty() {
-                let idx = eligible[engine.rng_gen_range(0..eligible.len())];
-                if idx < engine.state.hand.len() {
-                    engine.state.hand[idx].set_permanent_cost(cost as i8);
-                }
-            }
+            engine.apply_madness_action(cost as i8);
         }
 
         SimpleEffect::ObtainRandomPotion => {
@@ -338,6 +353,14 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         // -- Energy --
         SimpleEffect::GainEnergy(ref amount_src) => {
+            // SunderAction queues GainEnergyAction after its damage, then
+            // clearPostCombatActions removes that refund if the kill ended
+            // combat. A kill with another live monster keeps the action.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/SunderAction.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+            if engine.state.combat_over || engine.state.is_victory() {
+                return;
+            }
             let amount = resolve_card_amount(engine, ctx, amount_src);
             engine.state.energy += amount;
         }
@@ -349,28 +372,51 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         // -- Block (routes through dex/frail pipeline) --
         SimpleEffect::GainBlock(ref amount_src) => {
-            let base = resolve_card_amount(engine, ctx, amount_src);
+            let mut base = resolve_card_amount(engine, ctx, amount_src);
             let mut multiplier = 1;
             // Java X-cost block cards like Reinforced Body resolve their modified
             // block once, then apply it per energy spent.
             if matches!(amount_src, AmountSource::Block) && ctx.card.cost == -1 && ctx.card.base_block > 0 {
                 multiplier = ctx.x_value.max(0);
             }
-            let dex = engine.state.player.dexterity();
-            let frail = engine.state.player.is_frail();
-            let block = damage::calculate_block(base, dex, frail) * multiplier;
-            engine.gain_block_player(block);
+            // BlockPerNonAttackAction queues one GainBlockAction(this.block) per
+            // snapshotted non-Attack. Resolve the card's block separately and
+            // retain one block-gain event per exhausted card.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/
+            // BlockPerNonAttackAction.java
+            if matches!(amount_src, AmountSource::LastBulkCountTimesBlock) {
+                base = ctx.card.base_block;
+                multiplier = ctx.last_bulk_count.max(0);
+            }
+            // WallopAction passes target.lastDamageTaken straight to a
+            // GainBlockAction, and DoubleYourBlockAction directly adds the
+            // player's current Block. Neither amount re-enters the card
+            // Dexterity/Frail pipeline.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/WallopAction.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DoubleYourBlockAction.java
+            let block = if matches!(amount_src, AmountSource::TotalUnblockedDamage | AmountSource::PlayerBlock) {
+                base
+            } else {
+                let dex = engine.state.player.dexterity();
+                let frail = engine.state.player.is_frail();
+                damage::calculate_block(base, dex, frail)
+            };
+            // ReinforcedBodyAction and BlockPerNonAttackAction queue separate
+            // GainBlockActions. Keep those as distinct events so onGainedBlock
+            // powers such as Juggernaut and Wave of the Hand fire each time.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/
+            // ReinforcedBodyAction.java
+            for _ in 0..multiplier {
+                engine.gain_block_player(block);
+            }
         }
-        SimpleEffect::GainBlockIfLastHandCardType(card_type, ref amount_src) => {
-            if let Some(last_card) = engine.state.hand.last() {
-                let last_type = engine.card_registry.card_def_by_id(last_card.def_id).card_type;
-                if last_type == card_type {
-                    let base = resolve_card_amount(engine, ctx, amount_src);
-                    let dex = engine.state.player.dexterity();
-                    let frail = engine.state.player.is_frail();
-                    let block = damage::calculate_block(base, dex, frail);
-                    engine.gain_block_player(block);
-                }
+        SimpleEffect::GainBlockIfLastDrawnCardType(card_type, ref amount_src) => {
+            if ctx.last_drawn_card_types.contains(&card_type) {
+                let base = resolve_card_amount(engine, ctx, amount_src);
+                let dex = engine.state.player.dexterity();
+                let frail = engine.state.player.is_frail();
+                let block = damage::calculate_block(base, dex, frail);
+                engine.gain_block_player(block);
             }
         }
 
@@ -380,7 +426,11 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             if amount > 0 {
                 engine.heal_player(amount);
             } else if amount < 0 {
-                engine.player_lose_hp(-amount);
+                // LoseHPAction uses HP_LOSS DamageInfo: it bypasses block but
+                // still runs Intangible, Buffer, and Tungsten Rod reductions.
+                // Sources: LoseHPAction.java, IntangiblePlayerPower.java,
+                // BufferPower.java, TungstenRod.java, and AbstractPlayer.java::damage.
+                engine.player_lose_hp_from_damage(-amount);
             }
         }
 
@@ -398,14 +448,66 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         // -- Add temp card to a pile --
         SimpleEffect::AddCard(name, pile, ref amount_src) => {
+            // DamageAction and DamageAllEnemiesAction clear queued card-
+            // manipulation actions after the final enemy dies. AddCard models
+            // MakeTempCard actions, so it must not survive a preceding lethal.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DamageAllEnemiesAction.java
+            if engine.state.combat_over || engine.state.is_victory() {
+                return;
+            }
             let count = resolve_card_amount(engine, ctx, amount_src).max(0);
-            for _ in 0..count {
-                let card = engine.temp_card(name);
-                push_to_pile(engine, pile, card);
+            if pile == Pile::Hand {
+                // MakeTempCardInHandAction sends cards beyond the ten-card hand
+                // cap to discard rather than deleting them, and applies Master
+                // Reality to each copy. Source: MakeTempCardInHandAction.java.
+                engine.add_temp_cards_to_hand(name, count);
+            } else {
+                for _ in 0..count {
+                    let card = engine.temp_card(name);
+                    push_to_pile(engine, pile, card);
+                }
             }
             // Shuffle draw pile if cards were added to it
             if pile == Pile::Draw && count > 0 {
                 engine.shuffle_draw_pile();
+            }
+            if matches!(ctx.card.id, "Storm of Steel" | "Storm of Steel+")
+                && pile == Pile::Hand
+            {
+                // BladeFuryAction puts MakeTempCardInHandAction ahead of the
+                // card/relic actions queued by DiscardAction. Resolve those
+                // hooks only after all Shivs have been created.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/BladeFuryAction.java
+                let deferred = std::mem::take(&mut ctx.deferred_manual_discards);
+                for effect in deferred {
+                    engine.resolve_card_discarded_effect(effect);
+                    if engine.state.combat_over {
+                        break;
+                    }
+                }
+            }
+        }
+
+        SimpleEffect::AddCardToRandomDrawSpot(name, ref amount_src) => {
+            // A preceding lethal DamageAction clears queued card-manipulation
+            // actions, including MakeTempCardInDrawPileAction.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+            if engine.state.combat_over || engine.state.is_victory() {
+                return;
+            }
+            let count = resolve_card_amount(engine, ctx, amount_src).max(0);
+            for _ in 0..count {
+                let card = engine.temp_card(name);
+                if engine.state.draw_pile.is_empty() {
+                    engine.state.draw_pile.push(card);
+                } else {
+                    let idx = engine.card_random_rng.random_range(
+                        0,
+                        (engine.state.draw_pile.len() - 1) as i32,
+                    ) as usize;
+                    engine.state.draw_pile.insert(idx, card);
+                }
             }
         }
 
@@ -425,7 +527,15 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         // -- Copy played card to a pile (Anger: copy to discard) --
         SimpleEffect::CopyThisCardTo(pile) => {
-            push_to_pile(engine, pile, ctx.card_inst);
+            let mut copy = ctx.card_inst;
+            // AbstractCard.makeStatEquivalentCopy preserves upgrade, current
+            // costs, misc, freeToPlayOnce, and bottle flags, but not transient
+            // retain, purge-on-use, or exhaust-on-use state.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/AbstractCard.java
+            copy.flags &= crate::combat_types::CardInstance::FLAG_UPGRADED
+                | crate::combat_types::CardInstance::FLAG_FREE
+                | crate::combat_types::CardInstance::FLAG_INNATE;
+            push_to_pile(engine, pile, copy);
             if pile == Pile::Draw {
                 engine.shuffle_draw_pile();
             }
@@ -433,6 +543,14 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         // -- Channel orb --
         SimpleEffect::ChannelOrb(orb_type, ref amount_src) => {
+            // DamageAction removes later non-damage actions when the last
+            // monster dies. Damage-then-channel cards (Meteor Strike, Ball
+            // Lightning, Cold Snap, Doom and Gloom) therefore do not channel
+            // after a combat-ending hit.
+            // Java: actions/common/DamageAction.java and actions/GameActionManager.java.
+            if engine.state.combat_over || engine.state.is_victory() {
+                return;
+            }
             let count = resolve_card_amount(engine, ctx, amount_src).max(0);
             for _ in 0..count {
                 engine.channel_orb(orb_type);
@@ -441,14 +559,17 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         SimpleEffect::ChannelRandomOrb(ref amount_src) => {
             let count = resolve_card_amount(engine, ctx, amount_src).max(0);
+            // AbstractOrb.getRandomOrb(true) uses this exact list order and
+            // cardRandomRng.random(3), consuming one counter tick per orb.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/orbs/AbstractOrb.java
             let orb_types = [
-                crate::orbs::OrbType::Lightning,
-                crate::orbs::OrbType::Frost,
                 crate::orbs::OrbType::Dark,
+                crate::orbs::OrbType::Frost,
+                crate::orbs::OrbType::Lightning,
                 crate::orbs::OrbType::Plasma,
             ];
             for _ in 0..count {
-                let idx = engine.rng_gen_range(0..orb_types.len());
+                let idx = engine.card_random_rng.random(3) as usize;
                 engine.channel_orb(orb_types[idx]);
             }
         }
@@ -460,30 +581,26 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
         }
 
         SimpleEffect::TriggerDarkPassive => {
-            let focus = engine.state.player.focus();
-            for orb in engine.state.orb_slots.slots.iter_mut() {
-                if orb.orb_type == crate::orbs::OrbType::Dark {
-                    let gain = (orb.base_passive + focus).max(0);
-                    orb.evoke_amount += gain;
-                }
-            }
+            engine.trigger_dark_impulse();
+        }
+
+        SimpleEffect::TriggerAllOrbPassives => {
+            engine.trigger_orb_impulse();
         }
 
         SimpleEffect::EvokeAndRechannelFrontOrb => {
-            if engine.state.orb_slots.occupied_count() > 0 {
-                let orb_type = engine.state.orb_slots.front_orb_type();
-                let focus = engine.state.player.focus();
-                let evoke = engine.state.orb_slots.evoke_front(focus);
-                engine.apply_evoke_effect(evoke);
-                if orb_type != crate::orbs::OrbType::Empty {
-                    let evoke = engine.state.orb_slots.channel(orb_type, focus);
-                    engine.apply_evoke_effect(evoke);
-                }
-            }
+            engine.evoke_and_rechannel_front_orb();
+        }
+
+        SimpleEffect::EvokeOrbWithoutRemoving => {
+            engine.evoke_front_orb_without_removing();
         }
 
         // -- Fission --
         SimpleEffect::ResolveFission { evoke } => {
+            // FissionAction snapshots filledOrbCount, removes/evokes all orbs,
+            // then gains that much energy before drawing that many cards.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/FissionAction.java
             let orb_count = engine.state.orb_slots.occupied_count() as i32;
             if evoke {
                 engine.evoke_all_orbs();
@@ -502,7 +619,11 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
         SimpleEffect::EvokeOrb(ref amount_src) => {
             let count = resolve_card_amount(engine, ctx, amount_src).max(0);
             if count > 0 {
-                engine.evoke_front_orb_n(count as usize);
+                if matches!(ctx.card.id, "Multi-Cast" | "Multi-Cast+") {
+                    engine.multicast_front_orb_n(count as usize);
+                } else {
+                    engine.evoke_front_orb_n(count as usize);
+                }
             }
         }
 
@@ -523,6 +644,11 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             engine.shuffle_draw_pile();
         }
 
+        SimpleEffect::ShuffleAllAndDraw(ref amount_src) => {
+            let draw_count = resolve_card_amount(engine, ctx, amount_src);
+            engine.shuffle_all_and_draw(draw_count);
+        }
+
         // -- Discard random cards from a pile --
         SimpleEffect::DiscardRandomCardsFromPile(pile, count) => {
             execute_discard_random_cards_from_pile(engine, pile, count);
@@ -530,30 +656,17 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         // -- Play the top card of the draw pile through the normal free-play path --
         SimpleEffect::PlayTopCardOfDraw => {
-            if let Some(mut card) = engine.state.draw_pile.pop() {
-                let def = engine.card_registry.card_def_by_id(card.def_id).clone();
-                let target = if def.target == CardTarget::Enemy {
-                    let living = engine.state.living_enemy_indices();
-                    if living.is_empty() {
-                        -1
-                    } else {
-                        let idx = engine.rng_gen_range(0..living.len());
-                        living[idx] as i32
-                    }
-                } else {
-                    -1
-                };
-                card.cost = 0;
-                card.flags |= crate::combat_types::CardInstance::FLAG_FREE;
-                engine.state.hand.push(card);
-                let hand_idx = engine.state.hand.len() - 1;
-                engine.play_card(hand_idx, target);
-            }
+            engine.play_top_card_of_draw(true);
         }
 
         // -- Deal flat damage (no strength/stance modifiers) --
         SimpleEffect::DealDamage(target, ref amount_src) => {
-            if matches!(amount_src, AmountSource::DrawPileSize)
+            if matches!(
+                amount_src,
+                AmountSource::DrawPileSize
+                    | AmountSource::StatusValueTimesMagic(_)
+                    | AmountSource::PlayerBlock
+            )
                 && matches!(
                     target,
                     Target::SelectedEnemy | Target::AllEnemies | Target::RandomEnemy
@@ -610,9 +723,9 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                 if engine.state.enemies[tidx].entity.hp <= threshold
                     && engine.state.enemies[tidx].is_alive()
                 {
-                    let lethal =
-                        engine.state.enemies[tidx].entity.hp + engine.state.enemies[tidx].entity.block;
-                    engine.deal_damage_to_enemy(tidx, lethal);
+                    if engine.instant_kill_enemy(tidx) {
+                        ctx.enemy_killed = true;
+                    }
                 }
             }
         }
@@ -625,14 +738,11 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             for idx in living {
                 let mark = engine.state.enemies[idx].entity.status(sid::MARK);
                 if mark > 0 {
-                    engine.state.enemies[idx].entity.hp -= mark;
-                    engine.state.total_damage_dealt += mark;
-                    total_mark_damage += mark;
-                    if engine.state.enemies[idx].entity.hp <= 0 {
-                        engine.state.enemies[idx].entity.hp = 0;
+                    let hp_damage = engine.enemy_lose_hp_from_damage(idx, mark);
+                    total_mark_damage += hp_damage;
+                    if !engine.state.enemies[idx].is_alive() {
                         any_killed = true;
                     }
-                    engine.record_enemy_hp_damage(idx, mark);
                 }
             }
             if total_mark_damage > 0 {
@@ -645,6 +755,14 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         // -- Played card mutation --
         SimpleEffect::ModifyPlayedCardCost(ref amount_src) => {
+            // Streamline queues ReduceCostAction after DamageAction. When that
+            // hit kills the final monster, DamageAction clears ReduceCostAction
+            // because it is neither damage, heal, block, nor UseCardAction.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DamageAction.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+            if engine.state.combat_over || engine.state.is_victory() {
+                return;
+            }
             let delta = resolve_card_amount(engine, ctx, amount_src);
             if let Some(mut card) = engine.runtime_played_card {
                 let current = if card.cost >= 0 {
@@ -662,21 +780,51 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
         SimpleEffect::ModifyPlayedCardBlock(ref amount_src) => {
             let delta = resolve_card_amount(engine, ctx, amount_src);
             if let Some(mut card) = engine.runtime_played_card {
-                let current = if card.misc >= 0 {
+                let before = card;
+                let is_steam = matches!(ctx.card.id, "Steam" | "Steam+");
+                let current = if is_steam {
+                    card.decrementing_misc_or(ctx.card.base_block.max(0))
+                } else if card.misc >= 0 {
                     card.misc as i32
                 } else {
                     ctx.card.base_block.max(0)
                 };
-                let next = (current + delta).max(0) as i16;
-                card.misc = next;
-                ctx.card_inst.misc = next;
+                let next = if is_steam {
+                    current + delta
+                } else {
+                    (current + delta).max(0)
+                };
+                if is_steam {
+                    card.set_decrementing_misc(next);
+                    ctx.card_inst.set_decrementing_misc(next);
+                } else {
+                    card.misc = next as i16;
+                    ctx.card_inst.misc = next as i16;
+                }
                 engine.runtime_played_card = Some(card);
+                if matches!(ctx.card.id, "Genetic Algorithm" | "Genetic Algorithm+") {
+                    engine.sync_genetic_algorithm_master_deck(before, next as i16);
+                }
             }
         }
 
         SimpleEffect::ModifyPlayedCardDamage(ref amount_src) => {
+            // ModifyDamageAction is CARD_MANIPULATION, so DamageAction removes
+            // it from the queue when the hit kills the final monster. The
+            // played card still grows when only its target dies and another
+            // monster remains alive.
+            // Java: cards/red/Rampage.java, cards/green/GlassKnife.java,
+            // actions/common/DamageAction.java, and actions/GameActionManager.java.
+            if matches!(
+                ctx.card.id,
+                "Rampage" | "Rampage+" | "Glass Knife" | "Glass Knife+"
+            ) && (engine.state.combat_over || engine.state.is_victory())
+            {
+                return;
+            }
             let delta = resolve_card_amount(engine, ctx, amount_src);
             if let Some(mut card) = engine.runtime_played_card {
+                let before = card;
                 let current = if card.misc >= 0 {
                     card.misc as i32
                 } else {
@@ -686,11 +834,27 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                 card.misc = next;
                 ctx.card_inst.misc = next;
                 engine.runtime_played_card = Some(card);
+                if matches!(ctx.card.id, "RitualDagger" | "RitualDagger+") {
+                    engine.sync_ritual_dagger_master_deck(before, next);
+                }
+            }
+        }
+
+        SimpleEffect::IncreaseAllClawDamage(ref amount_src) => {
+            let delta = resolve_card_amount(engine, ctx, amount_src);
+            engine.increase_all_claw_damage(delta);
+            if let Some(updated) = engine.runtime_played_card {
+                ctx.card_inst = updated;
             }
         }
 
         // -- Heal HP (capped at max) --
         SimpleEffect::HealHp(_target, ref amount_src) => {
+            // Post-combat cleanup explicitly preserves HealAction. Reaper's
+            // VampireDamageAllEnemiesAction queues its accumulated heal before
+            // cleanup, so terminal Reaper/Bite hits still heal the player.
+            // Java: actions/unique/VampireDamageAllEnemiesAction.java and
+            // actions/GameActionManager.java::clearPostCombatActions.
             let amount = resolve_card_amount(engine, ctx, amount_src);
             if amount > 0 {
                 engine.heal_player(amount);
@@ -698,17 +862,25 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
         }
 
         // -- Increment counter status --
-        SimpleEffect::IncrementCounter(status_id, _threshold) => {
-            engine.state.player.add_status(status_id, 1);
+        SimpleEffect::IncrementCounter(status_id, threshold) => {
+            let next = engine.state.player.status(status_id) + 1;
+            let next = if threshold > 1 { next.min(threshold) } else { next };
+            engine.state.player.set_status(status_id, next);
         }
 
         // -- Modify max HP --
         SimpleEffect::ModifyMaxHp(ref amount_src) => {
             let amount = resolve_card_amount(engine, ctx, amount_src);
             engine.state.player.max_hp = (engine.state.player.max_hp + amount).max(1);
-            engine.state.player.hp = (engine.state.player.hp + amount)
-                .max(0)
-                .min(engine.state.player.max_hp);
+            if amount > 0 {
+                // AbstractCreature.java::increaseMaxHp raises maxHealth first,
+                // then routes the same amount through heal(), so Mark of the
+                // Bloom and Magic Flower still modify the current-HP increase.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/core/AbstractCreature.java
+                engine.heal_player(amount);
+            } else {
+                engine.state.player.hp = engine.state.player.hp.min(engine.state.player.max_hp);
+            }
         }
 
         // -- Modify max energy --
@@ -718,17 +890,18 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             engine.state.energy = engine.state.energy.min(engine.state.max_energy);
         }
 
-        // -- Modify gold (no-op in combat context; wired in Wave 2) --
-        SimpleEffect::ModifyGold(_amount_src) => {
-            // Gold is on RunState, not CombatEngine. Handled at dispatch level.
+        // -- Modify live run gold --
+        SimpleEffect::ModifyGold(ref amount_src) => {
+            let amount = resolve_card_amount(engine, ctx, amount_src);
+            engine.gain_run_gold(amount);
         }
 
         // -- Flee combat --
         SimpleEffect::FleeCombat => {
             engine.state.combat_over = true;
         }
-        SimpleEffect::UpgradeRandomCardFromPiles(piles) => {
-            upgrade_random_card_from_piles(engine, piles);
+        SimpleEffect::UpgradeRandomMasterDeckCard => {
+            engine.upgrade_random_master_deck_card();
         }
     }
 }
@@ -738,12 +911,34 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 // ===========================================================================
 
 /// Debuff status IDs that should route through apply_debuff (handles Artifact).
-fn is_debuff(status: StatusId) -> bool {
+fn is_debuff(status: StatusId, amount: i32) -> bool {
     status == sid::WEAKENED
         || status == sid::VULNERABLE
         || status == sid::FRAIL
         || status == sid::POISON
         || status == sid::CONSTRICTED
+        // LockOnPower declares DEBUFF, so Artifact blocks the card before its
+        // orb-damage modifier can become active.
+        || status == sid::LOCK_ON
+        // CorpseExplosionPower.java declares PowerType.DEBUFF, so Artifact blocks it.
+        || status == sid::CORPSE_EXPLOSION
+        || status == sid::NO_DRAW
+        // NoBlockPower declares DEBUFF, so Artifact consumes a charge and
+        // blocks Panic Button's restriction after its block action resolves.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NoBlockPower.java
+        || status == sid::NO_BLOCK
+        || status == sid::BIASED_COG_FOCUS_LOSS
+        // WraithFormPower declares DEBUFF even though the Rust status stores
+        // its negative magnitude as a positive stack count.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/WraithFormPower.java
+        || status == sid::WRAITH_FORM
+        // LoseStrengthPower is explicitly PowerType.DEBUFF, so Artifact can
+        // make Flex's Strength gain permanent.
+        || status == sid::LOSE_STRENGTH
+        // FocusPower.updateDescription classifies negative applications as
+        // DEBUFF and positive applications as BUFF.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/FocusPower.java
+        || (status == sid::FOCUS && amount < 0)
 }
 
 fn apply_status(
@@ -755,18 +950,33 @@ fn apply_status(
 ) {
     match target {
         Target::Player => {
-            add_player_status(engine, status, amount);
+            if is_debuff(status, amount) {
+                crate::powers::apply_debuff(&mut engine.state.player, status, amount);
+            } else {
+                add_player_status(engine, status, amount);
+            }
         }
         // Card effects do not currently install owner-aware runtime handlers.
         // Treat SelfEntity as player until self-owned status handlers become explicit.
         Target::SelfEntity => {
-            add_player_status(engine, status, amount);
+            if is_debuff(status, amount) {
+                crate::powers::apply_debuff(&mut engine.state.player, status, amount);
+            } else {
+                add_player_status(engine, status, amount);
+            }
         }
         Target::SelectedEnemy => {
             let idx = ctx.target_idx;
-            if idx >= 0 && (idx as usize) < engine.state.enemies.len() {
+            if idx >= 0
+                && (idx as usize) < engine.state.enemies.len()
+                && engine.state.enemies[idx as usize].is_targetable()
+            {
                 let i = idx as usize;
-                if is_debuff(status) {
+                // ApplyPowerAction immediately cancels for a dead or escaped
+                // target. This matters for damage-then-debuff cards whose hit
+                // kills the selected monster, such as Neutralize.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ApplyPowerAction.java
+                if is_debuff(status, amount) {
                     engine.apply_player_debuff_to_enemy(i, status, amount);
                 } else {
                     engine.state.enemies[i].entity.add_status(status, amount);
@@ -776,7 +986,7 @@ fn apply_status(
         Target::AllEnemies => {
             let living = engine.state.living_enemy_indices();
             for i in living {
-                if is_debuff(status) {
+                if is_debuff(status, amount) {
                     engine.apply_player_debuff_to_enemy(i, status, amount);
                 } else {
                     engine.state.enemies[i].entity.add_status(status, amount);
@@ -786,8 +996,17 @@ fn apply_status(
         Target::RandomEnemy => {
             let living = engine.state.living_enemy_indices();
             if !living.is_empty() {
-                let idx = living[engine.rng_gen_range(0..living.len())];
-                if is_debuff(status) {
+                // Card-owned random debuff targeting uses cardRandomRng. In
+                // particular, Bouncing Flask calls MonsterGroup.getRandomMonster
+                // once for the initial target and once per recursive bounce.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/BouncingFlask.java
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/BouncingFlaskAction.java
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/MonsterGroup.java
+                let selected = engine
+                    .card_random_rng
+                    .random_range(0, (living.len() - 1) as i32) as usize;
+                let idx = living[selected];
+                if is_debuff(status, amount) {
                     engine.apply_player_debuff_to_enemy(idx, status, amount);
                 } else {
                     engine.state.enemies[idx].entity.add_status(status, amount);
@@ -836,11 +1055,33 @@ fn set_status(
 }
 
 fn add_player_status(engine: &mut CombatEngine, status: StatusId, amount: i32) {
-    engine.state.player.add_status(status, amount);
     if status == sid::ORB_SLOTS && amount > 0 {
+        let before = engine.state.orb_slots.max_slots;
         for _ in 0..amount {
             engine.state.orb_slots.add_slot();
         }
+        let gained = engine.state.orb_slots.max_slots.saturating_sub(before) as i32;
+        engine.state.player.add_status(status, gained);
+        return;
+    }
+    if matches!(status, sid::COLLECT_MIRACLES | sid::LIKE_WATER | sid::ENERGIZED) {
+        // Java CollectPower.stackPower(), LikeWaterPower.stackPower(), and
+        // EnergizedPower.stackPower()/EnergizedBluePower.stackPower() cap at 999.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/CollectPower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/LikeWaterPower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/EnergizedPower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/EnergizedBluePower.java
+        let next = (engine.state.player.status(status) + amount).min(999);
+        engine.state.player.set_status(status, next);
+    } else {
+        engine.state.player.add_status(status, amount);
+    }
+    // ReboundPower is applied during Rebound.use, before UseCardAction invokes
+    // onAfterUseCard. Install its runtime handler immediately so the new power
+    // can ignore that first callback via its Java `justEvoked` flag.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ReboundPower.java
+    if status == sid::REBOUND {
+        engine.rebuild_effect_runtime();
     }
 }
 
@@ -866,16 +1107,32 @@ fn multiply_status(
     match target {
         Target::Player => {
             let current = engine.state.player.status(status);
-            if current > 0 {
-                engine.state.player.set_status(status, current * multiplier);
+            if current != 0 {
+                let multiplied = current.saturating_mul(multiplier);
+                // LimitBreakAction reapplies the current signed Strength via
+                // StrengthPower.stackPower, which clamps its result to ±999.
+                // Java: actions/unique/LimitBreakAction.java and
+                // powers/StrengthPower.java.
+                let next = if status == sid::STRENGTH {
+                    multiplied.clamp(-999, 999)
+                } else {
+                    multiplied
+                };
+                engine.state.player.set_status(status, next);
             }
         }
         // Card effects do not currently install owner-aware runtime handlers.
         // Treat SelfEntity as player until self-owned status handlers become explicit.
         Target::SelfEntity => {
             let current = engine.state.player.status(status);
-            if current > 0 {
-                engine.state.player.set_status(status, current * multiplier);
+            if current != 0 {
+                let multiplied = current.saturating_mul(multiplier);
+                let next = if status == sid::STRENGTH {
+                    multiplied.clamp(-999, 999)
+                } else {
+                    multiplied
+                };
+                engine.state.player.set_status(status, next);
             }
         }
         Target::SelectedEnemy => {
@@ -884,7 +1141,19 @@ fn multiply_status(
                 let i = idx as usize;
                 let current = engine.state.enemies[i].entity.status(status);
                 if current > 0 {
-                    engine.state.enemies[i].entity.set_status(status, current * multiplier);
+                    if status == sid::POISON {
+                        // DoublePoisonAction / TriplePoisonAction do not set the
+                        // final amount directly: they enqueue ApplyPowerAction
+                        // for the additional current or current*2 Poison. That
+                        // application is blocked by Artifact and receives Snake
+                        // Skull's +1 Poison constructor bonus.
+                        // Java: actions/unique/DoublePoisonAction.java,
+                        // TriplePoisonAction.java, and common/ApplyPowerAction.java.
+                        let additional = current * (multiplier - 1).max(0);
+                        engine.apply_player_debuff_to_enemy(i, status, additional);
+                    } else {
+                        engine.state.enemies[i].entity.set_status(status, current * multiplier);
+                    }
                 }
             }
         }
@@ -918,11 +1187,31 @@ pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &A
     match *src {
         AmountSource::Magic => ctx.card.base_magic.max(1),
         AmountSource::Block => {
-            if ctx.card_inst.misc >= 0 {
+            if matches!(ctx.card.id, "Steam" | "Steam+") {
+                ctx.card_inst
+                    .decrementing_misc_or(ctx.card.base_block.max(0))
+                    .max(0)
+            } else if ctx.card_inst.misc >= 0 {
                 ctx.card_inst.misc as i32
             } else {
                 ctx.card.base_block.max(0)
             }
+        }
+        AmountSource::ModifiedBlock => {
+            let base = if matches!(ctx.card.id, "Steam" | "Steam+") {
+                ctx.card_inst
+                    .decrementing_misc_or(ctx.card.base_block.max(0))
+                    .max(0)
+            } else if ctx.card_inst.misc >= 0 {
+                ctx.card_inst.misc as i32
+            } else {
+                ctx.card.base_block.max(0)
+            };
+            damage::calculate_block(
+                base,
+                engine.state.player.dexterity(),
+                engine.state.player.is_frail(),
+            )
         }
         AmountSource::Damage => ctx.card.base_damage.max(0),
         AmountSource::Fixed(n) => n,
@@ -952,6 +1241,9 @@ pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &A
         AmountSource::HandSize => engine.state.hand.len() as i32,
         AmountSource::PlayerBlock => engine.state.player.block,
         AmountSource::DiscardPileSize => engine.state.discard_pile.len() as i32,
+        AmountSource::DiscardPileSizePlusBlock => {
+            engine.state.discard_pile.len() as i32 + ctx.card.base_block.max(0)
+        }
         AmountSource::CardMisc => ctx.card_inst.misc.max(0) as i32,
         AmountSource::DrawPileSize => engine.state.draw_pile.len() as i32,
         AmountSource::DrawPileDivN(n) => {
@@ -967,7 +1259,9 @@ pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &A
         AmountSource::LastBulkCountTimesBlock => {
             ctx.last_bulk_count.max(0) * ctx.card.base_block.max(0)
         }
-        AmountSource::AttacksThisTurn => engine.state.attacks_played_this_turn,
+        AmountSource::PriorAttacksThisTurn => {
+            (engine.state.attacks_played_this_turn - 1).max(0)
+        }
         AmountSource::SkillsInHand => {
             engine.state.hand.iter()
                 .filter(|c| {
@@ -994,36 +1288,6 @@ pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &A
     }
 }
 
-fn upgrade_random_card_from_piles(engine: &mut CombatEngine, piles: &'static [Pile]) {
-    let mut eligible: Vec<(Pile, usize)> = Vec::new();
-    for pile in piles {
-        let cards = match pile {
-            Pile::Hand => &engine.state.hand,
-            Pile::Draw => &engine.state.draw_pile,
-            Pile::Discard => &engine.state.discard_pile,
-            Pile::Exhaust => &engine.state.exhaust_pile,
-        };
-        for (idx, card) in cards.iter().enumerate() {
-            if !card.is_upgraded() {
-                eligible.push((*pile, idx));
-            }
-        }
-    }
-    if eligible.is_empty() {
-        return;
-    }
-    let (pile, idx) = eligible[engine.rng_gen_range(0..eligible.len())];
-    let pile_vec = match pile {
-        Pile::Hand => &mut engine.state.hand,
-        Pile::Draw => &mut engine.state.draw_pile,
-        Pile::Discard => &mut engine.state.discard_pile,
-        Pile::Exhaust => &mut engine.state.exhaust_pile,
-    };
-    if idx < pile_vec.len() {
-        engine.card_registry.upgrade_card(&mut pile_vec[idx]);
-    }
-}
-
 // ===========================================================================
 // Deal flat damage (no strength/stance — used by relics, powers)
 // ===========================================================================
@@ -1036,12 +1300,12 @@ fn deal_flat_damage(
 ) {
     match target {
         Target::Player => {
-            engine.player_lose_hp(amount);
+            engine.player_lose_hp_from_damage(amount);
         }
         // Card effects do not currently install owner-aware runtime handlers.
         // Treat SelfEntity as player until self-owned status handlers become explicit.
         Target::SelfEntity => {
-            engine.player_lose_hp(amount);
+            engine.player_lose_hp_from_damage(amount);
         }
         Target::SelectedEnemy => {
             let idx = ctx.target_idx;
@@ -1111,6 +1375,8 @@ pub fn execute_trigger_effects(
         enemy_killed: false,
         hand_size_at_play: 0,
         last_bulk_count: 0,
+        last_drawn_card_types: Vec::new(),
+        deferred_manual_discards: Vec::new(),
     };
 
     execute_effects(engine, &mut ctx, effects);
@@ -1146,7 +1412,11 @@ fn evaluate_condition(engine: &CombatEngine, ctx: &CardPlayContext, cond: &Condi
         Condition::EnemyHasStatus(status) => {
             let idx = ctx.target_idx;
             if idx >= 0 && (idx as usize) < engine.state.enemies.len() {
-                engine.state.enemies[idx as usize].entity.status(status) > 0
+                // HeelHookAction/DropkickAction queue damage before their
+                // reward actions. A final kill clears those queued follow-ups,
+                // while killing one target in a multi-monster fight does not.
+                !engine.state.is_victory()
+                    && engine.state.enemies[idx as usize].entity.status(status) > 0
             } else {
                 false
             }
@@ -1171,6 +1441,17 @@ fn evaluate_condition(engine: &CombatEngine, ctx: &CardPlayContext, cond: &Condi
 
         Condition::EnemyKilled => ctx.enemy_killed,
 
+        Condition::EnemyKilledNonMinion => {
+            ctx.enemy_killed
+                && ctx.target_idx >= 0
+                && (ctx.target_idx as usize) < engine.state.enemies.len()
+                && !engine.state.enemies[ctx.target_idx as usize].is_minion
+                && engine.state.enemies[ctx.target_idx as usize]
+                    .entity
+                    .status(sid::REBIRTH_PENDING)
+                    == 0
+        }
+
         Condition::DiscardedThisTurn => {
             engine.state.player.status(sid::DISCARDED_THIS_TURN) > 0
         }
@@ -1191,24 +1472,353 @@ fn execute_choose_cards(
     max_picks_src: AmountSource,
     post_choice_draw_src: AmountSource,
 ) {
+    // DamageAction clears queued post-combat actions after a lethal final hit.
+    // Card-manipulation actions such as Headbutt therefore never open after
+    // the room has entered its battle-ending state.
+    if engine.state.is_victory() {
+        return;
+    }
+
     let pile = get_pile(engine, source);
+    let post_choice_draw = if post_choice_draw_src == AmountSource::Fixed(0) {
+        0
+    } else {
+        resolve_card_amount(engine, ctx, &post_choice_draw_src).max(0)
+    };
 
     // Build options from the source pile, applying filter
-    let options: Vec<ChoiceOption> = pile.iter()
+    let mut options: Vec<ChoiceOption> = pile.iter()
         .enumerate()
         .filter(|(_, card)| matches_filter(engine, card, filter))
         .map(|(i, _)| make_choice_option(source, i))
         .collect();
 
+    let uses_sorted_draw_grid = (matches!(ctx.card.id, "Omniscience" | "Omniscience+")
+        && matches!(source, Pile::Draw)
+        && matches!(action, ChoiceAction::PlayForFree))
+        || (matches!(ctx.card.id, "Seek" | "Seek+")
+            && matches!(source, Pile::Draw)
+            && matches!(action, ChoiceAction::MoveToHand));
+    if uses_sorted_draw_grid {
+        // OmniscienceAction and BetterDrawPileToHandAction both copy the draw
+        // pile, then stably sort by name, rarity descending, and finally move
+        // Status cards to the end before opening grid selection.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/OmniscienceAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/BetterDrawPileToHandAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
+        options.sort_by(|left, right| {
+            let ChoiceOption::DrawCard(left_idx) = left else {
+                return std::cmp::Ordering::Equal;
+            };
+            let ChoiceOption::DrawCard(right_idx) = right else {
+                return std::cmp::Ordering::Equal;
+            };
+            let left_card = pile[*left_idx];
+            let right_card = pile[*right_idx];
+            let left_def = engine.card_registry.card_def_by_id(left_card.def_id);
+            let right_def = engine.card_registry.card_def_by_id(right_card.def_id);
+            let left_status = left_def.card_type == CardType::Status;
+            let right_status = right_def.card_type == CardType::Status;
+            left_status
+                .cmp(&right_status)
+                .then_with(|| {
+                    omniscience_rarity_rank(right_def.id)
+                        .cmp(&omniscience_rarity_rank(left_def.id))
+                })
+                .then_with(|| left_def.name.cmp(right_def.name))
+        });
+    }
+
     if options.is_empty() {
+        // ExhaustAction with an empty hand completes immediately; actions
+        // queued after it (Burning Pact's DrawCardAction) still resolve.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ExhaustAction.java
+        if post_choice_draw > 0 {
+            engine.draw_cards(post_choice_draw);
+        }
         return;
     }
 
-    let min_picks = resolve_card_amount(engine, ctx, &min_picks_src).max(0) as usize;
-    let max_picks = (resolve_card_amount(engine, ctx, &max_picks_src).max(0) as usize)
-        .min(options.len());
+    let is_meditate = matches!(ctx.card.id, "Meditate" | "Meditate+")
+        && matches!(source, Pile::Discard)
+        && matches!(action, ChoiceAction::MoveToHand);
+    let is_seek = matches!(ctx.card.id, "Seek" | "Seek+")
+        && matches!(source, Pile::Draw)
+        && matches!(action, ChoiceAction::MoveToHand);
+    let requested_min = resolve_card_amount(engine, ctx, &min_picks_src).max(0) as usize;
+    let requested_max = resolve_card_amount(engine, ctx, &max_picks_src).max(0) as usize;
+    let max_picks = requested_max.min(options.len());
 
     if max_picks == 0 {
+        return;
+    }
+
+    // Mandatory BetterDrawPileToHandAction moves the whole draw pile directly
+    // when it contains no more cards than Seek requests. Cards beyond the hand
+    // limit go to discard in draw-pile iteration order.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/BetterDrawPileToHandAction.java
+    if is_seek && options.len() <= max_picks {
+        let cards = std::mem::take(&mut engine.state.draw_pile);
+        for card in cards {
+            if engine.state.hand.len() >= 10 {
+                engine.state.discard_pile.push(card);
+            } else {
+                engine.state.hand.push(card);
+            }
+        }
+        return;
+    }
+
+    // Base Forethought skips hand selection when exactly one card remains.
+    // Forethought+ still opens the any-number screen and permits choosing zero.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ForethoughtAction.java
+    if ctx.card.id == "Forethought"
+        && source == Pile::Hand
+        && action == ChoiceAction::PutOnBottomFreeIfCostly
+        && options.len() == 1
+    {
+        if let ChoiceOption::HandCard(index) = options[0] {
+            engine.move_forethought_cards_to_bottom(&[index]);
+        }
+        return;
+    }
+
+    if ctx.card.id == "Armaments"
+        && source == Pile::Hand
+        && action == ChoiceAction::Upgrade
+        && options.len() == 1
+    {
+        if let ChoiceOption::HandCard(index) = options[0] {
+            engine.card_registry.upgrade_card(&mut engine.state.hand[index]);
+        }
+        return;
+    }
+
+    // Non-random PutOnDeckAction skips hand selection when the whole hand fits
+    // in its amount. It still calls getRandomCard(cardRandomRng) for each moved
+    // card, including the singleton case used by Thinking Ahead and Warcry.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/PutOnDeckAction.java
+    if source == Pile::Hand
+        && action == ChoiceAction::PutOnTopOfDraw
+        && requested_min == requested_max
+        && options.len() <= requested_max
+    {
+        for _ in 0..options.len() {
+            let index = engine
+                .card_random_rng
+                .random((engine.state.hand.len() - 1) as i32) as usize;
+            let card = engine.state.hand.remove(index);
+            engine.state.draw_pile.push(card);
+        }
+        return;
+    }
+
+    // SetupAction directly moves the only card remaining after Setup leaves the
+    // hand; hand selection opens only when at least two cards remain.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/SetupAction.java
+    if matches!(ctx.card.id, "Setup" | "Setup+")
+        && source == Pile::Hand
+        && action == ChoiceAction::PutOnTopAtCostZero
+        && options.len() == 1
+    {
+        if let ChoiceOption::HandCard(index) = options[0] {
+            engine.move_setup_card_to_top(index);
+        }
+        return;
+    }
+
+    // DiscardPileToTopOfDeckAction moves a singleton discard pile directly;
+    // grid selection is used only when more than one card is available.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DiscardPileToTopOfDeckAction.java
+    if matches!(ctx.card.id, "Headbutt" | "Headbutt+")
+        && source == Pile::Discard
+        && action == ChoiceAction::PutOnTopOfDraw
+        && options.len() == 1
+    {
+        if let ChoiceOption::DiscardCard(index) = options[0] {
+            let card = engine.state.discard_pile.remove(index);
+            engine.state.draw_pile.push(card);
+        }
+        return;
+    }
+
+    // BetterDiscardPileToHandAction directly moves the entire discard pile
+    // when its size is at most the mandatory request. Hologram requests one,
+    // so a singleton never opens grid selection.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/BetterDiscardPileToHandAction.java
+    if matches!(ctx.card.id, "Hologram" | "Hologram+")
+        && source == Pile::Discard
+        && action == ChoiceAction::MoveToHand
+        && options.len() == 1
+    {
+        if engine.state.hand.len() < 10 {
+            if let ChoiceOption::DiscardCard(index) = options[0] {
+                let card = engine.state.discard_pile.remove(index);
+                engine.state.hand.push(card);
+            }
+        }
+        return;
+    }
+
+    // The Skill/AttackFromDeckToHandAction pair skips grid selection when
+    // exactly one matching card is eligible and moves it directly into the hand
+    // (or discard if the hand is already full).
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/SkillFromDeckToHandAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/AttackFromDeckToHandAction.java
+    if matches!(
+        ctx.card.id,
+        "Secret Technique" | "Secret Technique+" | "Secret Weapon" | "Secret Weapon+"
+    )
+        && source == Pile::Draw
+        && action == ChoiceAction::MoveToHand
+        && options.len() == 1
+    {
+        if let ChoiceOption::DrawCard(index) = options[0] {
+            let card = engine.state.draw_pile.remove(index);
+            if engine.state.hand.len() >= 10 {
+                engine.state.discard_pile.push(card);
+            } else {
+                engine.state.hand.push(card);
+            }
+        }
+        return;
+    }
+
+    // MeditateAction is mandatory. When the whole discard pile fits, Java
+    // moves it without opening grid select.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/MeditateAction.java
+    if is_meditate && options.len() <= max_picks {
+        for card in &mut engine.state.discard_pile {
+            card.set_retained(true);
+        }
+        let move_count = options
+            .len()
+            .min(10usize.saturating_sub(engine.state.hand.len()));
+        for _ in 0..move_count {
+            let card = engine.state.discard_pile.remove(0);
+            engine.state.hand.push(card);
+        }
+        return;
+    }
+
+    let min_picks = if is_meditate {
+        max_picks
+    } else {
+        requested_min
+    };
+
+    // A fixed-count DiscardAction automatically discards the whole hand when
+    // hand.size() <= amount, firing each card's manual-discard hooks. It opens
+    // hand selection only when more cards remain than the requested amount.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DiscardAction.java
+    if action == ChoiceAction::Discard
+        && source == Pile::Hand
+        && filter == CardFilter::All
+        && requested_min == requested_max
+        && options.len() <= requested_max
+    {
+        let mut indices: Vec<usize> = options
+            .iter()
+            .filter_map(|option| match option {
+                ChoiceOption::HandCard(index) => Some(*index),
+                _ => None,
+            })
+            .collect();
+        indices.sort_unstable_by(|left, right| right.cmp(left));
+        let mut discarded_cards = Vec::with_capacity(indices.len());
+        for index in indices {
+            let card = engine.state.hand.remove(index);
+            engine.state.discard_pile.push(card);
+            discarded_cards.push(card);
+        }
+        for card in discarded_cards {
+            engine.on_card_discarded(card);
+        }
+        if post_choice_draw > 0 {
+            engine.draw_cards(post_choice_draw);
+        }
+        return;
+    }
+
+    // Non-random, fixed-count ExhaustAction automatically exhausts the whole
+    // hand when hand.size() <= amount instead of opening the selection screen.
+    // This covers Burning Pact/True Grit with a singleton remaining hand while
+    // preserving any-number choices such as Purity (min != max).
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ExhaustAction.java
+    if action == ChoiceAction::Exhaust
+        && source == Pile::Hand
+        && requested_min == requested_max
+        && options.len() <= requested_max
+    {
+        let mut indices: Vec<usize> = options
+            .iter()
+            .filter_map(|option| match option {
+                ChoiceOption::HandCard(index) => Some(*index),
+                _ => None,
+            })
+            .collect();
+        indices.sort_unstable_by(|left, right| right.cmp(left));
+        for index in indices {
+            let card = engine.state.hand.remove(index);
+            engine.state.exhaust_pile.push(card);
+            engine.trigger_card_on_exhaust(card);
+        }
+        if post_choice_draw > 0 {
+            engine.draw_cards(post_choice_draw);
+        }
+        return;
+    }
+
+    // RecycleAction directly resolves the only remaining hand card. It opens
+    // hand selection only when two or more cards remain after Recycle itself
+    // has left the hand.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/RecycleAction.java
+    if action == ChoiceAction::ExhaustAndGainEnergy
+        && source == Pile::Hand
+        && options.len() == 1
+    {
+        if let ChoiceOption::HandCard(index) = options[0] {
+            engine.recycle_hand_card(index);
+        }
+        return;
+    }
+
+    // DualWieldAction skips the hand-select screen when exactly one Attack or
+    // Power is eligible and immediately creates its copies.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DualWieldAction.java
+    if action == ChoiceAction::CopyToHand && options.len() == 1 {
+        if let ChoiceOption::HandCard(index) = options[0] {
+            let card = engine.state.hand[index];
+            engine.add_dual_wield_copies(card, ctx.card.base_magic.max(1) as usize);
+        }
+        return;
+    }
+
+    // NightmareAction immediately applies NightmarePower when the hand left
+    // after playing Night Terror contains exactly one card.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/NightmareAction.java
+    if action == ChoiceAction::StoreCardForNextTurnCopies && options.len() == 1 {
+        if let ChoiceOption::HandCard(index) = options[0] {
+            let card = engine.state.hand[index];
+            engine.store_nightmare_copies(card, ctx.card.base_magic.max(1) as usize);
+        }
+        return;
+    }
+
+    // ExhumeAction moves a lone non-Exhume card immediately. With a larger
+    // original exhaust pile it still opens grid select after hiding Exhumes,
+    // even when that leaves only one eligible option.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ExhumeAction.java
+    let is_exhume = matches!(ctx.card.id, "Exhume" | "Exhume+")
+        && source == Pile::Exhaust
+        && action == ChoiceAction::MoveToHand;
+    if is_exhume && pile.len() == 1 && options.len() == 1 {
+        if engine.state.hand.len() < 10 {
+            if let ChoiceOption::ExhaustCard(index) = options[0] {
+                let card = engine.state.exhaust_pile.remove(index);
+                engine.state.hand.push(card);
+            }
+        }
         return;
     }
 
@@ -1225,8 +1835,7 @@ fn execute_choose_cards(
     } else {
         engine.begin_choice(reason, options, min_picks, max_picks);
     }
-    if post_choice_draw_src != AmountSource::Fixed(0) {
-        let post_choice_draw = resolve_card_amount(engine, ctx, &post_choice_draw_src).max(0);
+    if post_choice_draw > 0 {
         if let Some(choice) = engine.choice.as_mut() {
             choice.post_choice_draw = post_choice_draw;
         }
@@ -1270,6 +1879,10 @@ fn matches_filter(
 ) -> bool {
     match filter {
         CardFilter::All => true,
+        CardFilter::NonExhume => {
+            let id = engine.card_registry.card_def_by_id(card.def_id).id;
+            id.strip_suffix('+').unwrap_or(id) != "Exhume"
+        }
         CardFilter::Attacks => {
             engine.card_registry.card_def_by_id(card.def_id).card_type == CardType::Attack
         }
@@ -1287,9 +1900,16 @@ fn matches_filter(
         }
         CardFilter::ZeroCost => {
             let def = engine.card_registry.card_def_by_id(card.def_id);
-            def.cost == 0
+            let current_cost = if card.cost >= 0 {
+                card.cost as i32
+            } else {
+                def.cost
+            };
+            current_cost == 0 || card.is_free()
         }
-        CardFilter::Upgradeable => !card.is_upgraded(),
+        CardFilter::Upgradeable => {
+            engine.card_registry.can_upgrade_card(card)
+        }
     }
 }
 
@@ -1328,7 +1948,7 @@ fn choice_reason_for_action(action: ChoiceAction, source: Pile) -> ChoiceReason 
         ChoiceAction::CopyToHand => ChoiceReason::DualWield,
         ChoiceAction::StoreCardForNextTurnCopies => ChoiceReason::DualWield,
         ChoiceAction::PutOnTopAtCostZero => ChoiceReason::SetupPick,
-        ChoiceAction::PutOnBottomAtCostZero => ChoiceReason::ForethoughtPick,
+        ChoiceAction::PutOnBottomFreeIfCostly => ChoiceReason::ForethoughtPick,
         ChoiceAction::ExhaustAndGainEnergy => ChoiceReason::RecycleCard,
     }
 }
@@ -1361,17 +1981,47 @@ fn execute_for_each(
 
     match action {
         BulkAction::Exhaust => {
-            // Move matching cards to exhaust pile (reverse order to preserve indices)
-            let pile_ref = get_pile_mut(engine, pile);
-            let mut exhausted = Vec::new();
+            // ExhaustAllNonAttackAction and BlockPerNonAttackAction add one
+            // ExhaustSpecificCardAction per snapshotted card to the top of the
+            // queue. Resolve in reverse hand order and fire each card's exhaust
+            // hooks before moving to the next card.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ExhaustAllNonAttackAction.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/BlockPerNonAttackAction.java
             for &i in matching.iter().rev() {
-                if i < pile_ref.len() {
-                    exhausted.push(pile_ref.remove(i));
+                let card = {
+                    let pile_ref = get_pile_mut(engine, pile);
+                    (i < pile_ref.len()).then(|| pile_ref.remove(i))
+                };
+                if let Some(card) = card {
+                    engine.state.exhaust_pile.push(card);
+                    engine.trigger_card_on_exhaust(card);
                 }
             }
+        }
+
+        BulkAction::ExhaustRandom => {
+            // FiendFireAction queues one random ExhaustAction per card. Each
+            // getRandomCard call consumes cardRandomRng, including the final
+            // random(0) call with one card remaining.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/FiendFireAction.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ExhaustAction.java
+            let pile_ref = get_pile_mut(engine, pile);
+            let mut candidates = Vec::with_capacity(matching.len());
+            for &index in matching.iter().rev() {
+                candidates.push(pile_ref.remove(index));
+            }
+            candidates.reverse();
+
+            let mut exhausted = Vec::with_capacity(candidates.len());
+            while !candidates.is_empty() {
+                let index = engine
+                    .card_random_rng
+                    .random((candidates.len() - 1) as i32) as usize;
+                exhausted.push(candidates.remove(index));
+            }
+
             let exhausted_cards = exhausted.clone();
             engine.state.exhaust_pile.extend(exhausted);
-            // Trigger on-exhaust hooks for each card
             for card in exhausted_cards {
                 engine.trigger_card_on_exhaust(card);
             }
@@ -1388,7 +2038,12 @@ fn execute_for_each(
             for card in discarded {
                 engine.state.discard_pile.push(card);
                 if pile == Pile::Hand {
-                    engine.on_card_discarded(card);
+                    if matches!(ctx.card.id, "Storm of Steel" | "Storm of Steel+") {
+                        let effect = engine.prepare_card_discarded(card);
+                        ctx.deferred_manual_discards.push(effect);
+                    } else {
+                        engine.on_card_discarded(card);
+                    }
                 }
             }
         }
@@ -1409,19 +2064,50 @@ fn execute_for_each(
         }
 
         BulkAction::SetCostForTurn(cost) => {
-            let pile_ref = get_pile_mut(engine, pile);
             for &i in &matching {
-                if i < pile_ref.len() {
-                    pile_ref[i].cost = cost as i8;
+                let current_cost = get_pile(engine, pile).get(i).map(|card| {
+                    let def = engine.card_registry.card_def_by_id(card.def_id);
+                    if card.cost >= 0 {
+                        card.cost as i32
+                    } else if card.base_cost >= 0 {
+                        card.base_cost as i32
+                    } else {
+                        def.cost
+                    }
+                });
+                if current_cost.is_some_and(|current| current > cost) {
+                    get_pile_mut(engine, pile)[i].set_cost_for_turn(cost as i8);
                 }
             }
         }
 
         BulkAction::SetCost(cost) => {
-            let pile_ref = get_pile_mut(engine, pile);
             for &i in &matching {
-                if i < pile_ref.len() {
-                    pile_ref[i].set_permanent_cost(cost as i8);
+                let costs = get_pile(engine, pile).get(i).map(|card| {
+                    let def = engine.card_registry.card_def_by_id(card.def_id);
+                    let permanent = if card.base_cost >= 0 {
+                        card.base_cost as i32
+                    } else {
+                        def.cost
+                    };
+                    let current = if card.cost >= 0 {
+                        card.cost as i32
+                    } else {
+                        permanent
+                    };
+                    (current, permanent)
+                });
+                if let Some((current, permanent)) = costs {
+                    let card = &mut get_pile_mut(engine, pile)[i];
+                    // EnlightenmentAction always applies the turn-only branch,
+                    // then (upgraded) changes the base cost independently.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/EnlightenmentAction.java
+                    if current > cost {
+                        card.set_cost_for_turn(cost as i8);
+                    }
+                    if permanent > cost {
+                        card.base_cost = cost as i8;
+                    }
                 }
             }
         }
@@ -1430,16 +2116,20 @@ fn execute_for_each(
             if pile == Pile::Hand {
                 return; // No-op: already in hand
             }
-            // Collect matching cards from the source pile, then add to hand
+            // DiscardToHandAction resolves queued cards in discard scan order,
+            // stopping naturally when the hand reaches ten.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/AllCostToHandAction.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/DiscardToHandAction.java
             let hand_capacity = 10 - engine.state.hand.len();
             let pile_ref = get_pile_mut(engine, pile);
-            let mut moved = Vec::new();
-            for &i in matching.iter().rev() {
-                if i < pile_ref.len() && moved.len() < hand_capacity {
-                    moved.push(pile_ref.remove(i));
-                }
+            let selected = matching.into_iter().take(hand_capacity).collect::<Vec<_>>();
+            let moved = selected
+                .iter()
+                .filter_map(|index| pile_ref.get(*index).copied())
+                .collect::<Vec<_>>();
+            for index in selected.into_iter().rev() {
+                pile_ref.remove(index);
             }
-            // pile_ref borrow ends here (temporary)
             engine.state.hand.extend(moved);
         }
 
@@ -1471,31 +2161,48 @@ fn execute_draw_random_cards_from_pile_to_hand(
         return;
     }
 
-    let mut picked = Vec::new();
-    let mut eligible: Vec<usize> = get_pile(engine, pile)
+    // DrawPileToHandAction first copies every eligible card into a temporary
+    // CardGroup via addToRandomSpot: the first card costs no RNG and every
+    // later card consumes cardRandomRng, including random(0). Before each card
+    // is moved, that temporary group is shuffled from one
+    // shuffleRng.randomLong(). Full-hand selections go to discard but still
+    // consume both streams exactly as usual.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/DrawPileToHandAction.java
+    // and cards/CardGroup.java::addToRandomSpot/shuffle.
+    let source_indices: Vec<usize> = get_pile(engine, pile)
         .iter()
         .enumerate()
         .filter(|(_, card)| matches_filter(engine, card, filter))
         .map(|(idx, _)| idx)
         .collect();
+    let mut eligible = Vec::with_capacity(source_indices.len());
+    for source_idx in source_indices {
+        if eligible.is_empty() {
+            eligible.push(source_idx);
+        } else {
+            let insert_idx = engine
+                .card_random_rng
+                .random((eligible.len() - 1) as i32) as usize;
+            eligible.insert(insert_idx, source_idx);
+        }
+    }
 
+    let mut removed_source_indices = Vec::new();
     for _ in 0..count {
         if eligible.is_empty() {
             break;
         }
-        let choice_idx = engine.rng_gen_range(0..eligible.len());
-        let idx = eligible.remove(choice_idx);
-        let source = get_pile_mut(engine, pile);
-        if idx < source.len() {
-            picked.push(source.remove(idx));
-            eligible = eligible
-                .into_iter()
-                .map(|n| if n > idx { n - 1 } else { n })
-                .collect();
-        }
-    }
+        let shuffle_seed = engine.rng.random_long();
+        crate::seed::java_util_shuffle(&mut eligible, shuffle_seed);
+        let original_idx = eligible.remove(0);
+        let shifted_by = removed_source_indices
+            .iter()
+            .filter(|&&removed_idx| removed_idx < original_idx)
+            .count();
+        let current_idx = original_idx - shifted_by;
+        let card = get_pile_mut(engine, pile).remove(current_idx);
+        removed_source_indices.push(original_idx);
 
-    for card in picked {
         if engine.state.hand.len() < 10 {
             engine.state.hand.push(card);
         } else {
@@ -1514,12 +2221,23 @@ fn execute_discard_random_cards_from_pile(
         return;
     }
 
+    // DiscardAction takes a no-RNG whole-hand branch when hand size is at
+    // most the requested amount. All Out Attack requests exactly one.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DiscardAction.java
+    if pile == Pile::Hand && engine.state.hand.len() <= count {
+        while let Some(card) = engine.state.hand.pop() {
+            engine.state.discard_pile.push(card);
+            engine.on_card_discarded(card);
+        }
+        return;
+    }
+
     for _ in 0..count {
         let len = get_pile_mut(engine, pile).len();
         if len == 0 {
             break;
         }
-        let idx = engine.rng_gen_range(0..len);
+        let idx = engine.card_random_rng.random((len - 1) as i32) as usize;
         let source = get_pile_mut(engine, pile);
         let card = source.remove(idx);
         engine.state.discard_pile.push(card);
@@ -1600,10 +2318,16 @@ fn execute_generate_random_cards_to_hand(
     cost_rule: GeneratedCostRule,
 ) {
     let count = resolve_card_amount(engine, ctx, &count_src).max(0) as usize;
+    generate_random_cards_to_hand(engine, pool, count, cost_rule);
+}
+
+pub(crate) fn generate_random_cards_to_hand(
+    engine: &mut CombatEngine,
+    pool: GeneratedCardPool,
+    count: usize,
+    cost_rule: GeneratedCostRule,
+) {
     for _ in 0..count {
-        if engine.state.hand.len() >= 10 {
-            break;
-        }
         if let Some(mut card) = generate_random_card(engine, pool) {
             apply_generated_upgrade_rule(
                 engine,
@@ -1611,7 +2335,17 @@ fn execute_generate_random_cards_to_hand(
                 upgrade_rule_from_cost_rule(cost_rule),
             );
             apply_generated_cost_rule(&mut card, cost_rule);
-            engine.state.hand.push(card);
+            // MakeTempCardInHandAction still creates a card when the hand is
+            // full, sending that copy to discard. Cards such as Jack Of All
+            // Trades choose each random card before those queued actions
+            // resolve, so every requested copy also consumes its RNG roll.
+            // Java: cards/colorless/JackOfAllTrades.java and
+            // actions/common/MakeTempCardInHandAction.java.
+            if engine.state.hand.len() < 10 {
+                engine.state.hand.push(card);
+            } else {
+                engine.state.discard_pile.push(card);
+            }
         }
     }
 }
@@ -1706,33 +2440,57 @@ pub fn generate_random_cards(
     cost_rule: GeneratedCostRule,
     upgrade_rule: GeneratedUpgradeRule,
 ) {
+    let mut generated = Vec::with_capacity(count);
     for _ in 0..count {
-        let at_hand_cap = matches!(destination, GeneratedDestination::Hand) && engine.state.hand.len() >= 10;
+        let at_hand_cap = matches!(destination, GeneratedDestination::Hand)
+            && engine.state.hand.len() + generated.len() >= 10;
         if at_hand_cap {
             break;
         }
         if let Some(mut card) = generate_random_card(engine, pool) {
+            let master_reality_rule = if engine.state.player.status(sid::MASTER_REALITY) > 0 {
+                GeneratedUpgradeRule::Upgrade
+            } else {
+                GeneratedUpgradeRule::Base
+            };
             apply_generated_upgrade_rule(
                 engine,
                 &mut card,
                 combine_generated_upgrade_rules(
-                    upgrade_rule,
+                    combine_generated_upgrade_rules(upgrade_rule, master_reality_rule),
                     upgrade_rule_from_cost_rule(cost_rule),
                 ),
             );
             apply_generated_cost_rule(&mut card, cost_rule);
-            match destination {
-                GeneratedDestination::Hand => engine.state.hand.push(card),
-                GeneratedDestination::Draw => engine.state.draw_pile.push(card),
+            generated.push(card);
+        }
+    }
+
+    match destination {
+        GeneratedDestination::Hand => engine.state.hand.extend(generated),
+        GeneratedDestination::Draw => {
+            // Chrysalis/Metamorphosis select every random card immediately in
+            // card.use, then their queued MakeTempCardInDrawPileActions resolve
+            // in order. `addToRandomSpot` leaves the existing pile order intact,
+            // consuming cardRandomRng only when the pile is non-empty.
+            // Java: cards/colorless/Chrysalis.java and
+            // cards/CardGroup.java::addToRandomSpot.
+            for card in generated {
+                if engine.state.draw_pile.is_empty() {
+                    engine.state.draw_pile.push(card);
+                } else {
+                    let idx = engine
+                        .card_random_rng
+                        .random((engine.state.draw_pile.len() - 1) as i32)
+                        as usize;
+                    engine.state.draw_pile.insert(idx, card);
+                }
             }
         }
     }
-    if matches!(destination, GeneratedDestination::Draw) && count > 0 {
-        engine.shuffle_draw_pile();
-    }
 }
 
-fn generate_random_card(
+pub(crate) fn generate_random_card(
     engine: &mut CombatEngine,
     pool: GeneratedCardPool,
 ) -> Option<crate::combat_types::CardInstance> {
@@ -1743,11 +2501,27 @@ fn generate_random_card(
     if pool_cards.is_empty() {
         return None;
     }
-    let choice = pool_cards[engine.rng_gen_range(0..pool_cards.len())];
+    let choice_index = if matches!(
+        pool,
+        GeneratedCardPool::Colorless
+            | GeneratedCardPool::Attack
+            | GeneratedCardPool::Skill
+            | GeneratedCardPool::DefectCommon
+            | GeneratedCardPool::DefectPower
+            | GeneratedCardPool::WatcherPower
+            | GeneratedCardPool::WatcherAny
+    ) {
+        // AbstractDungeon.returnTrulyRandomCardInCombat(type) selects from
+        // the source color pools with cardRandomRng.
+        engine.card_random_rng.random((pool_cards.len() - 1) as i32) as usize
+    } else {
+        engine.rng_gen_range(0..pool_cards.len())
+    };
+    let choice = pool_cards[choice_index];
     Some(engine.temp_card(choice))
 }
 
-fn generate_unique_random_cards(
+pub(crate) fn generate_unique_random_cards(
     engine: &mut CombatEngine,
     pool: GeneratedCardPool,
     option_count: usize,
@@ -1763,31 +2537,25 @@ fn generate_unique_random_cards(
     let mut picked = Vec::with_capacity(target);
     let mut seen = HashSet::new();
     while picked.len() < target {
-        let choice = pool_cards[engine.rng_gen_range(0..pool_cards.len())];
+        let choice = pool_cards
+            [engine.card_random_rng.random((pool_cards.len() - 1) as i32) as usize];
         if seen.insert(choice) {
-            picked.push(engine.temp_card(choice));
+            // DiscoveryAction previews base copies; Master Reality upgrades
+            // only the selected copy during resolution.
+            picked.push(engine.card_registry.make_card(choice));
         }
     }
     picked
 }
 
-fn generated_card_pool(engine: &CombatEngine, pool: GeneratedCardPool) -> Vec<&'static str> {
+pub(crate) fn generated_card_pool(
+    engine: &CombatEngine,
+    pool: GeneratedCardPool,
+) -> Vec<&'static str> {
     match pool {
         GeneratedCardPool::Colorless => COLORLESS_GENERATION_POOL.to_vec(),
-        GeneratedCardPool::Attack => engine
-            .card_registry
-            .all_card_defs()
-            .iter()
-            .filter(|def| def.card_type == CardType::Attack && !def.id.ends_with('+'))
-            .map(|def| def.id)
-            .collect(),
-        GeneratedCardPool::Skill => engine
-            .card_registry
-            .all_card_defs()
-            .iter()
-            .filter(|def| def.card_type == CardType::Skill && !def.id.ends_with('+'))
-            .map(|def| def.id)
-            .collect(),
+        GeneratedCardPool::Attack => WATCHER_ATTACK_GENERATION_POOL.to_vec(),
+        GeneratedCardPool::Skill => WATCHER_SKILL_GENERATION_POOL.to_vec(),
         GeneratedCardPool::Power => engine
             .card_registry
             .all_card_defs()
@@ -1795,11 +2563,104 @@ fn generated_card_pool(engine: &CombatEngine, pool: GeneratedCardPool) -> Vec<&'
             .filter(|def| def.card_type == CardType::Power && !def.id.ends_with('+'))
             .map(|def| def.id)
             .collect(),
+        GeneratedCardPool::DefectCommon => DEFECT_COMMON_GENERATION_POOL.to_vec(),
+        GeneratedCardPool::DefectPower => DEFECT_POWER_GENERATION_POOL.to_vec(),
+        GeneratedCardPool::WatcherPower => engine
+            .card_registry
+            .all_card_defs()
+            .iter()
+            .filter(|def| !def.id.ends_with('+'))
+            .filter(|def| {
+                matches!(
+                    generated_card_meta(def.id),
+                    Some(GeneratedCardMeta {
+                        card_type: CardType::Power,
+                        rarity: GeneratedPoolRarity::Common
+                            | GeneratedPoolRarity::Uncommon
+                            | GeneratedPoolRarity::Rare,
+                        watcher: true,
+                    })
+                )
+            })
+            .map(|def| def.id)
+            .collect(),
+        GeneratedCardPool::WatcherAny => engine
+            .card_registry
+            .all_card_defs()
+            .iter()
+            .filter(|def| !def.id.ends_with('+'))
+            .filter(|def| {
+                matches!(
+                    generated_card_meta(def.id),
+                    Some(GeneratedCardMeta {
+                        rarity: GeneratedPoolRarity::Common
+                            | GeneratedPoolRarity::Uncommon
+                            | GeneratedPoolRarity::Rare,
+                        watcher: true,
+                        ..
+                    })
+                )
+            })
+            // returnTrulyRandomCardInCombat excludes HEALING-tagged cards.
+            // Lesson Learned is the Watcher's only normal-rarity healing card.
+            .filter(|def| def.id != "LessonLearned")
+            .map(|def| def.id)
+            .collect(),
         GeneratedCardPool::AnyColorAttackRarityWeighted => weighted_any_color_attack_ids(engine)
             .into_iter()
             .collect(),
     }
 }
+
+// Watcher's srcCommon/srcUncommon/srcRare pools in Java iteration order,
+// excluding BASIC/SPECIAL cards and Wish's HEALING tag. CardLibrary stores the
+// registered game cards in a 512-bucket HashMap; initializeCardPools preserves
+// that bucket order within each rarity, then reverses it while copying each
+// source pool through CardGroup.addToBottom.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
+// Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+const WATCHER_SKILL_GENERATION_POOL: &[&str] = &[
+    "Prostrate", "Evaluate", "PathToVictory", "EmptyBody", "ClearTheMind", "Crescendo",
+    "ThirdEye", "Protect", "Halt", "Pray", "EmptyMind", "Worship", "Swivel",
+    "Perseverance", "Meditate", "WaveOfTheHand", "DeceiveReality", "InnerPeace", "Collect",
+    "WreathOfFlame", "ForeignInfluence", "Indignation", "Sanctity", "Vengeance", "Judgement",
+    "ConjureBlade", "Blasphemy", "Scrawl", "Vault", "Alpha", "Omniscience", "SpiritShield",
+    "DeusExMachina",
+];
+
+// Watcher's srcCommon/srcUncommon/srcRare Attack pools in Java HashMap
+// iteration order. Lesson Learned is excluded by its HEALING tag.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
+// Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+const WATCHER_ATTACK_GENERATION_POOL: &[&str] = &[
+    "EmptyFist", "CrushJoints", "FollowUp", "CutThroughFate", "SashWhip",
+    "FlurryOfBlows", "JustLucky", "FlyingSleeves", "BowlingBash", "Consecrate",
+    "SignatureMove", "Weave", "Tantrum", "Conclude", "SandsOfTime", "FearNoEvil",
+    "ReachHeaven", "Wallop", "CarveReality", "WindmillStrike", "TalkToTheHand",
+    "WheelKick", "Brilliance", "Ragnarok",
+];
+
+// Defect's srcCommonCardPool in Java HashMap iteration order. CardLibrary
+// inserts the unlocked blue cards into tmpPool, initializeCardPools adds each
+// common to the top of commonCardPool, and getCard(COMMON, cardRandomRng)
+// selects directly from that resulting order.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
+// Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+const DEFECT_COMMON_GENERATION_POOL: &[&str] = &[
+    "Steam", "Cold Snap", "Leap", "Beam Cell", "Hologram", "Conserve Battery",
+    "Sweeping Beam", "Turbo", "Coolheaded", "Gash", "Rebound", "Stack", "Barrage",
+    "Compile Driver", "Redo", "Streamline", "Ball Lightning", "Go for the Eyes",
+];
+
+// Defect's srcUncommon/srcRare Power pools in Java HashMap iteration order.
+// Self Repair is omitted because returnTrulyRandomCardInCombat excludes
+// HEALING-tagged cards. There are no normal-rarity common Defect Powers.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
+// Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+const DEFECT_POWER_GENERATION_POOL: &[&str] = &[
+    "Defragment", "Capacitor", "Heatsinks", "Static Discharge", "Loop", "Hello World", "Storm",
+    "Biased Cognition", "Machine Learning", "Electrodynamics", "Buffer", "Echo Form", "Creative AI",
+];
 
 pub fn apply_generated_cost_rule(
     card: &mut crate::combat_types::CardInstance,
@@ -1811,7 +2672,11 @@ pub fn apply_generated_cost_rule(
             card.cost = 0;
         }
         GeneratedCostRule::ZeroIfPositiveThisTurn => {
-            if card.cost > 0 {
+            // Fresh CardInstances use cost=-1 as "read base_cost". Java's
+            // generated-card actions test the card's real cost, not this Rust
+            // sentinel, before setting a turn-only zero cost.
+            let current_cost = if card.cost >= 0 { card.cost } else { card.base_cost };
+            if current_cost > 0 {
                 card.cost = 0;
             }
         }
@@ -1823,15 +2688,19 @@ pub fn apply_generated_cost_rule(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum GeneratedPoolRarity {
+    Basic,
+    Special,
     Common,
     Uncommon,
     Rare,
+    Curse,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct GeneratedCardMeta {
     card_type: CardType,
     rarity: GeneratedPoolRarity,
+    watcher: bool,
 }
 
 fn generated_card_meta(card_id: &str) -> Option<GeneratedCardMeta> {
@@ -1844,7 +2713,13 @@ fn generated_card_meta(card_id: &str) -> Option<GeneratedCardMeta> {
 
 fn build_generated_card_meta_map() -> HashMap<String, GeneratedCardMeta> {
     let mut map = HashMap::new();
+    let mut watcher = false;
     for line in include_str!("../../content/generated-cards.txt").lines() {
+        if line.contains("============ WATCHER CARDS ============") {
+            watcher = true;
+        } else if line.starts_with("# ============") && line.contains("CARDS ============") {
+            watcher = false;
+        }
         let Some((_, id_rest)) = line.split_once("id=\"") else {
             continue;
         };
@@ -1874,14 +2749,36 @@ fn build_generated_card_meta_map() -> HashMap<String, GeneratedCardMeta> {
             .next()
             .unwrap_or("");
         let rarity = match rarity_token {
+            "BASIC" => GeneratedPoolRarity::Basic,
+            "SPECIAL" => GeneratedPoolRarity::Special,
             "COMMON" => GeneratedPoolRarity::Common,
             "UNCOMMON" => GeneratedPoolRarity::Uncommon,
             "RARE" => GeneratedPoolRarity::Rare,
+            "CURSE" => GeneratedPoolRarity::Curse,
             _ => continue,
         };
-        map.insert(card_id.to_string(), GeneratedCardMeta { card_type, rarity });
+        map.insert(
+            card_id.to_string(),
+            GeneratedCardMeta {
+                card_type,
+                rarity,
+                watcher,
+            },
+        );
     }
     map
+}
+
+fn omniscience_rarity_rank(card_id: &str) -> u8 {
+    match generated_card_meta(card_id).map(|meta| meta.rarity) {
+        Some(GeneratedPoolRarity::Basic) => 0,
+        Some(GeneratedPoolRarity::Special) => 1,
+        Some(GeneratedPoolRarity::Common) => 2,
+        Some(GeneratedPoolRarity::Uncommon) => 3,
+        Some(GeneratedPoolRarity::Rare) => 4,
+        Some(GeneratedPoolRarity::Curse) => 5,
+        None => 0,
+    }
 }
 
 fn weighted_any_color_attack_ids(engine: &CombatEngine) -> Vec<&'static str> {
@@ -1890,6 +2787,7 @@ fn weighted_any_color_attack_ids(engine: &CombatEngine) -> Vec<&'static str> {
         .all_card_defs()
         .iter()
         .filter(|def| !def.id.ends_with('+'))
+        .filter(|def| !foreign_influence_excludes_healing_attack(def.id))
         .filter(|def| {
             matches!(
                 generated_card_meta(def.id),
@@ -1898,6 +2796,7 @@ fn weighted_any_color_attack_ids(engine: &CombatEngine) -> Vec<&'static str> {
                     rarity: GeneratedPoolRarity::Common
                         | GeneratedPoolRarity::Uncommon
                         | GeneratedPoolRarity::Rare,
+                    ..
                 })
             )
         })
@@ -1914,12 +2813,14 @@ fn weighted_any_color_attack_bucket(
         .all_card_defs()
         .iter()
         .filter(|def| !def.id.ends_with('+'))
+        .filter(|def| !foreign_influence_excludes_healing_attack(def.id))
         .filter(|def| {
             matches!(
                 generated_card_meta(def.id),
                 Some(GeneratedCardMeta {
                     card_type: CardType::Attack,
                     rarity: card_rarity,
+                    ..
                 }) if card_rarity == rarity
             )
         })
@@ -1927,8 +2828,18 @@ fn weighted_any_color_attack_bucket(
         .collect()
 }
 
+fn foreign_influence_excludes_healing_attack(card_id: &str) -> bool {
+    // CardLibrary.getAnyColorCard(type, rarity) rejects CardTags.HEALING.
+    // These are the normal-rarity attacks carrying that tag in the Java card
+    // library; Bite is SPECIAL and is already excluded by the rarity filter.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/{red/Feed.java,red/Reaper.java,purple/LessonLearned.java}
+    matches!(card_id, "Feed" | "Reaper" | "LessonLearned")
+}
+
 fn roll_generated_attack_rarity(engine: &mut CombatEngine) -> GeneratedPoolRarity {
-    let roll = engine.rng_gen_range(0..100);
+    // ForeignInfluenceAction.generateCardChoices uses cardRandomRng.random(99).
+    let roll = engine.card_random_rng.random(99) as usize;
     if roll < 55 {
         GeneratedPoolRarity::Common
     } else if roll < 85 {
@@ -1946,8 +2857,17 @@ fn generate_weighted_any_color_attack_card(
     if bucket.is_empty() {
         return None;
     }
-    let idx = engine.rng_gen_range(0..bucket.len());
-    Some(engine.temp_card(bucket[idx]))
+    // CardLibrary.getAnyColorCard first shuffles with a seed obtained from
+    // cardRandomRng.randomLong(), then getRandomCard(true, rarity) sorts by
+    // cardID and selects with cardRng. The shuffle therefore changes no card
+    // ordering, but its RNG tick is observable and must still be consumed.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
+    let _shuffle_seed = engine.card_random_rng.random_long();
+    let idx = engine.rng.random((bucket.len() - 1) as i32) as usize;
+    // Foreign Influence presents base copies. Master Reality upgrades only the
+    // selected copy when it is added to hand/discard.
+    Some(engine.card_registry.make_card(bucket[idx]))
 }
 
 fn generate_unique_weighted_any_color_attack_cards(
@@ -1961,24 +2881,14 @@ fn generate_unique_weighted_any_color_attack_cards(
     let target = option_count.min(total_pool.len());
     let mut picked = Vec::with_capacity(target);
     let mut seen = HashSet::new();
-    let mut fallback_pool: Vec<&'static str> = total_pool;
 
     while picked.len() < target {
         if let Some(card) = generate_weighted_any_color_attack_card(engine) {
             let card_name = engine.card_registry.card_name(card.def_id);
             if seen.insert(card_name) {
                 picked.push(card);
-                continue;
             }
         }
-        fallback_pool.retain(|card_id| !seen.contains(card_id));
-        if fallback_pool.is_empty() {
-            break;
-        }
-        let idx = engine.rng_gen_range(0..fallback_pool.len());
-        let card_id = fallback_pool.remove(idx);
-        seen.insert(card_id);
-        picked.push(engine.temp_card(card_id));
     }
 
     picked
@@ -2026,48 +2936,17 @@ fn apply_generated_upgrade_rule(
     }
 }
 
+// srcColorlessCardPool order produced by CardLibrary's 512-bucket HashMap and
+// AbstractDungeon.addColorlessCards adding each normal-rarity card to the top.
+// Bandage Up is then excluded by its HEALING tag.
+// Java: helpers/CardLibrary.java and dungeons/AbstractDungeon.java.
 const COLORLESS_GENERATION_POOL: &[&str] = &[
-    "Apotheosis",
-    "Bandage Up",
-    "Bite",
-    "Blind",
-    "Chrysalis",
-    "Dark Shackles",
-    "Deep Breath",
-    "Defend",
-    "Discovery",
-    "Dramatic Entrance",
-    "Enlightenment",
-    "Finesse",
-    "Flash of Steel",
-    "Forethought",
-    "Ghostly",
-    "Good Instincts",
-    "HandOfGreed",
-    "Impatience",
-    "J.A.X.",
-    "Jack Of All Trades",
-    "Madness",
-    "Magnetism",
-    "Master of Strategy",
-    "Mayhem",
-    "Metamorphosis",
-    "Mind Blast",
-    "Panacea",
-    "Panache",
-    "PanicButton",
-    "Purity",
-    "RitualDagger",
-    "Sadistic Nature",
-    "Secret Technique",
-    "Secret Weapon",
-    "Strike",
-    "Swift Strike",
-    "The Bomb",
-    "Thinking Ahead",
-    "Transmutation",
-    "Trip",
-    "Violence",
+    "Madness", "Thinking Ahead", "Mind Blast", "Metamorphosis", "Jack Of All Trades",
+    "Swift Strike", "Good Instincts", "Master of Strategy", "Magnetism", "Finesse",
+    "Discovery", "Chrysalis", "Transmutation", "Panacea", "Purity", "Enlightenment",
+    "Forethought", "Flash of Steel", "HandOfGreed", "Mayhem", "Apotheosis", "Secret Weapon",
+    "Panache", "Violence", "Deep Breath", "Secret Technique", "Blind", "The Bomb",
+    "Impatience", "Dramatic Entrance", "Trip", "PanicButton", "Sadistic Nature", "Dark Shackles",
 ];
 
 pub fn is_colorless_generation_card(card_id: &str) -> bool {
@@ -2090,14 +2969,15 @@ fn set_bool_flag(engine: &mut CombatEngine, flag: BoolFlag) {
             engine.state.skip_enemy_turn = true;
         }
         BoolFlag::NextAttackFree => {
-            engine.state.player.set_status(sid::NEXT_ATTACK_FREE, 1);
+            // FreeAttackPower stacks and consumes one charge per Attack.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/FreeAttackPower.java
+            engine.state.player.add_status(sid::NEXT_ATTACK_FREE, 1);
         }
         BoolFlag::Blasphemy => {
             engine.state.blasphemy_active = true;
         }
         BoolFlag::BulletTime => {
-            engine.state.player.set_status(sid::BULLET_TIME, 1);
-            engine.state.player.set_status(sid::NO_DRAW, 1);
+            engine.apply_bullet_time();
         }
     }
 }
@@ -2120,12 +3000,17 @@ mod tests {
 
     #[test]
     fn test_is_debuff() {
-        assert!(is_debuff(sid::WEAKENED));
-        assert!(is_debuff(sid::VULNERABLE));
-        assert!(is_debuff(sid::FRAIL));
-        assert!(is_debuff(sid::POISON));
-        assert!(!is_debuff(sid::STRENGTH));
-        assert!(!is_debuff(sid::VIGOR));
+        assert!(is_debuff(sid::WEAKENED, 1));
+        assert!(is_debuff(sid::VULNERABLE, 1));
+        assert!(is_debuff(sid::FRAIL, 1));
+        assert!(is_debuff(sid::POISON, 1));
+        assert!(is_debuff(sid::CORPSE_EXPLOSION, 1));
+        assert!(is_debuff(sid::LOSE_STRENGTH, 1));
+        assert!(is_debuff(sid::WRAITH_FORM, 1));
+        assert!(is_debuff(sid::FOCUS, -3));
+        assert!(!is_debuff(sid::FOCUS, 3));
+        assert!(!is_debuff(sid::STRENGTH, 1));
+        assert!(!is_debuff(sid::VIGOR, 1));
     }
 }
 

@@ -27,6 +27,185 @@ const COLORLESS_CHOICES: &[&str] = &[
     "Swift Strike", "The Bomb", "Thinking Ahead", "Transmutation", "Trip", "Violence",
 ];
 
+const COLORLESS_POTION_CHOICES: &[&str] = &[
+    "Madness",
+    "Thinking Ahead",
+    "Mind Blast",
+    "Metamorphosis",
+    "Jack Of All Trades",
+    "Swift Strike",
+    "Good Instincts",
+    "Master of Strategy",
+    "Magnetism",
+    "Finesse",
+    "Discovery",
+    "Chrysalis",
+    "Transmutation",
+    "Panacea",
+    "Purity",
+    "Enlightenment",
+    "Forethought",
+    "Flash of Steel",
+    "HandOfGreed",
+    "Mayhem",
+    "Apotheosis",
+    "Secret Weapon",
+    "Panache",
+    "Violence",
+    "Deep Breath",
+    "Secret Technique",
+    "Blind",
+    "The Bomb",
+    "Impatience",
+    "Dramatic Entrance",
+    "Trip",
+    "PanicButton",
+    "Sadistic Nature",
+    "Dark Shackles",
+];
+
+#[test]
+fn colorless_generation_pool_matches_java_source_pool_order() {
+    // CardLibrary HashMap iteration is reversed by addColorlessCards' addToTop;
+    // returnTrulyRandomColorlessCardInCombat then excludes HEALING Bandage Up.
+    // Java: helpers/CardLibrary.java and dungeons/AbstractDungeon.java.
+    let engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+
+    assert_eq!(
+        super::generated_card_pool(&engine, super::GeneratedCardPool::Colorless),
+        COLORLESS_POTION_CHOICES
+    );
+}
+
+const WATCHER_SKILL_POOL_IN_JAVA_ORDER: &[&str] = &[
+    "Prostrate", "Evaluate", "PathToVictory", "EmptyBody", "ClearTheMind", "Crescendo",
+    "ThirdEye", "Protect", "Halt", "Pray", "EmptyMind", "Worship", "Swivel",
+    "Perseverance", "Meditate", "WaveOfTheHand", "DeceiveReality", "InnerPeace", "Collect",
+    "WreathOfFlame", "ForeignInfluence", "Indignation", "Sanctity", "Vengeance", "Judgement",
+    "ConjureBlade", "Blasphemy", "Scrawl", "Vault", "Alpha", "Omniscience", "SpiritShield",
+    "DeusExMachina",
+];
+
+const DEFECT_POWER_POOL_IN_JAVA_ORDER: &[&str] = &[
+    "Defragment", "Capacitor", "Heatsinks", "Static Discharge", "Loop", "Hello World", "Storm",
+    "Biased Cognition", "Machine Learning", "Electrodynamics", "Buffer", "Echo Form", "Creative AI",
+];
+
+const DEFECT_COMMON_POOL_IN_JAVA_ORDER: &[&str] = &[
+    "Steam", "Cold Snap", "Leap", "Beam Cell", "Hologram", "Conserve Battery",
+    "Sweeping Beam", "Turbo", "Coolheaded", "Gash", "Rebound", "Stack", "Barrage",
+    "Compile Driver", "Redo", "Streamline", "Ball Lightning", "Go for the Eyes",
+];
+
+#[test]
+fn defect_common_generation_pool_matches_java_source_pool_order() {
+    // CardLibrary's HashMap iteration and initializeCardPools establish the
+    // exact commonCardPool order consumed by HelloPower through getCard.
+    // Java: CardLibrary.java, AbstractDungeon.java, and HelloPower.java.
+    let engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+
+    assert_eq!(
+        super::generated_card_pool(&engine, super::GeneratedCardPool::DefectCommon),
+        DEFECT_COMMON_POOL_IN_JAVA_ORDER
+    );
+}
+
+#[test]
+fn defect_power_generation_pool_matches_java_source_pool_order() {
+    // CardLibrary's HashMap iteration and initializeCardPools establish this
+    // uncommon-then-rare order. Creative AI filters for Powers and excludes
+    // HEALING-tagged Self Repair before its cardRandomRng selection.
+    // Java: CardLibrary.java, AbstractDungeon.java, and CreativeAIPower.java.
+    let engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+
+    assert_eq!(
+        super::generated_card_pool(&engine, super::GeneratedCardPool::DefectPower),
+        DEFECT_POWER_POOL_IN_JAVA_ORDER
+    );
+}
+
+#[test]
+fn watcher_skill_generation_pool_matches_java_source_pool_order() {
+    // CardLibrary's HashMap iteration builds rarity pools; initializeCardPools
+    // then reverses each rarity through addToBottom. Chrysalis concatenates
+    // common, uncommon, and rare Skills and excludes HEALING-tagged Wish.
+    // Java: helpers/CardLibrary.java and dungeons/AbstractDungeon.java.
+    let engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+
+    assert_eq!(
+        super::generated_card_pool(&engine, super::GeneratedCardPool::Skill),
+        WATCHER_SKILL_POOL_IN_JAVA_ORDER
+    );
+}
+
+const WATCHER_ATTACK_CHOICES: &[&str] = &[
+    "BowlingBash",
+    "Brilliance",
+    "CarveReality",
+    "Conclude",
+    "Consecrate",
+    "CrushJoints",
+    "CutThroughFate",
+    "EmptyFist",
+    "FearNoEvil",
+    "FlurryOfBlows",
+    "FlyingSleeves",
+    "FollowUp",
+    "JustLucky",
+    "Ragnarok",
+    "ReachHeaven",
+    "SandsOfTime",
+    "SashWhip",
+    "SignatureMove",
+    "TalkToTheHand",
+    "Tantrum",
+    "Wallop",
+    "Weave",
+    "WheelKick",
+    "WindmillStrike",
+];
+
+const WATCHER_ATTACK_POOL_IN_JAVA_ORDER: &[&str] = &[
+    "EmptyFist", "CrushJoints", "FollowUp", "CutThroughFate", "SashWhip",
+    "FlurryOfBlows", "JustLucky", "FlyingSleeves", "BowlingBash", "Consecrate",
+    "SignatureMove", "Weave", "Tantrum", "Conclude", "SandsOfTime", "FearNoEvil",
+    "ReachHeaven", "Wallop", "CarveReality", "WindmillStrike", "TalkToTheHand",
+    "WheelKick", "Brilliance", "Ragnarok",
+];
+
+#[test]
+fn watcher_attack_generation_pool_matches_java_source_pool_order() {
+    // CardLibrary HashMap iteration plus initializeCardPools establish this
+    // common-then-uncommon-then-rare order. HEALING-tagged Lesson Learned is excluded.
+    // Java: helpers/CardLibrary.java and dungeons/AbstractDungeon.java.
+    let engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+
+    assert_eq!(
+        super::generated_card_pool(&engine, super::GeneratedCardPool::Attack),
+        WATCHER_ATTACK_POOL_IN_JAVA_ORDER
+    );
+}
+
 fn use_potion(engine: &mut crate::engine::CombatEngine, potion_idx: usize, target_idx: i32) {
     engine.execute_action(&Action::UsePotion {
         potion_idx,
@@ -159,6 +338,212 @@ fn discovery_potions_open_java_style_choice_and_track_copy_count() {
         assert_eq!(engine.state.hand.len(), 1);
         assert!(engine.state.potions[0].is_empty());
     }
+}
+
+#[test]
+fn attack_potion_uses_watcher_pool_and_card_random_rng_tick_for_tick() {
+    // Source-derived (verify potion/AttackPotion): DiscoveryAction requests
+    // three unique ATTACK cards from AbstractDungeon's Watcher source pools.
+    // returnTrulyRandomCardInCombat(type) consumes cardRandomRng once per
+    // attempt and excludes BASIC, SPECIAL, and HEALING cards.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand.clear();
+    engine.state.potions[0] = "AttackPotion".to_string();
+    let card_random_before = engine.card_random_rng.counter;
+    let general_before = engine.rng.counter;
+    let attack_pool = super::generated_card_pool(&engine, super::GeneratedCardPool::Attack);
+    let mut card_random_oracle = engine.card_random_rng.clone();
+    let mut oracle_seen = std::collections::HashSet::new();
+    while oracle_seen.len() < 3 {
+        let idx = card_random_oracle.random((attack_pool.len() - 1) as i32) as usize;
+        oracle_seen.insert(attack_pool[idx]);
+    }
+
+    use_potion(&mut engine, 0, -1);
+
+    let choice = engine.choice.as_ref().expect("Attack Potion choice");
+    let names: Vec<_> = choice
+        .options
+        .iter()
+        .map(|option| match option {
+            ChoiceOption::GeneratedCard(card) => engine.card_registry.card_name(card.def_id),
+            _ => panic!("Attack Potion must generate card choices"),
+        })
+        .collect();
+    assert_eq!(names.len(), 3);
+    assert!(names.iter().all(|name| WATCHER_ATTACK_CHOICES.contains(name)));
+    assert_eq!(card_random_oracle.counter, card_random_before + 4);
+    assert_eq!(engine.card_random_rng.counter, card_random_oracle.counter);
+    assert_eq!(engine.rng.counter, general_before);
+}
+
+#[test]
+fn power_potion_uses_watcher_power_pool_rng_and_bark_copy_count() {
+    // Source-derived (verify potion/PowerPotion): DiscoveryAction requests
+    // three unique POWER cards, consuming cardRandomRng once per attempt.
+    // Potency is constant one; Sacred Bark doubles the selected copies, both
+    // cost zero this turn, and Master Reality upgrades only those copies.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/PowerPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DiscoveryAction.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand = make_deck(&[
+        "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend",
+        "Defend",
+    ]);
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.player.set_status(sid::MASTER_REALITY, 1);
+    engine.state.potions[0] = "PowerPotion".to_string();
+    let pool = super::generated_card_pool(&engine, super::GeneratedCardPool::Power);
+    let mut oracle = engine.card_random_rng.clone();
+    let mut seen = std::collections::HashSet::new();
+    while seen.len() < 3 {
+        let idx = oracle.random((pool.len() - 1) as i32) as usize;
+        seen.insert(pool[idx]);
+    }
+
+    use_potion(&mut engine, 0, -1);
+
+    let choice = engine.choice.as_ref().expect("Power Potion choice");
+    assert_eq!(choice.reason, ChoiceReason::DiscoverCard);
+    assert_eq!(choice.options.len(), 3);
+    assert_eq!(choice.aux_count, 2);
+    assert_eq!(engine.card_random_rng.counter, oracle.counter);
+    for option in &choice.options {
+        let ChoiceOption::GeneratedCard(card) = option else {
+            panic!("Power Potion should offer generated cards");
+        };
+        assert_eq!(
+            engine.card_registry.card_def_by_id(card.def_id).card_type,
+            CardType::Power
+        );
+        assert!(!card.is_upgraded());
+        assert_eq!(card.cost, 0);
+    }
+
+    engine.execute_action(&Action::Choose(0));
+    assert_eq!(engine.state.hand.len(), 10);
+    assert_eq!(engine.state.discard_pile.len(), 1);
+    let hand_copy = engine.state.hand.last().expect("first selected copy");
+    let discard_copy = engine.state.discard_pile.last().expect("second selected copy");
+    assert!(hand_copy.is_upgraded());
+    assert!(discard_copy.is_upgraded());
+    assert_eq!(hand_copy.cost, 0);
+    assert_eq!(discard_copy.cost, 0);
+}
+
+#[test]
+fn skill_potion_uses_watcher_skill_pool_rng_and_bark_copy_count() {
+    // Source-derived (verify potion/SkillPotion): DiscoveryAction requests
+    // three unique SKILL cards, consuming cardRandomRng once per attempt.
+    // Potency is constant one; Sacred Bark doubles the selected zero-cost
+    // copies and Master Reality upgrades only those copies.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/SkillPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DiscoveryAction.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand = make_deck(&[
+        "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend",
+        "Defend",
+    ]);
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.player.set_status(sid::MASTER_REALITY, 1);
+    engine.state.potions[0] = "SkillPotion".to_string();
+    let pool = super::generated_card_pool(&engine, super::GeneratedCardPool::Skill);
+    let mut oracle = engine.card_random_rng.clone();
+    let mut seen = std::collections::HashSet::new();
+    while seen.len() < 3 {
+        let idx = oracle.random((pool.len() - 1) as i32) as usize;
+        seen.insert(pool[idx]);
+    }
+
+    use_potion(&mut engine, 0, -1);
+
+    let choice = engine.choice.as_ref().expect("Skill Potion choice");
+    assert_eq!(choice.reason, ChoiceReason::DiscoverCard);
+    assert_eq!(choice.options.len(), 3);
+    assert_eq!(choice.aux_count, 2);
+    assert_eq!(engine.card_random_rng.counter, oracle.counter);
+    for option in &choice.options {
+        let ChoiceOption::GeneratedCard(card) = option else {
+            panic!("Skill Potion should offer generated cards");
+        };
+        assert_eq!(
+            engine.card_registry.card_def_by_id(card.def_id).card_type,
+            CardType::Skill
+        );
+        assert!(!card.is_upgraded());
+        assert_eq!(card.cost, 0);
+    }
+
+    engine.execute_action(&Action::Choose(0));
+    assert_eq!(engine.state.hand.len(), 10);
+    assert_eq!(engine.state.discard_pile.len(), 1);
+    let hand_copy = engine.state.hand.last().expect("first selected copy");
+    let discard_copy = engine.state.discard_pile.last().expect("second selected copy");
+    assert!(hand_copy.is_upgraded());
+    assert!(discard_copy.is_upgraded());
+    assert_eq!(hand_copy.cost, 0);
+    assert_eq!(discard_copy.cost, 0);
+}
+
+#[test]
+fn colorless_potion_uses_normal_pool_base_previews_and_exact_card_rng() {
+    // Source-derived (verify potion/ColorlessPotion): DiscoveryAction(true,
+    // potency) chooses three unique cards from srcColorlessCardPool, excluding
+    // HEALING. Master Reality upgrades only the selected copies; Sacred Bark
+    // doubles the one-copy potency.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand.clear();
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.player.set_status(sid::MASTER_REALITY, 1);
+    engine.state.potions[0] = "ColorlessPotion".to_string();
+    let pool = super::generated_card_pool(&engine, super::GeneratedCardPool::Colorless);
+    let mut card_random_oracle = engine.card_random_rng.clone();
+    let mut oracle_seen = std::collections::HashSet::new();
+    while oracle_seen.len() < 3 {
+        let idx = card_random_oracle.random((pool.len() - 1) as i32) as usize;
+        oracle_seen.insert(pool[idx]);
+    }
+    let general_before = engine.rng.counter;
+
+    use_potion(&mut engine, 0, -1);
+
+    let choice = engine.choice.as_ref().expect("Colorless Potion choice");
+    assert_eq!(choice.aux_count, 2);
+    let names: Vec<_> = choice
+        .options
+        .iter()
+        .map(|option| match option {
+            ChoiceOption::GeneratedCard(card) => {
+                assert!(!card.is_upgraded());
+                engine.card_registry.card_name(card.def_id)
+            }
+            _ => panic!("Colorless Potion must generate card choices"),
+        })
+        .collect();
+    assert!(names.iter().all(|name| COLORLESS_POTION_CHOICES.contains(name)));
+    assert_eq!(engine.card_random_rng.counter, card_random_oracle.counter);
+    assert_eq!(engine.rng.counter, general_before);
+
+    engine.execute_action(&Action::Choose(0));
+    assert_eq!(engine.state.hand.len(), 2);
+    assert!(engine.state.hand.iter().all(|card| card.is_upgraded()));
+    assert!(engine.state.hand.iter().all(|card| card.cost == 0));
 }
 
 #[test]

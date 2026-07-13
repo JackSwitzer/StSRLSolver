@@ -13,7 +13,8 @@ fn relic_wave15_fossilized_helix_engine_path_replaces_helper_tail() {
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
-    engine.state.relics.push("Fossilized Helix".to_string());
+    // FossilizedHelix.java declares canonical relic ID "FossilizedHelix".
+    engine.state.relics.push("FossilizedHelix".to_string());
 
     engine.start_combat();
 

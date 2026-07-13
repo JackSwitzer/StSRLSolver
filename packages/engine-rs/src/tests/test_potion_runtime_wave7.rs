@@ -3,7 +3,9 @@
 use crate::actions::Action;
 use crate::effects::trigger::Trigger;
 use crate::status_ids::sid;
-use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_state, make_deck};
+use crate::tests::support::{
+    combat_state_with, end_turn, enemy_no_intent, engine_with_state, make_deck, play_self,
+};
 
 fn use_potion(engine: &mut crate::engine::CombatEngine, potion_idx: usize, target_idx: i32) {
     engine.execute_action(&Action::UsePotion {
@@ -78,6 +80,69 @@ fn wave7_draw_and_energy_potions_use_action_path_with_runtime_potency() {
 }
 
 #[test]
+fn swift_potion_keeps_three_potency_and_uses_normal_draw_rules() {
+    // Source-derived (verify potion/SwiftPotion): getPotency always returns
+    // three and use queues an ordinary DrawCardAction. Sacred Bark doubles the
+    // amount, while DrawCardAction still respects the hand cap and No Draw.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/SwiftPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DrawCardAction.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike", "Defend", "Bash"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand = make_deck(&[
+        "Strike", "Defend", "Bash", "Strike", "Defend", "Bash",
+    ]);
+    engine.state.draw_pile = make_deck(&[
+        "Strike", "Defend", "Bash", "Strike", "Defend", "Bash", "Strike", "Defend",
+    ]);
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "Swift Potion".to_string();
+
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.hand.len(), 10);
+    assert_eq!(engine.state.draw_pile.len(), 4);
+
+    let mut no_draw = engine_with_state(combat_state_with(
+        make_deck(&["Strike", "Defend", "Bash"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    no_draw.state.hand.clear();
+    no_draw.state.draw_pile = make_deck(&["Strike", "Defend", "Bash"]);
+    no_draw.state.player.set_status(sid::NO_DRAW, 1);
+    no_draw.state.potions[0] = "SwiftPotion".to_string();
+    use_potion(&mut no_draw, 0, -1);
+    assert!(no_draw.state.hand.is_empty());
+    assert_eq!(no_draw.state.draw_pile.len(), 3);
+}
+
+#[test]
+fn energy_potion_keeps_two_potency_and_sacred_bark_doubles_it() {
+    // Source-derived (verify potion/EnergyPotion): getPotency returns two with
+    // no ascension branch; AbstractPotion doubles that value for Sacred Bark.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/EnergyPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/AbstractPotion.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.energy = 1;
+    engine.state.potions[0] = "Energy Potion".to_string();
+
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.energy, 3);
+
+    engine.state.energy = 1;
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "Energy Potion".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.energy, 5);
+}
+
+#[test]
 fn wave7_status_potions_apply_expected_statuses_via_action_path() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike"]),
@@ -121,6 +186,175 @@ fn wave7_status_potions_apply_expected_statuses_via_action_path() {
                 && record.potion_slot == 1
         }));
     }
+}
+
+#[test]
+fn ancient_potion_targets_player_and_uses_sacred_bark_potency() {
+    // Source-derived (verify potion/AncientPotion): Java overwrites `target`
+    // with the player and applies ArtifactPower(potency). Base potency is one.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "Ancient Potion".to_string();
+
+    use_potion(&mut engine, 0, 0);
+
+    assert_eq!(engine.state.player.status(sid::ARTIFACT), 2);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+    assert!(engine.state.potions[0].is_empty());
+}
+
+#[test]
+fn liquid_bronze_keeps_three_potency_and_retaliates_per_attack_hit() {
+    // Source-derived (verify potion/LiquidBronze): getPotency always returns
+    // three and use applies ThornsPower to the player. Sacred Bark doubles the
+    // applied amount, while ThornsPower retaliates once for every qualifying
+    // onAttacked call.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/LiquidBronze.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ThornsPower.java
+    let mut attacker = enemy_no_intent("JawWorm", 40, 40);
+    attacker.set_move(1, 1, 2, 0);
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![attacker],
+        3,
+    ));
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "LiquidBronze".to_string();
+
+    use_potion(&mut engine, 0, -1);
+
+    assert_eq!(engine.state.player.status(sid::THORNS), 6);
+    end_turn(&mut engine);
+    assert_eq!(engine.state.enemies[0].entity.hp, 28);
+}
+
+#[test]
+fn regen_potion_keeps_five_potency_then_heals_and_decrements_each_turn() {
+    // Source-derived (verify potion/RegenPotion): getPotency always returns
+    // five; RegenPower queues RegenAction at player turn end, which heals the
+    // current amount before decrementing the power by one. Sacred Bark doubles
+    // the initial stack and MagicFlower.java rounds each 1.5x heal. The
+    // second nine-point tick is therefore 14, not a truncated 13.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/RegenPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RegenPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/RegenAction.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.player.hp = 20;
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.player.set_status(sid::HAS_MAGIC_FLOWER, 1);
+    engine.state.potions[0] = "Regen Potion".to_string();
+
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::REGENERATION), 10);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.hp, 35);
+    assert_eq!(engine.state.player.status(sid::REGENERATION), 9);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.hp, 49);
+    assert_eq!(engine.state.player.status(sid::REGENERATION), 8);
+}
+
+#[test]
+fn essence_of_steel_keeps_four_potency_and_targets_the_player() {
+    // Source-derived (verify potion/EssenceOfSteel): Java overwrites target
+    // with the player, applies four Plated Armor at every ascension, and
+    // AbstractPotion doubles the potency for Sacred Bark.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/EssenceOfSteel.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/AbstractPotion.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "EssenceOfSteel".to_string();
+
+    use_potion(&mut engine, 0, 0);
+
+    assert_eq!(engine.state.player.status(sid::PLATED_ARMOR), 8);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::PLATED_ARMOR), 0);
+    assert!(engine.state.potions[0].is_empty());
+}
+
+#[test]
+fn cultist_potion_ritual_grows_strength_at_player_turn_end_only() {
+    // Source-derived (verify potion/CultistPotion): the potion applies
+    // RitualPower(player, potency, true). RitualPower gains that Strength at
+    // each player turn end; Sacred Bark doubles base potency one to two.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "CultistPotion".to_string();
+
+    use_potion(&mut engine, 0, 0);
+    assert_eq!(engine.state.player.status(sid::RITUAL), 2);
+    assert_eq!(engine.state.player.strength(), 0);
+
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.strength(), 2);
+    assert_eq!(engine.state.player.status(sid::RITUAL), 2);
+}
+
+#[test]
+fn duplication_potion_replays_each_non_purge_card_and_consumes_one_charge() {
+    // Source-derived (verify potion/DuplicationPotion): base potency is one,
+    // Sacred Bark doubles it to two, and DuplicationPower copies every card
+    // type once while consuming one charge per original card.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/DuplicationPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DuplicationPower.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Defend", "Inflame"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand = make_deck(&["Defend", "Inflame"]);
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "DuplicationPotion".to_string();
+
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::DUPLICATION), 2);
+
+    assert!(play_self(&mut engine, "Defend"));
+    assert_eq!(engine.state.player.block, 10);
+    assert_eq!(engine.state.player.status(sid::DUPLICATION), 1);
+
+    assert!(play_self(&mut engine, "Inflame"));
+    assert_eq!(engine.state.player.strength(), 4);
+    assert_eq!(engine.state.player.status(sid::DUPLICATION), 0);
+}
+
+#[test]
+fn unused_duplication_charge_expires_at_end_of_round() {
+    // DuplicationPower.atEndOfRound reduces the power by exactly one.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DuplicationPower.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Defend"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "DuplicationPotion".to_string();
+
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::DUPLICATION), 2);
+
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.status(sid::DUPLICATION), 1);
 }
 
 #[test]

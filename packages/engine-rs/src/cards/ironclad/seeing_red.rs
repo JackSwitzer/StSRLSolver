@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Ironclad Uncommon: Seeing Red ---- (cost 1, gain 2 energy, exhaust; upgrade: cost 0)
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/SeeingRed.java
+    // GainEnergyAction grants two; upgrading changes only the base cost to zero.
     insert(cards, CardDef {
                 id: "Seeing Red", name: "Seeing Red", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,

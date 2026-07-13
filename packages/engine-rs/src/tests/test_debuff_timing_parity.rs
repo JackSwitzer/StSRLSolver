@@ -169,4 +169,20 @@ mod debuff_timing_parity_tests {
         assert_eq!(player.status(sid::WEAKENED), 0);
         assert_eq!(player.status(sid::WEAKENED_JUST_APPLIED), 0);
     }
+
+    #[test]
+    fn turnip_blocks_enemy_frail_before_artifact_can_be_consumed() {
+        // ApplyPowerAction.java checks Turnip before its generic Artifact
+        // branch, so this Frail is blocked with Artifact untouched.
+        let mut player = fresh_entity();
+        player.set_status(sid::HAS_TURNIP, 1);
+        player.set_status(sid::ARTIFACT, 1);
+
+        let applied = apply_debuff_from_enemy(&mut player, sid::FRAIL, 2);
+
+        assert!(!applied);
+        assert_eq!(player.status(sid::FRAIL), 0);
+        assert_eq!(player.status(sid::FRAIL_JUST_APPLIED), 0);
+        assert_eq!(player.status(sid::ARTIFACT), 1);
+    }
 }

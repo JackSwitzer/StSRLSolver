@@ -1,6 +1,10 @@
 use super::prelude::*;
 use crate::engine::CombatEngine;
 
+// Java: decompiled/java-src/com/megacrit/cardcrawl/potions/BlessingOfTheForge.java
+// use() queues ArmamentsAction(true), upgrading every currently-upgradable
+// card in hand exactly once; potency is zero and Sacred Bark is irrelevant.
+
 static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::ManualActivation,
     condition: TriggerCondition::Always,

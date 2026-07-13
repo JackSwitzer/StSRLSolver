@@ -1,10 +1,12 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // ---- Ironclad Uncommon: Second Wind ----
-    // Fully typed: exhaust all non-attacks, then gain block equal to the
-    // number of exhausted cards times the card's block value. The shared
-    // count-return primitive is carried by `AmountSource::LastBulkCount`.
+    // SecondWind.java costs 1 and passes card block 5 (7 upgraded) to
+    // BlockPerNonAttackAction, which snapshots every non-Attack in hand, queues
+    // their exhausts, then one GainBlockAction per snapshotted card.
+    // Java: reference/extracted/methods/card/SecondWind.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/
+    // BlockPerNonAttackAction.java
     insert(cards, CardDef {
         id: "Second Wind",
         name: "Second Wind",

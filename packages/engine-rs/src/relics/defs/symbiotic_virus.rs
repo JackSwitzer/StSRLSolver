@@ -4,7 +4,7 @@
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::engine::CombatEngine;
-use crate::status_ids::sid;
+use crate::orbs::OrbType;
 
 fn hook(
     engine: &mut CombatEngine,
@@ -12,8 +12,8 @@ fn hook(
     _event: &crate::effects::runtime::GameEvent,
     _state: &mut crate::effects::runtime::EffectState,
 ) {
-    // Set the flag for the deferred channel in start_combat()
-    engine.state.player.set_status(sid::CHANNEL_DARK_START, 1);
+    // Source: reference/extracted/methods/relic/SymbioticVirus.java.
+    engine.channel_orb(OrbType::Dark);
 }
 
 static TRIGGERS: [TriggeredEffect; 1] = [

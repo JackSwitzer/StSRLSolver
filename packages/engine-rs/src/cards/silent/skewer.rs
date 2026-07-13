@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Uncommon: Skewer ---- (cost X, 7 dmg x X times; +3 dmg)
+        // Skewer.java delegates X repeated 7-damage hits to SkewerAction;
+        // upgradeDamage(3) is its only upgrade change.
+        // Java: reference/extracted/methods/card/Skewer.java
     insert(cards, CardDef {
                 id: "Skewer", name: "Skewer", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: -1, base_damage: 7, base_block: -1,

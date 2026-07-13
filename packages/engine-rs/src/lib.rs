@@ -522,6 +522,7 @@ fn combat_choice_reason_name(reason: &crate::engine::ChoiceReason) -> &'static s
         crate::engine::ChoiceReason::ForethoughtPick => "forethought_pick",
         crate::engine::ChoiceReason::RecycleCard => "recycle_card",
         crate::engine::ChoiceReason::DiscardForEffect => "discard_for_effect",
+        crate::engine::ChoiceReason::RetainFromHand => "retain_from_hand",
         crate::engine::ChoiceReason::SetupPick => "setup_pick",
         crate::engine::ChoiceReason::PlayCardFreeFromDraw => "play_card_free_from_draw",
     }
@@ -917,6 +918,10 @@ impl StSEngine {
                     combat.set_item("block", cs.player.block)?;
                     combat.set_item("mantra", cs.mantra)?;
                     combat.set_item("cards_played_this_turn", cs.cards_played_this_turn)?;
+                    combat.set_item(
+                        "power_cards_played_this_combat",
+                        cs.power_cards_played_this_combat,
+                    )?;
 
                     let hand_names: Vec<String> = cs
                         .hand
@@ -942,6 +947,7 @@ impl StSEngine {
                     combat.set_item("player_statuses", statuses)?;
 
                     let enemies_list = PyList::empty_bound(py);
+                    let intents_visible = cs.enemy_intents_visible();
                     for e in &cs.enemies {
                         let ed = PyDict::new_bound(py);
                         ed.set_item("id", &e.id)?;
@@ -950,10 +956,25 @@ impl StSEngine {
                         ed.set_item("max_hp", e.entity.max_hp)?;
                         ed.set_item("block", e.entity.block)?;
                         ed.set_item("alive", e.is_alive())?;
-                        ed.set_item("move_damage", e.move_damage())?;
-                        ed.set_item("move_hits", e.move_hits())?;
-                        ed.set_item("move_block", e.move_block())?;
-                        ed.set_item("intent_damage", e.total_incoming_damage())?;
+                        // AbstractMonster.java hides all intent presentation
+                        // while Runic Dome is owned; the internal move remains
+                        // intact so enemy execution and replay stay exact.
+                        ed.set_item(
+                            "move_damage",
+                            if intents_visible { e.move_damage() } else { 0 },
+                        )?;
+                        ed.set_item(
+                            "move_hits",
+                            if intents_visible { e.move_hits() } else { 0 },
+                        )?;
+                        ed.set_item(
+                            "move_block",
+                            if intents_visible { e.move_block() } else { 0 },
+                        )?;
+                        ed.set_item(
+                            "intent_damage",
+                            if intents_visible { e.total_incoming_damage() } else { 0 },
+                        )?;
                         let es = PyDict::new_bound(py);
                         for (i, &val) in e.entity.statuses.iter().enumerate() {
                             if val != 0 {
@@ -1027,6 +1048,14 @@ impl StSEngine {
                         items.append(item)?;
                     }
                     shop_dict.set_item("cards", items)?;
+                    let potions = PyList::empty_bound(py);
+                    for (potion, price) in &shop.potions {
+                        let item = PyDict::new_bound(py);
+                        item.set_item("potion", potion.as_str())?;
+                        item.set_item("price", *price)?;
+                        potions.append(item)?;
+                    }
+                    shop_dict.set_item("potions", potions)?;
                     shop_dict.set_item("remove_price", shop.remove_price)?;
                     shop_dict.set_item("removal_used", shop.removal_used)?;
                     d.set_item("shop", shop_dict)?;
@@ -1097,7 +1126,14 @@ impl StSEngine {
             };
         }
 
-        let (name, atype, desc) = if id >= EVENT_BASE {
+        let (name, atype, desc) = if id >= RUN_POTION_BASE {
+            let idx = id - RUN_POTION_BASE;
+            (
+                format!("use_potion_{}", idx),
+                "potion".to_string(),
+                format!("Use potion in slot {}", idx),
+            )
+        } else if id >= EVENT_BASE {
             let idx = id - EVENT_BASE;
             (
                 format!("event_choice_{}", idx),
@@ -1110,6 +1146,13 @@ impl StSEngine {
                 "shop".to_string(),
                 "Leave the shop".to_string(),
             )
+        } else if id >= SHOP_POTION_BASE {
+            let idx = id - SHOP_POTION_BASE;
+            let potion_info = self.inner.get_shop()
+                .and_then(|s| s.potions.get(idx as usize))
+                .map(|(potion, price)| format!("{} ({}g)", potion, price))
+                .unwrap_or_else(|| format!("potion_{}", idx));
+            (format!("shop_buy_potion_{}", idx), "shop".to_string(), format!("Buy {}", potion_info))
         } else if id >= SHOP_REMOVE_BASE {
             let idx = id - SHOP_REMOVE_BASE;
             let card = self
@@ -1124,6 +1167,19 @@ impl StSEngine {
                 "shop".to_string(),
                 format!("Remove {} from deck", card),
             )
+        } else if id >= SHOP_RELIC_BASE {
+            let idx = id - SHOP_RELIC_BASE;
+            let relic_info = self
+                .inner
+                .get_shop()
+                .and_then(|s| s.relics.get(idx as usize))
+                .map(|(relic, price)| format!("{} ({}g)", relic, price))
+                .unwrap_or_else(|| format!("relic_{}", idx));
+            (
+                format!("shop_buy_relic_{}", idx),
+                "shop".to_string(),
+                format!("Buy {}", relic_info),
+            )
         } else if id >= SHOP_BUY_BASE {
             let idx = id - SHOP_BUY_BASE;
             let card_info = self
@@ -1136,6 +1192,24 @@ impl StSEngine {
                 format!("shop_buy_{}", idx),
                 "shop".to_string(),
                 format!("Buy {}", card_info),
+            )
+        } else if id == CAMP_TOKE {
+            (
+                "camp_toke".to_string(),
+                "campfire".to_string(),
+                "Remove a card with Peace Pipe".to_string(),
+            )
+        } else if id == CAMP_LIFT {
+            (
+                "camp_lift".to_string(),
+                "campfire".to_string(),
+                "Train with Girya".to_string(),
+            )
+        } else if id == CAMP_DIG {
+            (
+                "camp_dig".to_string(),
+                "campfire".to_string(),
+                "Dig for a relic with Shovel".to_string(),
             )
         } else if id >= CAMP_UPGRADE_BASE {
             let idx = id - CAMP_UPGRADE_BASE;
@@ -1247,8 +1321,10 @@ fn reward_screen_source_str(source: crate::decision::RewardScreenSource) -> &'st
     match source {
         crate::decision::RewardScreenSource::Combat => "combat",
         crate::decision::RewardScreenSource::BossCombat => "boss_combat",
+        crate::decision::RewardScreenSource::Campfire => "campfire",
         crate::decision::RewardScreenSource::Event => "event",
         crate::decision::RewardScreenSource::Treasure => "treasure",
+        crate::decision::RewardScreenSource::Shop => "shop",
         crate::decision::RewardScreenSource::Unknown => "unknown",
     }
 }
@@ -1436,6 +1512,16 @@ fn build_decision_context_dict<'py>(
             offers.append(offer_dict)?;
         }
         shop_dict.set_item("offers", offers)?;
+        let potion_offers = PyList::empty_bound(py);
+        for offer in &shop.potion_offers {
+            let offer_dict = PyDict::new_bound(py);
+            offer_dict.set_item("index", offer.index)?;
+            offer_dict.set_item("potion_id", &offer.potion_id)?;
+            offer_dict.set_item("price", offer.price)?;
+            offer_dict.set_item("affordable", offer.affordable)?;
+            potion_offers.append(offer_dict)?;
+        }
+        shop_dict.set_item("potion_offers", potion_offers)?;
         shop_dict.set_item("remove_price", shop.remove_price)?;
         shop_dict.set_item("removal_used", shop.removal_used)?;
         shop_dict.set_item("removable_cards", shop.removable_cards)?;
@@ -1472,11 +1558,17 @@ const REWARD_ITEM_SHIFT: i32 = 4;
 const REWARD_INDEX_MASK: i32 = 0x0f;
 const CAMP_REST: i32 = 200;
 const CAMP_UPGRADE_BASE: i32 = 201;
+const CAMP_TOKE: i32 = 250;
+const CAMP_LIFT: i32 = 251;
+const CAMP_DIG: i32 = 252;
 const NEOW_BASE: i32 = 1_000_000;
 const SHOP_BUY_BASE: i32 = 300;
+const SHOP_RELIC_BASE: i32 = 325;
 const SHOP_REMOVE_BASE: i32 = 350;
+const SHOP_POTION_BASE: i32 = 375;
 const SHOP_LEAVE: i32 = 399;
 const EVENT_BASE: i32 = 400;
+const RUN_POTION_BASE: i32 = 450;
 const COMBAT_BASE: i32 = 500;
 
 #[pyclass(name = "RustRunEngine")]
@@ -1718,9 +1810,23 @@ impl PyRunEngine {
         let context = PyDict::new_bound(py);
         if let Some(combat) = self.inner.get_combat_engine() {
             context.set_item("potions", PyList::new_bound(py, &combat.state.potions))?;
+            let draw_order: Vec<String> = if combat.state.has_relic("Frozen Eye") {
+                combat
+                    .state
+                    .draw_pile
+                    .iter()
+                    .map(|card| combat.card_registry.card_name(card.def_id).to_string())
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            // Source: DrawPileViewScreen.java preserves actual pile order only
+            // while the player owns Frozen Eye.
+            context.set_item("draw_order", PyList::new_bound(py, &draw_order))?;
             context.set_item("choice", build_combat_choice_dict(py, combat)?)?;
         } else {
             context.set_item("potions", PyList::empty_bound(py))?;
+            context.set_item("draw_order", PyList::empty_bound(py))?;
             let empty_choice = PyDict::new_bound(py);
             empty_choice.set_item("active", false)?;
             context.set_item("choice", empty_choice)?;
@@ -1905,10 +2011,16 @@ impl PyRunEngine {
             run::RunAction::SkipRewardItem(i) => REWARD_SKIP_BASE + *i as i32,
             run::RunAction::CampfireRest => CAMP_REST,
             run::RunAction::CampfireUpgrade(i) => CAMP_UPGRADE_BASE + *i as i32,
+            run::RunAction::CampfireToke => CAMP_TOKE,
+            run::RunAction::CampfireLift => CAMP_LIFT,
+            run::RunAction::CampfireDig => CAMP_DIG,
             run::RunAction::ShopBuyCard(i) => SHOP_BUY_BASE + *i as i32,
+            run::RunAction::ShopBuyRelic(i) => SHOP_RELIC_BASE + *i as i32,
+            run::RunAction::ShopBuyPotion(i) => SHOP_POTION_BASE + *i as i32,
             run::RunAction::ShopRemoveCard(i) => SHOP_REMOVE_BASE + *i as i32,
             run::RunAction::ShopLeave => SHOP_LEAVE,
             run::RunAction::EventChoice(i) => EVENT_BASE + *i as i32,
+            run::RunAction::UsePotion(i) => RUN_POTION_BASE + *i as i32,
             run::RunAction::CombatAction(a) => match a {
                 crate::actions::Action::EndTurn => COMBAT_BASE,
                 crate::actions::Action::PlayCard {
@@ -1944,20 +2056,36 @@ impl PyRunEngine {
         if action_id >= COMBAT_BASE {
             let combat_id = action_id - COMBAT_BASE;
             return decode_combat_action_id_in_run(combat_id).map(run::RunAction::CombatAction);
+        } else if action_id >= RUN_POTION_BASE {
+            return Some(run::RunAction::UsePotion(
+                (action_id - RUN_POTION_BASE) as usize,
+            ));
         } else if action_id >= EVENT_BASE {
             return Some(run::RunAction::EventChoice(
                 (action_id - EVENT_BASE) as usize,
             ));
         } else if action_id == SHOP_LEAVE {
             return Some(run::RunAction::ShopLeave);
+        } else if action_id >= SHOP_POTION_BASE {
+            return Some(run::RunAction::ShopBuyPotion((action_id - SHOP_POTION_BASE) as usize));
         } else if action_id >= SHOP_REMOVE_BASE {
             return Some(run::RunAction::ShopRemoveCard(
                 (action_id - SHOP_REMOVE_BASE) as usize,
+            ));
+        } else if action_id >= SHOP_RELIC_BASE {
+            return Some(run::RunAction::ShopBuyRelic(
+                (action_id - SHOP_RELIC_BASE) as usize,
             ));
         } else if action_id >= SHOP_BUY_BASE {
             return Some(run::RunAction::ShopBuyCard(
                 (action_id - SHOP_BUY_BASE) as usize,
             ));
+        } else if action_id == CAMP_TOKE {
+            return Some(run::RunAction::CampfireToke);
+        } else if action_id == CAMP_LIFT {
+            return Some(run::RunAction::CampfireLift);
+        } else if action_id == CAMP_DIG {
+            return Some(run::RunAction::CampfireDig);
         } else if action_id >= CAMP_UPGRADE_BASE {
             return Some(run::RunAction::CampfireUpgrade(
                 (action_id - CAMP_UPGRADE_BASE) as usize,

@@ -63,27 +63,30 @@ mod run_java_parity_tests {
     }
 
     #[test]
-    fn treasure_room_grants_java_style_gold_band() {
+    fn treasure_room_opens_an_ordered_chest_reward_screen() {
         let mut engine = RunEngine::new(42, 0);
         resolve_opening_neow(&mut engine);
         set_first_reachable_room(&mut engine, RoomType::Treasure);
-        let gold_before = engine.run_state.gold;
         let actions = engine.get_legal_actions();
         engine.step(&actions[0]);
-        let gained = engine.run_state.gold - gold_before;
-        assert!((50..=80).contains(&gained), "treasure gain {gained} not in 50..=80");
-        assert_eq!(engine.phase, RunPhase::MapChoice);
+        assert_eq!(engine.phase, RunPhase::CardReward);
+        let screen = engine.current_reward_screen().expect("treasure rewards");
+        assert_eq!(screen.source, crate::decision::RewardScreenSource::Treasure);
+        assert!(screen.items.iter().any(|item| item.kind == crate::decision::RewardItemKind::Relic));
     }
 
     #[test]
-    fn shop_room_generates_five_cards_and_base_remove_price() {
+    fn shop_room_generates_seven_cards_three_potions_and_base_remove_price() {
+        // Merchant.java creates five colored cards plus one uncommon and one
+        // rare colorless card; ShopScreen.java::initPotions creates 3 potions.
         let mut engine = RunEngine::new(42, 0);
         set_first_reachable_room(&mut engine, RoomType::Shop);
         resolve_opening_neow(&mut engine);
         let actions = engine.get_legal_actions();
         engine.step(&actions[0]);
         let shop = engine.get_shop().expect("shop should exist");
-        assert_eq!(shop.cards.len(), 5);
+        assert_eq!(shop.cards.len(), 7);
+        assert_eq!(shop.potions.len(), 3);
         assert_eq!(shop.remove_price, 75);
     }
 
@@ -124,6 +127,8 @@ mod run_java_parity_tests {
 
     #[test]
     fn shop_buy_card_spends_gold_and_removes_the_offer() {
+        // ShopScreen.purchaseCard removes the bought card without Courier;
+        // Merchant.java supplied seven offers, so six remain.
         let mut engine = RunEngine::new(42, 0);
         resolve_opening_neow(&mut engine);
         engine.run_state.gold = 999;
@@ -140,7 +145,7 @@ mod run_java_parity_tests {
         assert_eq!(engine.run_state.deck.len(), deck_before + 1);
         assert_eq!(engine.run_state.deck.last(), Some(&card));
         assert_eq!(engine.run_state.gold, 999 - price);
-        assert_eq!(engine.get_shop().expect("shop stays open").cards.len(), 4);
+        assert_eq!(engine.get_shop().expect("shop stays open").cards.len(), 6);
         assert_eq!(engine.phase, RunPhase::Shop);
     }
 
@@ -173,6 +178,9 @@ mod run_java_parity_tests {
 
     #[test]
     fn shop_remove_parasite_reduces_max_hp_and_clamps_current_hp() {
+        // Parasite.java::onRemoveFromMasterDeck calls decreaseMaxHealth(3).
+        // AbstractCreature.decreaseMaxHealth floors max HP at one and clamps
+        // current HP down when it exceeds the new maximum.
         let mut engine = RunEngine::new(42, 0);
         resolve_opening_neow(&mut engine);
         engine.run_state.gold = 999;
@@ -261,13 +269,28 @@ mod run_java_parity_tests {
     }
 
     #[test]
-    fn campfire_rest_uses_ceiling_thirty_percent_formula() {
+    fn campfire_rest_truncates_thirty_percent_like_java() {
+        // Source: CampfireSleepEffect.java casts maxHealth * 0.3f to int.
         let mut engine = RunEngine::new(42, 0);
         engine.phase = RunPhase::Campfire;
         engine.run_state.max_hp = 72;
         engine.run_state.current_hp = 40;
         engine.step(&RunAction::CampfireRest);
-        assert_eq!(engine.run_state.current_hp, 62);
+        assert_eq!(engine.run_state.current_hp, 61);
+    }
+
+    #[test]
+    fn regal_pillow_adds_exactly_fifteen_after_truncated_rest_healing() {
+        // Sources: RegalPillow.java defines HEAL_AMT 15; the
+        // CampfireSleepEffect constructor adds it after truncating base heal.
+        let mut engine = RunEngine::new(42, 0);
+        engine.phase = RunPhase::Campfire;
+        engine.run_state.max_hp = 72;
+        engine.run_state.current_hp = 20;
+        engine.run_state.relics.push("Regal Pillow".to_string());
+        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine.step(&RunAction::CampfireRest);
+        assert_eq!(engine.run_state.current_hp, 56);
     }
 
     #[test]
@@ -367,6 +390,7 @@ mod run_java_parity_tests {
                 .pending_run_gold,
             30
         );
+        assert_eq!(engine.run_state.gold, gold_before + 30);
         engine.debug_force_current_combat_outcome(true);
         engine.debug_resolve_current_combat_outcome();
 
@@ -375,5 +399,102 @@ mod run_java_parity_tests {
             "Wish+ gold branch should sync its 30 gold into RunState on combat resolution, got {}",
             engine.run_state.gold - gold_before
         );
+    }
+
+    // LessonLearnedAction upgrades AbstractDungeon.player.masterDeck during
+    // combat. The selected permanent upgrade must survive combat resolution.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/LessonLearnedAction.java
+    #[test]
+    fn lesson_learned_master_deck_upgrade_syncs_into_run_state() {
+        let mut engine = RunEngine::new(42, 0);
+        engine.run_state.deck = vec![
+            "LessonLearned+".to_string(),
+            "Wallop".to_string(),
+            "Strike+".to_string(),
+        ];
+        resolve_opening_neow(&mut engine);
+        set_first_reachable_room(&mut engine, RoomType::Monster);
+        let action = engine.get_legal_actions()[0].clone();
+        engine.step(&action);
+
+        {
+            let combat = engine.debug_combat_engine_mut();
+            combat.state.enemies[0].entity.hp = 13;
+            combat.state.enemies[0].entity.block = 0;
+        }
+        let lesson_idx = engine
+            .get_combat_engine()
+            .expect("combat active")
+            .state
+            .hand
+            .iter()
+            .position(|card| {
+                engine
+                    .get_combat_engine()
+                    .expect("combat active")
+                    .card_registry
+                    .card_name(card.def_id)
+                    == "LessonLearned+"
+            })
+            .expect("Lesson Learned+ drawn");
+        engine.step(&RunAction::CombatAction(Action::PlayCard {
+            card_idx: lesson_idx,
+            target_idx: 0,
+        }));
+
+        assert!(engine.run_state.deck.iter().any(|card| card == "Wallop+"));
+        assert!(!engine.run_state.deck.iter().any(|card| card == "Wallop"));
+    }
+
+    // IncreaseMiscAction updates the matching card in player.masterDeck, and
+    // CardSave persists misc between combats.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/IncreaseMiscAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardSave.java
+    #[test]
+    fn genetic_algorithm_misc_syncs_through_run_state_into_the_next_combat() {
+        let mut engine = RunEngine::new(42, 0);
+        engine.run_state.deck = vec!["Genetic Algorithm".to_string()];
+        engine.run_state.deck_card_states.clear();
+        resolve_opening_neow(&mut engine);
+        set_first_reachable_room(&mut engine, RoomType::Monster);
+        let path = engine.get_legal_actions()[0].clone();
+        engine.step(&path);
+
+        let genetic_idx = engine
+            .get_combat_engine()
+            .expect("combat active")
+            .state
+            .hand
+            .iter()
+            .position(|card| {
+                engine
+                    .get_combat_engine()
+                    .expect("combat active")
+                    .card_registry
+                    .card_name(card.def_id)
+                    == "Genetic Algorithm"
+            })
+            .expect("Genetic Algorithm drawn");
+        engine.step(&RunAction::CombatAction(Action::PlayCard {
+            card_idx: genetic_idx,
+            target_idx: -1,
+        }));
+        assert_eq!(
+            engine
+                .get_combat_engine()
+                .expect("combat active")
+                .state
+                .player
+                .block,
+            1,
+        );
+
+        engine.debug_force_current_combat_outcome(true);
+        engine.debug_resolve_current_combat_outcome();
+        assert_eq!(engine.run_state.deck_card_states[0].misc, 3);
+
+        engine.debug_enter_specific_combat(&["JawWorm"]);
+        let next = engine.get_combat_engine().expect("next combat active");
+        assert_eq!(next.state.master_deck[0].misc, 3);
     }
 }

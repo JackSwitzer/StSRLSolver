@@ -8,6 +8,12 @@ static INFERNAL_BLADE: [Effect; 1] = [Effect::GenerateRandomCardsToHand {
 }];
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+    // InfernalBlade.use immediately selects one ATTACK from the current
+    // character's source rarity pools through cardRandomRng, makes a base
+    // copy, sets its turn cost to zero, then adds it to hand. Base Exhausts at
+    // cost 1; upgrade changes only its cost to 0.
+    // Java: reference/extracted/methods/card/InfernalBlade.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
     insert(cards, CardDef {
         id: "Infernal Blade",
         name: "Infernal Blade",

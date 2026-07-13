@@ -24,7 +24,19 @@ fn engine_with_relic_and_attacks(relic_id: &str, attack_count: usize) -> crate::
 
 #[test]
 fn ornamental_fan_triggers_on_third_attack_and_resets_each_turn() {
+    // Source: reference/extracted/methods/relic/OrnamentalFan.java
+    // Only ATTACK cards increment the counter; the third grants 4 Block, and
+    // atTurnStart resets partial progress.
     let mut engine = engine_with_relic_and_attacks("Ornamental Fan", 5);
+    engine.state.hand = make_deck(&[
+        "Miracle", "Strike", "Strike", "Strike", "Strike", "Strike",
+    ]);
+
+    assert!(play_self(&mut engine, "Miracle"));
+    assert_eq!(
+        engine.hidden_effect_value("Ornamental Fan", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        0
+    );
 
     assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert!(play_on_enemy(&mut engine, "Strike", 0));
@@ -58,6 +70,8 @@ fn ornamental_fan_triggers_on_third_attack_and_resets_each_turn() {
 
 #[test]
 fn kunai_triggers_on_third_attack_and_resets_each_turn() {
+    // Kunai.java counts only ATTACK cards, grants one Dexterity on the third,
+    // resets the counter immediately, and also resets it at turn start.
     let mut engine = engine_with_relic_and_attacks("Kunai", 5);
 
     assert!(play_on_enemy(&mut engine, "Strike", 0));
@@ -118,6 +132,8 @@ fn shuriken_triggers_on_third_attack_and_resets_each_turn() {
 
 #[test]
 fn nunchaku_persists_nine_attacks_and_grants_energy_on_tenth_attack() {
+    // Nunchaku.java counts only ATTACK cards and queues one energy when the
+    // persistent counter reaches ten, then resets the counter to zero.
     let mut first_engine = engine_with_relic_and_attacks("Nunchaku", 9);
     let starting_energy = first_engine.state.energy;
 
@@ -156,6 +172,8 @@ fn nunchaku_persists_nine_attacks_and_grants_energy_on_tenth_attack() {
 
 #[test]
 fn ink_bottle_persists_nine_cards_and_draws_on_tenth_card() {
+    // InkBottle.java::onUseCard increments on every used card, resets at ten,
+    // and queues exactly one DrawCardAction(1); the relic counter survives combat.
     let mut first_engine = engine_with_relic_and_attacks("InkBottle", 9);
 
     for _ in 0..9 {

@@ -14,6 +14,31 @@ fn event(name: &str, options: Vec<TypedEventOption>) -> TypedEventDef {
     }
 }
 
+pub(super) fn golden_idol_consequence_event() -> TypedEventDef {
+    event(
+        "Golden Idol",
+        vec![
+            supported(
+                "Escape with an Injury",
+                vec![EventProgramOp::curse("Injury")],
+                EventEffect::GainCard,
+            ),
+            supported(
+                "Take damage",
+                vec![EventProgramOp::adjust_hp_percent_by_ascension(
+                    false, 25, 35,
+                )],
+                EventEffect::Hp(0),
+            ),
+            supported(
+                "Lose max HP",
+                vec![EventProgramOp::max_hp_percent_by_ascension(-8, -10, 1)],
+                EventEffect::MaxHp(0),
+            ),
+        ],
+    )
+}
+
 #[derive(Clone, Copy)]
 enum DeadAdventurerReward {
     Gold,
@@ -154,10 +179,13 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
             "Golden Idol",
             vec![
                 supported(
-                    "Take (gain 300 gold, lose 25% max HP)",
+                    "Take the Golden Idol",
                     vec![
-                        EventProgramOp::lose_percent_hp(25),
-                        EventProgramOp::gain_gold(300),
+                        // GoldenIdolEvent.java obtains the relic immediately,
+                        // then opens a second three-option consequence screen.
+                        // Java: decompiled/java-src/com/megacrit/cardcrawl/events/exordium/GoldenIdolEvent.java
+                        EventProgramOp::obtain_relic("Golden Idol"),
+                        EventProgramOp::continue_event(golden_idol_consequence_event()),
                     ],
                     EventEffect::GoldenIdolTake,
                 ),
@@ -277,7 +305,18 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
                     vec![
                         EventProgramOp::combat_branch(
                             ["FungiBeast", "FungiBeast", "FungiBeast"],
-                            vec![EventProgramOp::gain_relic("Odd Mushroom")],
+                            vec![
+                                // Mushrooms.java rolls inclusive 20..30 gold
+                                // after the fight, then rewards Odd Mushroom or
+                                // Circlet when the special relic is already owned.
+                                // Java: decompiled/java-src/com/megacrit/cardcrawl/events/exordium/Mushrooms.java
+                                EventProgramOp::random_outcome_table(
+                                    (20..=30)
+                                        .map(|gold| vec![EventProgramOp::gold(gold)])
+                                        .collect(),
+                                ),
+                                EventProgramOp::gain_unique_relic_or_circlet("Odd Mushroom"),
+                            ],
                         ),
                     ],
                     EventEffect::GainRelic,

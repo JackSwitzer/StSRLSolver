@@ -9,6 +9,8 @@ static EFFECTS: [Effect; 1] = [
 ];
 
 static TRIGGERS: [TriggeredEffect; 1] = [
+    // Source: reference/extracted/methods/relic/CloakClasp.java
+    // (`onPlayerEndTurn`: current hand size * 1).
     TriggeredEffect {
         trigger: Trigger::TurnEnd,
         condition: TriggerCondition::Always,

@@ -17,97 +17,80 @@
 
 #[cfg(test)]
 mod ai_rng_parity_tests {
-    use crate::enemies::{create_enemy, move_ids, roll_next_move, roll_next_move_with_num};
+    use crate::enemies::{create_enemy, move_ids, roll_next_move, roll_next_move_with_num,
+        roll_next_move_with_num_and_rng};
     use crate::seed::StsRandom;
     use crate::state::EnemyCombatState;
 
-    // §5.1 -- JawWorm: each Java getMove branch must be reachable via a num
-    // in the documented Java window. If JawWorm goes deterministic again
-    // (e.g. someone removes the num check), every test here will fail with the
-    // same wrong move_id.
-
-    #[test]
-    fn jaw_worm_num_below_25_picks_chomp_on_first_turn() {
-        let mut e = create_enemy("JawWorm", 44, 44);
-        // Initial intent in create_enemy is CHOMP; rolling with num=0 (no prior
-        // history matching CHOMP twice) should keep CHOMP per Java's
-        // `num < 25 && !lastTwoMoves(CHOMP)`.
-        roll_next_move_with_num(&mut e, 0);
-        assert_eq!(e.move_id, move_ids::JW_CHOMP, "num=0 should yield CHOMP");
-        assert_eq!(e.move_damage(), 11);
+    // Source-derived from reference/extracted/methods/monster/JawWorm.java.
+    // The three num windows depend on history; three cases consume another
+    // aiRng.randomBoolean draw instead of forming a simple 25/30/45 split.
+    fn seed_for_float(predicate: fn(f32) -> bool) -> u64 {
+        (1..10_000).find(|&seed| {
+            let mut rng = StsRandom::new(seed);
+            predicate(rng.random_float())
+        }).expect("seed satisfying probability branch")
     }
 
     #[test]
-    fn jaw_worm_num_25_to_54_picks_bellow_on_first_turn() {
-        for num in [25, 30, 50, 54] {
+    fn jaw_worm_after_chomp_num_below_25_uses_5625_percent_draw() {
+        let cases: [(bool, fn(f32) -> bool); 2] = [
+            (true, |value| value < 0.5625),
+            (false, |value| value >= 0.5625),
+        ];
+        for (take_bellow, predicate) in cases {
+            let mut rng = StsRandom::new(seed_for_float(predicate));
             let mut e = create_enemy("JawWorm", 44, 44);
-            roll_next_move_with_num(&mut e, num);
-            assert_eq!(
-                e.move_id,
-                move_ids::JW_BELLOW,
-                "num={num} should yield BELLOW"
-            );
-            assert_eq!(e.move_block(), 6);
+            roll_next_move_with_num_and_rng(&mut e, 0, &mut rng);
+            assert_eq!(e.move_id, if take_bellow { move_ids::JW_BELLOW } else { move_ids::JW_THRASH });
+            assert_eq!(rng.counter, 1);
         }
     }
 
     #[test]
-    fn jaw_worm_num_55_to_99_picks_thrash_on_first_turn() {
-        for num in [55, 75, 99] {
-            let mut e = create_enemy("JawWorm", 44, 44);
-            roll_next_move_with_num(&mut e, num);
-            assert_eq!(
-                e.move_id,
-                move_ids::JW_THRASH,
-                "num={num} should yield THRASH"
-            );
-            assert_eq!(e.move_damage(), 7);
-            assert_eq!(e.move_block(), 5);
-        }
-    }
-
-    #[test]
-    fn jaw_worm_anti_repeat_chomp_blocks_third_chomp() {
-        // After two consecutive CHOMPs in move_history, num<25 must NOT pick
-        // CHOMP (Java's `!lastTwoMoves(CHOMP)` guard). It should fall through
-        // to the next branch.
+    fn jaw_worm_plain_windows_do_not_draw_secondary_rng() {
+        let mut rng = StsRandom::new(7);
         let mut e = create_enemy("JawWorm", 44, 44);
-        // Seed history directly so lastTwoMoves(CHOMP) is unambiguously true
-        // BEFORE the next push happens. roll_next_move_with_num pushes the
-        // *current* move_id first, so we set the current to CHOMP and seed
-        // exactly one prior CHOMP -- after the push, the last two entries are
-        // [CHOMP, CHOMP].
-        e.move_history.push(move_ids::JW_CHOMP);
-        e.set_move(move_ids::JW_CHOMP, 11, 1, 0);
-        roll_next_move_with_num(&mut e, 0);
-        assert_ne!(
-            e.move_id,
-            move_ids::JW_CHOMP,
-            "lastTwoMoves(CHOMP) should block a third CHOMP at num=0"
-        );
-        // num<25 + CHOMP-blocked + !lastMove(BELLOW)=true -> BELLOW.
+        roll_next_move_with_num_and_rng(&mut e, 25, &mut rng);
+        assert_eq!(e.move_id, move_ids::JW_THRASH);
+        assert_eq!(rng.counter, 0);
+        let mut e = create_enemy("JawWorm", 44, 44);
+        roll_next_move_with_num_and_rng(&mut e, 55, &mut rng);
         assert_eq!(e.move_id, move_ids::JW_BELLOW);
+        assert_eq!(rng.counter, 0);
     }
 
     #[test]
-    fn jaw_worm_three_branch_distribution_is_balanced() {
-        // Drive 1000 fresh JawWorm rolls under uniform num in [0, 99].
-        // Expected ~25% CHOMP, ~30% BELLOW, ~45% THRASH per Java's getMove.
-        // Anti-repeat guards on a fresh enemy with no prior history don't trigger.
-        let mut counts = [0_i32; 3]; // CHOMP, BELLOW, THRASH
-        for num in 0..100 {
+    fn jaw_worm_after_two_thrashes_uses_357_percent_draw() {
+        let cases: [(bool, fn(f32) -> bool); 2] = [
+            (true, |value| value < 0.357),
+            (false, |value| value >= 0.357),
+        ];
+        for (take_chomp, predicate) in cases {
             let mut e = create_enemy("JawWorm", 44, 44);
-            roll_next_move_with_num(&mut e, num);
-            match e.move_id {
-                x if x == move_ids::JW_CHOMP => counts[0] += 1,
-                x if x == move_ids::JW_BELLOW => counts[1] += 1,
-                x if x == move_ids::JW_THRASH => counts[2] += 1,
-                _ => panic!("unexpected JawWorm intent"),
-            }
+            e.move_history.push(move_ids::JW_THRASH);
+            e.set_move(move_ids::JW_THRASH, 7, 1, 5);
+            let mut rng = StsRandom::new(seed_for_float(predicate));
+            roll_next_move_with_num_and_rng(&mut e, 25, &mut rng);
+            assert_eq!(e.move_id, if take_chomp { move_ids::JW_CHOMP } else { move_ids::JW_BELLOW });
+            assert_eq!(rng.counter, 1);
         }
-        assert_eq!(counts[0], 25, "CHOMP count");
-        assert_eq!(counts[1], 30, "BELLOW count");
-        assert_eq!(counts[2], 45, "THRASH count");
+    }
+
+    #[test]
+    fn jaw_worm_after_bellow_uses_416_percent_draw() {
+        let cases: [(bool, fn(f32) -> bool); 2] = [
+            (true, |value| value < 0.416),
+            (false, |value| value >= 0.416),
+        ];
+        for (take_chomp, predicate) in cases {
+            let mut e = create_enemy("JawWorm", 44, 44);
+            e.set_move(move_ids::JW_BELLOW, 0, 0, 6);
+            let mut rng = StsRandom::new(seed_for_float(predicate));
+            roll_next_move_with_num_and_rng(&mut e, 55, &mut rng);
+            assert_eq!(e.move_id, if take_chomp { move_ids::JW_CHOMP } else { move_ids::JW_THRASH });
+            assert_eq!(rng.counter, 1);
+        }
     }
 
     // §5.2 -- multi-enemy stream order: every roll_next_move call consumes
@@ -117,15 +100,14 @@ mod ai_rng_parity_tests {
     // enemies skip the draw (would desync the stream).
 
     #[test]
-    fn ai_rng_advances_one_per_roll() {
-        // Two parallel rngs seeded identically; one consumed via roll_next_move
-        // (which calls random(99) internally), one consumed manually. They must
-        // stay in lockstep.
+    fn deterministic_enemy_ai_rng_advances_one_per_roll() {
+        // Cultist performs no getMove draw, so only AbstractMonster.rollMove's
+        // mandatory num draw advances the stream.
         let mut rng_via_roll = StsRandom::new(42);
         let mut rng_manual = StsRandom::new(42);
 
         for _ in 0..10 {
-            let mut e = create_enemy("JawWorm", 44, 44);
+            let mut e = create_enemy("Cultist", 50, 50);
             roll_next_move(&mut e, &mut rng_via_roll);
             let _ = rng_manual.random(99);
             // Both rngs should have consumed the same number of values; the next

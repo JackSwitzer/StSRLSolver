@@ -518,7 +518,7 @@ pub fn has_equilibrium(entity: &EntityState) -> bool {
     entity.status(sid::EQUILIBRIUM) > 0
 }
 
-/// Decrement Equilibrium at end of turn.
+/// Decrement Equilibrium at end of round.
 
 pub fn decrement_equilibrium(entity: &mut EntityState) {
     decrement_status(entity, sid::EQUILIBRIUM);
@@ -576,9 +576,9 @@ pub fn apply_deva_form(entity: &mut EntityState) -> i32 {
     if deva <= 0 {
         return 0;
     }
-    let energy_counter = entity.status(sid::DEVA_FORM_ENERGY) + 1;
-    entity.set_status(sid::DEVA_FORM_ENERGY, energy_counter);
-    energy_counter
+    let energy_gain = entity.status(sid::DEVA_FORM_ENERGY).max(deva);
+    entity.set_status(sid::DEVA_FORM_ENERGY, energy_gain + deva);
+    energy_gain
 }
 
 // ---------------------------------------------------------------------------
@@ -738,9 +738,6 @@ pub fn process_end_of_turn(entity: &mut EntityState, in_calm: bool) -> EndOfTurn
     // Remove Rage at end of turn
     remove_rage_end_of_turn(entity);
 
-    // Decrement Equilibrium
-    decrement_equilibrium(entity);
-
     // Decrement Intangible
     decrement_intangible(entity);
 
@@ -750,6 +747,10 @@ pub fn process_end_of_turn(entity: &mut EntityState, in_calm: bool) -> EndOfTurn
 /// Process end-of-round triggers (after all entities have taken turns).
 
 pub fn process_end_of_round(entity: &mut EntityState) {
+    // EquilibriumPower.atEndOfRound reduces one stack after its end-of-turn
+    // retention trigger has resolved.
+    decrement_equilibrium(entity);
+
     // Debuff decrements
     decrement_debuffs(entity);
 
@@ -1008,7 +1009,8 @@ mod tests {
     #[test]
     fn test_slow_damage_modification() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status(sid::SLOW, 3);
+        // SlowPower starts at amount zero; sentinel one keeps it installed.
+        entity.set_status(sid::SLOW, 4);
 
         let modified = modify_damage_receive(&entity, 10.0);
         assert!((modified - 13.0).abs() < 0.01); // 10 * 1.3 = 13
@@ -1236,7 +1238,7 @@ mod tests {
         assert_eq!(entity.status(sid::WEAKENED), 1);
         assert_eq!(entity.status(sid::VULNERABLE), 0);
         assert_eq!(entity.status(sid::BLUR), 0);
-        assert_eq!(entity.status(sid::SLOW), 0);
+        assert_eq!(entity.status(sid::SLOW), 1);
         assert_eq!(entity.status(sid::LOCK_ON), 1);
     }
 }

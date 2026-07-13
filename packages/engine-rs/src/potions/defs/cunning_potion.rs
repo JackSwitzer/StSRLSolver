@@ -4,14 +4,16 @@ static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::ManualActivation,
     condition: TriggerCondition::Always,
     effects: &[E::Simple(SE::AddCard(
-        "Shiv",
+        // Source: reference/extracted/methods/potion/CunningPotion.java. The
+        // potion upgrades its template before making stat-equivalent copies.
+        "Shiv+",
         crate::effects::declarative::Pile::Hand,
         A::PotionPotency,
     ))],
     counter: None,
 }];
 
-/// Cunning Potion: Add Shiv+ cards to hand (3 base, 6 with Sacred Bark).
+/// Cunning Potion: add three Shiv+ cards (six with Sacred Bark).
 pub static DEF: EntityDef = EntityDef {
     id: "CunningPotion",
     name: "Cunning Potion",

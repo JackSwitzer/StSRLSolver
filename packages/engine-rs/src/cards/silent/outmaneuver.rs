@@ -1,7 +1,11 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Common: Outmaneuver ---- (cost 1, +2 energy next turn; +1 energy)
+    // Outmaneuver.java applies EnergizedPower(2), or 3 when upgraded, for one
+    // energy. EnergizedPower stacks, grants its amount on the next energy
+    // recharge, then removes itself.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Outmaneuver.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/EnergizedPower.java
     insert(cards, CardDef {
                 id: "Outmaneuver", name: "Outmaneuver", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,

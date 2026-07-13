@@ -61,6 +61,9 @@ const PLAYER_POWER_STATUSES: &[StatusId] = &[
     sid::MAGNETISM,
     sid::MAYHEM,
     sid::DRAW,
+    sid::PHANTASMAL,
+    sid::DOUBLE_DAMAGE,
+    sid::REBOUND,
 ];
 
 pub(crate) fn status_is_debuff(status_id: StatusId) -> bool {
@@ -80,6 +83,9 @@ pub(crate) fn status_is_debuff(status_id: StatusId) -> bool {
             | sid::LOCK_ON
             | sid::FADING
             | sid::NO_BLOCK
+            | sid::ENERGY_DOWN
+            | sid::LOSE_STRENGTH
+            | sid::WRAITH_FORM
     )
 }
 

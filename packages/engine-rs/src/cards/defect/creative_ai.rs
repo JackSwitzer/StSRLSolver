@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Creative AI: 3 cost, power, add random Power to hand each turn (upgrade: cost 2)
+    // Source: reference/extracted/methods/card/CreativeAI.java applies one
+    // CreativeAIPower at cost 3; the upgrade changes only cost to 2.
     insert(cards, CardDef {
                 id: "Creative AI", name: "Creative AI", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 3, base_damage: -1, base_block: -1,

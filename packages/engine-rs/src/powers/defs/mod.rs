@@ -34,6 +34,8 @@ pub use complex::*;
 /// Grouped by trigger type for clarity.
 pub static POWER_DEFS: &[&EntityDef] = &[
     // -- Turn Start (simple) --
+    &turn_start::DEF_ENERGIZED,
+    &turn_start::DEF_PHANTASMAL,
     &turn_start::DEF_DEMON_FORM,
     &turn_start::DEF_NOXIOUS_FUMES,
     &turn_start::DEF_BRUTALITY,
@@ -41,12 +43,13 @@ pub static POWER_DEFS: &[&EntityDef] = &[
     &turn_start::DEF_INFINITE_BLADES,
     &turn_start::DEF_BATTLE_HYMN,
     &turn_start::DEF_DEVOTION,
-    &turn_start::DEF_WRAITH_FORM,
+    &turn_end::DEF_WRAITH_FORM,
     &turn_start::DEF_DEVA_FORM,
     &turn_start::DEF_HELLO_WORLD,
     &turn_start::DEF_MAGNETISM,
     &turn_start::DEF_DOPPELGANGER_DRAW,
     &turn_start::DEF_DOPPELGANGER_ENERGY,
+    &turn_start::DEF_ENERGY_DOWN,
 
     // -- Turn Start (complex) --
     &turn_start::DEF_CREATIVE_AI,
@@ -61,10 +64,12 @@ pub static POWER_DEFS: &[&EntityDef] = &[
     &turn_end::DEF_OMEGA,
     &turn_end::DEF_LIKE_WATER,
     &turn_end::DEF_STUDY,
+    &turn_end::DEF_NO_DRAW,
 
     // -- Card Play --
     &card_play::DEF_AFTER_IMAGE,
     &card_play::DEF_RAGE,
+    &card_play::DEF_REBOUND,
     &card_play::DEF_HEATSINK,
     &card_play::DEF_STORM,
     &card_play::DEF_CURIOSITY,
@@ -86,11 +91,14 @@ pub static POWER_DEFS: &[&EntityDef] = &[
     &enemy::DEF_REGENERATION,
     &enemy::DEF_GROWTH,
     &enemy::DEF_METALLICIZE_ENEMY,
+    &enemy::DEF_PLATED_ARMOR_ENEMY,
 
     // -- Complex (hook-based) --
     &complex::DEF_ECHO_FORM,
     &complex::DEF_DOUBLE_TAP,
     &complex::DEF_BURST,
+    &complex::DEF_AMPLIFY,
+    &complex::DEF_DUPLICATION,
     &complex::DEF_THORNS,
     &complex::DEF_FLAME_BARRIER,
     &complex::DEF_ENVENOM,
@@ -100,12 +108,15 @@ pub static POWER_DEFS: &[&EntityDef] = &[
     &complex::DEF_ELECTRODYNAMICS,
     &complex::DEF_TIME_WARP,
     &complex::DEF_STATIC_DISCHARGE,
+    &complex::DEF_DISCIPLINE,
 ];
 
 /// Power defs that are executed by the owner-aware runtime today.
 /// Complex powers that still execute inline in `engine.rs` are intentionally
 /// excluded until their runtime hooks are migrated.
 pub static RUNTIME_PLAYER_POWER_DEFS: &[&EntityDef] = &[
+    &turn_start::DEF_ENERGIZED,
+    &turn_start::DEF_PHANTASMAL,
     &turn_start::DEF_DEMON_FORM,
     &turn_start::DEF_NOXIOUS_FUMES,
     &turn_start::DEF_BRUTALITY,
@@ -113,13 +124,14 @@ pub static RUNTIME_PLAYER_POWER_DEFS: &[&EntityDef] = &[
     &turn_start::DEF_INFINITE_BLADES,
     &turn_start::DEF_BATTLE_HYMN,
     &turn_start::DEF_DEVOTION,
-    &turn_start::DEF_WRAITH_FORM,
+    &turn_end::DEF_WRAITH_FORM,
     &turn_start::DEF_DEVA_FORM,
     &turn_start::DEF_HELLO_WORLD,
     &turn_start::DEF_MAGNETISM,
     &turn_start::DEF_CREATIVE_AI,
     &turn_start::DEF_DOPPELGANGER_DRAW,
     &turn_start::DEF_DOPPELGANGER_ENERGY,
+    &turn_start::DEF_ENERGY_DOWN,
     &turn_start::DEF_ENTER_DIVINITY,
     &turn_start::DEF_MAYHEM,
     &turn_start::DEF_TOOLS_OF_THE_TRADE,
@@ -129,20 +141,29 @@ pub static RUNTIME_PLAYER_POWER_DEFS: &[&EntityDef] = &[
     &turn_end::DEF_OMEGA,
     &turn_end::DEF_LIKE_WATER,
     &turn_end::DEF_STUDY,
+    &turn_end::DEF_NO_DRAW,
     &card_play::DEF_AFTER_IMAGE,
     &card_play::DEF_RAGE,
+    &card_play::DEF_REBOUND,
     &card_play::DEF_HEATSINK,
     &card_play::DEF_STORM,
     &complex::DEF_ECHO_FORM,
     &complex::DEF_DOUBLE_TAP,
     &complex::DEF_BURST,
+    &complex::DEF_AMPLIFY,
+    &complex::DEF_DUPLICATION,
     &complex::DEF_THOUSAND_CUTS,
     &complex::DEF_PANACHE,
     &complex::DEF_SADISTIC_NATURE,
+    &complex::DEF_DISCIPLINE,
+    // Retaliation remains inline, but FlameBarrierPower.atStartOfTurn is
+    // owner-aware runtime behavior.
+    &complex::DEF_FLAME_BARRIER,
     &exhaust::DEF_FEEL_NO_PAIN,
     &exhaust::DEF_DARK_EMBRACE,
     &stance::DEF_MENTAL_FORTRESS,
     &stance::DEF_RUSHDOWN,
+    &enemy::DEF_RITUAL,
 ];
 
 /// Enemy-owned power defs that can safely execute through the owner-aware
@@ -157,6 +178,7 @@ pub static RUNTIME_ENEMY_POWER_DEFS: &[&EntityDef] = &[
     &enemy::DEF_REGENERATION,
     &enemy::DEF_GROWTH,
     &enemy::DEF_METALLICIZE_ENEMY,
+    &enemy::DEF_PLATED_ARMOR_ENEMY,
 ];
 
 // ===========================================================================
@@ -221,7 +243,7 @@ mod tests {
         let simple_ids = [
             "demon_form", "noxious_fumes", "brutality", "berserk",
             "metallicize", "plated_armor", "after_image", "rage",
-            "feel_no_pain", "dark_embrace", "mental_fortress", "rushdown",
+            "feel_no_pain", "mental_fortress", "rushdown",
             "doppelganger_draw", "doppelganger_energy", "heatsink",
             "curiosity", "beat_of_death", "slow", "forcefield", "skill_burn",
         ];
@@ -242,7 +264,7 @@ mod tests {
         let complex_ids = [
             "echo_form", "double_tap", "burst", "thorns", "flame_barrier",
             "creative_ai", "enter_divinity", "mayhem", "tools_of_the_trade",
-            "storm", "time_warp", "static_discharge",
+            "storm", "time_warp", "static_discharge", "dark_embrace",
         ];
         for id in &complex_ids {
             let def = POWER_DEFS.iter().find(|d| d.id == *id);

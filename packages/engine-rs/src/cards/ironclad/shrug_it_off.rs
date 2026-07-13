@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Ironclad Common: Shrug It Off ---- (cost 1, 8 block, draw 1; +3 block)
+        // ShrugItOff.java queues 8 Block followed by drawing exactly one card;
+        // upgradeBlock(3) is its only upgrade change.
+        // Java: reference/extracted/methods/card/ShrugItOff.java
     insert(cards, CardDef {
                 id: "Shrug It Off", name: "Shrug It Off", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 8,

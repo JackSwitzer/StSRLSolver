@@ -24,6 +24,11 @@ pub fn decrement_debuffs(entity: &mut EntityState) {
         sid::FRAIL,
         sid::FRAIL_JUST_APPLIED,
     );
+    decrement_debuff_with_just_applied(
+        entity,
+        sid::DRAW_REDUCTION,
+        sid::DRAW_REDUCTION_JUST_APPLIED,
+    );
 }
 
 fn decrement_debuff_with_just_applied(
@@ -67,6 +72,8 @@ fn just_applied_flag_for(status: StatusId) -> Option<StatusId> {
         Some(sid::VULNERABLE_JUST_APPLIED)
     } else if status == sid::FRAIL {
         Some(sid::FRAIL_JUST_APPLIED)
+    } else if status == sid::DRAW_REDUCTION {
+        Some(sid::DRAW_REDUCTION_JUST_APPLIED)
     } else {
         None
     }
@@ -93,7 +100,10 @@ pub fn tick_poison(entity: &mut EntityState) -> i32 {
         return 0;
     }
 
-    let damage = poison;
+    // Source: reference/extracted/methods/monster/Nemesis.java (`damage`) and
+    // decompiled PoisonLoseHpAction.java. Poison constructs HP_LOSS DamageInfo,
+    // so an installed Intangible power caps the tick to one before HP changes.
+    let damage = if entity.status(sid::INTANGIBLE) > 0 { 1 } else { poison };
     entity.hp -= damage;
 
     let new_poison = poison - 1;
@@ -141,9 +151,9 @@ pub fn modify_damage_receive(entity: &EntityState, damage: f64) -> f64 {
     let mut d = damage;
 
     // Slow: +10% per stack
-    let slow = entity.status(sid::SLOW);
-    if slow > 0 {
-        d *= 1.0 + (slow as f64 * 0.1);
+    let slow_amount = (entity.status(sid::SLOW) - 1).max(0);
+    if slow_amount > 0 {
+        d *= 1.0 + (slow_amount as f64 * 0.1);
     }
 
     // Intangible: cap at 1
@@ -189,20 +199,20 @@ pub fn decrement_lock_on(entity: &mut EntityState) {
 /// Reset Invincible at end of round (Champ).
 
 pub fn apply_debuff(entity: &mut EntityState, status: StatusId, amount: i32) -> bool {
+    // ApplyPowerAction checks Ginger and Turnip before Artifact. Their exact
+    // immunities therefore block without consuming an Artifact stack.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ApplyPowerAction.java
+    if status == sid::WEAKENED && entity.status(sid::HAS_GINGER) > 0 {
+        return false;
+    }
+    if status == sid::FRAIL && entity.status(sid::HAS_TURNIP) > 0 {
+        return false;
+    }
+
     let artifact = entity.status(sid::ARTIFACT);
     if artifact > 0 {
         // Artifact blocks the debuff and decrements
         entity.set_status(sid::ARTIFACT, artifact - 1);
-        return false;
-    }
-
-    // Ginger blocks Weak
-    if status == sid::WEAKENED && entity.status(sid::HAS_GINGER) > 0 {
-        return false;
-    }
-
-    // Turnip blocks Frail
-    if status == sid::FRAIL && entity.status(sid::HAS_TURNIP) > 0 {
         return false;
     }
 
@@ -275,12 +285,12 @@ pub fn reset_invincible_damage_taken(entity: &mut EntityState) {
 /// Slow: returns the damage multiplier for an entity with Slow stacks.
 /// Each stack adds +10% damage taken.
 pub fn slow_damage_multiplier(entity: &EntityState) -> f64 {
-    let slow = entity.status(sid::SLOW);
-    if slow > 0 {
-        1.0 + (slow as f64 * 0.10)
-    } else {
-        1.0
-    }
+    // SlowPower is installed with amount zero. Because a zero status cannot
+    // keep an EntityDef active, Rust stores that installed state as sentinel
+    // one and the Java amount is `status - 1`.
+    // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/SlowPower.java.
+    let amount = (entity.status(sid::SLOW) - 1).max(0);
+    1.0 + (amount as f64 * 0.10)
 }
 
 // ---------------------------------------------------------------------------
@@ -301,4 +311,3 @@ pub fn apply_mode_shift_damage(entity: &mut EntityState, damage: i32) -> bool {
     }
     false
 }
-

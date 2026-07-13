@@ -4,6 +4,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Safety.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/ThroughViolence.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Shiv.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/AccuracyPower.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Omega.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Expunger.java
 
@@ -54,6 +55,37 @@ fn temp_wave1_registry_exports_typed_surface_for_live_temp_cards() {
 }
 
 #[test]
+fn safety_plus_self_retains_then_gains_modified_block_and_exhausts() {
+    // Safety.java is a one-cost, self-retaining, exhausting Skill with 12 Block;
+    // upgradeBlock(4) makes Safety+ grant 16 before ordinary card block powers.
+    // GainBlockAction receives `this.block`, so two Dexterity raises the live
+    // block gain to 18 after the retained card is eventually played.
+    // Java: reference/extracted/methods/card/Safety.java
+    let registry = global_registry();
+    let base = registry.get("Safety").expect("Safety should exist");
+    let upgraded = registry.get("Safety+").expect("Safety+ should exist");
+    assert_eq!((base.cost, base.base_block), (1, 12));
+    assert_eq!((upgraded.cost, upgraded.base_block), (1, 16));
+
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        1,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Safety+"]);
+    engine.state.player.set_status(sid::DEXTERITY, 2);
+
+    end_turn(&mut engine);
+    assert_eq!(hand_count(&engine, "Safety+"), 1);
+    assert_eq!(discard_prefix_count(&engine, "Safety"), 0);
+
+    assert!(play_self(&mut engine, "Safety+"));
+    assert_eq!(engine.state.player.block, 18);
+    assert_eq!(exhaust_prefix_count(&engine, "Safety"), 1);
+}
+
+#[test]
 fn temp_wave1_safety_through_violence_and_shiv_follow_engine_path() {
     let mut engine = engine_without_start(
         Vec::new(),
@@ -80,6 +112,61 @@ fn temp_wave1_safety_through_violence_and_shiv_follow_engine_path() {
 }
 
 #[test]
+fn through_violence_variants_self_retain_then_deal_damage_and_exhaust_for_free() {
+    // ThroughViolence.java sets cost 0, baseDamage 20, selfRetain and exhaust;
+    // upgradeDamage(10) changes only damage to 30.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/ThroughViolence.java
+    for (card_id, expected_damage) in [("ThroughViolence", 20), ("ThroughViolence+", 30)] {
+        let mut engine = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 60, 60)],
+            0,
+        );
+        force_player_turn(&mut engine);
+        engine.state.hand = make_deck(&[card_id]);
+
+        end_turn(&mut engine);
+        assert_eq!(hand_count(&engine, card_id), 1, "{card_id}");
+        assert_eq!(discard_prefix_count(&engine, "ThroughViolence"), 0);
+
+        assert!(play_on_enemy(&mut engine, card_id, 0));
+        assert_eq!(engine.state.energy, 0);
+        assert_eq!(engine.state.enemies[0].entity.hp, 60 - expected_damage);
+        assert_eq!(exhaust_prefix_count(&engine, "ThroughViolence"), 1);
+    }
+}
+
+#[test]
+fn shiv_variants_use_accuracy_damage_for_free_then_exhaust() {
+    // Shiv.java constructs a 0-cost 4-damage Attack, exhausts it on use, and
+    // upgrades only by 2 damage. Its constructor and AccuracyPower's existing-
+    // Shiv refresh make five Accuracy produce 9 and 11 base damage.
+    let registry = global_registry();
+    let shiv = registry.get("Shiv").expect("Shiv");
+    let shiv_plus = registry.get("Shiv+").expect("Shiv+");
+    assert_eq!((shiv.cost, shiv.base_damage), (0, 4));
+    assert_eq!((shiv_plus.cost, shiv_plus.base_damage), (0, 6));
+    assert!(shiv.exhaust && shiv_plus.exhaust);
+
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        0,
+    );
+    force_player_turn(&mut engine);
+    engine.state.energy = 0;
+    engine.state.hand = make_deck(&["Shiv", "Shiv+"]);
+    engine.state.player.set_status(sid::ACCURACY, 5);
+
+    assert!(play_on_enemy(&mut engine, "Shiv", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp, 41);
+    assert!(play_on_enemy(&mut engine, "Shiv+", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp, 30);
+    assert_eq!(engine.state.energy, 0);
+    assert_eq!(exhaust_prefix_count(&engine, "Shiv"), 2);
+}
+
+#[test]
 fn temp_wave1_omega_installs_runtime_status_and_deals_turn_end_damage() {
     let mut engine = engine_without_start(
         Vec::new(),
@@ -94,6 +181,38 @@ fn temp_wave1_omega_installs_runtime_status_and_deals_turn_end_damage() {
 
     end_turn(&mut engine);
     assert_eq!(engine.state.enemies[0].entity.hp, 30);
+}
+
+#[test]
+fn omega_stacks_and_deals_source_less_thorns_damage_to_every_enemy() {
+    // Omega.java stacks 50 (60 upgraded). OmegaPower.java uses a pure damage
+    // matrix with DamageType.THORNS, so block and Intangible apply while
+    // NORMAL-only Slow, Flight, Curl Up, and Malleable do not.
+    let mut grounded = enemy_no_intent("JawWorm", 200, 200);
+    grounded.entity.block = 10;
+    grounded.entity.set_status(sid::SLOW, 5);
+    grounded.entity.set_status(sid::FLIGHT, 3);
+    grounded.entity.set_status(sid::CURL_UP, 12);
+    grounded.entity.set_status(sid::MALLEABLE, 3);
+    let mut intangible = enemy_no_intent("Cultist", 200, 200);
+    intangible.entity.set_status(sid::INTANGIBLE, 1);
+
+    let mut engine = engine_without_start(Vec::new(), vec![grounded, intangible], 10);
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Omega", "Omega+"]);
+
+    assert!(play_self(&mut engine, "Omega"));
+    assert!(play_self(&mut engine, "Omega+"));
+    assert_eq!(engine.state.player.status(sid::OMEGA), 110);
+
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 100);
+    assert_eq!(engine.state.enemies[0].entity.block, 0);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::FLIGHT), 3);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::CURL_UP), 12);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::MALLEABLE), 3);
+    assert_eq!(engine.state.enemies[1].entity.hp, 199);
 }
 
 #[test]

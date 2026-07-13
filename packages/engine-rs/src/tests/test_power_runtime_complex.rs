@@ -60,7 +60,7 @@ fn panache_runtime_hook_counts_cards_and_resets_after_five() {
             &DEF_PANACHE,
             &mut engine,
             EffectOwner::PlayerPower,
-            GameEvent::empty(Trigger::OnUseCard),
+            GameEvent::empty(Trigger::OnCardPlayedPost),
             &mut runtime_state,
         );
         assert_eq!(runtime_state.get(0), expected_count);
@@ -72,7 +72,7 @@ fn panache_runtime_hook_counts_cards_and_resets_after_five() {
         &DEF_PANACHE,
         &mut engine,
         EffectOwner::PlayerPower,
-        GameEvent::empty(Trigger::OnUseCard),
+        GameEvent::empty(Trigger::OnCardPlayedPost),
         &mut runtime_state,
     );
 
@@ -90,8 +90,11 @@ fn double_tap_def_is_wired_to_attack_play_events() {
 
 #[test]
 fn burst_def_is_wired_to_skill_play_events() {
-    assert_eq!(DEF_BURST.triggers.len(), 1);
+    // BurstPower handles both onUseCard replay and atEndOfTurn removal.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BurstPower.java
+    assert_eq!(DEF_BURST.triggers.len(), 2);
     assert_eq!(DEF_BURST.triggers[0].trigger, Trigger::OnSkillPlayed);
+    assert_eq!(DEF_BURST.triggers[1].trigger, Trigger::TurnEnd);
     assert!(DEF_BURST.complex_hook.is_some());
 }
 

@@ -5,25 +5,14 @@ use crate::combat_types::CardInstance;
 use crate::state::CombatState;
 use crate::status_ids::sid;
 
-/// Blood for Blood: reduce cost by HP lost this combat.
+/// Blood for Blood: reduce cost by positive damage events this combat.
 pub fn hook_cost_reduce_on_hp_loss(state: &CombatState, _card: &CardDef, _card_inst: CardInstance, cost: i32) -> i32 {
-    let hp_lost = state.player.status(sid::HP_LOSS_THIS_COMBAT);
-    (cost - hp_lost).max(0)
+    let damage_events = state.player.status(sid::HP_LOSS_THIS_COMBAT);
+    (cost - damage_events).max(0)
 }
 
-/// Force Field: reduce cost by number of active powers on player.
-pub fn hook_reduce_cost_per_power(state: &CombatState, _card: &CardDef, _card_inst: CardInstance, cost: i32) -> i32 {
-    let power_count = crate::powers::registry::active_player_power_count(&state.player);
-    (cost - power_count).max(0)
-}
-
-/// Eviscerate: reduce cost by cards discarded this turn.
-pub fn hook_cost_reduce_on_discard(state: &CombatState, _card: &CardDef, _card_inst: CardInstance, cost: i32) -> i32 {
-    let discarded = state.player.status(sid::DISCARDED_THIS_TURN);
-    (cost - discarded).max(0)
-}
-
-/// Masterful Stab: increase cost by total damage taken this combat.
-pub fn hook_cost_increase_on_hp_loss(state: &CombatState, _card: &CardDef, _card_inst: CardInstance, cost: i32) -> i32 {
-    cost + state.total_damage_taken
+/// Force Field: reduce cost once per Power card played this combat.
+pub fn hook_reduce_cost_per_power(state: &CombatState, _card: &CardDef, card_inst: CardInstance, cost: i32) -> i32 {
+    let baseline = card_inst.misc.max(0) as i32;
+    (cost - (state.power_cards_played_this_combat - baseline).max(0)).max(0)
 }

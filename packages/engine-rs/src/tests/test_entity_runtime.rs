@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use crate::actions::Action;
-use crate::effects::runtime::{EffectOwner, GameEvent};
+use crate::effects::runtime::{EffectExecutionPhase, EffectOwner, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerContext};
 use crate::orbs::OrbType;
 use crate::obs;
@@ -36,6 +36,31 @@ fn enemy_runtime_handlers_mutate_enemy_owner_only() {
         .take_event_log()
         .iter()
         .any(|record| record.def_id == Some("curiosity")));
+}
+
+#[test]
+fn red_circlet_has_no_gameplay_hooks() {
+    // Source: reference/extracted/methods/relic/RedCirclet.java and the full
+    // RedCirclet.java class. It only defines metadata/description/makeCopy and
+    // overrides no combat or run hooks.
+    let mut engine = engine_without_start(
+        make_deck(&["Strike", "Defend"]),
+        vec![enemy_no_intent("TrainingDummy", 40, 40)],
+        3,
+    );
+    engine.state.relics.push("Red Circlet".to_string());
+    engine.clear_event_log();
+
+    engine.start_combat();
+
+    assert_eq!(engine.state.max_energy, 3);
+    assert_eq!(engine.state.energy, 3);
+    assert_eq!(engine.state.player.strength(), 0);
+    assert_eq!(engine.state.player.block, 0);
+    assert!(engine
+        .take_event_log()
+        .iter()
+        .all(|record| record.def_id != Some("Red Circlet")));
 }
 
 #[test]
@@ -98,6 +123,100 @@ fn potion_use_flows_through_owner_aware_runtime() {
     assert!(events
         .iter()
         .any(|record| record.def_id == Some("Toy Ornithopter")));
+}
+
+#[test]
+fn tough_bandages_grants_three_block_only_for_manual_discards() {
+    // ToughBandages.java implements onManualDiscard, so normal end-turn hand
+    // cleanup does not trigger it; each manual discard grants exactly 3 Block.
+    let mut state = combat_state_with(
+        make_deck(&["Defend"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    state.relics.push("Tough Bandages".to_string());
+    let mut engine = engine_with_state(state);
+    engine.state.hand = make_deck(&["Defend"]);
+    engine.state.draw_pile.clear();
+    engine.state.discard_pile.clear();
+    engine.clear_event_log();
+
+    crate::tests::support::end_turn(&mut engine);
+
+    assert!(!engine.event_log.iter().any(|record| {
+        record.event == Trigger::OnCardDiscard && record.def_id == Some("Tough Bandages")
+    }));
+
+    engine.on_card_discarded(engine.card_registry.make_card("Defend"));
+    assert_eq!(engine.state.player.block, 3);
+}
+
+#[test]
+fn runic_pyramid_keeps_the_whole_non_ethereal_hand_without_marking_retain() {
+    // Sources: RunicPyramid.java assigns BOSS tier and canonical ID; Java's
+    // DiscardAtEndOfTurnAction skips the hand-wide discard when it is owned,
+    // but only explicit retain/selfRetain cards pass through onRetained.
+    let mut state = combat_state_with(
+        make_deck(&["Strike", "Doubt", "Dazed"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    state.relics.push("Runic Pyramid".to_string());
+    let mut engine = engine_with_state(state);
+    engine.state.hand = make_deck(&["Strike", "Doubt", "Dazed"]);
+    engine.state.draw_pile.clear();
+    engine.state.discard_pile.clear();
+    engine.state.exhaust_pile.clear();
+
+    end_turn(&mut engine);
+
+    let strike = engine
+        .state
+        .hand
+        .iter()
+        .find(|card| engine.card_registry.card_name(card.def_id) == "Strike")
+        .expect("ordinary card should remain in hand");
+    assert!(!strike.is_retained());
+    assert!(engine
+        .state
+        .hand
+        .iter()
+        .any(|card| engine.card_registry.card_name(card.def_id) == "Doubt"));
+    assert!(engine.state.discard_pile.is_empty());
+    assert!(engine
+        .state
+        .exhaust_pile
+        .iter()
+        .any(|card| engine.card_registry.card_name(card.def_id) == "Dazed"));
+}
+
+#[test]
+fn tingsha_uses_one_card_random_tick_and_hits_exactly_one_enemy_for_three() {
+    // Tingsha.java queues DamageRandomEnemyAction(3, THORNS), which selects via
+    // cardRandomRng even when only one candidate exists.
+    let mut state = combat_state_with(
+        make_deck(&["Defend"]),
+        vec![
+            enemy_no_intent("JawWorm", 40, 40),
+            enemy_no_intent("Cultist", 40, 40),
+        ],
+        3,
+    );
+    state.relics.push("Tingsha".to_string());
+    let mut engine = engine_with_state(state);
+    let before = engine.rng_counters()["cardRandom"];
+
+    engine.on_card_discarded(engine.card_registry.make_card("Defend"));
+
+    assert_eq!(engine.rng_counters()["cardRandom"], before + 1);
+    let losses: Vec<i32> = engine
+        .state
+        .enemies
+        .iter()
+        .map(|enemy| 40 - enemy.entity.hp)
+        .collect();
+    assert_eq!(losses.iter().sum::<i32>(), 3);
+    assert_eq!(losses.iter().filter(|loss| **loss == 3).count(), 1);
 }
 
 #[test]
@@ -310,7 +429,27 @@ fn mercury_hourglass_hits_all_enemies_via_turn_start_engine_path() {
 }
 
 #[test]
+fn mercury_hourglass_uses_thorns_damage_ignoring_boot_slow_and_flight() {
+    // MercuryHourglass.java builds a pure three-damage matrix and resolves it
+    // as THORNS. Boot, SlowPower, and FlightPower explicitly ignore THORNS.
+    let mut slow = enemy_no_intent("JawWorm", 40, 40);
+    slow.entity.set_status(sid::SLOW, 3);
+    let mut flying = enemy_no_intent("Byrd", 40, 40);
+    flying.entity.set_status(sid::FLIGHT, 3);
+    let mut state = combat_state_with(Vec::new(), vec![slow, flying], 3);
+    state.relics = vec!["Mercury Hourglass".to_string(), "Boot".to_string()];
+
+    let engine = engine_with_state(state);
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 37);
+    assert_eq!(engine.state.enemies[1].entity.hp, 37);
+    assert_eq!(engine.state.enemies[1].entity.status(sid::FLIGHT), 3);
+}
+
+#[test]
 fn brimstone_buffs_player_and_all_enemies_on_turn_start() {
+    // Source: reference/extracted/methods/relic/Brimstone.java and
+    // decompiled/java-src/com/megacrit/cardcrawl/actions/common/ApplyPowerAction.java.
     let mut state = combat_state_with(
         Vec::new(),
         vec![enemy_no_intent("Cultist", 24, 24), enemy_no_intent("JawWorm", 40, 40)],
@@ -318,11 +457,19 @@ fn brimstone_buffs_player_and_all_enemies_on_turn_start() {
     );
     state.relics.push("Brimstone".to_string());
 
-    let engine = engine_with_state(state);
+    let mut engine = engine_with_state(state);
 
     assert_eq!(engine.state.player.strength(), 2);
     assert_eq!(engine.state.enemies[0].entity.strength(), 1);
     assert_eq!(engine.state.enemies[1].entity.strength(), 1);
+
+    // The trigger repeats every turn. Java still queues an action for every
+    // monster, but ApplyPowerAction skips a dead or escaped target.
+    engine.state.enemies[0].entity.hp = 0;
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.strength(), 4);
+    assert_eq!(engine.state.enemies[0].entity.strength(), 1);
+    assert_eq!(engine.state.enemies[1].entity.strength(), 2);
 }
 
 #[test]
@@ -334,14 +481,21 @@ fn philosophers_stone_buffs_all_enemies_at_combat_start() {
     );
     state.relics.push("Philosopher's Stone".to_string());
 
-    let engine = engine_with_state(state);
+    let mut engine = engine_with_state(state);
 
     assert_eq!(engine.state.enemies[0].entity.strength(), 1);
     assert_eq!(engine.state.enemies[1].entity.strength(), 1);
+
+    // PhilosopherStone.java::onSpawnMonster applies the same +1 to enemies
+    // created after atBattleStart (summons and slime splits).
+    engine.add_spawned_enemy(enemy_no_intent("TorchHead", 6, 6));
+    assert_eq!(engine.state.enemies[2].entity.strength(), 1);
 }
 
 #[test]
 fn happy_flower_grants_energy_on_every_third_turn_via_engine_path() {
+    // HappyFlower.java increments at every turn start, resets at three, and
+    // queues exactly one GainEnergyAction(1).
     let mut state = combat_state_with(make_deck(&["Strike"; 20]), vec![enemy("JawWorm", 80, 80, 1, 0, 1)], 3);
     state.relics.push("Happy Flower".to_string());
 
@@ -363,6 +517,8 @@ fn happy_flower_grants_energy_on_every_third_turn_via_engine_path() {
 
 #[test]
 fn incense_burner_grants_intangible_on_sixth_turn_via_engine_path() {
+    // Source-derived (verify relic/Incense Burner): IncenseBurner.java increments
+    // atTurnStart, resets its counter at 6, and applies IntangiblePlayerPower(1).
     let mut state = combat_state_with(make_deck(&["Strike"; 30]), vec![enemy("JawWorm", 120, 120, 1, 0, 1)], 3);
     state.relics.push("Incense Burner".to_string());
 
@@ -427,6 +583,33 @@ fn mummified_hand_sets_a_remaining_hand_card_cost_to_zero() {
 }
 
 #[test]
+fn mummified_hand_filters_free_cards_and_consumes_card_random_for_one_candidate() {
+    // MummifiedHand.java excludes base-cost-zero, turn-cost-zero, and
+    // freeToPlayOnce cards, then calls cardRandomRng.random even for one valid card.
+    let mut state = combat_state_with(
+        make_deck(&["Inflame", "Strike", "Defend", "Eruption"]),
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        5,
+    );
+    state.relics.push("Mummified Hand".to_string());
+    let mut engine = engine_with_state(state);
+    engine.state.hand = make_deck(&["Inflame", "Strike", "Defend", "Eruption"]);
+    engine.state.draw_pile.clear();
+    engine.state.hand[1].cost = 0;
+    engine.state.hand[2].flags |= crate::combat_types::CardInstance::FLAG_FREE;
+    let before = engine.rng_counters();
+
+    assert!(play_self(&mut engine, "Inflame"));
+
+    let eruption = engine.state.hand.iter().find(|card| {
+        engine.card_registry.card_name(card.def_id) == "Eruption"
+    }).expect("remaining valid card");
+    assert_eq!(eruption.cost, 0);
+    assert_eq!(engine.rng_counters()["cardRandom"], before["cardRandom"] + 1);
+    assert_eq!(engine.rng_counters()["card"], before["card"]);
+}
+
+#[test]
 fn centennial_puzzle_draws_only_on_first_hp_loss() {
     let mut state = combat_state_with(make_deck(&["Strike"; 10]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("Centennial Puzzle".to_string());
@@ -462,6 +645,56 @@ fn emotion_chip_marks_a_next_turn_orb_pulse_on_hp_loss() {
 }
 
 #[test]
+fn paper_crane_strengthens_only_enemy_owned_weak() {
+    // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/WeakPower.java
+    // atDamageGive uses 0.60 with Paper Crane only when !owner.isPlayer;
+    // player-owned Weak remains 0.75.
+    let mut state = combat_state_with(
+        make_deck(&["Strike+"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    state.relics.push("Paper Crane".to_string());
+    let mut engine = engine_with_state(state);
+    engine.state.hand = make_deck(&["Strike+"]);
+    engine.state.draw_pile.clear();
+    engine.state.player.set_status(sid::WEAKENED, 1);
+    engine.state.enemies[0].entity.set_status(sid::WEAKENED, 1);
+    engine.state.enemies[0].set_move(1, 10, 1, 0);
+
+    assert!(play_on_enemy(&mut engine, "Strike+", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp, 34); // floor(9 * 0.75)
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.hp, 74); // floor(10 * 0.60)
+}
+
+#[test]
+fn paper_frog_strengthens_only_enemy_owned_vulnerable() {
+    // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/VulnerablePower.java
+    // atDamageReceive uses 1.75 with Paper Frog only when !owner.isPlayer;
+    // player-owned Vulnerable remains 1.50.
+    let mut state = combat_state_with(
+        make_deck(&["Strike+"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    state.relics.push("Paper Frog".to_string());
+    let mut engine = engine_with_state(state);
+    engine.state.hand = make_deck(&["Strike+"]);
+    engine.state.draw_pile.clear();
+    engine.state.player.set_status(sid::VULNERABLE, 1);
+    engine.state.enemies[0].entity.set_status(sid::VULNERABLE, 1);
+    engine.state.enemies[0].set_move(1, 10, 1, 0);
+
+    assert!(play_on_enemy(&mut engine, "Strike+", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp, 25); // floor(9 * 1.75)
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.hp, 65); // floor(10 * 1.50)
+}
+
+#[test]
 fn red_skull_activates_on_mid_combat_hp_drop_and_clears_on_heal() {
     let mut state = combat_state_with(make_deck(&["Strike"; 5]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("Red Skull".to_string());
@@ -492,18 +725,27 @@ fn red_skull_activates_on_mid_combat_hp_drop_and_clears_on_heal() {
 }
 
 #[test]
-fn strike_dummy_buffs_strike_damage_on_engine_path() {
-    let mut state = combat_state_with(make_deck(&["Strike"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+fn strike_dummy_buffs_only_strike_tagged_attacks_on_engine_path() {
+    // Sources: StrikeDummy.java::atDamageModify adds 3 only for STRIKE-tagged
+    // cards; Strike_Purple.java tags Strike, while Eruption.java does not.
+    let mut state = combat_state_with(
+        make_deck(&["Strike", "Eruption"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
     state.relics.push("StrikeDummy".to_string());
 
     let mut engine = engine_with_state(state);
-    engine.state.hand = make_deck(&["Strike"]);
+    engine.state.hand = make_deck(&["Strike", "Eruption"]);
     engine.state.draw_pile.clear();
-    let hp_before = engine.state.enemies[0].entity.hp;
 
+    let hp_before_strike = engine.state.enemies[0].entity.hp;
     assert!(play_on_enemy(&mut engine, "Strike", 0));
+    assert_eq!(hp_before_strike - engine.state.enemies[0].entity.hp, 9);
 
-    assert_eq!(hp_before - engine.state.enemies[0].entity.hp, 9);
+    let hp_before_eruption = engine.state.enemies[0].entity.hp;
+    assert!(play_on_enemy(&mut engine, "Eruption", 0));
+    assert_eq!(hp_before_eruption - engine.state.enemies[0].entity.hp, 9);
 }
 
 #[test]
@@ -522,9 +764,42 @@ fn wrist_blade_buffs_zero_cost_attacks_on_engine_path() {
 }
 
 #[test]
+fn wrist_blade_buffs_free_non_x_but_excludes_free_x_cost_attacks() {
+    // WristBlade.java::atDamageModify adds four for costForTurn zero, or for
+    // freeToPlayOnce only when permanent cost is not -1. A free Strike gets
+    // the bonus; a free Skewer keeps its ordinary seven damage per X hit.
+    let make = |card_id: &str, energy: i32| {
+        let mut state = combat_state_with(
+            make_deck(&[card_id]),
+            vec![enemy_no_intent("JawWorm", 100, 100)],
+            energy,
+        );
+        state.relics.push("WristBlade".to_string());
+        let mut engine = engine_with_state(state);
+        engine.state.energy = energy;
+        engine.state.hand = vec![engine.card_registry.make_card(card_id).set_free(true)];
+        engine.state.draw_pile.clear();
+        engine
+    };
+
+    let mut strike = make("Strike", 2);
+    assert!(play_on_enemy(&mut strike, "Strike", 0));
+    assert_eq!(strike.state.enemies[0].entity.hp, 90);
+    assert_eq!(strike.state.energy, 2);
+
+    let mut skewer = make("Skewer", 2);
+    assert!(play_on_enemy(&mut skewer, "Skewer", 0));
+    assert_eq!(skewer.state.enemies[0].entity.hp, 86);
+    assert_eq!(skewer.state.energy, 2);
+}
+
+#[test]
 fn snecko_skull_buffs_player_applied_poison_on_engine_path() {
+    // SneckoSkull.java declares ID "Snake Skull" and EFFECT 1;
+    // ApplyPowerAction.java adds that one only to player-sourced Poison on an
+    // enemy target.
     let mut state = combat_state_with(make_deck(&["Deadly Poison"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
-    state.relics.push("SneckoSkull".to_string());
+    state.relics.push("Snake Skull".to_string());
 
     let mut engine = engine_with_state(state);
     engine.state.hand = make_deck(&["Deadly Poison"]);
@@ -537,6 +812,8 @@ fn snecko_skull_buffs_player_applied_poison_on_engine_path() {
 
 #[test]
 fn champion_belt_adds_weak_when_player_applies_vulnerable() {
+    // Source: reference/extracted/methods/relic/ChampionsBelt.java and
+    // decompiled/java-src/com/megacrit/cardcrawl/actions/common/ApplyPowerAction.java.
     let mut state = combat_state_with(make_deck(&["Bash"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("Champion Belt".to_string());
 
@@ -548,6 +825,51 @@ fn champion_belt_adds_weak_when_player_applies_vulnerable() {
 
     assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 2);
     assert_eq!(engine.state.enemies[0].entity.status(sid::WEAKENED), 1);
+
+    // ApplyPowerAction explicitly suppresses Champion Belt while Artifact is
+    // present; Artifact consumes itself blocking Vulnerable and no Weak queues.
+    let mut artifact_state =
+        combat_state_with(make_deck(&["Bash"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    artifact_state.relics.push("Champion Belt".to_string());
+    artifact_state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+    let mut artifact_engine = engine_with_state(artifact_state);
+    artifact_engine.state.hand = make_deck(&["Bash"]);
+    artifact_engine.state.draw_pile.clear();
+
+    assert!(play_on_enemy(&mut artifact_engine, "Bash", 0));
+    assert_eq!(artifact_engine.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+    assert_eq!(artifact_engine.state.enemies[0].entity.status(sid::VULNERABLE), 0);
+    assert_eq!(artifact_engine.state.enemies[0].entity.status(sid::WEAKENED), 0);
+}
+
+#[test]
+fn charons_ashes_uses_pure_thorns_damage_on_every_living_enemy() {
+    // Source: reference/extracted/methods/relic/CharonsAshes.java. Exhausting a
+    // card queues a pure three-damage matrix with DamageType.THORNS.
+    let mut slow_flying = enemy_no_intent("Byrd", 40, 40);
+    slow_flying.entity.set_status(sid::SLOW, 3);
+    slow_flying.entity.set_status(sid::FLIGHT, 3);
+    slow_flying.entity.set_status(sid::MALLEABLE, 3);
+    let mut intangible = enemy_no_intent("Nemesis", 40, 40);
+    intangible.entity.set_status(sid::INTANGIBLE, 1);
+    let mut state = combat_state_with(
+        make_deck(&["Miracle"]),
+        vec![slow_flying, intangible],
+        3,
+    );
+    state.relics = vec!["Charon's Ashes".to_string(), "Boot".to_string()];
+    let mut engine = engine_with_state(state);
+    engine.state.hand = make_deck(&["Miracle"]);
+    engine.state.draw_pile.clear();
+
+    assert!(play_self(&mut engine, "Miracle"));
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 37);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::FLIGHT), 3);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::MALLEABLE), 3);
+    assert_eq!(engine.state.enemies[0].entity.block, 0);
+    assert_eq!(engine.state.enemies[1].entity.hp, 39);
+    assert_eq!(engine.state.exhaust_pile.len(), 1);
 }
 
 #[test]
@@ -564,7 +886,9 @@ fn boot_raises_small_unblocked_damage_on_engine_path() {
     assert!(play_on_enemy(&mut engine, "Shiv", 0));
 
     assert_eq!(engine.state.enemies[0].entity.block, 0);
-    assert_eq!(hp_before - engine.state.enemies[0].entity.hp, 3); // D26: Boot -> raw=5, 5-2 block = 3
+    // AbstractMonster.damage decrements Block before Boot.java receives
+    // damageAmount, so 4 - 2 leaves 2 and Boot raises the HP damage to 5.
+    assert_eq!(hp_before - engine.state.enemies[0].entity.hp, 5);
 }
 
 #[test]
@@ -584,6 +908,29 @@ fn hand_drill_applies_vulnerable_when_block_breaks_on_engine_path() {
 }
 
 #[test]
+fn hand_drill_triggers_when_attack_damage_exactly_equals_enemy_block() {
+    // Sources: AbstractCreature.java::decrementBlock invokes brokeBlock on
+    // equality; HandDrill.java::onBlockBroken applies 2 Vulnerable.
+    let mut state = combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    state.relics.push("HandDrill".to_string());
+    let mut engine = engine_with_state(state);
+    engine.state.hand = make_deck(&["Strike"]);
+    engine.state.draw_pile.clear();
+    engine.state.enemies[0].entity.block = 6;
+    let hp_before = engine.state.enemies[0].entity.hp;
+
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
+
+    assert_eq!(engine.state.enemies[0].entity.block, 0);
+    assert_eq!(engine.state.enemies[0].entity.hp, hp_before);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 2);
+}
+
+#[test]
 fn sword_boomerang_uses_boot_and_hand_drill_on_custom_multi_hit_path() {
     let mut state = combat_state_with(make_deck(&["Sword Boomerang"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("Boot".to_string());
@@ -599,7 +946,9 @@ fn sword_boomerang_uses_boot_and_hand_drill_on_custom_multi_hit_path() {
 
     assert_eq!(engine.state.enemies[0].entity.block, 0);
     assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 2);
-    assert_eq!(hp_before - engine.state.enemies[0].entity.hp, 13); // D26: Boot bumps first hit raw=5 (not post-block), later hits unchanged
+    // AbstractMonster.damage calls Boot.java after Block on every hit: the
+    // first 3-damage hit leaves 1 after Block and all three hits become 5.
+    assert_eq!(hp_before - engine.state.enemies[0].entity.hp, 15);
 }
 
 #[test]
@@ -673,8 +1022,53 @@ fn the_specimen_transfers_poison_on_engine_death_path() {
 }
 
 #[test]
-fn frozen_core_uses_late_turn_hook_without_immediate_passive_block() {
-    let mut state = combat_state_with(make_deck(&["Strike"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+fn snake_skull_buffs_specimen_transfer_and_artifact_blocks_the_application() {
+    // TheSpecimen.java uses ApplyPowerToRandomEnemyAction with the player as
+    // source. That action consumes one cardRandomRng roll and delegates to
+    // ApplyPowerAction.java, where Snake Skull adds one before Artifact checks.
+    let make = |artifact: i32| {
+        let mut state = combat_state_with(
+            make_deck(&["Strike"]),
+            vec![
+                enemy_no_intent("JawWorm", 10, 10),
+                enemy_no_intent("Cultist", 30, 30),
+            ],
+            3,
+        );
+        state.relics = vec!["The Specimen".to_string(), "Snake Skull".to_string()];
+        let mut engine = engine_with_state(state);
+        engine.state.enemies[0].entity.set_status(sid::POISON, 5);
+        engine.state.enemies[0].entity.hp = 0;
+        engine.state.enemies[1].entity.set_status(sid::ARTIFACT, artifact);
+        engine
+    };
+
+    let mut applied = make(0);
+    let counters_before = applied.rng_counters();
+    applied.finalize_enemy_death(0);
+    assert_eq!(applied.state.enemies[1].entity.status(sid::POISON), 6);
+    assert_eq!(
+        applied.rng_counters()["cardRandom"],
+        counters_before["cardRandom"] + 1
+    );
+    assert_eq!(applied.rng_counters()["card"], counters_before["card"]);
+
+    let mut blocked = make(1);
+    blocked.finalize_enemy_death(0);
+    assert_eq!(blocked.state.enemies[1].entity.status(sid::POISON), 0);
+    assert_eq!(blocked.state.enemies[1].entity.status(sid::ARTIFACT), 0);
+}
+
+#[test]
+fn frozen_core_channels_before_end_of_turn_orb_passives() {
+    // Source: reference/extracted/methods/relic/FrozenCore.java and
+    // GameActionManager.java::callEndOfTurnActions. onPlayerEndTurn channels
+    // Frost before TriggerEndOfTurnOrbsAction, so the new Frost grants 2 Block.
+    let mut state = combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy("JawWorm", 40, 40, 1, 5, 1)],
+        3,
+    );
     state.relics.push("FrozenCore".to_string());
 
     let mut engine = engine_with_state(state);
@@ -684,16 +1078,22 @@ fn frozen_core_uses_late_turn_hook_without_immediate_passive_block() {
     end_turn(&mut engine);
 
     let events = engine.take_event_log();
+    // The immediate Frost passive absorbs 2 of the enemy's 5 damage, then
+    // that Block is cleared at the following turn start.
+    assert_eq!(engine.state.player.hp, 77);
     assert_eq!(engine.state.player.block, 0);
     assert_eq!(engine.state.orb_slots.occupied_count(), 1);
     assert_eq!(engine.state.orb_slots.slots[0].orb_type, OrbType::Frost);
     assert!(events
         .iter()
-        .any(|record| record.event == Trigger::TurnEndPostOrbs && record.def_id == Some("FrozenCore")));
+        .any(|record| record.event == Trigger::TurnEnd && record.def_id == Some("FrozenCore")));
 }
 
 #[test]
 fn hovering_kite_triggers_once_on_manual_discard_and_resets_next_turn() {
+    // Source: reference/extracted/methods/relic/HoveringKite.java
+    // onManualDiscard grants 1 Energy only for the first manual discard, and
+    // atTurnStart resets the boolean latch.
     let mut state = combat_state_with(
         make_deck(&["Concentrate", "Defend", "Defend", "Defend", "Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -715,9 +1115,17 @@ fn hovering_kite_triggers_once_on_manual_discard_and_resets_next_turn() {
 
     let first_turn_events = engine.take_event_log();
     assert_eq!(engine.state.energy, energy_before + 3);
-    assert!(first_turn_events
+    assert_eq!(first_turn_events
         .iter()
-        .any(|record| record.event == Trigger::OnCardDiscard && record.def_id == Some("HoveringKite")));
+        .filter(|record| {
+            record.event == Trigger::OnCardDiscard
+                && record.def_id == Some("HoveringKite")
+                && record.execution == Some(EffectExecutionPhase::Hook)
+        })
+        .count(), 3);
+
+    engine.on_card_discarded(engine.card_registry.make_card("Defend"));
+    assert_eq!(engine.state.energy, energy_before + 3);
 
     engine.state.energy = 0;
     engine.emit_event(GameEvent::empty(Trigger::TurnStart));

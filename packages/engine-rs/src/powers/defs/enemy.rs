@@ -8,37 +8,67 @@
 
 use crate::effects::declarative::{AmountSource, Effect, SimpleEffect, Target};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
+use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerCondition};
+use crate::engine::CombatEngine;
 use crate::status_ids::sid;
 
 // ===========================================================================
 // Ritual — EnemyTurnStart + NotFirstTurn: gain Strength
 // ===========================================================================
 
-static RITUAL_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddStatus(
-    Target::SelfEntity,
-    sid::STRENGTH,
-    AmountSource::StatusValue(sid::RITUAL),
-))];
+static RITUAL_TRIGGERS: [TriggeredEffect; 2] = [
+    TriggeredEffect {
+        trigger: Trigger::EnemyTurnStart,
+        condition: TriggerCondition::NotFirstTurn,
+        effects: &[],
+        counter: None,
+    },
+    TriggeredEffect {
+        trigger: Trigger::TurnEnd,
+        condition: TriggerCondition::Always,
+        effects: &[],
+        counter: None,
+    },
+];
 
-static RITUAL_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::EnemyTurnStart,
-    condition: TriggerCondition::NotFirstTurn,
-    effects: &RITUAL_EFFECTS,
-    counter: None,
-}];
+fn ritual_hook(
+    engine: &mut CombatEngine,
+    owner: EffectOwner,
+    event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    // RitualPower.java uses distinct boundaries by owner: player-controlled
+    // Ritual gains Strength at player turn end, while enemy Ritual gains it at
+    // end of round after skipping its first round.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RitualPower.java
+    match (owner, event.kind) {
+        (EffectOwner::PlayerPower, Trigger::TurnEnd) => {
+            let amount = engine.state.player.status(sid::RITUAL);
+            engine.state.player.add_status(sid::STRENGTH, amount);
+        }
+        (EffectOwner::EnemyPower { enemy_idx }, Trigger::EnemyTurnStart) => {
+            let idx = enemy_idx as usize;
+            if idx < engine.state.enemies.len() {
+                let amount = engine.state.enemies[idx].entity.status(sid::RITUAL);
+                engine.state.enemies[idx].entity.add_status(sid::STRENGTH, amount);
+            }
+        }
+        _ => {}
+    }
+}
 
 pub static DEF_RITUAL: EntityDef = EntityDef {
     id: "ritual",
     name: "Ritual",
     kind: EntityKind::Power,
     triggers: &RITUAL_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(ritual_hook),
     status_guard: Some(sid::RITUAL),
 };
 
 // ===========================================================================
-// Regeneration — EnemyTurnStart: heal HP equal to stacks (turn-based)
+// Regeneration — EnemyTurnEnd: heal HP equal to stacks after all monsters act
 // ===========================================================================
 
 static REGENERATION_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::HealHp(
@@ -47,7 +77,7 @@ static REGENERATION_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::HealHp(
 ))];
 
 static REGENERATION_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::EnemyTurnStart,
+    trigger: Trigger::EnemyTurnEnd,
     condition: TriggerCondition::Always,
     effects: &REGENERATION_EFFECTS,
     counter: None,
@@ -118,6 +148,30 @@ pub static DEF_METALLICIZE_ENEMY: EntityDef = EntityDef {
 };
 
 // ===========================================================================
+// Plated Armor (Enemy) — gain block after the monster group acts
+// ===========================================================================
+
+static PLATED_ARMOR_ENEMY_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::GainBlock(
+    AmountSource::StatusValue(sid::PLATED_ARMOR),
+))];
+
+static PLATED_ARMOR_ENEMY_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::EnemyTurnEnd,
+    condition: TriggerCondition::Always,
+    effects: &PLATED_ARMOR_ENEMY_EFFECTS,
+    counter: None,
+}];
+
+pub static DEF_PLATED_ARMOR_ENEMY: EntityDef = EntityDef {
+    id: "plated_armor_enemy",
+    name: "Plated Armor (Enemy)",
+    kind: EntityKind::Power,
+    triggers: &PLATED_ARMOR_ENEMY_TRIGGERS,
+    complex_hook: None,
+    status_guard: Some(sid::PLATED_ARMOR),
+};
+
+// ===========================================================================
 // Tests
 // ===========================================================================
 
@@ -137,6 +191,7 @@ mod tests {
     #[test]
     fn test_regeneration_always_fires() {
         assert_eq!(DEF_REGENERATION.triggers[0].condition, TriggerCondition::Always);
+        assert_eq!(DEF_REGENERATION.triggers[0].trigger, Trigger::EnemyTurnEnd);
     }
 
     #[test]
@@ -146,7 +201,7 @@ mod tests {
 
     #[test]
     fn test_all_enemy_defs_fire_on_enemy_turn() {
-        let defs = [&DEF_RITUAL, &DEF_REGENERATION, &DEF_GROWTH, &DEF_METALLICIZE_ENEMY];
+        let defs = [&DEF_RITUAL, &DEF_GROWTH, &DEF_METALLICIZE_ENEMY];
         for def in &defs {
             assert_eq!(def.triggers[0].trigger, Trigger::EnemyTurnStart);
         }

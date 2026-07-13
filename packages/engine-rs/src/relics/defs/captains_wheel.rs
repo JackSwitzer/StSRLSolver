@@ -13,7 +13,7 @@ fn hook(
 ) {
     match event.kind {
         Trigger::CombatStart => state.set(0, 0),
-        Trigger::TurnStartPostDrawLate => {
+        Trigger::TurnStartPreDraw => {
             let counter = state.get(0);
             if (0..3).contains(&counter) {
                 let next = counter + 1;
@@ -38,7 +38,7 @@ static TRIGGERS: [TriggeredEffect; 3] = [
         counter: None,
     },
     TriggeredEffect {
-        trigger: Trigger::TurnStartPostDrawLate,
+        trigger: Trigger::TurnStartPreDraw,
         condition: TriggerCondition::Always,
         effects: &[],
         counter: None,

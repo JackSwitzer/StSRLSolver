@@ -29,8 +29,10 @@ pub struct DecisionState {
 pub enum RewardScreenSource {
     Combat,
     BossCombat,
+    Campfire,
     Event,
     Treasure,
+    Shop,
     Unknown,
 }
 
@@ -124,6 +126,8 @@ pub struct CombatChoiceContext {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CombatContext {
     pub potions: Vec<CombatPotionSlotContext>,
+    /// Actual draw order is visible only with Frozen Eye.
+    pub draw_order: Vec<String>,
     pub choice: CombatChoiceContext,
 }
 
@@ -164,8 +168,26 @@ pub struct ShopCardOfferContext {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShopRelicOfferContext {
+    pub index: usize,
+    pub relic_id: String,
+    pub price: i32,
+    pub affordable: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShopPotionOfferContext {
+    pub index: usize,
+    pub potion_id: String,
+    pub price: i32,
+    pub affordable: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShopDecisionContext {
     pub offers: Vec<ShopCardOfferContext>,
+    pub relic_offers: Vec<ShopRelicOfferContext>,
+    pub potion_offers: Vec<ShopPotionOfferContext>,
     pub remove_price: i32,
     pub removal_used: bool,
     pub removable_cards: usize,
@@ -175,6 +197,9 @@ pub struct ShopDecisionContext {
 pub struct CampfireDecisionContext {
     pub can_rest: bool,
     pub upgradable_cards: Vec<usize>,
+    pub removable_cards: Vec<usize>,
+    pub can_lift: bool,
+    pub can_dig: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -293,10 +318,16 @@ pub enum DecisionAction {
     },
     CampfireRest,
     CampfireUpgrade(usize),
+    CampfireToke,
+    CampfireLift,
+    CampfireDig,
     ShopBuyCard(usize),
+    ShopBuyRelic(usize),
+    ShopBuyPotion(usize),
     ShopRemoveCard(usize),
     ShopLeave,
     EventChoice(usize),
+    UsePotion(usize),
 }
 
 impl DecisionAction {
@@ -316,10 +347,16 @@ impl DecisionAction {
             Self::SkipRewardItem { item_index } => RunAction::SkipRewardItem(*item_index),
             Self::CampfireRest => RunAction::CampfireRest,
             Self::CampfireUpgrade(idx) => RunAction::CampfireUpgrade(*idx),
+            Self::CampfireToke => RunAction::CampfireToke,
+            Self::CampfireLift => RunAction::CampfireLift,
+            Self::CampfireDig => RunAction::CampfireDig,
             Self::ShopBuyCard(idx) => RunAction::ShopBuyCard(*idx),
+            Self::ShopBuyRelic(idx) => RunAction::ShopBuyRelic(*idx),
+            Self::ShopBuyPotion(idx) => RunAction::ShopBuyPotion(*idx),
             Self::ShopRemoveCard(idx) => RunAction::ShopRemoveCard(*idx),
             Self::ShopLeave => RunAction::ShopLeave,
             Self::EventChoice(idx) => RunAction::EventChoice(*idx),
+            Self::UsePotion(idx) => RunAction::UsePotion(*idx),
         }
     }
 
@@ -342,10 +379,16 @@ impl DecisionAction {
             },
             RunAction::CampfireRest => Self::CampfireRest,
             RunAction::CampfireUpgrade(idx) => Self::CampfireUpgrade(*idx),
+            RunAction::CampfireToke => Self::CampfireToke,
+            RunAction::CampfireLift => Self::CampfireLift,
+            RunAction::CampfireDig => Self::CampfireDig,
             RunAction::ShopBuyCard(idx) => Self::ShopBuyCard(*idx),
+            RunAction::ShopBuyRelic(idx) => Self::ShopBuyRelic(*idx),
+            RunAction::ShopBuyPotion(idx) => Self::ShopBuyPotion(*idx),
             RunAction::ShopRemoveCard(idx) => Self::ShopRemoveCard(*idx),
             RunAction::ShopLeave => Self::ShopLeave,
             RunAction::EventChoice(idx) => Self::EventChoice(*idx),
+            RunAction::UsePotion(idx) => Self::UsePotion(*idx),
             RunAction::CombatAction(action) => {
                 let _ = phase;
                 Self::Combat(action.clone())
@@ -367,6 +410,21 @@ pub(crate) fn build_shop_context(shop: &ShopState, gold: i32, deck_len: usize) -
                 affordable: gold >= *price,
             })
             .collect(),
+        relic_offers: shop
+            .relics
+            .iter()
+            .enumerate()
+            .map(|(index, (relic_id, price))| ShopRelicOfferContext {
+                index,
+                relic_id: relic_id.clone(),
+                price: *price,
+                affordable: gold >= *price,
+            })
+            .collect(),
+        potion_offers: shop.potions.iter().enumerate()
+            .map(|(index, (potion_id, price))| ShopPotionOfferContext {
+                index, potion_id: potion_id.clone(), price: *price, affordable: gold >= *price,
+            }).collect(),
         remove_price: shop.remove_price,
         removal_used: shop.removal_used,
         removable_cards: if !shop.removal_used && deck_len > 5 { deck_len } else { 0 },
@@ -388,6 +446,18 @@ pub(crate) fn build_combat_context(combat: &CombatEngine) -> CombatContext {
                     && crate::potions::potion_requires_target(potion_id),
             })
             .collect(),
+        // Source: DrawPileViewScreen.java copies the real group order with
+        // Frozen Eye; otherwise it sorts the copy and hides actual order.
+        draw_order: if combat.state.has_relic("Frozen Eye") {
+            combat
+                .state
+                .draw_pile
+                .iter()
+                .map(|card| combat.card_registry.card_name(card.def_id).to_string())
+                .collect()
+        } else {
+            Vec::new()
+        },
         choice: build_choice_context(combat),
     }
 }
@@ -449,6 +519,7 @@ fn choice_reason_name(reason: &ChoiceReason) -> &'static str {
         ChoiceReason::ForethoughtPick => "forethought_pick",
         ChoiceReason::RecycleCard => "recycle_card",
         ChoiceReason::DiscardForEffect => "discard_for_effect",
+        ChoiceReason::RetainFromHand => "retain_from_hand",
         ChoiceReason::SetupPick => "setup_pick",
         ChoiceReason::PlayCardFreeFromDraw => "play_card_free_from_draw",
     }

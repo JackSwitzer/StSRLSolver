@@ -10,6 +10,8 @@ static EFFECTS: [Effect; 1] = [
 ];
 
 static TRIGGERS: [TriggeredEffect; 1] = [
+    // Source: reference/extracted/methods/relic/ThreadAndNeedle.java
+    // atBattleStart applies exactly 4 Plated Armor to the player.
     TriggeredEffect {
         trigger: Trigger::CombatStart,
         condition: TriggerCondition::Always,

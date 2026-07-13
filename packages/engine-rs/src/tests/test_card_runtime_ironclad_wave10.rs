@@ -66,14 +66,17 @@ fn ironclad_wave10_registry_exports_promote_the_typed_primary_surface() {
         .expect("True Grit+ should exist");
     assert_eq!(
         true_grit_plus.effect_data,
-        &[E::ChooseCards {
-            source: crate::effects::declarative::Pile::Hand,
-            filter: crate::effects::declarative::CardFilter::All,
-            action: crate::effects::declarative::ChoiceAction::Exhaust,
-            min_picks: A::Fixed(1),
-            max_picks: A::Fixed(1),
-            post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
-        }]
+        &[
+            E::Simple(SE::GainBlock(A::Block)),
+            E::ChooseCards {
+                source: crate::effects::declarative::Pile::Hand,
+                filter: crate::effects::declarative::CardFilter::All,
+                action: crate::effects::declarative::ChoiceAction::Exhaust,
+                min_picks: A::Fixed(1),
+                max_picks: A::Fixed(1),
+                post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
+            },
+        ]
     );
 }
 
@@ -125,7 +128,7 @@ fn ironclad_wave10_feed_and_reaper_follow_the_typed_attack_surface() {
         &[
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::Conditional(
-                Cond::EnemyKilled,
+                Cond::EnemyKilledNonMinion,
                 &[E::Simple(SE::ModifyMaxHp(A::Magic))],
                 &[],
             ),

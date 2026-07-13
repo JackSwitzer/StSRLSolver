@@ -211,6 +211,43 @@ impl RngCore for StsRandom {
     }
 }
 
+/// Shuffle a slice with `java.util.Random`, seeded the same way as
+/// `Collections.shuffle`. Slay the Spire's `CardGroup.shuffle` consumes one
+/// `StsRandom.randomLong()` and passes that value to this distinct RNG.
+///
+/// Source: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
+pub(crate) fn java_util_shuffle<T>(values: &mut [T], random_seed: u64) {
+    const MULTIPLIER: u64 = 0x5DEECE66D;
+    const MASK: u64 = (1_u64 << 48) - 1;
+
+    fn next_bits(seed: &mut u64, bits: u32) -> u32 {
+        const MULTIPLIER: u64 = 0x5DEECE66D;
+        const ADDEND: u64 = 0xB;
+        const MASK: u64 = (1_u64 << 48) - 1;
+        *seed = seed.wrapping_mul(MULTIPLIER).wrapping_add(ADDEND) & MASK;
+        (*seed >> (48 - bits)) as u32
+    }
+
+    fn next_int(seed: &mut u64, bound: usize) -> usize {
+        if bound.is_power_of_two() {
+            return ((bound as u64 * next_bits(seed, 31) as u64) >> 31) as usize;
+        }
+        loop {
+            let bits = next_bits(seed, 31) as usize;
+            let value = bits % bound;
+            if bits - value + (bound - 1) < (1_usize << 31) {
+                return value;
+            }
+        }
+    }
+
+    let mut seed = (random_seed ^ MULTIPLIER) & MASK;
+    for len in (2..=values.len()).rev() {
+        let other = next_int(&mut seed, len);
+        values.swap(len - 1, other);
+    }
+}
+
 // ===========================================================================
 // SeedHelper — base-34 string <-> u64 conversion
 // ===========================================================================

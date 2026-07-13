@@ -2,12 +2,14 @@ use crate::cards::prelude::*;
 use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Streamline: 2 cost, 15 dmg, costs 1 less each play.
-        //
-        // The Java game uses card-instance UUID targeting here. Our current
-        // runtime does not carry UUIDs on CardInstance, so we can only narrow
-        // the mutation to a single surviving copy instead of broadcasting to
-        // every Streamline copy. The defect test file records that blocker.
+    // Streamline: 2 cost, 15 dmg, costs 1 less each play.
+    //
+    // ReduceCostAction targets the played card's UUID and lowers every
+    // same-instance battle copy once. Rust threads the surviving played
+    // instance through ordinary and replayed uses, while distinct copies
+    // remain independent.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Streamline.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ReduceCostAction.java
     insert(cards, CardDef {
                 id: "Streamline", name: "Streamline", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 15, base_block: -1,

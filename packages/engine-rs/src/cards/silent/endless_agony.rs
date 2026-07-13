@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Uncommon: Endless Agony ---- (cost 0, 4 dmg, exhaust, copy to hand on draw; +2 dmg)
+    // EndlessAgony.java deals 4, exhausts, and makes a stat-equivalent copy
+    // when drawn; upgradeDamage(2) is its only upgrade.
+    // Java: reference/extracted/methods/card/EndlessAgony.java
     insert(cards, CardDef {
                 id: "Endless Agony", name: "Endless Agony", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 0, base_damage: 4, base_block: -1,

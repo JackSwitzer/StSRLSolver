@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Uncommon: Caltrops ---- (cost 1, power, deal 3 dmg when attacked; +2)
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Caltrops.java
+        // applies ThornsPower(3); upgradeMagicNumber(2) raises it to 5.
     insert(cards, CardDef {
                 id: "Caltrops", name: "Caltrops", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,

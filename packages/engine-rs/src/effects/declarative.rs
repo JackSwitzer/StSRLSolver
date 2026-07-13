@@ -49,6 +49,8 @@ pub enum AmountSource {
     Magic,
     /// CardDef.base_block (for block pipeline).
     Block,
+    /// CardDef.base_block after the card's Dexterity/Frail block pipeline.
+    ModifiedBlock,
     /// CardDef.base_damage.
     Damage,
     /// A fixed constant.
@@ -81,6 +83,8 @@ pub enum AmountSource {
     PlayerBlock,
     /// Discard pile size.
     DiscardPileSize,
+    /// Discard pile size plus CardDef.base_block (Stack's upgraded bonus).
+    DiscardPileSizePlusBlock,
     /// Current value of a status (e.g., read Metallicize stacks).
     StatusValue(crate::ids::StatusId),
     /// Current status value multiplied by the played card's base magic.
@@ -94,8 +98,8 @@ pub enum AmountSource {
     PercentMaxHp(i32),
     /// Draw pile size divided by N (Aggregate: draw_pile / 4).
     DrawPileDivN(i32),
-    /// Number of attacks played this turn (Finisher).
-    AttacksThisTurn,
+    /// Number of attacks played before the current card (Finisher).
+    PriorAttacksThisTurn,
     /// Number of Skill cards in hand (Flechettes).
     SkillsInHand,
     /// Potion effective potency (base value scaled by A11 + Sacred Bark).
@@ -129,6 +133,8 @@ pub enum Condition {
     NoBlock,
     /// An enemy was killed during the damage loop (from CardPlayContext).
     EnemyKilled,
+    /// The selected target died and is neither a minion nor half-dead.
+    EnemyKilledNonMinion,
     /// Player discarded a card this turn.
     DiscardedThisTurn,
 }
@@ -156,8 +162,9 @@ pub enum ChoiceAction {
     StoreCardForNextTurnCopies,
     /// Put selected card(s) on top of draw pile at cost 0.
     PutOnTopAtCostZero,
-    /// Put selected card(s) on bottom of draw pile at cost 0.
-    PutOnBottomAtCostZero,
+    /// Put selected card(s) on the bottom of the draw pile, making cards with
+    /// a positive permanent cost free for their next play.
+    PutOnBottomFreeIfCostly,
     /// Exhaust selected card and gain its cost as energy.
     ExhaustAndGainEnergy,
 }
@@ -166,6 +173,8 @@ pub enum ChoiceAction {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BulkAction {
     Exhaust,
+    /// Exhaust every match in cardRandomRng order, consuming one tick per card.
+    ExhaustRandom,
     Discard,
     Upgrade,
     /// Set the current turn cost for matching cards without changing the permanent baseline.
@@ -179,6 +188,8 @@ pub enum BulkAction {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CardFilter {
     All,
+    /// All cards except base/upgraded Exhume.
+    NonExhume,
     Attacks,
     /// Attack or Power cards only.
     AttackOrPower,
@@ -201,7 +212,7 @@ pub enum BoolFlag {
     NextAttackFree,
     /// Die at start of next turn (Blasphemy).
     Blasphemy,
-    /// All cards cost 0 this turn + no draw (Bullet Time).
+    /// Current non-X hand cards cost 0 this turn + apply No Draw (Bullet Time).
     BulletTime,
 }
 
@@ -211,6 +222,14 @@ pub enum GeneratedCardPool {
     Attack,
     Skill,
     Power,
+    /// Defect's source common-card pool.
+    DefectCommon,
+    /// Defect's source uncommon/rare non-healing Power pools.
+    DefectPower,
+    /// Watcher's source common/uncommon/rare Power pools.
+    WatcherPower,
+    /// Watcher's source common/uncommon/rare cards of every type.
+    WatcherAny,
     Colorless,
     AnyColorAttackRarityWeighted,
 }
@@ -288,14 +307,16 @@ pub enum SimpleEffect {
     DrawRandomCardsFromPileToHand(Pile, CardFilter, AmountSource),
     /// Trigger Dark orb passive accumulation once.
     TriggerDarkPassive,
+    /// Trigger every orb's start- and end-of-turn callbacks once (Impulse).
+    TriggerAllOrbPassives,
     /// Gain energy.
     GainEnergy(AmountSource),
     /// Double current energy.
     DoubleEnergy,
     /// Gain block. Routes through engine.gain_block_player() (handles dex/frail + onGainBlock).
     GainBlock(AmountSource),
-    /// Gain block if the last card in hand is of the given type.
-    GainBlockIfLastHandCardType(CardType, AmountSource),
+    /// Gain block if the preceding draw effect actually drew the given type.
+    GainBlockIfLastDrawnCardType(CardType, AmountSource),
     /// Modify HP. Positive = heal, negative = lose HP.
     ModifyHp(AmountSource),
     /// Gain mantra. Routes through engine.gain_mantra() (handles Divinity at 10).
@@ -305,6 +326,8 @@ pub enum SimpleEffect {
     Scry(AmountSource),
     /// Add a temp card to a pile. Routes through engine.temp_card() + pile push.
     AddCard(&'static str, Pile, AmountSource),
+    /// Add a temp card at Java's cardRandomRng-selected draw-pile index.
+    AddCardToRandomDrawSpot(&'static str, AmountSource),
     /// Add a temp card to a pile with explicit misc state.
     AddCardWithMisc(&'static str, Pile, AmountSource, AmountSource),
     /// Copy the played card instance to a pile (Anger: copy to discard).
@@ -317,6 +340,8 @@ pub enum SimpleEffect {
     RemoveOrbSlot,
     /// Evoke the front orb N times.
     EvokeOrb(AmountSource),
+    /// Trigger the front orb's evoke effect once without removing it.
+    EvokeOrbWithoutRemoving,
     /// Evoke the front orb, then channel the same orb type back.
     EvokeAndRechannelFrontOrb,
     /// Fission: remove or evoke all orbs, then gain energy and draw per occupied orb.
@@ -327,6 +352,10 @@ pub enum SimpleEffect {
     SetFlag(BoolFlag),
     /// Shuffle discard pile into draw pile.
     ShuffleDiscardIntoDraw,
+    /// Reboot's ShuffleAllAction + ShuffleAction + DrawCardAction sequence.
+    /// Moves the remaining hand to the draw pile without discard hooks, uses
+    /// Java's exact cardRandom/shuffle RNG streams, and fires OnShuffle once.
+    ShuffleAllAndDraw(AmountSource),
     /// Randomly discard cards from a pile.
     DiscardRandomCardsFromPile(Pile, i32),
     /// Play the top card of the draw pile through the normal free-play path.
@@ -348,6 +377,9 @@ pub enum SimpleEffect {
     ModifyPlayedCardBlock(AmountSource),
     /// Modify the played card instance's current damage by a delta.
     ModifyPlayedCardDamage(AmountSource),
+    /// Increase the current damage of the played Claw and every Claw in hand,
+    /// draw, and discard. Claws in exhaust and future Claws are unaffected.
+    IncreaseAllClawDamage(AmountSource),
     /// Heal HP capped at max HP.
     HealHp(Target, AmountSource),
     /// Increment a counter status; fires associated effect at threshold.
@@ -360,8 +392,8 @@ pub enum SimpleEffect {
     ModifyGold(AmountSource),
     /// End combat as a flee (player escapes).
     FleeCombat,
-    /// Upgrade a random eligible card from the supplied piles.
-    UpgradeRandomCardFromPiles(&'static [Pile]),
+    /// Upgrade one random upgradeable card in the persistent master deck.
+    UpgradeRandomMasterDeckCard,
 }
 
 /// A card's effect — can be simple, conditional, choice-based, or complex.

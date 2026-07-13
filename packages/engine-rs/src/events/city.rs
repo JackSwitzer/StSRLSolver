@@ -24,7 +24,7 @@ fn colosseum_fight_prompt() -> TypedEventDef {
         vec![supported(
             "Fight (enter the arena)",
             vec![EventProgramOp::combat_branch(
-                ["TaskMaster", "SlaverBlue", "SlaverRed"],
+                ["SlaverBlue", "SlaverRed"],
                 vec![EventProgramOp::continue_event(colosseum_post_combat())],
             )],
             EventEffect::Nothing,
@@ -40,7 +40,7 @@ fn colosseum_post_combat() -> TypedEventDef {
             supported(
                 "Continue (fight Nobs)",
                 vec![EventProgramOp::combat_branch(
-                    ["GremlinNob", "GremlinNob"],
+                    ["SlaverBoss", "GremlinNob"],
                     vec![
                         EventProgramOp::gain_relic("rare relic"),
                         EventProgramOp::gain_relic("uncommon relic"),
@@ -122,12 +122,12 @@ pub fn typed_act2_events() -> Vec<TypedEventDef> {
             "Forgotten Altar",
             vec![
                 supported(
-                    "Offer (lose 5 HP, gain golden idol)",
+                    "Offer Golden Idol (gain Bloody Idol)",
                     vec![
-                        EventProgramOp::hp(-5),
-                        EventProgramOp::gain_relic("Golden Idol"),
+                        EventProgramOp::remove_relic("Golden Idol"),
+                        EventProgramOp::gain_relic("Bloody Idol"),
                     ],
-                    EventEffect::Hp(-5),
+                    EventEffect::GainRelic,
                 ),
                 supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
             ],
@@ -276,7 +276,10 @@ pub fn typed_act2_events() -> Vec<TypedEventDef> {
                 ),
                 supported(
                     "Inject mutagens (gain Mutagenic Strength relic)",
-                    vec![EventProgramOp::gain_relic("Mutagenic Strength")],
+                    // DrugDealer.java immediately obtains the canonical relic ID
+                    // and substitutes Circlet when MutagenicStrength is owned.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/events/city/DrugDealer.java
+                    vec![EventProgramOp::obtain_relic("MutagenicStrength")],
                     EventEffect::GainRelic,
                 ),
             ],

@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // Safety (from Deceive Reality): cost 1, 12 block, retain, exhaust
+    // Safety.java costs 1, gains 12 block, self-retains, and exhausts;
+    // upgradeBlock(4) raises only its block to 16.
+    // Java: reference/extracted/methods/card/Safety.java
     insert(cards, CardDef {
         id: "Safety", name: "Safety", card_type: CardType::Skill,
         target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 12,

@@ -1,5 +1,8 @@
 use crate::cards::prelude::*;
 
+// Sources: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Amplify.java
+// and decompiled/java-src/com/megacrit/cardcrawl/powers/AmplifyPower.java
+
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // Amplify: 1 cost, next power played this turn is played twice
     insert(cards, CardDef {

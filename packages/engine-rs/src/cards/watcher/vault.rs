@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Rare: Vault ---- (cost 3, skill, exhaust, skip enemy turn, end turn; upgrade: cost 2)
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Vault.java
+    // SkipEnemiesTurnAction precedes PressEndTurnButtonAction; the post-play
+    // EndTurn trait supplies the latter after this flag is set.
     insert(cards, CardDef {
                 id: "Vault", name: "Vault", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 3, base_damage: -1, base_block: -1,

@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Ironclad Rare: Barricade ---- (cost 3, power, block not removed at end of turn; upgrade: cost 2)
+        // Sources: cards/red/Barricade.java costs 3 (2 upgraded) and applies
+        // BarricadePower only when absent; powers/BarricadePower.java is a
+        // non-stacking amount -1 power that prevents normal block removal.
     insert(cards, CardDef {
                 id: "Barricade", name: "Barricade", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 3, base_damage: -1, base_block: -1,

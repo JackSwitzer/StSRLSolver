@@ -1,4 +1,5 @@
 //! Horn Cleat: gain 14 Block on turn 2 only once per combat.
+//! Source: decompiled/java-src/com/megacrit/cardcrawl/relics/HornCleat.java.
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};

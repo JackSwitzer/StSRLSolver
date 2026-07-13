@@ -1,5 +1,6 @@
 #![cfg(test)]
 
+use crate::actions::Action;
 use crate::card_effects::execute_card_effects;
 use crate::cards::{CardDef, CardTarget, CardType};
 use crate::effects::declarative::{
@@ -8,7 +9,9 @@ use crate::effects::declarative::{
 use crate::engine::{ChoiceReason, CombatPhase};
 use crate::gameplay::{ChoiceCountHint, EffectOp, OrbCountHint};
 use crate::orbs::OrbType;
-use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck};
+use crate::tests::support::{
+    enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_self,
+};
 
 static ALL_ENEMY_DAMAGE_EFFECTS: [E; 1] = [E::Simple(SE::DealDamage(T::AllEnemies, A::Fixed(4)))];
 static DISCARD_TWO_EFFECTS: [E; 1] = [E::ChooseCards {
@@ -107,6 +110,69 @@ fn test_card_runtime_backend_wave2_registry_exports_include_extended_declarative
             ..
         } if declared_channel_orbs.len() == 3
     )));
+}
+
+#[test]
+fn recycle_source_auto_exhausts_a_singleton_and_uses_current_energy_for_x_cost() {
+    // RecycleAction skips hand selection when one card remains. Positive
+    // costForTurn grants that amount; costForTurn == -1 grants the entire
+    // current EnergyPanel amount, after Recycle's own cost has been paid.
+    // Source: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/RecycleAction.java.
+    let mut singleton = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        1,
+    );
+    force_player_turn(&mut singleton);
+    singleton.state.hand = make_deck(&["Recycle", "Streamline"]);
+
+    assert!(play_self(&mut singleton, "Recycle"));
+
+    assert_eq!(singleton.phase, CombatPhase::PlayerTurn);
+    assert_eq!(singleton.state.energy, 2);
+    assert!(singleton.state.hand.is_empty());
+    assert_eq!(singleton.state.exhaust_pile.len(), 1);
+    assert_eq!(
+        singleton
+            .card_registry
+            .card_name(singleton.state.exhaust_pile[0].def_id),
+        "Streamline"
+    );
+
+    let mut x_cost = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut x_cost);
+    x_cost.state.hand = make_deck(&["Recycle+", "Whirlwind", "Defend"]);
+
+    assert!(play_self(&mut x_cost, "Recycle+"));
+    assert_eq!(x_cost.phase, CombatPhase::AwaitingChoice);
+    let whirlwind_choice = x_cost
+        .choice
+        .as_ref()
+        .expect("Recycle choice")
+        .options
+        .iter()
+        .position(|option| match option {
+            crate::engine::ChoiceOption::HandCard(index) => {
+                x_cost.card_registry.card_name(x_cost.state.hand[*index].def_id) == "Whirlwind"
+            }
+            _ => false,
+        })
+        .expect("Whirlwind option");
+    x_cost.execute_action(&Action::Choose(whirlwind_choice));
+
+    assert_eq!(x_cost.phase, CombatPhase::PlayerTurn);
+    assert_eq!(x_cost.state.energy, 6);
+    assert_eq!(x_cost.state.exhaust_pile.len(), 1);
+    assert_eq!(
+        x_cost
+            .card_registry
+            .card_name(x_cost.state.exhaust_pile[0].def_id),
+        "Whirlwind"
+    );
 }
 
 #[test]

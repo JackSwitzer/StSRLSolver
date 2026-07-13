@@ -10,20 +10,23 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/RunicCube.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/RedSkull.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/Sundial.java
-// - decompiled/java-src/com/megacrit/cardcrawl/relics/TheAbacus.java
+// - decompiled/java-src/com/megacrit/cardcrawl/relics/Abacus.java
+// - decompiled/java-src/com/megacrit/cardcrawl/relics/Melange.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/GremlinHorn.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/TheSpecimen.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/BurningBlood.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/BlackBlood.java
 use crate::effects::runtime::EffectOwner;
+use crate::engine::{ChoiceReason, CombatPhase};
 use crate::status_ids::sid;
 use crate::tests::support::{
-    combat_state_with, enemy_no_intent, engine_with_state, engine_without_start, make_deck,
-    make_deck_n,
+    combat_state_with, end_turn, enemy_no_intent, engine_with_state, engine_without_start,
+    force_player_turn, make_deck, make_deck_n,
 };
 
 #[test]
 fn relic_wave12_runtime_combat_start_buffs_and_debuffs_match_canonical_runtime() {
+    // OddlySmoothStone.java::atBattleStart applies exactly one Dexterity.
     let mut state = combat_state_with(
         Vec::new(),
         vec![enemy_no_intent("Cultist", 24, 24), enemy_no_intent("JawWorm", 40, 40)],
@@ -38,7 +41,11 @@ fn relic_wave12_runtime_combat_start_buffs_and_debuffs_match_canonical_runtime()
     let engine = engine_with_state(state);
 
     assert_eq!(engine.state.player.dexterity(), 1);
-    assert!(engine.state.enemies.iter().all(|enemy| enemy.entity.is_weak()));
+    assert!(engine
+        .state
+        .enemies
+        .iter()
+        .all(|enemy| enemy.entity.status(sid::WEAKENED) == 1));
     assert!(engine.state.enemies.iter().all(|enemy| enemy.entity.strength() == 1));
 }
 
@@ -102,6 +109,64 @@ fn relic_wave12_runtime_hp_loss_families_match_canonical_runtime() {
     engine.player_lose_hp(4);
 
     assert_eq!(engine.state.hand.len(), 5);
+
+    // RedSkull.java::onNotBloodied removes its three Strength when healing
+    // crosses above half HP, regardless of the relic's inventory slot.
+    engine.heal_player(6);
+    assert_eq!(engine.state.player.hp, 41);
+    assert_eq!(engine.state.player.strength(), 0);
+    assert_eq!(
+        engine.hidden_effect_value("Red Skull", EffectOwner::PlayerRelic { slot: 3 }, 0),
+        0
+    );
+}
+
+#[test]
+fn runic_cube_draws_one_card_per_positive_hp_loss_event() {
+    // RunicCube.java::wasHPLost checks only that combat is active and the
+    // reported damageAmount is positive, then queues exactly one DrawCardAction.
+    // The amount lost does not change the draw count.
+    let mut engine = engine_without_start(
+        make_deck(&["Strike", "Defend", "Bash"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    engine.state.relics = vec!["Runic Cube".to_string()];
+    engine.rebuild_effect_runtime();
+    engine.state.hand.clear();
+    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Bash"]);
+
+    engine.player_lose_hp(1);
+    assert_eq!(engine.state.hand.len(), 1);
+    engine.player_lose_hp(17);
+    assert_eq!(engine.state.hand.len(), 2);
+    engine.player_lose_hp(0);
+    assert_eq!(engine.state.hand.len(), 2);
+}
+
+#[test]
+fn self_forming_clay_stacks_three_block_per_hp_loss_for_the_next_turn() {
+    // SelfFormingClay.java::wasHPLost applies three NextTurnBlockPower for
+    // every positive loss event. NextTurnBlockPower.java grants the stacked
+    // amount at turn start and then removes itself.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.relics = vec!["Self Forming Clay".to_string()];
+    engine.rebuild_effect_runtime();
+    engine.state.player.block = 20;
+
+    engine.player_lose_hp(1);
+    engine.player_lose_hp(12);
+    assert_eq!(engine.state.player.status(sid::NEXT_TURN_BLOCK), 6);
+
+    engine.state.skip_enemy_turn = true;
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.block, 6);
+    assert_eq!(engine.state.player.status(sid::NEXT_TURN_BLOCK), 0);
 }
 
 #[test]
@@ -143,6 +208,79 @@ fn relic_wave12_runtime_shuffle_and_enemy_death_families_match_canonical_runtime
 }
 
 #[test]
+fn the_abacus_grants_exactly_six_block_on_one_shuffle() {
+    // Source: reference/extracted/methods/relic/Abacus.java
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    engine.state.relics = vec!["TheAbacus".to_string()];
+    engine.rebuild_effect_runtime();
+    engine.state.draw_pile.clear();
+    engine.state.discard_pile = make_deck(&["Strike"]);
+
+    engine.draw_cards(1);
+
+    assert_eq!(engine.state.player.block, 6);
+}
+
+#[test]
+fn melange_scries_after_the_shuffle_draw_and_composes_with_golden_eye() {
+    // Melange.java queues ScryAction(3) from onShuffle. EmptyDeckShuffleAction
+    // completes between the split draw actions, while Melange's addToBot Scry
+    // runs only after the requested cards have been drawn.
+    let shuffled_cards = [
+        "Strike",
+        "Defend",
+        "Bash",
+        "Eruption",
+        "Vigilance",
+        "Scrawl",
+        "EmptyBody",
+    ];
+
+    let mut baseline =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    baseline.state.discard_pile = make_deck(&shuffled_cards);
+    baseline.draw_cards(2);
+    let baseline_hand: Vec<_> = baseline
+        .state
+        .hand
+        .iter()
+        .map(|card| baseline.card_registry.card_name(card.def_id))
+        .collect();
+
+    let mut melange =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    melange.state.relics.push("Melange".to_string());
+    melange.rebuild_effect_runtime();
+    melange.state.discard_pile = make_deck(&shuffled_cards);
+    melange.draw_cards(2);
+    let melange_hand: Vec<_> = melange
+        .state
+        .hand
+        .iter()
+        .map(|card| melange.card_registry.card_name(card.def_id))
+        .collect();
+    assert_eq!(melange_hand, baseline_hand);
+    assert_eq!(melange.phase, CombatPhase::AwaitingChoice);
+    let choice = melange.choice.as_ref().expect("Melange Scry choice");
+    assert_eq!(choice.reason, ChoiceReason::Scry);
+    assert_eq!(choice.options.len(), 3);
+
+    let mut golden =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    golden.state.relics = vec!["Melange".to_string(), "GoldenEye".to_string()];
+    golden.rebuild_effect_runtime();
+    golden.state.discard_pile = make_deck(&shuffled_cards);
+    golden.draw_cards(2);
+    let choice = golden.choice.as_ref().expect("GoldenEye Melange Scry choice");
+    assert_eq!(choice.options.len(), 5);
+    assert_eq!(choice.max_picks, 5);
+}
+
+#[test]
 fn relic_wave12_runtime_victory_families_match_canonical_runtime() {
     let mut burn_state = combat_state_with(Vec::new(), vec![enemy_no_intent("JawWorm", 1, 1)], 3);
     burn_state.relics = vec!["Burning Blood".to_string()];
@@ -156,6 +294,18 @@ fn relic_wave12_runtime_victory_families_match_canonical_runtime() {
     assert!(burn_engine.state.combat_over);
     assert!(burn_engine.state.player_won);
     assert_eq!(burn_engine.state.player.hp, 66);
+
+    // BurningBlood.java guards its six-point heal with currentHealth > 0;
+    // simultaneous zero player/enemy HP must not turn the relic into a revive.
+    let mut burn_zero_state =
+        combat_state_with(Vec::new(), vec![enemy_no_intent("JawWorm", 1, 1)], 3);
+    burn_zero_state.relics = vec!["Burning Blood".to_string()];
+    burn_zero_state.player.hp = 0;
+    burn_zero_state.enemies[0].entity.hp = 0;
+    let mut burn_zero_engine = engine_with_state(burn_zero_state);
+    burn_zero_engine.check_combat_end();
+    assert_eq!(burn_zero_engine.state.player.hp, 0);
+
     let mut black_state = combat_state_with(Vec::new(), vec![enemy_no_intent("JawWorm", 1, 1)], 3);
     black_state.relics = vec!["Black Blood".to_string()];
     black_state.player.hp = 60;
@@ -168,4 +318,15 @@ fn relic_wave12_runtime_victory_families_match_canonical_runtime() {
     assert!(black_engine.state.combat_over);
     assert!(black_engine.state.player_won);
     assert_eq!(black_engine.state.player.hp, 72);
+
+    // BlackBlood.java guards its twelve-point heal with currentHealth > 0;
+    // simultaneous zero player/enemy HP must not turn the relic into a revive.
+    let mut zero_state =
+        combat_state_with(Vec::new(), vec![enemy_no_intent("JawWorm", 1, 1)], 3);
+    zero_state.relics = vec!["Black Blood".to_string()];
+    zero_state.player.hp = 0;
+    zero_state.enemies[0].entity.hp = 0;
+    let mut zero_engine = engine_with_state(zero_state);
+    zero_engine.check_combat_end();
+    assert_eq!(zero_engine.state.player.hp, 0);
 }

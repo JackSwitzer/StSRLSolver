@@ -42,17 +42,17 @@ fn tiny_primitive_wave2_registry_exports_show_the_typed_primary_surfaces() {
     assert_eq!(
         ftl.effect_data,
         &[
-            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::Conditional(
-                Cond::CardsPlayedThisTurnLessThan(3),
-                &[E::Simple(SE::DrawCards(A::Magic))],
+                Cond::CardsPlayedThisTurnLessThan(4),
+                &[E::Simple(SE::DrawCards(A::Fixed(1)))],
                 &[],
             ),
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
         ]
     );
     assert!(ftl.complex_hook.is_none());
 
-    let all_out_attack = reg.get("All-Out Attack").expect("All-Out Attack");
+    let all_out_attack = reg.get("All Out Attack").expect("All Out Attack");
     assert_eq!(all_out_attack.card_type, CardType::Attack);
     assert_eq!(all_out_attack.target, CardTarget::AllEnemy);
     assert_eq!(
@@ -92,7 +92,7 @@ fn tiny_primitive_wave2_registry_exports_show_the_typed_primary_surfaces() {
         &[
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::Conditional(
-                Cond::EnemyKilled,
+                Cond::EnemyKilledNonMinion,
                 &[E::Simple(SE::ModifyMaxHp(A::Magic))],
                 &[],
             ),
@@ -105,7 +105,7 @@ fn tiny_primitive_wave2_registry_exports_show_the_typed_primary_surfaces() {
         escape_plan.effect_data,
         &[
             E::Simple(SE::DrawCards(A::Fixed(1))),
-            E::Simple(SE::GainBlockIfLastHandCardType(CardType::Skill, A::Block)),
+            E::Simple(SE::GainBlockIfLastDrawnCardType(CardType::Skill, A::Block)),
         ]
     );
     assert!(escape_plan.complex_hook.is_none());
@@ -129,7 +129,7 @@ fn tiny_primitive_wave2_ftl_bane_feed_and_all_out_attack_follow_the_typed_runtim
     ftl_draws.state.draw_pile = make_deck(&["Strike", "Defend", "Zap", "Dualcast"]);
     assert!(play_on_enemy(&mut ftl_draws, "FTL+", 0));
     assert_eq!(ftl_draws.state.enemies[0].entity.hp, 34);
-    assert_eq!(ftl_draws.state.hand.len(), 4);
+    assert_eq!(ftl_draws.state.hand.len(), 1);
 
     let mut ftl_gated = single_enemy_engine(40, 3);
     ftl_gated.state.cards_played_this_turn = 3;
@@ -157,11 +157,34 @@ fn tiny_primitive_wave2_ftl_bane_feed_and_all_out_attack_follow_the_typed_runtim
     assert_eq!(feed.state.player.hp, hp_before + 3);
 
     let mut all_out_attack = single_enemy_engine(40, 3);
-    all_out_attack.state.hand = make_deck(&["All-Out Attack", "Strike"]);
+    all_out_attack.state.hand = make_deck(&["All Out Attack", "Strike"]);
     let hand_before = all_out_attack.state.hand.len();
-    assert!(play_self(&mut all_out_attack, "All-Out Attack"));
+    assert!(play_self(&mut all_out_attack, "All Out Attack"));
     assert_eq!(all_out_attack.state.enemies[0].entity.hp, 30);
     assert_eq!(all_out_attack.state.hand.len(), hand_before - 2);
     assert_eq!(all_out_attack.state.discard_pile.len(), 2);
     assert_eq!(all_out_attack.state.player.status(sid::DISCARDED_THIS_TURN), 1);
+}
+
+#[test]
+fn bane_deals_one_or_two_source_sized_hits_based_on_poison() {
+    // Sources: Bane.java queues its DamageAction before BaneAction and upgrades
+    // 7 damage by 3; BaneAction deals its copy only while Poison is present.
+    for (card_id, poison, expected_damage) in [
+        ("Bane", 0, 7),
+        ("Bane", 2, 14),
+        ("Bane+", 0, 10),
+        ("Bane+", 2, 20),
+    ] {
+        let mut engine = single_enemy_engine(50, 3);
+        engine.state.hand = make_deck(&[card_id]);
+        if poison > 0 {
+            engine.state.enemies[0].entity.set_status(sid::POISON, poison);
+        }
+
+        assert!(play_on_enemy(&mut engine, card_id, 0));
+
+        assert_eq!(engine.state.enemies[0].entity.hp, 50 - expected_damage);
+        assert_eq!(engine.state.energy, 2);
+    }
 }

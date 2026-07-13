@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Rare: Bullet Time ---- (cost 3, cards cost 0 this turn, no more draw; upgrade: cost 2)
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/BulletTime.java
+    // Cost 3 (2 upgraded); applies No Draw and sets the current hand's
+    // non-X costs to zero for this turn.
     insert(cards, CardDef {
                 id: "Bullet Time", name: "Bullet Time", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 3, base_damage: -1, base_block: -1,

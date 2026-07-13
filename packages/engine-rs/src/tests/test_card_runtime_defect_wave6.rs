@@ -5,6 +5,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Defend_Blue.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Leap.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/SelfRepair.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/RepairPower.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/BootSequence.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/MachineLearning.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ReinforcedBody.java
@@ -131,12 +132,13 @@ fn defect_wave6_self_repair_machine_learning_and_static_discharge_install_runtim
     );
     force_player_turn(&mut self_repair);
     self_repair.state.player.hp = 40;
-    self_repair.state.hand = make_deck(&["Self Repair+", "Strike"]);
+    self_repair.state.hand = make_deck(&["Self Repair", "Self Repair+", "Strike"]);
+    assert!(play_self(&mut self_repair, "Self Repair"));
     assert!(play_self(&mut self_repair, "Self Repair+"));
-    assert_eq!(self_repair.state.player.status(sid::SELF_REPAIR), 10);
+    assert_eq!(self_repair.state.player.status(sid::SELF_REPAIR), 17);
     assert!(play_on_enemy(&mut self_repair, "Strike", 0));
     assert!(self_repair.state.player_won);
-    assert_eq!(self_repair.state.player.hp, 40);
+    assert_eq!(self_repair.state.player.hp, 57);
 
     let mut machine_learning = engine_without_start(
         Vec::new(),
@@ -173,4 +175,76 @@ fn defect_wave6_self_repair_machine_learning_and_static_discharge_install_runtim
     assert_eq!(static_discharge.state.orb_slots.occupied_count(), 2);
     assert_eq!(static_discharge.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
     assert_eq!(static_discharge.state.orb_slots.slots[1].orb_type, OrbType::Lightning);
+}
+
+#[test]
+fn static_discharge_triggers_before_tungsten_but_after_buffer() {
+    // StaticDischargePower.onAttacked receives the post-block/post-Buffer
+    // amount before TungstenRod.onLoseHpLast. Thus Tungsten can reduce the
+    // eventual HP loss to zero without cancelling Lightning, while Buffer's
+    // earlier reduction to zero prevents the trigger.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/StaticDischargePower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/TungstenRod.java
+    let mut tungsten = engine_without_start(
+        Vec::new(),
+        vec![enemy("JawWorm", 40, 40, 1, 1, 1)],
+        3,
+    );
+    force_player_turn(&mut tungsten);
+    tungsten.init_defect_orbs(3);
+    tungsten.state.relics.push("Tungsten Rod".to_string());
+    tungsten.state.hand = make_deck(&["Static Discharge"]);
+    assert!(play_self(&mut tungsten, "Static Discharge"));
+    end_turn(&mut tungsten);
+    assert_eq!(tungsten.state.player.hp, 80);
+    assert_eq!(tungsten.state.orb_slots.occupied_count(), 1);
+    assert_eq!(tungsten.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
+
+    let mut buffer = engine_without_start(
+        Vec::new(),
+        vec![enemy("JawWorm", 40, 40, 1, 1, 1)],
+        3,
+    );
+    force_player_turn(&mut buffer);
+    buffer.init_defect_orbs(3);
+    buffer.state.player.set_status(sid::BUFFER, 1);
+    buffer.state.hand = make_deck(&["Static Discharge+"]);
+    assert!(play_self(&mut buffer, "Static Discharge+"));
+    end_turn(&mut buffer);
+    assert_eq!(buffer.state.player.hp, 80);
+    assert_eq!(buffer.state.player.status(sid::BUFFER), 0);
+    assert_eq!(buffer.state.orb_slots.occupied_count(), 0);
+}
+
+#[test]
+fn machine_learning_source_stacks_one_draw_and_upgrade_is_innate_only() {
+    // MachineLearning.java constructs DrawPower with magicNumber 1. Its upgrade
+    // sets only isInnate, so both versions add one persistent hand-size stack.
+    let registry = global_registry();
+    let base = registry.get("Machine Learning").expect("Machine Learning");
+    let plus = registry.get("Machine Learning+").expect("Machine Learning+");
+    assert_eq!(base.cost, 1);
+    assert_eq!(plus.cost, 1);
+    assert_eq!(base.base_magic, 1);
+    assert_eq!(plus.base_magic, 1);
+    assert!(!base.runtime_traits().innate);
+    assert!(plus.runtime_traits().innate);
+
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 30, 30)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Machine Learning", "Machine Learning+"]);
+    engine.state.draw_pile = make_deck(&[
+        "Strike", "Defend", "Zap", "Dualcast", "Strike", "Defend", "Zap",
+    ]);
+
+    assert!(play_self(&mut engine, "Machine Learning"));
+    assert!(play_self(&mut engine, "Machine Learning+"));
+    assert_eq!(engine.state.player.status(sid::DRAW), 2);
+    end_turn(&mut engine);
+    assert_eq!(engine.state.hand.len(), 7);
 }

@@ -1,7 +1,11 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // Panache: 0 cost, power, deal 10 dmg to all every 5th card played per turn
+    // Panache.java installs 10 PanachePower for zero energy; upgrade adds four
+    // damage. PanachePower counts every fifth card (including its own play),
+    // resets each turn, and deals source-less THORNS damage to all enemies.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Panache.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/PanachePower.java
     insert(cards, CardDef {
         id: "Panache", name: "Panache", card_type: CardType::Power,
         target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,

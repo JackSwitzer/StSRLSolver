@@ -1,6 +1,8 @@
 use super::prelude::*;
 
 static EFFECTS: [E; 1] = [
+    // Source: reference/extracted/methods/potion/FocusPotion.java. Applying the
+    // potion grants Focus equal to its constant potency of two.
     E::Simple(SE::AddStatus(T::Player, sid::FOCUS, A::PotionPotency)),
 ];
 

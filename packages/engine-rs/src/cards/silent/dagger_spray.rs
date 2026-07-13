@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Common: Dagger Spray ---- (cost 1, 4 dmg x2 AoE; +2 dmg)
+    // Source: reference/extracted/methods/card/DaggerSpray.java queues two
+    // separate all-enemy damage actions at 4 damage; upgrade raises each to 6.
     insert(cards, CardDef {
                 id: "Dagger Spray", name: "Dagger Spray", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 1, base_damage: 4, base_block: -1,

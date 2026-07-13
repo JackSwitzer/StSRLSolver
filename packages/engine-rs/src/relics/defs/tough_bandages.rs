@@ -1,4 +1,5 @@
 //! Tough Bandages: Gain 3 Block whenever a card is discarded.
+//! Java: decompiled/java-src/com/megacrit/cardcrawl/relics/ToughBandages.java
 
 use crate::effects::declarative::{Effect, SimpleEffect, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};

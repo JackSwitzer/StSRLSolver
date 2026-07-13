@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Uncommon: Choke ---- (cost 2, 12 dmg, deal 3 dmg per card played this turn; +2 magic)
+        // Choke.java queues 12 damage, then applies ChokePower for 3 (5 upgraded).
+        // ChokePower's on-use and start-turn behavior is resolved by the engine.
+        // Source: reference/extracted/methods/card/Choke.java
     insert(cards, CardDef {
                 id: "Choke", name: "Choke", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 12, base_block: -1,

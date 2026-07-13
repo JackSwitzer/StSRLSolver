@@ -1,6 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+        // Java: reference/extracted/methods/card/Havoc.java and
+        // decompiled/java-src/com/megacrit/cardcrawl/actions/common/PlayTopCardAction.java
         // ---- Ironclad Common: Havoc ---- (cost 1, play top card of draw pile; upgrade: cost 0)
     insert(cards, CardDef {
                 id: "Havoc", name: "Havoc", card_type: CardType::Skill,

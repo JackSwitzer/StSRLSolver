@@ -1,6 +1,11 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+    // DevaPower.java keeps visible amount and energyGainAmount separately.
+    // Each application increments both; recharge grants energyGainAmount and
+    // then increases it by the visible amount.
+    // decompiled/java-src/com/megacrit/cardcrawl/cards/purple/DevaForm.java
+    // decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/DevaPower.java
     // ---- Rare: Deva Form ---- (cost 3, power, ethereal, gain 1 energy each turn (stacks); upgrade: no ethereal)
     insert(cards, CardDef {
         id: "DevaForm", name: "Deva Form", card_type: CardType::Power,
@@ -8,6 +13,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: 1, exhaust: false, enter_stance: None,
                 effect_data: &[
             E::Simple(SE::AddStatus(T::Player, sid::DEVA_FORM, A::Magic)),
+            E::Simple(SE::AddStatus(T::Player, sid::DEVA_FORM_ENERGY, A::Magic)),
         ], complex_hook: None,
     });
     insert(cards, CardDef {
@@ -16,6 +22,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         base_magic: 1, exhaust: false, enter_stance: None,
                 effect_data: &[
             E::Simple(SE::AddStatus(T::Player, sid::DEVA_FORM, A::Magic)),
+            E::Simple(SE::AddStatus(T::Player, sid::DEVA_FORM_ENERGY, A::Magic)),
         ], complex_hook: None,
     });
 }

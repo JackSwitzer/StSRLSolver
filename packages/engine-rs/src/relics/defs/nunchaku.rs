@@ -1,5 +1,8 @@
 //! Nunchaku: Every 10 Attacks played, gain 1 Energy.
 //! Counter persists across combats.
+//!
+//! Source: `reference/extracted/methods/relic/Nunchaku.java` (`onUseCard`
+//! counts only ATTACK cards, resets at ten, and queues GainEnergyAction(1)).
 
 use crate::effects::declarative::{Effect, SimpleEffect, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};

@@ -3,7 +3,8 @@ use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect a
 use crate::status_ids::sid;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Capacitor: 1 cost, power, gain 2 orb slots
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Capacitor.java
+        // queues IncreaseMaxOrbAction(2), upgraded to 3.
     insert(cards, CardDef {
                 id: "Capacitor", name: "Capacitor", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,

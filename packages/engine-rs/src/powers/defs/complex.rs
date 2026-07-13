@@ -29,6 +29,47 @@ fn hook_noop(
     _state: &mut EffectState,
 ) {}
 
+fn hook_flame_barrier(
+    engine: &mut CombatEngine,
+    owner: EffectOwner,
+    event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    // FlameBarrierPower.atStartOfTurn queues removal from the player. The
+    // onAttacked retaliation remains in combat_hooks because it needs the
+    // concrete attacking enemy for its sourced THORNS hit.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/FlameBarrierPower.java
+    if owner == EffectOwner::PlayerPower && event.kind == Trigger::TurnStart {
+        engine.state.player.set_status(sid::FLAME_BARRIER, 0);
+    }
+}
+
+fn hook_discipline(
+    engine: &mut CombatEngine,
+    owner: EffectOwner,
+    event: &GameEvent,
+    state: &mut EffectState,
+) {
+    if owner != EffectOwner::PlayerPower {
+        return;
+    }
+    match event.kind {
+        Trigger::TurnEnd => {
+            if engine.state.energy > 0 {
+                state.set(0, engine.state.energy);
+            }
+        }
+        Trigger::TurnStart => {
+            let draw = state.get(0);
+            if draw > 0 {
+                state.set(0, 0);
+                engine.draw_cards(draw);
+            }
+        }
+        _ => {}
+    }
+}
+
 fn hook_time_warp(
     engine: &mut CombatEngine,
     owner: EffectOwner,
@@ -73,6 +114,33 @@ fn player_power_amount(engine: &CombatEngine, owner: EffectOwner, status_id: cra
     }
 }
 
+// Discipline — remember unspent energy at turn end, draw that many next turn.
+// Java: powers/deprecated/DEPRECATEDDisciplinePower.java.
+static DISCIPLINE_EFFECTS: [crate::effects::declarative::Effect; 0] = [];
+static DISCIPLINE_TRIGGERS: [TriggeredEffect; 2] = [
+    TriggeredEffect {
+        trigger: Trigger::TurnEnd,
+        condition: TriggerCondition::Always,
+        effects: &DISCIPLINE_EFFECTS,
+        counter: None,
+    },
+    TriggeredEffect {
+        trigger: Trigger::TurnStart,
+        condition: TriggerCondition::Always,
+        effects: &DISCIPLINE_EFFECTS,
+        counter: None,
+    },
+];
+
+pub static DEF_DISCIPLINE: EntityDef = EntityDef {
+    id: "discipline",
+    name: "Discipline",
+    kind: EntityKind::Power,
+    triggers: &DISCIPLINE_TRIGGERS,
+    complex_hook: Some(hook_discipline),
+    status_guard: Some(sid::DISCIPLINE),
+};
+
 fn hook_thousand_cuts(
     engine: &mut CombatEngine,
     owner: EffectOwner,
@@ -83,7 +151,18 @@ fn hook_thousand_cuts(
         return;
     }
 
-    let damage = player_power_amount(engine, owner, sid::THOUSAND_CUTS);
+    let mut damage = player_power_amount(engine, owner, sid::THOUSAND_CUTS);
+    if let Some(card_inst) = event.card_inst {
+        let card = engine.card_registry.card_def_by_id(card_inst.def_id);
+        if matches!(card.id, "A Thousand Cuts" | "A Thousand Cuts+") {
+            // AThousandCuts queues ApplyPowerAction. Java runs the existing
+            // power's onAfterCardPlayed before that queued stack resolves, so
+            // this copy cannot trigger its newly applied amount on itself.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/AThousandCuts.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ThousandCutsPower.java
+            damage -= card.base_magic;
+        }
+    }
     if damage <= 0 {
         return;
     }
@@ -108,7 +187,7 @@ fn hook_panache(
         return;
     }
 
-    if event.kind != Trigger::OnUseCard || engine.state.combat_over {
+    if event.kind != Trigger::OnCardPlayedPost || engine.state.combat_over {
         return;
     }
 
@@ -126,7 +205,11 @@ fn hook_panache(
 
     let living = engine.state.living_enemy_indices();
     for idx in living {
-        engine.deal_damage_to_enemy(idx, damage);
+        // PanachePower queues a pure matrix with DamageType.THORNS. This uses
+        // block/Intangible/Buffer/Invincible but skips NORMAL-only Slow,
+        // Flight, Curl Up, Malleable, and offensive modifiers.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/PanachePower.java
+        engine.deal_thorns_damage_to_enemy(idx, damage);
         if engine.state.combat_over {
             break;
         }
@@ -157,7 +240,11 @@ fn hook_sadistic_nature(
         return;
     }
 
-    engine.deal_damage_to_enemy(idx, damage);
+    // SadisticPower queues DamageInfo.THORNS. It therefore bypasses NORMAL-only
+    // Slow, Flight, Curl Up, and Malleable behavior while retaining block and
+    // target-side damage caps.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/SadisticPower.java
+    engine.deal_thorns_damage_to_enemy(idx, damage);
 }
 
 fn hook_envenom(
@@ -226,7 +313,7 @@ fn hook_double_tap(
     }
 
     let card = engine.card_registry.card_def_by_id(card_inst.def_id).clone();
-    crate::card_effects::execute_card_effects(engine, &card, card_inst, event.target_idx);
+    engine.execute_card_effects_with_enemy_on_use(&card, card_inst, event.target_idx);
 }
 
 fn hook_burst(
@@ -235,6 +322,14 @@ fn hook_burst(
     event: &GameEvent,
     _state: &mut EffectState,
 ) {
+    if event.kind == Trigger::TurnEnd {
+        // BurstPower.atEndOfTurn removes every unused charge.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BurstPower.java
+        if owner == EffectOwner::PlayerPower {
+            engine.state.player.set_status(sid::BURST, 0);
+        }
+        return;
+    }
     if !engine.runtime_replay_window || event.kind != Trigger::OnSkillPlayed || engine.state.combat_over {
         return;
     }
@@ -243,6 +338,9 @@ fn hook_burst(
         Some(card_inst) => card_inst,
         None => return,
     };
+    if card_inst.flags & crate::combat_types::CardInstance::FLAG_PURGE != 0 {
+        return;
+    }
 
     let remaining = player_power_amount(engine, owner, sid::BURST);
     if remaining <= 0 {
@@ -261,7 +359,100 @@ fn hook_burst(
     }
 
     let card = engine.card_registry.card_def_by_id(card_inst.def_id).clone();
-    crate::card_effects::execute_card_effects(engine, &card, card_inst, event.target_idx);
+    if card.cost == -1 {
+        // BurstPower copies the original energyOnUse into the queued free copy.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BurstPower.java
+        engine.runtime_x_energy_override = Some(engine.runtime_last_x_energy_on_use);
+    }
+    engine.execute_card_effects_with_enemy_on_use(
+        &card,
+        card_inst.set_free(true),
+        event.target_idx,
+    );
+}
+
+fn hook_amplify(
+    engine: &mut CombatEngine,
+    owner: EffectOwner,
+    event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    if owner != EffectOwner::PlayerPower {
+        return;
+    }
+    if event.kind == Trigger::TurnEnd {
+        // AmplifyPower.atEndOfTurn removes every unused charge.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/AmplifyPower.java
+        engine.state.player.set_status(sid::AMPLIFY, 0);
+        return;
+    }
+    if !engine.runtime_replay_window
+        || event.kind != Trigger::OnCardPlayedPost
+        || event.card_type != Some(crate::cards::CardType::Power)
+        || engine.state.combat_over
+    {
+        return;
+    }
+    let card_inst = match engine.runtime_played_card {
+        Some(card_inst) => card_inst,
+        None => return,
+    };
+    if card_inst.flags & crate::combat_types::CardInstance::FLAG_PURGE != 0
+        || engine.state.player.status(sid::AMPLIFY) <= 0
+    {
+        return;
+    }
+
+    // AmplifyPower queues one purge-on-use same-instance copy, consumes one
+    // charge per original Power card, and therefore cannot recurse on its copy.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/AmplifyPower.java
+    engine.state.player.add_status(sid::AMPLIFY, -1);
+    let card = engine.card_registry.card_def_by_id(card_inst.def_id).clone();
+    engine.execute_card_effects_with_enemy_on_use(&card, card_inst, event.target_idx);
+}
+
+fn hook_duplication(
+    engine: &mut CombatEngine,
+    owner: EffectOwner,
+    event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    if owner != EffectOwner::PlayerPower {
+        return;
+    }
+
+    if event.kind == Trigger::RoundEnd {
+        // DuplicationPower.atEndOfRound removes one unused charge, unlike
+        // Double Tap/Burst which remove their entire power at player turn end.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DuplicationPower.java
+        engine.state.player.add_status(sid::DUPLICATION, -1);
+        return;
+    }
+
+    if !engine.runtime_replay_window
+        || event.kind != Trigger::OnCardPlayedPost
+        || engine.state.combat_over
+    {
+        return;
+    }
+
+    let card_inst = match engine.runtime_played_card {
+        Some(card_inst) => card_inst,
+        None => return,
+    };
+    if card_inst.flags & crate::combat_types::CardInstance::FLAG_PURGE != 0
+        || engine.state.player.status(sid::DUPLICATION) <= 0
+    {
+        return;
+    }
+
+    // DuplicationPower.onUseCard copies every non-purge card type once, then
+    // consumes exactly one charge. The replay copy is purge-on-use, so it must
+    // not recursively consume another charge.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DuplicationPower.java
+    engine.state.player.add_status(sid::DUPLICATION, -1);
+    let card = engine.card_registry.card_def_by_id(card_inst.def_id).clone();
+    engine.execute_card_effects_with_enemy_on_use(&card, card_inst, event.target_idx);
 }
 
 fn hook_echo_form(
@@ -279,21 +470,24 @@ fn hook_echo_form(
         None => return,
     };
 
-    let card_type = match event.card_type {
-        Some(card_type) => card_type,
-        None => return,
-    };
-    if card_type == crate::cards::CardType::Power {
-        return;
-    }
-
     let echo_count = player_power_amount(engine, owner, sid::ECHO_FORM);
-    if echo_count <= 0 || engine.state.cards_played_this_turn > echo_count {
+    let card = engine.card_registry.card_def_by_id(card_inst.def_id).clone();
+    // EchoPower.onUseCard accepts every non-purge card type, including Powers.
+    // Echo Form's own ApplyPowerAction is not installed until after its
+    // onUseCard window, so discount the stack added by the current card when
+    // deciding whether a previously absent/existing EchoPower should replay it.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/EchoPower.java
+    // Java: reference/extracted/methods/card/EchoForm.java
+    let active_echo_count = if matches!(card.id, "Echo Form" | "Echo Form+") {
+        echo_count - 1
+    } else {
+        echo_count
+    };
+    if active_echo_count <= 0 || engine.state.cards_played_this_turn > active_echo_count {
         return;
     }
 
-    let card = engine.card_registry.card_def_by_id(card_inst.def_id).clone();
-    crate::card_effects::execute_card_effects(engine, &card, card_inst, event.target_idx);
+    engine.execute_card_effects_with_enemy_on_use(&card, card_inst, event.target_idx);
 }
 
 // ===========================================================================
@@ -340,14 +534,74 @@ pub static DEF_BURST: EntityDef = EntityDef {
     id: "burst",
     name: "Burst",
     kind: EntityKind::Power,
-    triggers: &[TriggeredEffect {
-        trigger: Trigger::OnSkillPlayed,
-        condition: TriggerCondition::Always,
-        effects: &[],
-        counter: None,
-    }],
+    triggers: &[
+        TriggeredEffect {
+            trigger: Trigger::OnSkillPlayed,
+            condition: TriggerCondition::Always,
+            effects: &[],
+            counter: None,
+        },
+        TriggeredEffect {
+            trigger: Trigger::TurnEnd,
+            condition: TriggerCondition::Always,
+            effects: &[],
+            counter: None,
+        },
+    ],
     complex_hook: Some(hook_burst),
     status_guard: Some(sid::BURST),
+};
+
+// ===========================================================================
+// Amplify — replays the next one/two non-purge Power cards this turn
+// ===========================================================================
+
+pub static DEF_AMPLIFY: EntityDef = EntityDef {
+    id: "amplify",
+    name: "Amplify",
+    kind: EntityKind::Power,
+    triggers: &[
+        TriggeredEffect {
+            trigger: Trigger::OnCardPlayedPost,
+            condition: TriggerCondition::Always,
+            effects: &[],
+            counter: None,
+        },
+        TriggeredEffect {
+            trigger: Trigger::TurnEnd,
+            condition: TriggerCondition::Always,
+            effects: &[],
+            counter: None,
+        },
+    ],
+    complex_hook: Some(hook_amplify),
+    status_guard: Some(sid::AMPLIFY),
+};
+
+// ===========================================================================
+// Duplication — replays the next card and loses one unused charge each round
+// ===========================================================================
+
+pub static DEF_DUPLICATION: EntityDef = EntityDef {
+    id: "duplication",
+    name: "Duplication",
+    kind: EntityKind::Power,
+    triggers: &[
+        TriggeredEffect {
+            trigger: Trigger::OnCardPlayedPost,
+            condition: TriggerCondition::Always,
+            effects: &[],
+            counter: None,
+        },
+        TriggeredEffect {
+            trigger: Trigger::RoundEnd,
+            condition: TriggerCondition::Always,
+            effects: &[],
+            counter: None,
+        },
+    ],
+    complex_hook: Some(hook_duplication),
+    status_guard: Some(sid::DUPLICATION),
 };
 
 // ===========================================================================
@@ -371,8 +625,13 @@ pub static DEF_FLAME_BARRIER: EntityDef = EntityDef {
     id: "flame_barrier",
     name: "Flame Barrier",
     kind: EntityKind::Power,
-    triggers: &[],
-    complex_hook: Some(hook_noop),
+    triggers: &[TriggeredEffect {
+        trigger: Trigger::TurnStart,
+        condition: TriggerCondition::Always,
+        effects: &[],
+        counter: None,
+    }],
+    complex_hook: Some(hook_flame_barrier),
     status_guard: Some(sid::FLAME_BARRIER),
 };
 
@@ -440,7 +699,11 @@ pub static DEF_PANACHE: EntityDef = EntityDef {
     kind: EntityKind::Power,
     triggers: &[
         TriggeredEffect {
-            trigger: Trigger::OnUseCard,
+            // Panache's ApplyPowerAction is queued before UseCardAction, so a
+            // newly played Panache is installed in time to count itself and a
+            // stacked Panache contributes its new damage to this same play.
+            // Java: cards/colorless/Panache.java and powers/PanachePower.java.
+            trigger: Trigger::OnCardPlayedPost,
             condition: TriggerCondition::Always,
             effects: &[],
             counter: None,
@@ -526,7 +789,7 @@ mod tests {
     #[test]
     fn test_complex_have_empty_triggers() {
         // These remaining hook-only powers still have no declarative trigger surface.
-        let defs = [&DEF_THORNS, &DEF_FLAME_BARRIER, &DEF_STATIC_DISCHARGE];
+        let defs = [&DEF_THORNS, &DEF_STATIC_DISCHARGE];
         for def in &defs {
             assert!(
                 def.triggers.is_empty(),
@@ -534,6 +797,11 @@ mod tests {
                 def.id
             );
         }
+
+        // FlameBarrierPower has inline onAttacked handling plus a runtime
+        // atStartOfTurn removal hook.
+        assert_eq!(DEF_FLAME_BARRIER.triggers.len(), 1);
+        assert_eq!(DEF_FLAME_BARRIER.triggers[0].trigger, Trigger::TurnStart);
     }
 }
 

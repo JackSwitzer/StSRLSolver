@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // Dramatic Entrance: 0 cost, 8 dmg AoE, innate, exhaust
+    // DramaticEntrance.java is innate, costs 0, exhausts, and deals 8
+    // multiDamage to every enemy; upgradeDamage(4) is its only upgrade.
+    // Java: reference/extracted/methods/card/DramaticEntrance.java
     insert(cards, CardDef {
         id: "Dramatic Entrance", name: "Dramatic Entrance", card_type: CardType::Attack,
         target: CardTarget::AllEnemy, cost: 0, base_damage: 8, base_block: -1,

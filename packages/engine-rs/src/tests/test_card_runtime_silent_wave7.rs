@@ -88,7 +88,162 @@ fn silent_wave7_adrenaline_blur_and_footwork_run_on_engine_path() {
 }
 
 #[test]
+fn footwork_variants_stack_two_and_three_permanent_dexterity() {
+    // Footwork.java applies DexterityPower(this.magicNumber), initialized to
+    // two and upgraded by one. Playing both variants therefore leaves five
+    // Dexterity, which raises Defend's five Block to ten.
+    // Java: reference/extracted/methods/card/Footwork.java
+    let mut engine = one_enemy_engine("JawWorm", 50, 0);
+    engine.state.hand = make_deck(&["Footwork", "Footwork+", "Defend"]);
+
+    assert!(play_self(&mut engine, "Footwork"));
+    assert_eq!(engine.state.player.status(sid::DEXTERITY), 2);
+    assert!(play_self(&mut engine, "Footwork+"));
+    assert_eq!(engine.state.player.status(sid::DEXTERITY), 5);
+    assert!(play_self(&mut engine, "Defend"));
+    assert_eq!(engine.state.player.block, 10);
+}
+
+#[test]
+fn piercing_wail_reduces_all_unprotected_attacks_then_restores_strength() {
+    // PiercingWail.java applies StrengthPower(-8) to every monster, but its
+    // second loop skips GainStrengthPower when Artifact was present. The
+    // unprotected monster therefore attacks at reduced Strength before
+    // GainStrengthPower.java restores it at the end of the monster turn.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![
+            enemy("JawWorm", 50, 50, 1, 10, 1),
+            enemy("Cultist", 50, 50, 1, 10, 1),
+        ],
+        1,
+    );
+    force_player_turn(&mut engine);
+    for enemy in &mut engine.state.enemies {
+        enemy.entity.set_status(sid::STRENGTH, 4);
+    }
+    engine.state.enemies[1].entity.set_status(sid::ARTIFACT, 1);
+    engine.state.hand = make_deck(&["Piercing Wail+"]);
+
+    assert!(play_self(&mut engine, "Piercing Wail+"));
+    assert_eq!(engine.state.energy, 0);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::STRENGTH), -4);
+    assert_eq!(
+        engine.state.enemies[0]
+            .entity
+            .status(sid::TEMP_STRENGTH_LOSS),
+        8
+    );
+    assert_eq!(engine.state.enemies[1].entity.status(sid::ARTIFACT), 0);
+    assert_eq!(engine.state.enemies[1].entity.status(sid::STRENGTH), 4);
+    assert_eq!(
+        engine.state.enemies[1]
+            .entity
+            .status(sid::TEMP_STRENGTH_LOSS),
+        0
+    );
+    assert_eq!(exhaust_prefix_count(&engine, "Piercing Wail"), 1);
+
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.hp, 60,
+        "unprotected enemy deals 10-4 while Artifact enemy deals 10+4");
+    assert_eq!(engine.state.enemies[0].entity.status(sid::STRENGTH), 4);
+    assert_eq!(
+        engine.state.enemies[0]
+            .entity
+            .status(sid::TEMP_STRENGTH_LOSS),
+        0
+    );
+}
+
+#[test]
+fn poisoned_stab_deals_damage_before_applying_source_poison() {
+    // PoisonedStab.java queues 6 Damage then 3 Poison; upgradeDamage(2) and
+    // upgradeMagicNumber(1) make those 8 and 4. ApplyPowerAction means Artifact
+    // blocks only Poison, and DamageAction cancels the queued power on lethal.
+    let mut stacked = one_enemy_engine("JawWorm", 40, 0);
+    stacked.state.hand = make_deck(&["Poisoned Stab", "Poisoned Stab+"]);
+    assert!(play_on_enemy(&mut stacked, "Poisoned Stab", 0));
+    assert!(play_on_enemy(&mut stacked, "Poisoned Stab+", 0));
+    assert_eq!(stacked.state.enemies[0].entity.hp, 26);
+    assert_eq!(stacked.state.enemies[0].entity.status(sid::POISON), 7);
+    assert_eq!(stacked.state.energy, 1);
+
+    let mut artifact = one_enemy_engine("JawWorm", 20, 0);
+    artifact.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+    artifact.state.hand = make_deck(&["Poisoned Stab+"]);
+    assert!(play_on_enemy(&mut artifact, "Poisoned Stab+", 0));
+    assert_eq!(artifact.state.enemies[0].entity.hp, 12);
+    assert_eq!(artifact.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+    assert_eq!(artifact.state.enemies[0].entity.status(sid::POISON), 0);
+
+    let mut lethal = one_enemy_engine("JawWorm", 6, 0);
+    lethal.state.hand = make_deck(&["Poisoned Stab"]);
+    assert!(play_on_enemy(&mut lethal, "Poisoned Stab", 0));
+    assert_eq!(lethal.state.enemies[0].entity.hp, 0);
+    assert_eq!(lethal.state.enemies[0].entity.status(sid::POISON), 0,
+        "lethal DamageAction clears the queued ApplyPowerAction");
+}
+
+#[test]
+fn predator_stacks_shared_next_turn_draw_after_nonlethal_damage() {
+    // Predator.java queues 15 Damage then DrawCardNextTurnPower(2); upgrade
+    // changes only damage to 20. DrawCardNextTurnPower.java stacks under the
+    // single "Draw Card" ID, draws after the normal five, then removes itself.
+    let mut stacked = one_enemy_engine("JawWorm", 100, 0);
+    stacked.state.energy = 4;
+    stacked.state.hand = make_deck(&["Predator", "Predator+"]);
+    stacked.state.draw_pile = make_deck_n("Defend", 20);
+
+    assert!(play_on_enemy(&mut stacked, "Predator", 0));
+    assert!(play_on_enemy(&mut stacked, "Predator+", 0));
+    assert_eq!(stacked.state.enemies[0].entity.hp, 65);
+    assert_eq!(stacked.state.player.status(sid::DRAW_CARD), 4);
+    assert_eq!(stacked.state.energy, 0);
+
+    end_turn(&mut stacked);
+    assert_eq!(stacked.state.hand.len(), 9,
+        "normal five-card draw is followed by four Draw Card stacks");
+    assert_eq!(stacked.state.player.status(sid::DRAW_CARD), 0);
+
+    let mut lethal = one_enemy_engine("JawWorm", 15, 0);
+    lethal.state.hand = make_deck(&["Predator"]);
+    assert!(play_on_enemy(&mut lethal, "Predator", 0));
+    assert_eq!(lethal.state.enemies[0].entity.hp, 0);
+    assert_eq!(lethal.state.player.status(sid::DRAW_CARD), 0,
+        "lethal DamageAction clears the queued ApplyPowerAction");
+}
+
+#[test]
+fn blur_does_not_decrement_during_vaults_skipped_enemy_round() {
+    // Sources: Blur.java installs one BlurPower; GameActionManager.java skips
+    // monsters.applyEndOfTurnPowers() under Vault but still checks Blur before
+    // start-of-turn block loss.
+    let mut engine = one_enemy_engine("JawWorm", 50, 0);
+    engine.state.energy = 10;
+    engine.state.hand = make_deck(&["Blur", "Vault"]);
+
+    assert!(play_self(&mut engine, "Blur"));
+    assert_eq!(engine.state.player.block, 5);
+    assert_eq!(engine.state.player.status(sid::BLUR), 1);
+    assert!(play_self(&mut engine, "Vault"));
+
+    assert_eq!(engine.state.player.block, 5);
+    assert_eq!(engine.state.player.status(sid::BLUR), 1);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.block, 5);
+    assert_eq!(engine.state.player.status(sid::BLUR), 0);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.block, 0);
+}
+
+#[test]
 fn silent_wave7_prepared_uses_draw_then_discard_choice_on_engine_path() {
+    // Prepared.java queues DrawCardAction before DiscardAction and upgrades
+    // magicNumber from one to two.
     let mut engine = one_enemy_engine("JawWorm", 50, 0);
     engine.state.draw_pile = make_deck(&["Strike", "Defend", "Neutralize"]);
     engine.state.hand = make_deck(&["Prepared+", "Survivor"]);
@@ -117,4 +272,23 @@ fn silent_wave7_prepared_uses_draw_then_discard_choice_on_engine_path() {
     assert_eq!(engine.state.player.status(sid::DISCARDED_THIS_TURN), 2);
     assert_eq!(engine.state.hand.len(), 1);
     assert_eq!(engine.state.discard_pile.len(), 3);
+}
+
+#[test]
+fn prepared_auto_discards_the_whole_short_hand_without_a_choice() {
+    // DiscardAction.java lines 46-59 discard the entire hand directly when
+    // hand.size() <= amount and trigger manual-discard bookkeeping per card.
+    let mut engine = one_enemy_engine("JawWorm", 50, 0);
+    engine.state.draw_pile.clear();
+    engine.state.discard_pile.clear();
+    engine.state.hand = make_deck(&["Prepared+", "Survivor"]);
+
+    assert!(play_self(&mut engine, "Prepared+"));
+
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert!(engine.choice.is_none());
+    assert!(engine.state.hand.is_empty());
+    assert_eq!(engine.state.player.status(sid::DISCARDED_THIS_TURN), 1);
+    assert_eq!(discard_prefix_count(&engine, "Survivor"), 1);
+    assert_eq!(discard_prefix_count(&engine, "Prepared"), 1);
 }

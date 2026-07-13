@@ -11,7 +11,8 @@ pub static DEF: EntityDef = EntityDef {
     name: "Pen Nib",
     kind: EntityKind::Relic,
     triggers: &[],
-    // Pen Nib's counter + double damage is handled in the damage pipeline.
+    // Source: reference/extracted/methods/relic/PenNib.java. Its persistent
+    // counter plus active double damage are handled in the damage pipeline.
     // It cannot be pure declarative because it modifies the active attack's
     // damage multiplier rather than emitting a follow-up effect.
     complex_hook: None,

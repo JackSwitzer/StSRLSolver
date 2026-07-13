@@ -1021,10 +1021,16 @@ fn decision_action_sort_key(action: &DecisionAction) -> (u8, i32, i32, i32) {
         DecisionAction::SkipRewardItem { item_index } => (5, *item_index as i32, 0, 0),
         DecisionAction::CampfireRest => (6, 0, 0, 0),
         DecisionAction::CampfireUpgrade(idx) => (7, *idx as i32, 0, 0),
+        DecisionAction::CampfireToke => (7, i32::MAX, 0, 0),
+        DecisionAction::CampfireLift => (7, i32::MAX - 1, 0, 0),
+        DecisionAction::CampfireDig => (7, i32::MAX - 2, 0, 0),
         DecisionAction::ShopBuyCard(idx) => (8, *idx as i32, 0, 0),
-        DecisionAction::ShopRemoveCard(idx) => (9, *idx as i32, 0, 0),
-        DecisionAction::ShopLeave => (10, 0, 0, 0),
-        DecisionAction::EventChoice(idx) => (11, *idx as i32, 0, 0),
+        DecisionAction::ShopBuyRelic(idx) => (9, *idx as i32, 0, 0),
+        DecisionAction::ShopBuyPotion(idx) => (10, *idx as i32, 0, 0),
+        DecisionAction::ShopRemoveCard(idx) => (11, *idx as i32, 0, 0),
+        DecisionAction::ShopLeave => (12, 0, 0, 0),
+        DecisionAction::EventChoice(idx) => (13, *idx as i32, 0, 0),
+        DecisionAction::UsePotion(idx) => (14, *idx as i32, 0, 0),
     }
 }
 
@@ -1100,6 +1106,10 @@ pub(crate) fn combat_state_hash(engine: &CombatEngine) -> u64 {
     engine.state.player_won.hash(&mut hasher);
     engine.state.cards_played_this_turn.hash(&mut hasher);
     engine.state.attacks_played_this_turn.hash(&mut hasher);
+    engine
+        .state
+        .power_cards_played_this_combat
+        .hash(&mut hasher);
     engine.state.total_damage_dealt.hash(&mut hasher);
     engine.state.total_damage_taken.hash(&mut hasher);
     engine.state.total_cards_played.hash(&mut hasher);
@@ -1112,6 +1122,7 @@ pub(crate) fn combat_state_hash(engine: &CombatEngine) -> u64 {
     engine.state.draw_pile.hash(&mut hasher);
     engine.state.discard_pile.hash(&mut hasher);
     engine.state.exhaust_pile.hash(&mut hasher);
+    engine.state.master_deck.hash(&mut hasher);
     engine.state.potions.hash(&mut hasher);
     engine.state.relics.hash(&mut hasher);
     engine.state.relic_counters.hash(&mut hasher);
@@ -1132,6 +1143,7 @@ pub(crate) fn combat_state_hash(engine: &CombatEngine) -> u64 {
         enemy.move_history.hash(&mut hasher);
         enemy.first_turn.hash(&mut hasher);
         enemy.is_escaping.hash(&mut hasher);
+        enemy.is_minion.hash(&mut hasher);
         format!("{:?}", enemy.intent).hash(&mut hasher);
     }
     hasher.finish()
@@ -1157,6 +1169,7 @@ pub(crate) fn run_state_hash(engine: &RunEngine) -> u64 {
     engine.run_state.run_won.hash(&mut hasher);
     engine.run_state.run_over.hash(&mut hasher);
     engine.run_state.deck.hash(&mut hasher);
+    engine.run_state.deck_card_states.hash(&mut hasher);
     engine.run_state.relics.hash(&mut hasher);
     engine.run_state.potions.hash(&mut hasher);
     engine.run_state.combats_won.hash(&mut hasher);

@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Cold Snap: 1 cost, 6 dmg, channel 1 Frost
+        // Source: cards/blue/ColdSnap.java queues 6 damage then one Frost;
+        // upgradeDamage(3) leaves the channel count unchanged.
     insert(cards, CardDef {
                 id: "Cold Snap", name: "Cold Snap", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 6, base_block: -1,

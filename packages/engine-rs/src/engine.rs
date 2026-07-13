@@ -60,6 +60,7 @@ pub enum ChoiceReason {
     ForethoughtPick,
     RecycleCard,
     DiscardForEffect,
+    RetainFromHand,
     SetupPick,
     PlayCardFreeFromDraw,
 }
@@ -82,6 +83,21 @@ pub struct NamedChoicePayload {
     pub amount: i32,
 }
 
+/// Card effects queued behind an interactive ScryAction. Java keeps later
+/// actions pending until the Scry choice resolves; Just Lucky uses block then
+/// damage in that order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DeferredScryCardEffects {
+    pub card_inst: CardInstance,
+    pub target_idx: i32,
+    pub x_value: i32,
+    pub pen_nib_active: bool,
+    pub vigor: i32,
+    pub hand_size_at_play: usize,
+    pub gain_block: bool,
+    pub deal_damage: bool,
+}
+
 /// Context for an in-progress player choice.
 #[derive(Debug, Clone)]
 pub struct ChoiceContext {
@@ -99,6 +115,12 @@ pub struct ChoiceContext {
     /// Optional post-choice draw handoff owned by the choice itself.
     /// Burning Pact uses this to draw after the exhaust choice resolves.
     pub post_choice_draw: i32,
+    /// Optional block/damage actions queued after a Scry choice.
+    pub deferred_scry_card_effects: Option<DeferredScryCardEffects>,
+    /// Reboot's ShuffleAllAction sequence queued behind Melange's ScryAction.
+    pub deferred_shuffle_all_draw: Option<i32>,
+    /// Optional stance action queued behind an interactive card choice.
+    pub deferred_stance: Option<Stance>,
     /// Optional per-option payload for named choices like Wish.
     pub named_payloads: Option<Vec<NamedChoicePayload>>,
     /// Optional post-selection cost rule for generated-card choices.
@@ -107,6 +129,9 @@ pub struct ChoiceContext {
     pub returned_card_cost_override: Option<i8>,
     /// Whether cards returned from discard should be marked retained.
     pub retain_returned_cards: bool,
+    /// Codex-style generated choice: add the selection to a random draw-pile
+    /// position instead of the hand.
+    pub generated_to_draw: bool,
 }
 
 /// The Rust combat engine. Wraps CombatState + card registry + RNG.
@@ -116,6 +141,14 @@ pub struct CombatEngine {
     pub phase: CombatPhase,
     pub card_registry: &'static CardRegistry,
     pub(crate) rng: crate::seed::StsRandom,
+    /// Java's `AbstractDungeon.cardRandomRng`, used by random card placement
+    /// and card-owned random choices. RunEngine seeds this with seed + floor.
+    pub(crate) card_random_rng: crate::seed::StsRandom,
+    /// Java's `AbstractDungeon.potionRng`, used by random potion generation.
+    pub(crate) potion_rng: crate::seed::StsRandom,
+    /// Java's `AbstractDungeon.miscRng`, used by Lesson Learned and event-style
+    /// miscellaneous selections. It is also seeded with seed + floor.
+    pub(crate) misc_rng: crate::seed::StsRandom,
     /// Per-combat enemy AI RNG. Java uses `AbstractDungeon.aiRng` consumed once per
     /// `AbstractMonster.rollMove()` and passed as `num` to `getMove(int num)` for
     /// probabilistic intent branching (JawWorm, Chosen, ~20+ enemies). Kept separate
@@ -124,11 +157,22 @@ pub struct CombatEngine {
     pub choice: Option<ChoiceContext>,
     pub effect_runtime: crate::effects::runtime::EffectRuntime,
     pub(crate) nightmare_pending_copies: Vec<(CardInstance, usize)>,
+    /// Omniscience autoplay items paired with the runtime-stack depth of the
+    /// parent card whose action queue owns them.
+    pub(crate) omniscience_autoplay: Vec<(CardInstance, usize)>,
     pub event_log: Vec<crate::effects::runtime::GameEventRecord>,
     pub runtime_played_card: Option<CardInstance>,
     pub(crate) runtime_play_target_idx: Option<i32>,
-    pub(crate) runtime_play_stack: Vec<(CardInstance, i32)>,
+    pub(crate) runtime_play_stack: Vec<(CardInstance, i32, bool)>,
+    /// UseCardAction.reboundCard for the active card-resolution frame.
+    pub(crate) runtime_rebound_card: bool,
     pub runtime_replay_window: bool,
+    /// Raw energyOnUse captured for the current X-cost card. Necronomicon's
+    /// queued copy reuses this value without spending energy a second time.
+    pub(crate) runtime_last_x_energy_on_use: i32,
+    pub(crate) runtime_x_energy_override: Option<i32>,
+    pub(crate) pending_combat_start_resume: bool,
+    pub(crate) pending_end_turn_resume: bool,
     pub runtime_card_total_unblocked_damage: i32,
     pub runtime_card_enemy_killed: bool,
 }
@@ -136,6 +180,14 @@ pub struct CombatEngine {
 impl CombatEngine {
     /// Create a new combat engine.
     pub fn new(state: CombatState, seed: u64) -> Self {
+        Self::new_with_card_random_seed(state, seed, seed)
+    }
+
+    pub(crate) fn new_with_card_random_seed(
+        state: CombatState,
+        seed: u64,
+        card_random_seed: u64,
+    ) -> Self {
         let mut effect_runtime = crate::effects::runtime::EffectRuntime::default();
         effect_runtime.rebuild_from_state(&state);
         Self {
@@ -143,6 +195,9 @@ impl CombatEngine {
             phase: CombatPhase::NotStarted,
             card_registry: crate::cards::global_registry(),
             rng: crate::seed::StsRandom::new(seed),
+            card_random_rng: crate::seed::StsRandom::new(card_random_seed),
+            potion_rng: crate::seed::StsRandom::new(card_random_seed),
+            misc_rng: crate::seed::StsRandom::new(card_random_seed),
             // ai_rng seeded distinctly so it is not perturbed by re-seeds of `rng`
             // when callers replay a snapshot. Mirrors Java's separate dungeon-level
             // `aiRng` distinct from `cardRandomRng`/`shuffleRng`.
@@ -150,11 +205,17 @@ impl CombatEngine {
             choice: None,
             effect_runtime,
             nightmare_pending_copies: Vec::new(),
+            omniscience_autoplay: Vec::new(),
             event_log: Vec::new(),
             runtime_played_card: None,
             runtime_play_target_idx: None,
             runtime_play_stack: Vec::new(),
+            runtime_rebound_card: false,
             runtime_replay_window: false,
+            runtime_last_x_energy_on_use: 0,
+            runtime_x_energy_override: None,
+            pending_combat_start_resume: false,
+            pending_end_turn_resume: false,
             runtime_card_total_unblocked_damage: 0,
             runtime_card_enemy_killed: false,
         }
@@ -167,13 +228,17 @@ impl CombatEngine {
     /// RNG stream counters currently tracked by this combat, keyed by the
     /// vault's canonical short names (`docs/vault/rng-system-analysis.md`).
     /// Used by `bin/trace_replay.rs` (U05) to populate `trace::PostState::rng`.
-    /// Only `card` (catch-all combat RNG) and `ai` (enemy-intent RNG,
-    /// `AbstractDungeon.aiRng`) are tracked as distinct streams today; other
-    /// canonical keys are simply absent until threaded (schema tolerates
-    /// this via `BTreeMap`).
+    /// The currently threaded card, cardRandom, misc, and enemy-AI streams are
+    /// reported independently; absent canonical streams remain schema-legal.
     pub fn rng_counters(&self) -> std::collections::BTreeMap<String, u64> {
         let mut counters = std::collections::BTreeMap::new();
         counters.insert("card".to_string(), self.rng.counter as u64);
+        counters.insert(
+            "cardRandom".to_string(),
+            self.card_random_rng.counter as u64,
+        );
+        counters.insert("potion".to_string(), self.potion_rng.counter as u64);
+        counters.insert("misc".to_string(), self.misc_rng.counter as u64);
         counters.insert("ai".to_string(), self.ai_rng.counter as u64);
         counters
     }
@@ -211,20 +276,26 @@ impl CombatEngine {
 
     fn begin_runtime_play_context(&mut self, card_inst: CardInstance, target_idx: i32) {
         if let Some(current) = self.runtime_played_card {
-            self.runtime_play_stack
-                .push((current, self.runtime_play_target_idx.unwrap_or(-1)));
+            self.runtime_play_stack.push((
+                current,
+                self.runtime_play_target_idx.unwrap_or(-1),
+                self.runtime_rebound_card,
+            ));
         }
         self.runtime_played_card = Some(card_inst);
         self.runtime_play_target_idx = Some(target_idx);
+        self.runtime_rebound_card = false;
     }
 
     fn finish_runtime_play_context(&mut self) {
-        if let Some((card_inst, target_idx)) = self.runtime_play_stack.pop() {
+        if let Some((card_inst, target_idx, rebound_card)) = self.runtime_play_stack.pop() {
             self.runtime_played_card = Some(card_inst);
             self.runtime_play_target_idx = Some(target_idx);
+            self.runtime_rebound_card = rebound_card;
         } else {
             self.runtime_played_card = None;
             self.runtime_play_target_idx = None;
+            self.runtime_rebound_card = false;
         }
     }
 
@@ -232,6 +303,12 @@ impl CombatEngine {
         self.runtime_played_card = None;
         self.runtime_play_target_idx = None;
         self.runtime_play_stack.clear();
+        self.runtime_rebound_card = false;
+        self.omniscience_autoplay.clear();
+    }
+
+    pub(crate) fn rebound_current_card(&mut self) {
+        self.runtime_rebound_card = true;
     }
 
     pub fn hidden_effect_value(
@@ -243,37 +320,94 @@ impl CombatEngine {
         self.effect_runtime.hidden_value(def_id, owner, slot)
     }
 
+    pub(crate) fn set_hidden_effect_value(
+        &mut self,
+        def_id: &str,
+        owner: crate::effects::runtime::EffectOwner,
+        slot: usize,
+        value: i32,
+    ) -> bool {
+        self.effect_runtime
+            .set_hidden_value(def_id, owner, slot, value)
+    }
+
     // =======================================================================
     // Core API
     // =======================================================================
 
     /// Start combat: apply relic effects, shuffle draw pile, draw initial hand.
     pub fn start_combat(&mut self) {
-        if self.phase != CombatPhase::NotStarted {
+        let resuming_after_choice = self.pending_combat_start_resume;
+        if self.phase != CombatPhase::NotStarted && !resuming_after_choice {
             return;
         }
 
+        if resuming_after_choice {
+            self.pending_combat_start_resume = false;
+        } else {
+
         self.rebuild_effect_runtime();
+
+        // Source: reference/extracted/methods/relic/PenNib.java
+        // Pen Nib's relic counter persists between combats; counter 9 applies
+        // its double-damage power at the next battle start.
+        if let Some(slot) = self.state.relics.iter().position(|id| id == "Pen Nib") {
+            let counter = self.hidden_effect_value(
+                "Pen Nib",
+                crate::effects::runtime::EffectOwner::PlayerRelic { slot: slot as u16 },
+                0,
+            );
+            self.state.player.set_status(sid::PEN_NIB_COUNTER, counter);
+        }
+
+        // Source: extracted FungiBeast/LouseNormal/LouseDefensive methods and
+        // methods/base/AbstractMonster.java (`init` -> `rollMove`). These
+        // monsters have no fixed opener; select it with empty move history.
+        let living_enemy_count = self.state.enemies.iter()
+            .filter(|enemy| enemy.is_alive()).count() as i32;
+        for enemy in self.state.enemies.iter_mut().filter(|e| matches!(e.id.as_str(),
+            "FungiBeast" | "FuzzyLouseNormal" | "RedLouse"
+                | "FuzzyLouseDefensive" | "GreenLouse"
+                | "SlaverBlue" | "BlueSlaver" | "SlaverRed" | "RedSlaver"
+                | "AcidSlime_S" | "AcidSlime_M" | "AcidSlime_L"
+                | "SpikeSlime_S" | "SpikeSlime_M" | "SpikeSlime_L" | "Looter"
+                | "GremlinFat" | "GremlinThief" | "GremlinWarrior"
+                | "GremlinWizard" | "GremlinTsundere" | "GremlinNob"
+                | "Lagavulin" | "Sentry" | "TheGuardian" | "Hexaghost"
+                | "SlimeBoss" | "Apology Slime" | "ApologySlime"
+                | "AwakenedOne" | "Awakened One" | "BanditBear" | "Bear"
+                | "BanditChild" | "BanditPointy" | "Pointy" | "BanditLeader"
+                | "BookOfStabbing" | "Book of Stabbing"
+                | "BronzeAutomaton" | "Bronze Automaton"
+                | "BronzeOrb" | "Bronze Orb" | "Byrd" | "Centurion"
+                | "Champ" | "TheChamp" | "Chosen" | "Mugger"
+                | "TheCollector" | "Collector" | "TorchHead" | "Torch Head"
+                | "Shelled Parasite" | "ShelledParasite"
+                | "SlaverBoss" | "TaskMaster" | "Taskmaster"
+                | "CorruptHeart" | "Corrupt Heart"
+                | "SnakeDagger" | "Snake Dagger" | "Darkling" | "Deca" | "Donu"
+                | "Exploder" | "GiantHead" | "Giant Head"
+                | "GremlinLeader" | "Gremlin Leader" | "Healer" | "Mystic"
+                | "Maw" | "Nemesis" | "OrbWalker" | "Orb Walker"
+                | "Reptomancer" | "Repulsor" | "Serpent" | "SnakePlant" | "Snecko"
+                | "SphericGuardian" | "Spheric Guardian" | "Spiker"
+                | "SpireGrowth" | "Spire Growth" | "SpireShield" | "Spire Shield"
+                | "SpireSpear" | "Spire Spear" | "TimeEater" | "Time Eater"
+                | "Transient" | "WrithingMass" | "Writhing Mass")) {
+            if enemy.id == "Centurion" {
+                enemy.entity.set_status(sid::COUNT, living_enemy_count);
+            }
+            crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
+        }
 
         // Apply combat-start relic + power effects via owner-aware runtime.
         self.emit_event(crate::effects::runtime::GameEvent::empty(
             crate::effects::trigger::Trigger::CombatStart,
         ));
-
-        // Channel orbs from combat-start relics (need engine context)
-        if self.state.player.status(sid::CHANNEL_DARK_START) > 0 {
-            self.channel_orb(crate::orbs::OrbType::Dark);
-            self.state.player.set_status(sid::CHANNEL_DARK_START, 0);
+        if self.phase == CombatPhase::AwaitingChoice {
+            self.pending_combat_start_resume = true;
+            return;
         }
-        if self.state.player.status(sid::CHANNEL_LIGHTNING_START) > 0 {
-            self.channel_orb(crate::orbs::OrbType::Lightning);
-            self.state
-                .player
-                .set_status(sid::CHANNEL_LIGHTNING_START, 0);
-        }
-        if self.state.player.status(sid::CHANNEL_PLASMA_START) > 0 {
-            self.channel_orb(crate::orbs::OrbType::Plasma);
-            self.state.player.set_status(sid::CHANNEL_PLASMA_START, 0);
         }
 
         // Shuffle draw pile
@@ -284,7 +418,9 @@ impl CombatEngine {
         let mut innate_indices = Vec::new();
         for (i, card) in self.state.draw_pile.iter().enumerate() {
             let def = self.card_registry.card_def_by_id(card.def_id);
-            if def.runtime_traits().innate {
+            if def.runtime_traits().innate
+                || card.flags & CardInstance::FLAG_INNATE != 0
+            {
                 innate_indices.push(i);
             }
         }
@@ -318,7 +454,9 @@ impl CombatEngine {
                         actions.push(Action::Choose(i));
                     }
                 }
-                if ctx.max_picks != 1 && ctx.selected.len() >= ctx.min_picks {
+                if (ctx.max_picks != 1 || ctx.min_picks == 0)
+                    && ctx.selected.len() >= ctx.min_picks
+                {
                     actions.push(Action::ConfirmSelection);
                 }
                 return actions;
@@ -337,7 +475,7 @@ impl CombatEngine {
             let card = self.card_registry.card_def_by_id(card_inst.def_id);
             if self.can_play_card_inst(card, *card_inst) {
                 match card.target {
-                    CardTarget::Enemy => {
+                    CardTarget::Enemy | CardTarget::SelfAndEnemy => {
                         for &enemy_idx in &living {
                             actions.push(Action::PlayCard {
                                 card_idx: hand_idx,
@@ -412,15 +550,24 @@ impl CombatEngine {
             phase: self.phase.clone(),
             card_registry: self.card_registry, // &'static ref — zero-cost copy
             rng: self.rng.clone(),
+            card_random_rng: self.card_random_rng.clone(),
+            potion_rng: self.potion_rng.clone(),
+            misc_rng: self.misc_rng.clone(),
             ai_rng: self.ai_rng.clone(),
             choice: self.choice.clone(),
             effect_runtime: self.effect_runtime.clone(),
             nightmare_pending_copies: self.nightmare_pending_copies.clone(),
+            omniscience_autoplay: self.omniscience_autoplay.clone(),
             event_log: self.event_log.clone(),
             runtime_played_card: self.runtime_played_card,
             runtime_play_target_idx: self.runtime_play_target_idx,
             runtime_play_stack: self.runtime_play_stack.clone(),
+            runtime_rebound_card: self.runtime_rebound_card,
             runtime_replay_window: self.runtime_replay_window,
+            runtime_last_x_energy_on_use: self.runtime_last_x_energy_on_use,
+            runtime_x_energy_override: self.runtime_x_energy_override,
+            pending_combat_start_resume: self.pending_combat_start_resume,
+            pending_end_turn_resume: self.pending_end_turn_resume,
             runtime_card_total_unblocked_damage: self.runtime_card_total_unblocked_damage,
             runtime_card_enemy_killed: self.runtime_card_enemy_killed,
         }
@@ -476,6 +623,13 @@ impl CombatEngine {
         }
     }
 
+    pub(crate) fn begin_codex_choice(&mut self, options: Vec<ChoiceOption>) {
+        self.begin_discovery_choice(options, 1, 1, 1, GeneratedCostRule::Base);
+        if let Some(choice) = self.choice.as_mut() {
+            choice.generated_to_draw = true;
+        }
+    }
+
     pub fn begin_choice_with_aux(
         &mut self,
         reason: ChoiceReason,
@@ -512,10 +666,14 @@ impl CombatEngine {
             aux_count,
             action,
             post_choice_draw: 0,
+            deferred_scry_card_effects: None,
+            deferred_shuffle_all_draw: None,
+            deferred_stance: None,
             named_payloads: None,
             generated_selected_cost_rule: None,
             returned_card_cost_override: None,
             retain_returned_cards: false,
+            generated_to_draw: false,
         });
     }
 
@@ -551,6 +709,11 @@ impl CombatEngine {
             Some(c) => c,
             None => return,
         };
+        let deferred_stance = ctx.deferred_stance;
+        // Choice-owned autoplay (Omniscience, Havoc-style free play) must run
+        // through the ordinary card pipeline, which may itself open a nested
+        // choice. The prior choice has already been consumed at this point.
+        self.phase = CombatPhase::PlayerTurn;
 
         match ctx.action {
             Some(ChoiceAction::StoreCardForNextTurnCopies) => self.resolve_nightmare(ctx),
@@ -572,6 +735,7 @@ impl CombatEngine {
                 ChoiceReason::ForethoughtPick => self.resolve_forethought(ctx),
                 ChoiceReason::RecycleCard => self.resolve_recycle(ctx),
                 ChoiceReason::DiscardForEffect => self.resolve_discard_for_effect(ctx),
+                ChoiceReason::RetainFromHand => self.resolve_retain_from_hand(ctx),
                 ChoiceReason::SetupPick => self.resolve_setup(ctx),
                 ChoiceReason::PlayCardFreeFromDraw => self.resolve_play_card_free_from_draw(ctx),
             },
@@ -581,17 +745,42 @@ impl CombatEngine {
             return;
         }
 
-        self.phase = CombatPhase::PlayerTurn;
+        if let Some(stance) = deferred_stance {
+            self.change_stance(stance);
+        }
+
         if self.state.combat_over {
             self.clear_runtime_play_contexts();
             return;
         }
-        if self.runtime_played_card.is_some() {
-            self.resume_played_card_tail_from_runtime();
+        if self.pending_combat_start_resume {
+            self.start_combat();
+            return;
+        }
+        if self.pending_end_turn_resume {
+            self.end_turn();
+            return;
+        }
+        self.drive_choice_owned_runtime();
+    }
+
+    fn drive_choice_owned_runtime(&mut self) {
+        while self.phase == CombatPhase::PlayerTurn && !self.state.combat_over {
+            if self.play_ready_omniscience_autoplay() {
+                continue;
+            }
+            if self.runtime_played_card.is_some() {
+                self.resume_played_card_tail_from_runtime();
+                continue;
+            }
+            break;
         }
     }
 
     fn resolve_scry(&mut self, ctx: ChoiceContext) {
+        let post_choice_draw = ctx.post_choice_draw;
+        let deferred_card_effects = ctx.deferred_scry_card_effects;
+        let deferred_shuffle_all_draw = ctx.deferred_shuffle_all_draw;
         // Selected indices are cards to discard from the revealed set.
         // The revealed cards were taken from top of draw pile and stored as options.
         // Non-selected go back on top of draw pile, selected go to discard.
@@ -614,28 +803,84 @@ impl CombatEngine {
             self.state.discard_pile.push(card);
         }
 
-        // Nirvana: gain block when scrying
-        let nirvana = self.state.player.status(sid::NIRVANA);
-        if nirvana > 0 {
-            self.gain_block_player(nirvana);
-        }
-
-        // Weave: return from discard to hand on Scry
-        let mut weave_indices = Vec::new();
-        for (i, card_inst) in self.state.discard_pile.iter().enumerate() {
-            if self
-                .card_registry
-                .card_name(card_inst.def_id)
-                .starts_with("Weave")
-            {
-                weave_indices.push(i);
+        // Weave normally queues DiscardToHandAction during ScryAction. With
+        // Reboot, that action is queued behind the already-present shuffle and
+        // therefore finds no card in discard; do not return Weave early here.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Weave.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/DiscardToHandAction.java
+        if deferred_shuffle_all_draw.is_none() {
+            let mut weave_indices = Vec::new();
+            for (i, card_inst) in self.state.discard_pile.iter().enumerate() {
+                if self
+                    .card_registry
+                    .card_name(card_inst.def_id)
+                    .starts_with("Weave")
+                {
+                    weave_indices.push(i);
+                }
             }
-        }
-        for &i in weave_indices.iter().rev() {
-            let card = self.state.discard_pile.remove(i);
-            if self.state.hand.len() < 10 {
+            for &i in weave_indices.iter().rev() {
+                // DiscardToHandAction leaves the card in discard when the hand is
+                // full; it never removes and destroys the card.
+                if self.state.hand.len() >= 10 {
+                    break;
+                }
+                let card = self.state.discard_pile.remove(i);
                 self.state.hand.push(card);
             }
+        }
+
+        // ShuffleAllAction's constructor queues Melange's ScryAction before
+        // Reboot's ShuffleAllAction itself is added to the action manager. The
+        // revealed cards must therefore finish returning to draw/discard before
+        // Reboot gathers and shuffles every pile.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ShuffleAllAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Melange.java
+        if let Some(draw_count) = deferred_shuffle_all_draw {
+            self.continue_shuffle_all_and_draw(draw_count);
+        }
+
+        // CutThroughFate.java queues DrawCardAction(1) after ScryAction, so the
+        // draw cannot occur until this choice has finished resolving.
+        if post_choice_draw > 0 {
+            self.draw_cards(post_choice_draw);
+        }
+        if let Some(deferred) = deferred_card_effects {
+            self.resolve_deferred_scry_card_effects(deferred);
+        }
+    }
+
+    fn resolve_deferred_scry_card_effects(&mut self, deferred: DeferredScryCardEffects) {
+        let card = self
+            .card_registry
+            .card_def_by_id(deferred.card_inst.def_id)
+            .clone();
+        if deferred.gain_block && card.base_block >= 0 {
+            let dex = self.state.player.dexterity();
+            let frail = self.state.player.is_frail();
+            let block = crate::damage::calculate_block(card.base_block, dex, frail);
+            self.gain_block_player(block);
+        }
+        if deferred.deal_damage {
+            let mut ctx = crate::effects::types::CardPlayContext {
+                card: &card,
+                card_inst: deferred.card_inst,
+                target_idx: deferred.target_idx,
+                x_value: deferred.x_value,
+                pen_nib_active: deferred.pen_nib_active,
+                vigor: deferred.vigor,
+                total_unblocked_damage: 0,
+                enemy_killed: false,
+                hand_size_at_play: deferred.hand_size_at_play,
+                last_bulk_count: 0,
+                last_drawn_card_types: Vec::new(),
+                deferred_manual_discards: Vec::new(),
+            };
+            crate::card_effects::execute_primary_attack(
+                self,
+                &mut ctx,
+                crate::effects::declarative::Target::SelectedEnemy,
+            );
         }
     }
 
@@ -712,6 +957,26 @@ impl CombatEngine {
         }
     }
 
+    fn resolve_retain_from_hand(&mut self, ctx: ChoiceContext) {
+        for option_idx in ctx.selected {
+            let Some(ChoiceOption::HandCard(hand_idx)) = ctx.options.get(option_idx)
+            else {
+                continue;
+            };
+            let hand_idx = *hand_idx;
+            if hand_idx >= self.state.hand.len() {
+                continue;
+            }
+            let card = self.card_registry.card_def_by_id(self.state.hand[hand_idx].def_id);
+            // RetainCardsAction permits selecting Ethereal cards but does not
+            // set their retain flag, so they still exhaust later this turn.
+            // Java: actions/unique/RetainCardsAction.java.
+            if !card.runtime_traits().ethereal {
+                self.state.hand[hand_idx].set_retained(true);
+            }
+        }
+    }
+
     fn resolve_pick_from_discard(&mut self, ctx: ChoiceContext) {
         if let Some(&sel) = ctx.selected.first() {
             if let ChoiceOption::DiscardCard(idx) = ctx.options[sel] {
@@ -771,7 +1036,19 @@ impl CombatEngine {
                         &mut card,
                         selected_cost_rule,
                     );
-                    if self.state.hand.len() < 10 {
+                    if ctx.generated_to_draw {
+                        if self.state.draw_pile.is_empty() {
+                            self.state.draw_pile.push(card);
+                        } else {
+                            // CardGroup.addToRandomSpot uses cardRandomRng and
+                            // inserts before one existing index.
+                            let index = self
+                                .card_random_rng
+                                .random((self.state.draw_pile.len() - 1) as i32)
+                                as usize;
+                            self.state.draw_pile.insert(index, card);
+                        }
+                    } else if self.state.hand.len() < 10 {
                         self.state.hand.push(card);
                     } else {
                         self.state.discard_pile.push(card);
@@ -798,7 +1075,7 @@ impl CombatEngine {
                                 .set_status(status, current + payload.amount);
                         }
                         NamedOptionKind::GainRunGold => {
-                            self.state.pending_run_gold += payload.amount.max(0);
+                            self.gain_run_gold(payload.amount);
                         }
                         NamedOptionKind::SetStance(stance) => {
                             self.change_stance(stance);
@@ -833,13 +1110,22 @@ impl CombatEngine {
                 if idx < self.state.hand.len() {
                     let card = self.state.hand[idx];
                     let copies = ctx.aux_count.max(1);
-                    for _ in 0..copies {
-                        if self.state.hand.len() >= 10 {
-                            break;
-                        }
-                        self.state.hand.push(card);
-                    }
+                    self.add_dual_wield_copies(card, copies);
                 }
+            }
+        }
+    }
+
+    pub(crate) fn add_dual_wield_copies(&mut self, card: CardInstance, copies: usize) {
+        // DualWieldAction queues one MakeTempCardInHandAction per copy. That
+        // action puts copies beyond the ten-card hand limit in the discard pile.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DualWieldAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
+        for _ in 0..copies {
+            if self.state.hand.len() < 10 {
+                self.state.hand.push(card);
+            } else {
+                self.state.discard_pile.push(card);
             }
         }
     }
@@ -849,13 +1135,33 @@ impl CombatEngine {
         if let Some(&sel) = ctx.selected.first() {
             if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
                 if idx < self.state.hand.len() {
-                    let mut card = self.state.hand[idx];
-                    card.reset_cost_for_turn();
-                    card.flags &= !CardInstance::FLAG_FREE;
-                    let copies = ctx.aux_count.max(1);
-                    self.nightmare_pending_copies.push((card, copies));
+                    self.store_nightmare_copies(
+                        self.state.hand[idx],
+                        ctx.aux_count.max(1),
+                    );
                 }
             }
+        }
+    }
+
+    pub(crate) fn store_nightmare_copies(&mut self, mut card: CardInstance, copies: usize) {
+        // NightmarePower stores makeStatEquivalentCopy().resetAttributes():
+        // permanent cost, upgrade, misc and freeToPlayOnce survive, while
+        // transient retain/purge/exhaust flags do not.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NightmarePower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/AbstractCard.java
+        card.reset_cost_for_turn();
+        card.flags &= CardInstance::FLAG_UPGRADED
+            | CardInstance::FLAG_FREE
+            | CardInstance::FLAG_INNATE;
+
+        // ApplyPowerAction stacks another NightmarePower with the same ID onto
+        // the existing power. AbstractPower.stackPower increases amount but
+        // leaves the first power's stored card unchanged.
+        if let Some((_, pending_copies)) = self.nightmare_pending_copies.first_mut() {
+            *pending_copies += copies;
+        } else {
+            self.nightmare_pending_copies.push((card, copies));
         }
     }
 
@@ -864,7 +1170,7 @@ impl CombatEngine {
         if let Some(&sel) = ctx.selected.first() {
             if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
                 if idx < self.state.hand.len() {
-                    self.state.hand[idx].flags |= 0x04; // UPGRADED flag
+                    self.card_registry.upgrade_card(&mut self.state.hand[idx]);
                 }
             }
         }
@@ -891,12 +1197,12 @@ impl CombatEngine {
                     self.state.hand[idx].cost = 0;
                     self.state.hand[idx].flags |= crate::combat_types::CardInstance::FLAG_FREE;
                     // Play it (target -1 = self; for targeted cards MCTS will handle)
-                    let target = if self
-                        .card_registry
-                        .card_def_by_id(self.state.hand[idx].def_id)
-                        .target
-                        == CardTarget::Enemy
-                    {
+                    let target = if matches!(
+                        self.card_registry
+                            .card_def_by_id(self.state.hand[idx].def_id)
+                            .target,
+                        CardTarget::Enemy | CardTarget::SelfAndEnemy
+                    ) {
                         self.state
                             .targetable_enemy_indices()
                             .first()
@@ -912,68 +1218,114 @@ impl CombatEngine {
     }
 
     fn resolve_play_card_free_from_draw(&mut self, ctx: ChoiceContext) {
-        // Omniscience: move selected card from draw pile to hand, play it for free,
-        // then add a copy at cost 0 to hand (MCTS approximation of "play it twice").
+        // OmniscienceAction removes the selected original from draw, forces it
+        // to exhaust, then queues the original plus one purge-on-use stat copy.
+        // Both are autoplayed with random targets and no energy payment.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/OmniscienceAction.java
         if let Some(&sel) = ctx.selected.first() {
             if let ChoiceOption::DrawCard(idx) = ctx.options[sel] {
-                if idx < self.state.draw_pile.len() && self.state.hand.len() < 10 {
+                if idx < self.state.draw_pile.len() {
                     let mut card = self.state.draw_pile.remove(idx);
                     card.cost = 0;
-                    card.flags |= crate::combat_types::CardInstance::FLAG_FREE;
-                    // Keep a copy before playing (play_card may exhaust/discard it)
-                    let copy = card;
-                    self.state.hand.push(card);
-                    let hand_idx = self.state.hand.len() - 1;
-                    let target = if self
-                        .card_registry
-                        .card_def_by_id(self.state.hand[hand_idx].def_id)
-                        .target
-                        == CardTarget::Enemy
-                    {
-                        self.state
-                            .targetable_enemy_indices()
-                            .first()
-                            .copied()
-                            .unwrap_or(0) as i32
-                    } else {
-                        -1
-                    };
-                    self.play_card(hand_idx, target);
-                    // Add a cost-0 copy to hand (second play, MCTS lets agent decide when)
-                    if self.state.hand.len() < 10 {
-                        let mut second = copy;
-                        second.cost = 0;
-                        second.flags |= crate::combat_types::CardInstance::FLAG_FREE;
-                        self.state.hand.push(second);
-                    }
+                    card.flags |= CardInstance::FLAG_FREE
+                        | CardInstance::FLAG_EXHAUST_ON_USE
+                        | CardInstance::FLAG_AUTOPLAY;
+                    let mut purge_copy = card;
+                    purge_copy.flags |= CardInstance::FLAG_PURGE;
+                    let parent_depth = self.runtime_play_stack.len();
+                    self.omniscience_autoplay.push((card, parent_depth));
+                    self.omniscience_autoplay
+                        .push((purge_copy, parent_depth));
                 }
             }
         }
     }
 
+    fn play_ready_omniscience_autoplay(&mut self) -> bool {
+        let depth = self.runtime_play_stack.len();
+        let Some(queue_idx) = self
+            .omniscience_autoplay
+            .iter()
+            .position(|(_, parent_depth)| *parent_depth == depth)
+        else {
+            return false;
+        };
+        let (card, _) = self.omniscience_autoplay.remove(queue_idx);
+        let def = self.card_registry.card_def_by_id(card.def_id).clone();
+        let target = if matches!(def.target, CardTarget::Enemy | CardTarget::SelfAndEnemy) {
+            let living = self.state.targetable_enemy_indices();
+            if living.is_empty() {
+                -1
+            } else {
+                // NewQueueCardAction(randomTarget=true) asks MonsterGroup for a
+                // random living target on each queued play, consuming
+                // cardRandomRng even when only one target exists.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+                let selected = self
+                    .card_random_rng
+                    .random_range(0, (living.len() - 1) as i32) as usize;
+                living[selected] as i32
+            }
+        } else {
+            -1
+        };
+
+        if !self.can_play_card_inst(&def, card) {
+            if card.flags & CardInstance::FLAG_PURGE == 0
+                && card.flags & CardInstance::FLAG_EXHAUST_ON_USE != 0
+            {
+                self.state.exhaust_pile.push(card);
+                self.trigger_card_on_exhaust(card);
+            }
+            return true;
+        }
+
+        // Autoplay cards live outside the hand in Java. Push only for the
+        // duration of the ordinary Rust play pipeline; play_card removes it
+        // before hand-sensitive effects and hooks execute.
+        self.state.hand.push(card);
+        let hand_idx = self.state.hand.len() - 1;
+        self.play_card(hand_idx, target);
+        true
+    }
+
     fn resolve_search_draw_pile(&mut self, ctx: ChoiceContext) {
-        // Secret Weapon / Secret Technique: move selected card from draw pile to hand
-        let mut indices: Vec<usize> = ctx
+        // BetterDrawPileToHandAction moves cards in selection order and sends
+        // each overflow card to discard. Secret Weapon/Technique use the same
+        // movement rule for their single selection.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/BetterDrawPileToHandAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/AttackFromDeckToHandAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/SkillFromDeckToHandAction.java
+        let selected_cards: Vec<(usize, CardInstance)> = ctx
             .selected
             .iter()
-            .filter_map(|&i| {
-                if let ChoiceOption::DrawCard(idx) = ctx.options[i] {
-                    Some(idx)
+            .filter_map(|&choice_index| {
+                if let ChoiceOption::DrawCard(draw_index) = ctx.options[choice_index] {
+                    self.state
+                        .draw_pile
+                        .get(draw_index)
+                        .copied()
+                        .map(|card| (draw_index, card))
                 } else {
                     None
                 }
             })
             .collect();
+        let mut indices: Vec<usize> = selected_cards
+            .iter()
+            .map(|(draw_index, _)| *draw_index)
+            .collect();
         indices.sort_unstable_by(|a, b| b.cmp(a));
         for idx in indices {
             if idx < self.state.draw_pile.len() {
-                if self.state.hand.len() == 10 {
-                    let card = self.state.draw_pile.remove(idx);
-                    self.state.discard_pile.push(card);
-                } else {
-                    let card = self.state.draw_pile.remove(idx);
-                    self.state.hand.push(card);
-                }
+                self.state.draw_pile.remove(idx);
+            }
+        }
+        for (_, card) in selected_cards {
+            if self.state.hand.len() >= 10 {
+                self.state.discard_pile.push(card);
+            } else {
+                self.state.hand.push(card);
             }
         }
     }
@@ -1007,9 +1359,7 @@ impl CombatEngine {
     }
 
     fn resolve_forethought(&mut self, ctx: ChoiceContext) {
-        // Forethought: put selected card(s) on bottom of draw pile at 0 cost
-        // Convention: last = top (pop draws), index 0 = bottom
-        let mut indices: Vec<usize> = ctx
+        let indices: Vec<usize> = ctx
             .selected
             .iter()
             .filter_map(|&i| {
@@ -1020,47 +1370,201 @@ impl CombatEngine {
                 }
             })
             .collect();
-        indices.sort_unstable_by(|a, b| b.cmp(a));
-        for idx in indices {
-            if idx < self.state.hand.len() {
-                let mut card = self.state.hand.remove(idx);
-                card.cost = 0;
-                self.state.draw_pile.insert(0, card); // bottom of draw pile
+        self.move_forethought_cards_to_bottom(&indices);
+    }
+
+    pub(crate) fn increase_all_claw_damage(&mut self, amount: i32) {
+        // GashAction mutates the played card, then Claws in discard, draw, and
+        // hand. It deliberately excludes exhaust and cards created later.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/GashAction.java
+        let registry = &self.card_registry;
+        let increase = |card: &mut CardInstance| {
+            let def = registry.card_def_by_id(card.def_id);
+            if !matches!(def.id, "Gash" | "Gash+") {
+                return;
             }
+            let current = if card.misc >= 0 {
+                card.misc as i32
+            } else {
+                def.base_damage
+            };
+            card.misc = (current + amount).max(0).min(i16::MAX as i32) as i16;
+        };
+
+        if let Some(card) = self.runtime_played_card.as_mut() {
+            increase(card);
+        }
+        for card in &mut self.state.discard_pile {
+            increase(card);
+        }
+        for card in &mut self.state.draw_pile {
+            increase(card);
+        }
+        for card in &mut self.state.hand {
+            increase(card);
+        }
+    }
+
+    pub(crate) fn sync_genetic_algorithm_master_deck(
+        &mut self,
+        before: CardInstance,
+        next_block: i16,
+    ) {
+        // IncreaseMiscAction updates both the combat instance and the matching
+        // UUID in AbstractDungeon.player.masterDeck. CardInstance has no UUID,
+        // but equal same-definition/misc copies are behaviorally interchangeable,
+        // so updating one matching member preserves the exact state multiset.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/IncreaseMiscAction.java
+        let def = self.card_registry.card_def_by_id(before.def_id);
+        let previous_block = if before.misc >= 0 {
+            before.misc
+        } else {
+            def.base_block.max(0) as i16
+        };
+        if let Some(card) = self.state.master_deck.iter_mut().find(|card| {
+            if card.def_id != before.def_id {
+                return false;
+            }
+            let current = if card.misc >= 0 {
+                card.misc
+            } else {
+                def.base_block.max(0) as i16
+            };
+            current == previous_block
+        }) {
+            card.misc = next_block;
+        }
+    }
+
+    pub(crate) fn sync_ritual_dagger_master_deck(
+        &mut self,
+        before: CardInstance,
+        next_damage: i16,
+    ) {
+        // RitualDaggerAction matches the played card's UUID in masterDeck and
+        // raises that persistent card's misc/baseDamage. CardInstance has no
+        // UUID, but equal same-definition/misc copies are behaviorally
+        // interchangeable, so updating one matching member preserves the
+        // exact master-deck state multiset.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/
+        // RitualDaggerAction.java
+        let def = self.card_registry.card_def_by_id(before.def_id);
+        let previous_damage = if before.misc >= 0 {
+            before.misc
+        } else {
+            def.base_damage.max(0) as i16
+        };
+        if let Some(card) = self.state.master_deck.iter_mut().find(|card| {
+            if card.def_id != before.def_id {
+                return false;
+            }
+            let current = if card.misc >= 0 {
+                card.misc
+            } else {
+                def.base_damage.max(0) as i16
+            };
+            current == previous_damage
+        }) {
+            card.misc = next_damage;
+        }
+    }
+
+    pub(crate) fn move_forethought_cards_to_bottom(&mut self, indices: &[usize]) {
+        // HandCardSelectScreen.addToTop preserves click order, and each
+        // moveToBottomOfDeck inserts at index zero. Capture the selected cards
+        // before removing them so that both selection order and duplicate card
+        // definitions are preserved.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ForethoughtAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
+        let selected: Vec<CardInstance> = indices
+            .iter()
+            .filter_map(|&index| self.state.hand.get(index).copied())
+            .collect();
+        let mut removal_indices: Vec<usize> = indices
+            .iter()
+            .copied()
+            .filter(|&index| index < self.state.hand.len())
+            .collect();
+        removal_indices.sort_unstable_by(|left, right| right.cmp(left));
+        removal_indices.dedup();
+        for index in removal_indices {
+            self.state.hand.remove(index);
+        }
+
+        for mut card in selected {
+            let def = self.card_registry.card_def_by_id(card.def_id);
+            let permanent_cost = if card.base_cost >= 0 {
+                card.base_cost
+            } else {
+                def.cost as i8
+            };
+            if permanent_cost > 0 {
+                card.flags |= CardInstance::FLAG_FREE;
+            }
+            // Convention: last = top (pop draws), index 0 = bottom.
+            self.state.draw_pile.insert(0, card);
         }
     }
 
     fn resolve_recycle(&mut self, ctx: ChoiceContext) {
-        // Recycle: exhaust selected card, gain its cost as energy
         if let Some(&sel) = ctx.selected.first() {
             if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
-                if idx < self.state.hand.len() {
-                    let card = self.state.hand.remove(idx);
-                    // cost == -1 means "use CardDef base cost"
-                    let effective_cost = if card.cost >= 0 {
-                        card.cost as i32
-                    } else {
-                        self.card_registry.card_def_by_id(card.def_id).cost.max(0)
-                    };
-                    self.state.energy += effective_cost;
-                    self.state.exhaust_pile.push(card);
-                    self.trigger_card_on_exhaust(card);
-                }
+                self.recycle_hand_card(idx);
             }
         }
     }
 
+    pub(crate) fn recycle_hand_card(&mut self, idx: usize) {
+        if idx >= self.state.hand.len() {
+            return;
+        }
+        let card = self.state.hand.remove(idx);
+        let def = self.card_registry.card_def_by_id(card.def_id);
+        let cost_for_turn = if card.cost >= 0 {
+            card.cost as i32
+        } else {
+            def.cost
+        };
+        // RecycleAction grants current EnergyPanel energy for an X-cost card;
+        // ordinary cards grant positive costForTurn and zero/negative costs
+        // grant nothing. Capture and grant before exhaust hooks resolve.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/RecycleAction.java
+        let energy_gain = if cost_for_turn == -1 {
+            self.state.energy
+        } else {
+            cost_for_turn.max(0)
+        };
+        self.state.energy += energy_gain;
+        self.state.exhaust_pile.push(card);
+        self.trigger_card_on_exhaust(card);
+    }
+
     fn resolve_setup(&mut self, ctx: ChoiceContext) {
-        // Setup: set card cost to 0 and put on top of draw pile (last = top)
         if let Some(&sel) = ctx.selected.first() {
             if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
-                if idx < self.state.hand.len() {
-                    let mut card = self.state.hand.remove(idx);
-                    card.cost = 0;
-                    self.state.draw_pile.push(card);
-                }
+                self.move_setup_card_to_top(idx);
             }
         }
+    }
+
+    pub(crate) fn move_setup_card_to_top(&mut self, idx: usize) {
+        if idx >= self.state.hand.len() {
+            return;
+        }
+        let mut card = self.state.hand.remove(idx);
+        let def = self.card_registry.card_def_by_id(card.def_id);
+        let permanent_cost = if card.base_cost >= 0 {
+            card.base_cost
+        } else {
+            def.cost as i8
+        };
+        if permanent_cost > 0 {
+            card.flags |= CardInstance::FLAG_FREE;
+        }
+        // moveToDeck(card, false) adds to the top; last = top in Rust.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/SetupAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/Soul.java
+        self.state.draw_pile.push(card);
     }
 
     fn resolve_discard_for_effect(&mut self, ctx: ChoiceContext) {
@@ -1101,18 +1605,21 @@ impl CombatEngine {
         self.phase = CombatPhase::PlayerTurn;
         self.rebuild_effect_runtime();
 
-        // Blasphemy: die at start of turn
+        // Blasphemy delayed death.
+        // Java: powers/watcher/EndTurnDeathPower.java queues LoseHPAction(99999),
+        // which runs through AbstractPlayer.damage(HP_LOSS): Intangible caps to
+        // 1, Buffer can reduce that to 0, Tungsten Rod applies to remaining HP
+        // loss, and ordinary death/revival hooks still run.
         if self.state.blasphemy_active {
             self.state.blasphemy_active = false;
-            self.state.player.hp = 0;
-            self.state.combat_over = true;
-            self.state.player_won = false;
-            self.phase = CombatPhase::CombatOver;
-            self.choice = None;
-            return;
+            self.player_lose_hp_from_damage(99_999);
+            if self.state.combat_over {
+                return;
+            }
         }
 
-        // Reset energy — Ice Cream preserves unspent energy
+        // EnergyManager.java::recharge calls addEnergy(energyMaster) with Ice
+        // Cream, preserving unspent energy instead of resetting to the master amount.
         if self.state.has_relic("Ice Cream") || self.state.has_relic("IceCream") {
             self.state.energy += self.state.max_energy;
         } else {
@@ -1147,6 +1654,13 @@ impl CombatEngine {
             replay_window: false,
         });
 
+        // WrathNextTurnPower.atStartOfTurn changes stance before normal draw.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/WrathNextTurnPower.java
+        if self.state.player.status(sid::WRATH_NEXT_TURN) > 0 {
+            self.state.player.set_status(sid::WRATH_NEXT_TURN, 0);
+            self.change_stance(Stance::Wrath);
+        }
+
         self.flush_pending_nightmare_copies();
 
         // Divinity auto-exit at start of turn
@@ -1154,7 +1668,7 @@ impl CombatEngine {
             self.change_stance(Stance::Neutral);
         }
 
-        // Block decay — Calipers retains up to 15, Barricade retains all
+        // Block decay — Calipers loses 15 instead of all; Barricade retains all.
         // Skip block reset on turn 1 to preserve combat-start relic effects (Anchor)
         if self.state.turn > 1 {
             let barricade = self.state.player.status(sid::BARRICADE) > 0;
@@ -1172,14 +1686,29 @@ impl CombatEngine {
                     0
                 };
             }
-            // Blur: decrement after use (Java: BlurPower is turn-based, decrements at end of round)
-            if blur {
+            // GameActionManager checks Blur for block retention before queued
+            // atEndOfRound reduction resolves. Vault skips that entire
+            // applyEndOfTurnPowers pass, so it must retain without decrementing.
+            // Sources: GameActionManager.java and powers/BlurPower.java.
+            if blur && !self.state.skip_enemy_turn {
                 let blur_val = self.state.player.status(sid::BLUR);
                 self.state
                     .player
                     .set_status(sid::BLUR, (blur_val - 1).max(0));
             }
         }
+
+        // The skip marker must survive through the Blur/block-loss check above,
+        // but applies to exactly one enemy round.
+        self.state.skip_enemy_turn = false;
+
+        // NextTurnBlockPower.atStartOfTurn queues GainBlockAction followed by
+        // removal of the power. GameActionManager clears the previous turn's
+        // block before that queued gain resolves, so this block belongs to the
+        // new turn and the stacked power is consumed exactly once.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NextTurnBlockPower.java
+        let next_turn_block = powers::consume_next_turn_block(&mut self.state.player);
+        self.gain_block_player(next_turn_block);
 
         // LoseStrength/LoseDexterity at end of the previous turn.
         // Turn 1 has no "previous turn", so combat-start temporary strength
@@ -1197,13 +1726,12 @@ impl CombatEngine {
             }
         }
 
-        // Biased Cognition: lose Focus at start of each turn
+        // BiasPower.java applies a negative FocusPower at turn start. Because
+        // that FocusPower is a DEBUFF, a later Artifact can block each tick.
+        // Source: powers/BiasPower.java and powers/FocusPower.java.
         let bias_loss = self.state.player.status(sid::BIASED_COG_FOCUS_LOSS);
         if bias_loss > 0 {
-            let current_focus = self.state.player.focus();
-            self.state
-                .player
-                .set_status(sid::FOCUS, current_focus - bias_loss);
+            powers::apply_debuff(&mut self.state.player, sid::FOCUS, -bias_loss);
         }
 
         // === POWER HOOKS handled by the owner-aware TurnStart event above:
@@ -1223,6 +1751,24 @@ impl CombatEngine {
             }
         }
 
+        // LoopPower.atStartOfTurn calls both callbacks on the front orb once
+        // per stack. GameActionManager clears old block synchronously after
+        // invoking powers but before their queued actions resolve, so Loop's
+        // Frost Block belongs to the new turn and cannot protect the intervening
+        // enemy turn.
+        // Java: powers/LoopPower.java and actions/GameActionManager.java.
+        let loop_count = self.state.player.status(sid::LOOP).max(0);
+        for _ in 0..loop_count {
+            self.apply_front_orb_start_of_turn_passive();
+            if self.state.combat_over {
+                return;
+            }
+            self.apply_front_orb_end_of_turn_passive();
+            if self.state.combat_over {
+                return;
+            }
+        }
+
         // ---- Start-of-turn orb passives (Plasma) ----
         self.apply_orb_start_of_turn();
 
@@ -1235,19 +1781,48 @@ impl CombatEngine {
             }
         }
 
-        // Collect: add Miracle cards to hand before draw, matching Java onEnergyRecharge timing.
+        // CollectPower.onEnergyRecharge: add exactly one upgraded Miracle before
+        // draw, then decrement the turn-based power by one.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/CollectPower.java
         {
             let miracles = self.state.player.status(sid::COLLECT_MIRACLES);
             if miracles > 0 {
-                self.add_temp_cards_to_hand("Miracle", miracles);
-                self.state.player.set_status(sid::COLLECT_MIRACLES, 0);
+                self.add_temp_cards_to_hand("Miracle+", 1);
+                self.state
+                    .player
+                    .set_status(sid::COLLECT_MIRACLES, miracles - 1);
             }
         }
 
-        // Draw cards (default 5 + Draw/Machine Learning power + Ring of the Serpent)
+        // Java GameActionManager queues relic atTurnStart actions before its
+        // DrawCardAction; they resolve after the synchronous old-block clear.
+        // Source: GameActionManager.java and AbstractPlayer.applyStartOfTurnRelics.
+        self.emit_event(crate::effects::runtime::GameEvent {
+            kind: crate::effects::trigger::Trigger::TurnStartPreDraw,
+            card_type: None,
+            card_inst: None,
+            is_first_turn: self.state.turn == 1,
+            target_idx: -1,
+            enemy_idx: -1,
+            potion_slot: -1,
+            status_id: None,
+            amount: 0,
+            replay_window: false,
+        });
+
+        // Draw cards. SneckoEye.java raises masterHandSize by two for every
+        // turn; DrawReductionPower lowers gameHandSize by exactly one while
+        // present. It does not alter card-effect DrawCardActions.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DrawReductionPower.java
         let ml = self.state.player.status(sid::DRAW);
         let serpent = self.state.player.status(sid::RING_OF_SERPENT_DRAW);
-        self.draw_cards(5 + ml + serpent);
+        let snecko_eye = if self.state.player.status(sid::SNECKO_EYE) > 0 {
+            2
+        } else {
+            0
+        };
+        let draw_reduction = i32::from(self.state.player.status(sid::DRAW_REDUCTION) > 0);
+        self.draw_cards(5 + ml + serpent + snecko_eye - draw_reduction);
 
         // TurnStartExtraDraw: one-shot extra draw from relics (Bag of Prep, etc.)
         let extra_draw = self.state.player.status(sid::TURN_START_EXTRA_DRAW);
@@ -1261,6 +1836,16 @@ impl CombatEngine {
         if ink_draw > 0 {
             self.draw_cards(ink_draw);
             self.state.player.set_status(sid::INK_BOTTLE_DRAW, 0);
+        }
+
+        // DrawCardNextTurnPower.atStartOfTurnPostDraw stacks its amount, draws,
+        // then removes itself. This runs before ordinary post-draw powers such
+        // as Foresight because Draw Card has priority 20.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DrawCardNextTurnPower.java
+        let next_turn_draw = self.state.player.status(sid::DRAW_CARD);
+        if next_turn_draw > 0 {
+            self.draw_cards(next_turn_draw);
+            self.state.player.set_status(sid::DRAW_CARD, 0);
         }
 
         // ---- Post-draw power effects (complex powers not in EntityDefs) ----
@@ -1290,16 +1875,6 @@ impl CombatEngine {
             }
         }
 
-        // Simmering Fury: enter Wrath + draw cards (one-shot)
-        {
-            let sf = self.state.player.status(sid::SIMMERING_FURY);
-            if sf > 0 {
-                self.change_stance(Stance::Wrath);
-                self.draw_cards(sf);
-                self.state.player.set_status(sid::SIMMERING_FURY, 0);
-            }
-        }
-
         // Late post-draw runtime hooks (starter relics / turn-start relic setup).
         self.emit_event(crate::effects::runtime::GameEvent {
             kind: crate::effects::trigger::Trigger::TurnStartPostDrawLate,
@@ -1315,22 +1890,114 @@ impl CombatEngine {
         });
     }
 
+    pub(crate) fn schedule_the_bomb(&mut self, turns: i32, damage: i32) {
+        self.state
+            .pending_bombs
+            .push((turns as i16, damage as i16));
+        self.sync_the_bomb_statuses();
+    }
+
+    fn sync_the_bomb_statuses(&mut self) {
+        let damage = self
+            .state
+            .pending_bombs
+            .iter()
+            .map(|(_, damage)| i32::from(*damage))
+            .sum();
+        let turns = self
+            .state
+            .pending_bombs
+            .iter()
+            .map(|(turns, _)| i32::from(*turns))
+            .min()
+            .unwrap_or(0);
+        self.state.player.set_status(sid::THE_BOMB, damage);
+        self.state.player.set_status(sid::THE_BOMB_TURNS, turns);
+    }
+
+    fn resolve_the_bombs_at_end_of_turn(&mut self) {
+        let bombs = std::mem::take(&mut self.state.pending_bombs);
+        let mut remaining = smallvec::SmallVec::new();
+
+        // TheBombPower.atEndOfTurn queues ReducePowerAction first and queues a
+        // source-less THORNS DamageAllEnemiesAction when the old amount was one.
+        // Every application has a unique ID, so process each countdown alone.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/TheBombPower.java
+        for (turns, damage) in bombs {
+            let next_turns = turns - 1;
+            if next_turns > 0 {
+                remaining.push((next_turns, damage));
+                continue;
+            }
+
+            for target in self.state.living_enemy_indices() {
+                self.deal_thorns_damage_to_enemy(target, i32::from(damage));
+            }
+            if self.check_combat_end() {
+                break;
+            }
+        }
+
+        self.state.pending_bombs = remaining;
+        self.sync_the_bomb_statuses();
+    }
+
     pub(crate) fn end_turn(&mut self) {
         if self.phase != CombatPhase::PlayerTurn {
             return;
         }
-        self.rebuild_effect_runtime();
+        if self.pending_end_turn_resume {
+            self.pending_end_turn_resume = false;
+        } else {
+            self.rebuild_effect_runtime();
 
-        // Clear Entangled (only lasts one turn)
-        self.state.player.set_status(sid::ENTANGLED, 0);
+            // Clear Entangled (only lasts one turn)
+            self.state.player.set_status(sid::ENTANGLED, 0);
 
-        // ---- STS end-of-turn order: relics -> powers/buffs -> status cards -> discard ----
+            // ---- STS end-of-turn order: relics -> powers/buffs -> status cards -> discard ----
 
-        // Unified dispatch for end-of-turn relics + powers
-        self.emit_event(crate::effects::runtime::GameEvent::empty(
-            crate::effects::trigger::Trigger::TurnEnd,
-        ));
+            // Unified dispatch for end-of-turn relics + powers
+            self.emit_event(crate::effects::runtime::GameEvent::empty(
+                crate::effects::trigger::Trigger::TurnEnd,
+            ));
+            if self.phase == CombatPhase::AwaitingChoice {
+                self.pending_end_turn_resume = true;
+                return;
+            }
 
+            // RetainCardPower queues an optional up-to-amount hand selection
+            // unless Runic Pyramid or Equilibrium already retains the hand.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RetainCardPower.java
+            // and actions/unique/RetainCardsAction.java.
+            let retain_amount = self.state.player.status(sid::RETAIN_CARDS).max(0) as usize;
+            let pyramid = self.state.has_relic("Runic Pyramid")
+                || self.state.has_relic("RunicPyramid");
+            if retain_amount > 0
+                && !self.state.hand.is_empty()
+                && !pyramid
+                && self.state.player.status(sid::EQUILIBRIUM) == 0
+            {
+                let options = (0..self.state.hand.len())
+                    .map(ChoiceOption::HandCard)
+                    .collect();
+                self.begin_choice(
+                    ChoiceReason::RetainFromHand,
+                    options,
+                    0,
+                    retain_amount.min(self.state.hand.len()),
+                );
+                if self.phase == CombatPhase::AwaitingChoice {
+                    self.pending_end_turn_resume = true;
+                    return;
+                }
+            }
+        }
+
+        if self.state.combat_over {
+            return;
+        }
+
+        self.resolve_the_bombs_at_end_of_turn();
         if self.state.combat_over {
             return;
         }
@@ -1347,24 +2014,8 @@ impl CombatEngine {
             }
         }
 
-        // TempStrengthLoss: restore temporary Strength loss on all enemies at end of turn
-        for ei in 0..self.state.enemies.len() {
-            if self.state.enemies[ei].is_alive() {
-                let tsl = self.state.enemies[ei]
-                    .entity
-                    .status(sid::TEMP_STRENGTH_LOSS);
-                if tsl > 0 {
-                    self.state.enemies[ei].entity.add_status(sid::STRENGTH, tsl);
-                    self.state.enemies[ei]
-                        .entity
-                        .set_status(sid::TEMP_STRENGTH_LOSS, 0);
-                }
-            }
-        }
-
         // 3. End-of-turn hand card triggers (Burn, Decay, Regret, Doubt, Shame)
-        let player_died =
-            status_effects::process_end_turn_hand_cards(&mut self.state, &self.card_registry);
+        let player_died = status_effects::process_end_turn_hand_cards(self);
         if player_died {
             self.phase = CombatPhase::CombatOver;
             return;
@@ -1372,6 +2023,8 @@ impl CombatEngine {
 
         // 4. Discard hand — Runic Pyramid keeps ALL cards in hand (including Status/Curse).
         //    Only Ethereal cards exhaust at end of turn regardless of Runic Pyramid.
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/actions/common/
+        // DiscardAtEndOfTurnAction.java skips DiscardAction with "Runic Pyramid".
         let _explicitly_retained = std::mem::take(&mut self.state.retained_cards);
         let mut ethereal_exhausted = 0i32;
         if self.state.has_relic("Runic Pyramid") || self.state.has_relic("RunicPyramid") {
@@ -1384,9 +2037,10 @@ impl CombatEngine {
                     self.state.exhaust_pile.push(card_inst);
                     ethereal_exhausted += 1;
                 } else {
-                    let mut retained_inst = card_inst;
-                    retained_inst.set_retained(true);
-                    kept.push(retained_inst);
+                    // Runic Pyramid keeps cards without setting Java's retain
+                    // or selfRetain flags. That distinction matters to
+                    // EstablishmentPowerAction.
+                    kept.push(card_inst);
                 }
             }
             // Track retained cards for Establishment cost reduction
@@ -1394,22 +2048,37 @@ impl CombatEngine {
             self.state.hand = kept;
         } else {
             // Normal: retain tagged cards + explicitly retained (FLAG_RETAINED), exhaust ethereal, discard rest
-            // Equilibrium / Well-Laid Plans: retain entire hand
-            let retain_all = self.state.player.status(sid::RETAIN_HAND_FLAG) > 0;
-            if retain_all {
+            // EquilibriumPower.atEndOfTurn tags every non-Ethereal card for
+            // retention. Its amount is reduced only at end of round, so
+            // stacked copies can retain the hand for multiple rounds.
+            // Java: powers/EquilibriumPower.java::atEndOfTurn/atEndOfRound.
+            let retain_flag = self.state.player.status(sid::RETAIN_HAND_FLAG) > 0;
+            let retain_all = retain_flag || self.state.player.status(sid::EQUILIBRIUM) > 0;
+            if retain_flag {
                 self.state.player.set_status(sid::RETAIN_HAND_FLAG, 0);
             }
             let hand = std::mem::take(&mut self.state.hand);
             let mut retained = Vec::new();
             for card_inst in hand {
                 let card = self.card_registry.card_def_by_id(card_inst.def_id);
-                if retain_all || card.runtime_traits().retain || card_inst.is_retained() {
+                // DiscardAtEndOfTurnAction first moves explicitly retained and
+                // self-retaining cards to limbo, then calls
+                // triggerOnEndOfPlayerTurn on the cards still in hand. Thus an
+                // explicit retain can save Ethereal, but Equilibrium's blanket
+                // discard suppression cannot.
+                // Java: actions/common/DiscardAtEndOfTurnAction.java and
+                // cards/AbstractCard.java::triggerOnEndOfPlayerTurn.
+                if card.runtime_traits().retain || card_inst.is_retained() {
                     let mut retained_inst = card_inst;
                     retained_inst.set_retained(true);
                     retained.push(retained_inst);
                 } else if card.runtime_traits().ethereal {
                     self.state.exhaust_pile.push(card_inst);
                     ethereal_exhausted += 1;
+                } else if retain_all {
+                    let mut retained_inst = card_inst;
+                    retained_inst.set_retained(true);
+                    retained.push(retained_inst);
                 } else {
                     self.state.discard_pile.push(card_inst);
                 }
@@ -1444,7 +2113,7 @@ impl CombatEngine {
             // Establishment uses Java's modifyCostForCombat semantics, so the
             // retained-card discount persists across turns instead of being a
             // one-turn override that resets back to the printed cost.
-            if establishment > 0 {
+            if establishment > 0 && (card_def.runtime_traits().retain || card_inst.is_retained()) {
                 let current_cost = if card_inst.cost >= 0 {
                     card_inst.cost
                 } else {
@@ -1462,11 +2131,15 @@ impl CombatEngine {
                     .player
                     .add_status(sid::PERSEVERANCE_BONUS, perseverance_bonus);
             }
-            if windmill_bonus > 0 {
-                self.state
-                    .player
-                    .add_status(sid::WINDMILL_STRIKE_BONUS, windmill_bonus);
-            }
+            debug_assert_eq!(windmill_bonus, 0);
+        }
+
+        // RestoreRetainedCardsAction clears the one-turn `retain` marker after
+        // onRetained has fired. Intrinsically self-retaining cards remain
+        // retained through their CardDef trait on subsequent turns.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/RestoreRetainedCardsAction.java
+        for card_inst in &mut self.state.hand {
+            card_inst.set_retained(false);
         }
 
         // Trigger exhaust hooks for ethereal cards exhausted at end of turn
@@ -1482,36 +2155,6 @@ impl CombatEngine {
             return;
         }
 
-        // Loop: trigger front orb passive again
-        let loop_count = self.state.player.status(sid::LOOP);
-        if loop_count > 0 && self.state.orb_slots.has_orbs() {
-            let focus = self.state.player.focus();
-            let front = &mut self.state.orb_slots.slots[0];
-            if !front.is_empty() {
-                let effect = match front.orb_type {
-                    crate::orbs::OrbType::Lightning => {
-                        let damage = front.passive_with_focus(focus);
-                        PassiveEffect::LightningDamage(damage)
-                    }
-                    crate::orbs::OrbType::Frost => {
-                        let block = front.passive_with_focus(focus);
-                        PassiveEffect::FrostBlock(block)
-                    }
-                    crate::orbs::OrbType::Dark => {
-                        let gain = front.passive_with_focus(focus);
-                        front.evoke_amount += gain;
-                        PassiveEffect::None
-                    }
-                    crate::orbs::OrbType::Plasma => PassiveEffect::PlasmaEnergy(front.base_passive),
-                    crate::orbs::OrbType::Empty => PassiveEffect::None,
-                };
-                self.apply_passive_effect(effect);
-                if self.state.combat_over {
-                    return;
-                }
-            }
-        }
-
         // Late end-of-turn runtime hooks that must happen after orb passives.
         self.emit_event(crate::effects::runtime::GameEvent::empty(
             crate::effects::trigger::Trigger::TurnEndPostOrbs,
@@ -1520,13 +2163,12 @@ impl CombatEngine {
             return;
         }
 
-        // Constricted: deal Constricted damage to player at end of turn
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/
+        // ConstrictedPower.java. Its end-of-turn DamageInfo is THORNS, so it
+        // passes through block, Intangible, Buffer, and Tungsten Rod.
         let constricted = self.state.player.status(sid::CONSTRICTED);
         if constricted > 0 {
-            let intangible = self.state.player.status(sid::INTANGIBLE) > 0;
-            let has_tungsten = self.state.has_relic("Tungsten Rod");
-            let hp_loss = damage::apply_hp_loss(constricted, intangible, has_tungsten);
-            self.player_lose_hp(hp_loss);
+            self.deal_thorns_damage_to_player(constricted);
             if self.state.combat_over {
                 return;
             }
@@ -1542,13 +2184,10 @@ impl CombatEngine {
         // Player poison tick (before enemy turns)
         let player_poison = self.state.player.status(sid::POISON);
         if player_poison > 0 {
-            let intangible = self.state.player.status(sid::INTANGIBLE) > 0;
-            let tungsten_rod = self.state.has_relic("Tungsten Rod");
-            let hp_loss = damage::apply_hp_loss(player_poison, intangible, tungsten_rod);
             // Decrement poison by 1
             let new_poison = player_poison - 1;
             self.state.player.set_status(sid::POISON, new_poison);
-            self.player_lose_hp(hp_loss);
+            self.player_lose_hp_from_damage(player_poison);
             if self.state.combat_over {
                 return;
             }
@@ -1566,11 +2205,26 @@ impl CombatEngine {
         // wasted a turn under Vault. Now we gate debuff + Intangible decrement
         // inside the same branch as the enemy-turn execution.
         if self.state.skip_enemy_turn {
-            self.state.skip_enemy_turn = false;
             // Vault skipped the enemy turn -- do NOT decrement debuffs or
             // Intangible; they persist into the next round. Matches Java.
         } else {
             combat_hooks::do_enemy_turns(self);
+
+            // GainStrengthPower ("Shackled") restores temporary enemy Strength
+            // only after that monster has acted. Vault skips the entire
+            // monsters.applyEndOfTurnPowers pass, so the loss persists when the
+            // monster turn is skipped.
+            // Java: powers/GainStrengthPower.java::atEndOfTurn and
+            // actions/GameActionManager.java::update.
+            for enemy in &mut self.state.enemies {
+                if enemy.is_alive() {
+                    let restore = enemy.entity.status(sid::TEMP_STRENGTH_LOSS);
+                    if restore > 0 {
+                        enemy.entity.add_status(sid::STRENGTH, restore);
+                        enemy.entity.set_status(sid::TEMP_STRENGTH_LOSS, 0);
+                    }
+                }
+            }
 
             // End of round: decrement debuffs on player (enemy debuffs stick
             // one turn; the justApplied flag covers the apply-turn skip per D59).
@@ -1595,6 +2249,53 @@ impl CombatEngine {
                     .player
                     .set_status(sid::INTANGIBLE, intangible - 1);
             }
+
+            // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/
+            // GenericStrengthUpPower.java (`atEndOfRound`). Orb Walker's
+            // pre-battle power grants its stored Strength after every round.
+            for enemy in &mut self.state.enemies {
+                if enemy.is_alive() {
+                    powers::apply_generic_strength_up(&mut enemy.entity);
+                }
+            }
+        }
+
+        // Java power atEndOfRound hooks run after the enemy turn (including
+        // when Vault skips that turn), not with the player's TurnEnd hooks.
+        self.emit_event(crate::effects::runtime::GameEvent::empty(
+            crate::effects::trigger::Trigger::RoundEnd,
+        ));
+
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/SlowPower.java.
+        // Rust stores the zero-amount installed power as sentinel 1; reset its
+        // per-card amount to that sentinel after every round.
+        powers::reset_slow(&mut self.state.player);
+        for enemy in &mut self.state.enemies {
+            powers::reset_slow(&mut enemy.entity);
+        }
+
+        // EquilibriumPower is turn-based and loses exactly one stack after
+        // the enemy turn, after it has already retained the player's hand.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/EquilibriumPower.java
+        powers::decrement_equilibrium(&mut self.state.player);
+
+        // Panic Button constructs NoBlockPower with isSourceMonster=false, so
+        // atEndOfRound immediately reduces its two-turn amount. It therefore
+        // blocks gains for the rest of this turn and the next player turn.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NoBlockPower.java
+        let no_block = self.state.player.status(sid::NO_BLOCK);
+        if no_block > 0 {
+            self.state.player.set_status(sid::NO_BLOCK, no_block - 1);
+        }
+
+        // DoubleDamagePower applies to every NORMAL hit while present and is
+        // turn-based, reducing once here rather than when an attack is played.
+        // Java: powers/DoubleDamagePower.java::atDamageGive/atEndOfRound.
+        let double_damage = self.state.player.status(sid::DOUBLE_DAMAGE);
+        if double_damage > 0 {
+            self.state
+                .player
+                .set_status(sid::DOUBLE_DAMAGE, double_damage - 1);
         }
 
         // Check combat end
@@ -1608,12 +2309,17 @@ impl CombatEngine {
     // =======================================================================
 
     fn velvet_choker_allows_play(&self) -> bool {
-        if !self.state.has_relic("Velvet Choker") && !self.state.has_relic("VelvetChoker") {
+        let Some(slot) = self
+            .state
+            .relics
+            .iter()
+            .position(|relic| matches!(relic.as_str(), "Velvet Choker" | "VelvetChoker"))
+        else {
             return true;
-        }
+        };
         self.hidden_effect_value(
             "Velvet Choker",
-            crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 },
+            crate::effects::runtime::EffectOwner::PlayerRelic { slot: slot as u16 },
             0,
         ) < 6
     }
@@ -1639,7 +2345,9 @@ impl CombatEngine {
             return false;
         }
 
-        // Normality curse: max 3 cards per turn when Normality is in hand
+        // Normality.canPlay is polled from every card in hand and rejects the
+        // candidate once cardsPlayedThisTurn.size() reaches three.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Normality.java
         if self.state.cards_played_this_turn >= 3 {
             let has_normality = self.state.hand.iter().any(|c| {
                 let def = self.card_registry.card_def_by_id(c.def_id);
@@ -1650,16 +2358,11 @@ impl CombatEngine {
             }
         }
 
-        // Energy check — Confusion: any card could cost 0-3, so playable if energy >= 0
-        if self.state.player.status(sid::CONFUSION) > 0 && card.cost >= 0 {
-            if self.state.energy < 0 {
-                return false;
-            }
-        } else {
-            let cost = self.effective_cost_inst(card, card_inst);
-            if cost > self.state.energy {
-                return false;
-            }
+        // ConfusionPower.java randomizes the instance when it is drawn, so
+        // ordinary energy legality uses that already-materialized cost.
+        let cost = self.effective_cost_inst(card, card_inst);
+        if cost > self.state.energy {
+            return false;
         }
 
         // Entangled: can't play attacks
@@ -1678,6 +2381,9 @@ impl CombatEngine {
         let def = self.card_registry.card_def_by_id(card.def_id);
         match filter {
             CardFilter::All => true,
+            CardFilter::NonExhume => {
+                def.id.strip_suffix('+').unwrap_or(def.id) != "Exhume"
+            }
             CardFilter::Attacks => def.card_type == CardType::Attack,
             CardFilter::AttackOrPower => {
                 matches!(def.card_type, CardType::Attack | CardType::Power)
@@ -1690,9 +2396,11 @@ impl CombatEngine {
                 } else {
                     def.cost
                 };
-                cost == 0
+                cost == 0 || card.is_free()
             }
-            CardFilter::Upgradeable => !card.is_upgraded(),
+            CardFilter::Upgradeable => {
+                self.card_registry.can_upgrade_card(card)
+            }
         }
     }
 
@@ -1725,6 +2433,8 @@ impl CombatEngine {
             enemy_killed: false,
             hand_size_at_play: self.state.hand.len().saturating_sub(1),
             last_bulk_count: 0,
+            last_drawn_card_types: Vec::new(),
+            deferred_manual_discards: Vec::new(),
         };
         crate::effects::interpreter::resolve_card_amount(self, &ctx, &min_picks).max(0)
     }
@@ -1744,7 +2454,17 @@ impl CombatEngine {
                 if matches!(source, Pile::Draw | Pile::Discard | Pile::Exhaust) {
                     let min_required =
                         self.choice_min_picks_for_legality(card, card_inst, *min_picks);
+                    // BetterDiscardPileToHandAction and BetterDrawPileToHandAction
+                    // are legal no-ops when their source pile is empty; the
+                    // corresponding cards have no canUse restriction for it.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/BetterDiscardPileToHandAction.java
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/BetterDrawPileToHandAction.java
+                    let empty_source_is_allowed = matches!(
+                        card.id,
+                        "Exhume" | "Exhume+" | "Hologram" | "Hologram+" | "Seek" | "Seek+"
+                    );
                     if min_required > 0
+                        && !empty_source_is_allowed
                         && self.available_choice_cards_in_pile(*source, *filter)
                             < min_required as usize
                     {
@@ -1773,22 +2493,15 @@ impl CombatEngine {
         if card_inst.is_free() {
             return 0;
         }
-        if card.card_type == CardType::Attack && self.state.player.status(sid::NEXT_ATTACK_FREE) > 0
+        if card.card_type == CardType::Attack
+            && card_inst.flags & CardInstance::FLAG_PURGE == 0
+            && self.state.player.status(sid::NEXT_ATTACK_FREE) > 0
         {
             return 0;
         }
         if card.card_type == CardType::Skill && self.state.player.status(sid::CORRUPTION) > 0 {
             return 0;
         }
-        if self.state.player.status(sid::BULLET_TIME) > 0 {
-            return 0;
-        }
-
-        // Confusion/SneckoEye: MCTS approximation (deterministic midpoint)
-        if self.state.player.status(sid::CONFUSION) > 0 {
-            return 1;
-        }
-
         // Instance cost overrides CardDef cost when set (>= 0)
         let mut cost = if card_inst.cost >= 0 {
             card_inst.cost as i32
@@ -1799,13 +2512,13 @@ impl CombatEngine {
         // Establishment: cost already physically reduced in end_turn on_retain loop.
         // Do NOT reduce again here to avoid double-dipping.
 
-        cost = self.apply_card_runtime_cost_modifiers(card, cost);
+        cost = self.apply_card_runtime_cost_modifiers(card, card_inst, cost);
 
         cost
     }
 
-    /// Effective cost with RNG for actual card play (Confusion randomization).
-    /// Called from play_card where &mut self is available.
+    /// Effective cost for actual card play.
+    /// Confusion has already randomized the instance in draw_cards.
     fn effective_cost_mut_inst(&mut self, card: &CardDef, card_inst: CardInstance) -> i32 {
         // X-cost cards: cost is consumed separately in card_effects
         if card.cost == -1 {
@@ -1823,15 +2536,6 @@ impl CombatEngine {
         if card.card_type == CardType::Skill && self.state.player.status(sid::CORRUPTION) > 0 {
             return 0;
         }
-        if self.state.player.status(sid::BULLET_TIME) > 0 {
-            return 0;
-        }
-
-        // Confusion/SneckoEye: randomize card costs 0-3
-        if self.state.player.status(sid::CONFUSION) > 0 {
-            return self.rng.random(3);
-        }
-
         // Instance cost overrides CardDef cost when set (>= 0)
         let mut cost = if card_inst.cost >= 0 {
             card_inst.cost as i32
@@ -1842,13 +2546,18 @@ impl CombatEngine {
         // Establishment: cost already physically reduced in end_turn on_retain loop.
         // Do NOT reduce again here to avoid double-dipping.
 
-        cost = self.apply_card_runtime_cost_modifiers(card, cost);
+        cost = self.apply_card_runtime_cost_modifiers(card, card_inst, cost);
 
         cost
     }
 
-    fn apply_card_runtime_cost_modifiers(&self, card: &CardDef, base_cost: i32) -> i32 {
-        effects::card_runtime::apply_cost_modifiers(self, card, base_cost)
+    fn apply_card_runtime_cost_modifiers(
+        &self,
+        card: &CardDef,
+        card_inst: CardInstance,
+        base_cost: i32,
+    ) -> i32 {
+        effects::card_runtime::apply_cost_modifiers(self, card, card_inst, base_cost)
     }
 
     pub(crate) fn play_card(&mut self, hand_idx: usize, target_idx: i32) {
@@ -1867,11 +2576,18 @@ impl CombatEngine {
         if card.card_type == CardType::Status
             && (self.state.has_relic("Medical Kit") || self.state.has_relic("MedicalKit"))
         {
+            let choke_hp_losses = self.capture_enemy_choke_hp_losses();
             self.state.hand.remove(hand_idx);
             self.state.cards_played_this_turn += 1;
             self.state.total_cards_played += 1;
+            let pain_killed = status_effects::process_pain_on_card_play(self);
             self.state.exhaust_pile.push(card_inst);
             self.trigger_card_on_exhaust(card_inst);
+            if pain_killed {
+                self.phase = CombatPhase::CombatOver;
+                return;
+            }
+            self.resolve_enemy_choke_hp_losses(choke_hp_losses);
             {
                 let ctx = crate::effects::trigger::TriggerContext {
                     card_type: Some(card.card_type),
@@ -1890,12 +2606,22 @@ impl CombatEngine {
         if card.card_type == CardType::Curse
             && (self.state.has_relic("Blue Candle") || self.state.has_relic("BlueCandle"))
         {
+            let choke_hp_losses = self.capture_enemy_choke_hp_losses();
             self.state.hand.remove(hand_idx);
             self.state.cards_played_this_turn += 1;
             self.state.total_cards_played += 1;
+            let pain_killed = status_effects::process_pain_on_card_play(self);
             self.state.exhaust_pile.push(card_inst);
             self.trigger_card_on_exhaust(card_inst);
-            self.player_lose_hp(1);
+            if pain_killed {
+                self.phase = CombatPhase::CombatOver;
+                return;
+            }
+            // BlueCandle.java queues LoseHPAction(1), which uses HP_LOSS damage
+            // rather than directly subtracting HP. Preserve the shared
+            // Intangible/Buffer/Tungsten Rod pipeline.
+            self.player_lose_hp_from_damage(1);
+            self.resolve_enemy_choke_hp_losses(choke_hp_losses);
             {
                 let ctx = crate::effects::trigger::TriggerContext {
                     card_type: Some(card.card_type),
@@ -1930,6 +2656,12 @@ impl CombatEngine {
         self.state.total_cards_played += 1;
         if card.card_type == CardType::Attack {
             self.state.attacks_played_this_turn += 1;
+        } else if card.card_type == CardType::Power {
+            // ForceField.triggerOnCardPlayed permanently reduces every copy in
+            // hand/draw/discard once per POWER card. Tracking the history also
+            // implements configureCostsOnNewCard for later-created copies.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ForceField.java
+            self.state.power_cards_played_this_combat += 1;
         }
 
         {
@@ -1961,18 +2693,49 @@ impl CombatEngine {
                 crate::effects::trigger::Trigger::OnUseCard,
                 &pre_ctx,
             ));
+            if card.card_type == CardType::Power {
+                // HeatsinkPower/StormPower/CuriosityPower react from the set
+                // that existed before the played Power's use() resolves. A
+                // newly played Heatsinks or Storm must not trigger itself.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/HeatsinkPower.java
+                self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+                    crate::effects::trigger::Trigger::OnPowerPlayed,
+                    &pre_ctx,
+                ));
+            }
+        }
+
+        // AbstractPlayer.useCard invokes hand.triggerOnOtherCardPlayed after
+        // the card's actions are queued. Pain adds LoseHPAction to the top, so
+        // each copy resolves after onPlayCard hooks but before card effects.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Pain.java
+        let pain_killed = status_effects::process_pain_on_card_play(self);
+        if pain_killed {
+            self.phase = CombatPhase::CombatOver;
+            self.clear_runtime_play_contexts();
+            return;
         }
 
         // Execute effects (last_card_type refers to card played BEFORE this one)
-        crate::card_effects::execute_card_effects(self, &card, card_inst, target_idx);
+        self.execute_card_effects_with_enemy_on_use(&card, card_inst, target_idx);
 
         // Update last_card_type AFTER effects (so next card sees this one)
         self.state.last_card_type = Some(card.card_type);
 
-        // Stance change from card
+        // Stance actions queued after an interactive card action must wait for
+        // that choice to resolve. Meditate queues ChangeStanceAction after
+        // MeditateAction in Java.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Meditate.java
         if let Some(stance_name) = card.enter_stance {
             let new_stance = Stance::from_str(stance_name);
-            self.change_stance(new_stance);
+            if self.phase == CombatPhase::AwaitingChoice {
+                if let Some(choice) = self.choice.as_mut() {
+                    choice.deferred_stance = Some(new_stance);
+                }
+            } else {
+                self.change_stance(new_stance);
+            }
         }
 
         // Gremlin Nob Enrage / Anger: gains Strength when player plays a SKILL.
@@ -1992,25 +2755,25 @@ impl CombatEngine {
             }
         }
 
-        // Hex: when player plays a non-Attack card, add 1 Daze to draw pile
+        // Hex: when player plays a non-Attack card, add 1 Dazed to draw pile
         if card.card_type != CardType::Attack {
             let hex = self.state.player.status(sid::HEX);
             if hex > 0 {
                 for _ in 0..hex {
                     self.state
                         .draw_pile
-                        .push(self.card_registry.make_card("Daze"));
+                        .push(self.card_registry.make_card("Dazed"));
                 }
             }
         }
 
-        // Pain curse: deal 1 HP loss per Pain card in hand on every card play
-        let pain_killed =
-            status_effects::process_pain_on_card_play(&mut self.state, &self.card_registry);
-        if pain_killed {
-            self.phase = CombatPhase::CombatOver;
-            self.clear_runtime_play_contexts();
-            return;
+        // Power ApplyPowerActions resolve before UseCardAction invokes
+        // onUseCard. Rebuild here so newly installed powers such as Panache
+        // can observe this same card in the post-card dispatch.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
+        if card.card_type == CardType::Power {
+            self.install_power(&card);
         }
 
         // ---- Post-effects dispatch: relic + power triggers ----
@@ -2081,14 +2844,16 @@ impl CombatEngine {
             card_inst = updated;
         }
 
-        self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+        let mut after_card_event = crate::effects::runtime::GameEvent::from_trigger(
             crate::effects::trigger::Trigger::OnAfterCardPlayed,
             &crate::effects::trigger::TriggerContext {
                 card_type: Some(card.card_type),
                 is_first_turn: self.state.turn == 1,
                 target_idx,
             },
-        ));
+        );
+        after_card_event.card_inst = Some(card_inst);
+        self.emit_event(after_card_event);
         if self.state.combat_over || self.phase != CombatPhase::PlayerTurn {
             self.clear_runtime_play_contexts();
             return;
@@ -2108,54 +2873,97 @@ impl CombatEngine {
 
         if card.card_type == CardType::Attack && self.state.player.status(sid::NEXT_ATTACK_FREE) > 0
         {
-            self.state.player.set_status(sid::NEXT_ATTACK_FREE, 0);
+            // FreeAttackPower.onUseCard decrements one stack and removes the
+            // power only at zero, so stacked Swivels cover stacked attacks.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/FreeAttackPower.java
+            self.state.player.add_status(sid::NEXT_ATTACK_FREE, -1);
         }
 
         if !self.state.combat_over {
             let is_attack = card.card_type == CardType::Attack;
             let effective = self.effective_cost_inst(&card, card_inst);
+            let meets_cost_threshold = if card.cost == -1 {
+                self.runtime_last_x_energy_on_use >= 2
+            } else {
+                effective >= 2
+            };
             if self.state.has_relic("Necronomicon")
                 && is_attack
-                && effective >= 2
+                && meets_cost_threshold
                 && self.state.player.status(sid::NECRONOMICON_USED) == 0
             {
                 self.state.player.set_status(sid::NECRONOMICON_USED, 1);
-                crate::card_effects::execute_card_effects(self, &card, card_inst, target_idx);
+                // Necronomicon.java queues a same-instance copy with the
+                // original energyOnUse, target, and autoplay/free flags.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Necronomicon.java
+                if card.cost == -1 {
+                    self.runtime_x_energy_override = Some(self.runtime_last_x_energy_on_use);
+                }
+                let mut replay_card = card_inst.set_free(true);
+                // Necronomicon.makeSameInstanceOf produces a purge-on-use
+                // autoplay copy in limbo, outside PerfectedStrike.countCards.
+                replay_card.flags |= CardInstance::FLAG_PURGE | CardInstance::FLAG_AUTOPLAY;
+                self.execute_card_effects_with_enemy_on_use(&card, replay_card, target_idx);
             }
         }
 
         let post_play_dest = effects::card_runtime::post_play_destination(&card);
 
-        if card.card_type == CardType::Power {
-            self.install_power(&card);
-            let post_ctx = crate::effects::trigger::TriggerContext {
-                card_type: Some(card.card_type),
-                is_first_turn: self.state.turn == 1,
-                target_idx,
-            };
-            self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
-                crate::effects::trigger::Trigger::OnPowerPlayed,
-                &post_ctx,
-            ));
+        let exhausts_on_use = card.exhaust
+            || card_inst.flags & CardInstance::FLAG_EXHAUST_ON_USE != 0
+            || (card.card_type == CardType::Skill
+                && self.state.player.status(sid::CORRUPTION) > 0);
+        let spoon_saved = card_inst.flags & CardInstance::FLAG_PURGE == 0
+            && card.card_type != CardType::Power
+            && exhausts_on_use
+            && (self.state.has_relic("Strange Spoon")
+                || self.state.has_relic("StrangeSpoon"))
+            // UseCardAction sets spoonProc from exactly one
+            // cardRandomRng.randomBoolean(), then follows the ordinary post-use
+            // destination when true.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
+            && self.card_random_rng.random_boolean();
+
+        // UseCardAction clears freeToPlayOnce before moving the card to its
+        // post-play pile, so Forethought's flag applies to exactly one play.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
+        let mut post_play_card = card_inst.set_free(false);
+        // UseCardAction clears the one-use exhaust flag after choosing the
+        // destination, including when Havoc or Omniscience supplied it.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
+        post_play_card.flags &= !(CardInstance::FLAG_EXHAUST_ON_USE | CardInstance::FLAG_AUTOPLAY);
+
+        if card_inst.flags & CardInstance::FLAG_PURGE != 0 || card.card_type == CardType::Power {
+            // purgeOnUse copies disappear after their effects. Power cards are
+            // consumed by the normal power-play path regardless of exhaust.
+        } else if exhausts_on_use && !spoon_saved {
+            self.state.exhaust_pile.push(post_play_card);
+            self.trigger_card_on_exhaust(post_play_card);
+        } else if self.runtime_rebound_card {
+            // ReboundPower sets UseCardAction.reboundCard for non-Powers. The
+            // exhaust branch above still wins unless Strange Spoon saved the
+            // card; otherwise moveToDeck(card, false) puts it on top without
+            // consuming cardRandomRng, ahead of Tantrum's random destination.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ReboundPower.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
+            self.state.draw_pile.push(post_play_card);
         } else if post_play_dest == crate::effects::types::PostPlayDestination::ShuffleIntoDraw {
-            self.state.draw_pile.push(card_inst);
-            self.shuffle_draw_pile();
-        } else if card.exhaust
-            || (card.card_type == CardType::Skill && self.state.player.status(sid::CORRUPTION) > 0)
-        {
-            if self.state.has_relic("Strange Spoon") || self.state.has_relic("StrangeSpoon") {
-                if self.rng.random(1) == 0 {
-                    self.state.draw_pile.push(card_inst);
-                } else {
-                    self.state.exhaust_pile.push(card_inst);
-                    self.trigger_card_on_exhaust(card_inst);
-                }
+            // Tantrum's UseCardAction calls hand.moveToDeck(card, true), which
+            // delegates to CardGroup.addToRandomSpot and cardRandomRng. It does
+            // not shuffle the existing draw pile.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
+            if self.state.draw_pile.is_empty() {
+                self.state.draw_pile.push(post_play_card);
             } else {
-                self.state.exhaust_pile.push(card_inst);
-                self.trigger_card_on_exhaust(card_inst);
+                let idx = self
+                    .card_random_rng
+                    .random_range(0, (self.state.draw_pile.len() - 1) as i32)
+                    as usize;
+                self.state.draw_pile.insert(idx, post_play_card);
             }
         } else {
-            self.state.discard_pile.push(card_inst);
+            self.state.discard_pile.push(post_play_card);
         }
 
         self.finish_runtime_play_context();
@@ -2166,8 +2974,12 @@ impl CombatEngine {
             return;
         }
 
-        while (self.state.has_relic("Unceasing Top") || self.state.has_relic("UnceasingTop"))
+        // UnceasingTop.java::onRefreshHand queues one draw only when drawing is
+        // allowed; in particular, No Draw suppresses the trigger entirely.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/UnceasingTop.java
+        if (self.state.has_relic("Unceasing Top") || self.state.has_relic("UnceasingTop"))
             && self.state.hand.is_empty()
+            && self.state.player.status(sid::NO_DRAW) <= 0
             && (!self.state.draw_pile.is_empty() || !self.state.discard_pile.is_empty())
         {
             self.draw_cards(1);
@@ -2250,8 +3062,15 @@ impl CombatEngine {
                 replay_window: false,
             });
 
-            // Consume the potion slot
-            self.state.potions[potion_idx] = String::new();
+            // Entropic Brew destroys itself before its queued ObtainPotionActions
+            // resolve, so its own slot can already contain a replacement here.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/panels/PotionPopUp.java
+            // and actions/common/ObtainPotionAction.java
+            let entropic_refilled_own_slot = matches!(potion_id.as_str(), "EntropicBrew" | "Entropic Brew")
+                && !self.state.has_relic("Sozu");
+            if !entropic_refilled_own_slot {
+                self.state.potions[potion_idx] = String::new();
+            }
             self.rebuild_effect_runtime();
 
             // Consume potion draw (Swift Potion, etc.)
@@ -2273,8 +3092,29 @@ impl CombatEngine {
     /// Called when a card is manually discarded from hand (card effects, choices).
     /// NOT called for end-of-turn discard (matches real game behavior).
     pub fn on_card_discarded(&mut self, card: CardInstance) {
-        let discard_effect = effects::card_runtime::apply_on_discard(self, card);
+        let effect = self.prepare_card_discarded(card);
+        self.resolve_card_discarded_effect(effect);
+    }
 
+    /// Apply synchronous discard bookkeeping and capture actions that Java
+    /// queues for later resolution.
+    pub(crate) fn prepare_card_discarded(
+        &mut self,
+        card: CardInstance,
+    ) -> crate::effects::types::OnDiscardEffect {
+        // incrementDiscard updates the counter and every Eviscerate before
+        // queued manual-discard hooks such as Reflex resolve.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+        self.state.player.add_status(sid::DISCARDED_THIS_TURN, 1);
+        effects::card_runtime::apply_stateful_cost_on_discard(self);
+
+        effects::card_runtime::apply_on_discard(self, card)
+    }
+
+    pub(crate) fn resolve_card_discarded_effect(
+        &mut self,
+        discard_effect: crate::effects::types::OnDiscardEffect,
+    ) {
         if discard_effect.draw > 0 {
             self.draw_cards(discard_effect.draw);
         }
@@ -2282,9 +3122,6 @@ impl CombatEngine {
         if discard_effect.energy > 0 {
             self.state.energy += discard_effect.energy;
         }
-
-        // Track discard count this turn (for Sneaky Strike, Eviscerate)
-        self.state.player.add_status(sid::DISCARDED_THIS_TURN, 1);
 
         // Relic triggers via unified dispatch (Tough Bandages, Tingsha)
         {
@@ -2308,17 +3145,24 @@ impl CombatEngine {
     /// Centralized player block gain. Fires Juggernaut and Wave of the Hand reactions.
     /// Callers pass the FINAL computed amount (dexterity/frail already applied).
     pub fn gain_block_player(&mut self, amount: i32) {
-        if amount <= 0 {
+        // NoBlockPower.modifyBlockLast returns zero for every block source.
+        // Panic Button's own GainBlockAction resolves before the power is
+        // applied, so that initial block still lands.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NoBlockPower.java
+        if amount <= 0 || self.state.player.status(sid::NO_BLOCK) > 0 {
             return;
         }
         self.state.player.block += amount;
 
-        // Juggernaut: deal damage to first living enemy equal to block gained
+        // JuggernautPower.onGainedBlock queues DamageRandomEnemyAction with
+        // DamageType.THORNS for every positive block-gain event. MonsterGroup
+        // selects through cardRandomRng even when only one target is alive.
+        // Java: powers/JuggernautPower.java, actions/common/DamageRandomEnemyAction.java,
+        // and monsters/MonsterGroup.java.
         let jugg = self.state.player.status(sid::JUGGERNAUT);
         if jugg > 0 {
-            let targets = self.state.targetable_enemy_indices();
-            if let Some(&target) = targets.first() {
-                self.deal_damage_to_enemy(target, jugg);
+            if let Some(target) = self.random_living_enemy() {
+                self.deal_thorns_damage_to_enemy(target, jugg);
             }
         }
 
@@ -2333,19 +3177,55 @@ impl CombatEngine {
         }
     }
 
-    /// Centralized player HP loss (bypasses block). Checks fairy revive, fires on_hp_loss relics,
-    /// and triggers Rupture.
+    /// Centralized player-owned HP loss (bypasses block). Checks fairy revive,
+    /// fires on_hp_loss relics, and triggers Rupture when positive HP is lost.
+    pub(crate) fn player_lose_hp_from_damage(&mut self, amount: i32) {
+        if amount <= 0 {
+            return;
+        }
+
+        // LoseHPAction resolves as HP_LOSS DamageInfo. AbstractPlayer.damage
+        // applies Intangible first, skips block for HP_LOSS, then lets Buffer
+        // reduce positive damage to zero before Tungsten Rod's onLoseHpLast.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/LoseHPAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BufferPower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/TungstenRod.java
+        let intangible = self.state.player.status(sid::INTANGIBLE) > 0;
+        let after_intangible = damage::apply_hp_loss(amount, intangible, false);
+        let buffer = self.state.player.status(sid::BUFFER);
+        if after_intangible > 0 && buffer > 0 {
+            self.state.player.set_status(sid::BUFFER, buffer - 1);
+            return;
+        }
+
+        let tungsten = self.state.has_relic("Tungsten Rod")
+            || self.state.has_relic("TungstenRod");
+        let hp_loss = damage::apply_hp_loss(after_intangible, false, tungsten);
+        self.player_lose_hp_with_owner(hp_loss, true);
+    }
+
     pub fn player_lose_hp(&mut self, amount: i32) {
+        self.player_lose_hp_with_owner(amount, false);
+    }
+
+    fn player_lose_hp_with_owner(&mut self, amount: i32, owner_is_player: bool) {
         if amount <= 0 {
             return;
         }
         self.state.player.hp -= amount;
         self.state.total_damage_taken += amount;
 
-        // Track cumulative HP loss for Blood for Blood cost reduction
+        self.update_cards_on_damage();
+
+        // AbstractPlayer.damagedThisCombat increments once per positive damage
+        // event, regardless of HP amount; BloodForBlood.tookDamage() reduces
+        // cost once per event. The legacy status name stores that event count.
+        // Source: AbstractPlayer.java::damage/updateCardsOnDamage and
+        // cards/red/BloodForBlood.java.
         self.state
             .player
-            .add_status(sid::HP_LOSS_THIS_COMBAT, amount);
+            .add_status(sid::HP_LOSS_THIS_COMBAT, 1);
 
         // Fire on_hp_loss relics via unified dispatch (Centennial Puzzle, Self-Forming Clay, Runic Cube, Red Skull)
         {
@@ -2356,10 +3236,15 @@ impl CombatEngine {
             ));
         }
 
-        // Rupture: gain Strength when losing HP
-        let rupture = self.state.player.status(sid::RUPTURE);
-        if rupture > 0 {
-            self.state.player.add_status(sid::STRENGTH, rupture);
+        // RupturePower.wasHPLost requires positive HP loss whose DamageInfo
+        // owner is the player. Enemy attacks and enemy-owned THORNS damage still
+        // fire the general HP-loss hooks above, but do not grant Strength.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RupturePower.java
+        if owner_is_player {
+            let rupture = self.state.player.status(sid::RUPTURE);
+            if rupture > 0 {
+                self.state.player.add_status(sid::STRENGTH, rupture);
+            }
         }
 
         let rcd = self.state.player.status(sid::RUNIC_CUBE_DRAW);
@@ -2373,24 +3258,87 @@ impl CombatEngine {
         }
     }
 
+    fn update_cards_on_damage(&mut self) {
+        // AbstractPlayer.updateCardsOnDamage invokes tookDamage once on every
+        // card currently in hand, discard, and draw (not exhaust), independent
+        // of the damage amount. MasterfulStab.tookDamage calls updateCost(1),
+        // which raises both permanent and turn cost while preserving their delta.
+        // Java: characters/AbstractPlayer.java, cards/green/MasterfulStab.java,
+        // and cards/AbstractCard.java::updateCost.
+        let registry = self.card_registry;
+        let update_pile = |pile: &mut Vec<CardInstance>| {
+            for card in pile {
+                let def = registry.card_def_by_id(card.def_id);
+                let increases_on_damage = def.runtime_triggers().iter().any(|trigger| {
+                    matches!(
+                        trigger,
+                        crate::effects::types::CardRuntimeTrigger::ModifyCost(
+                            crate::effects::types::CostModifierRule::IncreaseOnHpLoss
+                        )
+                    )
+                });
+                if !increases_on_damage {
+                    continue;
+                }
+
+                let permanent_cost = if card.base_cost >= 0 {
+                    card.base_cost
+                } else {
+                    def.cost as i8
+                };
+                let cost_for_turn = if card.cost >= 0 {
+                    card.cost
+                } else {
+                    permanent_cost
+                };
+                let difference = permanent_cost - cost_for_turn;
+                let new_permanent = permanent_cost.saturating_add(1).max(0);
+                card.base_cost = new_permanent;
+                card.cost = new_permanent.saturating_sub(difference).max(0);
+            }
+        };
+
+        update_pile(&mut self.state.hand);
+        update_pile(&mut self.state.discard_pile);
+        update_pile(&mut self.state.draw_pile);
+    }
+
     /// Centralized healing: delegates to CombatState::heal_player.
     pub fn heal_player(&mut self, amount: i32) {
         self.state.heal_player(amount);
-        if self.state.has_relic("Red Skull")
-            && self.hidden_effect_value(
-                "Red Skull",
-                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 },
-                0,
-            ) > 0
-            && self.state.player.hp > self.state.player.max_hp / 2
-        {
+        let red_skull = self
+            .state
+            .relics
+            .iter()
+            .position(|relic| relic == "Red Skull")
+            .map(|slot| crate::effects::runtime::EffectOwner::PlayerRelic {
+                slot: slot as u16,
+            });
+        if red_skull.is_some_and(|owner| {
+            self.hidden_effect_value("Red Skull", owner, 0) > 0
+                && self.state.player.hp > self.state.player.max_hp / 2
+        }) {
             self.state.player.add_status(sid::STRENGTH, -3);
             let _ = self.effect_runtime.set_hidden_value(
                 "Red Skull",
-                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 },
+                red_skull.expect("checked above"),
                 0,
                 0,
             );
+        }
+    }
+
+    /// Apply AbstractPlayer.gainGold while combat owns the live run state.
+    pub(crate) fn gain_run_gold(&mut self, amount: i32) {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+        if amount <= 0 || self.state.has_relic("Ectoplasm") {
+            return;
+        }
+        self.state.run_gold += amount;
+        self.state.pending_run_gold += amount;
+        if self.state.has_relic("Bloody Idol") || self.state.has_relic("BloodyIdol") {
+            // BloodyIdol.java::onGainGold heals once per gainGold call.
+            self.heal_player(5);
         }
     }
 
@@ -2430,6 +3378,10 @@ impl CombatEngine {
                 replay_window: self.runtime_replay_window,
             });
         }
+        // ChampionsBelt.onTrigger is called by ApplyPowerAction only after
+        // player-sourced Vulnerable survives Artifact, then applies one Weak.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ApplyPowerAction.java
+        // Java: reference/extracted/methods/relic/ChampionsBelt.java
         if applied && status == sid::VULNERABLE && self.state.has_relic("Champion Belt") {
             let extra_applied =
                 powers::apply_debuff(&mut self.state.enemies[enemy_idx].entity, sid::WEAKENED, 1);
@@ -2454,19 +3406,38 @@ impl CombatEngine {
     /// Check and apply revive effects (Fairy in a Bottle, Lizard Tail).
     fn check_fairy_revive(&mut self) {
         if self.state.player.hp <= 0 {
+            // Java: AbstractPlayer.damage() does not invoke Fairy in a Bottle
+            // or Lizard Tail while Mark of the Bloom is present.
+            // Source: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+            let healing_blocked = self.state.player.status(sid::HAS_MARK_OF_BLOOM) > 0;
             // Fairy in a Bottle (potion)
-            let revive_hp = potions::check_fairy_revive(&self.state);
+            let revive_hp = if healing_blocked {
+                0
+            } else {
+                potions::check_fairy_revive(&self.state)
+            };
             if revive_hp > 0 {
                 potions::consume_fairy(&mut self.state);
-                self.state.player.hp = revive_hp;
+                self.state.player.hp = 0;
+                // FairyPotion.use calls player.heal, so healing modifiers such
+                // as Magic Flower apply after the percent amount is computed.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FairyPotion.java
+                self.heal_player(revive_hp);
                 return;
             }
             // Lizard Tail (relic): revive at 50% max HP, once per run
-            if (self.state.has_relic("Lizard Tail") || self.state.has_relic("LizardTail"))
+            if !healing_blocked
+                && (self.state.has_relic("Lizard Tail") || self.state.has_relic("LizardTail"))
                 && self.state.player.status(sid::LIZARD_TAIL_USED) == 0
             {
+                // LizardTail.java::onTrigger calls player.heal(maxHealth / 2,
+                // true), clamped to at least 1, then permanently uses up the
+                // relic. RunEngine persists this status between combats; use
+                // the normal heal path so modifiers such as Magic Flower apply.
                 self.state.player.set_status(sid::LIZARD_TAIL_USED, 1);
-                self.state.player.hp = self.state.player.max_hp / 2;
+                self.state.player.hp = 0;
+                let heal_amount = (self.state.player.max_hp / 2).max(1);
+                self.heal_player(heal_amount);
                 return;
             }
             // No revive available
@@ -2482,34 +3453,167 @@ impl CombatEngine {
     // Damage Dealing / Taking
     // =======================================================================
 
+    /// Kill a target without routing through ordinary damage modifiers.
+    ///
+    /// Java's InstantKillAction sets currentHealth to zero, then calls
+    /// damage(0, HP_LOSS) so monster death hooks run. Block, Flight, Slow,
+    /// Invincible, and on-attacked powers do not modify the kill, and the
+    /// removed HP is not counted as dealt damage.
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/InstantKillAction.java
+    pub(crate) fn instant_kill_enemy(&mut self, enemy_idx: usize) -> bool {
+        if enemy_idx >= self.state.enemies.len()
+            || self.state.enemies[enemy_idx].entity.hp <= 0
+            || self.state.enemies[enemy_idx].is_escaping
+        {
+            return false;
+        }
+
+        let hp_before = self.state.enemies[enemy_idx].entity.hp;
+        self.state.enemies[enemy_idx].entity.hp = 0;
+
+        // Awakened One's damage override intercepts its first death and starts
+        // the rebirth sequence even for InstantKillAction.
+        let special_rebirth_death = (matches!(
+            self.state.enemies[enemy_idx].id.as_str(),
+            "AwakenedOne" | "Awakened One"
+        ) && self.state.enemies[enemy_idx].entity.status(sid::PHASE) == 1)
+            || self.state.enemies[enemy_idx].id == "Darkling";
+        if special_rebirth_death {
+            combat_hooks::on_enemy_damaged(self, enemy_idx, hp_before);
+        } else {
+            self.finalize_enemy_death(enemy_idx);
+        }
+        true
+    }
+
     pub fn deal_damage_to_enemy(&mut self, enemy_idx: usize, damage: i32) {
+        self.deal_precomputed_normal_damage_to_enemy(enemy_idx, damage, false);
+    }
+
+    fn apply_shifting_after_hit(&mut self, enemy_idx: usize, damage_amount: i32) {
+        if damage_amount <= 0
+            || self.state.enemies[enemy_idx].entity.status(sid::SHIFTING) <= 0
+        {
+            return;
+        }
+
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/ShiftingPower.java.
+        // Every positive onAttacked amount applies equal negative Strength and,
+        // absent Artifact, GainStrengthPower restores it after the monster acts.
+        let artifact = self.state.enemies[enemy_idx].entity.status(sid::ARTIFACT);
+        if artifact > 0 {
+            self.state.enemies[enemy_idx].entity.set_status(sid::ARTIFACT, artifact - 1);
+        } else {
+            self.state.enemies[enemy_idx].entity.add_status(sid::STRENGTH, -damage_amount);
+            self.state.enemies[enemy_idx]
+                .entity
+                .add_status(sid::TEMP_STRENGTH_LOSS, damage_amount);
+        }
+    }
+
+    /// Deal NORMAL damage whose output was precomputed with Java's
+    /// `DamageInfo.createDamageMatrix(..., true)`. Offensive/receiving power
+    /// modifiers are skipped, while block and on-attacked hooks still resolve.
+    pub(crate) fn deal_pure_normal_damage_to_enemy(&mut self, enemy_idx: usize, damage: i32) {
+        self.deal_precomputed_normal_damage_to_enemy(enemy_idx, damage, true);
+    }
+
+    fn deal_precomputed_normal_damage_to_enemy(
+        &mut self,
+        enemy_idx: usize,
+        damage: i32,
+        pure_matrix: bool,
+    ) {
+        let hp_before = self.state.enemies[enemy_idx].entity.hp;
+        let has_boot = self.state.has_relic("Boot");
         let enemy = &mut self.state.enemies[enemy_idx];
 
         // Slow: enemies with Slow take 10% more damage per card played this turn
-        let slow_mult = powers::slow_damage_multiplier(&enemy.entity);
-        let damage_after_slow = (damage as f64 * slow_mult) as i32;
+        let damage_after_slow = if pure_matrix {
+            damage
+        } else {
+            let slow_mult = powers::slow_damage_multiplier(&enemy.entity);
+            (damage as f64 * slow_mult) as i32
+        };
 
-        // Flight: halve incoming damage while Flight > 0, decrement per hit
+        // FlightPower.atDamageFinalReceive halves NORMAL damage. Its later
+        // onAttacked callback sees post-block damage and queues the reduction;
+        // fully blocked hits therefore do not consume Flight.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/FlightPower.java
         let flight = enemy.entity.status(sid::FLIGHT);
-        let effective_damage = if flight > 0 {
-            enemy.entity.set_status(sid::FLIGHT, flight - 1);
+        let effective_damage = if flight > 0 && !pure_matrix {
             (damage_after_slow as f64 * 0.5) as i32
         } else {
             damage_after_slow
         };
+        // Source: reference/extracted/methods/monster/Nemesis.java (`damage`)
+        // and IntangiblePower.java. Nemesis caps DamageInfo.output before
+        // AbstractMonster consumes block and player relic hooks such as Boot.
+        // A pure precomputed matrix bypasses IntangiblePower recalculation,
+        // but not Nemesis's concrete damage override.
+        let intangible_applies = !pure_matrix || enemy.id == "Nemesis";
+        let effective_damage = if intangible_applies
+            && enemy.entity.status(sid::INTANGIBLE) > 0
+            && effective_damage > 1
+        {
+            1
+        } else {
+            effective_damage
+        };
 
-        // Invincible: cap total HP loss per turn (Heart, Donu, Deca)
-        let capped_damage =
-            powers::apply_invincible_cap_tracked(&mut enemy.entity, effective_damage);
-
-        let blocked = enemy.entity.block.min(capped_damage);
-        let hp_damage = capped_damage - blocked;
+        let blocked = enemy.entity.block.min(effective_damage);
+        let mut hp_damage = effective_damage - blocked;
         enemy.entity.block -= blocked;
+        // AbstractMonster.damage decrements Block before invoking player relic
+        // onAttackToChangeDamage hooks. Boot.java therefore raises positive
+        // post-block NORMAL damage below 5 to exactly 5.
+        if has_boot && hp_damage > 0 && hp_damage < 5 {
+            hp_damage = 5;
+        }
+        // InvinciblePower.onAttackedToChangeDamage runs after player relics.
+        hp_damage = powers::apply_invincible_cap_tracked(&mut enemy.entity, hp_damage);
         enemy.entity.hp -= hp_damage;
         self.state.total_damage_dealt += hp_damage;
 
         // On-hit enemy reactions (only when HP damage dealt)
         if hp_damage > 0 {
+            // PlatedArmorPower.wasHPLost loses one stack after unblocked,
+            // non-THORNS/non-HP_LOSS damage from another creature.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/PlatedArmorPower.java
+            let plated = self.state.enemies[enemy_idx].entity.status(sid::PLATED_ARMOR);
+            if plated > 0 {
+                let remaining = plated - 1;
+                self.state.enemies[enemy_idx]
+                    .entity.set_status(sid::PLATED_ARMOR, remaining);
+                if remaining == 0 && matches!(self.state.enemies[enemy_idx].id.as_str(),
+                    "Shelled Parasite" | "ShelledParasite")
+                {
+                    // Source: PlatedArmorPower.onRemove invokes
+                    // ShelledParasite.changeState("ARMOR_BREAK"), which
+                    // replaces its current intent with one Stunned turn.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/
+                    // PlatedArmorPower.java.
+                    self.state.enemies[enemy_idx].set_move(
+                        crate::enemies::move_ids::SP_STUNNED, 0, 0, 0);
+                    self.state.enemies[enemy_idx].intent =
+                        crate::combat_types::Intent::Stun;
+                }
+            }
+
+            // FlightPower.onAttacked applies its half-damage survival check a
+            // second time to the post-block damageAmount. That hook runs for a
+            // pure matrix too even though the first receive modifier was skipped.
+            if flight > 0 && (hp_damage as f64 * 0.5) < hp_before as f64 {
+                let remaining = flight - 1;
+                self.state.enemies[enemy_idx].entity.set_status(sid::FLIGHT, remaining);
+                if remaining == 0 && self.state.enemies[enemy_idx].id == "Byrd" {
+                    // FlightPower.onRemove -> Byrd.changeState("GROUNDED").
+                    // Java: reference/extracted/methods/monster/Byrd.java.
+                    self.state.enemies[enemy_idx].set_move(
+                        crate::enemies::move_ids::BYRD_STUNNED, 0, 0, 0);
+                }
+            }
+
             // D63 parity fix: Java CurlUpPower.onAttacked requires
             // `info.type == NORMAL && damageAmount < currentHealth && info.owner != null`.
             // This call site (`deal_damage_to_enemy`) is the NORMAL damage path --
@@ -2531,26 +3635,31 @@ impl CombatEngine {
                 }
             }
 
-            // Malleable: gain escalating block on hit
+            // Malleable: gain escalating block on a positive, nonlethal
+            // NORMAL hit. Java checks `damageAmount < currentHealth` before
+            // damage, which is equivalent to `enemy_alive` after damage.
+            // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/MalleablePower.java.
             let malleable = self.state.enemies[enemy_idx].entity.status(sid::MALLEABLE);
-            if malleable > 0 {
+            if enemy_alive && malleable > 0 {
                 self.state.enemies[enemy_idx].entity.block += malleable;
                 self.state.enemies[enemy_idx]
                     .entity
                     .add_status(sid::MALLEABLE, 1);
             }
 
-            // Sharp Hide: deal retaliation damage to player when attacked
-            let sharp_hide = self.state.enemies[enemy_idx].entity.status(sid::SHARP_HIDE);
-            if sharp_hide > 0 {
-                self.player_lose_hp(sharp_hide);
+            // Source: decompiled ReactivePower.java. Only sourced, positive,
+            // nonlethal NORMAL damage queues RollMoveAction; THORNS and HP_LOSS
+            // use other damage paths and never reach this hook.
+            if enemy_alive
+                && self.state.enemies[enemy_idx].entity.status(sid::REACTIVE) > 0
+            {
+                crate::enemies::writhing_mass_reactive_reroll(
+                    &mut self.state.enemies[enemy_idx],
+                    &mut self.ai_rng,
+                );
             }
 
-            // Shifting: gain block equal to unblocked damage
-            let shifting = self.state.enemies[enemy_idx].entity.status(sid::SHIFTING);
-            if shifting > 0 {
-                self.state.enemies[enemy_idx].entity.block += hp_damage;
-            }
+            self.apply_shifting_after_hit(enemy_idx, hp_damage);
         }
 
         self.record_enemy_hp_damage(enemy_idx, hp_damage);
@@ -2562,6 +3671,14 @@ impl CombatEngine {
         }
 
         combat_hooks::on_enemy_damaged(self, enemy_idx, hp_damage);
+        // Darkling.damage owns both its half-death hooks and the final
+        // all-Darklings death transition, so do not finalize it a second time.
+        // Source: reference/extracted/methods/monster/Darkling.java.
+        if self.state.enemies[enemy_idx].id == "Darkling"
+            && self.state.enemies[enemy_idx].entity.hp <= 0
+        {
+            return;
+        }
         if self.state.enemies[enemy_idx].entity.hp <= 0
             && self.state.enemies[enemy_idx]
                 .entity
@@ -2578,6 +3695,93 @@ impl CombatEngine {
             return;
         }
 
+        if self.state.enemies[enemy_idx].id == "Mugger" {
+            // Source: decompiled/java-src/com/megacrit/cardcrawl/monsters/
+            // city/Mugger.java (`die` -> `playDeathSfx`). The voice variant
+            // consumes aiRng.random(2), even when no gold was stolen.
+            let _ = self.ai_rng.random(2);
+        }
+
+        if matches!(self.state.enemies[enemy_idx].id.as_str(),
+            "SpireShield" | "Spire Shield" | "SpireSpear" | "Spire Spear")
+        {
+            // Source: reference/extracted/methods/monster/SpireShield.java
+            // (`die`). Once either partner dies, Surrounded and every
+            // BackAttack power are removed from the encounter.
+            for enemy in &mut self.state.enemies {
+                enemy.back_attack = false;
+            }
+        }
+
+        if matches!(self.state.enemies[enemy_idx].id.as_str(),
+            "GremlinLeader" | "Gremlin Leader")
+        {
+            // Source: reference/extracted/methods/monster/GremlinLeader.java
+            // (`die`): every surviving monster receives EscapeAction.
+            for (idx, enemy) in self.state.enemies.iter_mut().enumerate() {
+                if idx != enemy_idx && enemy.is_alive() {
+                    enemy.is_escaping = true;
+                    // Escaped monsters are terminal in the compact state.
+                    enemy.entity.hp = 0;
+                }
+            }
+        }
+
+        if matches!(self.state.enemies[enemy_idx].id.as_str(),
+            "TheCollector" | "Collector")
+        {
+            // Source: decompiled/java-src/com/megacrit/cardcrawl/monsters/
+            // city/TheCollector.java (`die`). Every surviving minion receives
+            // SuicideAction when the boss dies.
+            let victims: Vec<usize> = self.state.enemies.iter().enumerate()
+                .filter(|(idx, enemy)| *idx != enemy_idx && enemy.is_alive())
+                .map(|(idx, _)| idx)
+                .collect();
+            for idx in victims {
+                self.state.enemies[idx].entity.hp = 0;
+                self.finalize_enemy_death(idx);
+            }
+        }
+
+        if self.state.enemies[enemy_idx].id == "Reptomancer" {
+            // Source: decompiled/java-src/com/megacrit/cardcrawl/monsters/
+            // beyond/Reptomancer.java (`die`): every surviving monster is
+            // killed by SuicideAction.
+            let victims: Vec<usize> = self.state.enemies.iter().enumerate()
+                .filter(|(idx, enemy)| *idx != enemy_idx && enemy.is_alive())
+                .map(|(idx, _)| idx)
+                .collect();
+            for idx in victims {
+                self.state.enemies[idx].entity.hp = 0;
+                self.finalize_enemy_death(idx);
+            }
+        }
+
+        // StasisPower.onDeath returns its held card to hand, or to discard at
+        // the ten-card hand limit.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/StasisPower.java
+        if let Some(card) = self.state.enemies[enemy_idx].stasis_card.take() {
+            if self.state.hand.len() < 10 {
+                self.state.hand.push(card);
+            } else {
+                self.state.discard_pile.push(card);
+            }
+        }
+
+        // Source: decompiled GremlinFat/Thief/Warrior/Wizard/Tsundere.java
+        // (`deathReact`). A surviving gremlin immediately changes to Escape.
+        for (idx, enemy) in self.state.enemies.iter_mut().enumerate() {
+            if idx != enemy_idx
+                && matches!(enemy.id.as_str(),
+                    "GremlinFat" | "GremlinThief" | "GremlinWarrior"
+                        | "GremlinWizard" | "GremlinTsundere")
+                && enemy.is_alive()
+                && enemy.move_id != crate::enemies::move_ids::GREMLIN_ESCAPE
+            {
+                enemy.set_move(crate::enemies::move_ids::GREMLIN_ESCAPE, 0, 0, 0);
+            }
+        }
+
         // Spore Cloud: apply Vulnerable to player on death.
         let spore = self.state.enemies[enemy_idx]
             .entity
@@ -2586,7 +3790,27 @@ impl CombatEngine {
             powers::apply_debuff(&mut self.state.player, sid::VULNERABLE, spore);
         }
 
-        // Fire owner-aware death hooks (Gremlin Horn, The Specimen, etc.).
+        // CorpseExplosionPower.onDeath queues source-less THORNS damage equal
+        // to owner.maxHealth * amount before relic onMonsterDeath actions are
+        // queued. Resolve it before owner-aware relic effects so The Specimen
+        // selects only among monsters that survive the explosion.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/CorpseExplosionPower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/AbstractMonster.java
+        let ce = self.state.enemies[enemy_idx]
+            .entity
+            .status(sid::CORPSE_EXPLOSION);
+        if ce > 0 {
+            let damage = self.state.enemies[enemy_idx].entity.max_hp * ce;
+            let living = self.state.living_enemy_indices();
+            for other_idx in living {
+                if other_idx != enemy_idx {
+                    self.deal_thorns_damage_to_enemy(other_idx, damage);
+                }
+            }
+        }
+
+        // Fire owner-aware death hooks (Gremlin Horn, The Specimen, etc.)
+        // after earlier monster-power death actions have resolved.
         let ctx = crate::effects::trigger::TriggerContext {
             card_type: None,
             is_first_turn: false,
@@ -2596,28 +3820,6 @@ impl CombatEngine {
             crate::effects::trigger::Trigger::OnEnemyDeath,
             &ctx,
         ));
-
-        // Consume Gremlin Horn draw/energy.
-        let ghd = self.state.player.status(sid::GREMLIN_HORN_DRAW);
-        if ghd > 0 {
-            self.state.player.set_status(sid::GREMLIN_HORN_DRAW, 0);
-            self.draw_cards(1);
-            self.state.energy += 1;
-        }
-
-        // Corpse Explosion: deal damage equal to enemy max HP to all other enemies.
-        let ce = self.state.enemies[enemy_idx]
-            .entity
-            .status(sid::CORPSE_EXPLOSION);
-        if ce > 0 {
-            let max_hp = self.state.enemies[enemy_idx].entity.max_hp;
-            let living = self.state.living_enemy_indices();
-            for other_idx in living {
-                if other_idx != enemy_idx {
-                    self.deal_damage_to_enemy(other_idx, max_hp);
-                }
-            }
-        }
     }
 
     pub(crate) fn deal_player_attack_hit_to_enemy(&mut self, enemy_idx: usize, damage: i32) -> i32 {
@@ -2625,25 +3827,38 @@ impl CombatEngine {
             return 0;
         }
 
+        // BlockReturnPower.onAttacked runs after block is decremented but does
+        // not require positive HP damage; every ordinary player attack hit
+        // queues its block, including a fully blocked or zero-damage hit.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/AbstractMonster.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/BlockReturnPower.java
+        let block_return = self.state.enemies[enemy_idx]
+            .entity
+            .status(sid::BLOCK_RETURN);
+        // ThornsPower.onAttacked queues retaliation for every sourced NORMAL
+        // hit, including zero/fully-blocked and lethal hits. Snapshot before
+        // damage because killing the owner does not cancel the queued action.
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/ThornsPower.java.
+        let enemy_thorns = self.state.enemies[enemy_idx].entity.status(sid::THORNS);
         let enemy_block_before = self.state.enemies[enemy_idx].entity.block;
-        let mut hit_damage = damage;
-        // D26 parity fix: Boot bumps RAW damage to 5 when raw < 5 (pre-block).
-        // Pre-fix Rust checked post-block `unblocked < 5`, which both
-        // (a) fired Boot on high-damage-against-high-block (e.g. 10 vs 8
-        // block -> unblocked=2 -> Boot wrongly triggered) and
-        // (b) mis-computed post-block HP loss when Boot did fire
-        // (damage 4 vs 3 block: Java deals 2 HP, old Rust dealt 5).
-        // Java oracle: `relics/Boot.java` onAttackToChangeDamage sets
-        // `damageAmount = 5` when `damageAmount < 5` (raw input).
-        if self.state.has_relic("Boot") && damage > 0 && damage < 5 {
-            hit_damage = 5;
-        }
+        let hit_damage = damage;
         let block_broken = self.state.has_relic("HandDrill")
             && enemy_block_before > 0
-            && hit_damage > enemy_block_before;
+            // Sources: AbstractCreature.java::decrementBlock calls
+            // brokeBlock for both damage > block and damage == block;
+            // HandDrill.java::onBlockBroken then applies 2 Vulnerable.
+            && hit_damage >= enemy_block_before;
         let hp_before = self.state.enemies[enemy_idx].entity.hp;
 
         self.deal_damage_to_enemy(enemy_idx, hit_damage);
+
+        if enemy_thorns > 0 {
+            self.deal_thorns_damage_to_player(enemy_thorns);
+        }
+
+        if block_return > 0 {
+            self.gain_block_player(block_return);
+        }
 
         let hp_damage = (hp_before - self.state.enemies[enemy_idx].entity.hp).max(0);
         if hp_damage > 0 {
@@ -2674,23 +3889,32 @@ impl CombatEngine {
             return damage;
         }
 
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/relics/StrikeDummy.java
+        // atDamageModify adds exactly 3 only for cards carrying CardTags.STRIKE.
         if self.card_registry.is_strike(card_inst.def_id) && self.state.has_relic("StrikeDummy") {
             damage += 3;
         }
 
-        let effective_cost = if card.cost == -1 {
-            0
-        } else if card_inst.is_free()
-            || self.state.player.status(sid::NEXT_ATTACK_FREE) > 0
-            || self.state.player.status(sid::BULLET_TIME) > 0
-        {
-            0
-        } else if card_inst.cost >= 0 {
-            card_inst.cost as i32
+        // WristBlade.atDamageModify checks the card's actual costForTurn, or
+        // freeToPlayOnce only when the permanent cost is not X (-1). Combat
+        // payment normalizes X to zero elsewhere, but that must not make a
+        // free Skewer/Whirlwind eligible for this damage bonus.
+        // Java: reference/extracted/methods/relic/WristBlade.java.
+        let permanent_cost = if card_inst.base_cost >= 0 {
+            card_inst.base_cost as i32
         } else {
             card.cost
         };
-        if effective_cost == 0 && self.state.has_relic("WristBlade") {
+        let cost_for_turn = if card_inst.cost >= 0 {
+            card_inst.cost as i32
+        } else {
+            permanent_cost
+        };
+        let free_to_play_once = card_inst.is_free()
+            || self.state.player.status(sid::NEXT_ATTACK_FREE) > 0;
+        let wrist_blade_eligible = cost_for_turn == 0
+            || (free_to_play_once && permanent_cost != -1);
+        if wrist_blade_eligible && self.state.has_relic("WristBlade") {
             damage += 4;
         }
 
@@ -2708,20 +3932,247 @@ impl CombatEngine {
         }
     }
 
+    pub(crate) fn add_spawned_enemy(&mut self, mut enemy: crate::state::EnemyCombatState) {
+        // Source: PhilosopherStone.java::onSpawnMonster grants the newly
+        // spawned monster exactly 1 Strength before combat continues.
+        if self.state.has_relic("Philosopher's Stone")
+            || self.state.has_relic("PhilosopherStone")
+        {
+            enemy.entity.add_status(sid::STRENGTH, 1);
+        }
+        self.state.enemies.push(enemy);
+    }
+
+    pub(crate) fn deal_thorns_damage_to_player(&mut self, damage: i32) {
+        self.deal_thorns_damage_to_player_with_owner(damage, false);
+    }
+
+    pub(crate) fn deal_self_thorns_damage_to_player(&mut self, damage: i32) {
+        self.deal_thorns_damage_to_player_with_owner(damage, true);
+    }
+
+    fn deal_thorns_damage_to_player_with_owner(&mut self, damage: i32, owner_is_player: bool) {
+        // DamageInfo.THORNS still passes through final-receive powers, block,
+        // Buffer, and Tungsten Rod. Torii and reactive Thorns/Flame Barrier
+        // explicitly exclude THORNS damage.
+        // Sources: AbstractPlayer.damage, IntangiblePlayerPower.java,
+        // BufferPower.java, TungstenRod.java, and Torii.java.
+        let mut incoming = damage.max(0);
+        if self.state.player.status(sid::INTANGIBLE) > 0 && incoming > 1 {
+            incoming = 1;
+        }
+        let blocked = self.state.player.block.min(incoming);
+        self.state.player.block -= blocked;
+        let mut hp_damage = incoming - blocked;
+        if hp_damage > 0 {
+            let buffer = self.state.player.status(sid::BUFFER);
+            if buffer > 0 {
+                self.state.player.set_status(sid::BUFFER, buffer - 1);
+                hp_damage = 0;
+            }
+        }
+        if hp_damage > 0
+            && (self.state.has_relic("Tungsten Rod") || self.state.has_relic("TungstenRod"))
+        {
+            hp_damage -= 1;
+        }
+        if hp_damage > 0 {
+            self.player_lose_hp_with_owner(hp_damage, owner_is_player);
+        }
+    }
+
+    /// Deal DamageInfo.THORNS damage to an enemy after target-only power
+    /// calculation, as used by Fire Potion. This intentionally bypasses
+    /// NORMAL-only modifiers/reactions such as Slow, Vulnerable, Flight,
+    /// Curl Up, and Malleable.
+    pub(crate) fn deal_thorns_damage_to_enemy(&mut self, enemy_idx: usize, damage: i32) {
+        if enemy_idx >= self.state.enemies.len() || !self.state.enemies[enemy_idx].is_alive() {
+            return;
+        }
+
+        let mut incoming = damage.max(0);
+        if self.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) > 0 && incoming > 1 {
+            incoming = 1;
+        }
+
+        let blocked = self.state.enemies[enemy_idx].entity.block.min(incoming);
+        self.state.enemies[enemy_idx].entity.block -= blocked;
+        let mut hp_damage = incoming - blocked;
+
+        if hp_damage > 0 {
+            let buffer = self.state.enemies[enemy_idx].entity.status(sid::BUFFER);
+            if buffer > 0 {
+                self.state.enemies[enemy_idx]
+                    .entity
+                    .set_status(sid::BUFFER, buffer - 1);
+                hp_damage = 0;
+            }
+        }
+        if hp_damage > 0 {
+            hp_damage = powers::apply_invincible_cap_tracked(
+                &mut self.state.enemies[enemy_idx].entity,
+                hp_damage,
+            );
+        }
+
+        self.state.enemies[enemy_idx].entity.hp -= hp_damage;
+        self.state.total_damage_dealt += hp_damage;
+
+        // ShiftingPower.onAttacked applies to positive damage of every type.
+        self.apply_shifting_after_hit(enemy_idx, hp_damage);
+
+        self.record_enemy_hp_damage(enemy_idx, hp_damage);
+    }
+
+    /// Resolve a source-less `DamageInfo.HP_LOSS` hit against an enemy.
+    ///
+    /// HP_LOSS bypasses Block, but `AbstractMonster.damage` still applies
+    /// Intangible and the target's `onAttackedToChangeDamage` powers (Buffer,
+    /// then Invincible) before subtracting HP. ChokePower and MarkPower both
+    /// reach this path through `LoseHPAction`.
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/LoseHPAction.java
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/AbstractMonster.java
+    pub(crate) fn enemy_lose_hp_from_damage(&mut self, enemy_idx: usize, amount: i32) -> i32 {
+        if enemy_idx >= self.state.enemies.len() || !self.state.enemies[enemy_idx].is_alive() {
+            return 0;
+        }
+
+        let mut hp_damage = amount.max(0);
+        if hp_damage > 0 && self.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) > 0 {
+            hp_damage = 1;
+        }
+
+        if hp_damage > 0 {
+            let buffer = self.state.enemies[enemy_idx].entity.status(sid::BUFFER);
+            if buffer > 0 {
+                self.state.enemies[enemy_idx].entity.set_status(sid::BUFFER, buffer - 1);
+                hp_damage = 0;
+            }
+        }
+        if hp_damage > 0 {
+            hp_damage = powers::apply_invincible_cap_tracked(
+                &mut self.state.enemies[enemy_idx].entity,
+                hp_damage,
+            );
+        }
+
+        let hp_before = self.state.enemies[enemy_idx].entity.hp;
+        self.state.enemies[enemy_idx].entity.hp -= hp_damage;
+        let actual_hp_lost = hp_damage.min(hp_before).max(0);
+        self.state.total_damage_dealt += actual_hp_lost;
+
+        self.apply_shifting_after_hit(enemy_idx, hp_damage);
+
+        self.record_enemy_hp_damage(enemy_idx, actual_hp_lost);
+        actual_hp_lost
+    }
+
+    pub(crate) fn execute_card_effects_with_enemy_on_use(
+        &mut self,
+        card: &CardDef,
+        card_inst: CardInstance,
+        target_idx: i32,
+    ) {
+        self.update_surrounded_facing(card, target_idx);
+
+        // SharpHidePower.onUseCard queues one THORNS hit for every living
+        // owner when each Attack card use is constructed, including replayed
+        // and autoplayed cards. Capture before resolution so killing the
+        // Guardian does not cancel its already-queued retaliation.
+        // Sources: decompiled/java-src/com/megacrit/cardcrawl/powers/
+        // SharpHidePower.java and actions/utility/UseCardAction.java.
+        let sharp_hide_retaliations: Vec<i32> = if card.card_type == CardType::Attack {
+            self.state.enemies.iter()
+                .filter(|enemy| enemy.is_alive())
+                .map(|enemy| enemy.entity.status(sid::SHARP_HIDE))
+                .filter(|amount| *amount > 0)
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        // ChokePower.onUseCard is invoked by the UseCardAction constructor
+        // after card.use has queued the card's actions. Capture the powers that
+        // existed at construction time, then resolve their LoseHPActions after
+        // the card's own actions. A newly applied Choke therefore does not
+        // trigger itself, while an existing stack does trigger on another Choke.
+        // Sources: decompiled/java-src/com/megacrit/cardcrawl/powers/ChokePower.java
+        // and actions/utility/UseCardAction.java.
+        let choke_hp_losses = self.capture_enemy_choke_hp_losses();
+
+        crate::card_effects::execute_card_effects(self, card, card_inst, target_idx);
+
+        // card.use actions precede Sharp Hide's DamageAction in Java's queue.
+        for amount in sharp_hide_retaliations {
+            self.deal_thorns_damage_to_player(amount);
+        }
+        self.resolve_enemy_choke_hp_losses(choke_hp_losses);
+    }
+
+    fn update_surrounded_facing(&mut self, card: &CardDef, target_idx: i32) {
+        if !matches!(card.target, CardTarget::Enemy | CardTarget::SelfAndEnemy)
+            || target_idx < 0
+            || (target_idx as usize) >= self.state.enemies.len()
+            || !self.state.enemies.iter().any(|enemy|
+                matches!(enemy.id.as_str(), "SpireShield" | "Spire Shield")
+                    && enemy.is_alive())
+        {
+            return;
+        }
+
+        let target_idx = target_idx as usize;
+        if !matches!(self.state.enemies[target_idx].id.as_str(),
+            "SpireShield" | "Spire Shield" | "SpireSpear" | "Spire Spear")
+        {
+            return;
+        }
+
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/characters/
+        // AbstractPlayer.java (`updateInput`). Targeting either flanking
+        // monster turns the player toward it; AbstractMonster.applyBackAttack
+        // then marks the monster on the opposite side.
+        for (idx, enemy) in self.state.enemies.iter_mut().enumerate() {
+            if matches!(enemy.id.as_str(),
+                "SpireShield" | "Spire Shield" | "SpireSpear" | "Spire Spear")
+                && enemy.is_alive()
+            {
+                enemy.back_attack = idx != target_idx;
+            }
+        }
+    }
+
+    fn capture_enemy_choke_hp_losses(&self) -> Vec<(usize, i32)> {
+        self.state.enemies.iter()
+            .enumerate()
+            .filter(|(_, enemy)| enemy.is_alive())
+            .filter_map(|(idx, enemy)| {
+                let amount = enemy.entity.status(sid::CONSTRICTED);
+                (amount > 0).then_some((idx, amount))
+            })
+            .collect()
+    }
+
+    fn resolve_enemy_choke_hp_losses(&mut self, pending: Vec<(usize, i32)>) {
+        for (enemy_idx, amount) in pending {
+            self.enemy_lose_hp_from_damage(enemy_idx, amount);
+        }
+    }
+
     // =======================================================================
     // Orb Effects
     // =======================================================================
 
-    /// Pick a random living enemy index using the combat RNG.
-    fn random_living_enemy(&mut self) -> Option<usize> {
+    /// Pick a random living enemy index using cardRandomRng.
+    pub(crate) fn random_living_enemy(&mut self) -> Option<usize> {
         let living = self.state.living_enemy_indices();
         if living.is_empty() {
             return None;
         }
-        if living.len() == 1 {
-            return Some(living[0]);
-        }
-        let roll = self.rng.random(living.len() as i32 - 1) as usize;
+        // AbstractDungeon.getRandomMonster delegates to MonsterGroup with
+        // cardRandomRng and calls random(0, size - 1), even when size is one.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/MonsterGroup.java
+        let roll = self.card_random_rng.random(living.len() as i32 - 1) as usize;
         Some(living[roll])
     }
 
@@ -2734,6 +4185,17 @@ impl CombatEngine {
             .min_by_key(|&i| self.state.enemies[i].entity.hp)
     }
 
+    /// AbstractOrb.applyLockOn raises Lightning and Dark orb damage by 50%,
+    /// truncating the float result to an integer for each target independently.
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/orbs/AbstractOrb.java.
+    fn orb_damage_against(&self, enemy_idx: usize, damage: i32) -> i32 {
+        if self.state.enemies[enemy_idx].entity.status(sid::LOCK_ON) > 0 {
+            (damage as f32 * 1.5) as i32
+        } else {
+            damage
+        }
+    }
+
     /// Apply a single evoke effect to the game state.
     pub(crate) fn apply_evoke_effect(&mut self, effect: EvokeEffect) {
         match effect {
@@ -2744,10 +4206,12 @@ impl CombatEngine {
                     sid::ELECTRODYNAMICS,
                 ) {
                     for idx in self.state.living_enemy_indices() {
-                        self.deal_damage_to_enemy(idx, dmg);
+                        let orb_damage = self.orb_damage_against(idx, dmg);
+                        self.deal_thorns_damage_to_enemy(idx, orb_damage);
                     }
                 } else if let Some(idx) = self.random_living_enemy() {
-                    self.deal_damage_to_enemy(idx, dmg);
+                    let orb_damage = self.orb_damage_against(idx, dmg);
+                    self.deal_thorns_damage_to_enemy(idx, orb_damage);
                 }
             }
             EvokeEffect::FrostBlock(block) => {
@@ -2755,7 +4219,8 @@ impl CombatEngine {
             }
             EvokeEffect::DarkDamage(dmg) => {
                 if let Some(idx) = self.lowest_hp_enemy() {
-                    self.deal_damage_to_enemy(idx, dmg);
+                    let orb_damage = self.orb_damage_against(idx, dmg);
+                    self.deal_thorns_damage_to_enemy(idx, orb_damage);
                 }
             }
             EvokeEffect::PlasmaEnergy(energy) => {
@@ -2775,10 +4240,12 @@ impl CombatEngine {
                     sid::ELECTRODYNAMICS,
                 ) {
                     for idx in self.state.living_enemy_indices() {
-                        self.deal_damage_to_enemy(idx, dmg);
+                        let orb_damage = self.orb_damage_against(idx, dmg);
+                        self.deal_thorns_damage_to_enemy(idx, orb_damage);
                     }
                 } else if let Some(idx) = self.random_living_enemy() {
-                    self.deal_damage_to_enemy(idx, dmg);
+                    let orb_damage = self.orb_damage_against(idx, dmg);
+                    self.deal_thorns_damage_to_enemy(idx, orb_damage);
                 }
             }
             PassiveEffect::FrostBlock(block) => {
@@ -2822,6 +4289,13 @@ impl CombatEngine {
         for effect in effects {
             self.apply_passive_effect(effect);
         }
+        // GoldPlatedCables is a marker relic; AbstractPlayer owns its behavior
+        // and repeats the front non-empty orb's start callback.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+        // Java: reference/extracted/methods/relic/GoldPlatedCables.java
+        if self.state.has_relic("Cables") {
+            self.apply_front_orb_start_of_turn_passive();
+        }
     }
 
     fn apply_front_orb_start_of_turn_passive(&mut self) {
@@ -2862,33 +4336,111 @@ impl CombatEngine {
         self.apply_passive_effect(effect);
     }
 
+    pub(crate) fn trigger_dark_impulse(&mut self) {
+        // DarkImpulseAction triggers every Dark orb's start/end callbacks, then
+        // repeats both callbacks for the front Dark orb when Cables is owned.
+        // Dark has no start callback, so each end callback adds one passive.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/DarkImpulseAction.java
+        let focus = self.state.player.focus();
+        for orb in self.state.orb_slots.slots.iter_mut() {
+            if orb.orb_type == crate::orbs::OrbType::Dark {
+                orb.evoke_amount += orb.passive_with_focus(focus);
+            }
+        }
+        if self.state.has_relic("Cables") {
+            if let Some(front_orb) = self.state.orb_slots.slots.first_mut() {
+                if front_orb.orb_type == crate::orbs::OrbType::Dark {
+                    front_orb.evoke_amount += front_orb.passive_with_focus(focus);
+                }
+            }
+        }
+    }
+
+    pub(crate) fn trigger_orb_impulse(&mut self) {
+        // ImpulseAction calls onStartOfTurn then onEndOfTurn on each orb in
+        // slot order, then repeats both callbacks for the front orb with
+        // Cables. Dark mutates synchronously while the other callbacks queue
+        // effects, so collect those effects in callback order before resolving
+        // them. A lethal Lightning effect clears later queued callbacks.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ImpulseAction.java
+        let focus = self.state.player.focus();
+        let mut effects = Vec::new();
+        for orb in &mut self.state.orb_slots.slots {
+            if orb.is_empty() {
+                continue;
+            }
+            if orb.orb_type == crate::orbs::OrbType::Plasma {
+                effects.push(crate::orbs::PassiveEffect::PlasmaEnergy(orb.base_passive));
+            }
+            match orb.orb_type {
+                crate::orbs::OrbType::Lightning => effects.push(
+                    crate::orbs::PassiveEffect::LightningDamage(orb.passive_with_focus(focus)),
+                ),
+                crate::orbs::OrbType::Frost => effects.push(
+                    crate::orbs::PassiveEffect::FrostBlock(orb.passive_with_focus(focus)),
+                ),
+                crate::orbs::OrbType::Dark => {
+                    orb.evoke_amount += orb.passive_with_focus(focus);
+                }
+                crate::orbs::OrbType::Plasma | crate::orbs::OrbType::Empty => {}
+            }
+        }
+        if self.state.has_relic("Cables") {
+            if let Some(front) = self.state.orb_slots.slots.first_mut() {
+                if !front.is_empty() {
+                    if front.orb_type == crate::orbs::OrbType::Plasma {
+                        effects.push(crate::orbs::PassiveEffect::PlasmaEnergy(front.base_passive));
+                    }
+                    match front.orb_type {
+                        crate::orbs::OrbType::Lightning => effects.push(
+                            crate::orbs::PassiveEffect::LightningDamage(
+                                front.passive_with_focus(focus),
+                            ),
+                        ),
+                        crate::orbs::OrbType::Frost => effects.push(
+                            crate::orbs::PassiveEffect::FrostBlock(
+                                front.passive_with_focus(focus),
+                            ),
+                        ),
+                        crate::orbs::OrbType::Dark => {
+                            front.evoke_amount += front.passive_with_focus(focus);
+                        }
+                        crate::orbs::OrbType::Plasma | crate::orbs::OrbType::Empty => {}
+                    }
+                }
+            }
+        }
+        for effect in effects {
+            self.apply_passive_effect(effect);
+            if self.state.player.is_dead() || self.check_combat_end() {
+                return;
+            }
+        }
+    }
+
     fn apply_orb_impulse_passives(&mut self) {
         if !self.state.orb_slots.has_orbs() {
             return;
         }
         self.apply_orb_start_of_turn();
-        self.apply_all_orb_end_of_turn_passives();
-        if self.state.has_relic("Cables") {
-            self.apply_front_orb_start_of_turn_passive();
-            self.apply_front_orb_end_of_turn_passive();
-        }
+        self.apply_orb_end_of_turn();
     }
 
     // =======================================================================
     // Draw / Shuffle
     // =======================================================================
 
-    pub fn draw_cards(&mut self, count: i32) {
+    pub fn draw_cards(&mut self, count: i32) -> Vec<CardType> {
         // NoDraw: skip draw entirely
         if self.state.player.status(sid::NO_DRAW) > 0 {
-            return;
+            return Vec::new();
         }
 
-        // DrawReduction: reduce draw count
-        let draw_reduction = self.state.player.status(sid::DRAW_REDUCTION);
-        let actual_count = (count - draw_reduction).max(0);
+        let actual_count = count.max(0);
 
         let mut extra_draws = 0i32;
+        let mut shuffles = 0;
+        let mut drawn_card_types = Vec::new();
 
         for _ in 0..actual_count {
             if self.state.hand.len() >= 10 {
@@ -2903,22 +4455,39 @@ impl CombatEngine {
                 let mut shuffled = std::mem::take(&mut self.state.discard_pile);
                 shuffled.shuffle(&mut self.rng);
                 self.state.draw_pile = shuffled;
-                // Fire on_shuffle relics via unified dispatch (Sundial, The Abacus)
-                {
-                    let ctx = crate::effects::trigger::TriggerContext::empty();
-                    self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
-                        crate::effects::trigger::Trigger::OnShuffle,
-                        &ctx,
-                    ));
-                }
+                shuffles += 1;
             }
 
-            if let Some(drawn) = self.state.draw_pile.pop() {
+            if let Some(mut drawn) = self.state.draw_pile.pop() {
+                let card_def = self.card_registry.card_def_by_id(drawn.def_id);
+                effects::card_runtime::initialize_stateful_cost_on_draw(
+                    card_def,
+                    &mut drawn,
+                    self.state.player.status(sid::DISCARDED_THIS_TURN),
+                );
+                // ConfusionPower.java::onCardDraw consumes cardRandomRng for
+                // every non-negative-cost card, permanently sets both cost
+                // and costForTurn to 0..3, and clears freeToPlayOnce.
+                if self.state.player.status(sid::CONFUSION) > 0 && card_def.cost >= 0 {
+                    let new_cost = self.card_random_rng.random(3) as i8;
+                    drawn.set_permanent_cost(new_cost);
+                    if matches!(card_def.id, "Force Field" | "Force Field+") {
+                        // ConfusionPower overwrites both cost and costForTurn,
+                        // erasing Force Field reductions from earlier Power
+                        // plays. Only later Power cards reduce this new cost.
+                        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ConfusionPower.java
+                        drawn.misc = self
+                            .state
+                            .power_cards_played_this_combat
+                            .min(i16::MAX as i32) as i16;
+                    }
+                    drawn.flags &= !CardInstance::FLAG_FREE;
+                }
                 self.state.hand.push(drawn);
 
                 // Extract card info for power triggers
-                let card_def = self.card_registry.card_def_by_id(drawn.def_id);
                 let card_type = card_def.card_type;
+                drawn_card_types.push(card_type);
 
                 // Evolve: draw extra cards when drawing a Status
                 let evolve = self.state.player.status(sid::EVOLVE);
@@ -2926,14 +4495,16 @@ impl CombatEngine {
                     extra_draws += evolve;
                 }
 
-                // Fire Breathing: damage all enemies when drawing Status or Curse
+                // FireBreathingPower.onCardDraw uses a pure damage matrix with
+                // DamageType.THORNS for both Status and Curse cards.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/FireBreathingPower.java
                 let fire_breathing = self.state.player.status(sid::FIRE_BREATHING);
                 if fire_breathing > 0
                     && (card_type == CardType::Status || card_type == CardType::Curse)
                 {
                     for i in 0..self.state.enemies.len() {
                         if self.state.enemies[i].is_targetable() {
-                            self.deal_damage_to_enemy(i, fire_breathing);
+                            self.deal_thorns_damage_to_enemy(i, fire_breathing);
                         }
                     }
                 }
@@ -2942,10 +4513,34 @@ impl CombatEngine {
             }
         }
 
+        // EmptyDeckShuffleAction constructs onShuffle relic actions before the
+        // follow-up draw, but those relic actions are queued behind that draw.
+        // Emit after the requested cards are in hand so Melange's ScryAction
+        // sees the same remaining draw pile as Java.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DrawCardAction.java
+        // and actions/common/EmptyDeckShuffleAction.java
+        for _ in 0..shuffles {
+            let ctx = crate::effects::trigger::TriggerContext::empty();
+            self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+                crate::effects::trigger::Trigger::OnShuffle,
+                &ctx,
+            ));
+        }
+
         // Evolve: draw accumulated extra cards (recursive call handles further triggers)
         if extra_draws > 0 {
-            self.draw_cards(extra_draws);
+            if self.phase == CombatPhase::AwaitingChoice
+                && self.choice.as_ref().is_some_and(|choice| choice.reason == ChoiceReason::Scry)
+            {
+                if let Some(choice) = self.choice.as_mut() {
+                    choice.post_choice_draw += extra_draws;
+                }
+            } else {
+                self.draw_cards(extra_draws);
+            }
         }
+
+        drawn_card_types
     }
 
     /// Shuffle the draw pile (pub(crate) for card_effects).
@@ -2953,10 +4548,179 @@ impl CombatEngine {
         self.state.draw_pile.shuffle(&mut self.rng);
     }
 
+    /// Execute Reboot's ShuffleAllAction, explicit ShuffleAction, and draw.
+    /// ShuffleAllAction's constructor fires relic hooks before its pile work;
+    /// Melange can therefore pause this continuation on an interactive Scry.
+    pub(crate) fn shuffle_all_and_draw(&mut self, draw_count: i32) {
+        self.emit_event(crate::effects::runtime::GameEvent::empty(
+            crate::effects::trigger::Trigger::OnShuffle,
+        ));
+        if self.phase == CombatPhase::AwaitingChoice {
+            if let Some(choice) = self.choice.as_mut() {
+                choice.deferred_shuffle_all_draw = Some(draw_count);
+            }
+            return;
+        }
+        self.continue_shuffle_all_and_draw(draw_count);
+    }
+
+    fn continue_shuffle_all_and_draw(&mut self, draw_count: i32) {
+        // ShuffleAllAction always shuffles the discard group, even when empty.
+        // CardGroup.shuffle consumes exactly one shuffleRng.randomLong().
+        let discard_seed = self.rng.random_long();
+        crate::seed::java_util_shuffle(&mut self.state.discard_pile, discard_seed);
+
+        // PutOnDeckAction selects each remaining hand card with one inclusive
+        // cardRandomRng.random(size - 1), including the singleton case, then
+        // puts it on top of the draw pile without firing discard callbacks.
+        while !self.state.hand.is_empty() {
+            let idx = self
+                .card_random_rng
+                .random((self.state.hand.len() - 1) as i32) as usize;
+            let card = self.state.hand.remove(idx);
+            self.state.draw_pile.push(card);
+        }
+
+        // ShuffleAllAction iterates the pre-shuffled discard group from bottom
+        // to top and Soul.shuffle adds each card to the top of the draw group.
+        self.state
+            .draw_pile
+            .append(&mut self.state.discard_pile);
+
+        // Reboot then queues ShuffleAction(drawPile, false), which consumes a
+        // second shuffleRng.randomLong() but does not trigger relics again.
+        // Java: reference/extracted/methods/card/Reboot.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/PutOnDeckAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ShuffleAction.java
+        let draw_seed = self.rng.random_long();
+        crate::seed::java_util_shuffle(&mut self.state.draw_pile, draw_seed);
+        self.draw_cards(draw_count.max(0));
+    }
+
+    /// Havoc/PlayTopCardAction: select a random target, shuffle if necessary,
+    /// then autoplay the top card without changing its stored cost.
+    pub(crate) fn play_top_card_of_draw(&mut self, exhausts: bool) {
+        // Havoc.java evaluates getRandomMonster(..., cardRandomRng) while
+        // constructing PlayTopCardAction, before that action inspects either pile.
+        // Java: reference/extracted/methods/card/Havoc.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/PlayTopCardAction.java
+        let target_idx = self.random_living_enemy().map_or(-1, |idx| idx as i32);
+        self.play_top_card_of_draw_at_target(target_idx, exhausts);
+    }
+
+    pub(crate) fn play_top_card_of_draw_at_target(&mut self, target_idx: i32, exhausts: bool) {
+
+        if self.state.draw_pile.is_empty() {
+            if self.state.discard_pile.is_empty() {
+                return;
+            }
+            let mut cards = std::mem::take(&mut self.state.discard_pile);
+            self.state.draw_pile.append(&mut cards);
+            self.shuffle_draw_pile();
+        }
+
+        let mut card = self.state.draw_pile.pop().expect("non-empty after shuffle");
+        card.flags |= CardInstance::FLAG_FREE | CardInstance::FLAG_AUTOPLAY;
+        if exhausts {
+            card.flags |= CardInstance::FLAG_EXHAUST_ON_USE;
+        }
+        let def = self.card_registry.card_def_by_id(card.def_id).clone();
+        let can_play = self.can_play_card_inst(&def, card);
+
+        if can_play {
+            self.state.hand.push(card);
+            let hand_idx = self.state.hand.len() - 1;
+            let plays_before = self.state.total_cards_played;
+            self.play_card(hand_idx, target_idx);
+            if self.state.total_cards_played > plays_before {
+                return;
+            }
+            // A second legality check can only differ because the autoplayed
+            // instance temporarily occupies the hand. Fall through to Java's
+            // failed-autoplay cleanup if it remained there.
+            card = self.state.hand.remove(hand_idx);
+        }
+
+        // GameActionManager marks a failed autoplay dontTriggerOnUseCard, then
+        // queues UseCardAction solely to perform its normal destination move.
+        let mut post_play_card = card.set_free(false);
+        post_play_card.flags &= !CardInstance::FLAG_EXHAUST_ON_USE;
+        if def.card_type == CardType::Power {
+            return;
+        }
+        if !exhausts {
+            self.state.discard_pile.push(post_play_card);
+        } else {
+            let spoon_saved = (self.state.has_relic("Strange Spoon")
+                || self.state.has_relic("StrangeSpoon"))
+                && self.card_random_rng.random_boolean();
+            if spoon_saved {
+                self.state.discard_pile.push(post_play_card);
+            } else {
+                self.state.exhaust_pile.push(post_play_card);
+                self.trigger_card_on_exhaust(post_play_card);
+            }
+        }
+    }
+
     /// Generate a random range using the engine RNG (pub(crate) for card_effects).
     pub(crate) fn rng_gen_range(&mut self, range: std::ops::Range<usize>) -> usize {
         use rand::Rng;
         self.rng.gen_range(range)
+    }
+
+    pub(crate) fn apply_madness_action(&mut self, cost: i8) {
+        // MadnessAction.java first prefers any card whose costForTurn is
+        // positive. It samples the entire hand through cardRandomRng and retries
+        // rejected cards, consuming one counter tick per sample. If no such card
+        // exists, it instead targets a card whose permanent cost is positive,
+        // including one that is temporarily free this turn.
+        let registry = self.card_registry;
+        let costs = |card: CardInstance| {
+            let def_cost = registry.card_def_by_id(card.def_id).cost as i8;
+            let permanent_cost = if card.base_cost >= 0 {
+                card.base_cost
+            } else {
+                def_cost
+            };
+            let cost_for_turn = if card.cost >= 0 {
+                card.cost
+            } else {
+                permanent_cost
+            };
+            (cost_for_turn, permanent_cost)
+        };
+        let better_possible = self
+            .state
+            .hand
+            .iter()
+            .copied()
+            .any(|card| costs(card).0 > 0);
+        let possible = self
+            .state
+            .hand
+            .iter()
+            .copied()
+            .any(|card| costs(card).1 > 0);
+        if !better_possible && !possible {
+            return;
+        }
+
+        loop {
+            let idx = self
+                .card_random_rng
+                .random(self.state.hand.len() as i32 - 1) as usize;
+            let (cost_for_turn, permanent_cost) = costs(self.state.hand[idx]);
+            let eligible = if better_possible {
+                cost_for_turn > 0
+            } else {
+                permanent_cost > 0
+            };
+            if eligible {
+                self.state.hand[idx].set_permanent_cost(cost);
+                return;
+            }
+        }
     }
 
     // =======================================================================
@@ -3006,8 +4770,8 @@ impl CombatEngine {
             }
         }
         for &i in flurry_indices.iter().rev() {
-            let card = self.state.discard_pile.remove(i);
             if self.state.hand.len() < 10 {
+                let card = self.state.discard_pile.remove(i);
                 self.state.hand.push(card);
             }
         }
@@ -3023,14 +4787,43 @@ impl CombatEngine {
         }
     }
 
+    /// Lesson Learned upgrades a random card in Java's persistent master deck,
+    /// not a combat pile copy. The eligible list preserves deck order and the
+    /// one selection consumes exactly one miscRng tick.
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/LessonLearnedAction.java
+    pub(crate) fn upgrade_random_master_deck_card(&mut self) -> Option<usize> {
+        let eligible: Vec<usize> = self
+            .state
+            .master_deck
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, card)| self.card_registry.can_upgrade_card(card).then_some(idx))
+            .collect();
+        if eligible.is_empty() {
+            return None;
+        }
+        let selected = self.misc_rng.random_range(0, (eligible.len() - 1) as i32) as usize;
+        let deck_idx = eligible[selected];
+        self.card_registry
+            .upgrade_card(&mut self.state.master_deck[deck_idx]);
+        Some(deck_idx)
+    }
+
     // =======================================================================
     // Helpers: Temp Card Creation (respects Master Reality)
     // =======================================================================
 
     /// Get a CardInstance for a temporary card, upgrading if Master Reality is active.
     pub fn temp_card(&self, base_id: &str) -> CardInstance {
-        if self.state.player.status(sid::MASTER_REALITY) > 0 {
-            self.card_registry.make_card(&format!("{}+", base_id))
+        let base = self.card_registry.get(base_id);
+        let upgraded_id = format!("{}+", base_id);
+        // MakeTempCard* excludes Status and Curse cards from Master Reality.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
+        let master_reality_can_upgrade = self.state.player.status(sid::MASTER_REALITY) > 0
+            && base.is_some_and(|def| !matches!(def.card_type, CardType::Curse | CardType::Status))
+            && self.card_registry.get(&upgraded_id).is_some();
+        if master_reality_can_upgrade {
+            self.card_registry.make_card(&upgraded_id)
         } else {
             self.card_registry.make_card(base_id)
         }
@@ -3047,6 +4840,34 @@ impl CombatEngine {
                 self.state.hand.push(card);
             } else {
                 self.state.discard_pile.push(card);
+            }
+        }
+    }
+
+    pub(crate) fn apply_bullet_time(&mut self) {
+        // BulletTime.use queues NoDrawPower before ApplyBulletTimeAction.
+        // No Draw is a debuff and may be blocked by Artifact; the cost action
+        // still runs and calls setCostForTurn(-9) on cards currently in hand.
+        // AbstractCard.setCostForTurn clamps that to zero only when the current
+        // cost is non-negative, leaving X-cost and unplayable cards unchanged.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/BulletTime.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ApplyBulletTimeAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/AbstractCard.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NoDrawPower.java
+        crate::powers::apply_debuff(&mut self.state.player, sid::NO_DRAW, 1);
+
+        let registry = self.card_registry;
+        for card in &mut self.state.hand {
+            let def = registry.card_def_by_id(card.def_id);
+            let cost_for_turn = if card.cost >= 0 {
+                card.cost
+            } else if card.base_cost >= 0 {
+                card.base_cost
+            } else {
+                def.cost as i8
+            };
+            if cost_for_turn >= 0 {
+                card.set_cost_for_turn(0);
             }
         }
     }
@@ -3077,9 +4898,29 @@ impl CombatEngine {
     }
 
     /// Perform Scry: reveal top N cards, let player choose which to discard.
-    /// Triggers Nirvana (on_scry block) and Weave (return_on_scry) in resolve_scry.
+    /// Triggers Nirvana before the choice and Weave after it resolves.
     pub fn do_scry(&mut self, amount: i32) {
-        let to_scry = (amount as usize).min(self.state.draw_pile.len());
+        // GoldenEye is applied by ScryAction's constructor, before onScry
+        // powers run or the draw pile is inspected. Its bonus is exactly two.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/ScryAction.java
+        let amount = if self.state.has_relic("GoldenEye") {
+            amount + 2
+        } else {
+            amount
+        };
+        // ScryAction calls every power's onScry before checking for an empty
+        // draw pile, so Nirvana grants raw power-owned block immediately even
+        // when no selection screen opens.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/ScryAction.java
+        let nirvana = self.state.player.status(sid::NIRVANA);
+        if nirvana > 0 {
+            self.gain_block_player(nirvana);
+        }
+        let to_scry = if amount == -1 {
+            self.state.draw_pile.len()
+        } else {
+            (amount.max(0) as usize).min(self.state.draw_pile.len())
+        };
         if to_scry == 0 {
             return;
         }
@@ -3113,29 +4954,31 @@ impl CombatEngine {
 
     pub(crate) fn trigger_card_on_exhaust(&mut self, card_inst: CardInstance) {
         let card = self.card_registry.card_def_by_id(card_inst.def_id);
-        crate::effects::card_runtime::apply_on_exhaust(self, card, card_inst);
+        // CardGroup.moveToExhaustPile calls relic/power onExhaust hooks before
+        // the exhausted card's triggerOnExhaust hook. The order is observable
+        // at the hand limit (for example Dark Embrace + Necronomicurse).
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
         self.trigger_on_exhaust();
+        crate::effects::card_runtime::apply_on_exhaust(self, card, card_inst);
     }
 
-    /// Obtain a random potion into the first empty potion slot, respecting Sozu.
+    /// Roll and obtain a limited random potion into the first empty slot.
     pub fn obtain_random_potion(&mut self) -> bool {
+        // Alchemize evaluates returnRandomPotion(true) while building its
+        // ObtainPotionAction, before that action checks Sozu or inventory
+        // capacity. The roll therefore always consumes potionRng and uses the
+        // current Watcher pool's rarity/rejection algorithm.
+        // Java: cards/green/Alchemize.java, dungeons/AbstractDungeon.java,
+        // and actions/common/ObtainPotionAction.java.
+        let potion_id =
+            crate::potions::defs::entropic_brew::roll_limited_watcher_potion(self);
+
         if self.state.has_relic("Sozu") {
             return false;
         }
         let Some(slot) = self.state.potions.iter().position(|p| p.is_empty()) else {
             return false;
         };
-
-        let pool: Vec<&'static str> = crate::potions::defs::POTION_DEFS
-            .iter()
-            .map(|def| def.id)
-            .filter(|id| *id != "FairyPotion")
-            .collect();
-        if pool.is_empty() {
-            return false;
-        }
-
-        let potion_id = pool[self.rng_gen_range(0..pool.len())];
         self.state.potions[slot] = potion_id.to_string();
         self.rebuild_effect_runtime();
         true
@@ -3170,6 +5013,56 @@ impl CombatEngine {
         self.apply_evoke_effect(effect);
     }
 
+    /// Evoke the first orb and re-channel that same instance, as Recursion's
+    /// RedoAction does. Reusing the object preserves a Dark orb's accumulated
+    /// evoke amount. The ChannelAction is non-damage work queued behind the
+    /// evoke, so lethal orb damage clears it before it can resolve.
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/RedoAction.java
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ChannelAction.java
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DarkOrbEvokeAction.java
+    pub(crate) fn evoke_and_rechannel_front_orb(&mut self) {
+        let Some(orb) = self
+            .state
+            .orb_slots
+            .slots
+            .first()
+            .filter(|orb| !orb.is_empty())
+            .cloned()
+        else {
+            return;
+        };
+
+        let focus = self.state.player.focus();
+        let effect = self.state.orb_slots.evoke_front(focus);
+        self.apply_evoke_effect(effect);
+        if self.state.combat_over || self.state.is_victory() {
+            return;
+        }
+
+        let Some(empty_idx) = self.state.orb_slots.slots.iter().position(|slot| slot.is_empty())
+        else {
+            return;
+        };
+        let orb_type = orb.orb_type;
+        self.state.orb_slots.slots[empty_idx] = orb;
+        match orb_type {
+            crate::orbs::OrbType::Lightning => {
+                self.state.player.add_status(sid::LIGHTNING_CHANNELED, 1);
+            }
+            crate::orbs::OrbType::Frost => {
+                self.state.player.add_status(sid::FROST_CHANNELED, 1);
+            }
+            _ => {}
+        }
+    }
+
+    /// Trigger the front orb's evoke effect without removing it.
+    pub fn evoke_front_orb_without_removing(&mut self) {
+        let focus = self.state.player.focus();
+        let effect = self.state.orb_slots.evoke_front_without_removing(focus);
+        self.apply_evoke_effect(effect);
+    }
+
     /// Evoke the front orb N times.
     pub fn evoke_front_orb_n(&mut self, n: usize) {
         let focus = self.state.player.focus();
@@ -3180,6 +5073,24 @@ impl CombatEngine {
                 return;
             }
         }
+    }
+
+    /// Trigger the current front orb N times, removing it only on the final evoke.
+    pub fn multicast_front_orb_n(&mut self, n: usize) {
+        if n == 0 || self.state.orb_slots.occupied_count() == 0 {
+            return;
+        }
+        // MulticastAction queues `effect - 1` EvokeWithoutRemovingOrbAction
+        // instances followed by one EvokeOrbAction. A lethal earlier evoke
+        // clears the remaining queue, so the front orb is not removed then.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/MulticastAction.java
+        for _ in 0..n.saturating_sub(1) {
+            self.evoke_front_orb_without_removing();
+            if self.state.combat_over {
+                return;
+            }
+        }
+        self.evoke_front_orb();
     }
 
     /// Evoke all orbs.
@@ -3222,6 +5133,16 @@ impl CombatEngine {
                     &ctx,
                 ));
             }
+            // AbstractPlayer.onVictory invokes relics before powers, and
+            // RepairPower heals its stacked amount only while the player is
+            // alive. Keep this in the combat engine so standalone combat state
+            // and the run wrapper observe the same single heal.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RepairPower.java
+            let repair = self.state.player.status(sid::SELF_REPAIR);
+            if self.state.player.hp > 0 && repair > 0 {
+                self.heal_player(repair);
+            }
             return true;
         }
 
@@ -3241,6 +5162,8 @@ impl CombatEngine {
 #[cfg(test)]
 mod test_relic_runtime_wave4 {
     use crate::actions::Action;
+    use crate::effects::runtime::GameEvent;
+    use crate::effects::trigger::Trigger;
     use crate::tests::support::{combat_state_with, end_turn, engine_with_state, make_deck_n};
 
     #[test]
@@ -3250,7 +5173,7 @@ mod test_relic_runtime_wave4 {
             vec![crate::tests::support::enemy_no_intent("JawWorm", 120, 120)],
             20,
         );
-        state.relics.push("Velvet Choker".to_string());
+        state.relics = vec!["PureWater".to_string(), "Velvet Choker".to_string()];
         let mut engine = engine_with_state(state);
         engine.state.hand = make_deck_n("Defend", 7);
         engine.state.draw_pile.clear();
@@ -3267,12 +5190,24 @@ mod test_relic_runtime_wave4 {
             assert_eq!(
                 engine.hidden_effect_value(
                     "Velvet Choker",
-                    crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 },
+                    crate::effects::runtime::EffectOwner::PlayerRelic { slot: 1 },
                     0,
                 ),
                 expected
             );
         }
+
+        // VelvetChoker.java ignores further onPlayCard callbacks at six,
+        // including callbacks from paths that do not pass the manual play gate.
+        engine.emit_event(GameEvent::empty(Trigger::OnAnyCardPlayed));
+        assert_eq!(
+            engine.hidden_effect_value(
+                "Velvet Choker",
+                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 1 },
+                0,
+            ),
+            6
+        );
 
         let hand_before_blocked = engine.state.hand.len();
         let energy_before_blocked = engine.state.energy;
@@ -3288,7 +5223,7 @@ mod test_relic_runtime_wave4 {
         assert_eq!(
             engine.hidden_effect_value(
                 "Velvet Choker",
-                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 },
+                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 1 },
                 0,
             ),
             6
@@ -3298,7 +5233,7 @@ mod test_relic_runtime_wave4 {
         assert_eq!(
             engine.hidden_effect_value(
                 "Velvet Choker",
-                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 },
+                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 1 },
                 0,
             ),
             0
@@ -3316,10 +5251,20 @@ mod test_relic_runtime_wave4 {
         assert_eq!(
             engine.hidden_effect_value(
                 "Velvet Choker",
-                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 },
+                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 1 },
                 0,
             ),
             1
+        );
+
+        engine.emit_event(GameEvent::empty(Trigger::CombatVictory));
+        assert_eq!(
+            engine.hidden_effect_value(
+                "Velvet Choker",
+                crate::effects::runtime::EffectOwner::PlayerRelic { slot: 1 },
+                0,
+            ),
+            -1
         );
     }
 }
@@ -3574,7 +5519,9 @@ impl RustCombatEngine {
             "entangle" => mfx::ENTANGLE,
             "slimed" => mfx::SLIMED,
             "daze" => mfx::DAZE,
+            "daze_draw" => mfx::DAZE_DRAW,
             "burn" => mfx::BURN,
+            "burn_plus" => mfx::BURN_PLUS,
             "burn_upgrade" => mfx::BURN_UPGRADE,
             "siphon_str" => mfx::SIPHON_STR,
             "siphon_dex" => mfx::SIPHON_DEX,

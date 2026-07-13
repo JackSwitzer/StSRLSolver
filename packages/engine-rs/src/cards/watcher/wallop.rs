@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Uncommon: Wallop ---- (cost 2, 9 dmg, gain block equal to unblocked damage; +3 dmg upgrade)
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Wallop.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/WallopAction.java
+    // GainBlock uses the target's final lastDamageTaken after the attack.
     insert(cards, CardDef {
                 id: "Wallop", name: "Wallop", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 9, base_block: -1,

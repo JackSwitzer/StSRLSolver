@@ -14,6 +14,10 @@ static JACK_OF_ALL_TRADES_PLUS: [Effect; 1] = [Effect::GenerateRandomCardsToHand
 }];
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+    // JackOfAllTrades.java selects one base copy from srcColorlessCardPool
+    // through cardRandomRng (two independently when upgraded), then queues a
+    // one-card MakeTempCardInHandAction for each selection. Overflow spills to
+    // discard, and the card exhausts.
     insert(cards, CardDef {
         id: "Jack Of All Trades",
         name: "Jack Of All Trades",

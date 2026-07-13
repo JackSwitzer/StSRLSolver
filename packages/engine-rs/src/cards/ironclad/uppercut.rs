@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Ironclad Uncommon: Uppercut ---- (cost 2, 13 dmg, 1 weak + 1 vuln; +1/+1)
+    // The NORMAL hit resolves before separate Weak and Vulnerable applications;
+    // upgrading raises both debuffs from one turn to two without changing damage.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Uppercut.java
     insert(cards, CardDef {
                 id: "Uppercut", name: "Uppercut", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 13, base_block: -1,

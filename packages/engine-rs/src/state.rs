@@ -1,7 +1,7 @@
 //! Combat state types — mirrors packages/engine/state/combat.py.
 //!
 //! Design: all state is owned, Clone for MCTS tree copies. Statuses use a flat
-//! [i16; 256] array indexed by StatusId for O(1) access and fast cloning.
+//! fixed array indexed by StatusId for O(1) access and fast cloning.
 
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -74,7 +74,7 @@ pub struct EntityState {
     pub max_hp: i32,
     pub block: i32,
     /// All statuses as a flat array indexed by StatusId. Zero means absent.
-    pub statuses: [i16; 256],
+    pub statuses: [i16; sid::MAX_STATUS_ID],
 }
 
 impl EntityState {
@@ -83,7 +83,7 @@ impl EntityState {
             hp,
             max_hp,
             block: 0,
-            statuses: [0; 256],
+            statuses: [0; sid::MAX_STATUS_ID],
         }
     }
 
@@ -145,6 +145,8 @@ pub struct EnemyCombatState {
     pub name: String,
     /// Java BackAttack legality bit for Smoke Bomb and similar checks.
     pub back_attack: bool,
+    /// Whether this enemy currently carries Java's MinionPower.
+    pub is_minion: bool,
     /// Current intended move
     pub move_id: i32,
     pub intent: Intent,
@@ -153,6 +155,8 @@ pub struct EnemyCombatState {
     pub move_history: Vec<i32>,
     pub first_turn: bool,
     pub is_escaping: bool,
+    /// Card held by Java's StasisPower (Bronze Orb), returned on death.
+    pub stasis_card: Option<CardInstance>,
 }
 
 impl EnemyCombatState {
@@ -162,12 +166,14 @@ impl EnemyCombatState {
             id: id.to_string(),
             name: id.to_string(),
             back_attack: false,
+            is_minion: false,
             move_id: -1,
             intent: Intent::Unknown,
             move_effects: SmallVec::new(),
             move_history: Vec::new(),
             first_turn: true,
             is_escaping: false,
+            stasis_card: None,
         }
     }
 
@@ -288,17 +294,24 @@ pub struct CombatState {
     pub draw_pile: Vec<CardInstance>,
     pub discard_pile: Vec<CardInstance>,
     pub exhaust_pile: Vec<CardInstance>,
+    /// Persistent deck snapshot used by combat actions that mutate Java's
+    /// `AbstractPlayer.masterDeck` (not the combat draw/discard copies).
+    pub master_deck: Vec<CardInstance>,
 
     // Enemies
     pub enemies: Vec<EnemyCombatState>,
 
-    // Potions
+    // Empty strings represent Java's inert PotionSlot placeholder objects.
+    // Source: reference/extracted/methods/potion/PotionSlot.java.
     pub potions: Vec<String>,
 
     // Combat tracking
     pub turn: i32,
     pub cards_played_this_turn: i32,
     pub attacks_played_this_turn: i32,
+    /// POWER cards played in this combat. ForceField.configureCostsOnNewCard
+    /// and triggerOnCardPlayed use this history, not currently active powers.
+    pub power_cards_played_this_combat: i32,
     pub combat_over: bool,
     pub player_won: bool,
 
@@ -317,8 +330,11 @@ pub struct CombatState {
     pub total_damage_dealt: i32,
     pub total_damage_taken: i32,
     pub total_cards_played: i32,
-    /// Gold earned during combat that should be synced back to RunState on resolution.
+    /// Cumulative gold earned during combat, retained for telemetry/tests.
+    /// `run_gold` is updated at the same time and is the authoritative balance.
     pub pending_run_gold: i32,
+    /// Current run gold while combat is active (Looter/Mugger steal immediately).
+    pub run_gold: i32,
 
     // Relics (just IDs for checking effects)
     pub relics: Vec<String>,
@@ -330,9 +346,14 @@ pub struct CombatState {
     /// Orb slots (Defect mechanic, also available for cross-character mods).
     pub orb_slots: OrbSlots,
 
+    /// Independent TheBombPower instances as (turns remaining, damage).
+    /// Java gives every application a unique power ID, so later plays must not
+    /// merge damage or reset an older bomb's countdown.
+    pub pending_bombs: SmallVec<[(i16, i16); 4]>,
+
     /// Cross-combat relic counters (Nunchaku, Incense Burner, Ink Bottle, Happy Flower, etc.)
     /// Indexed by relic_flags::counter::* constants. Synced from/to RunState.relic_flags.
-    pub relic_counters: [i16; 8],
+    pub relic_counters: [i16; crate::relic_flags::counter::NUM_COUNTERS],
 
 }
 
@@ -345,6 +366,7 @@ impl CombatState {
         deck: Vec<CardInstance>,
         energy: i32,
     ) -> Self {
+        let master_deck = deck.clone();
         Self {
             player: EntityState::new(player_hp, player_max_hp),
             energy,
@@ -354,11 +376,13 @@ impl CombatState {
             draw_pile: deck,
             discard_pile: Vec::new(),
             exhaust_pile: Vec::new(),
+            master_deck,
             enemies,
             potions: vec!["".to_string(); 3],
             turn: 0,
             cards_played_this_turn: 0,
             attacks_played_this_turn: 0,
+            power_cards_played_this_combat: 0,
             combat_over: false,
             player_won: false,
             mantra: 0,
@@ -370,10 +394,12 @@ impl CombatState {
             total_damage_taken: 0,
             total_cards_played: 0,
             pending_run_gold: 0,
+            run_gold: 0,
             relics: Vec::new(),
             retained_cards: Vec::new(),
             orb_slots: OrbSlots::new(0), // 0 slots by default (Watcher has no orbs)
-            relic_counters: [0i16; 8],
+            pending_bombs: SmallVec::new(),
+            relic_counters: [0i16; crate::relic_flags::counter::NUM_COUNTERS],
         }
     }
 
@@ -412,6 +438,12 @@ impl CombatState {
         self.relics.iter().any(|r| r == relic_id)
     }
 
+    /// Java keeps enemy moves internally but suppresses their presentation
+    /// while Runic Dome is owned (AbstractMonster.java::render/renderTip).
+    pub fn enemy_intents_visible(&self) -> bool {
+        !self.has_relic("Runic Dome") && !self.has_relic("RunicDome")
+    }
+
     /// Centralized healing: checks Mark of the Bloom (blocks) and Magic Flower (1.5x).
     pub fn heal_player(&mut self, amount: i32) {
         if amount <= 0 {
@@ -422,7 +454,8 @@ impl CombatState {
         }
         let mut heal = amount;
         if self.player.status(crate::status_ids::sid::HAS_MAGIC_FLOWER) > 0 {
-            heal = (heal as f64 * 1.5) as i32;
+            // MagicFlower.java uses MathUtils.round(healAmount * 1.5f).
+            heal = (heal as f64 * 1.5).round() as i32;
         }
         self.player.hp = (self.player.hp + heal).min(self.player.max_hp);
     }
@@ -493,6 +526,10 @@ impl PyCombatState {
         dict.set_item("total_damage_dealt", self.inner.total_damage_dealt)?;
         dict.set_item("total_damage_taken", self.inner.total_damage_taken)?;
         dict.set_item("total_cards_played", self.inner.total_cards_played)?;
+        dict.set_item(
+            "power_cards_played_this_combat",
+            self.inner.power_cards_played_this_combat,
+        )?;
 
         Ok(dict)
     }

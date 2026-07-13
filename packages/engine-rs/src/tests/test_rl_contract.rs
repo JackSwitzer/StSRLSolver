@@ -1,9 +1,12 @@
 use crate::actions::Action;
-use crate::decision::{DecisionAction, DecisionKind, RewardChoice, RewardItemKind, RewardItemState};
+use crate::decision::{
+    build_combat_context, DecisionAction, DecisionKind, RewardChoice, RewardItemKind,
+    RewardItemState,
+};
 use crate::events::{EventDef, EventEffect, EventOption};
 use crate::obs::{
-    encode_combat_state_v2, get_observation, ACTION_FEAT_DIM, COMBAT_DIM, COMBAT_OBS_VERSION,
-    RUN_DECISION_TAIL_OFFSET, STATE_DIM,
+    encode_combat_state_v2, get_observation, ACTION_FEAT_DIM, COMBAT_DIM,
+    COMBAT_OBS_VERSION, COMBAT_POTION_CONTEXT_DIM, RUN_DECISION_TAIL_OFFSET, STATE_DIM,
 };
 use crate::run::{RunAction, RunEngine, RunPhase, ShopState};
 use crate::{PyRunEngine, COMBAT_BASE};
@@ -90,7 +93,7 @@ fn invalid_run_actions_are_rejected_by_step_result() {
 }
 
 #[test]
-fn combat_obs_v3_exposes_potions_and_choice_context() {
+fn combat_obs_v4_exposes_five_potions_and_choice_context() {
     let _guard = python_bridge_guard();
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.deck = vec![
@@ -124,7 +127,7 @@ fn combat_obs_v3_exposes_potions_and_choice_context() {
     }));
 
     assert!(result.action_accepted);
-    assert_eq!(COMBAT_OBS_VERSION, 3);
+    assert_eq!(COMBAT_OBS_VERSION, 4);
     let context = result
         .combat_context
         .as_ref()
@@ -153,9 +156,54 @@ fn combat_obs_v3_exposes_potions_and_choice_context() {
     assert_eq!(obs[potion_offset], 1.0, "slot 0 should report a potion");
     assert_eq!(obs[potion_offset + 3], 1.0, "Block Potion should mark the defensive bucket");
 
-    let choice_offset = COMBAT_DIM + 18 + 12;
+    let choice_offset = COMBAT_DIM + 18 + COMBAT_POTION_CONTEXT_DIM;
     assert_eq!(obs[choice_offset], 1.0, "choice state should be active after Third Eye");
     assert_eq!(obs[choice_offset + 1], 1.0, "Third Eye should expose the scry reason");
+}
+
+#[test]
+fn potion_belt_fifth_slot_is_observable_and_actionable_in_combat() {
+    // Source: PotionBelt.java::onEquip appends two potion slots, yielding five
+    // for a standard non-ascension run.
+    let mut engine = RunEngine::new(42, 20);
+    engine.run_state.relics.push("Potion Belt".to_string());
+    engine.run_state.max_potions = 5;
+    engine.run_state.potions.resize(5, String::new());
+    engine.run_state.potions[4] = "Fire Potion".to_string();
+    enter_test_combat(&mut engine);
+
+    assert!(engine.get_legal_actions().contains(&RunAction::CombatAction(
+        Action::UsePotion {
+            potion_idx: 4,
+            target_idx: 0,
+        },
+    )));
+    let obs = encode_combat_state_v2(&engine);
+    let fifth_slot_offset = COMBAT_DIM + 18 + 4 * 4;
+    assert_eq!(obs[fifth_slot_offset], 1.0);
+    assert_eq!(obs[fifth_slot_offset + 1], 1.0);
+}
+
+#[test]
+fn frozen_eye_alone_exposes_actual_draw_order_in_combat_context() {
+    // Sources: FrozenEye.java and DrawPileViewScreen.java::open.
+    let mut plain = RunEngine::new(42, 20);
+    enter_test_combat(&mut plain);
+    let plain_context = build_combat_context(plain.get_combat_engine().expect("plain combat"));
+    assert!(plain_context.draw_order.is_empty());
+
+    let mut frozen = RunEngine::new(42, 20);
+    frozen.run_state.relics.push("Frozen Eye".to_string());
+    enter_test_combat(&mut frozen);
+    let combat = frozen.get_combat_engine().expect("Frozen Eye combat");
+    let expected: Vec<String> = combat
+        .state
+        .draw_pile
+        .iter()
+        .map(|card| combat.card_registry.card_name(card.def_id).to_string())
+        .collect();
+    assert!(!expected.is_empty());
+    assert_eq!(build_combat_context(combat).draw_order, expected);
 }
 
 #[test]
@@ -289,6 +337,8 @@ fn shop_and_event_decision_contexts_are_stable_and_bridged() {
     engine.run_state.gold = 120;
     engine.debug_set_shop_state(ShopState {
         cards: vec![("Wallop".to_string(), 80), ("Scrawl".to_string(), 150)],
+        relics: Vec::new(),
+        potions: Vec::new(),
         remove_price: 50,
         removal_used: false,
     });
@@ -352,14 +402,26 @@ fn reward_action_features_distinguish_potion_and_boss_relic_states() {
     assert_eq!(obs[reward_slot + 6], 1.0, "first reward item should encode as a potion");
     assert_eq!(obs[reward_slot + 10], 1.0, "first reward item should be claimable");
 
+    let offered_potion = engine
+        .current_reward_screen()
+        .expect("reward screen")
+        .items[0]
+        .label
+        .clone();
     let potion_claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
     assert!(potion_claim.action_accepted);
+    let mut expected_actions = vec![
+        DecisionAction::ClaimRewardItem { item_index: 1 },
+        DecisionAction::SkipRewardItem { item_index: 1 },
+    ];
+    // FruitJuice.canUse permits use on non-combat reward screens.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FruitJuice.java
+    if matches!(offered_potion.as_str(), "FruitJuice" | "Fruit Juice") {
+        expected_actions.push(DecisionAction::UsePotion(0));
+    }
     assert_eq!(
         potion_claim.legal_decision_actions,
-        vec![
-            DecisionAction::ClaimRewardItem { item_index: 1 },
-            DecisionAction::SkipRewardItem { item_index: 1 },
-        ]
+        expected_actions
     );
 
     let skip_slot = STATE_DIM + ACTION_FEAT_DIM;

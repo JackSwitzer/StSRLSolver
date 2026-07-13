@@ -22,6 +22,7 @@ fn xcount_wave3_expunger_and_conjure_blade_use_card_owned_xcount_surface() {
     let expunger = registry.get("Expunger").expect("Expunger");
     assert_eq!(expunger.card_type, CardType::Attack);
     assert_eq!(expunger.target, CardTarget::Enemy);
+    assert_eq!(expunger.base_magic, -1);
     assert_eq!(
         expunger.effect_data,
         &[
@@ -41,6 +42,37 @@ fn xcount_wave3_expunger_and_conjure_blade_use_card_owned_xcount_surface() {
         ))]
     );
     assert!(conjure_blade_plus.complex_hook.is_none());
+}
+
+#[test]
+fn xcount_wave3_expunger_allows_zero_hits_and_upgrades_damage_by_six() {
+    // Expunger.use loops while i < magicNumber, so setX(0) deals no damage.
+    // Its upgradeDamage(6) changes 9 damage to 15 without adding a hit.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Expunger.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/ConjureBladeAction.java
+    let mut zero = one_enemy_engine(50, 0);
+    ensure_in_hand(&mut zero, "ConjureBlade");
+    assert!(play_self(&mut zero, "ConjureBlade"));
+    let generated = zero
+        .state
+        .draw_pile
+        .iter()
+        .find(|card| zero.card_registry.card_name(card.def_id) == "Expunger")
+        .copied()
+        .expect("zero-hit Expunger");
+    assert_eq!(generated.misc, 0);
+    zero.state.draw_pile.retain(|card| *card != generated);
+    zero.state.hand.push(generated);
+    zero.state.energy = 1;
+    assert!(play_on_enemy(&mut zero, "Expunger", 0));
+    assert_eq!(zero.state.enemies[0].entity.hp, 50);
+
+    let mut upgraded = one_enemy_engine(50, 1);
+    let mut expunger_plus = upgraded.card_registry.make_card("Expunger+");
+    expunger_plus.misc = 2;
+    upgraded.state.hand.push(expunger_plus);
+    assert!(play_on_enemy(&mut upgraded, "Expunger+", 0));
+    assert_eq!(upgraded.state.enemies[0].entity.hp, 20);
 }
 
 #[test]

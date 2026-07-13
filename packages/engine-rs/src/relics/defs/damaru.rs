@@ -9,8 +9,9 @@ static EFFECTS: [Effect; 1] = [
 ];
 
 static TRIGGERS: [TriggeredEffect; 1] = [
+    // Source: reference/extracted/methods/relic/Damaru.java (`atTurnStart`).
     TriggeredEffect {
-        trigger: Trigger::TurnStartPostDrawLate,
+        trigger: Trigger::TurnStartPreDraw,
         condition: TriggerCondition::Always,
         effects: &EFFECTS,
         counter: None,

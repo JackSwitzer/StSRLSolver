@@ -2,7 +2,9 @@
 //!
 //! Powers that trigger at the start of the player's turn.
 
-use crate::effects::declarative::{AmountSource, Effect, Pile, SimpleEffect, Target};
+use crate::effects::declarative::{
+    AmountSource, Effect, GeneratedCardPool, Pile, SimpleEffect, Target,
+};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::engine::{ChoiceOption, ChoiceReason, CombatEngine};
@@ -11,7 +13,125 @@ use crate::state::Stance;
 use crate::status_ids::sid;
 
 // ===========================================================================
-// Demon Form — TurnStart: gain Strength equal to stacks
+// Energized — OnEnergyRecharge: gain stored energy, then remove the power
+// ===========================================================================
+
+// EnergizedPower and EnergizedBluePower gain their amount during
+// onEnergyRecharge and queue removal of the shared "Energized" power.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/powers/EnergizedPower.java
+// Java: decompiled/java-src/com/megacrit/cardcrawl/powers/EnergizedBluePower.java
+
+static ENERGIZED_EFFECTS: [Effect; 2] = [
+    Effect::Simple(SimpleEffect::GainEnergy(AmountSource::StatusValue(
+        sid::ENERGIZED,
+    ))),
+    Effect::Simple(SimpleEffect::SetStatus(
+        Target::Player,
+        sid::ENERGIZED,
+        AmountSource::Fixed(0),
+    )),
+];
+
+static ENERGIZED_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::TurnStart,
+    condition: TriggerCondition::Always,
+    effects: &ENERGIZED_EFFECTS,
+    counter: None,
+}];
+
+pub static DEF_ENERGIZED: EntityDef = EntityDef {
+    id: "energized",
+    name: "Energized",
+    kind: EntityKind::Power,
+    triggers: &ENERGIZED_TRIGGERS,
+    complex_hook: None,
+    status_guard: Some(sid::ENERGIZED),
+};
+
+fn hook_energy_down(
+    engine: &mut CombatEngine,
+    owner: EffectOwner,
+    event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    if owner == EffectOwner::PlayerPower && event.kind == Trigger::TurnStart {
+        let amount = engine.state.player.status(sid::ENERGY_DOWN);
+        engine.state.energy = (engine.state.energy - amount).max(0);
+    }
+}
+
+static ENERGY_DOWN_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::TurnStart,
+    condition: TriggerCondition::Always,
+    effects: &[],
+    counter: None,
+}];
+
+pub static DEF_ENERGY_DOWN: EntityDef = EntityDef {
+    id: "energy_down",
+    name: "Energy Down",
+    kind: EntityKind::Power,
+    triggers: &ENERGY_DOWN_TRIGGERS,
+    complex_hook: Some(hook_energy_down),
+    status_guard: Some(sid::ENERGY_DOWN),
+};
+
+// ===========================================================================
+// Phantasmal — grant one turn of Double Damage, then consume one schedule stack
+// ===========================================================================
+
+fn hook_phantasmal(
+    engine: &mut CombatEngine,
+    owner: EffectOwner,
+    event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    if owner != EffectOwner::PlayerPower || event.kind != Trigger::TurnStart {
+        return;
+    }
+
+    let phantasmal = engine.state.player.status(sid::PHANTASMAL);
+    if phantasmal <= 0 {
+        return;
+    }
+
+    // Java: powers/PhantasmalPower.java constructs DoubleDamagePower(amount=1)
+    // but passes the full Phantasmal amount as ApplyPowerAction.stackAmount.
+    // Thus an absent power starts at one; an existing power gains all pending
+    // stacks. Phantasmal itself always loses exactly one stack per turn.
+    let double_damage = engine.state.player.status(sid::DOUBLE_DAMAGE);
+    if double_damage > 0 {
+        engine
+            .state
+            .player
+            .set_status(sid::DOUBLE_DAMAGE, double_damage + phantasmal);
+    } else {
+        engine.state.player.set_status(sid::DOUBLE_DAMAGE, 1);
+    }
+    engine
+        .state
+        .player
+        .set_status(sid::PHANTASMAL, phantasmal - 1);
+}
+
+static PHANTASMAL_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::TurnStart,
+    condition: TriggerCondition::Always,
+    effects: &[],
+    counter: None,
+}];
+
+pub static DEF_PHANTASMAL: EntityDef = EntityDef {
+    id: "phantasmal",
+    name: "Phantasmal",
+    kind: EntityKind::Power,
+    triggers: &PHANTASMAL_TRIGGERS,
+    complex_hook: Some(hook_phantasmal),
+    status_guard: Some(sid::PHANTASMAL),
+};
+
+// ===========================================================================
+// Demon Form — post-draw turn start: gain Strength equal to stacks
 // ===========================================================================
 
 static DEMON_FORM_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddStatus(
@@ -21,7 +141,9 @@ static DEMON_FORM_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddStatus
 ))];
 
 static DEMON_FORM_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnStart,
+    // DemonFormPower overrides atStartOfTurnPostDraw, not atStartOfTurn.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DemonFormPower.java
+    trigger: Trigger::TurnStartPostDraw,
     condition: TriggerCondition::Always,
     effects: &DEMON_FORM_EFFECTS,
     counter: None,
@@ -37,7 +159,8 @@ pub static DEF_DEMON_FORM: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Noxious Fumes — TurnStart: poison all enemies
+// Noxious Fumes — poison all living enemies after the normal turn draw.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NoxiousFumesPower.java
 // ===========================================================================
 
 static NOXIOUS_FUMES_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddStatus(
@@ -47,7 +170,7 @@ static NOXIOUS_FUMES_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddSta
 ))];
 
 static NOXIOUS_FUMES_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnStart,
+    trigger: Trigger::TurnStartPostDraw,
     condition: TriggerCondition::Always,
     effects: &NOXIOUS_FUMES_EFFECTS,
     counter: None,
@@ -63,19 +186,19 @@ pub static DEF_NOXIOUS_FUMES: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Brutality — TurnStart: draw 1 card, lose HP equal to stacks
+// Brutality — TurnStartPostDraw: draw 1 card, lose HP equal to stacks
 // ===========================================================================
 
-// Brutality loses HP equal to stacks. DealDamage(Player, ...) routes through
-// player_lose_hp which handles the HP loss correctly (ModifyHp with positive
-// StatusValue would heal instead).
+// BrutalityPower.atStartOfTurnPostDraw queues DrawCardAction followed by
+// LoseHPAction for its stack amount.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BrutalityPower.java
 static BRUTALITY_EFFECTS: [Effect; 2] = [
     Effect::Simple(SimpleEffect::DrawCards(AmountSource::StatusValue(sid::BRUTALITY))),
     Effect::Simple(SimpleEffect::DealDamage(Target::Player, AmountSource::StatusValue(sid::BRUTALITY))),
 ];
 
 static BRUTALITY_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnStart,
+    trigger: Trigger::TurnStartPostDraw,
     condition: TriggerCondition::Always,
     effects: &BRUTALITY_EFFECTS,
     counter: None,
@@ -93,6 +216,9 @@ pub static DEF_BRUTALITY: EntityDef = EntityDef {
 // ===========================================================================
 // Berserk — TurnStart: gain energy equal to stacks
 // ===========================================================================
+
+// Source: powers/BerserkPower.java::atStartOfTurn queues GainEnergyAction for
+// the power's stack amount on every turn start.
 
 static BERSERK_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::GainEnergy(
     AmountSource::StatusValue(sid::BERSERK),
@@ -117,6 +243,9 @@ pub static DEF_BERSERK: EntityDef = EntityDef {
 // ===========================================================================
 // Infinite Blades — TurnStart: add Shiv(s) to hand
 // ===========================================================================
+
+// Source: powers/InfiniteBladesPower.java::atStartOfTurn creates `amount`
+// unupgraded Shivs, and stackPower adds each new card's one stack.
 
 static INFINITE_BLADES_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddCard(
     "Shiv",
@@ -167,7 +296,8 @@ pub static DEF_BATTLE_HYMN: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Devotion — TurnStart: gain mantra equal to stacks
+// Devotion — TurnStartPostDraw: gain mantra equal to stacks
+// Java: powers/watcher/DevotionPower.java atStartOfTurnPostDraw().
 // ===========================================================================
 
 static DEVOTION_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::GainMantra(
@@ -175,7 +305,7 @@ static DEVOTION_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::GainMantra(
 ))];
 
 static DEVOTION_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnStart,
+    trigger: Trigger::TurnStartPostDraw,
     condition: TriggerCondition::Always,
     effects: &DEVOTION_EFFECTS,
     counter: None,
@@ -191,48 +321,21 @@ pub static DEF_DEVOTION: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Wraith Form — TurnStart: lose 1 Dexterity each turn
-// ===========================================================================
-
-static WRAITH_FORM_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddStatus(
-    Target::Player,
-    sid::DEXTERITY,
-    AmountSource::Fixed(-1),
-))];
-
-static WRAITH_FORM_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnStart,
-    condition: TriggerCondition::Always,
-    effects: &WRAITH_FORM_EFFECTS,
-    counter: None,
-}];
-
-pub static DEF_WRAITH_FORM: EntityDef = EntityDef {
-    id: "wraith_form",
-    name: "Wraith Form",
-    kind: EntityKind::Power,
-    triggers: &WRAITH_FORM_TRIGGERS,
-    complex_hook: None,
-    status_guard: Some(sid::WRAITH_FORM),
-};
-
-// ===========================================================================
 // Deva Form — TurnStart: gain energy (escalating)
-// NOTE: Deva Form escalates each turn (amt, then amt+1, etc.).
-// The escalation is a side-effect mutation, so this is approximated
-// here as gaining energy = current stacks. The actual escalation
-// (incrementing the status value) needs complex_hook or engine support.
+// Java DevaPower keeps amount and energyGainAmount separate: recharge grants
+// energyGainAmount, then increments it by amount.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/DevaPower.java
 // ===========================================================================
 
 static DEVA_FORM_EFFECTS: [Effect; 2] = [
     Effect::Simple(SimpleEffect::GainEnergy(
-        AmountSource::StatusValue(sid::DEVA_FORM),
+        AmountSource::StatusValue(sid::DEVA_FORM_ENERGY),
     )),
-    // Escalate: increment status so next turn grants more energy
+    // Escalate the hidden energy counter by the stable visible stack amount.
     Effect::Simple(SimpleEffect::AddStatus(
         Target::Player,
-        sid::DEVA_FORM,
-        AmountSource::Fixed(1),
+        sid::DEVA_FORM_ENERGY,
+        AmountSource::StatusValue(sid::DEVA_FORM),
     )),
 ];
 
@@ -253,14 +356,10 @@ pub static DEF_DEVA_FORM: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Hello World — TurnStart: add Strike to hand (MCTS approximation)
+// Hello World — atStartOfTurn: add one random common card per stack
 // ===========================================================================
 
-static HELLO_WORLD_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddCard(
-    "Strike",
-    Pile::Hand,
-    AmountSource::StatusValue(sid::HELLO_WORLD),
-))];
+static HELLO_WORLD_EFFECTS: [Effect; 0] = [];
 
 static HELLO_WORLD_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::TurnStart,
@@ -269,24 +368,48 @@ static HELLO_WORLD_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     counter: None,
 }];
 
+fn hook_hello_world(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    _event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    // HelloPower.atStartOfTurn calls getCard(COMMON, cardRandomRng) once per
+    // stack and queues a MakeTempCardInHandAction for each base copy. The temp
+    // action applies Master Reality and spills cards past the hand cap.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/HelloPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
+    let hello_world = engine.state.player.status(sid::HELLO_WORLD);
+    for _ in 0..hello_world {
+        let Some(card) = crate::effects::interpreter::generate_random_card(
+            engine,
+            GeneratedCardPool::DefectCommon,
+        ) else {
+            continue;
+        };
+        if engine.state.hand.len() < 10 {
+            engine.state.hand.push(card);
+        } else {
+            engine.state.discard_pile.push(card);
+        }
+    }
+}
+
 pub static DEF_HELLO_WORLD: EntityDef = EntityDef {
     id: "hello_world",
     name: "Hello World",
     kind: EntityKind::Power,
     triggers: &HELLO_WORLD_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_hello_world),
     status_guard: Some(sid::HELLO_WORLD),
 };
 
 // ===========================================================================
-// Magnetism — TurnStart: add Strike to hand (MCTS approximation)
+// Magnetism — TurnStart: add one random Colorless card per stack
 // ===========================================================================
 
-static MAGNETISM_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddCard(
-    "Strike",
-    Pile::Hand,
-    AmountSource::Fixed(1),
-))];
+static MAGNETISM_EFFECTS: [Effect; 0] = [];
 
 static MAGNETISM_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::TurnStart,
@@ -295,24 +418,51 @@ static MAGNETISM_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     counter: None,
 }];
 
+fn hook_magnetism(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    _event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    // MagnetismPower.atStartOfTurn calls returnTrulyRandomColorlessCardInCombat
+    // once per stack, then queues one MakeTempCardInHandAction per base copy.
+    // That selection consumes cardRandomRng and hand overflow goes to discard.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/MagnetismPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
+    let magnetism = engine.state.player.status(sid::MAGNETISM);
+    for _ in 0..magnetism {
+        let Some(card) = crate::effects::interpreter::generate_random_card(
+            engine,
+            GeneratedCardPool::Colorless,
+        ) else {
+            continue;
+        };
+        if engine.state.hand.len() < 10 {
+            engine.state.hand.push(card);
+        } else {
+            engine.state.discard_pile.push(card);
+        }
+    }
+}
+
 pub static DEF_MAGNETISM: EntityDef = EntityDef {
     id: "magnetism",
     name: "Magnetism",
     kind: EntityKind::Power,
     triggers: &MAGNETISM_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_magnetism),
     status_guard: Some(sid::MAGNETISM),
 };
 
 // ===========================================================================
-// Creative AI — TurnStartPostDraw: add random Power card to hand
-// Current MCTS approximation is preserved exactly by adding "Smite".
+// Creative AI — atStartOfTurn: add random Defect Power cards before normal draw
 // ===========================================================================
 
 static EMPTY_EFFECTS: [Effect; 0] = [];
 
 static CREATIVE_AI_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnStartPostDraw,
+    trigger: Trigger::TurnStart,
     condition: TriggerCondition::Always,
     effects: &EMPTY_EFFECTS,
     counter: None,
@@ -324,13 +474,25 @@ fn hook_creative_ai(
     _event: &GameEvent,
     _state: &mut EffectState,
 ) {
+    // CreativeAIPower.atStartOfTurn selects one non-healing source-pool Power
+    // per stack through cardRandomRng, then queues one MakeTempCardInHandAction
+    // per selection. Those actions resolve before normal draw and spill past
+    // the ten-card hand limit into discard.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/CreativeAIPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
     let creative_ai = engine.state.player.status(sid::CREATIVE_AI);
     for _ in 0..creative_ai {
-        if engine.state.hand.len() >= 10 {
-            break;
+        let Some(card) = crate::effects::interpreter::generate_random_card(
+            engine,
+            GeneratedCardPool::DefectPower,
+        ) else {
+            continue;
+        };
+        if engine.state.hand.len() < 10 {
+            engine.state.hand.push(card);
+        } else {
+            engine.state.discard_pile.push(card);
         }
-        let smite_id = engine.temp_card("Smite");
-        engine.state.hand.push(smite_id);
     }
 }
 
@@ -424,9 +586,7 @@ pub static DEF_ENTER_DIVINITY: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Mayhem — TurnStartPostDraw: move top draw card(s) into hand
-// Preserve current engine behavior exactly, including the MCTS approximation
-// that adds the top card to hand instead of auto-playing it.
+// Mayhem — TurnStartPostDraw: autoplay the top draw card once per stack
 // ===========================================================================
 
 static MAYHEM_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
@@ -443,13 +603,19 @@ fn hook_mayhem(
     _state: &mut EffectState,
 ) {
     let mayhem = engine.state.player.status(sid::MAYHEM);
-    for _ in 0..mayhem {
-        if engine.state.hand.len() >= 10 {
+    // MayhemPower queues all wrapper actions before any PlayTopCardAction runs,
+    // so every stack selects its target first. Each selection consumes
+    // cardRandomRng even with one living monster. Unlike Havoc, exhausts=false.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/MayhemPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/PlayTopCardAction.java
+    let targets: Vec<i32> = (0..mayhem)
+        .map(|_| engine.random_living_enemy().map_or(-1, |idx| idx as i32))
+        .collect();
+    for target_idx in targets {
+        if engine.state.combat_over {
             break;
         }
-        if let Some(card_id) = engine.state.draw_pile.pop() {
-            engine.state.hand.push(card_id);
-        }
+        engine.play_top_card_of_draw_at_target(target_idx, false);
     }
 }
 
@@ -463,9 +629,7 @@ pub static DEF_MAYHEM: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Tools of the Trade — TurnStartPostDraw: draw N, then choose one discard
-// Preserve current engine behavior exactly: it draws `N` cards but still
-// opens a single-card discard choice rather than `N` discards.
+// Tools of the Trade — TurnStartPostDraw: draw N, then discard N
 // ===========================================================================
 
 static TOOLS_OF_THE_TRADE_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
@@ -491,10 +655,27 @@ fn hook_tools_of_the_trade(
         return;
     }
 
+    let discard_count = (tott as usize).min(engine.state.hand.len());
+    if engine.state.hand.len() <= discard_count {
+        // DiscardAction auto-discards the whole hand from the top when its
+        // size is at most amount and fires manual-discard hooks for every card.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DiscardAction.java
+        while let Some(card) = engine.state.hand.pop() {
+            engine.state.discard_pile.push(card);
+            engine.on_card_discarded(card);
+        }
+        return;
+    }
+
     let options: Vec<ChoiceOption> = (0..engine.state.hand.len())
         .map(ChoiceOption::HandCard)
         .collect();
-    engine.begin_choice(ChoiceReason::DiscardFromHand, options, 1, 1);
+    engine.begin_choice(
+        ChoiceReason::DiscardFromHand,
+        options,
+        discard_count,
+        discard_count,
+    );
 }
 
 pub static DEF_TOOLS_OF_THE_TRADE: EntityDef = EntityDef {
@@ -517,7 +698,7 @@ mod tests {
     #[test]
     fn test_demon_form_def() {
         assert_eq!(DEF_DEMON_FORM.triggers.len(), 1);
-        assert_eq!(DEF_DEMON_FORM.triggers[0].trigger, Trigger::TurnStart);
+        assert_eq!(DEF_DEMON_FORM.triggers[0].trigger, Trigger::TurnStartPostDraw);
         assert_eq!(DEF_DEMON_FORM.triggers[0].condition, TriggerCondition::Always);
         assert!(DEF_DEMON_FORM.complex_hook.is_none());
     }
@@ -530,9 +711,9 @@ mod tests {
     #[test]
     fn test_all_simple_turn_start_defs_have_correct_trigger() {
         let defs = [
-            &DEF_DEMON_FORM, &DEF_NOXIOUS_FUMES, &DEF_BRUTALITY,
+            &DEF_ENERGIZED,
             &DEF_BERSERK, &DEF_INFINITE_BLADES, &DEF_BATTLE_HYMN,
-            &DEF_DEVOTION, &DEF_WRAITH_FORM, &DEF_DEVA_FORM,
+            &DEF_DEVA_FORM,
             &DEF_HELLO_WORLD, &DEF_MAGNETISM,
             &DEF_DOPPELGANGER_DRAW, &DEF_DOPPELGANGER_ENERGY,
         ];
@@ -541,15 +722,25 @@ mod tests {
             assert!(!def.triggers.is_empty());
             assert_eq!(def.triggers[0].trigger, Trigger::TurnStart);
         }
+        // These powers override atStartOfTurnPostDraw, not atStartOfTurn.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BrutalityPower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NoxiousFumesPower.java
+        assert_eq!(DEF_BRUTALITY.triggers[0].trigger, Trigger::TurnStartPostDraw);
+        assert_eq!(DEF_DEMON_FORM.triggers[0].trigger, Trigger::TurnStartPostDraw);
+        assert_eq!(DEF_DEVOTION.triggers[0].trigger, Trigger::TurnStartPostDraw);
+        assert_eq!(DEF_NOXIOUS_FUMES.triggers[0].trigger, Trigger::TurnStartPostDraw);
     }
 
     #[test]
     fn test_complex_turn_start_defs_have_hooks() {
-        let defs = [
-            &DEF_CREATIVE_AI, &DEF_ENTER_DIVINITY,
-            &DEF_MAYHEM, &DEF_TOOLS_OF_THE_TRADE,
-        ];
-        for def in &defs {
+        // CreativeAIPower overrides atStartOfTurn, while the other complex
+        // powers here override atStartOfTurnPostDraw.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/CreativeAIPower.java
+        assert_eq!(DEF_CREATIVE_AI.kind, EntityKind::Power);
+        assert!(DEF_CREATIVE_AI.complex_hook.is_some());
+        assert_eq!(DEF_CREATIVE_AI.triggers[0].trigger, Trigger::TurnStart);
+
+        for def in [&DEF_ENTER_DIVINITY, &DEF_MAYHEM, &DEF_TOOLS_OF_THE_TRADE] {
             assert_eq!(def.kind, EntityKind::Power);
             assert!(def.complex_hook.is_some());
             assert_eq!(def.triggers.len(), 1);

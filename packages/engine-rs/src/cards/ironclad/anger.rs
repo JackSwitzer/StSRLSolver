@@ -1,5 +1,7 @@
 use crate::cards::prelude::*;
 
+// Source: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Anger.java
+
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Ironclad Common: Anger ---- (cost 0, 6 dmg, add copy to discard; +2 dmg)
     insert(cards, CardDef {

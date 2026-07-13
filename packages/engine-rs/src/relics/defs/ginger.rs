@@ -1,4 +1,6 @@
 //! Ginger: Set HAS_GINGER flag at combat start (prevents Weak).
+//! Sources: decompiled/java-src/com/megacrit/cardcrawl/relics/Ginger.java and
+//! actions/common/ApplyPowerAction.java.
 
 use crate::effects::declarative::{Effect, SimpleEffect, Target, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
@@ -6,6 +8,8 @@ use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::status_ids::sid;
 
 static EFFECTS: [Effect; 1] = [
+    // ApplyPowerAction.java refuses Weakened on a player who owns Ginger; the
+    // runtime flag lets the shared enemy-debuff pipeline enforce that check.
     Effect::Simple(SimpleEffect::SetStatus(Target::Player, sid::HAS_GINGER, AmountSource::Fixed(1))),
 ];
 

@@ -42,29 +42,14 @@ fn watcher_wave14_registry_exports_match_typed_surface() {
     let spirit_shield = registry
         .get("SpiritShield")
         .expect("Spirit Shield should be registered");
-    assert_eq!(
-        spirit_shield.effect_data,
-        &[
-            E::Simple(SE::GainBlock(A::HandSize)),
-            E::Simple(SE::GainBlock(A::HandSize)),
-            E::Simple(SE::GainBlock(A::HandSize)),
-        ]
-    );
-    assert!(spirit_shield.complex_hook.is_none());
+    assert!(spirit_shield.effect_data.is_empty());
+    assert!(spirit_shield.complex_hook.is_some());
 
     let spirit_shield_plus = registry
         .get("SpiritShield+")
         .expect("Spirit Shield+ should be registered");
-    assert_eq!(
-        spirit_shield_plus.effect_data,
-        &[
-            E::Simple(SE::GainBlock(A::HandSize)),
-            E::Simple(SE::GainBlock(A::HandSize)),
-            E::Simple(SE::GainBlock(A::HandSize)),
-            E::Simple(SE::GainBlock(A::HandSize)),
-        ]
-    );
-    assert!(spirit_shield_plus.complex_hook.is_none());
+    assert!(spirit_shield_plus.effect_data.is_empty());
+    assert!(spirit_shield_plus.complex_hook.is_some());
 
     let ragnarok = registry.get("Ragnarok").expect("Ragnarok should be registered");
     assert_eq!(

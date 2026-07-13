@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Glacier: 2 cost, 7 block, channel 2 Frost
+        // Glacier gains block before queueing exactly magicNumber (2) Frost
+        // channels; upgrading adds 3 block and changes nothing else.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Glacier.java
     insert(cards, CardDef {
                 id: "Glacier", name: "Glacier", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: 7,

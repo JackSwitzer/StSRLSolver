@@ -38,8 +38,8 @@ fn defect_wave17_registry_exports_typed_double_energy_and_genetic_algorithm() {
     assert_eq!(
         genetic.effect_data,
         &[
-            E::Simple(SE::ModifyPlayedCardBlock(A::Magic)),
             E::Simple(SE::GainBlock(A::Block)),
+            E::Simple(SE::ModifyPlayedCardBlock(A::Magic)),
         ]
     );
     assert!(genetic.complex_hook.is_none());
@@ -48,12 +48,12 @@ fn defect_wave17_registry_exports_typed_double_energy_and_genetic_algorithm() {
     assert_eq!(
         genetic_plus.effect_data,
         &[
-            E::Simple(SE::ModifyPlayedCardBlock(A::Magic)),
             E::Simple(SE::GainBlock(A::Block)),
+            E::Simple(SE::ModifyPlayedCardBlock(A::Magic)),
         ]
     );
     assert!(genetic_plus.complex_hook.is_none());
-    assert_eq!(genetic_plus.base_block, 0);
+    assert_eq!(genetic_plus.base_block, 1);
 
     let blizzard = reg.get("Blizzard").expect("Blizzard");
     assert_eq!(
@@ -90,35 +90,57 @@ fn double_energy_doubles_current_energy_and_exhausts() {
 }
 
 #[test]
-fn genetic_algorithm_updates_the_played_copy_misc_and_future_plays_use_the_new_seed() {
-    let mut engine = single_enemy_engine();
-    engine.state.hand = make_deck(&["Genetic Algorithm"]);
-    engine.state.player.block = 0;
+fn genetic_algorithm_captures_current_block_then_scales_only_its_matching_copy() {
+    // use() constructs GainBlockAction with the current block before the
+    // queued IncreaseMiscAction resolves. The upgrade changes magic 2→3 but
+    // leaves the initial misc/baseBlock at 1.
+    // Java: reference/extracted/methods/card/GeneticAlgorithm.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/IncreaseMiscAction.java
+    for (card_id, first_misc, second_misc) in [
+        ("Genetic Algorithm", 3, 5),
+        ("Genetic Algorithm+", 4, 7),
+    ] {
+        let mut engine = single_enemy_engine();
+        engine.state.hand = make_deck(&[card_id]);
+        engine.state.master_deck = make_deck(&[card_id, card_id]);
+        engine.state.player.block = 0;
 
-    assert!(play_self(&mut engine, "Genetic Algorithm"));
-    assert_eq!(engine.state.player.block, 3);
+        assert!(play_self(&mut engine, card_id));
+        assert_eq!(engine.state.player.block, 1);
 
-    let played = engine
-        .state
-        .exhaust_pile
-        .pop()
-        .expect("played Genetic Algorithm should exhaust");
-    assert_eq!(played.misc, 3);
+        let played = engine
+            .state
+            .exhaust_pile
+            .pop()
+            .expect("played Genetic Algorithm should exhaust");
+        assert_eq!(played.misc, first_misc);
+        assert_eq!(
+            engine
+                .state
+                .master_deck
+                .iter()
+                .filter(|card| card.misc == first_misc)
+                .count(),
+            1,
+        );
+        assert_eq!(
+            engine
+                .state
+                .master_deck
+                .iter()
+                .filter(|card| card.misc == -1)
+                .count(),
+            1,
+        );
 
-    engine.state.hand = vec![played];
-    engine.state.player.block = 0;
-    engine.state.energy = 3;
+        engine.state.hand = vec![played];
+        engine.state.player.block = 0;
+        engine.state.energy = 3;
 
-    assert!(play_self(&mut engine, "Genetic Algorithm"));
-    assert_eq!(engine.state.player.block, 5);
-
-    let updated = engine
-        .state
-        .exhaust_pile
-        .last()
-        .copied()
-        .expect("played Genetic Algorithm should exhaust again");
-    assert_eq!(updated.misc, 5);
+        assert!(play_self(&mut engine, card_id));
+        assert_eq!(engine.state.player.block, first_misc as i32);
+        assert_eq!(engine.state.exhaust_pile.last().unwrap().misc, second_misc);
+    }
 }
 
 #[test]

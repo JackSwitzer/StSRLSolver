@@ -1,5 +1,9 @@
 use crate::cards::prelude::*;
 
+// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Crescendo.java
+//   ctor: cost 1 SKILL targeting SELF, exhaust + selfRetain.
+//   use(): changes stance to Wrath.
+//   upgrade(): upgradeBaseCost(0) only.
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Common: Crescendo ---- (cost 1, enter Wrath, exhaust, retain; upgrade: cost 0)
     insert(cards, CardDef {

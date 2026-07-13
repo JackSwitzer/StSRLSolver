@@ -2,6 +2,10 @@ use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Ironclad Common: Sword Boomerang ---- (cost 1, 3 dmg x3 random; +1 magic)
+    // Each hit is a distinct AttackDamageRandomEnemyAction, so every hit makes
+    // one cardRandomRng selection and recalculates damage for that target.
+    // Java: reference/extracted/methods/card/SwordBoomerang.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/AttackDamageRandomEnemyAction.java
     insert(cards, CardDef {
                 id: "Sword Boomerang", name: "Sword Boomerang", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 1, base_damage: 3, base_block: -1,

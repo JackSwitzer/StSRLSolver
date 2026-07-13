@@ -17,4 +17,5 @@ fn relic_wave13_face_of_cleric_follow_engine_victory_path() {
 
     assert!(engine.state.player_won);
     assert_eq!(engine.state.player.max_hp, 81);
+    assert_eq!(engine.state.player.hp, 81);
 }

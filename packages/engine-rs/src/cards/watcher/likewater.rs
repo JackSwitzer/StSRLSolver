@@ -1,5 +1,9 @@
 use crate::cards::prelude::*;
 
+// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/LikeWater.java
+// Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/LikeWaterPower.java
+// The stacked power grants its raw amount at end of turn only while in Calm;
+// Dexterity and Frail do not modify power-owned GainBlockAction amounts.
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // ---- Uncommon: Like Water ---- (cost 1, power, if in Calm at end of turn gain 5 block; +2 magic upgrade)
     insert(cards, CardDef {

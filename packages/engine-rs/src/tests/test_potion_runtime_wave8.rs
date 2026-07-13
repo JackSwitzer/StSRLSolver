@@ -138,7 +138,10 @@ fn wave8_ambrosia_entropic_darkness_capacity_and_gamblers_brew_use_runtime_path(
         .all(|orb| orb.orb_type == crate::orbs::OrbType::Dark));
 
     use_potion(&mut engine, 2, -1);
-    assert_eq!(engine.state.player.status(sid::POTION_DRAW), 0);
+    engine.execute_action(&Action::Choose(0));
+    engine.execute_action(&Action::Choose(1));
+    engine.execute_action(&Action::ConfirmSelection);
+    assert_eq!(engine.state.player.status(sid::GAMBLING_CHIP_ACTIVE), 0);
     assert_eq!(engine.state.hand.len(), 2);
     assert_eq!(engine.state.discard_pile.len(), 2);
 
@@ -147,7 +150,7 @@ fn wave8_ambrosia_entropic_darkness_capacity_and_gamblers_brew_use_runtime_path(
     use_potion(&mut engine, 0, -1);
     assert_eq!(engine.state.player.status(sid::ORB_SLOTS), 2);
     use_potion(&mut engine, 1, -1);
-    assert!(engine.state.potions[1].is_empty());
+    assert!(!engine.state.potions[1].is_empty());
     assert!(!engine.state.potions[2].is_empty());
 }
 

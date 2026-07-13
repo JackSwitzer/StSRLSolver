@@ -113,12 +113,16 @@ fn declarative_potions_drop_hooks_and_apply_runtime_effects() {
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
+    // PotionOfCapacity.java returns potency two and queues
+    // IncreaseMaxOrbAction; AbstractPotion doubles potency with Sacred Bark.
+    capacity.init_defect_orbs(3);
     capacity.state.relics.push("SacredBark".to_string());
     capacity.state.potions = vec![String::new(); 3];
-    equip_potion(&mut capacity, 0, "PotionOfCapacity");
+    equip_potion(&mut capacity, 0, "Potion of Capacity");
     let orb_slots_before = capacity.state.player.status(sid::ORB_SLOTS);
     use_potion(&mut capacity, 0, -1);
     assert_eq!(capacity.state.player.status(sid::ORB_SLOTS), orb_slots_before + 4);
+    assert_eq!(capacity.state.orb_slots.max_slots, 7);
 
     let mut miracle = engine_with_state(combat_state_with(
         make_deck(&["Strike", "Defend", "Bash"]),
@@ -140,7 +144,110 @@ fn declarative_potions_drop_hooks_and_apply_runtime_effects() {
     cunning.state.hand.clear();
     equip_potion(&mut cunning, 0, "CunningPotion");
     use_potion(&mut cunning, 0, -1);
-    assert_eq!(hand_names(&cunning), vec!["Shiv", "Shiv", "Shiv"]);
+    assert_eq!(hand_names(&cunning), vec!["Shiv+", "Shiv+", "Shiv+"]);
+}
+
+#[test]
+fn ambrosia_uses_the_full_divinity_stance_transition_and_ignores_potency() {
+    // Source-derived (verify potion/Ambrosia): use() queues exactly one
+    // ChangeStanceAction("Divinity"); getPotency() returns 2 but is not read.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike", "Defend", "Bash"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.relics = vec!["VioletLotus".to_string(), "SacredBark".to_string()];
+    engine.state.potions = vec![String::new(); 3];
+    engine.state.stance = Stance::Calm;
+    engine.state.energy = 1;
+    equip_potion(&mut engine, 0, "Ambrosia");
+
+    use_potion(&mut engine, 0, -1);
+
+    assert_eq!(engine.state.stance, Stance::Divinity);
+    assert_eq!(engine.state.energy, 7);
+    assert!(engine
+        .event_log
+        .iter()
+        .any(|record| record.event == crate::effects::trigger::Trigger::OnStanceChange));
+    assert!(engine.state.potions[0].is_empty());
+}
+
+#[test]
+fn bottled_miracle_scales_with_bark_master_reality_and_hand_overflow() {
+    // Source-derived (verify potion/BottledMiracle): Java passes potion potency
+    // to MakeTempCardInHandAction(new Miracle(), potency). Sacred Bark doubles
+    // the two-card potency, Master Reality upgrades the generated template, and
+    // cards beyond the ten-card hand limit spill into discard.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike", "Defend", "Bash"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.player.set_status(sid::MASTER_REALITY, 1);
+    engine.state.hand = make_deck(&[
+        "Strike",
+        "Defend",
+        "Bash",
+        "Zap",
+        "Dualcast",
+        "Inflame",
+        "Shrug It Off",
+        "Defend",
+    ]);
+    engine.state.discard_pile.clear();
+    engine.state.potions = vec![String::new(); 3];
+    equip_potion(&mut engine, 0, "BottledMiracle");
+
+    use_potion(&mut engine, 0, -1);
+
+    assert_eq!(hand_names(&engine).iter().filter(|name| **name == "Miracle+").count(), 2);
+    assert_eq!(
+        engine
+            .state
+            .discard_pile
+            .iter()
+            .filter(|card| engine.card_registry.card_name(card.def_id) == "Miracle+")
+            .count(),
+        2
+    );
+    assert_eq!(hand_names(&engine).iter().filter(|name| **name == "Miracle").count(), 0);
+}
+
+#[test]
+fn stance_potion_preserves_java_choice_order_and_uses_stance_hooks() {
+    // Source-derived (verify potion/StancePotion): Java offers ChooseWrath then
+    // ChooseCalm. Potency is zero, so Sacred Bark cannot alter either branch.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike", "Defend", "Bash"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.relics = vec!["VioletLotus".to_string(), "SacredBark".to_string()];
+    engine.state.stance = Stance::Calm;
+    engine.state.energy = 0;
+    engine.state.potions = vec![String::new(); 3];
+    equip_potion(&mut engine, 0, "StancePotion");
+
+    use_potion(&mut engine, 0, -1);
+
+    assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+    let choice = engine.choice.as_ref().expect("Stance Potion choice");
+    let labels: Vec<_> = choice
+        .options
+        .iter()
+        .filter_map(|option| match option {
+            ChoiceOption::Named(label) => Some(*label),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(labels, vec!["Wrath", "Calm"]);
+    assert!(engine.state.potions[0].is_empty());
+
+    engine.execute_action(&Action::Choose(0));
+    assert_eq!(engine.state.stance, Stance::Wrath);
+    assert_eq!(engine.state.energy, 3);
 }
 
 #[test]

@@ -6,8 +6,10 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Tactician.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/DeusExMachina.java
 
-use crate::tests::support::*;
+use crate::actions::Action;
 use crate::effects::types::{CardRuntimeTrigger, OnDiscardRule, OnDrawRule};
+use crate::engine::{ChoiceOption, CombatPhase};
+use crate::tests::support::*;
 
 #[test]
 fn nonplay_triggers_alchemize_obtains_a_random_potion_and_exhausts() {
@@ -38,6 +40,50 @@ fn nonplay_triggers_reflex_draws_on_manual_discard() {
 
     assert_eq!(hand_count(&engine, "Strike"), 2);
     assert_eq!(discard_prefix_count(&engine, "Reflex"), 1);
+}
+
+#[test]
+fn reflex_plus_is_unplayable_and_draws_three_through_a_manual_discard_action() {
+    // Reflex.canUse always returns false. triggerOnManualDiscard queues a draw
+    // for magicNumber, which upgrades from two to three. Prepared supplies the
+    // real DiscardAction path used here.
+    // Sources: cards/green/Reflex.java and cards/green/Prepared.java.
+    let mut engine = engine_without_start(
+        make_deck(&["Prepared", "Reflex+"]),
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Prepared", "Reflex+"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Neutralize", "Survivor"]);
+
+    assert!(!engine.get_legal_actions().iter().any(|action| {
+        matches!(action, Action::PlayCard { card_idx: 1, .. })
+    }));
+    assert!(play_self(&mut engine, "Prepared"));
+    assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+
+    let reflex_option = engine
+        .choice
+        .as_ref()
+        .expect("Prepared discard choice")
+        .options
+        .iter()
+        .enumerate()
+        .find_map(|(option_idx, option)| {
+            let ChoiceOption::HandCard(hand_idx) = option else {
+                return None;
+            };
+            let card = engine.state.hand.get(*hand_idx)?;
+            (engine.card_registry.card_name(card.def_id) == "Reflex+").then_some(option_idx)
+        })
+        .expect("Reflex+ discard option");
+    engine.execute_action(&Action::Choose(reflex_option));
+
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert_eq!(discard_prefix_count(&engine, "Reflex"), 1);
+    assert_eq!(engine.state.hand.len(), 4);
+    assert!(engine.state.draw_pile.is_empty());
 }
 
 #[test]

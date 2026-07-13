@@ -3,7 +3,7 @@ mod ironclad_wave2_card_runtime_tests {
     use crate::actions::Action;
     use crate::cards::{CardDef, CardTarget, CardType};
     use crate::effects::declarative::{
-        AmountSource, BoolFlag, CardFilter, ChoiceAction, Effect, Pile, SimpleEffect, Target,
+        AmountSource, CardFilter, ChoiceAction, Effect, Pile, SimpleEffect, Target,
     };
     use crate::engine::{ChoiceOption, ChoiceReason, CombatEngine, CombatPhase};
     use crate::status_ids::sid;
@@ -108,7 +108,11 @@ mod ironclad_wave2_card_runtime_tests {
             battle_trance.effect_data,
             &[
                 Effect::Simple(SimpleEffect::DrawCards(AmountSource::Magic)),
-                Effect::Simple(SimpleEffect::SetFlag(BoolFlag::NoDraw)),
+                Effect::Simple(SimpleEffect::AddStatus(
+                    Target::Player,
+                    sid::NO_DRAW,
+                    AmountSource::Fixed(1),
+                )),
             ],
         );
 
@@ -142,7 +146,7 @@ mod ironclad_wave2_card_runtime_tests {
                 )),
                 Effect::Simple(SimpleEffect::AddStatus(
                     Target::Player,
-                    sid::TEMP_STRENGTH,
+                    sid::LOSE_STRENGTH,
                     AmountSource::Magic,
                 )),
             ],
@@ -166,13 +170,62 @@ mod ironclad_wave2_card_runtime_tests {
 
         assert!(play_self(&mut engine, "Flex"));
         assert_eq!(engine.state.player.strength(), 2);
-        assert_eq!(engine.state.player.status(sid::TEMP_STRENGTH), 2);
+        assert_eq!(engine.state.player.status(sid::LOSE_STRENGTH), 2);
 
         let hp_before = engine.state.player.hp;
         let energy_before = engine.state.energy;
         assert!(play_self(&mut engine, "Bloodletting"));
         assert_eq!(engine.state.player.hp, hp_before - 3);
         assert_eq!(engine.state.energy, energy_before + 2);
+    }
+
+    #[test]
+    fn power_through_plus_spills_only_the_overflow_wound_and_gains_twenty_block() {
+        // PowerThrough.java makes exactly two Wounds in hand before its
+        // GainBlockAction, and upgradeBlock(5) changes 15 Block to 20. With
+        // nine cards left in hand after playing it, MakeTempCardInHandAction
+        // places one Wound in hand and sends the overflow copy to discard.
+        let mut engine = engine_for(
+            &[
+                "Power Through+",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+            ],
+            &[],
+            &[],
+            50,
+            3,
+        );
+
+        assert!(play_self(&mut engine, "Power Through+"));
+
+        assert_eq!(engine.state.player.block, 20);
+        assert_eq!(engine.state.energy, 2);
+        assert_eq!(
+            engine
+                .state
+                .hand
+                .iter()
+                .filter(|card| engine.card_registry.card_name(card.def_id) == "Wound")
+                .count(),
+            1
+        );
+        assert_eq!(
+            engine
+                .state
+                .discard_pile
+                .iter()
+                .filter(|card| engine.card_registry.card_name(card.def_id) == "Wound")
+                .count(),
+            1
+        );
     }
 
     #[test]
@@ -236,6 +289,41 @@ mod ironclad_wave2_card_runtime_tests {
         assert_eq!(thunderclap_engine.state.enemies[1].entity.hp, hp1 - 4);
         assert_eq!(thunderclap_engine.state.enemies[0].entity.status(sid::VULNERABLE), 1);
         assert_eq!(thunderclap_engine.state.enemies[1].entity.status(sid::VULNERABLE), 1);
+    }
+
+    #[test]
+    fn pommel_strike_upgrade_draws_two_after_damage_but_lethal_draws_nothing() {
+        // PommelStrike.java queues DamageAction before DrawCardAction. Base is
+        // 9 damage/draw 1; upgradeDamage(1) and upgradeMagicNumber(1) produce
+        // 10 damage/draw 2. A lethal DamageAction clears the queued draw.
+        let mut upgraded = engine_for(
+            &["Pommel Strike+"],
+            &["Strike", "Defend"],
+            &[],
+            50,
+            3,
+        );
+        assert!(play_on_enemy(&mut upgraded, "Pommel Strike+", 0));
+        assert_eq!(upgraded.state.enemies[0].entity.hp, 40);
+        assert_eq!(upgraded.state.hand.len(), 2);
+        assert_eq!(upgraded.state.draw_pile.len(), 0);
+        assert_eq!(upgraded.state.energy, 2);
+
+        let mut lethal = engine_for(
+            &["Pommel Strike"],
+            &["Strike"],
+            &[],
+            9,
+            3,
+        );
+        assert!(play_on_enemy(&mut lethal, "Pommel Strike", 0));
+        assert!(lethal.state.combat_over);
+        assert_eq!(lethal.state.draw_pile.len(), 1);
+        assert!(!lethal
+            .state
+            .hand
+            .iter()
+            .any(|card| lethal.card_registry.card_name(card.def_id) == "Strike"));
     }
 
     #[test]

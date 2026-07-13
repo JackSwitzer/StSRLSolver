@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Biased Cognition: 1 cost, power, gain 4 focus, lose 1 focus each turn
+        // Sources: cards/blue/BiasedCognition.java applies 4 Focus then one
+        // BiasPower at cost 1; BiasPower.java is a stackable DEBUFF that applies
+        // -1 Focus each turn. The card upgrade adds 1 immediate Focus.
     insert(cards, CardDef {
                 id: "Biased Cognition", name: "Biased Cognition", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,

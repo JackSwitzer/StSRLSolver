@@ -1,4 +1,7 @@
 //! Oddly Smooth Stone: +1 Dexterity at combat start.
+//!
+//! Source: `reference/extracted/methods/relic/OddlySmoothStone.java`
+//! (`atBattleStart` applies DexterityPower(1) to the player).
 
 use crate::effects::declarative::{Effect, SimpleEffect, Target, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};

@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Uncommon: Catalyst ---- (cost 1, double poison on enemy, exhaust; upgrade: triple)
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Catalyst.java
+        // selects DoublePoisonAction or TriplePoisonAction and always Exhausts.
     insert(cards, CardDef {
                 id: "Catalyst", name: "Catalyst", card_type: CardType::Skill,
                 target: CardTarget::Enemy, cost: 1, base_damage: -1, base_block: -1,

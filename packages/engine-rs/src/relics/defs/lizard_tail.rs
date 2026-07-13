@@ -1,5 +1,8 @@
-//! Lizard Tail: when you would die, heal to 50% HP (once per combat).
-//! Stub: death prevention handled in check_fairy_revive pipeline.
+//! Lizard Tail: when you would die, heal 50% max HP (once per run).
+//! Death prevention is handled in the centralized revive pipeline.
+//!
+//! Source: `reference/extracted/methods/relic/LizardTail.java` (`onTrigger`
+//! heals `maxHealth / 2`, clamped to at least 1, then marks the relic used).
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 

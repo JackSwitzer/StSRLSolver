@@ -21,6 +21,19 @@ const COLORLESS_CHOICES: &[&str] = &[
     "Swift Strike", "The Bomb", "Thinking Ahead", "Transmutation", "Trip", "Violence",
 ];
 
+// srcColorlessCardPool order after addColorlessCards' add-to-top behavior;
+// returnTrulyRandomColorlessCardInCombat then excludes HEALING Bandage Up.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
+// Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+const JAVA_COLORLESS_GENERATION_POOL: &[&str] = &[
+    "Madness", "Thinking Ahead", "Mind Blast", "Metamorphosis", "Jack Of All Trades",
+    "Swift Strike", "Good Instincts", "Master of Strategy", "Magnetism", "Finesse",
+    "Discovery", "Chrysalis", "Transmutation", "Panacea", "Purity", "Enlightenment",
+    "Forethought", "Flash of Steel", "HandOfGreed", "Mayhem", "Apotheosis", "Secret Weapon",
+    "Panache", "Violence", "Deep Breath", "Secret Technique", "Blind", "The Bomb",
+    "Impatience", "Dramatic Entrance", "Trip", "PanicButton", "Sadistic Nature", "Dark Shackles",
+];
+
 #[test]
 fn transmutation_moves_to_typed_generated_hand_surface() {
     let registry = global_registry();
@@ -86,4 +99,58 @@ fn transmutation_plus_upgrades_generated_cards() {
     assert_eq!(engine.state.hand.len(), 2);
     assert!(engine.state.hand.iter().all(|card| card.is_upgraded()));
     assert!(engine.state.hand.iter().all(|card| card.cost == 0));
+}
+
+#[test]
+fn free_transmutation_plus_uses_current_x_and_chemical_x_then_spills_overflow() {
+    // TransmutationAction starts from energyOnUse, adds two for Chemical X,
+    // upgrades and zeroes every generated card, and skips energy.use when
+    // freeToPlayOnce is true. Each random selection consumes cardRandomRng;
+    // MakeTempCardInHandAction sends copies beyond ten cards to discard.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/TransmutationAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
+    let mut engine = engine_with_state(combat_state_with(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        2,
+    ));
+    engine.state.draw_pile.clear();
+    engine.state.discard_pile.clear();
+    engine.state.hand = make_deck(&[
+        "Defend", "Defend", "Defend", "Defend",
+        "Defend", "Defend", "Defend", "Defend",
+    ]);
+    engine
+        .state
+        .hand
+        .push(engine.card_registry.make_card("Transmutation+").set_free(true));
+    engine.state.relics.push("Chemical X".to_string());
+
+    let mut oracle = engine.card_random_rng.clone();
+    let expected: Vec<&str> = (0..4)
+        .map(|_| {
+            JAVA_COLORLESS_GENERATION_POOL
+                [oracle.random((JAVA_COLORLESS_GENERATION_POOL.len() - 1) as i32) as usize]
+        })
+        .collect();
+    let generic_before = engine.rng.counter;
+
+    assert!(play_self(&mut engine, "Transmutation+"));
+
+    assert_eq!(engine.state.energy, 2);
+    assert_eq!(engine.state.hand.len(), 10);
+    assert_eq!(engine.state.discard_pile.len(), 2);
+    let generated: Vec<_> = engine.state.hand[8..]
+        .iter()
+        .chain(engine.state.discard_pile.iter())
+        .collect();
+    let generated_names: Vec<&str> = generated
+        .iter()
+        .map(|card| engine.card_registry.card_name(card.def_id).trim_end_matches('+'))
+        .collect();
+    assert_eq!(generated_names, expected);
+    assert!(generated.iter().all(|card| card.is_upgraded() && card.cost == 0));
+    assert_eq!(engine.card_random_rng.counter, oracle.counter);
+    assert_eq!(engine.rng.counter, generic_before);
+    assert_eq!(engine.state.exhaust_pile.len(), 1);
 }

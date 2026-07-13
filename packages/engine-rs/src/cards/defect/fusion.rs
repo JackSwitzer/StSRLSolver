@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Fusion: 2 cost, channel 1 Plasma (upgrade: cost 1)
+        // Fusion loops magicNumber times to channel Plasma; upgrading changes
+        // only its cost from 2 to 1.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Fusion.java
     insert(cards, CardDef {
                 id: "Fusion", name: "Fusion", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,

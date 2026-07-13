@@ -1,7 +1,7 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Ironclad Uncommon: Inflame ---- (cost 1, power, +2 str; +1)
+    // Inflame.java: cost 1 Power applies magicNumber Strength (2); upgradeMagicNumber(1).
     insert(cards, CardDef {
                 id: "Inflame", name: "Inflame", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,

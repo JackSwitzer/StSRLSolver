@@ -1,6 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+        // Java queues damage before changing to Neutral; upgrade adds 5 damage.
+        // decompiled/java-src/com/megacrit/cardcrawl/cards/purple/EmptyFist.java
         // ---- Common: Empty Fist ---- (cost 1, 9 dmg, exit stance; +5 upgrade)
     insert(cards, CardDef {
                 id: "EmptyFist", name: "Empty Fist", card_type: CardType::Attack,

@@ -35,7 +35,9 @@ fn dead_cleanup_wave3_opening_state_relics_are_engine_path_authoritative() {
     assert_eq!(engine.state.player.hp, 75);
     assert_eq!(engine.state.player.status(sid::CONFUSION), 1);
     assert_eq!(engine.state.player.status(sid::SNECKO_EYE), 1);
-    assert_eq!(engine.state.player.status(sid::BAG_OF_PREP_DRAW), 2);
+    // SneckoEye.java changes masterHandSize from 5 to 7; the opening draw is
+    // real hand state, not the old BAG_OF_PREP_DRAW proxy status.
+    assert_eq!(engine.state.hand.len(), 7);
     assert_eq!(engine.state.stance, crate::state::Stance::Calm);
     assert!(engine
         .state

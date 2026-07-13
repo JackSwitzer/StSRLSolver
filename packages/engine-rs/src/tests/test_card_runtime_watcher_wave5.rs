@@ -73,10 +73,9 @@ fn watcher_wave5_registry_exports_match_runtime_surface() {
         &[
             E::Simple(SE::AddStatus(T::Player, sid::STRENGTH, A::Magic)),
             E::Simple(SE::AddStatus(T::Player, sid::DEXTERITY, A::Magic)),
-            E::Simple(SE::ModifyMaxEnergy(A::Fixed(-1))),
         ]
     );
-    assert!(fasting.complex_hook.is_none());
+    assert!(fasting.complex_hook.is_some());
 
     let holy_water = global_registry().get("HolyWater").expect("Holy Water should be registered");
     assert_eq!(holy_water.base_block, 5);
@@ -158,7 +157,8 @@ fn watcher_wave5_fasting_uses_declared_buffs_and_hook_for_energy_penalty() {
     assert!(play_self(&mut engine, "Fasting2+"));
     assert_eq!(engine.state.player.status(sid::STRENGTH), 4);
     assert_eq!(engine.state.player.status(sid::DEXTERITY), 4);
-    assert_eq!(engine.state.max_energy, 2);
+    assert_eq!(engine.state.player.status(sid::ENERGY_DOWN), 1);
+    assert_eq!(engine.state.max_energy, 3);
     assert_eq!(engine.state.energy, 1);
 }
 

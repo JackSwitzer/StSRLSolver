@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // ---- Silent Special: Shiv ---- (cost 0, 4 dmg, exhaust; +2 dmg)
+    // Shiv.java constructs a zero-cost, 4-damage exhausting Attack;
+    // upgradeDamage(2) is its only upgrade change.
+    // Java: reference/extracted/methods/card/Shiv.java
     insert(cards, CardDef {
         id: "Shiv", name: "Shiv", card_type: CardType::Attack,
         target: CardTarget::Enemy, cost: 0, base_damage: 4, base_block: -1,

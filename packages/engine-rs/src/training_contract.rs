@@ -88,6 +88,8 @@ pub struct CombatGlobalTokenV1 {
     pub max_energy: i32,
     pub cards_played_this_turn: i32,
     pub attacks_played_this_turn: i32,
+    #[serde(default)]
+    pub power_cards_played_this_combat: i32,
     pub hand_size: usize,
     pub draw_pile_size: usize,
     pub discard_pile_size: usize,
@@ -531,6 +533,8 @@ pub struct CombatSnapshotV1 {
     pub turn: i32,
     pub cards_played_this_turn: i32,
     pub attacks_played_this_turn: i32,
+    #[serde(default)]
+    pub power_cards_played_this_combat: i32,
     pub stance: String,
     pub mantra: i32,
     pub mantra_gained: i32,
@@ -668,6 +672,7 @@ pub fn combat_snapshot_from_combat(engine: &CombatEngine) -> CombatSnapshotV1 {
         turn: state.turn,
         cards_played_this_turn: state.cards_played_this_turn,
         attacks_played_this_turn: state.attacks_played_this_turn,
+        power_cards_played_this_combat: state.power_cards_played_this_combat,
         stance: state.stance.as_str().to_string(),
         mantra: state.mantra,
         mantra_gained: state.mantra_gained,
@@ -767,6 +772,7 @@ pub fn combat_engine_from_snapshot(snapshot: &CombatSnapshotV1) -> CombatEngine 
     state.turn = snapshot.turn;
     state.cards_played_this_turn = snapshot.cards_played_this_turn;
     state.attacks_played_this_turn = snapshot.attacks_played_this_turn;
+    state.power_cards_played_this_combat = snapshot.power_cards_played_this_combat;
     state.stance = crate::state::Stance::from_str(&snapshot.stance);
     state.mantra = snapshot.mantra;
     state.mantra_gained = snapshot.mantra_gained;
@@ -830,6 +836,7 @@ fn combat_execution_ids_for_allowed_actions(
 
 fn build_combat_observation(engine: &CombatEngine) -> CombatObservationSchemaV1 {
     let state = &engine.state;
+    let intents_visible = state.enemy_intents_visible();
     CombatObservationSchemaV1 {
         schema_version: COMBAT_OBSERVATION_SCHEMA_VERSION,
         caps: CombatObservationCapsV1::default(),
@@ -839,6 +846,7 @@ fn build_combat_observation(engine: &CombatEngine) -> CombatObservationSchemaV1 
             max_energy: state.max_energy,
             cards_played_this_turn: state.cards_played_this_turn,
             attacks_played_this_turn: state.attacks_played_this_turn,
+            power_cards_played_this_combat: state.power_cards_played_this_combat,
             hand_size: state.hand.len(),
             draw_pile_size: state.draw_pile.len(),
             discard_pile_size: state.discard_pile.len(),
@@ -893,10 +901,17 @@ fn build_combat_observation(engine: &CombatEngine) -> CombatObservationSchemaV1 
                 alive: enemy.is_alive(),
                 targetable: enemy.is_targetable(),
                 back_attack: enemy.has_back_attack(),
-                intent: intent_name(enemy.intent),
-                intent_damage: enemy.move_damage(),
-                intent_hits: enemy.move_hits(),
-                intent_block: enemy.move_block(),
+                // AbstractMonster.java hides intent rendering with Runic Dome.
+                // Preserve the real move in CombatState/snapshots, but do not
+                // leak it through the policy observation.
+                intent: if intents_visible {
+                    intent_name(enemy.intent)
+                } else {
+                    "Hidden".to_string()
+                },
+                intent_damage: if intents_visible { enemy.move_damage() } else { 0 },
+                intent_hits: if intents_visible { enemy.move_hits() } else { 0 },
+                intent_block: if intents_visible { enemy.move_block() } else { 0 },
             })
             .collect(),
         player_effects: collect_status_tokens(&state.player.statuses),
@@ -988,7 +1003,9 @@ fn restore_card_snapshots(
         .collect()
 }
 
-fn collect_status_tokens(statuses: &[i16; 256]) -> Vec<StatusTokenV1> {
+fn collect_status_tokens(
+    statuses: &[i16; crate::status_ids::sid::MAX_STATUS_ID],
+) -> Vec<StatusTokenV1> {
     statuses
         .iter()
         .enumerate()
@@ -1007,8 +1024,11 @@ fn collect_status_tokens(statuses: &[i16; 256]) -> Vec<StatusTokenV1> {
         .collect()
 }
 
-fn apply_status_tokens(statuses: &mut [i16; 256], tokens: &[StatusTokenV1]) {
-    *statuses = [0; 256];
+fn apply_status_tokens(
+    statuses: &mut [i16; crate::status_ids::sid::MAX_STATUS_ID],
+    tokens: &[StatusTokenV1],
+) {
+    *statuses = [0; crate::status_ids::sid::MAX_STATUS_ID];
     for token in tokens {
         let idx = token.status_id as usize;
         if idx < statuses.len() {
@@ -1261,7 +1281,10 @@ fn action_allowed(
             return false;
         }
         if matches!(context.kind, DecisionKind::CampfireAction)
-            && !matches!(action, DecisionAction::CampfireUpgrade(_))
+            && !matches!(
+                action,
+                DecisionAction::CampfireUpgrade(_) | DecisionAction::CampfireToke
+            )
         {
             return false;
         }
@@ -1323,7 +1346,12 @@ fn counter_names() -> [&'static str; relic_flags::counter::NUM_COUNTERS] {
         "MawBankGold",
         "OmamoriUses",
         "MatryoshkaUses",
-        "UnusedCounter7",
+        "AncientTeaSetArmed",
+        "GiryaLifts",
+        "TinyChestRooms",
+        "NlothsMaskUses",
+        "WingedGreavesUses",
+        "NeowsLamentUses",
     ]
 }
 
@@ -1346,6 +1374,7 @@ fn choice_reason_name(reason: ChoiceReason) -> &'static str {
         ChoiceReason::ForethoughtPick => "forethought_pick",
         ChoiceReason::RecycleCard => "recycle_card",
         ChoiceReason::DiscardForEffect => "discard_for_effect",
+        ChoiceReason::RetainFromHand => "retain_from_hand",
         ChoiceReason::SetupPick => "setup_pick",
         ChoiceReason::PlayCardFreeFromDraw => "play_card_free_from_draw",
     }
@@ -1490,6 +1519,8 @@ mod tests {
         let mut shop_engine = run_engine(42, 20);
         shop_engine.debug_set_shop_state(ShopState {
             cards: vec![("Wallop".to_string(), 50)],
+            relics: Vec::new(),
+            potions: Vec::new(),
             remove_price: 75,
             removal_used: false,
         });

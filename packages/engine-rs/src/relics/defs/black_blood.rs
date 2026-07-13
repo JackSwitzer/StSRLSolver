@@ -12,7 +12,9 @@ static EFFECTS: [Effect; 1] = [
 static TRIGGERS: [TriggeredEffect; 1] = [
     TriggeredEffect {
         trigger: Trigger::CombatVictory,
-        condition: TriggerCondition::Always,
+        // Source: reference/extracted/methods/relic/BlackBlood.java. onVictory
+        // heals twelve only when currentHealth is still positive.
+        condition: TriggerCondition::PlayerAlive,
         effects: &EFFECTS,
         counter: None,
     },

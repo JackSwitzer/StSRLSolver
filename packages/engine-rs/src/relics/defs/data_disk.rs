@@ -19,7 +19,8 @@ static TRIGGERS: [TriggeredEffect; 1] = [
 ];
 
 pub static DEF: EntityDef = EntityDef {
-    id: "Data Disk",
+    // DataDisk.java declares `ID = "DataDisk"`; "Data Disk" is display text only.
+    id: "DataDisk",
     name: "Data Disk",
     kind: EntityKind::Relic,
     triggers: &TRIGGERS,

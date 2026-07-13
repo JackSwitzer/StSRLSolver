@@ -1,5 +1,7 @@
 use crate::cards::prelude::*;
 
+// Source: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Accuracy.java
+
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Silent Uncommon: Accuracy ---- (cost 1, power, Shivs +4 dmg; +2)
     insert(cards, CardDef {

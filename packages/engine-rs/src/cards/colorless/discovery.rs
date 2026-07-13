@@ -2,14 +2,18 @@ use crate::cards::prelude::*;
 use crate::effects::declarative::{Effect, GeneratedCardPool, GeneratedCostRule};
 
 static DISCOVERY: [Effect; 1] = [Effect::GenerateDiscoveryChoice {
-    pool: GeneratedCardPool::Colorless,
+    pool: GeneratedCardPool::WatcherAny,
     option_count: 3,
     preview_cost_rule: GeneratedCostRule::Base,
-    selected_cost_rule: GeneratedCostRule::Base,
+    selected_cost_rule: GeneratedCostRule::ZeroThisTurn,
 }];
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Discovery: 1 cost, choose 1 of 3 cards to add to hand, exhaust (upgrade: no exhaust)
+    // Discovery.java queues the no-argument DiscoveryAction, which offers
+    // three current-character cards and makes the selected copy cost 0 this
+    // turn. Upgrading removes Exhaust and changes nothing else.
+    // Java: reference/extracted/methods/card/Discovery.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DiscoveryAction.java
     insert(cards, CardDef {
                 id: "Discovery", name: "Discovery", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,

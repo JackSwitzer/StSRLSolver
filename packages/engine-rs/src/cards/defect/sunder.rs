@@ -2,6 +2,10 @@ use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // Sunder: 3 cost, 24 dmg, gain 3 energy if this kills
+    // SunderAction queues the refund only on a kill; when it was the final
+    // monster, the following clearPostCombatActions removes that energy action.
+    // Java: reference/extracted/methods/card/Sunder.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/SunderAction.java
     insert(cards, CardDef {
                 id: "Sunder", name: "Sunder", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 3, base_damage: 24, base_block: -1,

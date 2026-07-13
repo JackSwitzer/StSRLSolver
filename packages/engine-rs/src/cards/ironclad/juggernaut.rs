@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Ironclad Rare: Juggernaut ---- (cost 2, power, deal 5 dmg to random enemy on block; +2 magic)
+    // Juggernaut.java applies magicNumber 5 JuggernautPower for two energy;
+    // upgradeMagicNumber(2) raises the trigger damage to 7.
     insert(cards, CardDef {
                 id: "Juggernaut", name: "Juggernaut", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,

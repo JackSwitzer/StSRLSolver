@@ -10,7 +10,7 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/RunicCube.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/RedSkull.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/Sundial.java
-// - decompiled/java-src/com/megacrit/cardcrawl/relics/TheAbacus.java
+// - decompiled/java-src/com/megacrit/cardcrawl/relics/Abacus.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/GremlinHorn.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/TheSpecimen.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/BurningBlood.java

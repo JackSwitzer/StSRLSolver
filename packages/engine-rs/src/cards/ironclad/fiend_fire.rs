@@ -2,9 +2,11 @@ use crate::cards::prelude::*;
 use crate::effects::declarative::{AmountSource as A, BulkAction, Effect as E, Pile as P, SimpleEffect as SE, Target as T};
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // ---- Ironclad Rare: Fiend Fire ----
-    // Typed exhaust-first, then typed multi-hit damage. The hand exhaust runs
-    // through the declarative interpreter before the damage effect resolves.
+    // FiendFireAction snapshots the remaining hand size, queues one random
+    // ExhaustAction and one damage hit per card, and therefore consumes one
+    // cardRandomRng tick for every exhausted card.
+    // Java: reference/extracted/methods/card/FiendFire.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/FiendFireAction.java
     insert(cards, CardDef {
         id: "Fiend Fire",
         name: "Fiend Fire",
@@ -20,7 +22,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
             E::ForEachInPile {
                 pile: P::Hand,
                 filter: crate::effects::declarative::CardFilter::All,
-                action: BulkAction::Exhaust,
+                action: BulkAction::ExhaustRandom,
             },
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::ExtraHits(A::HandSizeAtPlay),
@@ -42,7 +44,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
             E::ForEachInPile {
                 pile: P::Hand,
                 filter: crate::effects::declarative::CardFilter::All,
-                action: BulkAction::Exhaust,
+                action: BulkAction::ExhaustRandom,
             },
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::ExtraHits(A::HandSizeAtPlay),

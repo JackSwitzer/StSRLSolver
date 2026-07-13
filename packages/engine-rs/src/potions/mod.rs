@@ -76,6 +76,10 @@ fn is_boss_enemy_id(enemy_id: &str) -> bool {
 
 pub fn potion_can_use_in_combat(state: &CombatState, potion_id: &str) -> bool {
     match potion_id {
+        // FairyPotion.canUse() is always false; it triggers passively on lethal
+        // damage from AbstractPlayer.damage instead.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FairyPotion.java
+        "FairyPotion" | "Fairy in a Bottle" => false,
         "SmokeBomb" | "Smoke Bomb" => {
             // Java blocks Smoke Bomb against bosses and also against any
             // enemy currently presenting BackAttack legality. We model that
@@ -103,10 +107,12 @@ pub(crate) fn return_discard_to_hand(state: &mut CombatState, amount: i32) -> i3
         if state.discard_pile.is_empty() || state.hand.len() >= 10 {
             break;
         }
-        if let Some(card) = state.discard_pile.pop() {
-            state.hand.push(card);
-            moved += 1;
-        }
+        // BetterDiscardPileToHandAction copies CardGroup.group in its stored
+        // order and moves from the front when every card is auto-selected.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/BetterDiscardPileToHandAction.java
+        let card = state.discard_pile.remove(0);
+        state.hand.push(card);
+        moved += 1;
     }
     moved
 }
@@ -157,33 +163,55 @@ pub fn potion_requires_target(potion_id: &str) -> bool {
 /// are unaffected by ascension.
 fn potion_potency(potion_id: &str) -> Option<(i32, i32)> {
     match potion_id {
-        "Fire Potion" | "FirePotion" => Some((20, 15)),
-        "Explosive Potion" | "ExplosivePotion" => Some((10, 7)),
-        "Block Potion" | "BlockPotion" => Some((12, 9)),
-        "Strength Potion" | "StrengthPotion" => Some((2, 1)),
-        "Dexterity Potion" | "DexterityPotion" => Some((2, 1)),
-        "Focus Potion" | "FocusPotion" => Some((2, 1)),
-        "SteroidPotion" | "Flex Potion" => Some((5, 3)),
-        "SpeedPotion" => Some((5, 3)),
-        "Weak Potion" | "WeakenPotion" => Some((3, 2)),
-        "FearPotion" | "Fear Potion" => Some((3, 2)),
-        "Poison Potion" | "PoisonPotion" => Some((6, 4)),
-        "Energy Potion" | "EnergyPotion" => Some((2, 1)),
-        "Swift Potion" | "SwiftPotion" => Some((3, 2)),
-        "SneckoOil" => Some((5, 4)),
+        // FirePotion.java getPotency ignores ascension and always returns 20.
+        "Fire Potion" | "FirePotion" => Some((20, 20)),
+        // ExplosivePotion.java getPotency ignores ascension and always returns 10.
+        "Explosive Potion" | "ExplosivePotion" => Some((10, 10)),
+        // BlockPotion.java getPotency ignores ascension and always returns 12.
+        "Block Potion" | "BlockPotion" => Some((12, 12)),
+        // StrengthPotion.java getPotency ignores ascension and always returns 2.
+        "Strength Potion" | "StrengthPotion" => Some((2, 2)),
+        // DexterityPotion.java getPotency ignores ascension and always returns 2.
+        "Dexterity Potion" | "DexterityPotion" => Some((2, 2)),
+        // FocusPotion.java getPotency ignores ascension and always returns 2.
+        "Focus Potion" | "FocusPotion" => Some((2, 2)),
+        // SteroidPotion.java getPotency ignores ascension and always returns 5.
+        "SteroidPotion" | "Flex Potion" => Some((5, 5)),
+        // SpeedPotion.java getPotency ignores ascension and always returns 5.
+        "SpeedPotion" => Some((5, 5)),
+        // WeakenPotion.java getPotency ignores ascension and always returns 3.
+        "Weak Potion" | "WeakenPotion" => Some((3, 3)),
+        // FearPotion.java getPotency ignores ascension and always returns 3.
+        "FearPotion" | "Fear Potion" => Some((3, 3)),
+        // PoisonPotion.java getPotency ignores ascension and always returns 6.
+        "Poison Potion" | "PoisonPotion" => Some((6, 6)),
+        // EnergyPotion.java getPotency ignores ascension and always returns 2.
+        "Energy Potion" | "EnergyPotion" => Some((2, 2)),
+        // SwiftPotion.java getPotency ignores ascension and always returns 3.
+        "Swift Potion" | "SwiftPotion" => Some((3, 3)),
+        // SneckoOil.java getPotency ignores ascension and always returns 5.
+        "SneckoOil" => Some((5, 5)),
         "Ancient Potion" | "AncientPotion" => Some((1, 1)),
-        "Regen Potion" | "RegenPotion" => Some((5, 4)),
-        "EssenceOfSteel" => Some((4, 3)),
-        "LiquidBronze" => Some((3, 2)),
+        // RegenPotion.java getPotency ignores ascension and always returns 5.
+        "Regen Potion" | "RegenPotion" => Some((5, 5)),
+        // EssenceOfSteel.java getPotency ignores ascension and always returns 4.
+        "EssenceOfSteel" => Some((4, 4)),
+        // LiquidBronze.java getPotency ignores ascension and always returns 3.
+        "LiquidBronze" => Some((3, 3)),
         "CultistPotion" => Some((1, 1)),
-        "HeartOfIron" => Some((6, 4)),
+        // HeartOfIron.java getPotency ignores ascension and always returns 6.
+        "Heart of Iron" | "HeartOfIron" => Some((6, 6)),
         "GhostInAJar" => Some((1, 1)),
         "DuplicationPotion" => Some((1, 1)),
-        "Blood Potion" | "BloodPotion" => Some((20, 15)),
-        "Fruit Juice" | "FruitJuice" => Some((5, 3)),
+        // BloodPotion.java getPotency ignores ascension and always returns 20.
+        "Blood Potion" | "BloodPotion" => Some((20, 20)),
+        // FruitJuice.java getPotency ignores ascension and always returns 5.
+        "Fruit Juice" | "FruitJuice" => Some((5, 5)),
         "BottledMiracle" => Some((2, 1)),
-        "CunningPotion" => Some((3, 2)),
-        "PotionOfCapacity" => Some((2, 1)),
+        // CunningPotion.java getPotency ignores ascension and always returns 3.
+        "CunningPotion" => Some((3, 3)),
+        // PotionOfCapacity.java getPotency ignores ascension and always returns 2.
+        "Potion of Capacity" | "PotionOfCapacity" => Some((2, 2)),
         _ => None,
     }
 }
@@ -338,7 +366,8 @@ pub(crate) fn apply_potion_scaled(
         "SneckoOil" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
             state.player.set_status(sid::POTION_DRAW, potency);
-            state.player.set_status(sid::CONFUSION, 1);
+            // Production also randomizes the resulting hand through the
+            // cardRandomRng-backed owner-aware runtime.
             true
         }
 
@@ -400,7 +429,7 @@ pub(crate) fn apply_potion_scaled(
         "Fruit Juice" | "FruitJuice" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
             state.player.max_hp += potency;
-            state.player.hp += potency;
+            state.heal_player(potency);
             true
         }
 
@@ -421,8 +450,13 @@ pub(crate) fn apply_potion_scaled(
             let registry = crate::cards::global_registry();
             let potency = effective_potency(potion_id, ascension, bark_mult);
             for _ in 0..potency {
+                // Source: CunningPotion.java upgrades the Shiv template before
+                // MakeTempCardInHandAction; overflow copies go to discard.
+                let shiv = registry.make_card("Shiv+");
                 if state.hand.len() < 10 {
-                    state.hand.push(registry.make_card("Shiv"));
+                    state.hand.push(shiv);
+                } else {
+                    state.discard_pile.push(shiv);
                 }
             }
             true
@@ -453,8 +487,8 @@ pub(crate) fn apply_potion_scaled(
         }
 
         "Elixir" | "ElixirPotion" => {
-            // Exhaust all cards in hand
-            state.exhaust_pile.extend(state.hand.drain(..));
+            // The production owner-aware path opens Elixir's any-number hand
+            // selection. This state-only test helper cannot represent choices.
             true
         }
 
@@ -472,11 +506,15 @@ pub(crate) fn apply_potion_scaled(
         }
 
         "EssenceOfDarkness" => {
-            // Channel Dark orbs equal to orb slot count
+            // EssenceOfDarknessAction channels `potency` Dark orbs for every
+            // orb slot; Sacred Bark doubles its base potency of one.
             let slots = state.orb_slots.get_slot_count();
+            let potency = effective_potency(potion_id, ascension, bark_mult);
             for _ in 0..slots {
-                let focus = state.player.focus();
-                state.orb_slots.channel(crate::orbs::OrbType::Dark, focus);
+                for _ in 0..potency {
+                    let focus = state.player.focus();
+                    state.orb_slots.channel(crate::orbs::OrbType::Dark, focus);
+                }
             }
             true
         }
@@ -493,13 +531,11 @@ pub(crate) fn apply_potion_scaled(
             true
         }
         "SkillPotion" => {
-            let registry = crate::cards::global_registry();
-            if state.hand.len() < 10 { state.hand.push(registry.make_card("Defend")); }
+            // Production opens DiscoveryAction's interactive random choice.
             true
         }
         "PowerPotion" => {
-            let registry = crate::cards::global_registry();
-            if state.hand.len() < 10 { state.hand.push(registry.make_card("Smite")); }
+            // Production opens DiscoveryAction's interactive random choice.
             true
         }
         "ColorlessPotion" => {
@@ -509,13 +545,12 @@ pub(crate) fn apply_potion_scaled(
         }
 
         "GamblersBrew" => {
-            let hand_size = state.hand.len() as i32;
-            state.discard_pile.extend(state.hand.drain(..));
-            state.player.set_status(sid::POTION_DRAW, hand_size);
+            // The production runtime opens GamblingChipAction's interactive
+            // any-number choice; this state-only test helper cannot model it.
             true
         }
 
-        "PotionOfCapacity" => {
+        "Potion of Capacity" | "PotionOfCapacity" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
             state.player.add_status(sid::ORB_SLOTS, potency);
             true
@@ -574,15 +609,15 @@ pub fn check_fairy_revive(state: &CombatState) -> i32 {
     check_fairy_revive_scaled(state, 0)
 }
 
-/// Check fairy revive with ascension scaling.
-/// A11+ reduces revive from 30% to 20% max HP.
-pub fn check_fairy_revive_scaled(state: &CombatState, ascension: i32) -> i32 {
+/// Check fairy revive with the retained ascension parameter used by helper
+/// tests. FairyPotion.java has no ascension branch: potency is always 30%.
+pub fn check_fairy_revive_scaled(state: &CombatState, _ascension: i32) -> i32 {
     let bark = state.has_relic("SacredBark");
-    let base_pct = if ascension >= 11 { 20 } else { 30 };
+    let base_pct = 30;
     let potency = if bark { base_pct * 2 } else { base_pct };
     for potion in &state.potions {
         if potion == "FairyPotion" || potion == "Fairy in a Bottle" {
-            return (state.player.max_hp * potency) / 100;
+            return ((state.player.max_hp * potency) / 100).max(1);
         }
     }
     0
@@ -684,10 +719,16 @@ mod tests {
     }
 
     #[test]
-    fn test_focus_potion() {
+    fn test_focus_potion_stays_at_two_on_a11_and_bark_doubles_it() {
+        // Source: reference/extracted/methods/potion/FocusPotion.java.
         let mut state = make_test_state();
-        apply_potion(&mut state, "Focus Potion", -1);
+        apply_potion_scaled(&mut state, "Focus Potion", -1, 11);
         assert_eq!(state.player.status(sid::FOCUS), 2);
+
+        state.player.set_status(sid::FOCUS, 0);
+        state.relics.push("SacredBark".to_string());
+        apply_potion_scaled(&mut state, "Focus Potion", -1, 20);
+        assert_eq!(state.player.status(sid::FOCUS), 4);
     }
 
     #[test]
@@ -778,17 +819,29 @@ mod tests {
     }
 
     #[test]
-    fn test_heart_of_iron() {
+    fn test_heart_of_iron_stays_at_six_on_a11_and_bark_doubles_it() {
+        // Source: reference/extracted/methods/potion/HeartOfIron.java.
         let mut state = make_test_state();
-        apply_potion(&mut state, "HeartOfIron", -1);
+        apply_potion_scaled(&mut state, "HeartOfIron", -1, 11);
         assert_eq!(state.player.status(sid::METALLICIZE), 6);
+
+        state.player.set_status(sid::METALLICIZE, 0);
+        state.relics.push("SacredBark".to_string());
+        apply_potion_scaled(&mut state, "HeartOfIron", -1, 20);
+        assert_eq!(state.player.status(sid::METALLICIZE), 12);
     }
 
     #[test]
-    fn test_ghost_in_a_jar() {
+    fn test_ghost_in_a_jar_stays_at_one_on_a20_and_bark_doubles_it() {
+        // Source: reference/extracted/methods/potion/GhostInAJar.java.
         let mut state = make_test_state();
-        apply_potion(&mut state, "GhostInAJar", -1);
+        apply_potion_scaled(&mut state, "GhostInAJar", -1, 20);
         assert_eq!(state.player.status(sid::INTANGIBLE), 1);
+
+        state.player.set_status(sid::INTANGIBLE, 0);
+        state.relics.push("SacredBark".to_string());
+        apply_potion_scaled(&mut state, "GhostInAJar", -1, 20);
+        assert_eq!(state.player.status(sid::INTANGIBLE), 2);
     }
 
     #[test]
@@ -800,10 +853,18 @@ mod tests {
 
     #[test]
     fn test_blood_potion() {
+        // Source: reference/extracted/methods/potion/BloodPotion.java.
+        // Potency is 20 at every ascension and is interpreted as percent max HP.
         let mut state = make_test_state();
-        state.player.hp = 60;
-        apply_potion(&mut state, "Blood Potion", -1);
-        assert_eq!(state.player.hp, 76);
+        state.player.max_hp = 81;
+        state.player.hp = 20;
+        apply_potion_scaled(&mut state, "Blood Potion", -1, 20);
+        assert_eq!(state.player.hp, 36);
+
+        state.player.hp = 20;
+        state.relics.push("SacredBark".to_string());
+        apply_potion_scaled(&mut state, "BloodPotion", -1, 20);
+        assert_eq!(state.player.hp, 52);
     }
 
     #[test]
@@ -850,12 +911,25 @@ mod tests {
 
     #[test]
     fn test_cunning_potion() {
+        // Source: reference/extracted/methods/potion/CunningPotion.java.
         let mut state = make_test_state();
         state.hand.clear();
-        apply_potion(&mut state, "CunningPotion", -1);
+        apply_potion_scaled(&mut state, "CunningPotion", -1, 20);
         let reg = crate::cards::global_registry();
         assert_eq!(state.hand.len(), 3);
-        assert!(state.hand.iter().all(|c| reg.card_name(c.def_id) == "Shiv"));
+        assert!(state.hand.iter().all(|c| reg.card_name(c.def_id) == "Shiv+"));
+
+        state.hand = make_deck(&[
+            "Strike", "Strike", "Strike", "Strike", "Strike",
+            "Defend", "Defend", "Defend", "Defend",
+        ]);
+        state.discard_pile.clear();
+        state.relics.push("SacredBark".to_string());
+        apply_potion_scaled(&mut state, "CunningPotion", -1, 20);
+        assert_eq!(state.hand.len(), 10);
+        assert_eq!(state.discard_pile.len(), 5);
+        assert!(state.discard_pile.iter()
+            .all(|card| reg.card_name(card.def_id) == "Shiv+"));
     }
 
     #[test]
@@ -874,20 +948,16 @@ mod tests {
     }
 
     #[test]
-    fn test_gamblers_brew() {
+    fn test_potion_of_capacity_stays_at_two_on_a20_and_bark_doubles_it() {
+        // Source: reference/extracted/methods/potion/PotionOfCapacity.java.
         let mut state = make_test_state();
-        state.hand = make_deck(&["A", "B", "C"]);
-        apply_potion(&mut state, "GamblersBrew", -1);
-        assert!(state.hand.is_empty());
-        assert_eq!(state.discard_pile.len(), 3);
-        assert_eq!(state.player.status(sid::POTION_DRAW), 3);
-    }
-
-    #[test]
-    fn test_potion_of_capacity() {
-        let mut state = make_test_state();
-        apply_potion(&mut state, "PotionOfCapacity", -1);
+        apply_potion_scaled(&mut state, "Potion of Capacity", -1, 20);
         assert_eq!(state.player.status(sid::ORB_SLOTS), 2);
+
+        state.player.set_status(sid::ORB_SLOTS, 0);
+        state.relics.push("SacredBark".to_string());
+        apply_potion_scaled(&mut state, "PotionOfCapacity", -1, 20);
+        assert_eq!(state.player.status(sid::ORB_SLOTS), 4);
     }
 
     #[test]
@@ -938,62 +1008,154 @@ mod tests {
     // --- Ascension 11 reduced potency tests ---
 
     #[test]
-    fn test_a11_fire_potion_reduced() {
+    fn test_a11_fire_potion_stays_at_twenty() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FirePotion.java
         let mut state = make_test_state();
         let initial_hp = state.enemies[0].entity.hp;
         apply_potion_scaled(&mut state, "Fire Potion", 0, 11);
-        assert_eq!(state.enemies[0].entity.hp, initial_hp - 15);
+        assert_eq!(state.enemies[0].entity.hp, initial_hp - 20);
     }
 
     #[test]
-    fn test_a11_block_potion_reduced() {
+    fn test_a11_block_potion_stays_at_source_potency() {
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/potions/BlockPotion.java
         let mut state = make_test_state();
         apply_potion_scaled(&mut state, "Block Potion", -1, 11);
-        assert_eq!(state.player.block, 9);
+        assert_eq!(state.player.block, 12);
     }
 
     #[test]
-    fn test_a11_strength_potion_reduced() {
+    fn test_a11_strength_potion_stays_at_two() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/StrengthPotion.java
         let mut state = make_test_state();
         apply_potion_scaled(&mut state, "Strength Potion", -1, 11);
-        assert_eq!(state.player.strength(), 1);
+        assert_eq!(state.player.strength(), 2);
     }
 
     #[test]
-    fn test_a11_weak_potion_reduced() {
+    fn test_a11_weak_potion_stays_at_three() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/WeakenPotion.java
         let mut state = make_test_state();
         apply_potion_scaled(&mut state, "Weak Potion", 0, 11);
-        assert_eq!(state.enemies[0].entity.status(sid::WEAKENED), 2);
+        assert_eq!(state.enemies[0].entity.status(sid::WEAKENED), 3);
     }
 
     #[test]
-    fn test_a11_poison_potion_reduced() {
+    fn test_a11_poison_potion_stays_at_six_and_bark_doubles_it() {
+        // Source: reference/extracted/methods/potion/PoisonPotion.java.
         let mut state = make_test_state();
         apply_potion_scaled(&mut state, "Poison Potion", 0, 11);
-        assert_eq!(state.enemies[0].entity.status(sid::POISON), 4);
+        assert_eq!(state.enemies[0].entity.status(sid::POISON), 6);
+
+        state.enemies[0].entity.set_status(sid::POISON, 0);
+        state.relics.push("SacredBark".to_string());
+        apply_potion_scaled(&mut state, "PoisonPotion", 0, 20);
+        assert_eq!(state.enemies[0].entity.status(sid::POISON), 12);
     }
 
     #[test]
-    fn test_a11_energy_potion_reduced() {
+    fn test_a11_energy_potion_stays_at_two() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/EnergyPotion.java
         let mut state = make_test_state();
         let initial = state.energy;
         apply_potion_scaled(&mut state, "Energy Potion", -1, 11);
-        assert_eq!(state.energy, initial + 1);
+        assert_eq!(state.energy, initial + 2);
     }
 
     #[test]
-    fn test_a11_fruit_juice_reduced() {
+    fn test_a11_essence_of_steel_stays_at_four() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/EssenceOfSteel.java
+        let mut state = make_test_state();
+        apply_potion_scaled(&mut state, "EssenceOfSteel", -1, 11);
+        assert_eq!(state.player.status(sid::PLATED_ARMOR), 4);
+    }
+
+    #[test]
+    fn test_a11_explosive_potion_stays_at_ten() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/ExplosivePotion.java
+        let mut state = make_test_state();
+        let hp_before = state.enemies[0].entity.hp;
+        apply_potion_scaled(&mut state, "Explosive Potion", -1, 11);
+        assert_eq!(state.enemies[0].entity.hp, hp_before - 10);
+    }
+
+    #[test]
+    fn test_a11_fear_potion_stays_at_three() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FearPotion.java
+        let mut state = make_test_state();
+        apply_potion_scaled(&mut state, "FearPotion", 0, 11);
+        assert_eq!(state.enemies[0].entity.status(sid::VULNERABLE), 3);
+    }
+
+    #[test]
+    fn test_a11_fruit_juice_stays_at_five() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FruitJuice.java
         let mut state = make_test_state();
         apply_potion_scaled(&mut state, "Fruit Juice", -1, 11);
-        assert_eq!(state.player.max_hp, 83);
+        assert_eq!(state.player.max_hp, 85);
     }
 
     #[test]
-    fn test_a11_fairy_revive_reduced() {
+    fn test_a11_liquid_bronze_stays_at_three_and_bark_doubles_it() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/LiquidBronze.java
+        let mut state = make_test_state();
+        state.relics.push("SacredBark".to_string());
+        apply_potion_scaled(&mut state, "LiquidBronze", -1, 11);
+        assert_eq!(state.player.status(sid::THORNS), 6);
+    }
+
+    #[test]
+    fn test_a11_regen_potion_stays_at_five_and_bark_doubles_it() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/RegenPotion.java
+        let mut state = make_test_state();
+        state.relics.push("SacredBark".to_string());
+        apply_potion_scaled(&mut state, "Regen Potion", -1, 11);
+        assert_eq!(state.player.status(sid::REGENERATION), 10);
+    }
+
+    #[test]
+    fn test_a11_snecko_oil_stays_at_five_without_applying_confusion() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/SneckoOil.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/RandomizeHandCostAction.java
+        let mut state = make_test_state();
+        apply_potion_scaled(&mut state, "SneckoOil", -1, 11);
+        assert_eq!(state.player.status(sid::POTION_DRAW), 5);
+        assert_eq!(state.player.status(sid::CONFUSION), 0);
+    }
+
+    #[test]
+    fn test_a11_speed_potion_stays_at_five() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/SpeedPotion.java
+        let mut state = make_test_state();
+        apply_potion_scaled(&mut state, "SpeedPotion", -1, 11);
+        assert_eq!(state.player.status(sid::DEXTERITY), 5);
+        assert_eq!(state.player.status(sid::LOSE_DEXTERITY), 5);
+    }
+
+    #[test]
+    fn test_a11_steroid_potion_stays_at_five() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/SteroidPotion.java
+        let mut state = make_test_state();
+        apply_potion_scaled(&mut state, "SteroidPotion", -1, 11);
+        assert_eq!(state.player.status(sid::STRENGTH), 5);
+        assert_eq!(state.player.status(sid::LOSE_STRENGTH), 5);
+    }
+
+    #[test]
+    fn test_a11_swift_potion_stays_at_three() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/SwiftPotion.java
+        let mut state = make_test_state();
+        apply_potion_scaled(&mut state, "Swift Potion", -1, 11);
+        assert_eq!(state.player.status(sid::POTION_DRAW), 3);
+    }
+
+    #[test]
+    fn test_a11_fairy_revive_stays_at_thirty_percent() {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FairyPotion.java
         let mut state = make_test_state();
         state.potions[0] = "FairyPotion".to_string();
         let revive = check_fairy_revive_scaled(&state, 11);
-        assert_eq!(revive, 16);
+        assert_eq!(revive, 24);
     }
 
     #[test]
@@ -1006,17 +1168,28 @@ mod tests {
 
     #[test]
     fn test_a11_sacred_bark_stacks() {
+        // Java: FirePotion potency remains 20 at A11; Sacred Bark doubles it.
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/potions/FirePotion.java
         let mut state = make_test_state();
         state.relics.push("SacredBark".to_string());
         let initial_hp = state.enemies[0].entity.hp;
         apply_potion_scaled(&mut state, "Fire Potion", 0, 11);
-        assert_eq!(state.enemies[0].entity.hp, initial_hp - 30);
+        assert_eq!(state.enemies[0].entity.hp, initial_hp - 40);
     }
 
     #[test]
-    fn test_a20_potency_same_as_a11() {
+    fn test_a20_block_potion_stays_at_source_potency() {
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/potions/BlockPotion.java
         let mut state = make_test_state();
         apply_potion_scaled(&mut state, "Block Potion", -1, 20);
-        assert_eq!(state.player.block, 9);
+        assert_eq!(state.player.block, 12);
+    }
+
+    #[test]
+    fn test_a20_dexterity_potion_stays_at_source_potency() {
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/potions/DexterityPotion.java
+        let mut state = make_test_state();
+        apply_potion_scaled(&mut state, "Dexterity Potion", -1, 20);
+        assert_eq!(state.player.dexterity(), 2);
     }
 }

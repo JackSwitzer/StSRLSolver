@@ -1,5 +1,8 @@
 use crate::cards::prelude::*;
 
+// Sources: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/AllForOne.java
+// and decompiled/java-src/com/megacrit/cardcrawl/actions/defect/AllCostToHandAction.java
+
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Defect Rare Cards ----
         // All For One: 2 cost, 10 dmg, return all 0-cost cards from discard to hand

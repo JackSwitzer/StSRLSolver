@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Reinforced Body: X cost, gain 7 block X times
+    // ReinforcedBody.java passes its modified Block to ReinforcedBodyAction,
+    // which queues one GainBlockAction per energy used. The upgrade adds 2.
+    // Java: reference/extracted/methods/card/ReinforcedBody.java
     insert(cards, CardDef {
                 id: "Reinforced Body", name: "Reinforced Body", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: -1, base_damage: -1, base_block: 7,

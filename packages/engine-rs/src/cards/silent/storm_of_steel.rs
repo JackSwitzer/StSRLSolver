@@ -1,7 +1,11 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Rare: Storm of Steel ---- (cost 1, discard hand, add Shiv per card; upgrade: Shiv+)
+    // BladeFuryAction snapshots the remaining hand, queues its full-hand
+    // DiscardAction ahead of creating the same number of Shivs, and the card
+    // upgrade changes only those generated cards to Shiv+.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/StormOfSteel.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/BladeFuryAction.java
     insert(cards, CardDef {
                 id: "Storm of Steel", name: "Storm of Steel", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,

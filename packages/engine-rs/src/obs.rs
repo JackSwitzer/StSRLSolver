@@ -332,8 +332,10 @@ pub fn encode_run_state(engine: &RunEngine, obs: &mut [f32; RUN_DIM]) {
         match &screen.source {
             crate::decision::RewardScreenSource::Combat => obs[off + 3] = 1.0,
             crate::decision::RewardScreenSource::BossCombat => obs[off + 4] = 1.0,
+            crate::decision::RewardScreenSource::Campfire => {},
             crate::decision::RewardScreenSource::Event => obs[off + 5] = 1.0,
             crate::decision::RewardScreenSource::Treasure => obs[off + 6] = 1.0,
+            crate::decision::RewardScreenSource::Shop => {},
             crate::decision::RewardScreenSource::Unknown
                 if reward_screen_looks_like_treasure(&screen) =>
             {
@@ -415,6 +417,12 @@ pub fn encode_actions(engine: &RunEngine, actions: &[RunAction], obs: &mut [f32;
         let base = off + i * ACTION_FEAT_DIM;
         let action = &actions[i];
 
+        if let RunAction::UsePotion(potion_idx) = action {
+            obs[base + 3] = 1.0; // non-combat inventory action
+            obs[base + 4] = (*potion_idx as f32 + 1.0) / 3.0;
+            continue;
+        }
+
         match engine.current_phase() {
             RunPhase::Neow => {
                 obs[base + 3] = 1.0; // is_other
@@ -477,6 +485,9 @@ pub fn encode_actions(engine: &RunEngine, actions: &[RunAction], obs: &mut [f32;
                 match action {
                     RunAction::CampfireRest => obs[base + 4] = 1.0,
                     RunAction::CampfireUpgrade(_) => obs[base + 5] = 1.0,
+                    RunAction::CampfireToke => obs[base + 6] = 1.0,
+                    RunAction::CampfireLift => obs[base + 7] = 1.0,
+                    RunAction::CampfireDig => obs[base + 8] = 1.0,
                     _ => {}
                 }
             }
@@ -575,9 +586,11 @@ fn encode_reward_label_payload(
 // ---------------------------------------------------------------------------
 
 pub const COMBAT_DIM: usize = 298;
-pub const COMBAT_OBS_VERSION: u32 = 3;
+pub const COMBAT_OBS_VERSION: u32 = 4;
 pub const COMBAT_HIDDEN_COUNTER_DIM: usize = 18;
-pub const COMBAT_POTION_CONTEXT_DIM: usize = 12;
+// PotionBelt.java raises the player from three to five potion slots. Every
+// gameplay-significant slot must remain visible on the combat RL surface.
+pub const COMBAT_POTION_CONTEXT_DIM: usize = 20;
 pub const COMBAT_CHOICE_CONTEXT_DIM: usize = 24;
 pub const COMBAT_V2_EXTRA_DIM: usize =
     COMBAT_HIDDEN_COUNTER_DIM + COMBAT_POTION_CONTEXT_DIM + COMBAT_CHOICE_CONTEXT_DIM;
@@ -772,7 +785,8 @@ pub fn encode_combat_state_v2_from_combat(
     obs[off] = hidden_relic_value(combat, state, "Inserter", 0) as f32 / 2.0;
     off += 1;
 
-    for potion in state.potions.iter().take(3) {
+    for slot in 0..5 {
+        let potion = state.potions.get(slot).map(String::as_str).unwrap_or("");
         encode_potion_slot_features(potion, &mut obs, &mut off);
     }
 
@@ -868,6 +882,10 @@ fn choice_reason_index(reason: &crate::engine::ChoiceReason) -> Option<usize> {
         crate::engine::ChoiceReason::ForethoughtPick => 14,
         crate::engine::ChoiceReason::RecycleCard => 15,
         crate::engine::ChoiceReason::DiscardForEffect => 16,
+        // Preserve the fixed 19-slot combat observation contract by sharing
+        // the existing hand-card-movement bucket. Decision/training contexts
+        // still expose the exact `retain_from_hand` reason string.
+        crate::engine::ChoiceReason::RetainFromHand => 3,
         crate::engine::ChoiceReason::SetupPick => 17,
         crate::engine::ChoiceReason::PlayCardFreeFromDraw => 18,
     };

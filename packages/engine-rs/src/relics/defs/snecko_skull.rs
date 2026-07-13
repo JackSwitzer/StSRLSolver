@@ -1,4 +1,4 @@
-//! Snecko Skull (Snake Skull): +1 Poison per Poison application.
+//! Snake Skull (class SneckoSkull): +1 Poison per Poison application.
 //!
 //! Passive poison bonus: owned by the canonical inline poison-application path.
 //! This EntityDef records the trigger surface for export/runtime snapshots.
@@ -16,7 +16,8 @@ static TRIGGERS: [TriggeredEffect; 1] = [
 ];
 
 pub static DEF: EntityDef = EntityDef {
-    id: "SneckoSkull",
+    // SneckoSkull.java declares the canonical relic ID "Snake Skull".
+    id: "Snake Skull",
     name: "Snecko Skull",
     kind: EntityKind::Relic,
     triggers: &TRIGGERS,

@@ -9,14 +9,25 @@ use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::status_ids::sid;
 
 static INCREMENT_EFFECTS: [Effect; 1] = [
-    Effect::Simple(SimpleEffect::IncrementCounter(sid::VELVET_CHOKER_COUNTER, 1)),
+    // VelvetChoker.java increments only while counter < 6.
+    Effect::Simple(SimpleEffect::IncrementCounter(sid::VELVET_CHOKER_COUNTER, 6)),
 ];
 
 static RESET_EFFECTS: [Effect; 1] = [
     Effect::Simple(SimpleEffect::SetStatus(Target::Player, sid::VELVET_CHOKER_COUNTER, AmountSource::Fixed(0))),
 ];
 
-static TRIGGERS: [TriggeredEffect; 2] = [
+static VICTORY_EFFECTS: [Effect; 1] = [
+    Effect::Simple(SimpleEffect::SetStatus(Target::Player, sid::VELVET_CHOKER_COUNTER, AmountSource::Fixed(-1))),
+];
+
+static TRIGGERS: [TriggeredEffect; 4] = [
+    TriggeredEffect {
+        trigger: Trigger::CombatStart,
+        condition: TriggerCondition::Always,
+        effects: &RESET_EFFECTS,
+        counter: None,
+    },
     TriggeredEffect {
         trigger: Trigger::OnAnyCardPlayed,
         condition: TriggerCondition::Always,
@@ -27,6 +38,12 @@ static TRIGGERS: [TriggeredEffect; 2] = [
         trigger: Trigger::TurnStart,
         condition: TriggerCondition::Always,
         effects: &RESET_EFFECTS,
+        counter: None,
+    },
+    TriggeredEffect {
+        trigger: Trigger::CombatVictory,
+        condition: TriggerCondition::Always,
+        effects: &VICTORY_EFFECTS,
         counter: None,
     },
 ];

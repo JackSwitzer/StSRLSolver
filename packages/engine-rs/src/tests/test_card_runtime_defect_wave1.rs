@@ -156,11 +156,13 @@ fn test_card_runtime_defect_wave1_machine_learning_and_hello_world_trigger_start
     assert!(play_self(&mut hello_world, "Hello World"));
     end_turn(&mut hello_world);
     assert_eq!(hello_world.state.hand.len(), 1);
-    assert_eq!(hello_world.card_registry.card_name(hello_world.state.hand[0].def_id), "Strike");
+    // Java: powers/HelloPower.java selects from commonCardPool; BASIC Strike
+    // is excluded. Exact source-pool ordering and RNG are tested with the hook.
+    assert_ne!(hello_world.card_registry.card_name(hello_world.state.hand[0].def_id), "Strike");
 }
 
 #[test]
-fn test_card_runtime_defect_wave1_loop_repeats_the_front_orb_passive_on_turn_end() {
+fn test_card_runtime_defect_wave1_loop_repeats_the_front_orb_passive_at_next_turn_start() {
     let mut engine = engine_without_start(
         Vec::new(),
         vec![enemy_no_intent("JawWorm", 60, 60)],
@@ -173,5 +175,6 @@ fn test_card_runtime_defect_wave1_loop_repeats_the_front_orb_passive_on_turn_end
     assert!(play_self(&mut engine, "Loop"));
     assert_eq!(engine.state.player.status(sid::LOOP), 1);
     end_turn(&mut engine);
+    // One ordinary end-turn Lightning passive plus one Loop start-turn repeat.
     assert_eq!(engine.state.enemies[0].entity.hp, 54);
 }

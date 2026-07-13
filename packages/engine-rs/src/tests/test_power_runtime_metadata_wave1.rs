@@ -2,6 +2,7 @@
 
 use crate::combat_types::mfx;
 use crate::effects::runtime::EffectOwner;
+use crate::effects::trigger::Trigger;
 use crate::enemies::create_enemy;
 use crate::status_ids::sid;
 use crate::tests::support::{
@@ -28,7 +29,69 @@ fn power_card_install_rebuilds_runtime_from_typed_metadata() {
 }
 
 #[test]
-fn force_field_cost_scales_from_runtime_owned_player_powers() {
+fn demon_form_plus_gains_three_strength_in_the_post_draw_phase() {
+    // DemonForm.java applies magicNumber 2 (3 upgraded). DemonFormPower.java
+    // gains that amount specifically in atStartOfTurnPostDraw.
+    let mut engine = engine_with_state(combat_state_with(
+        Vec::new(),
+        vec![create_enemy("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand = make_deck(&["Demon Form+"]);
+    engine.state.draw_pile.clear();
+    engine.state.discard_pile.clear();
+
+    assert!(play_self(&mut engine, "Demon Form+"));
+    assert_eq!(engine.state.player.status(sid::DEMON_FORM), 3);
+    engine.clear_event_log();
+
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.status(sid::STRENGTH), 3);
+    assert!(engine.event_log.iter().any(|record| {
+        record.event == Trigger::TurnStartPostDraw && record.def_id == Some("demon_form")
+    }));
+    assert!(!engine.event_log.iter().any(|record| {
+        record.event == Trigger::TurnStart && record.def_id == Some("demon_form")
+    }));
+}
+
+#[test]
+fn noxious_fumes_stacks_base_and_upgrade_then_poisons_post_draw() {
+    // NoxiousFumes.java installs magic 2 (3 upgraded), and
+    // NoxiousFumesPower.java stacks the shared power amount before applying it
+    // to each living enemy in atStartOfTurnPostDraw.
+    let mut engine = engine_with_state(combat_state_with(
+        Vec::new(),
+        vec![create_enemy("JawWorm", 40, 40), create_enemy("Cultist", 40, 40)],
+        3,
+    ));
+    engine.state.hand = make_deck(&["Noxious Fumes", "Noxious Fumes+"]);
+    engine.state.draw_pile.clear();
+    engine.state.discard_pile.clear();
+
+    assert!(play_self(&mut engine, "Noxious Fumes"));
+    assert!(play_self(&mut engine, "Noxious Fumes+"));
+    assert_eq!(engine.state.player.status(sid::NOXIOUS_FUMES), 5);
+    assert!(engine
+        .effect_runtime
+        .has_instance("noxious_fumes", EffectOwner::PlayerPower));
+    engine.clear_event_log();
+
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 5);
+    assert_eq!(engine.state.enemies[1].entity.status(sid::POISON), 5);
+    assert!(engine.event_log.iter().any(|record| {
+        record.event == Trigger::TurnStartPostDraw && record.def_id == Some("noxious_fumes")
+    }));
+    assert!(!engine.event_log.iter().any(|record| {
+        record.event == Trigger::TurnStart && record.def_id == Some("noxious_fumes")
+    }));
+}
+
+#[test]
+fn force_field_cost_scales_from_power_cards_played_this_combat() {
     let mut engine = engine_with_state(combat_state_with(
         Vec::new(),
         vec![create_enemy("JawWorm", 50, 50)],

@@ -2,9 +2,11 @@
 //!
 //! Powers that trigger at the end of the player's turn.
 
-use crate::effects::declarative::{AmountSource, Effect, Pile, SimpleEffect, Target};
+use crate::effects::declarative::{AmountSource, Effect, SimpleEffect, Target};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
+use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerCondition};
+use crate::engine::CombatEngine;
 use crate::state::Stance;
 use crate::status_ids::sid;
 
@@ -57,58 +59,127 @@ pub static DEF_PLATED_ARMOR: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Combust — TurnEnd: lose 1 HP, deal damage to all enemies
+// Wraith Form — TurnEnd: apply its negative amount as Dexterity
 // ===========================================================================
 
-static COMBUST_EFFECTS: [Effect; 2] = [
-    Effect::Simple(SimpleEffect::DealDamage(
-        Target::Player,
-        AmountSource::Fixed(1),
-    )),
-    Effect::Simple(SimpleEffect::DealDamage(
-        Target::AllEnemies,
-        AmountSource::StatusValue(sid::COMBUST),
-    )),
-];
+static WRAITH_FORM_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::TurnEnd,
+    condition: TriggerCondition::Always,
+    effects: &[],
+    counter: None,
+}];
+
+fn hook_wraith_form(
+    engine: &mut CombatEngine,
+    owner: EffectOwner,
+    event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    if owner != EffectOwner::PlayerPower || event.kind != Trigger::TurnEnd {
+        return;
+    }
+    let amount = engine.state.player.status(sid::WRAITH_FORM);
+    if amount > 0 {
+        // WraithFormPower stores a negative amount and queues one negative
+        // DexterityPower application at player turn end. Negative Dexterity is
+        // a DEBUFF, so a later Artifact can block the entire stacked tick.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/WraithFormPower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DexterityPower.java
+        crate::powers::apply_debuff(&mut engine.state.player, sid::DEXTERITY, -amount);
+    }
+}
+
+pub static DEF_WRAITH_FORM: EntityDef = EntityDef {
+    id: "wraith_form",
+    name: "Wraith Form",
+    kind: EntityKind::Power,
+    triggers: &WRAITH_FORM_TRIGGERS,
+    complex_hook: Some(hook_wraith_form),
+    status_guard: Some(sid::WRAITH_FORM),
+};
+
+// ===========================================================================
+// Combust — TurnEnd: lose HP, then deal THORNS damage to all enemies
+// ===========================================================================
 
 static COMBUST_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::TurnEnd,
     condition: TriggerCondition::Always,
-    effects: &COMBUST_EFFECTS,
+    effects: &[],
     counter: None,
 }];
+
+fn hook_combust(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    event: &GameEvent,
+    state: &mut EffectState,
+) {
+    if event.kind != Trigger::TurnEnd {
+        return;
+    }
+    let targets = engine.state.living_enemy_indices();
+    if targets.is_empty() {
+        return;
+    }
+
+    // CombustPower.atEndOfTurn queues LoseHPAction before a source-less
+    // DamageAllEnemiesAction with DamageType.THORNS. stackPower adds incoming
+    // damage to amount but increments the private hpLoss field by one.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/CombustPower.java
+    engine.player_lose_hp_from_damage(state.get(0).max(1));
+    let damage = engine.state.player.status(sid::COMBUST);
+    for target in targets {
+        engine.deal_thorns_damage_to_enemy(target, damage);
+    }
+}
 
 pub static DEF_COMBUST: EntityDef = EntityDef {
     id: "combust",
     name: "Combust",
     kind: EntityKind::Power,
     triggers: &COMBUST_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_combust),
     status_guard: Some(sid::COMBUST),
 };
 
 // ===========================================================================
-// Omega — TurnEnd: deal 50 damage to all enemies
+// Omega — TurnEnd: deal source-less THORNS damage to all living enemies.
 // ===========================================================================
-
-static OMEGA_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::DealDamage(
-    Target::AllEnemies,
-    AmountSource::StatusValue(sid::OMEGA),
-))];
 
 static OMEGA_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::TurnEnd,
     condition: TriggerCondition::Always,
-    effects: &OMEGA_EFFECTS,
+    effects: &[],
     counter: None,
 }];
+
+fn hook_omega(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    if event.kind != Trigger::TurnEnd {
+        return;
+    }
+
+    // OmegaPower creates a pure damage matrix and resolves it as source-less
+    // THORNS damage. It therefore uses block/Intangible/Buffer/Invincible, but
+    // skips NORMAL-only Slow, Flight, Curl Up, Malleable, and offensive mods.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/OmegaPower.java
+    let damage = engine.state.player.status(sid::OMEGA);
+    for target in engine.state.living_enemy_indices() {
+        engine.deal_thorns_damage_to_enemy(target, damage);
+    }
+}
 
 pub static DEF_OMEGA: EntityDef = EntityDef {
     id: "omega",
     name: "Omega",
     kind: EntityKind::Power,
     triggers: &OMEGA_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_omega),
     status_guard: Some(sid::OMEGA),
 };
 
@@ -140,9 +211,11 @@ pub static DEF_LIKE_WATER: EntityDef = EntityDef {
 // Study — TurnEnd: add Insight(s) to draw pile
 // ===========================================================================
 
-static STUDY_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddCard(
+// Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/StudyPower.java
+// MakeTempCardInDrawPileAction(..., randomSpot=true) uses cardRandomRng for
+// each Insight rather than shuffling the existing draw pile.
+static STUDY_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddCardToRandomDrawSpot(
     "Insight",
-    Pile::Draw,
     AmountSource::StatusValue(sid::STUDY),
 ))];
 
@@ -163,6 +236,34 @@ pub static DEF_STUDY: EntityDef = EntityDef {
 };
 
 // ===========================================================================
+// No Draw — TurnEnd: remove the one-turn draw restriction
+// ===========================================================================
+
+// Source: powers/NoDrawPower.java::atEndOfTurn queues removal of power ID
+// "No Draw" when the player's turn ends.
+static NO_DRAW_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::SetStatus(
+    Target::Player,
+    sid::NO_DRAW,
+    AmountSource::Fixed(0),
+))];
+
+static NO_DRAW_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::TurnEnd,
+    condition: TriggerCondition::Always,
+    effects: &NO_DRAW_EFFECTS,
+    counter: None,
+}];
+
+pub static DEF_NO_DRAW: EntityDef = EntityDef {
+    id: "no_draw",
+    name: "No Draw",
+    kind: EntityKind::Power,
+    triggers: &NO_DRAW_TRIGGERS,
+    complex_hook: None,
+    status_guard: Some(sid::NO_DRAW),
+};
+
+// ===========================================================================
 // Tests
 // ===========================================================================
 
@@ -177,8 +278,9 @@ mod tests {
     }
 
     #[test]
-    fn test_combust_has_two_effects() {
-        assert_eq!(DEF_COMBUST.triggers[0].effects.len(), 2);
+    fn test_combust_uses_ordered_complex_hook() {
+        assert!(DEF_COMBUST.triggers[0].effects.is_empty());
+        assert!(DEF_COMBUST.complex_hook.is_some());
     }
 
     #[test]
@@ -192,7 +294,7 @@ mod tests {
     #[test]
     fn test_all_turn_end_defs() {
         let defs = [
-            &DEF_METALLICIZE, &DEF_PLATED_ARMOR, &DEF_COMBUST,
+            &DEF_METALLICIZE, &DEF_PLATED_ARMOR, &DEF_WRAITH_FORM, &DEF_COMBUST,
             &DEF_OMEGA, &DEF_LIKE_WATER, &DEF_STUDY,
         ];
         for def in &defs {

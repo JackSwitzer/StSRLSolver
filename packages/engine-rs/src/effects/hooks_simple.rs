@@ -44,13 +44,6 @@ pub fn hook_draw_to_n(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     }
 }
 
-/// FTL: draw if few cards played this turn.
-pub fn hook_draw_if_few_cards_played(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    if engine.state.cards_played_this_turn < 3 {
-        engine.draw_cards(ctx.card.base_magic);
-    }
-}
-
 /// Calculated Gamble: discard hand, draw same count.
 pub fn hook_calculated_gamble(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     let hand_count = engine.state.hand.len() as i32;
@@ -109,7 +102,7 @@ pub fn hook_next_turn_energy(engine: &mut CombatEngine, ctx: &CardPlayContext) {
 
 /// Bloodletting: lose HP, gain 2 energy.
 pub fn hook_lose_hp_gain_energy(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    engine.player_lose_hp(ctx.card.base_magic);
+    engine.player_lose_hp_from_damage(ctx.card.base_magic);
     engine.state.energy += 2;
 }
 
@@ -224,7 +217,11 @@ pub fn hook_heal_on_play(engine: &mut CombatEngine, ctx: &CardPlayContext) {
 
 /// Offering: lose 6 HP, gain 2 energy, draw N cards.
 pub fn hook_offering(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    engine.state.player.hp = (engine.state.player.hp - 6).max(0);
+    // Offering.java uses LoseHPAction, whose HP_LOSS DamageInfo passes through
+    // Intangible, Buffer, Tungsten Rod, and on-HP-loss hooks such as Rupture.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Offering.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/LoseHPAction.java
+    engine.player_lose_hp_from_damage(6);
     engine.state.energy += 2;
     let draw_count = ctx.card.base_magic.max(3);
     engine.draw_cards(draw_count);
@@ -232,12 +229,12 @@ pub fn hook_offering(engine: &mut CombatEngine, ctx: &CardPlayContext) {
 
 /// Lose HP (Hemokinesis).
 pub fn hook_lose_hp(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    engine.player_lose_hp(ctx.card.base_magic);
+    engine.player_lose_hp_from_damage(ctx.card.base_magic);
 }
 
 /// J.A.X.: lose HP, gain equal Strength.
 pub fn hook_lose_hp_gain_str(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    engine.player_lose_hp(ctx.card.base_magic);
+    engine.player_lose_hp_from_damage(ctx.card.base_magic);
     engine.state.player.add_status(sid::STRENGTH, ctx.card.base_magic);
 }
 
@@ -293,15 +290,14 @@ pub fn hook_retain_hand(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
 
 /// Phantasmal Killer: double damage next turn.
 pub fn hook_phantasmal_killer(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
-    engine.state.player.add_status(sid::DOUBLE_DAMAGE, 1);
+    // Java: cards/green/PhantasmalKiller.java::use applies PhantasmalPower.
+    engine.state.player.add_status(sid::PHANTASMAL, 1);
 }
 
-/// Sentinel: gain energy when exhausted (only under Corruption).
+/// Sentinel.triggerOnExhaust gains energy regardless of which effect exhausted it.
+/// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Sentinel.java
 pub fn hook_energy_on_exhaust(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    if engine.state.player.status(sid::CORRUPTION) > 0 {
-        let amount = ctx.card.base_magic.max(2);
-        engine.state.energy += amount;
-    }
+    engine.state.energy += ctx.card.base_magic;
 }
 
 // =====================================================================

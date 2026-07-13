@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Uncommon: Predator ---- (cost 2, 15 dmg, draw 2 next turn; +5 dmg)
+    // Predator.java queues 15 Damage before applying two stacks of the shared
+    // DrawCardNextTurnPower; upgrading adds only 5 damage.
+    // Source: reference/extracted/methods/card/Predator.java
     insert(cards, CardDef {
                 id: "Predator", name: "Predator", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 15, base_block: -1,

@@ -2,6 +2,7 @@
 //!
 //! Damage modifier: owned by the canonical inline damage pipeline.
 //! This EntityDef records the trigger surface for export/runtime snapshots.
+//! Source: decompiled/java-src/com/megacrit/cardcrawl/relics/Boot.java.
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};

@@ -1,4 +1,5 @@
 //! Incense Burner: Every 6 turns, gain 1 Intangible.
+//! Source: decompiled/java-src/com/megacrit/cardcrawl/relics/IncenseBurner.java.
 
 use crate::effects::declarative::{Effect, SimpleEffect, Target, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
@@ -10,6 +11,8 @@ static EFFECTS: [Effect; 1] = [
 ];
 
 static TRIGGERS: [TriggeredEffect; 1] = [
+    // IncenseBurner.java::atTurnStart increments the counter, resets at 6,
+    // and applies exactly one IntangiblePlayerPower.
     TriggeredEffect {
         trigger: Trigger::TurnStart,
         condition: TriggerCondition::CounterReached,

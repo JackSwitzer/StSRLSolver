@@ -52,6 +52,7 @@ fn scaling_wave1_registry_exports_typed_played_instance_damage_mutation_surface(
     assert!(glass_knife.complex_hook.is_none());
 
     let glass_knife_plus = reg.get("Glass Knife+").expect("Glass Knife+");
+    assert_eq!(glass_knife_plus.base_damage, 12);
     assert_eq!(
         glass_knife_plus.effect_data,
         &[
@@ -103,4 +104,66 @@ fn rampage_and_glass_knife_update_the_played_instance_damage_seed_for_future_pla
 
     assert!(play_on_enemy(&mut glass_knife, "Glass Knife", 0));
     assert_eq!(glass_knife.state.enemies[0].entity.hp, 12);
+
+    // GlassKnife.upgrade() calls upgradeDamage(4), so the upgraded card deals
+    // 12 twice, stores 10, then deals 10 twice on its next play.
+    // Java: reference/extracted/methods/card/GlassKnife.java
+    let mut upgraded = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 100, 100)],
+        3,
+    );
+    force_player_turn(&mut upgraded);
+    upgraded.state.hand = make_deck(&["Glass Knife+"]);
+
+    assert!(play_on_enemy(&mut upgraded, "Glass Knife+", 0));
+    assert_eq!(upgraded.state.enemies[0].entity.hp, 76);
+    let played = upgraded
+        .state
+        .discard_pile
+        .pop()
+        .expect("played Glass Knife+ should land in discard");
+    assert_eq!(played.misc, 10);
+
+    upgraded.state.hand.push(played);
+    upgraded.state.energy = 1;
+    assert!(play_on_enemy(&mut upgraded, "Glass Knife+", 0));
+    assert_eq!(upgraded.state.enemies[0].entity.hp, 56);
+    assert_eq!(upgraded.state.discard_pile.last().unwrap().misc, 8);
+}
+
+#[test]
+fn rampage_does_not_grow_when_its_damage_kills_the_final_monster() {
+    // Rampage.java queues DamageAction before ModifyDamageAction. DamageAction
+    // clears later CARD_MANIPULATION actions only when all monsters are dead,
+    // so a nonterminal target kill still grows the played UUID by five.
+    let mut nonterminal = engine_without_start(
+        Vec::new(),
+        vec![
+            enemy_no_intent("JawWorm", 8, 8),
+            enemy_no_intent("Cultist", 40, 40),
+        ],
+        3,
+    );
+    force_player_turn(&mut nonterminal);
+    nonterminal.state.hand = make_deck(&["Rampage"]);
+    assert!(play_on_enemy(&mut nonterminal, "Rampage", 0));
+    assert_eq!(
+        nonterminal.state.discard_pile.last().expect("played Rampage").misc,
+        13
+    );
+
+    let mut terminal = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 8, 8)],
+        3,
+    );
+    force_player_turn(&mut terminal);
+    terminal.state.hand = make_deck(&["Rampage"]);
+    assert!(play_on_enemy(&mut terminal, "Rampage", 0));
+    assert!(terminal.state.combat_over);
+    assert_eq!(
+        terminal.state.discard_pile.last().expect("played Rampage").misc,
+        -1
+    );
 }

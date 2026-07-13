@@ -30,6 +30,30 @@ mod potion_tests {
         });
     }
 
+    #[test]
+    fn potion_slot_is_an_inert_unoccupied_placeholder() {
+        // Source: reference/extracted/methods/potion/PotionSlot.java. The
+        // PLACEHOLDER object has potency zero and an empty use method; the Rust
+        // state represents it as an empty slot rather than a usable potion.
+        let mut e = engine();
+        assert_eq!(e.state.potions.len(), 3);
+        assert!(e.state.potions.iter().all(String::is_empty));
+        assert!(!e
+            .get_legal_actions()
+            .iter()
+            .any(|action| matches!(action, Action::UsePotion { .. })));
+
+        let event_count = e.event_log.len();
+        use_potion(&mut e, 0, -1);
+        assert!(e.state.potions[0].is_empty());
+        assert_eq!(e.event_log.len(), event_count);
+
+        let context = crate::decision::build_combat_context(&e);
+        assert!(context.potions.iter().all(|slot| {
+            !slot.occupied && slot.potion_id.is_empty() && !slot.requires_target
+        }));
+    }
+
     #[test] fn fire_20_dmg() {
         let mut e = engine();
         e.state.potions[0] = "Fire Potion".to_string();
@@ -136,6 +160,7 @@ mod potion_tests {
 
     // ---- Poison Potion ----
     #[test] fn poison_6() {
+        // Source: reference/extracted/methods/potion/PoisonPotion.java.
         let mut e = engine();
         e.state.potions[0] = "Poison Potion".to_string();
         use_potion(&mut e, 0, 0);

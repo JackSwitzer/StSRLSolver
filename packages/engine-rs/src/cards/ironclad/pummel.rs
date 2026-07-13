@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Ironclad Uncommon: Pummel ---- (cost 1, 2 dmg x4, exhaust; +1 hit)
+    // Pummel queues magicNumber separate damage actions at two damage each;
+    // upgrading adds one hit without changing cost or damage, and both exhaust.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Pummel.java
     insert(cards, CardDef {
                 id: "Pummel", name: "Pummel", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 2, base_block: -1,

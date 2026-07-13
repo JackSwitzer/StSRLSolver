@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Chill: 0 cost, channel 1 Frost per enemy, exhaust (upgrade: innate)
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Chill.java
+        // channels one Frost per non-dead/escaped enemy; upgrade is Innate-only.
     insert(cards, CardDef {
                 id: "Chill", name: "Chill", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,

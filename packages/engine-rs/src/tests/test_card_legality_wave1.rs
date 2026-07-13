@@ -87,10 +87,14 @@ fn secret_technique_still_uses_declarative_skill_search_and_finds_only_skills() 
 
     let mut engine = engine_for(&["Secret Technique"], &["Strike", "Shrug It Off", "Bash"], &[], 3);
     assert!(play_self(&mut engine, "Secret Technique"));
-    assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
-    let choice = engine.choice.as_ref().expect("secret technique choice");
-    assert_eq!(choice.reason, ChoiceReason::SearchDrawPile);
-    assert_eq!(choice.options.len(), 1);
+    // Java SkillFromDeckToHandAction auto-moves a singleton eligible Skill.
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert!(engine.choice.is_none());
+    assert_eq!(engine.state.hand.len(), 1);
+    assert_eq!(
+        engine.card_registry.card_name(engine.state.hand[0].def_id),
+        "Shrug It Off"
+    );
 }
 
 #[test]

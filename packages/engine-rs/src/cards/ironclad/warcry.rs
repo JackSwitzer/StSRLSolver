@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Ironclad Common: Warcry ---- (cost 0, draw 1, put 1 on top, exhaust; +1 draw)
+    // Warcry draws one (two upgraded), then non-random PutOnDeckAction moves
+    // exactly one chosen hand card to the top of draw before Warcry exhausts.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Warcry.java
     insert(cards, CardDef {
                 id: "Warcry", name: "Warcry", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,

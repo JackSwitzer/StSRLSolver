@@ -2,7 +2,10 @@ use crate::cards::prelude::*;
 use crate::effects::declarative::{AmountSource as A, CardFilter, Effect as E, Pile as P, SimpleEffect as SE};
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Violence: 0 cost, put 3 random Attacks from draw pile into hand, exhaust
+    // DrawPileToHandAction moves three random Attacks from draw to hand (four
+    // upgraded), discarding selected overflow at the ten-card hand cap.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Violence.java
+    // and actions/utility/DrawPileToHandAction.java.
     insert(cards, CardDef {
                 id: "Violence", name: "Violence", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,

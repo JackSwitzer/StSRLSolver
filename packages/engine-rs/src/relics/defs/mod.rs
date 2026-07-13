@@ -18,12 +18,30 @@ pub mod bag_of_marbles;
 pub mod red_mask;
 pub mod thread_and_needle;
 pub mod bronze_scales;
+pub mod busted_crown;
+pub mod calipers;
+pub mod calling_bell;
+pub mod coffee_dripper;
+pub mod cursed_key;
+pub mod darkstone_periapt;
+pub mod dream_catcher;
+pub mod ectoplasm;
+pub mod eternal_feather;
+pub mod fusion_hammer;
+pub mod frozen_egg_2;
+pub mod molten_egg_2;
+pub mod toxic_egg_2;
+pub mod ice_cream;
 pub mod clockwork_souvenir;
 pub mod fossilized_helix;
 pub mod blood_vial;
+pub mod bloody_idol;
 pub mod twisted_funnel;
 pub mod mutagenic_strength;
+pub mod gremlin_mask;
 pub mod philosophers_stone;
+pub mod chemical_x;
+pub mod frozen_eye;
 
 // ===========================================================================
 // Counter-based relics (OnAttackPlayed/OnSkillPlayed/OnAnyCardPlayed/etc.)
@@ -52,7 +70,9 @@ pub mod damaru;
 // Event-triggered relics (card play, exhaust, discard, death, victory, etc.)
 // ===========================================================================
 pub mod bird_faced_urn;
+pub mod black_star;
 pub mod charons_ashes;
+pub mod dead_branch;
 pub mod tough_bandages;
 pub mod tingsha;
 pub mod gremlin_horn;
@@ -61,6 +81,7 @@ pub mod black_blood;
 pub mod toy_ornithopter;
 pub mod self_forming_clay;
 pub mod the_abacus;
+pub mod melange;
 
 // ===========================================================================
 // Combat-start: stat buffs requiring complex_hook
@@ -165,6 +186,9 @@ pub mod teardrop_locket;
 // Damage modifiers (called inline, not via dispatch_trigger)
 // ===========================================================================
 pub mod boot;
+pub mod bottled_flame;
+pub mod bottled_lightning;
+pub mod bottled_tornado;
 pub mod torii;
 pub mod tungsten_rod;
 pub mod champion_belt;
@@ -185,14 +209,43 @@ pub mod ring_of_serpent;
 pub mod violet_lotus;
 pub mod red_skull;
 pub mod enchiridion;
+pub mod nilrys_codex;
+pub mod toolbox;
+pub mod prismatic_shard;
 pub mod warped_tongs;
 pub mod gambling_chip;
 pub mod hovering_kite;
 pub mod lizard_tail;
+pub mod mango;
+pub mod matryoshka;
+pub mod maw_bank;
+pub mod meal_ticket;
+pub mod juzu_bracelet;
+pub mod waffle;
+pub mod membership_card;
+pub mod cauldron;
+pub mod dollys_mirror;
+pub mod orrery;
 pub mod ancient_tea_set;
+pub mod astrolabe;
 pub mod medical_kit;
 pub mod blue_candle;
 pub mod strange_spoon;
+pub mod old_coin;
+pub mod smiling_mask;
+pub mod peace_pipe;
+pub mod pandoras_box;
+pub mod shovel;
+pub mod unceasing_top;
+pub mod tiny_chest;
+pub mod omamori;
+pub mod runic_dome;
+pub mod runic_pyramid;
+pub mod sacred_bark;
+pub mod sozu;
+pub mod tiny_house;
+pub mod empty_cage;
+pub mod white_beast;
 
 // ===========================================================================
 // Registry — static array of all relic EntityDefs
@@ -211,12 +264,30 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &red_mask::DEF,
     &thread_and_needle::DEF,
     &bronze_scales::DEF,
+    &busted_crown::DEF,
+    &calipers::DEF,
+    &calling_bell::DEF,
+    &coffee_dripper::DEF,
+    &cursed_key::DEF,
+    &darkstone_periapt::DEF,
+    &dream_catcher::DEF,
+    &ectoplasm::DEF,
+    &eternal_feather::DEF,
+    &fusion_hammer::DEF,
+    &frozen_egg_2::DEF,
+    &molten_egg_2::DEF,
+    &toxic_egg_2::DEF,
+    &ice_cream::DEF,
     &clockwork_souvenir::DEF,
     &fossilized_helix::DEF,
     &blood_vial::DEF,
+    &bloody_idol::DEF,
     &twisted_funnel::DEF,
     &mutagenic_strength::DEF,
+    &gremlin_mask::DEF,
     &philosophers_stone::DEF,
+    &chemical_x::DEF,
+    &frozen_eye::DEF,
     // Counter-based relics
     &ornamental_fan::DEF,
     &kunai::DEF,
@@ -236,7 +307,9 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &damaru::DEF,
     // Event-triggered relics
     &bird_faced_urn::DEF,
+    &black_star::DEF,
     &charons_ashes::DEF,
+    &dead_branch::DEF,
     &tough_bandages::DEF,
     &tingsha::DEF,
     &gremlin_horn::DEF,
@@ -245,6 +318,7 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &toy_ornithopter::DEF,
     &self_forming_clay::DEF,
     &the_abacus::DEF,
+    &melange::DEF,
     // Combat-start: stat buffs (complex_hook)
     &du_vu_doll::DEF,
     &girya::DEF,
@@ -302,6 +376,9 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &teardrop_locket::DEF,
     // Damage modifiers
     &boot::DEF,
+    &bottled_flame::DEF,
+    &bottled_lightning::DEF,
+    &bottled_tornado::DEF,
     &torii::DEF,
     &tungsten_rod::DEF,
     &champion_belt::DEF,
@@ -316,14 +393,43 @@ pub static RELIC_DEFS: &[&EntityDef] = &[
     &violet_lotus::DEF,
     &red_skull::DEF,
     &enchiridion::DEF,
+    &nilrys_codex::DEF,
+    &toolbox::DEF,
+    &prismatic_shard::DEF,
     &warped_tongs::DEF,
     &gambling_chip::DEF,
     &hovering_kite::DEF,
     &lizard_tail::DEF,
+    &mango::DEF,
+    &matryoshka::DEF,
+    &maw_bank::DEF,
+    &meal_ticket::DEF,
+    &juzu_bracelet::DEF,
+    &waffle::DEF,
+    &membership_card::DEF,
+    &cauldron::DEF,
+    &dollys_mirror::DEF,
+    &orrery::DEF,
     &ancient_tea_set::DEF,
+    &astrolabe::DEF,
     &medical_kit::DEF,
     &blue_candle::DEF,
     &strange_spoon::DEF,
+    &old_coin::DEF,
+    &smiling_mask::DEF,
+    &peace_pipe::DEF,
+    &pandoras_box::DEF,
+    &shovel::DEF,
+    &unceasing_top::DEF,
+    &tiny_chest::DEF,
+    &omamori::DEF,
+    &runic_dome::DEF,
+    &runic_pyramid::DEF,
+    &sacred_bark::DEF,
+    &sozu::DEF,
+    &tiny_house::DEF,
+    &empty_cage::DEF,
+    &white_beast::DEF,
 ];
 
 pub fn relic_def_by_id(id: &str) -> Option<&'static EntityDef> {
@@ -401,7 +507,9 @@ mod tests {
 
     #[test]
     fn test_simple_defs_have_no_complex_hook() {
-        let simple_relics = ["Vajra", "Anchor", "Orichalcum", "Mercury Hourglass", "Kunai"];
+        // Mercury Hourglass intentionally uses a hook because Java resolves
+        // its pulse as THORNS rather than generic NORMAL damage.
+        let simple_relics = ["Vajra", "Anchor", "Orichalcum", "Kunai"];
         for name in simple_relics {
             let def = relic_def_by_id(name).unwrap();
             assert!(def.complex_hook.is_none(), "{} should not have a complex_hook", name);

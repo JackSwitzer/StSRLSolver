@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Reprogram: 1 cost, lose 1 focus, gain 1 str and 1 dex
+    // Reprogram.java queues negative Focus, then positive Strength and
+    // Dexterity, all for magicNumber 1 (2 upgraded).
+    // Java: reference/extracted/methods/card/Reprogram.java
     insert(cards, CardDef {
                 id: "Reprogram", name: "Reprogram", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,

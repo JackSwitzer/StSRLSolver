@@ -11,13 +11,8 @@ use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, E
 use crate::engine::{ChoiceReason, CombatPhase};
 use crate::tests::support::{enemy, engine_without_start, ensure_in_hand, force_player_turn, make_deck, play_on_enemy, play_self};
 
-static LESSON_LEARNED_UPGRADE_PILES: [crate::effects::declarative::Pile; 2] = [
-    crate::effects::declarative::Pile::Draw,
-    crate::effects::declarative::Pile::Discard,
-];
-static LESSON_LEARNED_KILL_BRANCH: [E; 1] = [E::Simple(SE::UpgradeRandomCardFromPiles(
-    &LESSON_LEARNED_UPGRADE_PILES,
-))];
+static LESSON_LEARNED_KILL_BRANCH: [E; 1] =
+    [E::Simple(SE::UpgradeRandomMasterDeckCard)];
 
 fn one_enemy_engine(enemy_hp: i32, enemy_block: i32) -> crate::engine::CombatEngine {
     let mut engine = engine_without_start(
@@ -61,7 +56,7 @@ fn watcher_wave15_registry_exports_match_typed_surface() {
         lesson_learned.effect_data,
         &[
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
-            E::Conditional(crate::effects::declarative::Condition::EnemyKilled, &LESSON_LEARNED_KILL_BRANCH, &[]),
+            E::Conditional(crate::effects::declarative::Condition::EnemyKilledNonMinion, &LESSON_LEARNED_KILL_BRANCH, &[]),
         ]
     );
     assert!(lesson_learned.complex_hook.is_none());
@@ -73,7 +68,7 @@ fn watcher_wave15_registry_exports_match_typed_surface() {
         lesson_learned_plus.effect_data,
         &[
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
-            E::Conditional(crate::effects::declarative::Condition::EnemyKilled, &LESSON_LEARNED_KILL_BRANCH, &[]),
+            E::Conditional(crate::effects::declarative::Condition::EnemyKilledNonMinion, &LESSON_LEARNED_KILL_BRANCH, &[]),
         ]
     );
     assert!(lesson_learned_plus.complex_hook.is_none());
@@ -116,15 +111,18 @@ fn watcher_wave15_wallop_and_lesson_learned_follow_engine_path() {
 
     let mut lesson_learned = one_enemy_engine(10, 0);
     lesson_learned.state.draw_pile = make_deck(&["Wallop"]);
+    lesson_learned.state.master_deck = make_deck(&["Wallop"]);
     ensure_in_hand(&mut lesson_learned, "LessonLearned");
     assert!(play_on_enemy(&mut lesson_learned, "LessonLearned", 0));
     assert!(lesson_learned.state.enemies[0].entity.is_dead());
     assert!(
-        lesson_learned
-            .state
-            .draw_pile
+        lesson_learned.state.master_deck
             .iter()
             .any(|card| lesson_learned.card_registry.card_name(card.def_id) == "Wallop+")
+    );
+    assert_eq!(
+        lesson_learned.card_registry.card_name(lesson_learned.state.draw_pile[0].def_id),
+        "Wallop"
     );
     assert!(lesson_learned
         .state
@@ -148,8 +146,11 @@ fn watcher_wave15_omniscience_uses_the_typed_draw_pile_free_play_surface() {
     engine.execute_action(&crate::actions::Action::Choose(0));
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
-    assert_eq!(engine.state.hand.len(), 1);
-    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Strike");
-    assert_eq!(engine.state.hand[0].cost, 0);
+    // OmniscienceAction sorts alphabetically within rarity, so Defend is first,
+    // then exhausts the original after two autoplays and purges the copy.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/OmniscienceAction.java
+    assert!(engine.state.hand.is_empty());
+    assert_eq!(engine.state.player.block, 10);
+    assert!(engine.state.exhaust_pile.iter().any(|card| engine.card_registry.card_name(card.def_id) == "Defend"));
     assert_eq!(engine.state.draw_pile.len(), 1);
 }

@@ -1,5 +1,7 @@
 use crate::cards::prelude::*;
 
+// Source: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Adrenaline.java
+
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // ---- Silent Rare: Adrenaline ---- (cost 0, gain 1 energy, draw 2, exhaust; upgrade: gain 2 energy)
     insert(cards, CardDef {

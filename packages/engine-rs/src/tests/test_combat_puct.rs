@@ -59,7 +59,20 @@ fn combat_puct_is_deterministic_and_replayable() {
     let second = search_combat_puct(&engine, config, test_execution_id, biased_leaf_eval(0.8))
         .expect("puct should evaluate");
 
-    assert_eq!(first, second);
+    // Search decisions and visit statistics are deterministic; wall-clock
+    // telemetry is not. Normalize only timing fields before comparing the two
+    // otherwise complete results.
+    let mut first_semantic = first.clone();
+    let mut second_semantic = second.clone();
+    first_semantic.elapsed_ms = 0;
+    second_semantic.elapsed_ms = 0;
+    for line in &mut first_semantic.frontier {
+        line.elapsed_ms = 0;
+    }
+    for line in &mut second_semantic.frontier {
+        line.elapsed_ms = 0;
+    }
+    assert_eq!(first_semantic, second_semantic);
     assert_eq!(first.stop_reason, CombatSearchStopReasonV1::Converged);
     assert!(first.root_total_visits >= 16);
     assert_eq!(

@@ -1,4 +1,5 @@
 //! Sundial: Every 3 shuffles, gain 2 Energy.
+//! Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Sundial.java
 
 use crate::effects::declarative::{Effect, SimpleEffect, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};

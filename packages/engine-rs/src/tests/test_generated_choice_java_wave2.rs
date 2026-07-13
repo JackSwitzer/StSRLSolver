@@ -16,9 +16,12 @@
 use crate::actions::Action;
 use crate::cards::CardType;
 use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
+use crate::effects::declarative::GeneratedCardPool;
+use crate::effects::interpreter::generated_card_pool;
 use crate::status_ids::sid;
 use crate::tests::support::{
-    combat_state_with, enemy_no_intent, engine_with_state, make_deck, play_self,
+    combat_state_with, discard_prefix_count, enemy_no_intent, engine_with_state,
+    exhaust_prefix_count, make_deck, make_deck_n, play_self,
 };
 
 fn use_potion(engine: &mut crate::engine::CombatEngine, potion_idx: usize, target_idx: i32) {
@@ -148,55 +151,84 @@ fn discovery_potions_open_choice_and_resolve_one_generated_copy() {
 }
 
 #[test]
-fn jack_of_all_trades_uses_random_colorless_pool() {
+fn jack_of_all_trades_uses_exact_colorless_pool_and_card_random_rng() {
+    // JackOfAllTrades.java makes one cardRandomRng selection from
+    // srcColorlessCardPool, excluding HEALING, and queues one base copy.
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Jack Of All Trades", "Strike", "Defend", "Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
 
+    let pool = generated_card_pool(&engine, GeneratedCardPool::Colorless);
+    let mut oracle = engine.card_random_rng.clone();
+    let expected = pool[oracle.random((pool.len() - 1) as i32) as usize];
+    let general_before = engine.rng.counter;
     let hand_before = engine.state.hand.len();
     play_card(&mut engine, "Jack Of All Trades");
+
     assert_eq!(engine.state.hand.len(), hand_before);
     let generated_name = engine.card_registry.card_name(engine.state.hand.last().unwrap().def_id);
-    assert!(
-        COLORLESS_CHOICES.contains(&generated_name),
-        "Jack Of All Trades should use the Java colorless pool"
-    );
+    assert_eq!(generated_name, expected);
+    assert_eq!(engine.card_random_rng.counter, oracle.counter);
+    assert_eq!(engine.rng.counter, general_before);
+    assert_eq!(exhaust_prefix_count(&engine, "Jack Of All Trades"), 1);
 }
 
 #[test]
-fn infernal_blade_uses_random_attack_pool_and_zeroes_cost() {
-    let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Infernal Blade", "Strike", "Defend", "Strike", "Defend"]),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    ));
+fn infernal_blade_uses_card_random_attack_pool_and_zeroes_turn_cost() {
+    // InfernalBlade.java selects exactly once through cardRandomRng from
+    // returnTrulyRandomCardInCombat(ATTACK), then sets costForTurn to zero.
+    // Upgrade changes only the played card's base cost from 1 to 0.
+    // Java: cards/red/InfernalBlade.java and dungeons/AbstractDungeon.java.
+    for (card_id, expected_energy) in [("Infernal Blade", 2), ("Infernal Blade+", 3)] {
+        let mut engine = engine_with_state(combat_state_with(
+            make_deck(&[card_id, "Strike", "Defend", "Strike", "Defend"]),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            3,
+        ));
+        let attack_pool = generated_card_pool(&engine, GeneratedCardPool::Attack);
+        let mut oracle = engine.card_random_rng.clone();
+        let expected = attack_pool[oracle.random((attack_pool.len() - 1) as i32) as usize];
+        let general_before = engine.rng.counter;
+        let hand_before = engine.state.hand.len();
 
-    let hand_before = engine.state.hand.len();
-    play_card(&mut engine, "Infernal Blade");
-    assert_eq!(engine.state.hand.len(), hand_before);
-    let generated = *engine.state.hand.last().unwrap();
-    let generated_def = engine.card_registry.card_def_by_id(generated.def_id);
-    assert_eq!(generated_def.card_type, CardType::Attack);
-    assert_eq!(generated.cost, 0);
+        play_card(&mut engine, card_id);
+
+        assert_eq!(engine.state.hand.len(), hand_before);
+        assert_eq!(engine.state.energy, expected_energy);
+        assert_eq!(engine.card_random_rng.counter, oracle.counter);
+        assert_eq!(engine.rng.counter, general_before);
+        assert_eq!(exhaust_prefix_count(&engine, "Infernal Blade"), 1);
+        let generated = *engine.state.hand.last().unwrap();
+        assert_eq!(engine.card_registry.card_name(generated.def_id), expected);
+        assert_eq!(generated.cost, 0);
+    }
 }
 
 #[test]
 fn distraction_uses_random_skill_pool_and_zeroes_cost() {
-    let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Distraction", "Strike", "Defend", "Strike", "Defend"]),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    ));
+    // Distraction.java selects exactly one current-class Skill, sets its
+    // costForTurn to -99 (free), and exhausts. Upgrade changes cost 1 to 0.
+    for (card_id, expected_energy) in [("Distraction", 2), ("Distraction+", 3)] {
+        let mut engine = engine_with_state(combat_state_with(
+            make_deck(&[card_id, "Strike", "Defend", "Strike", "Defend"]),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            3,
+        ));
 
-    let hand_before = engine.state.hand.len();
-    play_card(&mut engine, "Distraction");
-    assert_eq!(engine.state.hand.len(), hand_before);
-    let generated = *engine.state.hand.last().unwrap();
-    let generated_def = engine.card_registry.card_def_by_id(generated.def_id);
-    assert_eq!(generated_def.card_type, CardType::Skill);
-    assert_eq!(generated.cost, 0);
+        let hand_before = engine.state.hand.len();
+        let rng_before = engine.card_random_rng.counter;
+        play_card(&mut engine, card_id);
+        assert_eq!(engine.state.hand.len(), hand_before);
+        assert_eq!(engine.state.energy, expected_energy);
+        assert_eq!(engine.card_random_rng.counter, rng_before + 1);
+        assert_eq!(exhaust_prefix_count(&engine, "Distraction"), 1);
+        let generated = *engine.state.hand.last().unwrap();
+        let generated_def = engine.card_registry.card_def_by_id(generated.def_id);
+        assert_eq!(generated_def.card_type, CardType::Skill);
+        assert_eq!(generated.cost, 0);
+    }
 }
 
 #[test]
@@ -207,13 +239,31 @@ fn jack_of_all_trades_plus_generates_two_colorless_cards() {
         3,
     ));
 
-    let hand_before = engine.state.hand.len();
+    // The two selections happen independently during use(), before their two
+    // queued one-card MakeTempCardInHandActions. At nine remaining cards, the
+    // first copy enters hand and the second spills to discard, but both rolls
+    // consume cardRandomRng.
+    engine.state.hand = make_deck_n("Defend", 9);
+    engine.state.hand.push(engine.card_registry.make_card("Jack Of All Trades+"));
+    engine.state.discard_pile.clear();
+    let pool = generated_card_pool(&engine, GeneratedCardPool::Colorless);
+    let mut oracle = engine.card_random_rng.clone();
+    let expected: Vec<_> = (0..2)
+        .map(|_| pool[oracle.random((pool.len() - 1) as i32) as usize])
+        .collect();
+    let general_before = engine.rng.counter;
+
     play_card(&mut engine, "Jack Of All Trades+");
-    assert_eq!(engine.state.hand.len(), hand_before + 1);
-    for card in &engine.state.hand[hand_before - 1..] {
-        let generated_name = engine.card_registry.card_name(card.def_id);
-        assert!(COLORLESS_CHOICES.contains(&generated_name));
-    }
+
+    assert_eq!(engine.state.hand.len(), 10);
+    assert_eq!(discard_prefix_count(&engine, expected[1]), 1);
+    assert_eq!(
+        engine.card_registry.card_name(engine.state.hand.last().unwrap().def_id),
+        expected[0]
+    );
+    assert_eq!(engine.card_random_rng.counter, oracle.counter);
+    assert_eq!(engine.rng.counter, general_before);
+    assert_eq!(exhaust_prefix_count(&engine, "Jack Of All Trades"), 1);
 }
 
 #[test]

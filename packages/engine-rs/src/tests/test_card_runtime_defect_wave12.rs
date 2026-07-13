@@ -127,26 +127,31 @@ fn defect_wave12_barrage_rip_and_tear_and_thunder_strike_follow_typed_primary_pa
 }
 
 #[test]
-fn defect_wave12_chaos_channels_random_orbs_deterministically_for_identical_seeds() {
-    let mut left = one_enemy_engine(60, 3);
-    left.init_defect_orbs(3);
-    left.state.hand = make_deck(&["Chaos", "Chaos+"]);
+fn defect_wave12_chaos_uses_java_orb_order_and_card_random_rng() {
+    // Chaos.java calls AbstractOrb.getRandomOrb(true) once, or twice upgraded.
+    // AbstractOrb.java builds [Dark, Frost, Lightning, Plasma] and selects with
+    // cardRandomRng.random(3), so each orb consumes exactly one cardRandom tick.
+    let mut engine = one_enemy_engine(60, 3);
+    engine.init_defect_orbs(3);
+    engine.state.hand = make_deck(&["Chaos", "Chaos+"]);
 
-    let mut right = one_enemy_engine(60, 3);
-    right.init_defect_orbs(3);
-    right.state.hand = make_deck(&["Chaos", "Chaos+"]);
+    let java_orbs = [OrbType::Dark, OrbType::Frost, OrbType::Lightning, OrbType::Plasma];
+    let mut oracle = engine.card_random_rng.clone();
+    let expected: Vec<OrbType> = (0..3)
+        .map(|_| java_orbs[oracle.random(3) as usize])
+        .collect();
+    let generic_before = engine.rng_counters()["card"];
 
-    assert!(play_self(&mut left, "Chaos"));
-    assert!(play_self(&mut right, "Chaos"));
-    assert_eq!(left.state.orb_slots.occupied_count(), 1);
-    assert_eq!(right.state.orb_slots.occupied_count(), 1);
-    assert_eq!(left.state.orb_slots.front_orb_type(), right.state.orb_slots.front_orb_type());
+    assert!(play_self(&mut engine, "Chaos"));
+    assert!(play_self(&mut engine, "Chaos+"));
 
-    assert!(play_self(&mut left, "Chaos+"));
-    assert!(play_self(&mut right, "Chaos+"));
-    assert_eq!(left.state.orb_slots.occupied_count(), 3);
-    assert_eq!(right.state.orb_slots.occupied_count(), 3);
-    assert_eq!(left.state.orb_slots.front_orb_type(), right.state.orb_slots.front_orb_type());
+    let actual: Vec<OrbType> = engine.state.orb_slots.slots[0..3]
+        .iter()
+        .map(|orb| orb.orb_type)
+        .collect();
+    assert_eq!(actual, expected);
+    assert_eq!(engine.card_random_rng.counter, oracle.counter);
+    assert_eq!(engine.rng_counters()["card"], generic_before);
 }
 
 #[test]
@@ -156,6 +161,27 @@ fn defect_wave12_barrage_zero_orb_count_deals_no_damage() {
 
     assert!(play_on_enemy(&mut barrage, "Barrage", 0));
     assert_eq!(barrage.state.enemies[0].entity.hp, 60);
+}
+
+#[test]
+fn barrage_hit_count_is_exactly_the_number_of_non_empty_orbs() {
+    // Sources: Barrage.java sets damage 4 and upgradeDamage(2);
+    // BarrageAction.java queues one DamageAction for each non-EmptyOrbSlot.
+    for (card_id, per_hit) in [("Barrage", 4), ("Barrage+", 6)] {
+        for orb_count in 0..=3 {
+            let mut engine = one_enemy_engine(60, 3);
+            engine.init_defect_orbs(3);
+            for _ in 0..orb_count {
+                engine.channel_orb(OrbType::Frost);
+            }
+            engine.state.hand = make_deck(&[card_id]);
+
+            assert!(play_on_enemy(&mut engine, card_id, 0));
+
+            assert_eq!(engine.state.enemies[0].entity.hp, 60 - per_hit * orb_count);
+            assert_eq!(engine.state.energy, 2);
+        }
+    }
 }
 #[test]
 fn defect_wave12_rip_and_tear_chooses_a_fresh_random_target_for_each_hit() {
@@ -197,6 +223,29 @@ fn defect_wave12_rip_and_tear_chooses_a_fresh_random_target_for_each_hit() {
     assert!(engine.state.enemies[0].entity.hp < 30);
     assert!(engine.state.enemies[1].entity.hp < 30);
 }
+
+#[test]
+fn rip_and_tear_plus_consumes_one_card_random_tick_per_hit_with_one_target() {
+    // RipAndTear.java queues two NewRipAndTearActions. Each superclass update
+    // calls MonsterGroup.getRandomMonster through cardRandomRng, whose
+    // random(0, 0) still consumes a counter tick. The card's ALL_ENEMY target
+    // requires no selected target, and upgradeDamage(2) makes 9 + 2 Strength
+    // damage per hit.
+    // Sources: cards/blue/RipAndTear.java,
+    // actions/defect/NewRipAndTearAction.java,
+    // actions/common/AttackDamageRandomEnemyAction.java, and
+    // monsters/MonsterGroup.java.
+    let mut engine = one_enemy_engine(50, 3);
+    engine.state.hand = make_deck(&["Rip and Tear+"]);
+    engine.state.player.set_status(sid::STRENGTH, 2);
+    let card_random_before = engine.rng_counters()["cardRandom"];
+
+    assert!(play_self(&mut engine, "Rip and Tear+"));
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 28);
+    assert_eq!(engine.rng_counters()["cardRandom"], card_random_before + 2);
+    assert_eq!(engine.state.energy, 2);
+}
 #[test]
 fn defect_wave12_thunder_strike_deals_no_damage_with_zero_lightning() {
     let mut thunder = one_enemy_engine(60, 3);
@@ -204,6 +253,34 @@ fn defect_wave12_thunder_strike_deals_no_damage_with_zero_lightning() {
 
     assert!(play_on_enemy(&mut thunder, "Thunder Strike", 0));
     assert_eq!(thunder.state.enemies[0].entity.hp, 60);
+}
+
+#[test]
+fn thunder_strike_plus_uses_strike_tag_and_card_random_once_per_lightning() {
+    // ThunderStrike.java counts Lightning instances channeled this combat,
+    // queues one NewThunderStrikeAction per instance, and carries STRIKE.
+    // AttackDamageRandomEnemyAction selects through cardRandomRng even when
+    // only one enemy is alive; StrikeDummy adds three to every tagged hit.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ThunderStrike.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/NewThunderStrikeAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/AttackDamageRandomEnemyAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/StrikeDummy.java
+    let mut engine = one_enemy_engine(100, 3);
+    engine.init_defect_orbs(3);
+    engine.channel_orb(OrbType::Lightning);
+    engine.channel_orb(OrbType::Lightning);
+    engine.state.relics.push("StrikeDummy".to_string());
+    engine.state.player.set_status(sid::STRENGTH, 2);
+    engine.state.hand = make_deck(&["Thunder Strike+"]);
+    let card_random_before = engine.rng_counters()["cardRandom"];
+    let generic_before = engine.rng_counters()["card"];
+
+    assert!(play_self(&mut engine, "Thunder Strike+"));
+
+    assert_eq!(engine.state.energy, 0);
+    assert_eq!(engine.state.enemies[0].entity.hp, 72);
+    assert_eq!(engine.rng_counters()["cardRandom"], card_random_before + 2);
+    assert_eq!(engine.rng_counters()["card"], generic_before);
 }
 
 #[test]

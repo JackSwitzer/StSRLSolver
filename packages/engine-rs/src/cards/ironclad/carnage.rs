@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // ---- Ironclad Uncommon: Carnage ---- (cost 2, 20 dmg, ethereal; +8 dmg)
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Carnage.java
+    // deals 20 damage, is Ethereal, and upgradeDamage(8) raises damage to 28.
     insert(cards, CardDef {
         id: "Carnage",
         name: "Carnage",

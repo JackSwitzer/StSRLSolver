@@ -29,7 +29,7 @@ fn colorless_wave3_registry_exports_match_typed_surface() {
         &[E::ChooseCards {
             source: P::Hand,
             filter: CardFilter::All,
-            action: ChoiceAction::PutOnBottomAtCostZero,
+            action: ChoiceAction::PutOnBottomFreeIfCostly,
             min_picks: A::Fixed(0),
             max_picks: A::Fixed(99),
             post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
@@ -43,7 +43,7 @@ fn colorless_wave3_registry_exports_match_typed_surface() {
         &[
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::Conditional(
-                Cond::EnemyKilled,
+                Cond::EnemyKilledNonMinion,
                 &[E::Simple(SE::ModifyPlayedCardDamage(A::Magic))],
                 &[],
             ),
@@ -53,7 +53,7 @@ fn colorless_wave3_registry_exports_match_typed_surface() {
 }
 
 #[test]
-fn forethought_plus_puts_selected_cards_on_bottom_at_zero_cost() {
+fn forethought_plus_puts_selected_positive_cost_cards_free_on_bottom() {
     let mut engine = engine_without_start(
         Vec::new(),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -70,6 +70,7 @@ fn forethought_plus_puts_selected_cards_on_bottom_at_zero_cost() {
 
     assert_eq!(engine.state.hand.len(), 1);
     assert_eq!(engine.card_registry.card_name(engine.state.draw_pile[0].def_id), "Strike");
-    assert_eq!(engine.state.draw_pile[0].cost, 0);
+    assert_eq!(engine.state.draw_pile[0].cost, -1);
+    assert!(engine.state.draw_pile[0].is_free());
     assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Defend");
 }

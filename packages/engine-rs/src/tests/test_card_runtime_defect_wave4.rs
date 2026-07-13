@@ -8,7 +8,8 @@ use crate::effects::types::CardRuntimeTraits;
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
 use crate::tests::support::{
-    enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self,
+    enemy_no_intent, engine_with, engine_without_start, exhaust_prefix_count, force_player_turn,
+    hand_count, make_deck, make_deck_n, play_on_enemy, play_self,
 };
 
 fn assert_gameplay_card_export(
@@ -64,12 +65,12 @@ fn test_card_runtime_defect_wave4_registry_exports_cover_runtime_progress() {
     assert_eq!(
         ftl.effect_data,
         &[
-            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::Conditional(
-                Cond::CardsPlayedThisTurnLessThan(3),
-                &[E::Simple(SE::DrawCards(A::Magic))],
+                Cond::CardsPlayedThisTurnLessThan(4),
+                &[E::Simple(SE::DrawCards(A::Fixed(1)))],
                 &[],
             ),
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
         ]
     );
     assert!(ftl.complex_hook.is_none());
@@ -77,7 +78,7 @@ fn test_card_runtime_defect_wave4_registry_exports_cover_runtime_progress() {
     let claw = reg.get("Gash").expect("Gash");
     assert_eq!(
         claw.effect_data,
-        &[E::Simple(SE::AddStatus(T::Player, sid::CLAW_BONUS, A::Magic))]
+        &[E::Simple(SE::IncreaseAllClawDamage(A::Magic))]
     );
     assert!(claw.complex_hook.is_none());
 
@@ -160,6 +161,37 @@ fn test_card_runtime_defect_wave4_capacitor_and_chaos_change_orb_state_on_engine
 }
 
 #[test]
+fn chill_channels_per_living_enemy_and_upgrade_is_innate_only() {
+    // Chill.java counts monsters for which isDeadOrEscaped is false, channels
+    // count * magicNumber Frost, and Exhausts. upgrade() changes only isInnate.
+    let registry = global_registry();
+    assert!(!registry.get("Chill").expect("Chill").runtime_traits().innate);
+    assert!(registry.get("Chill+").expect("Chill+").runtime_traits().innate);
+
+    let mut deck = make_deck_n("Defend", 9);
+    deck.push(registry.make_card("Chill+"));
+    let opening = engine_with(deck, 40, 0);
+    assert_eq!(hand_count(&opening, "Chill+"), 1);
+
+    let mut enemies = vec![
+        enemy_no_intent("JawWorm", 40, 40),
+        enemy_no_intent("Cultist", 40, 40),
+        enemy_no_intent("Dead", 0, 40),
+    ];
+    enemies[2].entity.hp = 0;
+    let mut count = engine_without_start(Vec::new(), enemies, 0);
+    force_player_turn(&mut count);
+    count.init_defect_orbs(3);
+    count.state.hand = make_deck(&["Chill"]);
+    assert!(play_self(&mut count, "Chill"));
+    assert_eq!(count.state.orb_slots.occupied_count(), 2);
+    assert!(count.state.orb_slots.slots[0..2]
+        .iter()
+        .all(|orb| orb.orb_type == OrbType::Frost));
+    assert_eq!(exhaust_prefix_count(&count, "Chill"), 1);
+}
+
+#[test]
 fn test_card_runtime_defect_wave4_ftl_draw_gate_and_claw_scaling_follow_engine_rules() {
     let mut ftl_draws = engine_without_start(
         Vec::new(),
@@ -170,7 +202,7 @@ fn test_card_runtime_defect_wave4_ftl_draw_gate_and_claw_scaling_follow_engine_r
     ftl_draws.state.hand = make_deck(&["FTL+"]);
     ftl_draws.state.draw_pile = make_deck(&["Strike", "Defend", "Zap", "Dualcast"]);
     assert!(play_on_enemy(&mut ftl_draws, "FTL+", 0));
-    assert_eq!(ftl_draws.state.hand.len(), 4);
+    assert_eq!(ftl_draws.state.hand.len(), 1);
 
     let mut ftl_gated = engine_without_start(
         Vec::new(),
@@ -190,11 +222,29 @@ fn test_card_runtime_defect_wave4_ftl_draw_gate_and_claw_scaling_follow_engine_r
         3,
     );
     force_player_turn(&mut claw);
-    claw.state.hand = make_deck(&["Gash", "Gash"]);
+    // GashAction increases the played instance and Claws in hand/draw/discard
+    // after damage. Exhausted and subsequently created Claws are untouched.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Claw.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/GashAction.java
+    claw.state.hand = make_deck(&["Gash", "Gash+"]);
+    claw.state.draw_pile = make_deck(&["Gash"]);
+    claw.state.discard_pile = make_deck(&["Gash+"]);
+    claw.state.exhaust_pile = make_deck(&["Gash"]);
+
     assert!(play_on_enemy(&mut claw, "Gash", 0));
-    assert_eq!(claw.state.player.status(sid::CLAW_BONUS), 2);
+    assert_eq!(claw.state.enemies[0].entity.hp, 57);
+    assert_eq!(claw.state.hand[0].misc, 7);
+    assert_eq!(claw.state.draw_pile[0].misc, 5);
+    assert_eq!(claw.state.exhaust_pile[0].misc, -1);
+    assert!(claw.state.discard_pile.iter().any(|card| {
+        claw.card_registry.card_def_by_id(card.def_id).id == "Gash+" && card.misc == 7
+    }));
+    assert!(claw.state.discard_pile.iter().any(|card| {
+        claw.card_registry.card_def_by_id(card.def_id).id == "Gash" && card.misc == 5
+    }));
+
+    claw.state.hand.push(claw.card_registry.make_card("Gash"));
     let hp_before = claw.state.enemies[0].entity.hp;
     assert!(play_on_enemy(&mut claw, "Gash", 0));
-    assert_eq!(claw.state.enemies[0].entity.hp, hp_before - 5);
-    assert_eq!(claw.state.player.status(sid::CLAW_BONUS), 4);
+    assert_eq!(claw.state.enemies[0].entity.hp, hp_before - 3);
 }

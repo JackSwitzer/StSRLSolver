@@ -5,7 +5,7 @@
 //!
 //! Logic is copied verbatim from card_effects.rs to preserve exact parity.
 
-use crate::cards::{CardTarget, CardType};
+use crate::cards::CardType;
 use crate::combat_types::CardInstance;
 use crate::damage;
 use crate::engine::{CombatEngine, ChoiceOption, ChoiceReason};
@@ -115,7 +115,7 @@ pub fn hook_lesson_learned(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     // The caller must only invoke this when enemy_killed is true.
     let mut upgraded = false;
     for c in engine.state.draw_pile.iter_mut() {
-        if !c.is_upgraded() {
+        if engine.card_registry.can_upgrade_card(c) {
             let name = engine.card_registry.card_name(c.def_id);
             if !name.starts_with("Strike") && !name.starts_with("Defend") {
                 engine.card_registry.upgrade_card(c);
@@ -126,7 +126,7 @@ pub fn hook_lesson_learned(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     }
     if !upgraded {
         for c in engine.state.discard_pile.iter_mut() {
-            if !c.is_upgraded() {
+            if engine.card_registry.can_upgrade_card(c) {
                 let name = engine.card_registry.card_name(c.def_id);
                 if !name.starts_with("Strike") && !name.starts_with("Defend") {
                     engine.card_registry.upgrade_card(c);
@@ -305,7 +305,7 @@ pub fn hook_exhume(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
 pub fn hook_upgrade_one_card(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     let upgradeable: Vec<usize> = engine.state.hand.iter()
         .enumerate()
-        .filter(|(_, c)| !c.is_upgraded())
+        .filter(|(_, c)| engine.card_registry.can_upgrade_card(c))
         .map(|(i, _)| i)
         .collect();
     if !upgradeable.is_empty() {
@@ -502,7 +502,7 @@ pub fn hook_enlightenment(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
 /// Apotheosis: upgrade all cards in hand.
 pub fn hook_upgrade_all_cards(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     for hand_card in &mut engine.state.hand {
-        if !hand_card.is_upgraded() {
+        if engine.card_registry.can_upgrade_card(hand_card) {
             engine.card_registry.upgrade_card(hand_card);
         }
     }
@@ -544,20 +544,7 @@ pub fn hook_draw_attacks_from_draw(engine: &mut CombatEngine, ctx: &CardPlayCont
 
 /// Havoc: play top card of draw pile for free.
 pub fn hook_play_top_card(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
-    if !engine.state.draw_pile.is_empty() {
-        let top = engine.state.draw_pile.pop().unwrap();
-        let def = engine.card_registry.card_def_by_id(top.def_id).clone();
-        // Pick a valid target
-        let target = if def.target == CardTarget::Enemy {
-            let living = engine.state.living_enemy_indices();
-            if living.is_empty() { -1 } else { living[0] as i32 }
-        } else {
-            -1
-        };
-        // Execute the card effects directly (free play)
-        crate::card_effects::execute_card_effects(engine, &def, top, target);
-        engine.state.discard_pile.push(top);
-    }
+    engine.play_top_card_of_draw(true);
 }
 
 // =========================================================================
@@ -623,29 +610,6 @@ pub fn hook_double_if_poisoned(engine: &mut CombatEngine, ctx: &CardPlayContext)
     }
 }
 
-/// Finisher: damage per attack played this turn (extra hits beyond the first).
-pub fn hook_finisher(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    let attacks = engine.state.attacks_played_this_turn;
-    if attacks > 1 && ctx.target_idx >= 0 && (ctx.target_idx as usize) < engine.state.enemies.len() {
-        let tidx = ctx.target_idx as usize;
-        let base_damage = engine.player_attack_base_damage(ctx.card, ctx.card_inst);
-        let player_strength = engine.state.player.strength();
-        let player_weak = engine.state.player.is_weak();
-        let stance_mult = engine.state.stance.outgoing_mult();
-        let enemy_vuln = engine.state.enemies[tidx].entity.is_vulnerable();
-        let enemy_intangible = engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
-        let dmg = damage::calculate_damage(
-            base_damage, player_strength + ctx.vigor, player_weak,
-            stance_mult, enemy_vuln, enemy_intangible,
-        );
-        // Already dealt 1 hit in main damage; deal (attacks - 1) more
-        for _ in 0..(attacks - 1) {
-            if engine.state.enemies[tidx].entity.is_dead() { break; }
-            engine.deal_player_attack_hit_to_enemy(tidx, dmg);
-        }
-    }
-}
-
 /// Flechettes: damage per Skill in hand.
 pub fn hook_flechettes(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     let skill_count = engine.state.hand.iter()
@@ -684,10 +648,6 @@ pub fn hook_damage_random_hits(engine: &mut CombatEngine, ctx: &CardPlayContext)
     let weak_pc = engine.state.has_relic("Paper Crane");
     let stance_mult = engine.state.stance.outgoing_mult();
     let double_damage = engine.state.player.status(sid::DOUBLE_DAMAGE) > 0;
-    if double_damage {
-        let dd = engine.state.player.status(sid::DOUBLE_DAMAGE);
-        engine.state.player.set_status(sid::DOUBLE_DAMAGE, dd - 1);
-    }
 
     for i in 0..hits {
         let living = engine.state.living_enemy_indices();
@@ -711,19 +671,6 @@ pub fn hook_damage_random_hits(engine: &mut CombatEngine, ctx: &CardPlayContext)
             enemy_intangible,
         );
         engine.deal_player_attack_hit_to_enemy(idx, dmg);
-    }
-}
-
-// =========================================================================
-// Feed: gain max HP on kill
-// =========================================================================
-
-/// Feed: if an enemy was killed during the damage loop, increase max HP and heal.
-pub fn hook_feed(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    if ctx.enemy_killed {
-        let amount = ctx.card.base_magic.max(1);
-        engine.state.player.max_hp += amount;
-        engine.state.player.hp = (engine.state.player.hp + amount).min(engine.state.player.max_hp);
     }
 }
 
@@ -756,20 +703,6 @@ pub fn hook_escape_plan(engine: &mut CombatEngine, ctx: &CardPlayContext) {
             let block = damage::calculate_block(ctx.card.base_block, dex, frail);
             engine.gain_block_player(block);
         }
-    }
-}
-
-// =========================================================================
-// Malaise: apply X weak + reduce X strength
-// =========================================================================
-
-/// Malaise: apply (X + base_magic) Weak and reduce (X + base_magic) Strength to target enemy.
-pub fn hook_malaise(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    let amount = ctx.x_value + ctx.card.base_magic.max(0);
-    if amount > 0 && ctx.target_idx >= 0 && (ctx.target_idx as usize) < engine.state.enemies.len() {
-        let tidx = ctx.target_idx as usize;
-        engine.apply_player_debuff_to_enemy(tidx, sid::WEAKENED, amount);
-        engine.state.enemies[tidx].entity.add_status(sid::STRENGTH, -amount);
     }
 }
 
@@ -838,16 +771,6 @@ pub fn hook_recursion(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     engine.evoke_front_orb();
     // Channel a new orb of the same type
     engine.channel_orb(front_type);
-}
-
-// =========================================================================
-// Defect: Claw — increment CLAW_BONUS status (all Claws gain +2 damage)
-// =========================================================================
-
-/// Claw: after dealing damage, add base_magic (2) to CLAW_BONUS for future Claws.
-pub fn hook_claw(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    let bonus = ctx.card.base_magic.max(2);
-    engine.state.player.add_status(sid::CLAW_BONUS, bonus);
 }
 
 // =========================================================================

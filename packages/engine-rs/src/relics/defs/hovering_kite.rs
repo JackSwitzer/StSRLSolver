@@ -31,6 +31,8 @@ static TRIGGERS: [TriggeredEffect; 2] = [
         counter: None,
     },
     TriggeredEffect {
+        // Source: reference/extracted/methods/relic/HoveringKite.java
+        // onManualDiscard grants one Energy only while triggeredThisTurn is false.
         trigger: Trigger::OnCardDiscard,
         condition: TriggerCondition::Always,
         effects: &[],

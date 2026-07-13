@@ -2,6 +2,7 @@
 //!
 //! Debuff modifier: owned by the canonical inline debuff-application pipeline.
 //! This EntityDef records the trigger surface for export/runtime snapshots.
+//! Source: reference/extracted/methods/relic/ChampionsBelt.java.
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};

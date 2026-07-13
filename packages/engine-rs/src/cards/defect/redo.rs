@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Recursion (Java ID: Redo): 1 cost, evoke frontmost, channel it back (upgrade: cost 0)
+    // Recursion.java queues RedoAction: evoke the front orb, then re-channel
+    // that same orb instance. The upgrade changes only the cost from 1 to 0.
+    // Java: reference/extracted/methods/card/Recursion.java
     insert(cards, CardDef {
                 id: "Redo", name: "Recursion", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,

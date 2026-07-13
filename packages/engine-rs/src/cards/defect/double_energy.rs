@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // Double Energy: 1 cost, double your energy, exhaust (upgrade: cost 0)
+    // DoubleEnergyAction.java gains the current EnergyPanel.totalCount, so the
+    // base card doubles energy remaining after paying 1; upgrade costs 0.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/DoubleEnergyAction.java
     insert(cards, CardDef {
         id: "Double Energy", name: "Double Energy", card_type: CardType::Skill,
         target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,

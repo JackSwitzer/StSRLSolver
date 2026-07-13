@@ -6,6 +6,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/GrandFinale.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/MasterfulStab.java
 
+use crate::actions::Action;
 use crate::cards::{global_registry, CardTarget, CardType};
 use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
 use crate::tests::support::*;
@@ -74,7 +75,66 @@ fn silent_wave9_primary_typed_damage_cards_follow_engine_path() {
 }
 
 #[test]
+fn masterful_stab_source_updates_existing_piles_once_per_damage_event() {
+    // MasterfulStab.tookDamage calls updateCost(1), and
+    // AbstractPlayer.updateCardsOnDamage calls it once per positive event on
+    // cards in hand, discard, and draw. Seven HP in one event is still +1.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Masterful Stab"]);
+    engine.state.discard_pile = make_deck(&["Masterful Stab+"]);
+    engine.state.draw_pile = make_deck(&["Masterful Stab"]);
+
+    engine.player_lose_hp(7);
+    assert_eq!(engine.state.hand[0].cost, 1);
+    assert_eq!(engine.state.discard_pile[0].cost, 1);
+    assert_eq!(engine.state.draw_pile[0].cost, 1);
+
+    engine.player_lose_hp(2);
+    assert_eq!(engine.state.hand[0].cost, 2);
+    assert_eq!(engine.state.discard_pile[0].cost, 2);
+    assert_eq!(engine.state.draw_pile[0].cost, 2);
+
+    // A card created after those callbacks starts at the constructor's cost 0.
+    engine.state.hand.push(engine.card_registry.make_card("Masterful Stab"));
+    assert_eq!(engine.state.hand[1].cost, -1);
+    assert_eq!(engine.state.hand[1].base_cost, 0);
+}
+
+#[test]
+fn grand_finale_requires_an_empty_draw_pile_and_upgrade_deals_sixty_to_all() {
+    // Java: reference/extracted/methods/card/GrandFinale.java
+    // canUse rejects any non-empty draw pile; baseDamage is 50 and upgradeDamage(10).
+    let mut blocked = engine_with(Vec::new(), 100, 0);
+    blocked.state.hand = make_deck(&["Grand Finale"]);
+    blocked.state.draw_pile = make_deck(&["Strike"]);
+    blocked.state.discard_pile.clear();
+    assert!(!blocked.get_legal_actions().iter().any(|action| {
+        matches!(action, Action::PlayCard { card_idx: 0, target_idx: -1 })
+    }));
+
+    let mut upgraded = engine_with(Vec::new(), 100, 0);
+    upgraded.state.hand = make_deck(&["Grand Finale+"]);
+    upgraded.state.draw_pile.clear();
+    upgraded.state.discard_pile.clear();
+    upgraded.state.enemies.push(enemy_no_intent("Cultist", 80, 80));
+    upgraded.state.energy = 2;
+
+    assert!(play_self(&mut upgraded, "Grand Finale+"));
+    assert_eq!(upgraded.state.enemies[0].entity.hp, 40);
+    assert_eq!(upgraded.state.enemies[1].entity.hp, 20);
+    assert_eq!(upgraded.state.energy, 2);
+}
+
+#[test]
 fn silent_wave9_existing_runtime_tags_still_drive_residual_semantics() {
+    // EndlessAgony.triggerWhenDrawn creates a stat-equivalent copy. With room,
+    // both copies enter the hand.
+    // Java: reference/extracted/methods/card/EndlessAgony.java
     let mut agony_engine = engine_without_start(
         make_deck(&["Endless Agony"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -84,4 +144,21 @@ fn silent_wave9_existing_runtime_tags_still_drive_residual_semantics() {
     agony_engine.draw_cards(1);
     assert_eq!(hand_count(&agony_engine, "Endless Agony"), 2);
 
+    // If drawing the original fills the tenth slot, MakeTempCardInHandAction
+    // sends the upgraded stat-equivalent copy to discard instead of deleting it.
+    let mut overflow = engine_without_start(
+        make_deck(&["Endless Agony+"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    overflow.state.hand = make_deck(&[
+        "Defend", "Defend", "Defend", "Defend", "Defend",
+        "Defend", "Defend", "Defend", "Defend",
+    ]);
+
+    overflow.draw_cards(1);
+
+    assert_eq!(overflow.state.hand.len(), 10);
+    assert_eq!(hand_count(&overflow, "Endless Agony+"), 1);
+    assert_eq!(discard_prefix_count(&overflow, "Endless Agony+"), 1);
 }

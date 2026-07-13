@@ -123,3 +123,30 @@ fn card_play_relics_follow_runtime_path() {
     assert_eq!(yang.state.player.dexterity(), 1);
     assert_eq!(yang.state.player.status(sid::LOSE_DEXTERITY), 1);
 }
+
+#[test]
+fn letter_opener_uses_unmodified_thorns_damage_against_slow_and_flight() {
+    // LetterOpener.java creates a pure 5-damage matrix and resolves it as
+    // DamageType.THORNS, which SlowPower and FlightPower explicitly ignore.
+    let mut slow = enemy_no_intent("JawWorm", 40, 40);
+    slow.entity.set_status(sid::SLOW, 2);
+    let mut flying = enemy_no_intent("Byrd", 40, 40);
+    flying.entity.set_status(sid::FLIGHT, 3);
+    let mut state = combat_state_with(
+        make_deck(&["Defend", "Defend", "Defend"]),
+        vec![slow, flying],
+        20,
+    );
+    state.relics.push("Letter Opener".to_string());
+    let mut engine = engine_with_state(state);
+    engine.state.hand = make_deck(&["Defend", "Defend", "Defend"]);
+    engine.state.draw_pile.clear();
+
+    assert!(play_self(&mut engine, "Defend"));
+    assert!(play_self(&mut engine, "Defend"));
+    assert!(play_self(&mut engine, "Defend"));
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 35);
+    assert_eq!(engine.state.enemies[1].entity.hp, 35);
+    assert_eq!(engine.state.enemies[1].entity.status(sid::FLIGHT), 3);
+}

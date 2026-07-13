@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Consume: 2 cost, remove 1 orb slot, gain 2 focus
+        // Source: cards/blue/Consume.java queues FocusPower(2) before
+        // DecreaseMaxOrbAction(1); upgradeMagicNumber(1) changes only Focus.
     insert(cards, CardDef {
                 id: "Consume", name: "Consume", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,

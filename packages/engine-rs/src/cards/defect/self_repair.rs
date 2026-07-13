@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // Self Repair: 1 cost, power, heal 7 HP at end of combat
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/SelfRepair.java
+    // Applies RepairPower(7), upgraded to 10; RepairPower heals on victory.
     insert(cards, CardDef {
         id: "Self Repair", name: "Self Repair", card_type: CardType::Power,
         target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,

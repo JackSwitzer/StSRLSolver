@@ -21,6 +21,8 @@ pub enum Trigger {
     CombatStartPreDraw,
     /// At the start of each player turn (before draw).
     TurnStart,
+    /// After old block is cleared and queued atTurnStart actions resolve, before draw.
+    TurnStartPreDraw,
     /// At the start of each player turn (after draw).
     TurnStartPostDraw,
     /// Late start of turn, after post-draw power/setup effects have resolved.
@@ -67,6 +69,8 @@ pub enum Trigger {
     OnPotionUsed,
     /// At the start of the enemy turn.
     EnemyTurnStart,
+    /// After all monsters have acted, when monster atEndOfTurn powers fire.
+    EnemyTurnEnd,
     /// Only fires when manually activated (e.g. potion use).
     ManualActivation,
     /// When unblocked damage is resolved (for min-damage / reduction relics).
@@ -84,6 +88,8 @@ pub enum Trigger {
     /// When Poison is applied (for Snecko Skull bonus).
     /// Called inline; not dispatched via dispatch_trigger.
     OnPoisonApplied,
+    /// After the enemy turn and end-of-round power processing.
+    RoundEnd,
 }
 
 // ===========================================================================
@@ -107,6 +113,8 @@ pub enum TriggerCondition {
     HasStatus(StatusId),
     /// Only when player HP is below this percentage (0-100).
     HpBelow(u8),
+    /// Only while the player's current HP is positive.
+    PlayerAlive,
     /// Only when the player has no block.
     NoBlock,
     /// Only when the player's hand is empty.

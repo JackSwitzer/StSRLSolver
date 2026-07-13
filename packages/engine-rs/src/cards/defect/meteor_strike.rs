@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Meteor Strike: 5 cost, 24 dmg, channel 3 Plasma
+    // MeteorStrike.java queues damage 24 before three Plasma ChannelActions,
+    // carries the STRIKE tag, and upgradeDamage(6) is its only upgrade change.
     insert(cards, CardDef {
                 id: "Meteor Strike", name: "Meteor Strike", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 5, base_damage: 24, base_block: -1,
