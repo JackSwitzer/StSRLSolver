@@ -133,6 +133,50 @@ mod defect_card_java_parity_tests {
         for case in cases { assert_stats(case); }
     });
 
+    defect_test!(hologram_matches_block_exhaust_and_discard_retrieval_edges, {
+        // Hologram.java grants 3 Block, exhausts, then runs the mandatory
+        // BetterDiscardPileToHandAction(1). That action is a no-op on an empty
+        // pile and auto-moves a singleton. Hologram+ grants 5 and does not exhaust.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Hologram.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/BetterDiscardPileToHandAction.java
+        let mut empty = bare_engine(
+            &[],
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+        );
+        empty.state.hand = make_deck(&["Hologram"]);
+        assert!(play_self(&mut empty, "Hologram"));
+        assert_eq!(empty.phase, CombatPhase::PlayerTurn);
+        assert_eq!(empty.state.player.block, 3);
+        assert_eq!(exhaust_prefix_count(&empty, "Hologram"), 1);
+
+        let mut singleton = bare_engine(
+            &[],
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+        );
+        singleton.state.hand = make_deck(&["Hologram+"]);
+        singleton.state.discard_pile = make_deck(&["Strike"]);
+        assert!(play_self(&mut singleton, "Hologram+"));
+        assert_eq!(singleton.phase, CombatPhase::PlayerTurn);
+        assert_eq!(singleton.state.player.block, 5);
+        assert_eq!(hand_count(&singleton, "Strike"), 1);
+        assert_eq!(discard_prefix_count(&singleton, "Hologram"), 1);
+
+        let mut multiple = bare_engine(
+            &[],
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+        );
+        multiple.state.hand = make_deck(&["Hologram+"]);
+        multiple.state.discard_pile = make_deck(&["Strike", "Defend"]);
+        assert!(play_self(&mut multiple, "Hologram+"));
+        assert_eq!(multiple.phase, CombatPhase::AwaitingChoice);
+        assert_eq!(multiple.state.player.block, 5);
+        assert_eq!(multiple.choice.as_ref().expect("discard choice").options.len(), 2);
+        multiple.execute_action(&Action::Choose(0));
+        assert_eq!(multiple.phase, CombatPhase::PlayerTurn);
+        assert_eq!(multiple.state.hand.len(), 1);
+        assert_eq!(multiple.state.discard_pile.len(), 2); // unchosen card + Hologram+
+    });
+
     defect_test!(registry_uncommon_and_rare_core, {
         let cases = [
             StatCase { id: "Aggregate", cost: 1, damage: -1, block: -1, magic: 4, card_type: CardType::Skill, exhaust: false },

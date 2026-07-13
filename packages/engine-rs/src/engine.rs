@@ -2160,7 +2160,14 @@ impl CombatEngine {
                 if matches!(source, Pile::Draw | Pile::Discard | Pile::Exhaust) {
                     let min_required =
                         self.choice_min_picks_for_legality(card, card_inst, *min_picks);
-                    let empty_source_is_allowed = matches!(card.id, "Exhume" | "Exhume+");
+                    // BetterDiscardPileToHandAction is a legal no-op when the
+                    // discard pile is empty; Hologram itself has no canUse
+                    // restriction tied to that pile.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/BetterDiscardPileToHandAction.java
+                    let empty_source_is_allowed = matches!(
+                        card.id,
+                        "Exhume" | "Exhume+" | "Hologram" | "Hologram+"
+                    );
                     if min_required > 0
                         && !empty_source_is_allowed
                         && self.available_choice_cards_in_pile(*source, *filter)

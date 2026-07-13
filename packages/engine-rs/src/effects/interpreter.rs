@@ -1420,6 +1420,24 @@ fn execute_choose_cards(
         return;
     }
 
+    // BetterDiscardPileToHandAction directly moves the entire discard pile
+    // when its size is at most the mandatory request. Hologram requests one,
+    // so a singleton never opens grid selection.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/BetterDiscardPileToHandAction.java
+    if matches!(ctx.card.id, "Hologram" | "Hologram+")
+        && source == Pile::Discard
+        && action == ChoiceAction::MoveToHand
+        && options.len() == 1
+    {
+        if engine.state.hand.len() < 10 {
+            if let ChoiceOption::DiscardCard(index) = options[0] {
+                let card = engine.state.discard_pile.remove(index);
+                engine.state.hand.push(card);
+            }
+        }
+        return;
+    }
+
     // MeditateAction is mandatory. When the whole discard pile fits, Java
     // moves it without opening grid select.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/MeditateAction.java

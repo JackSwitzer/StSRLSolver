@@ -2956,9 +2956,10 @@ mod effect_handler_tests {
         let holo = e.card_registry.make_card("Hologram");
         e.state.hand.push(holo);
         play_card(&mut e, "Hologram", -1);
-        // Should be awaiting choice
-        assert_eq!(e.phase, CombatPhase::AwaitingChoice);
-        e.execute_action(&Action::Choose(0));
+        // BetterDiscardPileToHandAction directly moves a mandatory singleton;
+        // it opens grid selection only when more than one card is available.
+        // Java: actions/common/BetterDiscardPileToHandAction.java.
+        assert_eq!(e.phase, CombatPhase::PlayerTurn);
         // Strike should now be in hand
         assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Strike"),
             "Strike_R should be in hand after Hologram");
