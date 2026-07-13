@@ -8,6 +8,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/DeepBreath.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/DramaticEntrance.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/GoodInstincts.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/FlashOfSteel.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Magnetism.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Mayhem.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Panache.java
@@ -45,6 +46,12 @@ fn colorless_wave1_registry_exports_match_typed_surface() {
     let finesse = registry.get("Finesse").expect("Finesse should exist");
     assert_eq!(finesse.base_magic, -1);
     assert_eq!(finesse.effect_data, &[E::Simple(SE::DrawCards(A::Fixed(1)))]);
+
+    let flash = registry
+        .get("Flash of Steel")
+        .expect("Flash of Steel should exist");
+    assert_eq!((flash.cost, flash.base_damage, flash.base_magic), (0, 3, -1));
+    assert_eq!(flash.effect_data, &[E::Simple(SE::DrawCards(A::Fixed(1)))]);
 
     let swift_strike = registry
         .get("Swift Strike")
@@ -100,6 +107,31 @@ fn finesse_gains_modified_block_and_draws_exactly_one() {
 
     assert!(play_self(&mut engine, "Finesse+"));
     assert_eq!(engine.state.player.block, 7);
+    assert_eq!(engine.state.hand.len(), 2);
+    assert!(engine.state.draw_pile.is_empty());
+}
+
+#[test]
+fn flash_of_steel_variants_deal_card_damage_then_draw_exactly_one() {
+    // FlashOfSteel.java queues DamageAction(this.damage) followed by
+    // DrawCardAction(1); upgrading adds three damage and does not add or alter
+    // a magic stat.
+    // Java: reference/extracted/methods/card/FlashOfSteel.java
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        0,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Flash of Steel", "Flash of Steel+"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend"]);
+
+    assert!(play_on_enemy(&mut engine, "Flash of Steel", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp, 57);
+    assert_eq!(engine.state.hand.len(), 2);
+
+    assert!(play_on_enemy(&mut engine, "Flash of Steel+", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp, 51);
     assert_eq!(engine.state.hand.len(), 2);
     assert!(engine.state.draw_pile.is_empty());
 }
