@@ -198,7 +198,8 @@ fn potion_potency(potion_id: &str) -> Option<(i32, i32)> {
         // LiquidBronze.java getPotency ignores ascension and always returns 3.
         "LiquidBronze" => Some((3, 3)),
         "CultistPotion" => Some((1, 1)),
-        "HeartOfIron" => Some((6, 4)),
+        // HeartOfIron.java getPotency ignores ascension and always returns 6.
+        "Heart of Iron" | "HeartOfIron" => Some((6, 6)),
         "GhostInAJar" => Some((1, 1)),
         "DuplicationPotion" => Some((1, 1)),
         // BloodPotion.java getPotency ignores ascension and always returns 20.
@@ -816,10 +817,16 @@ mod tests {
     }
 
     #[test]
-    fn test_heart_of_iron() {
+    fn test_heart_of_iron_stays_at_six_on_a11_and_bark_doubles_it() {
+        // Source: reference/extracted/methods/potion/HeartOfIron.java.
         let mut state = make_test_state();
-        apply_potion(&mut state, "HeartOfIron", -1);
+        apply_potion_scaled(&mut state, "HeartOfIron", -1, 11);
         assert_eq!(state.player.status(sid::METALLICIZE), 6);
+
+        state.player.set_status(sid::METALLICIZE, 0);
+        state.relics.push("SacredBark".to_string());
+        apply_potion_scaled(&mut state, "HeartOfIron", -1, 20);
+        assert_eq!(state.player.status(sid::METALLICIZE), 12);
     }
 
     #[test]

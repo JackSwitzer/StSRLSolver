@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T22:03:51.704228+00:00",
+ "updated": "2026-07-13T22:06:01.410674+00:00",
  "status_counts": {
-  "verified": 628,
-  "unverified": 39
+  "verified": 629,
+  "unverified": 38
  },
  "rows": [
   {
@@ -4652,8 +4652,8 @@
    "class": "HeartOfIron",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/HeartOfIron.java",
    "methods_ref": "reference/extracted/methods/potion/HeartOfIron.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -1,6 +1,8 @@
 use super::prelude::*;
 
 static EFFECTS: [E; 1] = [
+    // Source: reference/extracted/methods/potion/HeartOfIron.java. The potion
+    // applies MetallicizePower equal to its constant potency of six.
     E::Simple(SE::AddStatus(T::Player, sid::METALLICIZE, A::PotionPotency)),
 ];
 

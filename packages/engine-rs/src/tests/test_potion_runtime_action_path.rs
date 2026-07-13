@@ -716,6 +716,27 @@ fn ghost_in_a_jar_applies_one_intangible_and_bark_doubles_it() {
 }
 
 #[test]
+fn heart_of_iron_grants_six_metallicize_and_bark_doubles_it() {
+    // Source: reference/extracted/methods/potion/HeartOfIron.java. getPotency
+    // always returns six; AbstractPotion.getPotency doubles it for Sacred Bark.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.potions[0] = "HeartOfIron".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::METALLICIZE), 6);
+
+    engine.state.player.set_status(sid::METALLICIZE, 0);
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "Heart of Iron".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::METALLICIZE), 12);
+    assert!(engine.state.potions[0].is_empty());
+}
+
+#[test]
 fn speed_potion_keeps_five_potency_and_artifact_can_block_only_dex_loss() {
     // Source-derived (verify potion/SpeedPotion): getPotency always returns
     // five. Java applies DexterityPower before debuff-typed LoseDexterityPower,
