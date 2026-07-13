@@ -552,6 +552,44 @@ mod ironclad_card_java_parity_tests {
     }
 
     #[test]
+    fn dropkick_refunds_and_draws_when_its_target_was_vulnerable() {
+        // DropkickAction.java checks Vulnerable before queuing its 5 damage,
+        // then queues GainEnergyAction(1) and DrawCardAction(1). The benefit
+        // therefore still occurs when the damage kills that target.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DropkickAction.java
+        let mut vulnerable = engine_for(
+            &["Dropkick"],
+            &["Defend"],
+            &[],
+            vec![
+                enemy("JawWorm", 5, 5, 1, 0, 1),
+                enemy("Cultist", 20, 20, 1, 0, 1),
+            ],
+            1,
+        );
+        vulnerable.state.enemies[0].entity.set_status(sid::VULNERABLE, 1);
+
+        assert!(play_on_enemy(&mut vulnerable, "Dropkick", 0));
+        assert_eq!(vulnerable.state.enemies[0].entity.hp, 0);
+        assert_eq!(vulnerable.state.energy, 1);
+        assert!(vulnerable.state.hand.iter().any(|card| {
+            vulnerable.card_registry.card_name(card.def_id) == "Defend"
+        }));
+
+        let mut ordinary = engine_for(
+            &["Dropkick"],
+            &["Defend"],
+            &[],
+            vec![enemy("JawWorm", 20, 20, 1, 0, 1)],
+            1,
+        );
+        assert!(play_on_enemy(&mut ordinary, "Dropkick", 0));
+        assert_eq!(ordinary.state.enemies[0].entity.hp, 15);
+        assert_eq!(ordinary.state.energy, 0);
+        assert!(ordinary.state.hand.is_empty());
+    }
+
+    #[test]
     fn bash_applies_vulnerable() {
         let mut e = engine_with(make_deck_n("Bash", 5), 50, 0);
         ensure_in_hand(&mut e, "Bash");

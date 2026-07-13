@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T07:30:07.206145+00:00",
+ "updated": "2026-07-13T07:32:09.491350+00:00",
  "status_counts": {
-  "verified": 387,
-  "unverified": 280
+  "verified": 388,
+  "unverified": 279
  },
  "rows": [
   {
@@ -1202,8 +1202,8 @@
    "class": "Dropkick",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/Dropkick.java",
    "methods_ref": "reference/extracted/methods/card/Dropkick.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
