@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T13:55:38.446536+00:00",
+ "updated": "2026-07-13T13:57:35.314748+00:00",
  "status_counts": {
-  "verified": 508,
-  "unverified": 159
+  "verified": 509,
+  "unverified": 158
  },
  "rows": [
   {
@@ -2722,8 +2722,8 @@
    "class": "Reprogram",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Reprogram.java",
    "methods_ref": "reference/extracted/methods/card/Reprogram.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

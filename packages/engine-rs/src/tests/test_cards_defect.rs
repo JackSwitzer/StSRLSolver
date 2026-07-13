@@ -870,6 +870,26 @@ mod defect_card_java_parity_tests {
         assert_eq!(e.state.player.dexterity(), 1);
     });
 
+    defect_test!(reprogram_plus_applies_artifact_blocked_focus_before_buffs, {
+        // Reprogram.java queues FocusPower(-magic), StrengthPower(magic), then
+        // DexterityPower(magic). FocusPower classifies a negative amount as a
+        // DEBUFF, so Artifact consumes only the Focus loss; the upgraded +2
+        // Strength and Dexterity still resolve afterward.
+        // Sources: cards/blue/Reprogram.java, powers/FocusPower.java, and
+        // actions/common/ApplyPowerAction.java.
+        let mut e = bare_engine(&["Reprogram+"], vec![enemy("JawWorm", 40, 0)]);
+        ensure_in_hand(&mut e, "Reprogram+");
+        e.state.player.set_status(sid::FOCUS, 3);
+        e.state.player.set_status(sid::ARTIFACT, 1);
+
+        assert!(play_self(&mut e, "Reprogram+"));
+
+        assert_eq!(e.state.player.focus(), 3);
+        assert_eq!(e.state.player.status(sid::ARTIFACT), 0);
+        assert_eq!(e.state.player.strength(), 2);
+        assert_eq!(e.state.player.dexterity(), 2);
+    });
+
     defect_test!(rip_and_tear_hits_twice_against_single_enemy, {
         let mut e = filled_engine(&["Rip and Tear"], 40, 0);
         ensure_in_hand(&mut e, "Rip and Tear");
