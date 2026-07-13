@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T22:17:08.450572+00:00",
+ "updated": "2026-07-13T22:18:41.041697+00:00",
  "status_counts": {
-  "verified": 634,
-  "unverified": 33
+  "verified": 635,
+  "unverified": 32
  },
  "rows": [
   {
@@ -5012,8 +5012,8 @@
    "class": "BurningBlood",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/BurningBlood.java",
    "methods_ref": "reference/extracted/methods/relic/BurningBlood.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -11,7 +11,9 @@ static EFFECTS: [Effect; 1] = [
 static TRIGGERS: [TriggeredEffect; 1] = [
     TriggeredEffect {
         trigger: Trigger::CombatVictory,
-        condition: TriggerCondition::Always,
+        // Source: reference/extracted/methods/relic/BurningBlood.java. onVictory
+        // heals six only when currentHealth is still positive.
+        condition: TriggerCondition::PlayerAlive,
         effects: &EFFECTS,
         counter: None,
     },

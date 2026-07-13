@@ -236,6 +236,18 @@ fn relic_wave12_runtime_victory_families_match_canonical_runtime() {
     assert!(burn_engine.state.combat_over);
     assert!(burn_engine.state.player_won);
     assert_eq!(burn_engine.state.player.hp, 66);
+
+    // BurningBlood.java guards its six-point heal with currentHealth > 0;
+    // simultaneous zero player/enemy HP must not turn the relic into a revive.
+    let mut burn_zero_state =
+        combat_state_with(Vec::new(), vec![enemy_no_intent("JawWorm", 1, 1)], 3);
+    burn_zero_state.relics = vec!["Burning Blood".to_string()];
+    burn_zero_state.player.hp = 0;
+    burn_zero_state.enemies[0].entity.hp = 0;
+    let mut burn_zero_engine = engine_with_state(burn_zero_state);
+    burn_zero_engine.check_combat_end();
+    assert_eq!(burn_zero_engine.state.player.hp, 0);
+
     let mut black_state = combat_state_with(Vec::new(), vec![enemy_no_intent("JawWorm", 1, 1)], 3);
     black_state.relics = vec!["Black Blood".to_string()];
     black_state.player.hp = 60;
