@@ -406,6 +406,36 @@ mod ironclad_card_java_parity_tests {
         }
     }
     card_pair_test!(corruption, "Corruption", "Corruption+", 3, -1, -1, -1, 2, -1, -1, -1, CardType::Power, CardTarget::SelfTarget, false);
+
+    #[test]
+    fn corruption_plus_makes_skills_free_and_exhausts_only_skills() {
+        // Sources: Corruption.java upgrades only cost 3 -> 2;
+        // ApplyPowerAction.java reduces Skills already in hand/draw pile;
+        // CorruptionPower.java marks used Skills, but not Attacks, to Exhaust.
+        let mut engine = engine_for(
+            &["Corruption+", "Defend", "Strike"],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            3,
+        );
+
+        assert!(play_self(&mut engine, "Corruption+"));
+        assert_eq!(engine.state.energy, 1);
+        assert_eq!(engine.state.player.status(sid::CORRUPTION), 1);
+
+        assert!(play_self(&mut engine, "Defend"));
+        assert_eq!(engine.state.energy, 1);
+        assert_eq!(engine.state.player.block, 5);
+        assert_eq!(exhaust_prefix_count(&engine, "Defend"), 1);
+
+        assert!(play_on_enemy(&mut engine, "Strike", 0));
+        assert_eq!(engine.state.energy, 0);
+        assert_eq!(engine.state.enemies[0].entity.hp, 34);
+        assert_eq!(discard_prefix_count(&engine, "Strike"), 1);
+        assert_eq!(exhaust_prefix_count(&engine, "Strike"), 0);
+    }
+
     card_pair_test!(demon_form, "Demon Form", "Demon Form+", 3, -1, -1, 2, 3, -1, -1, 3, CardType::Power, CardTarget::None, false);
     card_pair_test!(double_tap, "Double Tap", "Double Tap+", 1, -1, -1, 1, 1, -1, -1, 2, CardType::Skill, CardTarget::SelfTarget, false);
     card_pair_test!(exhume, "Exhume", "Exhume+", 1, -1, -1, -1, 0, -1, -1, -1, CardType::Skill, CardTarget::None, true);
