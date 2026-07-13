@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T22:57:55.010826+00:00",
+ "updated": "2026-07-13T22:59:49.386002+00:00",
  "status_counts": {
-  "verified": 649,
-  "unverified": 18
+  "verified": 650,
+  "unverified": 17
  },
  "rows": [
   {
@@ -5952,8 +5952,8 @@
    "class": "PaperFrog",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/PaperFrog.java",
    "methods_ref": "reference/extracted/methods/relic/PaperFrog.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
