@@ -620,6 +620,31 @@ fn emotion_chip_marks_a_next_turn_orb_pulse_on_hp_loss() {
 }
 
 #[test]
+fn paper_crane_strengthens_only_enemy_owned_weak() {
+    // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/WeakPower.java
+    // atDamageGive uses 0.60 with Paper Crane only when !owner.isPlayer;
+    // player-owned Weak remains 0.75.
+    let mut state = combat_state_with(
+        make_deck(&["Strike+"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    state.relics.push("Paper Crane".to_string());
+    let mut engine = engine_with_state(state);
+    engine.state.hand = make_deck(&["Strike+"]);
+    engine.state.draw_pile.clear();
+    engine.state.player.set_status(sid::WEAKENED, 1);
+    engine.state.enemies[0].entity.set_status(sid::WEAKENED, 1);
+    engine.state.enemies[0].set_move(1, 10, 1, 0);
+
+    assert!(play_on_enemy(&mut engine, "Strike+", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp, 34); // floor(9 * 0.75)
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.hp, 74); // floor(10 * 0.60)
+}
+
+#[test]
 fn red_skull_activates_on_mid_combat_hp_drop_and_clears_on_heal() {
     let mut state = combat_state_with(make_deck(&["Strike"; 5]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("Red Skull".to_string());

@@ -113,9 +113,9 @@ mod damage_tests {
         assert_eq!(calculate_damage_full(10, 0, 0, false, false, false, false, 1.0, true, true, false, false), 17);
     }
 
-    #[test] fn full_paper_crane_weak() {
-        // 10*0.60 = 6
-        assert_eq!(calculate_damage_full(10, 0, 0, true, true, false, false, 1.0, false, false, false, false), 6);
+    #[test] fn full_player_weak_ignores_paper_crane_flag() {
+        // WeakPower.java applies Paper Crane only when the Weak owner is an enemy.
+        assert_eq!(calculate_damage_full(10, 0, 0, true, true, false, false, 1.0, false, false, false, false), 7);
     }
 
     #[test] fn full_double_damage() {
@@ -211,4 +211,3 @@ mod damage_tests {
 // =============================================================================
 // Enemy AI exhaustive tests
 // =============================================================================
-
