@@ -262,6 +262,27 @@ fn orb_wave1_cracked_core_and_frozen_core_follow_current_runtime_path() {
 }
 
 #[test]
+fn symbiotic_virus_channels_exactly_one_dark_orb_prebattle() {
+    // SymbioticVirus.java::atPreBattle synchronously calls channelOrb(new
+    // Dark()) exactly once. Filling an empty slot selects no target and
+    // consumes no cardRandomRng value.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    engine.init_defect_orbs(3);
+    engine.state.relics.push("Symbiotic Virus".to_string());
+    let card_random_before = engine.rng_counters()["cardRandom"];
+
+    engine.start_combat();
+
+    assert_eq!(engine.state.orb_slots.occupied_count(), 1);
+    assert_eq!(engine.state.orb_slots.slots[0].orb_type, OrbType::Dark);
+    assert_eq!(engine.rng_counters()["cardRandom"], card_random_before);
+}
+
+#[test]
 fn nuclear_battery_channels_plasma_prebattle_in_relic_ownership_order() {
     // Source: reference/extracted/methods/relic/NuclearBattery.java,
     // CrackedCore.java, and Plasma.java. atPreBattle channels synchronously;
