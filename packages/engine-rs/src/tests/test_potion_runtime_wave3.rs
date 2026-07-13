@@ -96,7 +96,7 @@ fn test_potion_runtime_wave3_generated_cards_and_upgrade_behaviors() {
     engine.state.discard_pile.clear();
     equip_potion(&mut engine, 0, "CunningPotion");
     use_potion(&mut engine, 0, -1);
-    assert_eq!(hand_names(&engine), vec!["Shiv", "Shiv", "Shiv"]);
+    assert_eq!(hand_names(&engine), vec!["Shiv+", "Shiv+", "Shiv+"]);
 
     engine.state.hand = make_deck(&["Strike", "Defend"]);
     equip_potion(&mut engine, 0, "BlessingOfTheForge");

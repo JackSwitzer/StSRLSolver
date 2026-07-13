@@ -455,7 +455,7 @@ fn bottled_miracle_and_cunning_potion_use_runtime_hooks() {
     use_potion(&mut engine, 1, -1);
     assert_eq!(
         hand_names(&engine),
-        vec!["Miracle", "Miracle", "Shiv", "Shiv", "Shiv"]
+        vec!["Miracle", "Miracle", "Shiv+", "Shiv+", "Shiv+"]
     );
 }
 
@@ -487,13 +487,12 @@ fn bottled_miracle_and_cunning_potion_respect_sacred_bark_and_hand_limit_via_act
         ["Miracle", "Miracle"]
     );
 
+    let discard_before = engine.state.discard_pile.len();
     use_potion(&mut engine, 1, -1);
     assert_eq!(engine.state.hand.len(), 10);
-    let shiv_count = hand_names(&engine)
-        .into_iter()
-        .filter(|name| *name == "Shiv")
-        .count();
-    assert_eq!(shiv_count, 0, "full hand should block extra Shiv generation");
+    assert_eq!(engine.state.discard_pile.len(), discard_before + 6);
+    assert!(engine.state.discard_pile[discard_before..].iter().all(|card|
+        engine.card_registry.card_name(card.def_id) == "Shiv+"));
 }
 
 #[test]

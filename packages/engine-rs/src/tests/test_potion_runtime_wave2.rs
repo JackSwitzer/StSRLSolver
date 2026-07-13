@@ -140,7 +140,7 @@ fn declarative_potions_drop_hooks_and_apply_runtime_effects() {
     cunning.state.hand.clear();
     equip_potion(&mut cunning, 0, "CunningPotion");
     use_potion(&mut cunning, 0, -1);
-    assert_eq!(hand_names(&cunning), vec!["Shiv", "Shiv", "Shiv"]);
+    assert_eq!(hand_names(&cunning), vec!["Shiv+", "Shiv+", "Shiv+"]);
 }
 
 #[test]

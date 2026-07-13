@@ -205,7 +205,8 @@ fn potion_potency(potion_id: &str) -> Option<(i32, i32)> {
         // FruitJuice.java getPotency ignores ascension and always returns 5.
         "Fruit Juice" | "FruitJuice" => Some((5, 5)),
         "BottledMiracle" => Some((2, 1)),
-        "CunningPotion" => Some((3, 2)),
+        // CunningPotion.java getPotency ignores ascension and always returns 3.
+        "CunningPotion" => Some((3, 3)),
         "PotionOfCapacity" => Some((2, 1)),
         _ => None,
     }
@@ -445,8 +446,13 @@ pub(crate) fn apply_potion_scaled(
             let registry = crate::cards::global_registry();
             let potency = effective_potency(potion_id, ascension, bark_mult);
             for _ in 0..potency {
+                // Source: CunningPotion.java upgrades the Shiv template before
+                // MakeTempCardInHandAction; overflow copies go to discard.
+                let shiv = registry.make_card("Shiv+");
                 if state.hand.len() < 10 {
-                    state.hand.push(registry.make_card("Shiv"));
+                    state.hand.push(shiv);
+                } else {
+                    state.discard_pile.push(shiv);
                 }
             }
             true
@@ -627,7 +633,7 @@ pub fn consume_fairy(state: &mut CombatState) {
 mod tests {
     use super::*;
     use crate::state::{CombatState, EnemyCombatState};
-    use crate::tests::support::make_deck_n;
+    use crate::tests::support::{make_deck, make_deck_n};
 
     fn make_test_state() -> CombatState {
         let enemy = EnemyCombatState::new("JawWorm", 44, 44);
@@ -879,12 +885,25 @@ mod tests {
 
     #[test]
     fn test_cunning_potion() {
+        // Source: reference/extracted/methods/potion/CunningPotion.java.
         let mut state = make_test_state();
         state.hand.clear();
-        apply_potion(&mut state, "CunningPotion", -1);
+        apply_potion_scaled(&mut state, "CunningPotion", -1, 20);
         let reg = crate::cards::global_registry();
         assert_eq!(state.hand.len(), 3);
-        assert!(state.hand.iter().all(|c| reg.card_name(c.def_id) == "Shiv"));
+        assert!(state.hand.iter().all(|c| reg.card_name(c.def_id) == "Shiv+"));
+
+        state.hand = make_deck(&[
+            "Strike", "Strike", "Strike", "Strike", "Strike",
+            "Defend", "Defend", "Defend", "Defend",
+        ]);
+        state.discard_pile.clear();
+        state.relics.push("SacredBark".to_string());
+        apply_potion_scaled(&mut state, "CunningPotion", -1, 20);
+        assert_eq!(state.hand.len(), 10);
+        assert_eq!(state.discard_pile.len(), 5);
+        assert!(state.discard_pile.iter()
+            .all(|card| reg.card_name(card.def_id) == "Shiv+"));
     }
 
     #[test]
