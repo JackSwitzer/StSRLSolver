@@ -193,3 +193,39 @@ fn ascenders_bane_is_unplayable_unupgradable_and_exhausts_as_ethereal() {
     assert_eq!(exhaust_prefix_count(&engine, "AscendersBane"), 1);
     assert_eq!(hand_count(&engine, "Strike"), 1);
 }
+
+#[test]
+fn clumsy_is_unplayable_unupgradable_and_exhausts_as_ethereal() {
+    // Source: cards/curses/Clumsy.java sets cost -2 and isEthereal, queues
+    // ExhaustSpecificCardAction at end of turn, and leaves upgrade() empty.
+    let registry = global_registry();
+    let clumsy = registry.get("Clumsy").expect("Clumsy is registered");
+    assert_eq!(clumsy.cost, -2);
+    assert!(clumsy.runtime_traits().unplayable);
+    assert!(clumsy.runtime_traits().ethereal);
+    assert!(registry.get("Clumsy+").is_none());
+
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.relics.push("Runic Pyramid".to_string());
+    engine.state.hand = make_deck(&["Clumsy", "Strike"]);
+
+    let clumsy_idx = engine
+        .state
+        .hand
+        .iter()
+        .position(|card| engine.card_registry.card_name(card.def_id) == "Clumsy")
+        .unwrap();
+    assert!(!engine.get_legal_actions().iter().any(|action| {
+        matches!(action, Action::PlayCard { card_idx, .. } if *card_idx == clumsy_idx)
+    }));
+
+    end_turn(&mut engine);
+
+    assert_eq!(exhaust_prefix_count(&engine, "Clumsy"), 1);
+    assert_eq!(hand_count(&engine, "Strike"), 1);
+}

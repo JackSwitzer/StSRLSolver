@@ -36,7 +36,8 @@ pub fn register_curses(cards: &mut HashMap<&'static str, CardDef>) {
 
         // AscendersBane already registered above
 
-        // Clumsy: unplayable, ethereal
+        // Source: cards/curses/Clumsy.java sets cost -2 and isEthereal, while
+        // leaving use() and upgrade() empty.
         insert(cards, CardDef {
             id: "Clumsy", name: "Clumsy", card_type: CardType::Curse,
             target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,
