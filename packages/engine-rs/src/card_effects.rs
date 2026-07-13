@@ -91,6 +91,10 @@ pub(crate) fn execute_primary_attack(
         total_damage_bonus += engine.player_attack_base_damage(card, card_inst) - card.base_damage;
     }
 
+    // Shiv.java bakes the current AccuracyPower amount into baseDamage when a
+    // Shiv is constructed, while AccuracyPower updates existing Shivs whenever
+    // it is applied, stacked, drawn, or discarded. CardDef is immutable here,
+    // so adding the current amount at damage resolution is semantically equal.
     if card_id == "Shiv" || card_id == "Shiv+" {
         let accuracy = engine.state.player.status(sid::ACCURACY);
         if accuracy > 0 {
@@ -309,7 +313,9 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         total_damage_bonus += engine.player_attack_base_damage(card, card_inst) - card.base_damage;
     }
 
-    // Accuracy: +N damage to Shiv cards
+    // AccuracyPower updates every existing Shiv to 4/6 + its current amount;
+    // immutable CardDefs represent that as the same play-time damage bonus.
+    // Java: cards/tempCards/Shiv.java and powers/AccuracyPower.java.
     if card_id == "Shiv" || card_id == "Shiv+" {
         let accuracy = engine.state.player.status(sid::ACCURACY);
         if accuracy > 0 {

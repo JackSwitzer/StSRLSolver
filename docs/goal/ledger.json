@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T15:08:02.226174+00:00",
+ "updated": "2026-07-13T15:11:04.448814+00:00",
  "status_counts": {
-  "verified": 527,
-  "unverified": 140
+  "verified": 528,
+  "unverified": 139
  },
  "rows": [
   {
@@ -2952,8 +2952,8 @@
    "class": "Shiv",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Shiv.java",
    "methods_ref": "reference/extracted/methods/card/Shiv.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

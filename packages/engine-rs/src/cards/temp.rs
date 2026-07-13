@@ -85,7 +85,9 @@ pub fn register_temp(cards: &mut HashMap<&'static str, CardDef>) {
                 E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             ], complex_hook: None,
         });
-        // Shiv: 0 cost, 4 dmg, exhaust
+        // Shiv.java constructs a zero-cost, 4-damage exhausting Attack;
+        // upgradeDamage(2) is its only upgrade change.
+        // Java: reference/extracted/methods/card/Shiv.java
         insert(cards, CardDef {
             id: "Shiv", name: "Shiv", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 0, base_damage: 4, base_block: -1,

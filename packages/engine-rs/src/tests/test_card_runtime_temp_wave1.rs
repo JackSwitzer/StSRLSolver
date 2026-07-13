@@ -4,6 +4,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Safety.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/ThroughViolence.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Shiv.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/AccuracyPower.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Omega.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Expunger.java
 
@@ -108,6 +109,36 @@ fn temp_wave1_safety_through_violence_and_shiv_follow_engine_path() {
     assert!(play_on_enemy(&mut engine, "Shiv", 0));
     assert_eq!(engine.state.enemies[0].entity.hp, 32);
     assert_eq!(exhaust_prefix_count(&engine, "Shiv"), 1);
+}
+
+#[test]
+fn shiv_variants_use_accuracy_damage_for_free_then_exhaust() {
+    // Shiv.java constructs a 0-cost 4-damage Attack, exhausts it on use, and
+    // upgrades only by 2 damage. Its constructor and AccuracyPower's existing-
+    // Shiv refresh make five Accuracy produce 9 and 11 base damage.
+    let registry = global_registry();
+    let shiv = registry.get("Shiv").expect("Shiv");
+    let shiv_plus = registry.get("Shiv+").expect("Shiv+");
+    assert_eq!((shiv.cost, shiv.base_damage), (0, 4));
+    assert_eq!((shiv_plus.cost, shiv_plus.base_damage), (0, 6));
+    assert!(shiv.exhaust && shiv_plus.exhaust);
+
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        0,
+    );
+    force_player_turn(&mut engine);
+    engine.state.energy = 0;
+    engine.state.hand = make_deck(&["Shiv", "Shiv+"]);
+    engine.state.player.set_status(sid::ACCURACY, 5);
+
+    assert!(play_on_enemy(&mut engine, "Shiv", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp, 41);
+    assert!(play_on_enemy(&mut engine, "Shiv+", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp, 30);
+    assert_eq!(engine.state.energy, 0);
+    assert_eq!(exhaust_prefix_count(&engine, "Shiv"), 2);
 }
 
 #[test]
