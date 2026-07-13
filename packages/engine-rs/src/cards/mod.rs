@@ -1544,6 +1544,15 @@ impl CardRegistry {
         if card.flags & CardInstance::FLAG_UPGRADED != 0 { return; }
         let upgraded = format!("{}+", name);
         if let Some(&id) = self.name_to_id.get(upgraded.as_str()) {
+            if name == "Steam" && card.misc != -1 {
+                // SteamBarrier.upgradeBlock(2) changes its current mutable
+                // baseBlock, including after prior ModifyBlockActions.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/SteamBarrier.java
+                let base = self.id_to_def[card.def_id as usize].base_block;
+                let upgraded_base = self.id_to_def[id as usize].base_block;
+                let current = card.decrementing_misc_or(base);
+                card.set_decrementing_misc(current + upgraded_base - base);
+            }
             card.def_id = id;
             card.flags |= CardInstance::FLAG_UPGRADED;
             if let Some(def) = self.id_to_def.get(id as usize) {

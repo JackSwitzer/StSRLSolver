@@ -837,7 +837,11 @@ impl EffectRuntime {
                 if let Some(mut card) = engine.runtime_played_card {
                     let before = card;
                     let def_id = card.def_id;
-                    let current = if card.misc >= 0 {
+                    let def = engine.card_registry.card_def_by_id(card.def_id);
+                    let is_steam = matches!(def.id, "Steam" | "Steam+");
+                    let current = if is_steam {
+                        card.decrementing_misc_or(def.base_block.max(0))
+                    } else if card.misc >= 0 {
                         card.misc as i32
                     } else {
                         engine.card_registry
@@ -845,12 +849,20 @@ impl EffectRuntime {
                             .base_block
                             .max(0)
                     };
-                    let next = (current + delta).max(0) as i16;
-                    card.misc = next;
+                    let next = if is_steam {
+                        current + delta
+                    } else {
+                        (current + delta).max(0)
+                    };
+                    if is_steam {
+                        card.set_decrementing_misc(next);
+                    } else {
+                        card.misc = next as i16;
+                    }
                     engine.runtime_played_card = Some(card);
                     let card_id = engine.card_registry.card_def_by_id(def_id).id;
                     if matches!(card_id, "Genetic Algorithm" | "Genetic Algorithm+") {
-                        engine.sync_genetic_algorithm_master_deck(before, next);
+                        engine.sync_genetic_algorithm_master_deck(before, next as i16);
                     }
                 }
             }

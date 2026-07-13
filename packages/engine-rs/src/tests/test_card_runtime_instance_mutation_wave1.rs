@@ -61,24 +61,33 @@ fn instance_mutation_wave1_registry_exports_steam_and_streamline_on_typed_played
 
 #[test]
 fn steam_barrier_updates_the_played_instance_block_and_future_plays_see_the_reduced_block() {
+    // SteamBarrier.use grants its current block, then ModifyBlockAction lowers
+    // that same UUID's baseBlock by one without a zero floor. Its upgrade adds
+    // two to the current baseBlock rather than replacing it with a fresh 8.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/SteamBarrier.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ModifyBlockAction.java
     let mut engine = single_enemy_engine();
-    engine.state.hand = make_deck(&["Steam", "Steam"]);
+    engine.state.hand = make_deck(&["Steam"]);
 
-    assert!(play_self(&mut engine, "Steam"));
-    assert_eq!(engine.state.player.block, 6);
+    let mut played = engine.state.hand[0];
+    for expected_block in [6, 5, 4, 3, 2, 1, 0] {
+        engine.state.player.block = 0;
+        assert!(play_self(&mut engine, "Steam"));
+        assert_eq!(engine.state.player.block, expected_block);
+        played = engine
+            .state
+            .discard_pile
+            .pop()
+            .expect("played Steam Barrier should land in discard");
+        engine.state.hand.push(played);
+    }
 
-    let played = engine
-        .state
-        .discard_pile
-        .pop()
-        .expect("played Steam Barrier should land in discard");
-    assert_eq!(played.misc, 5);
-
-    engine.state.hand.clear();
-    engine.state.hand.push(played);
-
-    assert!(play_self(&mut engine, "Steam"));
-    assert_eq!(engine.state.player.block, 11);
+    assert_eq!(played.decrementing_misc_or(6), -1);
+    engine.card_registry.upgrade_card(&mut engine.state.hand[0]);
+    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Steam+");
+    engine.state.player.block = 0;
+    assert!(play_self(&mut engine, "Steam+"));
+    assert_eq!(engine.state.player.block, 1);
 }
 
 #[test]

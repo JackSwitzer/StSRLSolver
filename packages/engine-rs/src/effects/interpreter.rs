@@ -741,17 +741,29 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             let delta = resolve_card_amount(engine, ctx, amount_src);
             if let Some(mut card) = engine.runtime_played_card {
                 let before = card;
-                let current = if card.misc >= 0 {
+                let is_steam = matches!(ctx.card.id, "Steam" | "Steam+");
+                let current = if is_steam {
+                    card.decrementing_misc_or(ctx.card.base_block.max(0))
+                } else if card.misc >= 0 {
                     card.misc as i32
                 } else {
                     ctx.card.base_block.max(0)
                 };
-                let next = (current + delta).max(0) as i16;
-                card.misc = next;
-                ctx.card_inst.misc = next;
+                let next = if is_steam {
+                    current + delta
+                } else {
+                    (current + delta).max(0)
+                };
+                if is_steam {
+                    card.set_decrementing_misc(next);
+                    ctx.card_inst.set_decrementing_misc(next);
+                } else {
+                    card.misc = next as i16;
+                    ctx.card_inst.misc = next as i16;
+                }
                 engine.runtime_played_card = Some(card);
                 if matches!(ctx.card.id, "Genetic Algorithm" | "Genetic Algorithm+") {
-                    engine.sync_genetic_algorithm_master_deck(before, next);
+                    engine.sync_genetic_algorithm_master_deck(before, next as i16);
                 }
             }
         }
@@ -1131,14 +1143,22 @@ pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &A
     match *src {
         AmountSource::Magic => ctx.card.base_magic.max(1),
         AmountSource::Block => {
-            if ctx.card_inst.misc >= 0 {
+            if matches!(ctx.card.id, "Steam" | "Steam+") {
+                ctx.card_inst
+                    .decrementing_misc_or(ctx.card.base_block.max(0))
+                    .max(0)
+            } else if ctx.card_inst.misc >= 0 {
                 ctx.card_inst.misc as i32
             } else {
                 ctx.card.base_block.max(0)
             }
         }
         AmountSource::ModifiedBlock => {
-            let base = if ctx.card_inst.misc >= 0 {
+            let base = if matches!(ctx.card.id, "Steam" | "Steam+") {
+                ctx.card_inst
+                    .decrementing_misc_or(ctx.card.base_block.max(0))
+                    .max(0)
+            } else if ctx.card_inst.misc >= 0 {
                 ctx.card_inst.misc as i32
             } else {
                 ctx.card.base_block.max(0)

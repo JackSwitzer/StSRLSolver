@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T15:35:23.423831+00:00",
+ "updated": "2026-07-13T15:39:56.017188+00:00",
  "status_counts": {
-  "verified": 538,
-  "unverified": 129
+  "verified": 539,
+  "unverified": 128
  },
  "rows": [
   {
@@ -3082,8 +3082,8 @@
    "class": "SteamBarrier",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/SteamBarrier.java",
    "methods_ref": "reference/extracted/methods/card/SteamBarrier.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
