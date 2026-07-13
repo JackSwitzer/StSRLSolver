@@ -797,9 +797,11 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.add_effect(mfx::DAZE, 2);
         }
         "Exploder" => {
-            // 3-turn timer: Attack -> Unknown -> Explode (30 damage)
+            // Source: reference/extracted/methods/monster/Exploder.java.
             enemy.set_move(move_ids::EXPLODER_ATTACK, 9, 1, 0);
             enemy.entity.set_status(sid::TURN_COUNT, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 9);
+            enemy.entity.set_status(sid::EXPLOSIVE, 3);
         }
         "WrithingMass" | "Writhing Mass" => {
             // First turn: random attack. Use Multi Hit as default.
@@ -1845,16 +1847,18 @@ mod tests {
     fn test_exploder_timer() {
         let mut enemy = create_enemy("Exploder", 30, 30);
         assert_eq!(enemy.move_id, move_ids::EXPLODER_ATTACK);
+        assert_eq!(enemy.entity.status(sid::EXPLOSIVE), 3);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0)); // count=1, attack
+        // Source: Exploder.java increments turnCount in takeTurn, not getMove.
+        enemy.entity.set_status(sid::TURN_COUNT, 1);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::EXPLODER_ATTACK);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0)); // count=2, attack
-        assert_eq!(enemy.move_id, move_ids::EXPLODER_ATTACK);
-
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0)); // count=3, EXPLODE
+        enemy.entity.set_status(sid::TURN_COUNT, 2);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::EXPLODER_EXPLODE);
-        assert_eq!(enemy.move_damage(), 30);
+        assert_eq!(enemy.move_damage(), 0);
+        assert_eq!(enemy.move_hits(), 0);
     }
 
     #[test]

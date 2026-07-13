@@ -106,14 +106,13 @@ pub(super) fn roll_repulsor(enemy: &mut EnemyCombatState, _num: i32) {
 }
 
 pub(super) fn roll_exploder(enemy: &mut EnemyCombatState, _num: i32) {
-    let count = enemy.entity.status(sid::TURN_COUNT) + 1;
-    enemy.entity.set_status(sid::TURN_COUNT, count);
-
-    if count >= 3 {
-        // Explode! 30 damage and die
-        enemy.set_move(move_ids::EXPLODER_EXPLODE, 30, 1, 0);
+    // Source: reference/extracted/methods/monster/Exploder.java (`getMove`).
+    // turnCount increments in takeTurn, before the queued RollMoveAction.
+    if enemy.entity.status(sid::TURN_COUNT) >= 2 {
+        enemy.set_move(move_ids::EXPLODER_EXPLODE, 0, 0, 0);
     } else {
-        enemy.set_move(move_ids::EXPLODER_ATTACK, 9, 1, 0);
+        let damage = enemy.entity.status(sid::STARTING_DMG).max(9);
+        enemy.set_move(move_ids::EXPLODER_ATTACK, damage, 1, 0);
     }
 }
 

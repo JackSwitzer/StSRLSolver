@@ -382,7 +382,8 @@ impl CombatEngine {
                 | "BronzeOrb" | "Bronze Orb" | "Byrd" | "Centurion"
                 | "Champ" | "TheChamp" | "Chosen"
                 | "CorruptHeart" | "Corrupt Heart"
-                | "SnakeDagger" | "Snake Dagger" | "Darkling" | "Deca" | "Donu")) {
+                | "SnakeDagger" | "Snake Dagger" | "Darkling" | "Deca" | "Donu"
+                | "Exploder")) {
             if enemy.id == "Centurion" {
                 enemy.entity.set_status(sid::COUNT, living_enemy_count);
             }

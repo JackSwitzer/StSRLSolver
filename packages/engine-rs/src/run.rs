@@ -1952,6 +1952,16 @@ impl RunEngine {
             enemy.add_effect(crate::combat_types::mfx::STRENGTH_ALL_ALLIES, 3);
         }
 
+        // Source: reference/extracted/methods/monster/Exploder.java. Damage
+        // changes at A2; ExplosivePower(3) and turnCount start before combat.
+        for enemy in enemy_states.iter_mut().filter(|enemy| enemy.id == "Exploder") {
+            let damage = if self.run_state.ascension >= 2 { 11 } else { 9 };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, damage);
+            enemy.entity.set_status(crate::status_ids::sid::TURN_COUNT, 0);
+            enemy.entity.set_status(crate::status_ids::sid::EXPLOSIVE, 3);
+            enemy.set_move(crate::enemies::move_ids::EXPLODER_ATTACK, damage, 1, 0);
+        }
+
         // Source: reference/extracted/methods/monster/BanditLeader.java.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "BanditLeader") {
             let (cross_slash, agonizing_slash) = if self.run_state.ascension >= 2 {
@@ -2659,6 +2669,16 @@ impl RunEngine {
             }
             "Repulsor" => {
                 let hp = if a20 { 36 } else { 29 };
+                (hp, hp)
+            }
+            "Exploder" => {
+                // Source: reference/extracted/methods/monster/Exploder.java.
+                // A7 changes fixed 30 HP to an inclusive 30..35 roll.
+                let hp = if self.run_state.ascension >= 7 {
+                    30 + self.rng.gen_range(0..=5)
+                } else {
+                    30
+                };
                 (hp, hp)
             }
             "WrithingMass" => {

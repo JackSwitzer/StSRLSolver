@@ -119,6 +119,28 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
         // Execute enemy move
         execute_enemy_move(engine, i);
 
+        // Sources: reference/extracted/methods/monster/Exploder.java and
+        // decompiled/java-src/com/megacrit/cardcrawl/powers/ExplosivePower.java.
+        // GameActionManager calls
+        // applyTurnPowers after takeTurn, so Explosive ticks after Exploder's
+        // queued RollMoveAction. At 1 it queues SuicideAction before the
+        // source monster's 30 DamageInfo.THORNS hit to the player.
+        if engine.state.enemies[i].id == "Exploder" {
+            let explosive = engine.state.enemies[i].entity.status(sid::EXPLOSIVE);
+            if explosive > 1 {
+                engine.state.enemies[i]
+                    .entity
+                    .set_status(sid::EXPLOSIVE, explosive - 1);
+            } else if explosive == 1 {
+                engine.state.enemies[i].entity.set_status(sid::EXPLOSIVE, 0);
+                if engine.state.enemies[i].entity.hp > 0 {
+                    engine.state.enemies[i].entity.hp = 0;
+                    engine.finalize_enemy_death(i);
+                }
+                engine.deal_thorns_damage_to_player(30);
+            }
+        }
+
         // Check player death
         if engine.state.player.is_dead() {
             engine.state.player.hp = 0;
@@ -196,6 +218,14 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
 
     if engine.state.enemies[enemy_idx].move_id == -1 {
         return;
+    }
+
+    if engine.state.enemies[enemy_idx].id == "Exploder" {
+        // Source: reference/extracted/methods/monster/Exploder.java
+        // (`takeTurn`): turnCount increments before the queued move resolves.
+        engine.state.enemies[enemy_idx]
+            .entity
+            .add_status(sid::TURN_COUNT, 1);
     }
 
     if engine.state.enemies[enemy_idx].id == "TheGuardian"

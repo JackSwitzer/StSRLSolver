@@ -695,6 +695,8 @@ mod enemy_ai_java_parity_tests {
         let e = make("Exploder", 30);
         expect_move(&e, move_ids::EXPLODER_ATTACK, 9, 1, 0, &[]);
         expect_status(&e, sid::TURN_COUNT, 0);
+        expect_status(&e, sid::STARTING_DMG, 9);
+        expect_status(&e, sid::EXPLOSIVE, 3);
 
         let e = make("WrithingMass", 160);
         expect_move(&e, move_ids::WM_MULTI_HIT, 7, 3, 0, &[]);
@@ -769,12 +771,12 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::REPULSOR_DAZE, 0, 0, 0, &[(mfx::DAZE, 2)]);
 
         let mut e = make("Exploder", 30);
+        e.entity.set_status(sid::TURN_COUNT, 1);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::EXPLODER_ATTACK, 9, 1, 0, &[]);
+        e.entity.set_status(sid::TURN_COUNT, 2);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::EXPLODER_ATTACK, 9, 1, 0, &[]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::EXPLODER_EXPLODE, 30, 1, 0, &[]);
+        expect_move(&e, move_ids::EXPLODER_EXPLODE, 0, 0, 0, &[]);
 
         let mut e = make("WrithingMass", 160);
         roll_times(&mut e, 1);
@@ -876,6 +878,62 @@ mod enemy_ai_java_parity_tests {
             &mut e, &mut crate::seed::StsRandom::new(0));
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SD_EXPLODE, 25, 1, 0, &[]);
+    }
+
+    #[test]
+    fn exploder_stats_timer_unknown_intent_and_thorns_suicide_match_java() {
+        // Sources: reference/extracted/methods/monster/Exploder.java and
+        // decompiled/java-src/com/megacrit/cardcrawl/powers/ExplosivePower.java.
+        // HP changes at A7, attack at A2;
+        // the power ticks after takeTurn and suicides before dealing 30
+        // DamageInfo.THORNS when its amount reaches one.
+        let mut hp_values = std::collections::BTreeSet::new();
+        for seed in 1..=256 {
+            let mut run = run_engine(seed, 7);
+            run.debug_enter_specific_combat(&["Exploder"]);
+            let combat = run.get_combat_engine().expect("Exploder combat");
+            hp_values.insert(combat.state.enemies[0].entity.hp);
+            assert_eq!(combat.state.enemies[0].move_damage(), 11);
+        }
+        assert_eq!(hp_values, (30..=35).collect());
+
+        let mut a0 = run_engine(7, 0);
+        a0.debug_enter_specific_combat(&["Exploder"]);
+        let combat = a0.debug_combat_engine_mut();
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+        assert_eq!(combat.state.enemies[0].entity.hp, 30);
+        expect_move(&combat.state.enemies[0], move_ids::EXPLODER_ATTACK, 9, 1, 0, &[]);
+        expect_status(&combat.state.enemies[0], sid::TURN_COUNT, 0);
+        expect_status(&combat.state.enemies[0], sid::EXPLOSIVE, 3);
+        assert_eq!(combat.ai_rng.counter, 1);
+
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(combat.state.player.hp, 491);
+        expect_status(&combat.state.enemies[0], sid::TURN_COUNT, 1);
+        expect_status(&combat.state.enemies[0], sid::EXPLOSIVE, 2);
+        expect_move(&combat.state.enemies[0], move_ids::EXPLODER_ATTACK, 9, 1, 0, &[]);
+        assert_eq!(combat.ai_rng.counter, 2);
+
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(combat.state.player.hp, 482);
+        expect_status(&combat.state.enemies[0], sid::TURN_COUNT, 2);
+        expect_status(&combat.state.enemies[0], sid::EXPLOSIVE, 1);
+        expect_move(&combat.state.enemies[0], move_ids::EXPLODER_EXPLODE, 0, 0, 0, &[]);
+        assert_eq!(combat.ai_rng.counter, 3);
+
+        // Barricade retains this block through EndTurn. ExplosivePower's
+        // THORNS damage consumes it, while the UNKNOWN intent deals no attack.
+        combat.state.player.set_status(sid::BARRICADE, 1);
+        combat.state.player.block = 10;
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(combat.state.player.hp, 462);
+        assert_eq!(combat.state.player.block, 0);
+        assert_eq!(combat.state.enemies[0].entity.hp, 0);
+        expect_status(&combat.state.enemies[0], sid::EXPLOSIVE, 0);
+        assert_eq!(combat.ai_rng.counter, 4);
+        assert!(combat.state.combat_over);
+        assert!(combat.state.player_won);
     }
 
     #[test]
