@@ -262,6 +262,48 @@ fn orb_wave1_cracked_core_and_frozen_core_follow_current_runtime_path() {
 }
 
 #[test]
+fn nuclear_battery_channels_plasma_prebattle_in_relic_ownership_order() {
+    // Source: reference/extracted/methods/relic/NuclearBattery.java,
+    // CrackedCore.java, and Plasma.java. atPreBattle channels synchronously;
+    // Plasma then grants one Energy at the first turn start.
+    let mut battery = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    battery.init_defect_orbs(3);
+    battery.state.relics.push("Nuclear Battery".to_string());
+    battery.start_combat();
+    assert_eq!(battery.state.orb_slots.occupied_count(), 1);
+    assert_eq!(battery.state.orb_slots.slots[0].orb_type, OrbType::Plasma);
+    assert_eq!(battery.state.energy, 4);
+
+    let mut plasma_then_lightning = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    plasma_then_lightning.init_defect_orbs(2);
+    plasma_then_lightning.state.relics =
+        vec!["Nuclear Battery".to_string(), "Cracked Core".to_string()];
+    plasma_then_lightning.start_combat();
+    assert_eq!(plasma_then_lightning.state.orb_slots.slots[0].orb_type, OrbType::Plasma);
+    assert_eq!(plasma_then_lightning.state.orb_slots.slots[1].orb_type, OrbType::Lightning);
+
+    let mut lightning_then_plasma = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    lightning_then_plasma.init_defect_orbs(2);
+    lightning_then_plasma.state.relics =
+        vec!["Cracked Core".to_string(), "Nuclear Battery".to_string()];
+    lightning_then_plasma.start_combat();
+    assert_eq!(lightning_then_plasma.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
+    assert_eq!(lightning_then_plasma.state.orb_slots.slots[1].orb_type, OrbType::Plasma);
+}
+
+#[test]
 fn orb_wave1_emotion_chip_pulses_front_orb_on_next_turn_start_like_java() {
     let mut engine = engine_without_start(
         Vec::new(),
