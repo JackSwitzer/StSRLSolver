@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T16:12:14.754134+00:00",
+ "updated": "2026-07-13T16:15:38.182473+00:00",
  "status_counts": {
-  "verified": 552,
-  "unverified": 115
+  "verified": 553,
+  "unverified": 114
  },
  "rows": [
   {
@@ -3252,8 +3252,8 @@
    "class": "Tactician",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Tactician.java",
    "methods_ref": "reference/extracted/methods/card/Tactician.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

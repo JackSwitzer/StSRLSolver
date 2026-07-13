@@ -759,6 +759,44 @@ mod silent_card_java_parity_tests {
         "Tactician", -2, -1, -1, 1, CardType::Skill, CardTarget::None, false, None, &["unplayable", "energy_on_discard"],
         "Tactician+", -2, -1, -1, 2, CardType::Skill, CardTarget::None, false, None, &["unplayable", "energy_on_discard"],
     );
+
+    #[test]
+    fn tactician_is_unplayable_and_gains_energy_when_manually_discarded() {
+        // Tactician.java makes canUse() always return false; use() is empty, and
+        // triggerOnManualDiscard gains magicNumber energy (1, upgraded to 2).
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Tactician.java
+        let mut unplayable = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            3,
+        );
+        force_player_turn(&mut unplayable);
+        unplayable.state.hand = make_deck(&["Tactician+"]);
+
+        assert!(play_self(&mut unplayable, "Tactician+"));
+        assert_eq!(unplayable.state.energy, 3);
+        assert_eq!(unplayable.state.total_cards_played, 0);
+        assert_eq!(unplayable.state.hand.len(), 1);
+        assert_eq!(discard_prefix_count(&unplayable, "Tactician"), 0);
+
+        for (card_id, expected_energy) in [("Tactician", 1), ("Tactician+", 2)] {
+            let mut engine = engine_without_start(
+                Vec::new(),
+                vec![enemy_no_intent("JawWorm", 40, 40)],
+                1,
+            );
+            force_player_turn(&mut engine);
+            engine.state.hand = make_deck(&["Survivor", card_id]);
+
+            // Survivor spends the starting energy, then its mandatory manual
+            // discard has only Tactician available and fires Tactician's hook.
+            assert!(play_self(&mut engine, "Survivor"));
+            assert_eq!(engine.phase, crate::engine::CombatPhase::PlayerTurn);
+            assert!(engine.choice.is_none());
+            assert_eq!(engine.state.energy, expected_energy, "{card_id}");
+            assert_eq!(discard_prefix_count(&engine, "Tactician"), 1, "{card_id}");
+        }
+    }
     card_pair_test!(terror,
         "Terror", 1, -1, -1, 99, CardType::Skill, CardTarget::Enemy, true, None, &["vulnerable"],
         "Terror+", 0, -1, -1, 99, CardType::Skill, CardTarget::Enemy, true, None, &["vulnerable"],
