@@ -286,8 +286,9 @@ mod silent_card_java_parity_tests {
         "Choke+", 2, 12, -1, 5, CardType::Attack, CardTarget::Enemy, false, None, &["choke"],
     );
     card_pair_test!(concentrate,
-        "Concentrate", 0, -1, -1, 3, CardType::Skill, CardTarget::None, false, None, &["discard_gain_energy"],
-        "Concentrate+", 0, -1, -1, 2, CardType::Skill, CardTarget::None, false, None, &["discard_gain_energy"],
+        // Source: Concentrate.java declares CardTarget.SELF, not NONE.
+        "Concentrate", 0, -1, -1, 3, CardType::Skill, CardTarget::SelfTarget, false, None, &["discard_gain_energy"],
+        "Concentrate+", 0, -1, -1, 2, CardType::Skill, CardTarget::SelfTarget, false, None, &["discard_gain_energy"],
     );
     card_pair_test!(crippling_cloud,
         "Crippling Cloud", 2, -1, -1, 4, CardType::Skill, CardTarget::AllEnemy, true, None, &["poison_all", "weak_all"],

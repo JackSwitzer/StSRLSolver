@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T06:04:02.626998+00:00",
+ "updated": "2026-07-13T06:05:43.074316+00:00",
  "status_counts": {
-  "verified": 350,
-  "unverified": 317
+  "verified": 351,
+  "unverified": 316
  },
  "rows": [
   {
@@ -712,8 +712,8 @@
    "class": "Concentrate",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Concentrate.java",
    "methods_ref": "reference/extracted/methods/card/Concentrate.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

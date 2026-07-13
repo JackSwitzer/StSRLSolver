@@ -223,6 +223,33 @@ mod silent_wave4 {
     }
 
     #[test]
+    fn concentrate_plus_discards_two_before_gaining_two_energy() {
+        // Source: Concentrate.java queues DiscardAction(magicNumber, false)
+        // before GainEnergyAction(2); upgradeMagicNumber(-1) changes 3 picks to 2.
+        let mut engine = engine_for(
+            &["Concentrate+", "Strike", "Defend", "Neutralize"],
+            &[],
+            vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
+            0,
+        );
+
+        assert!(play_self(&mut engine, "Concentrate+"));
+        assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+        assert_eq!(engine.choice.as_ref().unwrap().min_picks, 2);
+        assert_eq!(engine.choice.as_ref().unwrap().max_picks, 2);
+        assert_eq!(engine.state.energy, 0);
+
+        engine.execute_action(&Action::Choose(0));
+        engine.execute_action(&Action::Choose(1));
+        engine.execute_action(&Action::ConfirmSelection);
+
+        assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+        assert_eq!(engine.state.energy, 2);
+        assert_eq!(engine.state.hand.len(), 1);
+        assert_eq!(engine.state.discard_pile.len(), 3);
+    }
+
+    #[test]
     fn silent_wave4_dash_combines_damage_and_block_on_the_engine_path() {
         let mut engine = engine_for(
             &["Dash"],
