@@ -764,6 +764,36 @@ fn wrist_blade_buffs_zero_cost_attacks_on_engine_path() {
 }
 
 #[test]
+fn wrist_blade_buffs_free_non_x_but_excludes_free_x_cost_attacks() {
+    // WristBlade.java::atDamageModify adds four for costForTurn zero, or for
+    // freeToPlayOnce only when permanent cost is not -1. A free Strike gets
+    // the bonus; a free Skewer keeps its ordinary seven damage per X hit.
+    let make = |card_id: &str, energy: i32| {
+        let mut state = combat_state_with(
+            make_deck(&[card_id]),
+            vec![enemy_no_intent("JawWorm", 100, 100)],
+            energy,
+        );
+        state.relics.push("WristBlade".to_string());
+        let mut engine = engine_with_state(state);
+        engine.state.energy = energy;
+        engine.state.hand = vec![engine.card_registry.make_card(card_id).set_free(true)];
+        engine.state.draw_pile.clear();
+        engine
+    };
+
+    let mut strike = make("Strike", 2);
+    assert!(play_on_enemy(&mut strike, "Strike", 0));
+    assert_eq!(strike.state.enemies[0].entity.hp, 90);
+    assert_eq!(strike.state.energy, 2);
+
+    let mut skewer = make("Skewer", 2);
+    assert!(play_on_enemy(&mut skewer, "Skewer", 0));
+    assert_eq!(skewer.state.enemies[0].entity.hp, 86);
+    assert_eq!(skewer.state.energy, 2);
+}
+
+#[test]
 fn snecko_skull_buffs_player_applied_poison_on_engine_path() {
     // SneckoSkull.java declares ID "Snake Skull" and EFFECT 1;
     // ApplyPowerAction.java adds that one only to player-sourced Poison on an

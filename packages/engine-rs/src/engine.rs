@@ -3895,18 +3895,26 @@ impl CombatEngine {
             damage += 3;
         }
 
-        let effective_cost = if card.cost == -1 {
-            0
-        } else if card_inst.is_free()
-            || self.state.player.status(sid::NEXT_ATTACK_FREE) > 0
-        {
-            0
-        } else if card_inst.cost >= 0 {
-            card_inst.cost as i32
+        // WristBlade.atDamageModify checks the card's actual costForTurn, or
+        // freeToPlayOnce only when the permanent cost is not X (-1). Combat
+        // payment normalizes X to zero elsewhere, but that must not make a
+        // free Skewer/Whirlwind eligible for this damage bonus.
+        // Java: reference/extracted/methods/relic/WristBlade.java.
+        let permanent_cost = if card_inst.base_cost >= 0 {
+            card_inst.base_cost as i32
         } else {
             card.cost
         };
-        if effective_cost == 0 && self.state.has_relic("WristBlade") {
+        let cost_for_turn = if card_inst.cost >= 0 {
+            card_inst.cost as i32
+        } else {
+            permanent_cost
+        };
+        let free_to_play_once = card_inst.is_free()
+            || self.state.player.status(sid::NEXT_ATTACK_FREE) > 0;
+        let wrist_blade_eligible = cost_for_turn == 0
+            || (free_to_play_once && permanent_cost != -1);
+        if wrist_blade_eligible && self.state.has_relic("WristBlade") {
             damage += 4;
         }
 
