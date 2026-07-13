@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T10:08:22.004392+00:00",
+ "updated": "2026-07-13T10:11:15.047404+00:00",
  "status_counts": {
-  "verified": 435,
-  "unverified": 232
+  "verified": 436,
+  "unverified": 231
  },
  "rows": [
   {
@@ -1812,8 +1812,8 @@
    "class": "Hemokinesis",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/Hemokinesis.java",
    "methods_ref": "reference/extracted/methods/card/Hemokinesis.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

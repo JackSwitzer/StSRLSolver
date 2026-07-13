@@ -569,6 +569,32 @@ mod ironclad_card_java_parity_tests {
     }
     card_pair_test!(ghostly_armor, "Ghostly Armor", "Ghostly Armor+", 1, -1, 10, -1, 1, -1, 13, -1, CardType::Skill, CardTarget::SelfTarget, false);
     card_pair_test!(hemokinesis, "Hemokinesis", "Hemokinesis+", 1, 15, -1, 2, 1, 20, -1, 2, CardType::Attack, CardTarget::Enemy, false);
+
+    #[test]
+    fn hemokinesis_loses_two_hp_before_its_damage_action() {
+        // Hemokinesis.java queues LoseHPAction before DamageAction. The HP loss
+        // makes RupturePower add Strength to the top of the action queue, so
+        // the same Hemokinesis hit gets that Strength. Upgrade is damage-only.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Hemokinesis.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RupturePower.java
+        for (card, printed_damage) in [("Hemokinesis", 15), ("Hemokinesis+", 20)] {
+            let mut engine = engine_for(
+                &[card],
+                &[],
+                &[],
+                vec![enemy_no_intent("JawWorm", 50, 50)],
+                3,
+            );
+            engine.state.player.set_status(sid::RUPTURE, 1);
+            let player_hp_before = engine.state.player.hp;
+
+            assert!(play_on_enemy(&mut engine, card, 0));
+
+            assert_eq!(engine.state.player.hp, player_hp_before - 2);
+            assert_eq!(engine.state.player.status(sid::STRENGTH), 1);
+            assert_eq!(engine.state.enemies[0].entity.hp, 50 - printed_damage - 1);
+        }
+    }
     card_pair_test!(infernal_blade, "Infernal Blade", "Infernal Blade+", 1, -1, -1, -1, 0, -1, -1, -1, CardType::Skill, CardTarget::None, true);
     card_pair_test!(inflame, "Inflame", "Inflame+", 1, -1, -1, 2, 1, -1, -1, 3, CardType::Power, CardTarget::SelfTarget, false);
     card_pair_test!(intimidate, "Intimidate", "Intimidate+", 0, -1, -1, 1, 0, -1, -1, 2, CardType::Skill, CardTarget::AllEnemy, true);
