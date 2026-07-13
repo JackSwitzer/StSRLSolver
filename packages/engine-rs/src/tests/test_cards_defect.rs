@@ -742,6 +742,24 @@ mod defect_card_java_parity_tests {
         assert_eq!(e.state.player.status(sid::ARTIFACT), 1);
     });
 
+    defect_test!(core_surge_variants_damage_then_grant_one_artifact_and_exhaust, {
+        // Source: CoreSurge.java queues DamageAction for 11 before applying 1
+        // Artifact; upgradeDamage(4) changes only damage, and the card Exhausts.
+        for (card_id, expected_hp) in [("Core Surge", 29), ("Core Surge+", 25)] {
+            let mut e = filled_engine(&[card_id], 40, 0);
+            ensure_in_hand(&mut e, card_id);
+
+            assert!(play_on_enemy(&mut e, card_id, 0));
+
+            assert_eq!(e.state.enemies[0].entity.hp, expected_hp);
+            assert_eq!(e.state.player.status(sid::ARTIFACT), 1);
+            assert_eq!(e.state.energy, 2);
+            assert!(e.state.exhaust_pile.iter().any(|card| {
+                e.card_registry.card_name(card.def_id) == card_id
+            }));
+        }
+    });
+
     defect_test!(creative_ai_installs_power, {
         let mut e = bare_engine(&["Creative AI"], vec![enemy("JawWorm", 40, 0)]);
         ensure_in_hand(&mut e, "Creative AI");

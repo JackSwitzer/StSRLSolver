@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T06:19:58.057095+00:00",
+ "updated": "2026-07-13T06:22:05.836366+00:00",
  "status_counts": {
-  "verified": 354,
-  "unverified": 313
+  "verified": 355,
+  "unverified": 312
  },
  "rows": [
   {
@@ -782,8 +782,8 @@
    "class": "CoreSurge",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/CoreSurge.java",
    "methods_ref": "reference/extracted/methods/card/CoreSurge.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
