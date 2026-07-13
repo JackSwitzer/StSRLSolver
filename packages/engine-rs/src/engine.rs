@@ -1068,13 +1068,33 @@ impl CombatEngine {
         if let Some(&sel) = ctx.selected.first() {
             if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
                 if idx < self.state.hand.len() {
-                    let mut card = self.state.hand[idx];
-                    card.reset_cost_for_turn();
-                    card.flags &= !CardInstance::FLAG_FREE;
-                    let copies = ctx.aux_count.max(1);
-                    self.nightmare_pending_copies.push((card, copies));
+                    self.store_nightmare_copies(
+                        self.state.hand[idx],
+                        ctx.aux_count.max(1),
+                    );
                 }
             }
+        }
+    }
+
+    pub(crate) fn store_nightmare_copies(&mut self, mut card: CardInstance, copies: usize) {
+        // NightmarePower stores makeStatEquivalentCopy().resetAttributes():
+        // permanent cost, upgrade, misc and freeToPlayOnce survive, while
+        // transient retain/purge/exhaust flags do not.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NightmarePower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/AbstractCard.java
+        card.reset_cost_for_turn();
+        card.flags &= CardInstance::FLAG_UPGRADED
+            | CardInstance::FLAG_FREE
+            | CardInstance::FLAG_INNATE;
+
+        // ApplyPowerAction stacks another NightmarePower with the same ID onto
+        // the existing power. AbstractPower.stackPower increases amount but
+        // leaves the first power's stored card unchanged.
+        if let Some((_, pending_copies)) = self.nightmare_pending_copies.first_mut() {
+            *pending_copies += copies;
+        } else {
+            self.nightmare_pending_copies.push((card, copies));
         }
     }
 

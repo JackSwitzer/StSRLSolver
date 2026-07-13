@@ -2043,7 +2043,7 @@ mod tests {
             "A Thousand Cuts", "Adrenaline", "After Image", "Alchemize",
             "Bullet Time", "Burst", "Corpse Explosion", "Die Die Die",
             "Doppelganger", "Glass Knife", "Grand Finale", "Malaise",
-            "Nightmare", "Phantasmal Killer", "Storm of Steel",
+            "Night Terror", "Phantasmal Killer", "Storm of Steel",
             "Tools of the Trade", "Unload", "Wraith Form",
         ];
         for id in &silent_cards {

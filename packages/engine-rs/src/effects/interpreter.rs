@@ -1537,6 +1537,17 @@ fn execute_choose_cards(
         return;
     }
 
+    // NightmareAction immediately applies NightmarePower when the hand left
+    // after playing Night Terror contains exactly one card.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/NightmareAction.java
+    if action == ChoiceAction::StoreCardForNextTurnCopies && options.len() == 1 {
+        if let ChoiceOption::HandCard(index) = options[0] {
+            let card = engine.state.hand[index];
+            engine.store_nightmare_copies(card, ctx.card.base_magic.max(1) as usize);
+        }
+        return;
+    }
+
     // ExhumeAction moves a lone non-Exhume card immediately. With a larger
     // original exhaust pile it still opens grid select after hiding Exhumes,
     // even when that leaves only one eligible option.

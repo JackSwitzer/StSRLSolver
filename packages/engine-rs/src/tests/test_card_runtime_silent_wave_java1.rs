@@ -313,15 +313,15 @@ fn cloak_and_dagger_creates_source_count_shivs_with_master_reality_and_overflow(
 }
 
 #[test]
-fn nightmare_opens_a_single_card_choice_but_delayed_next_turn_copies_need_a_runtime_primitive() {
+fn night_terror_opens_a_single_card_choice_for_a_multi_card_hand() {
     let mut engine = engine_for(
-        &["Nightmare", "Strike", "Defend"],
+        &["Night Terror", "Strike", "Defend"],
         &[],
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
 
-    assert!(play_self(&mut engine, "Nightmare"));
+    assert!(play_self(&mut engine, "Night Terror"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
     let choice = engine.choice.as_ref().expect("nightmare choice");
     assert_eq!(choice.reason, ChoiceReason::DualWield);
@@ -331,15 +331,15 @@ fn nightmare_opens_a_single_card_choice_but_delayed_next_turn_copies_need_a_runt
 }
 
 #[test]
-fn nightmare_delayed_copies_should_appear_next_turn_not_immediately() {
+fn night_terror_delayed_copies_appear_before_next_turn_draw() {
     let mut engine = engine_for(
-        &["Nightmare", "Strike", "Defend"],
-        &["Neutralize", "Survivor", "Deflect"],
+        &["Night Terror", "Strike", "Defend"],
+        &["Neutralize", "Survivor", "Deflect", "Backflip", "Slice"],
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
 
-    assert!(play_self(&mut engine, "Nightmare"));
+    assert!(play_self(&mut engine, "Night Terror"));
     engine.execute_action(&Action::Choose(0));
     assert_eq!(engine.state.hand.len(), 2);
     assert_eq!(hand_count(&engine, "Strike"), 1);
@@ -350,6 +350,38 @@ fn nightmare_delayed_copies_should_appear_next_turn_not_immediately() {
     assert_eq!(
         engine.state.hand.len(),
         8,
-        "Java Nightmare would add the copies at start of turn before the normal draw"
+        "NightmarePower adds three copies before the normal five-card draw"
     );
+    assert_eq!(hand_count(&engine, "Strike"), 3);
+}
+
+#[test]
+fn night_terror_auto_selects_a_single_card_and_stacks_onto_first_selection() {
+    let mut singleton = engine_for(
+        &["Night Terror", "Strike"],
+        &["Defend", "Defend", "Defend", "Defend", "Defend"],
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    assert!(play_self(&mut singleton, "Night Terror"));
+    assert_eq!(singleton.phase, CombatPhase::PlayerTurn);
+    singleton.execute_action(&Action::EndTurn);
+    assert_eq!(hand_count(&singleton, "Strike"), 3);
+
+    let mut stacked = engine_for(
+        &["Night Terror", "Night Terror", "Strike", "Defend"],
+        &["Neutralize", "Survivor", "Deflect", "Backflip", "Slice"],
+        vec![enemy_no_intent("JawWorm", 80, 80)],
+        6,
+    );
+    assert!(play_self(&mut stacked, "Night Terror"));
+    stacked.execute_action(&Action::Choose(1)); // Strike
+    assert!(play_self(&mut stacked, "Night Terror"));
+    stacked.execute_action(&Action::Choose(1)); // Defend
+    stacked.execute_action(&Action::EndTurn);
+
+    // The second ApplyPowerAction stacks +3 onto the first NightmarePower;
+    // its stored Strike is unchanged, so six Strikes and no Defends are made.
+    assert_eq!(hand_count(&stacked, "Strike"), 6);
+    assert_eq!(hand_count(&stacked, "Defend"), 0);
 }

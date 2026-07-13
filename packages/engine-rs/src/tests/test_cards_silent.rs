@@ -931,7 +931,7 @@ mod silent_card_java_parity_tests {
             max_picks: AmountSource::Fixed(1),
             post_choice_draw: AmountSource::Fixed(0),
         }];
-        for id in ["Nightmare", "Nightmare+"] {
+        for id in ["Night Terror", "Night Terror+"] {
             let card = reg.get(id).unwrap_or_else(|| panic!("missing card {id}"));
             assert_eq!(card.cost, if id.ends_with('+') { 2 } else { 3 }, "{id} cost");
             assert_eq!(card.base_damage, -1, "{id} damage");

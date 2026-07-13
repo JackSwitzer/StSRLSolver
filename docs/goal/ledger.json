@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T11:47:49.551762+00:00",
+ "updated": "2026-07-13T11:53:13.530647+00:00",
  "status_counts": {
-  "verified": 473,
-  "unverified": 194
+  "verified": 474,
+  "unverified": 193
  },
  "rows": [
   {
@@ -2282,8 +2282,8 @@
    "class": "Nightmare",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Nightmare.java",
    "methods_ref": "reference/extracted/methods/card/Nightmare.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

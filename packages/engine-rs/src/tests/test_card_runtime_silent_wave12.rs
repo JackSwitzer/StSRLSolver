@@ -17,7 +17,7 @@ fn silent_wave12_registry_documents_the_remaining_silent_blockers() {
     assert_eq!(alchemize.effect_data, &[E::Simple(SE::ObtainRandomPotion)]);
     assert!(alchemize.complex_hook.is_none());
 
-    let nightmare = registry.get("Nightmare").expect("Nightmare should exist");
+    let nightmare = registry.get("Night Terror").expect("Night Terror should exist");
     assert_eq!(
         nightmare.effect_data,
         &[crate::effects::declarative::Effect::ChooseCards {
