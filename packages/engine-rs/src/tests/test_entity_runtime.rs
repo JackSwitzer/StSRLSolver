@@ -735,6 +735,36 @@ fn champion_belt_adds_weak_when_player_applies_vulnerable() {
 }
 
 #[test]
+fn charons_ashes_uses_pure_thorns_damage_on_every_living_enemy() {
+    // Source: reference/extracted/methods/relic/CharonsAshes.java. Exhausting a
+    // card queues a pure three-damage matrix with DamageType.THORNS.
+    let mut slow_flying = enemy_no_intent("Byrd", 40, 40);
+    slow_flying.entity.set_status(sid::SLOW, 3);
+    slow_flying.entity.set_status(sid::FLIGHT, 3);
+    slow_flying.entity.set_status(sid::MALLEABLE, 3);
+    let mut intangible = enemy_no_intent("Nemesis", 40, 40);
+    intangible.entity.set_status(sid::INTANGIBLE, 1);
+    let mut state = combat_state_with(
+        make_deck(&["Miracle"]),
+        vec![slow_flying, intangible],
+        3,
+    );
+    state.relics = vec!["Charon's Ashes".to_string(), "Boot".to_string()];
+    let mut engine = engine_with_state(state);
+    engine.state.hand = make_deck(&["Miracle"]);
+    engine.state.draw_pile.clear();
+
+    assert!(play_self(&mut engine, "Miracle"));
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 37);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::FLIGHT), 3);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::MALLEABLE), 3);
+    assert_eq!(engine.state.enemies[0].entity.block, 0);
+    assert_eq!(engine.state.enemies[1].entity.hp, 39);
+    assert_eq!(engine.state.exhaust_pile.len(), 1);
+}
+
+#[test]
 fn boot_raises_small_unblocked_damage_on_engine_path() {
     let mut state = combat_state_with(make_deck(&["Shiv"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("Boot".to_string());
