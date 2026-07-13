@@ -64,6 +64,33 @@ const COLORLESS_POTION_CHOICES: &[&str] = &[
     "Violence",
 ];
 
+const WATCHER_SKILL_POOL_IN_JAVA_ORDER: &[&str] = &[
+    "Prostrate", "Evaluate", "PathToVictory", "EmptyBody", "ClearTheMind", "Crescendo",
+    "ThirdEye", "Protect", "Halt", "Pray", "EmptyMind", "Worship", "Swivel",
+    "Perseverance", "Meditate", "WaveOfTheHand", "DeceiveReality", "InnerPeace", "Collect",
+    "WreathOfFlame", "ForeignInfluence", "Indignation", "Sanctity", "Vengeance", "Judgement",
+    "ConjureBlade", "Blasphemy", "Scrawl", "Vault", "Alpha", "Omniscience", "SpiritShield",
+    "DeusExMachina",
+];
+
+#[test]
+fn watcher_skill_generation_pool_matches_java_source_pool_order() {
+    // CardLibrary's HashMap iteration builds rarity pools; initializeCardPools
+    // then reverses each rarity through addToBottom. Chrysalis concatenates
+    // common, uncommon, and rare Skills and excludes HEALING-tagged Wish.
+    // Java: helpers/CardLibrary.java and dungeons/AbstractDungeon.java.
+    let engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+
+    assert_eq!(
+        super::generated_card_pool(&engine, super::GeneratedCardPool::Skill),
+        WATCHER_SKILL_POOL_IN_JAVA_ORDER
+    );
+}
+
 const WATCHER_ATTACK_CHOICES: &[&str] = &[
     "BowlingBash",
     "Brilliance",

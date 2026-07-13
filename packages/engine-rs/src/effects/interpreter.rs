@@ -1933,29 +1933,53 @@ pub fn generate_random_cards(
     cost_rule: GeneratedCostRule,
     upgrade_rule: GeneratedUpgradeRule,
 ) {
+    let mut generated = Vec::with_capacity(count);
     for _ in 0..count {
-        let at_hand_cap = matches!(destination, GeneratedDestination::Hand) && engine.state.hand.len() >= 10;
+        let at_hand_cap = matches!(destination, GeneratedDestination::Hand)
+            && engine.state.hand.len() + generated.len() >= 10;
         if at_hand_cap {
             break;
         }
         if let Some(mut card) = generate_random_card(engine, pool) {
+            let master_reality_rule = if engine.state.player.status(sid::MASTER_REALITY) > 0 {
+                GeneratedUpgradeRule::Upgrade
+            } else {
+                GeneratedUpgradeRule::Base
+            };
             apply_generated_upgrade_rule(
                 engine,
                 &mut card,
                 combine_generated_upgrade_rules(
-                    upgrade_rule,
+                    combine_generated_upgrade_rules(upgrade_rule, master_reality_rule),
                     upgrade_rule_from_cost_rule(cost_rule),
                 ),
             );
             apply_generated_cost_rule(&mut card, cost_rule);
-            match destination {
-                GeneratedDestination::Hand => engine.state.hand.push(card),
-                GeneratedDestination::Draw => engine.state.draw_pile.push(card),
-            }
+            generated.push(card);
         }
     }
-    if matches!(destination, GeneratedDestination::Draw) && count > 0 {
-        engine.shuffle_draw_pile();
+
+    match destination {
+        GeneratedDestination::Hand => engine.state.hand.extend(generated),
+        GeneratedDestination::Draw => {
+            // Chrysalis/Metamorphosis select every random card immediately in
+            // card.use, then their queued MakeTempCardInDrawPileActions resolve
+            // in order. `addToRandomSpot` leaves the existing pile order intact,
+            // consuming cardRandomRng only when the pile is non-empty.
+            // Java: cards/colorless/Chrysalis.java and
+            // cards/CardGroup.java::addToRandomSpot.
+            for card in generated {
+                if engine.state.draw_pile.is_empty() {
+                    engine.state.draw_pile.push(card);
+                } else {
+                    let idx = engine
+                        .card_random_rng
+                        .random((engine.state.draw_pile.len() - 1) as i32)
+                        as usize;
+                    engine.state.draw_pile.insert(idx, card);
+                }
+            }
+        }
     }
 }
 
@@ -1972,7 +1996,9 @@ pub(crate) fn generate_random_card(
     }
     let choice_index = if matches!(
         pool,
-        GeneratedCardPool::WatcherPower | GeneratedCardPool::WatcherAny
+        GeneratedCardPool::Skill
+            | GeneratedCardPool::WatcherPower
+            | GeneratedCardPool::WatcherAny
     ) {
         // AbstractDungeon.returnTrulyRandomCardInCombat(type) selects from
         // the source color pools with cardRandomRng.
@@ -2034,13 +2060,7 @@ fn generated_card_pool(engine: &CombatEngine, pool: GeneratedCardPool) -> Vec<&'
             .filter(|def| def.id != "LessonLearned")
             .map(|def| def.id)
             .collect(),
-        GeneratedCardPool::Skill => engine
-            .card_registry
-            .all_card_defs()
-            .iter()
-            .filter(|def| def.card_type == CardType::Skill && !def.id.ends_with('+'))
-            .map(|def| def.id)
-            .collect(),
+        GeneratedCardPool::Skill => WATCHER_SKILL_GENERATION_POOL.to_vec(),
         GeneratedCardPool::Power => engine
             .card_registry
             .all_card_defs()
@@ -2094,6 +2114,22 @@ fn generated_card_pool(engine: &CombatEngine, pool: GeneratedCardPool) -> Vec<&'
             .collect(),
     }
 }
+
+// Watcher's srcCommon/srcUncommon/srcRare pools in Java iteration order,
+// excluding BASIC/SPECIAL cards and Wish's HEALING tag. CardLibrary stores the
+// registered game cards in a 512-bucket HashMap; initializeCardPools preserves
+// that bucket order within each rarity, then reverses it while copying each
+// source pool through CardGroup.addToBottom.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
+// Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+const WATCHER_SKILL_GENERATION_POOL: &[&str] = &[
+    "Prostrate", "Evaluate", "PathToVictory", "EmptyBody", "ClearTheMind", "Crescendo",
+    "ThirdEye", "Protect", "Halt", "Pray", "EmptyMind", "Worship", "Swivel",
+    "Perseverance", "Meditate", "WaveOfTheHand", "DeceiveReality", "InnerPeace", "Collect",
+    "WreathOfFlame", "ForeignInfluence", "Indignation", "Sanctity", "Vengeance", "Judgement",
+    "ConjureBlade", "Blasphemy", "Scrawl", "Vault", "Alpha", "Omniscience", "SpiritShield",
+    "DeusExMachina",
+];
 
 pub fn apply_generated_cost_rule(
     card: &mut crate::combat_types::CardInstance,

@@ -8,6 +8,9 @@ static CHRYSALIS: [E; 1] = [E::GenerateRandomCardsToDraw {
 }];
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+    // Source: reference/extracted/methods/card/Chrysalis.java
+    // Three random current-character Skills (five upgraded) are made zero-cost
+    // when positive, inserted at random draw-pile positions, and exhaust Chrysalis.
     insert(cards, CardDef {
         id: "Chrysalis",
         name: "Chrysalis",
