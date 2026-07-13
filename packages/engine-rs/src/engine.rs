@@ -2813,12 +2813,15 @@ impl CombatEngine {
         }
         self.state.player.block += amount;
 
-        // Juggernaut: deal damage to first living enemy equal to block gained
+        // JuggernautPower.onGainedBlock queues DamageRandomEnemyAction with
+        // DamageType.THORNS for every positive block-gain event. MonsterGroup
+        // selects through cardRandomRng even when only one target is alive.
+        // Java: powers/JuggernautPower.java, actions/common/DamageRandomEnemyAction.java,
+        // and monsters/MonsterGroup.java.
         let jugg = self.state.player.status(sid::JUGGERNAUT);
         if jugg > 0 {
-            let targets = self.state.targetable_enemy_indices();
-            if let Some(&target) = targets.first() {
-                self.deal_damage_to_enemy(target, jugg);
+            if let Some(target) = self.random_living_enemy() {
+                self.deal_thorns_damage_to_enemy(target, jugg);
             }
         }
 

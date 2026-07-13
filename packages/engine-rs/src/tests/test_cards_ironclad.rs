@@ -846,6 +846,51 @@ mod ironclad_card_java_parity_tests {
     }
     card_pair_test!(impervious, "Impervious", "Impervious+", 2, -1, 30, -1, 2, -1, 40, -1, CardType::Skill, CardTarget::SelfTarget, true);
     card_pair_test!(juggernaut, "Juggernaut", "Juggernaut+", 2, -1, -1, 5, 2, -1, -1, 7, CardType::Power, CardTarget::SelfTarget, false);
+
+    #[test]
+    fn juggernaut_source_uses_card_random_thorns_on_each_positive_block_gain() {
+        // JuggernautPower.onGainedBlock queues one DamageRandomEnemyAction when
+        // blockAmount > 0. It rolls a living target with cardRandomRng and deals
+        // 5 THORNS damage (7 upgraded), which does not consume Flight or trigger
+        // Malleable. Zero Block queues nothing and consumes no RNG.
+        // Java: powers/JuggernautPower.java and actions/common/DamageRandomEnemyAction.java.
+        for (card_id, damage) in [("Juggernaut", 5), ("Juggernaut+", 7)] {
+            let mut engine = engine_for(
+                &[card_id, "Defend"],
+                &[],
+                &[],
+                vec![
+                    enemy_no_intent("JawWorm", 40, 40),
+                    enemy_no_intent("Cultist", 40, 40),
+                ],
+                3,
+            );
+            for enemy in &mut engine.state.enemies {
+                enemy.entity.set_status(sid::FLIGHT, 2);
+                enemy.entity.set_status(sid::MALLEABLE, 1);
+            }
+
+            assert!(play_self(&mut engine, card_id));
+            assert_eq!(engine.state.player.status(sid::JUGGERNAUT), damage);
+            let card_random_before_zero = engine.card_random_rng.counter;
+            engine.gain_block_player(0);
+            assert_eq!(engine.card_random_rng.counter, card_random_before_zero);
+
+            let mut oracle = engine.card_random_rng.clone();
+            let expected_target = oracle.random(1) as usize;
+            let general_before = engine.rng.counter;
+            assert!(play_self(&mut engine, "Defend"));
+
+            for (idx, enemy) in engine.state.enemies.iter().enumerate() {
+                assert_eq!(enemy.entity.hp, 40 - i32::from(idx == expected_target) * damage);
+                assert_eq!(enemy.entity.status(sid::FLIGHT), 2);
+                assert_eq!(enemy.entity.status(sid::MALLEABLE), 1);
+            }
+            assert_eq!(engine.state.player.block, 5);
+            assert_eq!(engine.card_random_rng.counter, oracle.counter);
+            assert_eq!(engine.rng.counter, general_before);
+        }
+    }
     card_pair_test!(limit_break, "Limit Break", "Limit Break+", 1, -1, -1, -1, 1, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, true, false);
     card_pair_test!(offering, "Offering", "Offering+", 0, -1, -1, 3, 0, -1, -1, 5, CardType::Skill, CardTarget::SelfTarget, true);
     card_pair_test!(reaper, "Reaper", "Reaper+", 2, 4, -1, -1, 2, 5, -1, -1, CardType::Attack, CardTarget::AllEnemy, false);

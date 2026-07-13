@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T10:47:39.034347+00:00",
+ "updated": "2026-07-13T10:50:15.498959+00:00",
  "status_counts": {
-  "verified": 451,
-  "unverified": 216
+  "verified": 452,
+  "unverified": 215
  },
  "rows": [
   {
@@ -2002,8 +2002,8 @@
    "class": "Juggernaut",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/Juggernaut.java",
    "methods_ref": "reference/extracted/methods/card/Juggernaut.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
