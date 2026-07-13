@@ -3552,16 +3552,17 @@ impl CombatEngine {
     // Orb Effects
     // =======================================================================
 
-    /// Pick a random living enemy index using the combat RNG.
+    /// Pick a random living enemy index using cardRandomRng.
     fn random_living_enemy(&mut self) -> Option<usize> {
         let living = self.state.living_enemy_indices();
         if living.is_empty() {
             return None;
         }
-        if living.len() == 1 {
-            return Some(living[0]);
-        }
-        let roll = self.rng.random(living.len() as i32 - 1) as usize;
+        // AbstractDungeon.getRandomMonster delegates to MonsterGroup with
+        // cardRandomRng and calls random(0, size - 1), even when size is one.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/MonsterGroup.java
+        let roll = self.card_random_rng.random(living.len() as i32 - 1) as usize;
         Some(living[roll])
     }
 
@@ -3718,6 +3719,68 @@ impl CombatEngine {
                 if front_orb.orb_type == crate::orbs::OrbType::Dark {
                     front_orb.evoke_amount += front_orb.passive_with_focus(focus);
                 }
+            }
+        }
+    }
+
+    pub(crate) fn trigger_orb_impulse(&mut self) {
+        // ImpulseAction calls onStartOfTurn then onEndOfTurn on each orb in
+        // slot order, then repeats both callbacks for the front orb with
+        // Cables. Dark mutates synchronously while the other callbacks queue
+        // effects, so collect those effects in callback order before resolving
+        // them. A lethal Lightning effect clears later queued callbacks.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ImpulseAction.java
+        let focus = self.state.player.focus();
+        let mut effects = Vec::new();
+        for orb in &mut self.state.orb_slots.slots {
+            if orb.is_empty() {
+                continue;
+            }
+            if orb.orb_type == crate::orbs::OrbType::Plasma {
+                effects.push(crate::orbs::PassiveEffect::PlasmaEnergy(orb.base_passive));
+            }
+            match orb.orb_type {
+                crate::orbs::OrbType::Lightning => effects.push(
+                    crate::orbs::PassiveEffect::LightningDamage(orb.passive_with_focus(focus)),
+                ),
+                crate::orbs::OrbType::Frost => effects.push(
+                    crate::orbs::PassiveEffect::FrostBlock(orb.passive_with_focus(focus)),
+                ),
+                crate::orbs::OrbType::Dark => {
+                    orb.evoke_amount += orb.passive_with_focus(focus);
+                }
+                crate::orbs::OrbType::Plasma | crate::orbs::OrbType::Empty => {}
+            }
+        }
+        if self.state.has_relic("Cables") {
+            if let Some(front) = self.state.orb_slots.slots.first_mut() {
+                if !front.is_empty() {
+                    if front.orb_type == crate::orbs::OrbType::Plasma {
+                        effects.push(crate::orbs::PassiveEffect::PlasmaEnergy(front.base_passive));
+                    }
+                    match front.orb_type {
+                        crate::orbs::OrbType::Lightning => effects.push(
+                            crate::orbs::PassiveEffect::LightningDamage(
+                                front.passive_with_focus(focus),
+                            ),
+                        ),
+                        crate::orbs::OrbType::Frost => effects.push(
+                            crate::orbs::PassiveEffect::FrostBlock(
+                                front.passive_with_focus(focus),
+                            ),
+                        ),
+                        crate::orbs::OrbType::Dark => {
+                            front.evoke_amount += front.passive_with_focus(focus);
+                        }
+                        crate::orbs::OrbType::Plasma | crate::orbs::OrbType::Empty => {}
+                    }
+                }
+            }
+        }
+        for effect in effects {
+            self.apply_passive_effect(effect);
+            if self.state.player.is_dead() || self.check_combat_end() {
+                return;
             }
         }
     }

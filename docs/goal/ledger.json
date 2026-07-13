@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T10:22:43.683610+00:00",
+ "updated": "2026-07-13T10:27:28.175582+00:00",
  "status_counts": {
-  "verified": 441,
-  "unverified": 226
+  "verified": 442,
+  "unverified": 225
  },
  "rows": [
   {
@@ -1872,8 +1872,8 @@
    "class": "Impulse",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Impulse.java",
    "methods_ref": "reference/extracted/methods/card/Impulse.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -1080,6 +1080,9 @@ impl EffectRuntime {
             SimpleEffect::TriggerDarkPassive => {
                 engine.trigger_dark_impulse();
             }
+            SimpleEffect::TriggerAllOrbPassives => {
+                engine.trigger_orb_impulse();
+            }
             SimpleEffect::EvokeAndRechannelFrontOrb => {
                 if engine.state.orb_slots.occupied_count() > 0 {
                     let orb_type = engine.state.orb_slots.front_orb_type();

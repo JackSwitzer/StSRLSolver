@@ -305,6 +305,8 @@ pub enum SimpleEffect {
     DrawRandomCardsFromPileToHand(Pile, CardFilter, AmountSource),
     /// Trigger Dark orb passive accumulation once.
     TriggerDarkPassive,
+    /// Trigger every orb's start- and end-of-turn callbacks once (Impulse).
+    TriggerAllOrbPassives,
     /// Gain energy.
     GainEnergy(AmountSource),
     /// Double current energy.

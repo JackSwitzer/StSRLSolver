@@ -1185,6 +1185,7 @@ fn collect_simple_x_cost_amounts(effect: &SimpleEffect, amounts: &mut Vec<Amount
         | SimpleEffect::SetRandomHandCardCost(_)
         | SimpleEffect::ObtainRandomPotion
         | SimpleEffect::TriggerDarkPassive
+        | SimpleEffect::TriggerAllOrbPassives
         | SimpleEffect::RemoveOrbSlot
         | SimpleEffect::EvokeOrbWithoutRemoving
         | SimpleEffect::EvokeAndRechannelFrontOrb
@@ -2136,7 +2137,7 @@ mod tests {
             "Defragment", "Doom and Gloom", "Double Energy", "Undo",
             "Force Field", "FTL", "Fusion", "Genetic Algorithm", "Glacier",
             "Heatsinks", "Hello World", "Lockon", "Loop",
-            "Melter", "Steam Power", "Recycle", "Redo",
+            "Melter", "Impulse", "Steam Power", "Recycle", "Redo",
             "Reinforced Body", "Reprogram", "Rip and Tear", "Scrape",
             "Self Repair", "Skim", "Static Discharge", "Storm",
             "Sunder", "Tempest", "White Noise",

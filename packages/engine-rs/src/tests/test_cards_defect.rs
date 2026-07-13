@@ -318,6 +318,8 @@ mod defect_card_java_parity_tests {
             StatCase { id: "Fission+", cost: 0, damage: -1, block: -1, magic: 1, card_type: CardType::Skill, exhaust: true },
             StatCase { id: "Hyperbeam", cost: 2, damage: 26, block: -1, magic: 3, card_type: CardType::Attack, exhaust: false },
             StatCase { id: "Hyperbeam+", cost: 2, damage: 34, block: -1, magic: 3, card_type: CardType::Attack, exhaust: false },
+            StatCase { id: "Impulse", cost: 1, damage: -1, block: -1, magic: -1, card_type: CardType::Skill, exhaust: true },
+            StatCase { id: "Impulse+", cost: 1, damage: -1, block: -1, magic: -1, card_type: CardType::Skill, exhaust: false },
             StatCase { id: "Machine Learning", cost: 1, damage: -1, block: -1, magic: 1, card_type: CardType::Power, exhaust: false },
             StatCase { id: "Machine Learning+", cost: 1, damage: -1, block: -1, magic: 1, card_type: CardType::Power, exhaust: false },
             StatCase { id: "Meteor Strike", cost: 5, damage: 24, block: -1, magic: 3, card_type: CardType::Attack, exhaust: false },
@@ -710,6 +712,45 @@ mod defect_card_java_parity_tests {
         assert!(play_self(&mut lethal, "Hyperbeam"));
         assert!(lethal.state.is_victory());
         assert_eq!(lethal.state.player.focus(), 4);
+    });
+
+    defect_test!(impulse_triggers_every_orb_and_cables_with_card_random_ticks, {
+        // ImpulseAction invokes start then end callbacks for each orb, and
+        // Cables repeats both for the front orb. Lightning chooses through
+        // cardRandomRng even with one target. Upgrade removes only Exhaust.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Impulse.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ImpulseAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+        let mut engine = bare_engine(
+            &[],
+            vec![enemy_no_intent("JawWorm", 100, 100)],
+        );
+        engine.state.hand = make_deck(&["Impulse"]);
+        engine.state.relics.push("Cables".to_string());
+        engine.init_defect_orbs(4);
+        engine.channel_orb(OrbType::Lightning);
+        engine.channel_orb(OrbType::Frost);
+        engine.channel_orb(OrbType::Dark);
+        engine.channel_orb(OrbType::Plasma);
+        let card_random_before = engine.card_random_rng.counter;
+
+        assert!(play_self(&mut engine, "Impulse"));
+
+        assert_eq!(engine.state.energy, 3); // pay 1, then Plasma start grants 1
+        assert_eq!(engine.state.enemies[0].entity.hp, 94); // Lightning + Cables
+        assert_eq!(engine.state.player.block, 2);
+        assert_eq!(engine.state.orb_slots.slots[2].evoke_amount, 12);
+        assert_eq!(engine.card_random_rng.counter, card_random_before + 2);
+        assert_eq!(exhaust_prefix_count(&engine, "Impulse"), 1);
+
+        let mut upgraded = bare_engine(
+            &[],
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+        );
+        upgraded.state.hand = make_deck(&["Impulse+"]);
+        assert!(play_self(&mut upgraded, "Impulse+"));
+        assert_eq!(exhaust_prefix_count(&upgraded, "Impulse"), 0);
+        assert_eq!(discard_prefix_count(&upgraded, "Impulse"), 1);
     });
 
     defect_test!(meteo_strike_channels_plasma, {
