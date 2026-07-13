@@ -4,7 +4,9 @@
 
 use crate::effects::declarative::{AmountSource, Effect, SimpleEffect, Target};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
+use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerCondition};
+use crate::engine::CombatEngine;
 use crate::state::Stance;
 use crate::status_ids::sid;
 
@@ -57,33 +59,47 @@ pub static DEF_PLATED_ARMOR: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Combust — TurnEnd: lose 1 HP, deal damage to all enemies
+// Combust — TurnEnd: lose HP, then deal THORNS damage to all enemies
 // ===========================================================================
-
-static COMBUST_EFFECTS: [Effect; 2] = [
-    Effect::Simple(SimpleEffect::DealDamage(
-        Target::Player,
-        AmountSource::Fixed(1),
-    )),
-    Effect::Simple(SimpleEffect::DealDamage(
-        Target::AllEnemies,
-        AmountSource::StatusValue(sid::COMBUST),
-    )),
-];
 
 static COMBUST_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::TurnEnd,
     condition: TriggerCondition::Always,
-    effects: &COMBUST_EFFECTS,
+    effects: &[],
     counter: None,
 }];
+
+fn hook_combust(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    event: &GameEvent,
+    state: &mut EffectState,
+) {
+    if event.kind != Trigger::TurnEnd {
+        return;
+    }
+    let targets = engine.state.living_enemy_indices();
+    if targets.is_empty() {
+        return;
+    }
+
+    // CombustPower.atEndOfTurn queues LoseHPAction before a source-less
+    // DamageAllEnemiesAction with DamageType.THORNS. stackPower adds incoming
+    // damage to amount but increments the private hpLoss field by one.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/CombustPower.java
+    engine.player_lose_hp_from_damage(state.get(0).max(1));
+    let damage = engine.state.player.status(sid::COMBUST);
+    for target in targets {
+        engine.deal_thorns_damage_to_enemy(target, damage);
+    }
+}
 
 pub static DEF_COMBUST: EntityDef = EntityDef {
     id: "combust",
     name: "Combust",
     kind: EntityKind::Power,
     triggers: &COMBUST_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_combust),
     status_guard: Some(sid::COMBUST),
 };
 
@@ -207,8 +223,9 @@ mod tests {
     }
 
     #[test]
-    fn test_combust_has_two_effects() {
-        assert_eq!(DEF_COMBUST.triggers[0].effects.len(), 2);
+    fn test_combust_uses_ordered_complex_hook() {
+        assert!(DEF_COMBUST.triggers[0].effects.is_empty());
+        assert!(DEF_COMBUST.complex_hook.is_some());
     }
 
     #[test]

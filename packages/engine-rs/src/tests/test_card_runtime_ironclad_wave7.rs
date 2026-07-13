@@ -210,6 +210,33 @@ fn ironclad_wave7_combust_inflame_and_shrug_it_off_follow_engine_path() {
     assert_eq!(combust.state.player.hp, 79);
     assert_eq!(combust.state.enemies[0].entity.hp, 43);
 
+    // CombustPower.stackPower adds the incoming damage to amount but
+    // increments its private hpLoss field by one. Its end-turn actions lose HP
+    // first, then deal source-less THORNS damage to every enemy.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/CombustPower.java
+    let mut stacked = engine_without_start(
+        Vec::new(),
+        vec![
+            enemy_no_intent("JawWorm", 50, 50),
+            enemy_no_intent("Cultist", 50, 50),
+        ],
+        3,
+    );
+    force_player_turn(&mut stacked);
+    stacked.state.enemies[0].entity.set_status(sid::MALLEABLE, 1);
+    stacked.state.hand = make_deck(&["Combust", "Combust+"]);
+    assert!(play_self(&mut stacked, "Combust"));
+    assert!(play_self(&mut stacked, "Combust+"));
+    assert_eq!(stacked.state.player.status(sid::COMBUST), 12);
+
+    end_turn(&mut stacked);
+
+    assert_eq!(stacked.state.player.hp, 78);
+    assert_eq!(stacked.state.enemies[0].entity.hp, 38);
+    assert_eq!(stacked.state.enemies[1].entity.hp, 38);
+    assert_eq!(stacked.state.enemies[0].entity.block, 0);
+    assert_eq!(stacked.state.enemies[0].entity.status(sid::MALLEABLE), 1);
+
     let mut inflame = one_enemy_engine("JawWorm", 50);
     inflame.state.hand = make_deck(&["Inflame+"]);
     assert!(play_self(&mut inflame, "Inflame+"));

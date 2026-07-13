@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T05:55:15.090183+00:00",
+ "updated": "2026-07-13T06:02:24.543979+00:00",
  "status_counts": {
-  "verified": 348,
-  "unverified": 319
+  "verified": 349,
+  "unverified": 318
  },
  "rows": [
   {
@@ -692,8 +692,8 @@
    "class": "Combust",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/Combust.java",
    "methods_ref": "reference/extracted/methods/card/Combust.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
