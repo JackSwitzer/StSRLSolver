@@ -628,6 +628,32 @@ mod ironclad_card_java_parity_tests {
         assert_eq!(exhaust_prefix_count(&engine, "Intimidate"), 2);
     }
     card_pair_test!(metallicize, "Metallicize", "Metallicize+", 1, -1, -1, 3, 1, -1, -1, 4, CardType::Power, CardTarget::SelfTarget, false);
+
+    #[test]
+    fn metallicize_source_gains_fixed_block_before_end_turn_hand_cards() {
+        // MetallicizePower.atEndOfTurnPreEndTurnCards queues fixed GainBlock,
+        // unaffected by Dexterity/Frail. Four Block absorbs Burn+'s four damage
+        // first, leaving Buffer to prevent the following enemy attack.
+        let mut engine = engine_for(
+            &["Metallicize+", "Burn+"],
+            &[],
+            &[],
+            vec![enemy("JawWorm", 40, 40, 1, 5, 1)],
+            3,
+        );
+        engine.state.player.set_status(sid::BUFFER, 1);
+        engine.state.player.set_status(sid::DEXTERITY, -99);
+        engine.state.player.set_status(sid::FRAIL, 1);
+        let hp_before = engine.state.player.hp;
+
+        assert!(play_self(&mut engine, "Metallicize+"));
+        assert_eq!(engine.state.player.status(sid::METALLICIZE), 4);
+        end_turn(&mut engine);
+
+        assert_eq!(engine.state.player.hp, hp_before);
+        assert_eq!(engine.state.player.status(sid::BUFFER), 0);
+        assert_eq!(engine.state.player.status(sid::METALLICIZE), 4);
+    }
     card_pair_test!(power_through, "Power Through", "Power Through+", 1, -1, 15, -1, 1, -1, 20, -1, CardType::Skill, CardTarget::SelfTarget, false);
     card_pair_test!(pummel, "Pummel", "Pummel+", 1, 2, -1, 4, 1, 2, -1, 5, CardType::Attack, CardTarget::Enemy, true);
     card_pair_test!(rage, "Rage", "Rage+", 0, -1, -1, 3, 0, -1, -1, 5, CardType::Skill, CardTarget::SelfTarget, false);
