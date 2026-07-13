@@ -1694,13 +1694,24 @@ impl CombatEngine {
             let mut retained = Vec::new();
             for card_inst in hand {
                 let card = self.card_registry.card_def_by_id(card_inst.def_id);
-                if retain_all || card.runtime_traits().retain || card_inst.is_retained() {
+                // DiscardAtEndOfTurnAction first moves explicitly retained and
+                // self-retaining cards to limbo, then calls
+                // triggerOnEndOfPlayerTurn on the cards still in hand. Thus an
+                // explicit retain can save Ethereal, but Equilibrium's blanket
+                // discard suppression cannot.
+                // Java: actions/common/DiscardAtEndOfTurnAction.java and
+                // cards/AbstractCard.java::triggerOnEndOfPlayerTurn.
+                if card.runtime_traits().retain || card_inst.is_retained() {
                     let mut retained_inst = card_inst;
                     retained_inst.set_retained(true);
                     retained.push(retained_inst);
                 } else if card.runtime_traits().ethereal {
                     self.state.exhaust_pile.push(card_inst);
                     ethereal_exhausted += 1;
+                } else if retain_all {
+                    let mut retained_inst = card_inst;
+                    retained_inst.set_retained(true);
+                    retained.push(retained_inst);
                 } else {
                     self.state.discard_pile.push(card_inst);
                 }
