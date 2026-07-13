@@ -695,6 +695,27 @@ fn temporary_effect_potions_apply_statuses_through_action_path() {
 }
 
 #[test]
+fn ghost_in_a_jar_applies_one_intangible_and_bark_doubles_it() {
+    // Source: reference/extracted/methods/potion/GhostInAJar.java. getPotency
+    // always returns one; AbstractPotion.getPotency doubles it for Sacred Bark.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.potions[0] = "GhostInAJar".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::INTANGIBLE), 1);
+
+    engine.state.player.set_status(sid::INTANGIBLE, 0);
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "Ghost in a Jar".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::INTANGIBLE), 2);
+    assert!(engine.state.potions[0].is_empty());
+}
+
+#[test]
 fn speed_potion_keeps_five_potency_and_artifact_can_block_only_dex_loss() {
     // Source-derived (verify potion/SpeedPotion): getPotency always returns
     // five. Java applies DexterityPower before debuff-typed LoseDexterityPower,

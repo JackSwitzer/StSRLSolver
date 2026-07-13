@@ -1,6 +1,8 @@
 use super::prelude::*;
 
 static EFFECTS: [E; 1] = [
+    // Source: reference/extracted/methods/potion/GhostInAJar.java. The potion
+    // applies IntangiblePlayerPower equal to its constant potency of one.
     E::Simple(SE::AddStatus(T::Player, sid::INTANGIBLE, A::PotionPotency)),
 ];
 

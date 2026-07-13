@@ -823,10 +823,16 @@ mod tests {
     }
 
     #[test]
-    fn test_ghost_in_a_jar() {
+    fn test_ghost_in_a_jar_stays_at_one_on_a20_and_bark_doubles_it() {
+        // Source: reference/extracted/methods/potion/GhostInAJar.java.
         let mut state = make_test_state();
-        apply_potion(&mut state, "GhostInAJar", -1);
+        apply_potion_scaled(&mut state, "GhostInAJar", -1, 20);
         assert_eq!(state.player.status(sid::INTANGIBLE), 1);
+
+        state.player.set_status(sid::INTANGIBLE, 0);
+        state.relics.push("SacredBark".to_string());
+        apply_potion_scaled(&mut state, "GhostInAJar", -1, 20);
+        assert_eq!(state.player.status(sid::INTANGIBLE), 2);
     }
 
     #[test]

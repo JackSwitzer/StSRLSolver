@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T22:00:15.729824+00:00",
+ "updated": "2026-07-13T22:03:51.704228+00:00",
  "status_counts": {
-  "verified": 627,
-  "unverified": 40
+  "verified": 628,
+  "unverified": 39
  },
  "rows": [
   {
@@ -4642,8 +4642,8 @@
    "class": "GhostInAJar",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/GhostInAJar.java",
    "methods_ref": "reference/extracted/methods/potion/GhostInAJar.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
