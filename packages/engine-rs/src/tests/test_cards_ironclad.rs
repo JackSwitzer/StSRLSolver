@@ -433,6 +433,31 @@ mod ironclad_card_java_parity_tests {
         );
     }
     card_pair_test!(feel_no_pain, "Feel No Pain", "Feel No Pain+", 1, -1, -1, 3, 1, -1, -1, 4, CardType::Power, CardTarget::SelfTarget, false);
+
+    #[test]
+    fn feel_no_pain_installs_and_gains_raw_block_on_each_exhaust() {
+        // FeelNoPainPower.onExhaust queues GainBlockAction(amount). Dexterity
+        // and Frail alter True Grit's card Block, but not this power action.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/FeelNoPain.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/FeelNoPainPower.java
+        let mut engine = engine_for(
+            &["Feel No Pain+", "True Grit", "Defend"],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            2,
+        );
+        engine.state.player.set_status(sid::DEXTERITY, 5);
+        engine.state.player.set_status(sid::FRAIL, 1);
+
+        assert!(play_self(&mut engine, "Feel No Pain+"));
+        assert_eq!(engine.state.player.status(sid::FEEL_NO_PAIN), 4);
+        assert!(play_self(&mut engine, "True Grit"));
+
+        // True Grit: floor((7 + 5) * 0.75) = 9; Feel No Pain adds raw 4.
+        assert_eq!(engine.state.player.block, 13);
+        assert_eq!(exhaust_prefix_count(&engine, "Defend"), 1);
+    }
     card_pair_test!(fire_breathing, "Fire Breathing", "Fire Breathing+", 1, -1, -1, 6, 1, -1, -1, 10, CardType::Power, CardTarget::SelfTarget, false);
     card_pair_test!(flame_barrier, "Flame Barrier", "Flame Barrier+", 2, -1, 12, 4, 2, -1, 16, 6, CardType::Skill, CardTarget::SelfTarget, false);
     card_pair_test!(ghostly_armor, "Ghostly Armor", "Ghostly Armor+", 1, -1, 10, -1, 1, -1, 13, -1, CardType::Skill, CardTarget::SelfTarget, false);
