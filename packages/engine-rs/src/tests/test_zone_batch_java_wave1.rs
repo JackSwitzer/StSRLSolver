@@ -10,8 +10,8 @@
 use crate::actions::Action;
 use crate::engine::{ChoiceOption, ChoiceReason, CombatEngine, CombatPhase};
 use crate::tests::support::{
-    combat_state_with, enemy_no_intent, force_player_turn, hand_count, make_deck, play_on_enemy,
-    play_self, TEST_SEED,
+    combat_state_with, discard_prefix_count, enemy_no_intent, force_player_turn, hand_count,
+    make_deck, play_on_enemy, play_self, TEST_SEED,
 };
 
 fn engine_for(
@@ -133,6 +133,31 @@ fn dual_wield_only_offers_attack_and_power_cards_then_copies_the_selected_card()
     assert_eq!(hand_count(&engine, "Strike"), 3);
     assert_eq!(hand_count(&engine, "Inflame"), 1);
     assert_eq!(hand_count(&engine, "Defend"), 1);
+}
+
+#[test]
+fn dual_wield_auto_selects_one_eligible_card_and_discards_overflow_copies() {
+    // DualWieldAction.java bypasses selection when only one Attack/Power is
+    // eligible. Dual Wield+ creates two copies; MakeTempCardInHandAction.java
+    // puts the second in discard when the first fills the hand to ten.
+    let mut engine = engine_for(
+        &[
+            "Dual Wield+", "Strike", "Defend", "Defend", "Defend",
+            "Defend", "Defend", "Defend", "Defend", "Defend",
+        ],
+        &[],
+        &[],
+        1,
+    );
+
+    assert!(play_self(&mut engine, "Dual Wield+"));
+
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert!(engine.choice.is_none());
+    assert_eq!(hand_count(&engine, "Strike"), 2);
+    assert_eq!(discard_prefix_count(&engine, "Strike"), 1);
+    assert_eq!(engine.state.hand.len(), 10);
+    assert_eq!(engine.state.energy, 0);
 }
 
 #[test]

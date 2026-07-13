@@ -1042,13 +1042,22 @@ impl CombatEngine {
                 if idx < self.state.hand.len() {
                     let card = self.state.hand[idx];
                     let copies = ctx.aux_count.max(1);
-                    for _ in 0..copies {
-                        if self.state.hand.len() >= 10 {
-                            break;
-                        }
-                        self.state.hand.push(card);
-                    }
+                    self.add_dual_wield_copies(card, copies);
                 }
+            }
+        }
+    }
+
+    pub(crate) fn add_dual_wield_copies(&mut self, card: CardInstance, copies: usize) {
+        // DualWieldAction queues one MakeTempCardInHandAction per copy. That
+        // action puts copies beyond the ten-card hand limit in the discard pile.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DualWieldAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
+        for _ in 0..copies {
+            if self.state.hand.len() < 10 {
+                self.state.hand.push(card);
+            } else {
+                self.state.discard_pile.push(card);
             }
         }
     }

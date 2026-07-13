@@ -1416,6 +1416,17 @@ fn execute_choose_cards(
         return;
     }
 
+    // DualWieldAction skips the hand-select screen when exactly one Attack or
+    // Power is eligible and immediately creates its copies.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DualWieldAction.java
+    if action == ChoiceAction::CopyToHand && options.len() == 1 {
+        if let ChoiceOption::HandCard(index) = options[0] {
+            let card = engine.state.hand[index];
+            engine.add_dual_wield_copies(card, ctx.card.base_magic.max(1) as usize);
+        }
+        return;
+    }
+
     let reason = choice_reason_for_action(action, source);
     if matches!(action, ChoiceAction::CopyToHand | ChoiceAction::StoreCardForNextTurnCopies) {
         engine.begin_choice_with_action(
