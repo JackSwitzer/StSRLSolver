@@ -1513,7 +1513,7 @@ mod watcher_card_java_parity_tests {
     // number needed to reach ten cards after Scrawl leaves hand; Scrawl then
     // exhausts, and the upgrade only makes it free.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Scrawl.java
-    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ExpertiseAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ExpertiseAction.java
     #[test]
     fn scrawl_source_draws_only_to_ten_and_exhausts() {
         let mut engine = one_enemy_engine("JawWorm", 50, 0);

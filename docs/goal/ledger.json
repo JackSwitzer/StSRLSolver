@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T08:13:40.703352+00:00",
+ "updated": "2026-07-13T08:16:00.547800+00:00",
  "status_counts": {
-  "verified": 400,
-  "unverified": 267
+  "verified": 401,
+  "unverified": 266
  },
  "rows": [
   {
@@ -1392,8 +1392,8 @@
    "class": "Expertise",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Expertise.java",
    "methods_ref": "reference/extracted/methods/card/Expertise.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

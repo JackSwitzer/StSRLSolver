@@ -1530,7 +1530,9 @@ impl CombatEngine {
         });
 
         // Draw cards. SneckoEye.java raises masterHandSize by two for every
-        // turn; removing the relic restores the ordinary five-card baseline.
+        // turn; DrawReductionPower lowers gameHandSize by exactly one while
+        // present. It does not alter card-effect DrawCardActions.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DrawReductionPower.java
         let ml = self.state.player.status(sid::DRAW);
         let serpent = self.state.player.status(sid::RING_OF_SERPENT_DRAW);
         let snecko_eye = if self.state.player.status(sid::SNECKO_EYE) > 0 {
@@ -1538,7 +1540,8 @@ impl CombatEngine {
         } else {
             0
         };
-        self.draw_cards(5 + ml + serpent + snecko_eye);
+        let draw_reduction = i32::from(self.state.player.status(sid::DRAW_REDUCTION) > 0);
+        self.draw_cards(5 + ml + serpent + snecko_eye - draw_reduction);
 
         // TurnStartExtraDraw: one-shot extra draw from relics (Bag of Prep, etc.)
         let extra_draw = self.state.player.status(sid::TURN_START_EXTRA_DRAW);
@@ -3608,9 +3611,7 @@ impl CombatEngine {
             return Vec::new();
         }
 
-        // DrawReduction: reduce draw count
-        let draw_reduction = self.state.player.status(sid::DRAW_REDUCTION);
-        let actual_count = (count - draw_reduction).max(0);
+        let actual_count = count.max(0);
 
         let mut extra_draws = 0i32;
         let mut shuffles = 0;
