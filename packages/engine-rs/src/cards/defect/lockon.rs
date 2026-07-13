@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Lock-On (Java ID: Lockon): 1 cost, 8 dmg, apply 2 Lock-On
+    // LockOn.java deals 8 damage before applying 2 Lock-On for one energy;
+    // upgradeDamage(3) and upgradeMagicNumber(1). LockOnPower is a turn-based
+    // debuff consumed one stack at end of round.
     insert(cards, CardDef {
                 id: "Lockon", name: "Lock-On", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 8, base_block: -1,

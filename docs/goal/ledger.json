@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T10:56:11.226689+00:00",
+ "updated": "2026-07-13T10:59:21.339872+00:00",
  "status_counts": {
-  "verified": 455,
-  "unverified": 212
+  "verified": 456,
+  "unverified": 211
  },
  "rows": [
   {
@@ -2072,8 +2072,8 @@
    "class": "LockOn",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/LockOn.java",
    "methods_ref": "reference/extracted/methods/card/LockOn.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

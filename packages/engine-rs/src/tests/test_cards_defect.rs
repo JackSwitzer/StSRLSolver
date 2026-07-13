@@ -298,6 +298,52 @@ mod defect_card_java_parity_tests {
         for case in cases { assert_stats(case); }
     });
 
+    defect_test!(lock_on_source_applies_after_its_hit_and_amplifies_orb_thorns, {
+        // LockOn.java deals damage before applying its DEBUFF power. Lock-On+
+        // deals 11 and applies 3. AbstractOrb.applyLockOn multiplies Lightning
+        // and Dark damage by 1.5; their DamageInfo type is THORNS, so Flight and
+        // Malleable do not react. LockOnPower loses one stack at end of round.
+        // Java: cards/blue/LockOn.java, powers/LockOnPower.java, and
+        // orbs/AbstractOrb.java.
+        let mut engine = bare_engine(&[], vec![enemy("JawWorm", 80, 0)]);
+        engine.state.hand = make_deck(&["Lockon+"]);
+        assert!(play_on_enemy(&mut engine, "Lockon+", 0));
+        assert_eq!(engine.state.enemies[0].entity.hp, 69);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::LOCK_ON), 3);
+
+        engine.state.enemies[0].entity.set_status(sid::FLIGHT, 2);
+        engine.state.enemies[0].entity.set_status(sid::MALLEABLE, 1);
+        engine.init_defect_orbs(1);
+        engine.channel_orb(OrbType::Lightning);
+        let mut oracle = engine.card_random_rng.clone();
+        oracle.random(0);
+        engine.evoke_front_orb();
+        assert_eq!(engine.state.enemies[0].entity.hp, 57); // floor(8 * 1.5)
+        assert_eq!(engine.card_random_rng.counter, oracle.counter);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::FLIGHT), 2);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::MALLEABLE), 1);
+
+        let card_random_before_dark = engine.card_random_rng.counter;
+        engine.channel_orb(OrbType::Dark);
+        engine.evoke_front_orb();
+        assert_eq!(engine.state.enemies[0].entity.hp, 48); // floor(6 * 1.5)
+        assert_eq!(engine.card_random_rng.counter, card_random_before_dark);
+        process_end_of_round(&mut engine.state.enemies[0].entity);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::LOCK_ON), 2);
+
+        let mut artifact = bare_engine(&[], vec![enemy("JawWorm", 80, 0)]);
+        artifact.state.hand = make_deck(&["Lockon"]);
+        artifact.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+        assert!(play_on_enemy(&mut artifact, "Lockon", 0));
+        assert_eq!(artifact.state.enemies[0].entity.hp, 72);
+        assert_eq!(artifact.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+        assert_eq!(artifact.state.enemies[0].entity.status(sid::LOCK_ON), 0);
+        artifact.init_defect_orbs(1);
+        artifact.channel_orb(OrbType::Lightning);
+        artifact.evoke_front_orb();
+        assert_eq!(artifact.state.enemies[0].entity.hp, 64);
+    });
+
     defect_test!(registry_final_rare_cards, {
         let cases = [
             StatCase { id: "Amplify", cost: 1, damage: -1, block: -1, magic: 1, card_type: CardType::Skill, exhaust: false },

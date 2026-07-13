@@ -822,6 +822,9 @@ fn is_debuff(status: StatusId, amount: i32) -> bool {
         || status == sid::FRAIL
         || status == sid::POISON
         || status == sid::CONSTRICTED
+        // LockOnPower declares DEBUFF, so Artifact blocks the card before its
+        // orb-damage modifier can become active.
+        || status == sid::LOCK_ON
         // CorpseExplosionPower.java declares PowerType.DEBUFF, so Artifact blocks it.
         || status == sid::CORPSE_EXPLOSION
         || status == sid::NO_DRAW

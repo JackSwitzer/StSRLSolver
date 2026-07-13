@@ -3578,6 +3578,17 @@ impl CombatEngine {
             .min_by_key(|&i| self.state.enemies[i].entity.hp)
     }
 
+    /// AbstractOrb.applyLockOn raises Lightning and Dark orb damage by 50%,
+    /// truncating the float result to an integer for each target independently.
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/orbs/AbstractOrb.java.
+    fn orb_damage_against(&self, enemy_idx: usize, damage: i32) -> i32 {
+        if self.state.enemies[enemy_idx].entity.status(sid::LOCK_ON) > 0 {
+            (damage as f32 * 1.5) as i32
+        } else {
+            damage
+        }
+    }
+
     /// Apply a single evoke effect to the game state.
     pub(crate) fn apply_evoke_effect(&mut self, effect: EvokeEffect) {
         match effect {
@@ -3588,10 +3599,12 @@ impl CombatEngine {
                     sid::ELECTRODYNAMICS,
                 ) {
                     for idx in self.state.living_enemy_indices() {
-                        self.deal_damage_to_enemy(idx, dmg);
+                        let orb_damage = self.orb_damage_against(idx, dmg);
+                        self.deal_thorns_damage_to_enemy(idx, orb_damage);
                     }
                 } else if let Some(idx) = self.random_living_enemy() {
-                    self.deal_damage_to_enemy(idx, dmg);
+                    let orb_damage = self.orb_damage_against(idx, dmg);
+                    self.deal_thorns_damage_to_enemy(idx, orb_damage);
                 }
             }
             EvokeEffect::FrostBlock(block) => {
@@ -3599,7 +3612,8 @@ impl CombatEngine {
             }
             EvokeEffect::DarkDamage(dmg) => {
                 if let Some(idx) = self.lowest_hp_enemy() {
-                    self.deal_damage_to_enemy(idx, dmg);
+                    let orb_damage = self.orb_damage_against(idx, dmg);
+                    self.deal_thorns_damage_to_enemy(idx, orb_damage);
                 }
             }
             EvokeEffect::PlasmaEnergy(energy) => {
@@ -3619,10 +3633,12 @@ impl CombatEngine {
                     sid::ELECTRODYNAMICS,
                 ) {
                     for idx in self.state.living_enemy_indices() {
-                        self.deal_damage_to_enemy(idx, dmg);
+                        let orb_damage = self.orb_damage_against(idx, dmg);
+                        self.deal_thorns_damage_to_enemy(idx, orb_damage);
                     }
                 } else if let Some(idx) = self.random_living_enemy() {
-                    self.deal_damage_to_enemy(idx, dmg);
+                    let orb_damage = self.orb_damage_against(idx, dmg);
+                    self.deal_thorns_damage_to_enemy(idx, orb_damage);
                 }
             }
             PassiveEffect::FrostBlock(block) => {
