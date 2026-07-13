@@ -162,6 +162,7 @@ pub mod mfx {
     pub const METALLICIZE: u8 = 38;
     pub const HEART_STATUS_CARDS: u8 = 39;
     pub const PLATED_ARMOR_ALL: u8 = 40;
+    pub const HEAL_ALL: u8 = 41;
 }
 
 // ---------------------------------------------------------------------------

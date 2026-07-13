@@ -191,22 +191,36 @@ pub(super) fn roll_centurion(enemy: &mut EnemyCombatState, num: i32) {
     }
 }
 
-pub(super) fn roll_mystic(enemy: &mut EnemyCombatState, _num: i32) {
-    // Cycle: Attack -> Attack -> Heal -> Attack -> Attack -> Buff -> repeat
-    if last_two_moves(enemy, move_ids::MYSTIC_ATTACK) {
-        // Alternate Heal / Buff after two attacks
-        let used_heal = enemy.entity.status(sid::MYSTIC_HEAL_USED);
-        if used_heal == 0 {
-            enemy.set_move(move_ids::MYSTIC_HEAL, 0, 0, 0);
-            enemy.add_effect(mfx::HEAL_LOWEST_ALLY, 16);
-            enemy.entity.set_status(sid::MYSTIC_HEAL_USED, 1);
+pub(super) fn roll_healer(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/Healer.java (`getMove`).
+    // COUNT mirrors the summed missing HP of every living monster.
+    let damage = enemy.entity.status(sid::STARTING_DMG).max(8);
+    let strength = enemy.entity.status(sid::STR_AMT).max(2) as i16;
+    let heal = enemy.entity.status(sid::BLOCK_AMT).max(16) as i16;
+    let high_ai = enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0;
+    let need_to_heal = enemy.entity.status(sid::COUNT);
+
+    if need_to_heal > if high_ai { 20 } else { 15 }
+        && !last_two_moves(enemy, move_ids::MYSTIC_HEAL)
+    {
+        enemy.set_move(move_ids::MYSTIC_HEAL, 0, 0, 0);
+        enemy.add_effect(mfx::HEAL_ALL, heal);
+    } else if num >= 40
+        && if high_ai {
+            !last_move(enemy, move_ids::MYSTIC_ATTACK)
         } else {
-            enemy.set_move(move_ids::MYSTIC_BUFF, 0, 0, 0);
-            enemy.add_effect(mfx::STRENGTH, 2);
-            enemy.entity.set_status(sid::MYSTIC_HEAL_USED, 0);
+            !last_two_moves(enemy, move_ids::MYSTIC_ATTACK)
         }
+    {
+        enemy.set_move(move_ids::MYSTIC_ATTACK, damage, 1, 0);
+        enemy.add_effect(mfx::FRAIL, 2);
+    } else if !last_two_moves(enemy, move_ids::MYSTIC_BUFF) {
+        enemy.set_move(move_ids::MYSTIC_BUFF, 0, 0, 0);
+        enemy.add_effect(mfx::STRENGTH, strength);
+        enemy.add_effect(mfx::STRENGTH_ALL_ALLIES, strength);
     } else {
-        enemy.set_move(move_ids::MYSTIC_ATTACK, 8, 1, 0);
+        enemy.set_move(move_ids::MYSTIC_ATTACK, damage, 1, 0);
+        enemy.add_effect(mfx::FRAIL, 2);
     }
 }
 

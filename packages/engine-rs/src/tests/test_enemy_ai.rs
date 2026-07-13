@@ -415,10 +415,14 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::CENT_SLASH, 12, 1, 0, &[]);
 
         let e = make("Mystic", 48);
-        expect_move(&e, move_ids::MYSTIC_ATTACK, 8, 1, 0, &[]);
+        expect_move(&e, move_ids::MYSTIC_ATTACK, 8, 1, 0, &[(mfx::FRAIL, 2)]);
 
         let e = make("Healer", 48);
-        expect_move(&e, move_ids::MYSTIC_ATTACK, 8, 1, 0, &[]);
+        expect_move(&e, move_ids::MYSTIC_ATTACK, 8, 1, 0, &[(mfx::FRAIL, 2)]);
+        expect_status(&e, sid::STARTING_DMG, 8);
+        expect_status(&e, sid::STR_AMT, 2);
+        expect_status(&e, sid::BLOCK_AMT, 16);
+        expect_status(&e, sid::HIGH_ASCENSION_AI, 0);
 
         let e = make("BookOfStabbing", 160);
         expect_move(&e, move_ids::BOOK_STAB, 6, 1, 0, &[]);
@@ -522,20 +526,18 @@ mod enemy_ai_java_parity_tests {
         roll_with_num(&mut e, 0);
         expect_move(&e, move_ids::CENT_SLASH, 12, 1, 0, &[]);
 
-        // Mystic: Attack -> Attack -> Heal -> Attack -> Attack -> Buff -> ...
-        let mut e = make("Mystic", 48);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::MYSTIC_ATTACK, 8, 1, 0, &[]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::MYSTIC_HEAL, 0, 0, 0, &[(mfx::HEAL_LOWEST_ALLY, 16)]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::MYSTIC_ATTACK, 8, 1, 0, &[]);
-
+        // Healer.java prioritizes group healing, then a >=40 attack roll,
+        // then group Strength. The legacy Mystic ID remains an alias only.
         let mut e = make("Healer", 48);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::MYSTIC_ATTACK, 8, 1, 0, &[]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::MYSTIC_HEAL, 0, 0, 0, &[(mfx::HEAL_LOWEST_ALLY, 16)]);
+        e.entity.set_status(sid::COUNT, 16);
+        roll_with_num(&mut e, 99);
+        expect_move(&e, move_ids::MYSTIC_HEAL, 0, 0, 0, &[(mfx::HEAL_ALL, 16)]);
+        e.entity.set_status(sid::COUNT, 0);
+        roll_with_num(&mut e, 99);
+        expect_move(&e, move_ids::MYSTIC_ATTACK, 8, 1, 0, &[(mfx::FRAIL, 2)]);
+        roll_with_num(&mut e, 0);
+        expect_move(&e, move_ids::MYSTIC_BUFF, 0, 0, 0,
+            &[(mfx::STRENGTH, 2), (mfx::STRENGTH_ALL_ALLIES, 2)]);
 
         let mut e = make("BookOfStabbing", 160);
         roll_initial_move_with_num_and_rng(

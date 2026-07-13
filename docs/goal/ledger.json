@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T19:34:19.406350+00:00",
+ "updated": "2026-07-13T19:40:02.420346+00:00",
  "status_counts": {
-  "verified": 601,
-  "unverified": 66
+  "verified": 602,
+  "unverified": 65
  },
  "rows": [
   {
@@ -4042,8 +4042,8 @@
    "class": "Healer",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/city/Healer.java",
    "methods_ref": "reference/extracted/methods/monster/Healer.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

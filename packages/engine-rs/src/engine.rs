@@ -384,7 +384,7 @@ impl CombatEngine {
                 | "CorruptHeart" | "Corrupt Heart"
                 | "SnakeDagger" | "Snake Dagger" | "Darkling" | "Deca" | "Donu"
                 | "Exploder" | "GiantHead" | "Giant Head"
-                | "GremlinLeader" | "Gremlin Leader")) {
+                | "GremlinLeader" | "Gremlin Leader" | "Healer" | "Mystic")) {
             if enemy.id == "Centurion" {
                 enemy.entity.set_status(sid::COUNT, living_enemy_count);
             }

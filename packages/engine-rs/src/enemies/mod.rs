@@ -47,7 +47,7 @@ pub fn known_enemy_ids() -> &'static [(&'static str, &'static str)] {
         ("ShelledParasite", "Shelled Parasite"),
         ("SnakePlant", "Snake Plant"),
         ("Centurion", "Centurion"),
-        ("Mystic", "Mystic"),
+        ("Healer", "Mystic"),
         ("GremlinLeader", "Gremlin Leader"),
         ("BookOfStabbing", "Book of Stabbing"),
         ("TaskMaster", "Taskmaster"),
@@ -650,8 +650,15 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::COUNT, 2);
         }
         "Mystic" | "Healer" => {
-            // Attack + debuff (8 damage)
+            // Source: reference/extracted/methods/monster/Healer.java.
+            // The real opener is rolled during combat initialization.
             enemy.set_move(move_ids::MYSTIC_ATTACK, 8, 1, 0);
+            enemy.add_effect(mfx::FRAIL, 2);
+            enemy.entity.set_status(sid::STARTING_DMG, 8);
+            enemy.entity.set_status(sid::STR_AMT, 2);
+            enemy.entity.set_status(sid::BLOCK_AMT, 16);
+            enemy.entity.set_status(sid::COUNT, 0);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "BookOfStabbing" | "Book of Stabbing" => {
             // A0 constructor and pre-battle values. The actual opener is
@@ -1042,7 +1049,7 @@ fn select_move(
         "Shelled Parasite" | "ShelledParasite" => act2::roll_shelled_parasite(enemy, num),
         "SnakePlant" => act2::roll_snake_plant(enemy, num),
         "Centurion" => act2::roll_centurion(enemy, num),
-        "Mystic" | "Healer" => act2::roll_mystic(enemy, num),
+        "Mystic" | "Healer" => act2::roll_healer(enemy, num),
         "BookOfStabbing" | "Book of Stabbing" => act2::roll_book_of_stabbing(enemy, num),
         "GremlinLeader" | "Gremlin Leader" => {
             act2::roll_gremlin_leader(enemy, num, ai_rng)
@@ -1895,7 +1902,7 @@ mod tests {
             "TheGuardian", "Hexaghost", "SlimeBoss",
             // Act 2
             "Chosen", "Mugger", "Byrd", "ShelledParasite", "SnakePlant",
-            "Centurion", "Mystic", "BookOfStabbing", "GremlinLeader",
+            "Centurion", "Healer", "BookOfStabbing", "GremlinLeader",
             "Taskmaster", "SphericGuardian", "Snecko",
             "BanditBear", "BanditLeader", "BanditChild",
             "BronzeAutomaton", "BronzeOrb", "TorchHead",
@@ -1939,7 +1946,7 @@ mod tests {
             "GremlinNob", "Lagavulin", "Sentry",
             "TheGuardian", "Hexaghost", "SlimeBoss",
             "Chosen", "Mugger", "Byrd", "ShelledParasite", "SnakePlant",
-            "Centurion", "Mystic", "BookOfStabbing", "GremlinLeader",
+            "Centurion", "Healer", "BookOfStabbing", "GremlinLeader",
             "Taskmaster", "SphericGuardian", "Snecko",
             "BanditBear", "BanditLeader", "BanditChild",
             "BronzeAutomaton", "BronzeOrb", "TorchHead",

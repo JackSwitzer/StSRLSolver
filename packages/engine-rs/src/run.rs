@@ -254,7 +254,7 @@ const ACT2_WEAK_ENCOUNTERS: &[&[&str]] = &[
 
 const ACT2_STRONG_ENCOUNTERS: &[&[&str]] = &[
     &["SnakePlant"],
-    &["Centurion", "Mystic"],
+    &["Centurion", "Healer"],
     &["Cultist", "Cultist", "Cultist"],
     &["Byrd", "Byrd", "Byrd"],
     &["Chosen", "Cultist"],
@@ -2196,6 +2196,25 @@ impl RunEngine {
                 self.run_state.ascension);
         }
 
+        // Source: reference/extracted/methods/monster/Healer.java. COUNT is
+        // refreshed from group missing HP before each later RollMoveAction.
+        let missing_hp = enemy_states.iter().filter(|enemy| enemy.is_alive())
+            .map(|enemy| enemy.entity.max_hp - enemy.entity.hp).sum();
+        for enemy in enemy_states.iter_mut().filter(|enemy| matches!(enemy.id.as_str(),
+            "Healer" | "Mystic"))
+        {
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
+                if self.run_state.ascension >= 2 { 9 } else { 8 });
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
+                if self.run_state.ascension >= 17 { 4 }
+                else if self.run_state.ascension >= 2 { 3 } else { 2 });
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if self.run_state.ascension >= 17 { 20 } else { 16 });
+            enemy.entity.set_status(crate::status_ids::sid::COUNT, missing_hp);
+            enemy.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI,
+                if self.run_state.ascension >= 17 { 1 } else { 0 });
+        }
+
         // Source: reference/extracted/methods/monster/GremlinNob.java.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "GremlinNob") {
             let (rush, bash) = if self.run_state.ascension >= 3 {
@@ -2677,8 +2696,11 @@ impl RunEngine {
                 let hp = base + self.rng.gen_range(0..=width);
                 (hp, hp)
             }
-            "Mystic" => {
-                let hp = if a20 { 52 } else { 48 };
+            "Healer" | "Mystic" => {
+                // Source: reference/extracted/methods/monster/Healer.java:
+                // inclusive 48..56, or 50..58 at ascension 7.
+                let base = if self.run_state.ascension >= 7 { 50 } else { 48 };
+                let hp = base + self.rng.gen_range(0..=8);
                 (hp, hp)
             }
             "GremlinLeader" => {
@@ -8375,7 +8397,7 @@ mod tests {
             (17, 14, 7, 20),
         ] {
             let mut run = RunEngine::new(42, ascension);
-            run.enter_specific_combat(vec!["Centurion".to_string(), "Mystic".to_string()]);
+            run.enter_specific_combat(vec!["Centurion".to_string(), "Healer".to_string()]);
             let combat = run.combat_engine.as_ref().unwrap();
             let enemy = &combat.state.enemies[0];
             assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG), slash);
@@ -8386,7 +8408,7 @@ mod tests {
             assert!(matches!(enemy.move_id,
                 crate::enemies::move_ids::CENT_SLASH
                     | crate::enemies::move_ids::CENT_PROTECT));
-            assert_eq!(combat.ai_rng.counter, 1);
+            assert_eq!(combat.ai_rng.counter, 2);
         }
 
         // getMove's >=65 window chooses Protect with a living ally and Fury
@@ -8447,6 +8469,120 @@ mod tests {
         assert_eq!(combat.state.enemies[0].entity.block, 15);
         assert_eq!(combat.ai_rng.counter, 1);
         assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::COUNT), 1);
+    }
+
+    #[test]
+    fn healer_stats_missing_hp_ai_group_effects_and_ticks_match_java() {
+        // Source: reference/extracted/methods/monster/Healer.java.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("Healer").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("Healer").0);
+        }
+        assert_eq!(low_hp, (48..=56).collect());
+        assert_eq!(high_hp, (50..=58).collect());
+
+        for (ascension, hp_range, damage, strength, heal, high_ai) in [
+            (0, 48..=56, 8, 2, 16, 0),
+            (2, 48..=56, 9, 3, 16, 0),
+            (7, 50..=58, 9, 3, 16, 0),
+            (17, 50..=58, 9, 4, 20, 1),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["Centurion".to_string(), "Healer".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            let healer = &combat.state.enemies[1];
+            assert_eq!(healer.id, "Healer");
+            assert!(hp_range.contains(&healer.entity.hp));
+            assert_eq!(healer.entity.status(crate::status_ids::sid::STARTING_DMG), damage);
+            assert_eq!(healer.entity.status(crate::status_ids::sid::STR_AMT), strength);
+            assert_eq!(healer.entity.status(crate::status_ids::sid::BLOCK_AMT), heal);
+            assert_eq!(healer.entity.status(crate::status_ids::sid::HIGH_ASCENSION_AI), high_ai);
+            assert_eq!(healer.entity.status(crate::status_ids::sid::COUNT), 0);
+            assert!(matches!(healer.move_id,
+                crate::enemies::move_ids::MYSTIC_ATTACK
+                    | crate::enemies::move_ids::MYSTIC_BUFF));
+            assert_eq!(combat.ai_rng.counter, 2);
+        }
+
+        let mut heal = crate::enemies::create_enemy("Healer", 56, 56);
+        heal.entity.set_status(crate::status_ids::sid::COUNT, 16);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut heal, 99, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(heal.move_id, crate::enemies::move_ids::MYSTIC_HEAL);
+        assert_eq!(heal.effect(crate::combat_types::mfx::HEAL_ALL), Some(16));
+
+        let mut attack = crate::enemies::create_enemy("Healer", 56, 56);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut attack, 40, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(attack.move_id, crate::enemies::move_ids::MYSTIC_ATTACK);
+        assert_eq!(attack.effect(crate::combat_types::mfx::FRAIL), Some(2));
+
+        let mut buff = crate::enemies::create_enemy("Healer", 56, 56);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut buff, 39, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(buff.move_id, crate::enemies::move_ids::MYSTIC_BUFF);
+        assert_eq!(buff.effect(crate::combat_types::mfx::STRENGTH), Some(2));
+        assert_eq!(buff.effect(crate::combat_types::mfx::STRENGTH_ALL_ALLIES), Some(2));
+
+        let mut a17 = crate::enemies::create_enemy("Healer", 58, 58);
+        a17.entity.set_status(crate::status_ids::sid::STARTING_DMG, 9);
+        a17.entity.set_status(crate::status_ids::sid::STR_AMT, 4);
+        a17.entity.set_status(crate::status_ids::sid::BLOCK_AMT, 20);
+        a17.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI, 1);
+        a17.entity.set_status(crate::status_ids::sid::COUNT, 20);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut a17, 39, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(a17.move_id, crate::enemies::move_ids::MYSTIC_BUFF,
+            "A17 heals only when total missing HP is strictly above twenty");
+        a17.entity.set_status(crate::status_ids::sid::COUNT, 21);
+        crate::enemies::roll_next_move_with_num(&mut a17, 99);
+        assert_eq!(a17.move_id, crate::enemies::move_ids::MYSTIC_HEAL);
+        assert_eq!(a17.effect(crate::combat_types::mfx::HEAL_ALL), Some(20));
+
+        let mut low_repeat = crate::enemies::create_enemy("Healer", 56, 56);
+        low_repeat.set_move(crate::enemies::move_ids::MYSTIC_ATTACK, 8, 1, 0);
+        crate::enemies::roll_next_move_with_num(&mut low_repeat, 99);
+        assert_eq!(low_repeat.move_id, crate::enemies::move_ids::MYSTIC_ATTACK,
+            "below A17 a single previous Attack does not block another");
+        let mut high_repeat = low_repeat.clone();
+        high_repeat.move_history.clear();
+        high_repeat.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI, 1);
+        crate::enemies::roll_next_move_with_num(&mut high_repeat, 99);
+        assert_eq!(high_repeat.move_id, crate::enemies::move_ids::MYSTIC_BUFF,
+            "A17 blocks Attack after only one previous Attack");
+
+        let mut healing_run = RunEngine::new(42, 17);
+        healing_run.enter_specific_combat(vec!["Centurion".to_string(), "Healer".to_string()]);
+        let combat = healing_run.combat_engine.as_mut().unwrap();
+        combat.state.enemies[0].entity.hp -= 25;
+        combat.state.enemies[1].entity.hp -= 10;
+        combat.state.enemies[0].move_id = -1;
+        combat.state.enemies[1].entity.set_status(crate::status_ids::sid::COUNT, 35);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut combat.state.enemies[1], 99, &mut crate::seed::StsRandom::new(0));
+        let hp_before = [combat.state.enemies[0].entity.hp,
+            combat.state.enemies[1].entity.hp];
+        let ai_before = combat.ai_rng.counter;
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].entity.hp, hp_before[0] + 20);
+        assert_eq!(combat.state.enemies[1].entity.hp,
+            (hp_before[1] + 20).min(combat.state.enemies[1].entity.max_hp));
+        assert_eq!(combat.ai_rng.counter, ai_before + 1);
+
+        let mut buff_run = RunEngine::new(42, 17);
+        buff_run.enter_specific_combat(vec!["Centurion".to_string(), "Healer".to_string()]);
+        let combat = buff_run.combat_engine.as_mut().unwrap();
+        combat.state.enemies[0].move_id = -1;
+        combat.state.enemies[1].entity.set_status(crate::status_ids::sid::COUNT, 0);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut combat.state.enemies[1], 0, &mut crate::seed::StsRandom::new(0));
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::STRENGTH), 4);
+        assert_eq!(combat.state.enemies[1].entity.status(crate::status_ids::sid::STRENGTH), 4);
     }
 
     #[test]

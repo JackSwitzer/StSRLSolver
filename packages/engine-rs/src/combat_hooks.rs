@@ -800,6 +800,14 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             e.hp = (e.hp + amt as i32).min(e.max_hp);
         }
     }
+    if let Some(amt) = get_fx(&effects, mfx::HEAL_ALL) {
+        // Source: reference/extracted/methods/monster/Healer.java (`takeTurn`,
+        // case HEAL): HealAction targets every living, non-escaping monster,
+        // including the Healer itself.
+        for enemy in engine.state.enemies.iter_mut().filter(|enemy| enemy.is_alive()) {
+            enemy.entity.hp = (enemy.entity.hp + amt as i32).min(enemy.entity.max_hp);
+        }
+    }
     if let Some(amt) = get_fx(&effects, mfx::STRENGTH_ALL_ALLIES) {
         for j in 0..engine.state.enemies.len() {
             if j != enemy_idx && engine.state.enemies[j].is_alive() {
@@ -1133,6 +1141,16 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 .filter(|(idx, enemy)| *idx != enemy_idx && enemy.is_alive())
                 .count() as i32;
             engine.state.enemies[enemy_idx].entity.set_status(sid::COUNT, alive_count);
+        } else if matches!(engine.state.enemies[enemy_idx].id.as_str(),
+            "Healer" | "Mystic")
+        {
+            // Source: reference/extracted/methods/monster/Healer.java
+            // (`getMove`): needToHeal sums missing HP across the living group.
+            let missing_hp = engine.state.enemies.iter()
+                .filter(|enemy| enemy.is_alive())
+                .map(|enemy| enemy.entity.max_hp - enemy.entity.hp)
+                .sum();
+            engine.state.enemies[enemy_idx].entity.set_status(sid::COUNT, missing_hp);
         }
         enemies::roll_next_move(&mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
     }
