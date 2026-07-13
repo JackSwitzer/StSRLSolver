@@ -390,6 +390,30 @@ mod defect_card_java_parity_tests {
         assert_eq!(e.state.hand.len(), hand_before + 2);
     });
 
+    defect_test!(conserve_battery_plus_blocks_and_grants_one_energy_next_turn, {
+        // Source: ConserveBattery.java queues GainBlockAction(10 upgraded)
+        // before EnergizedBluePower(1). EnergizedBluePower.onEnergyRecharge
+        // grants its amount and removes itself.
+        let mut e = bare_engine(&["Conserve Battery+"], vec![enemy("JawWorm", 50, 0)]);
+        ensure_in_hand(&mut e, "Conserve Battery+");
+
+        assert!(play_self(&mut e, "Conserve Battery+"));
+        assert_eq!(e.state.player.block, 10);
+        assert_eq!(e.state.player.status(sid::ENERGIZED), 1);
+        assert_eq!(e.state.energy, 2);
+
+        end_turn(&mut e);
+
+        assert_eq!(e.state.energy, 4);
+        assert_eq!(e.state.player.status(sid::ENERGIZED), 0);
+
+        let mut capped = bare_engine(&["Conserve Battery"], vec![enemy("JawWorm", 50, 0)]);
+        capped.state.player.set_status(sid::ENERGIZED, 999);
+        ensure_in_hand(&mut capped, "Conserve Battery");
+        assert!(play_self(&mut capped, "Conserve Battery"));
+        assert_eq!(capped.state.player.status(sid::ENERGIZED), 999);
+    });
+
     defect_test!(consume_reduces_orb_slots_and_gains_focus, {
         let mut e = bare_engine(&["Consume"], vec![enemy("JawWorm", 50, 0)]);
         e.init_defect_orbs(3);

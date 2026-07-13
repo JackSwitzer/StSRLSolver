@@ -10,6 +10,40 @@ use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::state::Stance;
 use crate::status_ids::sid;
 
+// ===========================================================================
+// Energized — OnEnergyRecharge: gain stored energy, then remove the power
+// ===========================================================================
+
+// Source: decompiled/java-src/com/megacrit/cardcrawl/powers/EnergizedBluePower.java
+// gains amount during onEnergyRecharge and queues removal of the power.
+
+static ENERGIZED_EFFECTS: [Effect; 2] = [
+    Effect::Simple(SimpleEffect::GainEnergy(AmountSource::StatusValue(
+        sid::ENERGIZED,
+    ))),
+    Effect::Simple(SimpleEffect::SetStatus(
+        Target::Player,
+        sid::ENERGIZED,
+        AmountSource::Fixed(0),
+    )),
+];
+
+static ENERGIZED_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::TurnStart,
+    condition: TriggerCondition::Always,
+    effects: &ENERGIZED_EFFECTS,
+    counter: None,
+}];
+
+pub static DEF_ENERGIZED: EntityDef = EntityDef {
+    id: "energized",
+    name: "Energized",
+    kind: EntityKind::Power,
+    triggers: &ENERGIZED_TRIGGERS,
+    complex_hook: None,
+    status_guard: Some(sid::ENERGIZED),
+};
+
 fn hook_energy_down(
     engine: &mut CombatEngine,
     owner: EffectOwner,
@@ -561,7 +595,7 @@ mod tests {
     #[test]
     fn test_all_simple_turn_start_defs_have_correct_trigger() {
         let defs = [
-            &DEF_DEMON_FORM, &DEF_NOXIOUS_FUMES,
+            &DEF_ENERGIZED, &DEF_DEMON_FORM, &DEF_NOXIOUS_FUMES,
             &DEF_BERSERK, &DEF_INFINITE_BLADES, &DEF_BATTLE_HYMN,
             &DEF_WRAITH_FORM, &DEF_DEVA_FORM,
             &DEF_HELLO_WORLD, &DEF_MAGNETISM,

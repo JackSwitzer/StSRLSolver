@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Conserve Battery: 1 cost, 7 block, next turn gain 1 energy (via Energized)
+        // Source: cards/blue/ConserveBattery.java queues 7 Block then one
+        // EnergizedBluePower; upgradeBlock(3) leaves Energized unchanged.
     insert(cards, CardDef {
                 id: "Conserve Battery", name: "Conserve Battery", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 7,
