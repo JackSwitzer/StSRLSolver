@@ -507,6 +507,20 @@ mod ironclad_card_java_parity_tests {
     }
 
     #[test]
+    fn clothesline_plus_damages_before_artifact_blocks_weak() {
+        // Source: Clothesline.java queues DamageAction before ApplyPowerAction;
+        // upgradeDamage(2) and upgradeMagicNumber(1) produce 14 damage and 3 Weak.
+        let mut e = engine_for(&["Clothesline+"], &[], &[], vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 3);
+        e.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+
+        assert!(play_on_enemy(&mut e, "Clothesline+", 0));
+
+        assert_eq!(e.state.enemies[0].entity.hp, 36);
+        assert_eq!(e.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+        assert_eq!(e.state.enemies[0].entity.status(sid::WEAKENED), 0);
+    }
+
+    #[test]
     fn iron_wave_damage_and_block() {
         let mut e = engine_for(&["Iron Wave"], &[], &[], vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 3);
         let hp = e.state.enemies[0].entity.hp;

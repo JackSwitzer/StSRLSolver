@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T05:48:26.490179+00:00",
+ "updated": "2026-07-13T05:52:13.707234+00:00",
  "status_counts": {
-  "verified": 345,
-  "unverified": 322
+  "verified": 346,
+  "unverified": 321
  },
  "rows": [
   {
@@ -652,8 +652,8 @@
    "class": "Clothesline",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/Clothesline.java",
    "methods_ref": "reference/extracted/methods/card/Clothesline.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
