@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use crate::actions::Action;
-use crate::effects::runtime::{EffectOwner, GameEvent};
+use crate::effects::runtime::{EffectExecutionPhase, EffectOwner, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerContext};
 use crate::orbs::OrbType;
 use crate::obs;
@@ -945,6 +945,9 @@ fn frozen_core_channels_before_end_of_turn_orb_passives() {
 
 #[test]
 fn hovering_kite_triggers_once_on_manual_discard_and_resets_next_turn() {
+    // Source: reference/extracted/methods/relic/HoveringKite.java
+    // onManualDiscard grants 1 Energy only for the first manual discard, and
+    // atTurnStart resets the boolean latch.
     let mut state = combat_state_with(
         make_deck(&["Concentrate", "Defend", "Defend", "Defend", "Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -966,9 +969,17 @@ fn hovering_kite_triggers_once_on_manual_discard_and_resets_next_turn() {
 
     let first_turn_events = engine.take_event_log();
     assert_eq!(engine.state.energy, energy_before + 3);
-    assert!(first_turn_events
+    assert_eq!(first_turn_events
         .iter()
-        .any(|record| record.event == Trigger::OnCardDiscard && record.def_id == Some("HoveringKite")));
+        .filter(|record| {
+            record.event == Trigger::OnCardDiscard
+                && record.def_id == Some("HoveringKite")
+                && record.execution == Some(EffectExecutionPhase::Hook)
+        })
+        .count(), 3);
+
+    engine.on_card_discarded(engine.card_registry.make_card("Defend"));
+    assert_eq!(engine.state.energy, energy_before + 3);
 
     engine.state.energy = 0;
     engine.emit_event(GameEvent::empty(Trigger::TurnStart));
