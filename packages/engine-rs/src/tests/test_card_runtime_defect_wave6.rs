@@ -178,6 +178,46 @@ fn defect_wave6_self_repair_machine_learning_and_static_discharge_install_runtim
 }
 
 #[test]
+fn static_discharge_triggers_before_tungsten_but_after_buffer() {
+    // StaticDischargePower.onAttacked receives the post-block/post-Buffer
+    // amount before TungstenRod.onLoseHpLast. Thus Tungsten can reduce the
+    // eventual HP loss to zero without cancelling Lightning, while Buffer's
+    // earlier reduction to zero prevents the trigger.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/StaticDischargePower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/TungstenRod.java
+    let mut tungsten = engine_without_start(
+        Vec::new(),
+        vec![enemy("JawWorm", 40, 40, 1, 1, 1)],
+        3,
+    );
+    force_player_turn(&mut tungsten);
+    tungsten.init_defect_orbs(3);
+    tungsten.state.relics.push("Tungsten Rod".to_string());
+    tungsten.state.hand = make_deck(&["Static Discharge"]);
+    assert!(play_self(&mut tungsten, "Static Discharge"));
+    end_turn(&mut tungsten);
+    assert_eq!(tungsten.state.player.hp, 80);
+    assert_eq!(tungsten.state.orb_slots.occupied_count(), 1);
+    assert_eq!(tungsten.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
+
+    let mut buffer = engine_without_start(
+        Vec::new(),
+        vec![enemy("JawWorm", 40, 40, 1, 1, 1)],
+        3,
+    );
+    force_player_turn(&mut buffer);
+    buffer.init_defect_orbs(3);
+    buffer.state.player.set_status(sid::BUFFER, 1);
+    buffer.state.hand = make_deck(&["Static Discharge+"]);
+    assert!(play_self(&mut buffer, "Static Discharge+"));
+    end_turn(&mut buffer);
+    assert_eq!(buffer.state.player.hp, 80);
+    assert_eq!(buffer.state.player.status(sid::BUFFER), 0);
+    assert_eq!(buffer.state.orb_slots.occupied_count(), 0);
+}
+
+#[test]
 fn machine_learning_source_stacks_one_draw_and_upgrade_is_innate_only() {
     // MachineLearning.java constructs DrawPower with magicNumber 1. Its upgrade
     // sets only isInnate, so both versions add one persistent hand-size stack.

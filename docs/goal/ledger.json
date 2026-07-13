@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T15:32:19.736309+00:00",
+ "updated": "2026-07-13T15:35:23.423831+00:00",
  "status_counts": {
-  "verified": 537,
-  "unverified": 130
+  "verified": 538,
+  "unverified": 129
  },
  "rows": [
   {
@@ -3072,8 +3072,8 @@
    "class": "StaticDischarge",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/StaticDischarge.java",
    "methods_ref": "reference/extracted/methods/card/StaticDischarge.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

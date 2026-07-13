@@ -208,12 +208,20 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
 
             engine.state.player.block = result_before_buffer.block_remaining;
             let mut hp_loss = result_before_buffer.hp_loss;
+            let mut static_discharge = 0;
             if hp_loss > 0 {
                 let buffer = engine.state.player.status(sid::BUFFER);
                 if buffer > 0 {
                     engine.state.player.set_status(sid::BUFFER, buffer - 1);
                     hp_loss = 0;
                 } else {
+                    // StaticDischargePower.onAttacked observes damage after
+                    // block and Buffer, but before Torii.onAttacked and
+                    // TungstenRod.onLoseHpLast. Snapshot the trigger here;
+                    // channeling remains queued until this hit resolves.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/StaticDischargePower.java
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+                    static_discharge = engine.state.player.status(sid::STATIC_DISCHARGE);
                     if has_torii && (2..=5).contains(&hp_loss) {
                         hp_loss = 1;
                     }
@@ -236,34 +244,33 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                     engine.state.player.set_status(sid::PLATED_ARMOR, new_plated);
                 }
 
-                // Static Discharge: channel Lightning when taking unblocked damage
-                let static_discharge = engine.state.player.status(sid::STATIC_DISCHARGE);
-                for _ in 0..static_discharge {
-                    let focus = engine.state.player.focus();
-                    let evoke_effect = engine.state.orb_slots.channel(
-                        crate::orbs::OrbType::Lightning,
-                        focus,
-                    );
-                    match evoke_effect {
-                        crate::orbs::EvokeEffect::LightningDamage(dmg) => {
-                            let living = engine.state.living_enemy_indices();
-                            if let Some(&target) = living.first() {
-                                let e = &mut engine.state.enemies[target];
-                                let blocked_e = e.entity.block.min(dmg);
-                                let hp_dmg_e = dmg - blocked_e;
-                                e.entity.block -= blocked_e;
-                                e.entity.hp -= hp_dmg_e;
-                                engine.state.total_damage_dealt += hp_dmg_e;
-                                if hp_dmg_e > 0 {
-                                    engine.record_enemy_hp_damage(target, hp_dmg_e);
-                                }
+            }
+
+            for _ in 0..static_discharge {
+                let focus = engine.state.player.focus();
+                let evoke_effect = engine.state.orb_slots.channel(
+                    crate::orbs::OrbType::Lightning,
+                    focus,
+                );
+                match evoke_effect {
+                    crate::orbs::EvokeEffect::LightningDamage(dmg) => {
+                        let living = engine.state.living_enemy_indices();
+                        if let Some(&target) = living.first() {
+                            let e = &mut engine.state.enemies[target];
+                            let blocked_e = e.entity.block.min(dmg);
+                            let hp_dmg_e = dmg - blocked_e;
+                            e.entity.block -= blocked_e;
+                            e.entity.hp -= hp_dmg_e;
+                            engine.state.total_damage_dealt += hp_dmg_e;
+                            if hp_dmg_e > 0 {
+                                engine.record_enemy_hp_damage(target, hp_dmg_e);
                             }
                         }
-                        crate::orbs::EvokeEffect::FrostBlock(blk) => {
-                            engine.gain_block_player(blk);
-                        }
-                        _ => {}
                     }
+                    crate::orbs::EvokeEffect::FrostBlock(blk) => {
+                        engine.gain_block_player(blk);
+                    }
+                    _ => {}
                 }
             }
 
