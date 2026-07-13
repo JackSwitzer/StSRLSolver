@@ -68,6 +68,32 @@ fn ironclad_wave9_heavy_blade_and_perfected_strike_keep_java_damage_hooks_on_typ
 }
 
 #[test]
+fn heavy_blade_multiplies_positive_and_negative_strength_by_three_or_five() {
+    // HeavyBlade temporarily multiplies StrengthPower.amount before delegating
+    // to AbstractCard damage calculation; the upgrade changes only 3x to 5x.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/HeavyBlade.java
+    for (card_id, strength, expected_damage) in [
+        ("Heavy Blade", 0, 14),
+        ("Heavy Blade", 2, 20),
+        ("Heavy Blade", -2, 8),
+        ("Heavy Blade+", 2, 24),
+        ("Heavy Blade+", -2, 4),
+        ("Heavy Blade+", -3, 0),
+    ] {
+        let mut engine = one_enemy_engine("JawWorm", 100);
+        engine.state.hand = make_deck(&[card_id]);
+        engine.state.player.set_status(sid::STRENGTH, strength);
+
+        assert!(play_on_enemy(&mut engine, card_id, 0));
+        assert_eq!(
+            engine.state.enemies[0].entity.hp,
+            100 - expected_damage,
+            "{card_id} with {strength} Strength"
+        );
+    }
+}
+
+#[test]
 fn ironclad_wave9_sentinel_primary_block_moves_to_typed_surface() {
     let mut engine = one_enemy_engine("JawWorm", 60);
     ensure_in_hand(&mut engine, "Sentinel+");

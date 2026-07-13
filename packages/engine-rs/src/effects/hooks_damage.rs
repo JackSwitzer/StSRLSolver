@@ -7,6 +7,9 @@ use super::types::DamageModifier;
 
 /// Heavy Blade: multiply strength contribution (3x base, 5x upgraded).
 pub fn hook_heavy_blade(engine: &CombatEngine, card: &CardDef, _card_inst: CardInstance) -> DamageModifier {
+    // HeavyBlade.applyPowers/calculateCardDamage temporarily multiply the
+    // actual StrengthPower amount, including negative Strength.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/HeavyBlade.java
     let _ = engine;
     DamageModifier {
         strength_multiplier: card.base_magic.max(1),

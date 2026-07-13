@@ -1,6 +1,7 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/HeavyBlade.java
     // ---- Ironclad Common: Heavy Blade ---- (cost 2, 14 dmg, 3x str scaling; upgrade: 5x str)
     insert(cards, CardDef {
         id: "Heavy Blade", name: "Heavy Blade", card_type: CardType::Attack,
