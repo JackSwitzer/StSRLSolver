@@ -1574,6 +1574,32 @@ mod ironclad_card_java_parity_tests {
     }
 
     #[test]
+    fn twin_strike_plus_uses_two_strike_tagged_damage_actions() {
+        // TwinStrike.java queues two DamageActions using its 7 upgraded damage
+        // and carries STRIKE. StrikeDummy adds three before one Strength, so
+        // each hit is 11; eleven Block absorbs only the first separate hit.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/TwinStrike.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/StrikeDummy.java
+        let mut e = engine_for(
+            &["Twin Strike+"],
+            &[],
+            &[],
+            vec![enemy("JawWorm", 50, 50, 1, 0, 1)],
+            1,
+        );
+        e.state.relics.push("StrikeDummy".to_string());
+        e.state.player.set_status(sid::STRENGTH, 1);
+        e.state.enemies[0].entity.block = 11;
+
+        assert!(play_on_enemy(&mut e, "Twin Strike+", 0));
+
+        assert_eq!(e.state.energy, 0);
+        assert_eq!(e.state.enemies[0].entity.block, 0);
+        assert_eq!(e.state.enemies[0].entity.hp, 39);
+        assert_eq!(discard_prefix_count(&e, "Twin Strike"), 1);
+    }
+
+    #[test]
     fn warcry_draws_and_exhausts_itself() {
         // Warcry.java queues DrawCardAction before PutOnDeckAction(1, false).
         // With one resulting hand card, PutOnDeckAction skips selection and
