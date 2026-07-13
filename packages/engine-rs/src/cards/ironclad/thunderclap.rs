@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Ironclad Common: Thunderclap ---- (cost 1, 4 dmg AoE + 1 vuln all; +3 dmg)
+        // ThunderClap.java queues its 4-damage AoE before applying one
+        // Vulnerable to every monster; upgradeDamage(3) changes only damage.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/ThunderClap.java
     insert(cards, CardDef {
                 id: "Thunderclap", name: "Thunderclap", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 1, base_damage: 4, base_block: -1,

@@ -1537,6 +1537,35 @@ mod ironclad_card_java_parity_tests {
     }
 
     #[test]
+    fn thunderclap_plus_damages_before_vulnerable_and_artifact_blocks_per_target() {
+        // ThunderClap.java queues DamageAllEnemiesAction before one
+        // ApplyPowerAction(VulnerablePower, 1) for every monster. Upgrade adds
+        // three damage only, producing seven damage without new Vulnerable
+        // amplifying that same hit.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/ThunderClap.java
+        let mut e = engine_for(
+            &["Thunderclap+"],
+            &[],
+            &[],
+            vec![
+                enemy("JawWorm", 30, 30, 1, 0, 1),
+                enemy("Cultist", 30, 30, 1, 0, 1),
+            ],
+            1,
+        );
+        e.state.enemies[1].entity.set_status(sid::ARTIFACT, 1);
+
+        assert!(play_self(&mut e, "Thunderclap+"));
+
+        assert_eq!(e.state.energy, 0);
+        assert_eq!(e.state.enemies[0].entity.hp, 23);
+        assert_eq!(e.state.enemies[1].entity.hp, 23);
+        assert_eq!(e.state.enemies[0].entity.status(sid::VULNERABLE), 1);
+        assert_eq!(e.state.enemies[1].entity.status(sid::VULNERABLE), 0);
+        assert_eq!(e.state.enemies[1].entity.status(sid::ARTIFACT), 0);
+    }
+
+    #[test]
     fn twin_strike_hits_twice() {
         let mut e = engine_for(&["Twin Strike"], &[], &[], vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 3);
         let hp = e.state.enemies[0].entity.hp;
