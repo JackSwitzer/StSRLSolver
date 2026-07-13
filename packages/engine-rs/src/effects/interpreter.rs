@@ -423,6 +423,12 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
         }
 
         SimpleEffect::AddCardToRandomDrawSpot(name, ref amount_src) => {
+            // A preceding lethal DamageAction clears queued card-manipulation
+            // actions, including MakeTempCardInDrawPileAction.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+            if engine.state.combat_over || engine.state.is_victory() {
+                return;
+            }
             let count = resolve_card_amount(engine, ctx, amount_src).max(0);
             for _ in 0..count {
                 let card = engine.temp_card(name);

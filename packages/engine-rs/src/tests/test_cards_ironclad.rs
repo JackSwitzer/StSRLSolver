@@ -659,6 +659,82 @@ mod ironclad_card_java_parity_tests {
     card_pair_test!(rage, "Rage", "Rage+", 0, -1, -1, 3, 0, -1, -1, 5, CardType::Skill, CardTarget::SelfTarget, false);
     card_pair_test!(rampage, "Rampage", "Rampage+", 1, 8, -1, 5, 1, 8, -1, 8, CardType::Attack, CardTarget::Enemy, false);
     card_pair_test!(reckless_charge, "Reckless Charge", "Reckless Charge+", 0, 7, -1, -1, 0, 10, -1, -1, CardType::Attack, CardTarget::Enemy, false);
+
+    #[test]
+    fn reckless_charge_inserts_dazed_with_card_random_without_shuffling_after_nonlethal_damage() {
+        // RecklessCharge.java queues DamageAction before
+        // MakeTempCardInDrawPileAction(Dazed, 1, true, true). randomSpot=true
+        // delegates to CardGroup.addToRandomSpot: a nonempty pile consumes one
+        // cardRandomRng tick and inserts below the top while preserving the
+        // relative order of every existing card. A combat-ending DamageAction
+        // clears the later MakeTempCard action entirely.
+        // Sources: reference/extracted/methods/card/RecklessCharge.java;
+        // decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInDrawPileAction.java;
+        // decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java; and
+        // decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java.
+        let mut engine = engine_for(
+            &["Reckless Charge+"],
+            &["Strike", "Defend", "Bash"],
+            &[],
+            vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
+            0,
+        );
+        let card_random_before = engine.card_random_rng.counter;
+        let shuffle_before = engine.rng.counter;
+
+        assert!(play_on_enemy(&mut engine, "Reckless Charge+", 0));
+
+        assert_eq!(engine.state.enemies[0].entity.hp, 30);
+        assert_eq!(engine.card_random_rng.counter, card_random_before + 1);
+        assert_eq!(engine.rng.counter, shuffle_before);
+        let existing: Vec<_> = engine
+            .state
+            .draw_pile
+            .iter()
+            .filter_map(|card| {
+                let id = engine.card_registry.card_name(card.def_id);
+                (id != "Dazed").then_some(id)
+            })
+            .collect();
+        assert_eq!(existing, vec!["Strike", "Defend", "Bash"]);
+        assert_eq!(
+            engine
+                .card_registry
+                .card_name(engine.state.draw_pile.last().expect("draw top").def_id),
+            "Bash"
+        );
+
+        let mut empty = engine_for(
+            &["Reckless Charge"],
+            &[],
+            &[],
+            vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
+            0,
+        );
+        let card_random_before = empty.card_random_rng.counter;
+        assert!(play_on_enemy(&mut empty, "Reckless Charge", 0));
+        assert_eq!(empty.state.enemies[0].entity.hp, 33);
+        assert_eq!(empty.card_random_rng.counter, card_random_before);
+        assert_eq!(empty.state.draw_pile.len(), 1);
+        assert_eq!(
+            empty.card_registry.card_name(empty.state.draw_pile[0].def_id),
+            "Dazed"
+        );
+
+        let mut lethal = engine_for(
+            &["Reckless Charge+"],
+            &["Strike"],
+            &[],
+            vec![enemy("JawWorm", 10, 10, 1, 0, 1)],
+            0,
+        );
+        let card_random_before = lethal.card_random_rng.counter;
+        assert!(play_on_enemy(&mut lethal, "Reckless Charge+", 0));
+        assert_eq!(lethal.card_random_rng.counter, card_random_before);
+        assert!(lethal.state.draw_pile.iter().all(|card| {
+            lethal.card_registry.card_name(card.def_id) != "Dazed"
+        }));
+    }
     card_pair_test!(rupture, "Rupture", "Rupture+", 1, -1, -1, 1, 1, -1, -1, 2, CardType::Power, CardTarget::SelfTarget, false);
     card_pair_test!(searing_blow, "Searing Blow", "Searing Blow+", 2, 12, -1, -1, 2, 16, -1, -1, CardType::Attack, CardTarget::Enemy, false);
     card_pair_test!(second_wind, "Second Wind", "Second Wind+", 1, -1, 5, -1, 1, -1, 7, -1, CardType::Skill, CardTarget::SelfTarget, false);

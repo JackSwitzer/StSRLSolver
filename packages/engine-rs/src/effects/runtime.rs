@@ -961,6 +961,9 @@ impl EffectRuntime {
                 }
             }
             SimpleEffect::AddCardToRandomDrawSpot(card_name, amount_src) => {
+                if engine.state.combat_over || engine.state.is_victory() {
+                    return;
+                }
                 let count = self.resolve_amount(engine, instance_idx, owner, amount_src).max(0);
                 for _ in 0..count {
                     let card = engine.temp_card(card_name);
