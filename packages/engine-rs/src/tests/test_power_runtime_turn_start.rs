@@ -12,8 +12,16 @@ fn post_draw_event() -> GameEvent {
     GameEvent::empty(Trigger::TurnStartPostDraw)
 }
 
+const DEFECT_POWER_POOL: &[&str] = &[
+    "Defragment", "Capacitor", "Heatsinks", "Static Discharge", "Loop", "Hello World", "Storm",
+    "Biased Cognition", "Machine Learning", "Electrodynamics", "Buffer", "Echo Form", "Creative AI",
+];
+
 #[test]
-fn creative_ai_hook_adds_smites_up_to_hand_limit() {
+fn creative_ai_hook_rolls_every_stack_and_spills_past_hand_limit() {
+    // CreativeAIPower.java rolls one source-pool Power per stack before
+    // queuing MakeTempCardInHandAction; each roll consumes cardRandomRng, and
+    // MakeTempCardInHandAction spills cards past ten into the discard pile.
     let mut engine = engine_without_start(
         Vec::new(),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -24,6 +32,10 @@ fn creative_ai_hook_adds_smites_up_to_hand_limit() {
         "Strike", "Strike", "Strike", "Strike", "Strike",
         "Strike", "Strike", "Strike", "Strike",
     ]);
+    let mut oracle = engine.card_random_rng.clone();
+    let expected: Vec<&str> = (0..3)
+        .map(|_| DEFECT_POWER_POOL[oracle.random((DEFECT_POWER_POOL.len() - 1) as i32) as usize])
+        .collect();
 
     let mut runtime_state = EffectState::default();
     hook_creative_ai(
@@ -34,15 +46,11 @@ fn creative_ai_hook_adds_smites_up_to_hand_limit() {
     );
 
     assert_eq!(engine.state.hand.len(), 10);
-    assert_eq!(
-        engine
-            .state
-            .hand
-            .iter()
-            .filter(|card| engine.card_registry.card_name(card.def_id).starts_with("Smite"))
-            .count(),
-        1
-    );
+    assert_eq!(engine.card_registry.card_name(engine.state.hand[9].def_id), expected[0]);
+    assert_eq!(engine.state.discard_pile.len(), 2);
+    assert_eq!(engine.card_registry.card_name(engine.state.discard_pile[0].def_id), expected[1]);
+    assert_eq!(engine.card_registry.card_name(engine.state.discard_pile[1].def_id), expected[2]);
+    assert_eq!(engine.card_random_rng.counter, oracle.counter);
 }
 
 #[test]
@@ -141,9 +149,12 @@ fn tools_of_the_trade_hook_draws_and_opens_single_discard_choice() {
 }
 
 #[test]
-fn complex_turn_start_power_defs_use_post_draw_trigger() {
+fn complex_turn_start_power_defs_use_java_trigger_phases() {
+    assert_eq!(DEF_CREATIVE_AI.triggers.len(), 1);
+    assert_eq!(DEF_CREATIVE_AI.triggers[0].trigger, Trigger::TurnStart);
+    assert!(DEF_CREATIVE_AI.complex_hook.is_some());
+
     for def in [
-        &DEF_CREATIVE_AI,
         &DEF_ENTER_DIVINITY,
         &DEF_MAYHEM,
         &DEF_TOOLS_OF_THE_TRADE,

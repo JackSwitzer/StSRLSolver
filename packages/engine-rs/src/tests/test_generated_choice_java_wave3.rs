@@ -73,6 +73,29 @@ const WATCHER_SKILL_POOL_IN_JAVA_ORDER: &[&str] = &[
     "DeusExMachina",
 ];
 
+const DEFECT_POWER_POOL_IN_JAVA_ORDER: &[&str] = &[
+    "Defragment", "Capacitor", "Heatsinks", "Static Discharge", "Loop", "Hello World", "Storm",
+    "Biased Cognition", "Machine Learning", "Electrodynamics", "Buffer", "Echo Form", "Creative AI",
+];
+
+#[test]
+fn defect_power_generation_pool_matches_java_source_pool_order() {
+    // CardLibrary's HashMap iteration and initializeCardPools establish this
+    // uncommon-then-rare order. Creative AI filters for Powers and excludes
+    // HEALING-tagged Self Repair before its cardRandomRng selection.
+    // Java: CardLibrary.java, AbstractDungeon.java, and CreativeAIPower.java.
+    let engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+
+    assert_eq!(
+        super::generated_card_pool(&engine, super::GeneratedCardPool::DefectPower),
+        DEFECT_POWER_POOL_IN_JAVA_ORDER
+    );
+}
+
 #[test]
 fn watcher_skill_generation_pool_matches_java_source_pool_order() {
     // CardLibrary's HashMap iteration builds rarity pools; initializeCardPools

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T06:27:49.364889+00:00",
+ "updated": "2026-07-13T06:35:17.726628+00:00",
  "status_counts": {
-  "verified": 357,
-  "unverified": 310
+  "verified": 358,
+  "unverified": 309
  },
  "rows": [
   {
@@ -812,8 +812,8 @@
    "class": "CreativeAI",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/CreativeAI.java",
    "methods_ref": "reference/extracted/methods/card/CreativeAI.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

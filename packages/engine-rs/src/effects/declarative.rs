@@ -213,6 +213,8 @@ pub enum GeneratedCardPool {
     Attack,
     Skill,
     Power,
+    /// Defect's source uncommon/rare non-healing Power pools.
+    DefectPower,
     /// Watcher's source common/uncommon/rare Power pools.
     WatcherPower,
     /// Watcher's source common/uncommon/rare cards of every type.

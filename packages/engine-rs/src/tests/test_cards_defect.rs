@@ -767,6 +767,37 @@ mod defect_card_java_parity_tests {
         assert_eq!(e.state.player.status(sid::CREATIVE_AI), 1);
     });
 
+    defect_test!(creative_ai_variants_stack_and_roll_one_defect_power_per_stack, {
+        // CreativeAI.java applies one stack at cost 3 (2 upgraded).
+        // CreativeAIPower.java rolls one non-healing source-pool Power per
+        // stack with cardRandomRng at the start of the next turn.
+        const POOL: &[&str] = &[
+            "Defragment", "Capacitor", "Heatsinks", "Static Discharge", "Loop", "Hello World", "Storm",
+            "Biased Cognition", "Machine Learning", "Electrodynamics", "Buffer", "Echo Form", "Creative AI",
+        ];
+        let mut e = bare_engine(&[], vec![enemy("JawWorm", 40, 0)]);
+        e.state.hand = make_deck(&["Creative AI", "Creative AI+"]);
+        e.state.energy = 5;
+        assert!(play_self(&mut e, "Creative AI"));
+        assert!(play_self(&mut e, "Creative AI+"));
+        assert_eq!(e.state.player.status(sid::CREATIVE_AI), 2);
+        assert_eq!(e.state.energy, 0);
+        e.state.draw_pile.clear();
+        e.state.discard_pile.clear();
+        let mut oracle = e.card_random_rng.clone();
+        let expected: Vec<&str> = (0..2)
+            .map(|_| POOL[oracle.random((POOL.len() - 1) as i32) as usize])
+            .collect();
+
+        end_turn(&mut e);
+
+        let generated: Vec<&str> = e.state.hand.iter()
+            .map(|card| e.card_registry.card_name(card.def_id))
+            .collect();
+        assert_eq!(generated, expected);
+        assert_eq!(e.card_random_rng.counter, oracle.counter);
+    });
+
     defect_test!(echo_form_installs_echo_form, {
         let mut e = bare_engine(&["Echo Form"], vec![enemy("JawWorm", 40, 0)]);
         ensure_in_hand(&mut e, "Echo Form");

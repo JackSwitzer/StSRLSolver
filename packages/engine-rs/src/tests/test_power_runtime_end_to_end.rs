@@ -89,16 +89,25 @@ fn creative_ai_adds_its_generated_card_on_real_turn_start() {
     engine.state.draw_pile.clear();
     engine.state.discard_pile.clear();
     engine.clear_event_log();
+    let general_before = engine.rng.counter;
+    let mut oracle = engine.card_random_rng.clone();
+    const POOL: &[&str] = &[
+        "Defragment", "Capacitor", "Heatsinks", "Static Discharge", "Loop", "Hello World", "Storm",
+        "Biased Cognition", "Machine Learning", "Electrodynamics", "Buffer", "Echo Form", "Creative AI",
+    ];
+    let expected = POOL[oracle.random((POOL.len() - 1) as i32) as usize];
 
     engine.execute_action(&Action::EndTurn);
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
-    assert_eq!(hand_names(&engine), vec!["Smite".to_string()]);
+    assert_eq!(hand_names(&engine), vec![expected.to_string()]);
+    assert_eq!(engine.card_random_rng.counter, oracle.counter);
+    assert_eq!(engine.rng.counter, general_before);
 
     let events = engine.take_event_log();
     assert!(events.iter().any(|record| {
         record.phase == EventRecordPhase::Handled
-            && record.event == Trigger::TurnStartPostDraw
+            && record.event == Trigger::TurnStart
             && record.def_id == Some("creative_ai")
     }));
 }

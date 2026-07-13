@@ -2,7 +2,9 @@
 //!
 //! Powers that trigger at the start of the player's turn.
 
-use crate::effects::declarative::{AmountSource, Effect, Pile, SimpleEffect, Target};
+use crate::effects::declarative::{
+    AmountSource, Effect, GeneratedCardPool, Pile, SimpleEffect, Target,
+};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::engine::{ChoiceOption, ChoiceReason, CombatEngine};
@@ -370,14 +372,13 @@ pub static DEF_MAGNETISM: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Creative AI — TurnStartPostDraw: add random Power card to hand
-// Current MCTS approximation is preserved exactly by adding "Smite".
+// Creative AI — atStartOfTurn: add random Defect Power cards before normal draw
 // ===========================================================================
 
 static EMPTY_EFFECTS: [Effect; 0] = [];
 
 static CREATIVE_AI_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnStartPostDraw,
+    trigger: Trigger::TurnStart,
     condition: TriggerCondition::Always,
     effects: &EMPTY_EFFECTS,
     counter: None,
@@ -389,13 +390,25 @@ fn hook_creative_ai(
     _event: &GameEvent,
     _state: &mut EffectState,
 ) {
+    // CreativeAIPower.atStartOfTurn selects one non-healing source-pool Power
+    // per stack through cardRandomRng, then queues one MakeTempCardInHandAction
+    // per selection. Those actions resolve before normal draw and spill past
+    // the ten-card hand limit into discard.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/CreativeAIPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
     let creative_ai = engine.state.player.status(sid::CREATIVE_AI);
     for _ in 0..creative_ai {
-        if engine.state.hand.len() >= 10 {
-            break;
+        let Some(card) = crate::effects::interpreter::generate_random_card(
+            engine,
+            GeneratedCardPool::DefectPower,
+        ) else {
+            continue;
+        };
+        if engine.state.hand.len() < 10 {
+            engine.state.hand.push(card);
+        } else {
+            engine.state.discard_pile.push(card);
         }
-        let smite_id = engine.temp_card("Smite");
-        engine.state.hand.push(smite_id);
     }
 }
 
@@ -614,11 +627,14 @@ mod tests {
 
     #[test]
     fn test_complex_turn_start_defs_have_hooks() {
-        let defs = [
-            &DEF_CREATIVE_AI, &DEF_ENTER_DIVINITY,
-            &DEF_MAYHEM, &DEF_TOOLS_OF_THE_TRADE,
-        ];
-        for def in &defs {
+        // CreativeAIPower overrides atStartOfTurn, while the other complex
+        // powers here override atStartOfTurnPostDraw.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/CreativeAIPower.java
+        assert_eq!(DEF_CREATIVE_AI.kind, EntityKind::Power);
+        assert!(DEF_CREATIVE_AI.complex_hook.is_some());
+        assert_eq!(DEF_CREATIVE_AI.triggers[0].trigger, Trigger::TurnStart);
+
+        for def in [&DEF_ENTER_DIVINITY, &DEF_MAYHEM, &DEF_TOOLS_OF_THE_TRADE] {
             assert_eq!(def.kind, EntityKind::Power);
             assert!(def.complex_hook.is_some());
             assert_eq!(def.triggers.len(), 1);
