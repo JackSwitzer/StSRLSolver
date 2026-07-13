@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T18:23:23.909408+00:00",
+ "updated": "2026-07-13T18:27:48.284314+00:00",
  "status_counts": {
-  "verified": 590,
-  "unverified": 77
+  "verified": 591,
+  "unverified": 76
  },
  "rows": [
   {
@@ -3832,8 +3832,8 @@
    "class": "Centurion",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/city/Centurion.java",
    "methods_ref": "reference/extracted/methods/monster/Centurion.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

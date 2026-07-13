@@ -412,7 +412,7 @@ mod enemy_ai_java_parity_tests {
         expect_status(&e, sid::MALLEABLE, 1);
 
         let e = make("Centurion", 76);
-        expect_move(&e, move_ids::CENT_FURY, 6, 3, 0, &[]);
+        expect_move(&e, move_ids::CENT_SLASH, 12, 1, 0, &[]);
 
         let e = make("Mystic", 48);
         expect_move(&e, move_ids::MYSTIC_ATTACK, 8, 1, 0, &[]);
@@ -502,14 +502,19 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SNAKE_CHOMP, 7, 3, 0, &[]);
 
-        // Centurion: Fury -> Slash -> Protect -> Fury -> ...
+        // Centurion.java: low rolls Slash until two consecutive Slashes, then
+        // Protects one random ally (or uses Fury when alone).
         let mut e = make("Centurion", 76);
-        roll_times(&mut e, 1);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 64, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::CENT_SLASH, 12, 1, 0, &[]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::CENT_PROTECT, 0, 0, 15, &[(mfx::BLOCK_ALL_ALLIES, 15)]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::CENT_FURY, 6, 3, 0, &[]);
+        roll_with_num(&mut e, 64);
+        expect_move(&e, move_ids::CENT_SLASH, 12, 1, 0, &[]);
+        roll_with_num(&mut e, 0);
+        expect_move(&e, move_ids::CENT_PROTECT, 0, 0, 0,
+            &[(mfx::BLOCK_RANDOM_OTHER, 15)]);
+        roll_with_num(&mut e, 0);
+        expect_move(&e, move_ids::CENT_SLASH, 12, 1, 0, &[]);
 
         // Mystic: Attack -> Attack -> Heal -> Attack -> Attack -> Buff -> ...
         let mut e = make("Mystic", 48);

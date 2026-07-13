@@ -1833,6 +1833,23 @@ impl RunEngine {
             enemy.set_move(crate::enemies::move_ids::BYRD_PECK, 1, peck_count, 0);
         }
 
+        // Source: reference/extracted/methods/monster/Centurion.java.
+        let monster_count = enemy_states.len() as i32;
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "Centurion") {
+            let (slash, fury) = if self.run_state.ascension >= 2 {
+                (14, 7)
+            } else {
+                (12, 6)
+            };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, slash);
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT, fury);
+            enemy.entity.set_status(crate::status_ids::sid::ATTACK_COUNT, 3);
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if self.run_state.ascension >= 17 { 20 } else { 15 });
+            enemy.entity.set_status(crate::status_ids::sid::COUNT, monster_count);
+            enemy.set_move(crate::enemies::move_ids::CENT_SLASH, slash, 1, 0);
+        }
+
         // Source: reference/extracted/methods/monster/BanditLeader.java.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "BanditLeader") {
             let (cross_slash, agonizing_slash) = if self.run_state.ascension >= 2 {
@@ -2482,7 +2499,10 @@ impl RunEngine {
                 (hp, hp)
             }
             "Centurion" => {
-                let hp = if a20 { 80 } else { 76 };
+                // Source: reference/extracted/methods/monster/Centurion.java:
+                // setHp(76,80), or setHp(78,83) at ascension 7+.
+                let (base, width) = if a20 { (78, 5) } else { (76, 4) };
+                let hp = base + self.rng.gen_range(0..=width);
                 (hp, hp)
             }
             "Mystic" => {
@@ -8130,6 +8150,101 @@ mod tests {
                 | crate::enemies::move_ids::BYRD_SWOOP
                 | crate::enemies::move_ids::BYRD_CAW));
         assert_eq!(combat.ai_rng.counter, before_stunned + 2);
+    }
+
+    #[test]
+    fn centurion_stats_party_aware_ai_and_random_protect_match_java() {
+        // Source: reference/extracted/methods/monster/Centurion.java.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("Centurion").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("Centurion").0);
+        }
+        assert_eq!(low_hp, (76..=80).collect());
+        assert_eq!(high_hp, (78..=83).collect());
+
+        for (ascension, slash, fury, block) in [
+            (0, 12, 6, 15),
+            (2, 14, 7, 15),
+            (7, 14, 7, 15),
+            (17, 14, 7, 20),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["Centurion".to_string(), "Mystic".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG), slash);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), fury);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::ATTACK_COUNT), 3);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::BLOCK_AMT), block);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::COUNT), 2);
+            assert!(matches!(enemy.move_id,
+                crate::enemies::move_ids::CENT_SLASH
+                    | crate::enemies::move_ids::CENT_PROTECT));
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        // getMove's >=65 window chooses Protect with a living ally and Fury
+        // without one. Both fall back to Slash after two repeats.
+        let mut paired = crate::enemies::create_enemy("Centurion", 80, 80);
+        paired.entity.set_status(crate::status_ids::sid::COUNT, 2);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut paired, 65, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(paired.move_id, crate::enemies::move_ids::CENT_PROTECT);
+        assert_eq!(paired.move_block(), 0);
+        assert_eq!(paired.effect(crate::combat_types::mfx::BLOCK_RANDOM_OTHER), Some(15));
+
+        let mut solo = crate::enemies::create_enemy("Centurion", 80, 80);
+        solo.entity.set_status(crate::status_ids::sid::COUNT, 1);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut solo, 65, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(solo.move_id, crate::enemies::move_ids::CENT_FURY);
+        assert_eq!(solo.move_damage(), 6);
+        assert_eq!(solo.move_hits(), 3);
+
+        let mut repeated_protect = crate::enemies::create_enemy("Centurion", 80, 80);
+        repeated_protect.move_history.push(crate::enemies::move_ids::CENT_PROTECT);
+        repeated_protect.set_move(crate::enemies::move_ids::CENT_PROTECT, 0, 0, 0);
+        crate::enemies::roll_next_move_with_num(&mut repeated_protect, 99);
+        assert_eq!(repeated_protect.move_id, crate::enemies::move_ids::CENT_SLASH);
+
+        let mut repeated_slash = crate::enemies::create_enemy("Centurion", 80, 80);
+        repeated_slash.move_history.push(crate::enemies::move_ids::CENT_SLASH);
+        repeated_slash.set_move(crate::enemies::move_ids::CENT_SLASH, 12, 1, 0);
+        crate::enemies::roll_next_move_with_num(&mut repeated_slash, 0);
+        assert_eq!(repeated_slash.move_id, crate::enemies::move_ids::CENT_PROTECT);
+
+        // GainBlockRandomMonsterAction excludes the source and consumes one
+        // aiRng draw even with exactly one candidate. The following queued
+        // RollMoveAction consumes the second draw.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/GainBlockRandomMonsterAction.java
+        let mut centurion = crate::enemies::create_enemy("Centurion", 80, 80);
+        centurion.set_move(crate::enemies::move_ids::CENT_PROTECT, 0, 0, 0);
+        centurion.add_effect(crate::combat_types::mfx::BLOCK_RANDOM_OTHER, 15);
+        let ally = crate::state::EnemyCombatState::new("Ally", 20, 20);
+        let state = crate::state::CombatState::new(
+            80, 80, vec![centurion, ally], Vec::new(), 3);
+        let mut combat = crate::engine::CombatEngine::new(state, 42);
+        crate::combat_hooks::do_enemy_turns(&mut combat);
+        assert_eq!(combat.state.enemies[0].entity.block, 0);
+        assert_eq!(combat.state.enemies[1].entity.block, 15);
+        assert_eq!(combat.ai_rng.counter, 2);
+
+        // With no eligible target the same action blocks the source and skips
+        // the random-target draw; only RollMoveAction advances aiRng.
+        let mut centurion = crate::enemies::create_enemy("Centurion", 80, 80);
+        centurion.set_move(crate::enemies::move_ids::CENT_PROTECT, 0, 0, 0);
+        centurion.add_effect(crate::combat_types::mfx::BLOCK_RANDOM_OTHER, 15);
+        let state = crate::state::CombatState::new(
+            80, 80, vec![centurion], Vec::new(), 3);
+        let mut combat = crate::engine::CombatEngine::new(state, 42);
+        crate::combat_hooks::do_enemy_turns(&mut combat);
+        assert_eq!(combat.state.enemies[0].entity.block, 15);
+        assert_eq!(combat.ai_rng.counter, 1);
+        assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::COUNT), 1);
     }
 
     #[test]

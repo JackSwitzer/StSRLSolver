@@ -137,15 +137,35 @@ pub(super) fn roll_snake_plant(enemy: &mut EnemyCombatState, _num: i32) {
     }
 }
 
-pub(super) fn roll_centurion(enemy: &mut EnemyCombatState, _num: i32) {
-    // Cycle: Fury -> Slash -> Protect -> Fury -> ...
-    if last_move(enemy, move_ids::CENT_FURY) {
-        enemy.set_move(move_ids::CENT_SLASH, 12, 1, 0);
-    } else if last_move(enemy, move_ids::CENT_SLASH) {
-        enemy.set_move(move_ids::CENT_PROTECT, 0, 0, 15);
-        enemy.add_effect(mfx::BLOCK_ALL_ALLIES, 15);
+pub(super) fn roll_centurion(enemy: &mut EnemyCombatState, num: i32) {
+    let slash_damage = enemy.entity.status(sid::STARTING_DMG).max(12);
+    let fury_damage = enemy.entity.status(sid::STR_AMT).max(6);
+    let fury_hits = enemy.entity.status(sid::ATTACK_COUNT).max(3);
+    let block = enemy.entity.status(sid::BLOCK_AMT).max(15);
+    let has_ally = enemy.entity.status(sid::COUNT) > 1;
+
+    let slash = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::CENT_SLASH, slash_damage, 1, 0);
+    };
+    let protect_or_fury = |enemy: &mut EnemyCombatState| {
+        if has_ally {
+            enemy.set_move(move_ids::CENT_PROTECT, 0, 0, 0);
+            enemy.add_effect(mfx::BLOCK_RANDOM_OTHER, block as i16);
+        } else {
+            enemy.set_move(move_ids::CENT_FURY, fury_damage, fury_hits, 0);
+        }
+    };
+
+    // Source: reference/extracted/methods/monster/Centurion.java (`getMove`).
+    if num >= 65
+        && !last_two_moves(enemy, move_ids::CENT_PROTECT)
+        && !last_two_moves(enemy, move_ids::CENT_FURY)
+    {
+        protect_or_fury(enemy);
+    } else if !last_two_moves(enemy, move_ids::CENT_SLASH) {
+        slash(enemy);
     } else {
-        enemy.set_move(move_ids::CENT_FURY, 6, 3, 0);
+        protect_or_fury(enemy);
     }
 }
 

@@ -632,8 +632,14 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::MALLEABLE, 1);
         }
         "Centurion" => {
-            // First turn: Fury (6x3) or Slash (12)
-            enemy.set_move(move_ids::CENT_FURY, 6, 3, 0);
+            // Source: reference/extracted/methods/monster/Centurion.java.
+            // The real opener is rolled during combat initialization.
+            enemy.set_move(move_ids::CENT_SLASH, 12, 1, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 12);
+            enemy.entity.set_status(sid::STR_AMT, 6);
+            enemy.entity.set_status(sid::ATTACK_COUNT, 3);
+            enemy.entity.set_status(sid::BLOCK_AMT, 15);
+            enemy.entity.set_status(sid::COUNT, 2);
         }
         "Mystic" | "Healer" => {
             // Attack + debuff (8 damage)

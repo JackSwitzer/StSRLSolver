@@ -629,7 +629,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             .set_status(sid::BEAT_OF_DEATH, amt as i32);
     }
 
-    // Cross-enemy effects (Centurion Protect, Mystic Heal, GremlinLeader Encourage)
+    // Cross-enemy effects (Mystic Heal, GremlinLeader Encourage)
     if let Some(amt) = get_fx(&effects, mfx::BLOCK_ALL_ALLIES) {
         for j in 0..engine.state.enemies.len() {
             if j != enemy_idx && engine.state.enemies[j].is_alive() {
@@ -885,6 +885,14 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         enemies::act1::advance_looter_after_turn(
             &mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
     } else {
+        if engine.state.enemies[enemy_idx].id == "Centurion" {
+            // Centurion.getMove checks the current monster group's alive count
+            // to choose Protect with allies or Fury while alone.
+            // Java: reference/extracted/methods/monster/Centurion.java.
+            let alive_count = engine.state.enemies.iter()
+                .filter(|enemy| enemy.is_alive()).count() as i32;
+            engine.state.enemies[enemy_idx].entity.set_status(sid::COUNT, alive_count);
+        }
         enemies::roll_next_move(&mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
     }
 }

@@ -363,6 +363,8 @@ impl CombatEngine {
         // Source: extracted FungiBeast/LouseNormal/LouseDefensive methods and
         // methods/base/AbstractMonster.java (`init` -> `rollMove`). These
         // monsters have no fixed opener; select it with empty move history.
+        let living_enemy_count = self.state.enemies.iter()
+            .filter(|enemy| enemy.is_alive()).count() as i32;
         for enemy in self.state.enemies.iter_mut().filter(|e| matches!(e.id.as_str(),
             "FungiBeast" | "FuzzyLouseNormal" | "RedLouse"
                 | "FuzzyLouseDefensive" | "GreenLouse"
@@ -377,7 +379,10 @@ impl CombatEngine {
                 | "BanditChild" | "BanditPointy" | "Pointy" | "BanditLeader"
                 | "BookOfStabbing" | "Book of Stabbing"
                 | "BronzeAutomaton" | "Bronze Automaton"
-                | "BronzeOrb" | "Bronze Orb" | "Byrd")) {
+                | "BronzeOrb" | "Bronze Orb" | "Byrd" | "Centurion")) {
+            if enemy.id == "Centurion" {
+                enemy.entity.set_status(sid::COUNT, living_enemy_count);
+            }
             crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
         }
 
