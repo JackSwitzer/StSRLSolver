@@ -163,7 +163,12 @@ fn hook_storm(
     _state: &mut EffectState,
 ) {
     if event.kind == Trigger::OnPowerPlayed && event.card_type == Some(crate::cards::CardType::Power) {
-        engine.channel_orb(OrbType::Lightning);
+        // StormPower.onUseCard queues one ChannelAction per power amount.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/StormPower.java
+        let amount = engine.state.player.status(sid::STORM).max(0);
+        for _ in 0..amount {
+            engine.channel_orb(OrbType::Lightning);
+        }
     }
 }
 

@@ -966,14 +966,30 @@ mod defect_card_java_parity_tests {
         assert_eq!(e.state.enemies[0].entity.hp, hp - 14);
     });
 
-    defect_test!(storm_channels_lightning_on_power_play, {
-        let mut e = bare_engine(&["Storm", "Defragment"], vec![enemy("JawWorm", 40, 0)]);
-        e.init_defect_orbs(1);
-        ensure_in_hand(&mut e, "Storm");
-        ensure_in_hand(&mut e, "Defragment");
-        play_self(&mut e, "Storm");
-        play_self(&mut e, "Defragment");
-        assert_eq!(e.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
+    defect_test!(storm_stacks_channel_once_each_and_upgrade_is_innate_only, {
+        // Storm.java applies one StormPower stack in both versions and makes
+        // only the upgrade Innate. StormPower.onUseCard fires before the new
+        // Power's use(), so Storm does not trigger itself: the second Storm is
+        // seen by one existing stack, then Defragment is seen by both stacks.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Storm.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/StormPower.java
+        let base = reg().get("Storm").expect("Storm");
+        let upgraded = reg().get("Storm+").expect("Storm+");
+        assert!(!base.runtime_traits().innate);
+        assert!(upgraded.runtime_traits().innate);
+        assert_eq!((base.base_magic, upgraded.base_magic), (1, 1));
+
+        let mut e = bare_engine(&[], vec![enemy("JawWorm", 40, 0)]);
+        e.init_defect_orbs(3);
+        e.state.hand = make_deck(&["Storm", "Storm+", "Defragment"]);
+        assert!(play_self(&mut e, "Storm"));
+        assert_eq!(e.state.orb_slots.occupied_count(), 0);
+        assert!(play_self(&mut e, "Storm+"));
+        assert_eq!(e.state.orb_slots.occupied_count(), 1);
+        assert_eq!(e.state.player.status(sid::STORM), 2);
+        assert!(play_self(&mut e, "Defragment"));
+        assert_eq!(e.state.orb_slots.occupied_count(), 3);
+        assert!(e.state.orb_slots.slots.iter().all(|orb| orb.orb_type == OrbType::Lightning));
     });
 
     defect_test!(sunder_kill_refunds_energy, {

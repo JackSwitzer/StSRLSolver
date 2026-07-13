@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T15:42:21.947057+00:00",
+ "updated": "2026-07-13T15:44:48.301861+00:00",
  "status_counts": {
-  "verified": 540,
-  "unverified": 127
+  "verified": 541,
+  "unverified": 126
  },
  "rows": [
   {
@@ -3102,8 +3102,8 @@
    "class": "Storm",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Storm.java",
    "methods_ref": "reference/extracted/methods/card/Storm.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
