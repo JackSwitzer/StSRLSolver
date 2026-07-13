@@ -846,9 +846,12 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::GENERIC_STRENGTH_UP, 3);
         }
         "Spiker" => {
-            // Has Thorns 3. First turn: attack (7 damage)
+            // Source: reference/extracted/methods/monster/Spiker.java.
+            // The real opener is rolled during combat initialization.
             enemy.set_move(move_ids::SPIKER_ATTACK, 7, 1, 0);
             enemy.entity.set_status(sid::THORNS, 3);
+            enemy.entity.set_status(sid::STARTING_DMG, 7);
+            enemy.entity.set_status(sid::COUNT, 0);
         }
         "Repulsor" => {
             // Source: reference/extracted/methods/monster/Repulsor.java.

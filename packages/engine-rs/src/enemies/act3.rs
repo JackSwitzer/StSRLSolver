@@ -93,15 +93,17 @@ pub(super) fn roll_orb_walker(enemy: &mut EnemyCombatState, num: i32) {
     }
 }
 
-pub(super) fn roll_spiker(enemy: &mut EnemyCombatState, _num: i32) {
-    // Attack (7 dmg) or Buff (+2 Thorns). Anti-repeat.
-    if last_move(enemy, move_ids::SPIKER_ATTACK) {
-        enemy.set_move(move_ids::SPIKER_BUFF, 0, 0, 0);
-        let thorns = enemy.entity.status(sid::THORNS);
-        enemy.entity.set_status(sid::THORNS, thorns + 2);
-        enemy.add_effect(mfx::THORNS, 2);
+pub(super) fn roll_spiker(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/Spiker.java (`getMove`).
+    // `COUNT` is thornsCount: it increments only when a buff turn executes.
+    let damage = enemy.entity.status(sid::STARTING_DMG).max(7);
+    if enemy.entity.status(sid::COUNT) > 5
+        || (num < 50 && !last_move(enemy, move_ids::SPIKER_ATTACK))
+    {
+        enemy.set_move(move_ids::SPIKER_ATTACK, damage, 1, 0);
     } else {
-        enemy.set_move(move_ids::SPIKER_ATTACK, 7, 1, 0);
+        enemy.set_move(move_ids::SPIKER_BUFF, 0, 0, 0);
+        enemy.add_effect(mfx::THORNS, 2);
     }
 }
 

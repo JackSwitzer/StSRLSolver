@@ -243,6 +243,15 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         engine.state.enemies[enemy_idx].entity.set_status(sid::FIRST_MOVE, 1);
     }
 
+    if engine.state.enemies[enemy_idx].id == "Spiker"
+        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::SPIKER_BUFF
+    {
+        // Source: reference/extracted/methods/monster/Spiker.java (`takeTurn`).
+        // thornsCount increments before ApplyPowerAction adds two Thorns and
+        // before the queued RollMoveAction observes the new count.
+        engine.state.enemies[enemy_idx].entity.add_status(sid::COUNT, 1);
+    }
+
     if matches!(engine.state.enemies[enemy_idx].id.as_str(),
         "GremlinLeader" | "Gremlin Leader")
         && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::GL_ENCOURAGE

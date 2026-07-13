@@ -389,7 +389,7 @@ impl CombatEngine {
                 | "GremlinLeader" | "Gremlin Leader" | "Healer" | "Mystic"
                 | "Maw" | "Nemesis" | "OrbWalker" | "Orb Walker"
                 | "Reptomancer" | "Repulsor" | "Serpent" | "SnakePlant" | "Snecko"
-                | "SphericGuardian" | "Spheric Guardian"
+                | "SphericGuardian" | "Spheric Guardian" | "Spiker"
                 | "SpireGrowth" | "Spire Growth")) {
             if enemy.id == "Centurion" {
                 enemy.entity.set_status(sid::COUNT, living_enemy_count);
@@ -3772,6 +3772,11 @@ impl CombatEngine {
         let block_return = self.state.enemies[enemy_idx]
             .entity
             .status(sid::BLOCK_RETURN);
+        // ThornsPower.onAttacked queues retaliation for every sourced NORMAL
+        // hit, including zero/fully-blocked and lethal hits. Snapshot before
+        // damage because killing the owner does not cancel the queued action.
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/ThornsPower.java.
+        let enemy_thorns = self.state.enemies[enemy_idx].entity.status(sid::THORNS);
         let enemy_block_before = self.state.enemies[enemy_idx].entity.block;
         let hit_damage = damage;
         let block_broken = self.state.has_relic("HandDrill")
@@ -3783,6 +3788,10 @@ impl CombatEngine {
         let hp_before = self.state.enemies[enemy_idx].entity.hp;
 
         self.deal_damage_to_enemy(enemy_idx, hit_damage);
+
+        if enemy_thorns > 0 {
+            self.deal_thorns_damage_to_player(enemy_thorns);
+        }
 
         if block_return > 0 {
             self.gain_block_player(block_return);

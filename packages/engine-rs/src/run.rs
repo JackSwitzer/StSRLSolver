@@ -274,7 +274,7 @@ const ACT2_ELITE_ENCOUNTERS: &[&[&str]] = &[
 const ACT3_WEAK_ENCOUNTERS: &[&[&str]] = &[
     &["Darkling", "Darkling", "Darkling"],
     &["Orb Walker"],
-    &["Repulsor"],
+    &["3 Shapes"],
 ];
 
 const ACT3_STRONG_ENCOUNTERS: &[&[&str]] = &[
@@ -1717,6 +1717,20 @@ impl RunEngine {
                     expanded.push("Reptomancer".to_string());
                     expanded.push("SnakeDagger".to_string());
                 }
+                "3 Shapes" | "4 Shapes" => {
+                    // Sources: decompiled TheBeyond.java and
+                    // MonsterHelper.java (`spawnShapes`). Draw without
+                    // replacement from two of each Ancient Shape.
+                    let count = if id.as_str() == "3 Shapes" { 3 } else { 4 };
+                    let mut pool = vec![
+                        "Repulsor", "Repulsor", "Exploder", "Exploder",
+                        "Spiker", "Spiker",
+                    ];
+                    for _ in 0..count {
+                        let index = self.rng.gen_range(0..pool.len());
+                        expanded.push(pool.remove(index).to_string());
+                    }
+                }
                 _ => expanded.push(id.clone()),
             }
         }
@@ -2120,6 +2134,16 @@ impl RunEngine {
         for enemy in enemy_states.iter_mut().filter(|enemy| enemy.id == "Repulsor") {
             enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
                 if self.run_state.ascension >= 2 { 13 } else { 11 });
+        }
+
+        // Source: reference/extracted/methods/monster/Spiker.java.
+        for enemy in enemy_states.iter_mut().filter(|enemy| enemy.id == "Spiker") {
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
+                if self.run_state.ascension >= 2 { 9 } else { 7 });
+            let starting_thorns = if self.run_state.ascension >= 2 { 4 } else { 3 };
+            enemy.entity.set_status(crate::status_ids::sid::THORNS,
+                starting_thorns + if self.run_state.ascension >= 17 { 3 } else { 0 });
+            enemy.entity.set_status(crate::status_ids::sid::COUNT, 0);
         }
 
         // Source: reference/extracted/methods/monster/SpireGrowth.java. The
@@ -2987,6 +3011,17 @@ impl RunEngine {
                     (31, 7)
                 } else {
                     (29, 6)
+                };
+                let hp = base + self.rng.gen_range(0..=width);
+                (hp, hp)
+            }
+            "Spiker" => {
+                // Source: reference/extracted/methods/monster/Spiker.java:
+                // inclusive 42..56, or 44..60 at ascension 7+.
+                let (base, width) = if self.run_state.ascension >= 7 {
+                    (44, 16)
+                } else {
+                    (42, 14)
                 };
                 let hp = base + self.rng.gen_range(0..=width);
                 (hp, hp)
@@ -9569,6 +9604,121 @@ mod tests {
         assert!(combat.state.enemies.iter().all(|enemy| enemy.id == "Orb Walker"));
         assert_eq!(combat.ai_rng.counter, 2,
             "each event Orb Walker consumes its own opening roll");
+    }
+
+    #[test]
+    fn spiker_stats_ai_thorns_execution_retaliation_and_shapes_match_java() {
+        // Source: reference/extracted/methods/monster/Spiker.java.
+        // HP is uniformly inclusive; A2 raises damage and starting Thorns;
+        // A17 adds three more starting Thorns.
+        let mut low_hp = std::collections::BTreeSet::new();
+        let mut high_hp = std::collections::BTreeSet::new();
+        for seed in 1..=512 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("Spiker").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("Spiker").0);
+        }
+        assert_eq!(low_hp, (42..=56).collect());
+        assert_eq!(high_hp, (44..=60).collect());
+
+        for (ascension, damage, thorns, hp_range) in [
+            (0, 7, 3, 42..=56),
+            (2, 9, 4, 42..=56),
+            (7, 9, 4, 44..=60),
+            (17, 9, 7, 44..=60),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["Spiker".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert!(hp_range.contains(&enemy.entity.hp));
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG), damage);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::THORNS), thorns);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::COUNT), 0);
+            match enemy.move_id {
+                crate::enemies::move_ids::SPIKER_ATTACK => {
+                    assert_eq!(enemy.move_damage(), damage);
+                }
+                crate::enemies::move_ids::SPIKER_BUFF => {
+                    assert_eq!(enemy.effect(crate::combat_types::mfx::THORNS), Some(2));
+                }
+                other => panic!("invalid Spiker opener {other}"),
+            }
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        // takeTurn increments thornsCount and applies +2 Thorns before its
+        // queued RollMoveAction. After six executed buffs, getMove always
+        // attacks regardless of the roll or previous intent.
+        let mut buffs = RunEngine::new(42, 0);
+        buffs.enter_specific_combat(vec!["Spiker".to_string()]);
+        let combat = buffs.combat_engine.as_mut().unwrap();
+        let ai_before = combat.ai_rng.counter;
+        for executed in 1..=6 {
+            combat.state.enemies[0].move_effects.clear();
+            combat.state.enemies[0].set_move(
+                crate::enemies::move_ids::SPIKER_BUFF, 0, 0, 0);
+            combat.state.enemies[0].add_effect(crate::combat_types::mfx::THORNS, 2);
+            crate::combat_hooks::do_enemy_turns(combat);
+            assert_eq!(combat.state.enemies[0].entity.status(
+                crate::status_ids::sid::COUNT), executed);
+            assert_eq!(combat.state.enemies[0].entity.status(
+                crate::status_ids::sid::THORNS), 3 + executed * 2);
+        }
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::SPIKER_ATTACK);
+        assert_eq!(combat.ai_rng.counter, ai_before + 6);
+
+        // ThornsPower.onAttacked retaliates once per sourced NORMAL attack
+        // hit even when the attack is zero, fully blocked, or lethal. Its
+        // THORNS DamageInfo is blockable and does not trigger from non-attacks.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ThornsPower.java.
+        let mut retaliation = RunEngine::new(42, 17);
+        retaliation.enter_specific_combat(vec!["Spiker".to_string()]);
+        let combat = retaliation.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 100;
+        combat.state.player.max_hp = 100;
+        combat.deal_player_attack_hit_to_enemy(0, 0);
+        assert_eq!(combat.state.player.hp, 93);
+        combat.state.player.block = 7;
+        combat.deal_player_attack_hit_to_enemy(0, 1);
+        assert_eq!(combat.state.player.hp, 93);
+        assert_eq!(combat.state.player.block, 0);
+        let hp_before = combat.state.player.hp;
+        combat.deal_damage_to_enemy(0, 1);
+        assert_eq!(combat.state.player.hp, hp_before,
+            "non-attack damage must not invoke ThornsPower.onAttacked");
+
+        let mut lethal = RunEngine::new(42, 17);
+        lethal.enter_specific_combat(vec!["Spiker".to_string()]);
+        let combat = lethal.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 100;
+        combat.state.enemies[0].entity.hp = 1;
+        combat.deal_player_attack_hit_to_enemy(0, 1);
+        assert_eq!(combat.state.enemies[0].entity.hp, 0);
+        assert_eq!(combat.state.player.hp, 93,
+            "lethal attack still resolves the queued Thorns hit");
+
+        // TheBeyond and MonsterHelper make Spiker reachable only through the
+        // three/four-Shape groups, drawing without replacement from two of
+        // each Shape. Run-level RNG is checked semantically per AGENTS.md.
+        let mut saw_spiker = false;
+        for seed in 1..=64 {
+            let mut group = RunEngine::new(seed, 0);
+            group.enter_specific_combat(vec!["3 Shapes".to_string()]);
+            let combat = group.combat_engine.as_ref().unwrap();
+            assert_eq!(combat.state.enemies.len(), 3);
+            for id in ["Spiker", "Repulsor", "Exploder"] {
+                let count = combat.state.enemies.iter()
+                    .filter(|enemy| enemy.id == id).count();
+                assert!(count <= 2);
+                saw_spiker |= id == "Spiker" && count > 0;
+            }
+            assert!(combat.state.enemies.iter().all(|enemy|
+                matches!(enemy.id.as_str(), "Spiker" | "Repulsor" | "Exploder")));
+        }
+        assert!(saw_spiker, "canonical Shapes groups must make Spiker reachable");
     }
 
     #[test]

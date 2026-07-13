@@ -817,9 +817,11 @@ mod enemy_ai_java_parity_tests {
         expect_status(&e, sid::STR_AMT, 15);
         expect_status(&e, sid::GENERIC_STRENGTH_UP, 3);
 
-        let e = make("Spiker", 170);
+        let e = make("Spiker", 42);
         expect_move(&e, move_ids::SPIKER_ATTACK, 7, 1, 0, &[]);
         expect_status(&e, sid::THORNS, 3);
+        expect_status(&e, sid::STARTING_DMG, 7);
+        expect_status(&e, sid::COUNT, 0);
 
         let e = make("Repulsor", 29);
         expect_move(&e, move_ids::REPULSOR_DAZE, 0, 0, 0,
@@ -916,11 +918,21 @@ mod enemy_ai_java_parity_tests {
         roll_with_num(&mut high, 40);
         expect_move(&high, move_ids::OW_CLAW, 15, 1, 0, &[]);
 
-        let mut e = make("Spiker", 170);
-        roll_times(&mut e, 1);
+        // Source: reference/extracted/methods/monster/Spiker.java.
+        let mut e = make("Spiker", 42);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 49, &mut crate::seed::StsRandom::new(0));
+        expect_move(&e, move_ids::SPIKER_ATTACK, 7, 1, 0, &[]);
+        roll_with_num(&mut e, 49);
         expect_move(&e, move_ids::SPIKER_BUFF, 0, 0, 0, &[(mfx::THORNS, 2)]);
-        expect_status(&e, sid::THORNS, 5);
-        roll_times(&mut e, 1);
+        assert_eq!(e.entity.status(sid::THORNS), 3,
+            "choosing the buff must not execute ApplyPowerAction");
+        roll_with_num(&mut e, 49);
+        expect_move(&e, move_ids::SPIKER_ATTACK, 7, 1, 0, &[]);
+        roll_with_num(&mut e, 50);
+        expect_move(&e, move_ids::SPIKER_BUFF, 0, 0, 0, &[(mfx::THORNS, 2)]);
+        e.entity.set_status(sid::COUNT, 6);
+        roll_with_num(&mut e, 99);
         expect_move(&e, move_ids::SPIKER_ATTACK, 7, 1, 0, &[]);
 
         let mut e = make("Repulsor", 29);
