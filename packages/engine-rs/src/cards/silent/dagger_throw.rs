@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Common: Dagger Throw ---- (cost 1, 9 dmg, draw 1, discard 1; +3 dmg)
+    // Source: reference/extracted/methods/card/DaggerThrow.java deals 9 damage,
+    // draws one card, then discards one card; upgrading adds 3 damage only.
     insert(cards, CardDef {
                 id: "Dagger Throw", name: "Dagger Throw", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 9, base_block: -1,

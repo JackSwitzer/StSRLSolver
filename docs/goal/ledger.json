@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T06:40:41.255508+00:00",
+ "updated": "2026-07-13T06:42:09.121412+00:00",
  "status_counts": {
-  "verified": 361,
-  "unverified": 306
+  "verified": 362,
+  "unverified": 305
  },
  "rows": [
   {
@@ -882,8 +882,8 @@
    "class": "DaggerThrow",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/DaggerThrow.java",
    "methods_ref": "reference/extracted/methods/card/DaggerThrow.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -143,6 +143,9 @@ mod silent_wave2 {
 
     #[test]
     fn silent_wave2_dagger_throw_creates_real_discard_choice_and_enables_sneaky_strike_refund() {
+        // Source: DaggerThrow.java queues damage, DrawCardAction(1), then
+        // DiscardAction(1, false). The freshly drawn Defend must therefore be
+        // available in the mandatory discard choice.
         let mut engine = engine_for(
             &["Dagger Throw", "Sneaky Strike", "Strike"],
             &["Defend"],
@@ -160,6 +163,7 @@ mod silent_wave2 {
         assert_eq!(choice.min_picks, 1);
         assert_eq!(choice.max_picks, 1);
         assert_eq!(choice.options.len(), 3);
+        assert_eq!(hand_count(&engine, "Defend"), 1);
 
         let discard_idx = engine
             .state
