@@ -439,11 +439,14 @@ mod card_registry_tests {
     }
 
     #[test]
-    fn daze_is_unplayable_ethereal() {
-        let c = reg().get("Daze").unwrap().clone();
+    fn dazed_is_unplayable_ethereal_and_has_no_upgrade() {
+        // Source: Dazed.java sets cost -2 and isEthereal, while both use and
+        // upgrade are empty.
+        let c = reg().get("Dazed").unwrap().clone();
         assert_eq!(c.cost, -2);
         assert!(c.has_test_marker("unplayable"));
         assert!(c.has_test_marker("ethereal"));
+        assert!(reg().get("Dazed+").is_none());
     }
 
     #[test]
@@ -514,7 +517,7 @@ mod card_registry_tests {
             "Adaptation", "Adaptation+", "MentalFortress", "MentalFortress+",
             "Ragnarok", "Ragnarok+", "Miracle", "Miracle+",
             "Smite", "Smite+",
-            "Slimed", "Wound", "Daze", "Burn", "AscendersBane",
+            "Slimed", "Wound", "Dazed", "Burn", "AscendersBane",
             "Strike", "Defend",
         ];
         for id in &expected {

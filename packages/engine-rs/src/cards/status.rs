@@ -14,8 +14,10 @@ pub fn register_status(cards: &mut HashMap<&'static str, CardDef>) {
             base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[], complex_hook: None,
         });
+        // Source: reference/extracted/methods/card/Dazed.java is an unplayable
+        // Ethereal Status with empty use and upgrade methods.
         insert(cards, CardDef {
-            id: "Daze", name: "Daze", card_type: CardType::Status,
+            id: "Dazed", name: "Dazed", card_type: CardType::Status,
             target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,
             base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[], complex_hook: None,

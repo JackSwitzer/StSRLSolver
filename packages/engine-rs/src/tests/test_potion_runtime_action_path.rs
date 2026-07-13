@@ -405,12 +405,12 @@ fn blessing_of_the_forge_upgrades_each_eligible_hand_card_once() {
         3,
     ));
     engine.state.relics.push("SacredBark".to_string());
-    engine.state.hand = make_deck(&["Strike", "Defend+", "Daze", "Miracle"]);
+    engine.state.hand = make_deck(&["Strike", "Defend+", "Dazed", "Miracle"]);
     engine.state.potions[0] = "BlessingOfTheForge".to_string();
 
     use_potion(&mut engine, 0, -1);
 
-    assert_eq!(hand_names(&engine), vec!["Strike+", "Defend+", "Daze", "Miracle+"]);
+    assert_eq!(hand_names(&engine), vec!["Strike+", "Defend+", "Dazed", "Miracle+"]);
     assert!(engine.state.potions[0].is_empty());
 }
 

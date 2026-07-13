@@ -8311,7 +8311,7 @@ mod tests {
         single.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
         let combat = single.combat_engine.as_ref().unwrap();
         assert_eq!(combat.state.discard_pile.iter().filter(|card|
-            combat.card_registry.card_name(card.def_id) == "Daze").count(), 2);
+            combat.card_registry.card_name(card.def_id) == "Dazed").count(), 2);
         assert_eq!(combat.state.enemies[0].move_id,
             crate::enemies::move_ids::SENTRY_BEAM);
         assert_eq!(combat.state.enemies[0].move_damage(), 9);
@@ -8335,7 +8335,7 @@ mod tests {
         let combat = trio.combat_engine.as_ref().unwrap();
         assert_eq!(combat.state.player.hp, hp_before - 10);
         assert_eq!(combat.state.discard_pile.iter().filter(|card|
-            combat.card_registry.card_name(card.def_id) == "Daze").count(), 6);
+            combat.card_registry.card_name(card.def_id) == "Dazed").count(), 6);
         assert_eq!(combat.state.enemies.iter().map(|enemy| enemy.move_id)
             .collect::<Vec<_>>(), vec![
                 crate::enemies::move_ids::SENTRY_BEAM,

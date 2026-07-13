@@ -2300,14 +2300,14 @@ impl CombatEngine {
             }
         }
 
-        // Hex: when player plays a non-Attack card, add 1 Daze to draw pile
+        // Hex: when player plays a non-Attack card, add 1 Dazed to draw pile
         if card.card_type != CardType::Attack {
             let hex = self.state.player.status(sid::HEX);
             if hex > 0 {
                 for _ in 0..hex {
                     self.state
                         .draw_pile
-                        .push(self.card_registry.make_card("Daze"));
+                        .push(self.card_registry.make_card("Dazed"));
                 }
             }
         }

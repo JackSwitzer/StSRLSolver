@@ -2262,7 +2262,7 @@ mod tests {
     #[test]
     fn test_all_status_cards_registered() {
         let reg = super::global_registry();
-        let status_cards = ["Slimed", "Wound", "Daze", "Burn", "Void"];
+        let status_cards = ["Slimed", "Wound", "Dazed", "Burn", "Void"];
         for id in &status_cards {
             let card = reg.get(id).unwrap_or_else(|| panic!("Status '{}' missing", id));
             assert_eq!(card.card_type, CardType::Status, "{} should be Status type", id);
@@ -2278,7 +2278,7 @@ mod tests {
         assert_eq!(reg.get("Burn+").unwrap().base_magic, 4);
         assert_has_effect(&reg, "Void", "lose_energy_on_draw");
         assert_has_effect(&reg, "Void", "ethereal");
-        assert_has_effect(&reg, "Daze", "ethereal");
+        assert_has_effect(&reg, "Dazed", "ethereal");
     }
 
     // -----------------------------------------------------------------------

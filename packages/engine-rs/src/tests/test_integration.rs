@@ -460,7 +460,7 @@ mod engine_integration_tests {
         assert_eq!(pot.len(), 1);
     }
 
-    // ---- Wound/Daze cannot be played ----
+    // ---- Wound/Dazed cannot be played ----
     #[test] fn wound_not_playable() {
         let e = engine_with(
             make_deck(&["Wound", "Strike", "Strike", "Strike", "Strike"]),
@@ -473,16 +473,16 @@ mod engine_integration_tests {
         assert!(wound_plays.is_empty());
     }
 
-    #[test] fn daze_not_playable() {
+    #[test] fn dazed_not_playable() {
         let e = engine_with(
-            make_deck(&["Daze", "Strike", "Strike", "Strike", "Strike"]),
+            make_deck(&["Dazed", "Strike", "Strike", "Strike", "Strike"]),
             100, 0,
         );
         let actions = e.get_legal_actions();
-        let daze_plays: Vec<_> = actions.iter().filter(|a| {
-            if let Action::PlayCard { card_idx, .. } = a { e.card_registry.card_name(e.state.hand[*card_idx].def_id) == "Daze" } else { false }
+        let dazed_plays: Vec<_> = actions.iter().filter(|a| {
+            if let Action::PlayCard { card_idx, .. } = a { e.card_registry.card_name(e.state.hand[*card_idx].def_id) == "Dazed" } else { false }
         }).collect();
-        assert!(daze_plays.is_empty());
+        assert!(dazed_plays.is_empty());
     }
 
     // ---- Slimed can be played (costs 1, exhausts) ----
@@ -1216,20 +1216,20 @@ mod bugfix_regression_tests {
 
     #[test]
     fn ethereal_card_exhausts_at_end_turn() {
-        // Daze has "ethereal" and "unplayable" effects
+        // Dazed.java makes the unplayable Status Ethereal.
         let mut e = engine_with(
             make_deck(&["Strike", "Strike", "Strike", "Strike", "Defend"]),
             100, 0,
         );
-        // Manually add a Daze to hand
-        e.state.hand.push(e.card_registry.make_card("Daze"));
-        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Daze"));
+        // Manually add a Dazed to hand
+        e.state.hand.push(e.card_registry.make_card("Dazed"));
+        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Dazed"));
         let exhaust_before = e.state.exhaust_pile.len();
         e.execute_action(&Action::EndTurn);
-        // Daze should be in exhaust pile, not discard
+        // Dazed should be in exhaust pile, not discard
         assert_eq!(e.state.exhaust_pile.len(), exhaust_before + 1,
-            "Ethereal card (Daze) should go to exhaust pile");
-        assert!(!e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Daze"),
+            "Ethereal card (Dazed) should go to exhaust pile");
+        assert!(!e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Dazed"),
             "Ethereal card should not remain in hand");
     }
 

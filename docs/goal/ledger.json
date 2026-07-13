@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T06:51:18.484944+00:00",
+ "updated": "2026-07-13T06:53:29.661021+00:00",
  "status_counts": {
-  "verified": 366,
-  "unverified": 301
+  "verified": 367,
+  "unverified": 300
  },
  "rows": [
   {
@@ -932,8 +932,8 @@
    "class": "Dazed",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/status/Dazed.java",
    "methods_ref": "reference/extracted/methods/card/Dazed.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

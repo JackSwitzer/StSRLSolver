@@ -355,7 +355,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     }
     if let Some(amt) = get_fx(&effects, mfx::DAZE) {
         for _ in 0..amt {
-            engine.state.discard_pile.push(engine.card_registry.make_card("Daze"));
+            engine.state.discard_pile.push(engine.card_registry.make_card("Dazed"));
         }
     }
     if let Some(amt) = get_fx(&effects, mfx::BURN) {

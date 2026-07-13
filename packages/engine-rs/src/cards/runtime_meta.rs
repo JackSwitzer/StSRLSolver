@@ -142,7 +142,7 @@ pub fn runtime_traits_for_card(id: &str, cost: i32) -> CardRuntimeTraits {
         ),
         ethereal: matches!(
             id,
-            "Daze"
+            "Dazed"
                 | "Void"
                 | "AscendersBane"
                 | "Clumsy"

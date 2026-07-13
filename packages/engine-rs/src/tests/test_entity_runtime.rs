@@ -132,13 +132,13 @@ fn runic_pyramid_keeps_the_whole_non_ethereal_hand_without_marking_retain() {
     // DiscardAtEndOfTurnAction skips the hand-wide discard when it is owned,
     // but only explicit retain/selfRetain cards pass through onRetained.
     let mut state = combat_state_with(
-        make_deck(&["Strike", "Doubt", "Daze"]),
+        make_deck(&["Strike", "Doubt", "Dazed"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
     state.relics.push("Runic Pyramid".to_string());
     let mut engine = engine_with_state(state);
-    engine.state.hand = make_deck(&["Strike", "Doubt", "Daze"]);
+    engine.state.hand = make_deck(&["Strike", "Doubt", "Dazed"]);
     engine.state.draw_pile.clear();
     engine.state.discard_pile.clear();
     engine.state.exhaust_pile.clear();
@@ -162,7 +162,7 @@ fn runic_pyramid_keeps_the_whole_non_ethereal_hand_without_marking_retain() {
         .state
         .exhaust_pile
         .iter()
-        .any(|card| engine.card_registry.card_name(card.def_id) == "Daze"));
+        .any(|card| engine.card_registry.card_name(card.def_id) == "Dazed"));
 }
 
 #[test]

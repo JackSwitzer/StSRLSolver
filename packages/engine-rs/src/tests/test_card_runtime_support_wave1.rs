@@ -17,7 +17,7 @@ fn support_wave1_registry_keeps_shared_support_cards_typed_runtime_metadata() {
     let registry = global_registry();
 
     for card_id in [
-        "Slimed", "Wound", "Daze", "Burn", "Burn+", "Void", "Decay", "Regret", "Doubt",
+        "Slimed", "Wound", "Dazed", "Burn", "Burn+", "Void", "Decay", "Regret", "Doubt",
         "Shame", "AscendersBane", "Clumsy", "CurseOfTheBell", "Injury", "Necronomicurse",
         "Normality", "Pain", "Parasite", "Pride", "Writhe",
     ] {
@@ -69,7 +69,7 @@ fn support_wave1_registry_keeps_shared_support_cards_typed_runtime_metadata() {
         .any(|trigger| matches!(trigger, CardRuntimeTrigger::OnDraw(OnDrawRule::LoseEnergy))));
 
     assert!(registry.get("Parasite").unwrap().runtime_traits().unplayable);
-    assert!(registry.get("Daze").unwrap().runtime_traits().ethereal);
+    assert!(registry.get("Dazed").unwrap().runtime_traits().ethereal);
     assert!(registry.get("Wound").unwrap().runtime_traits().unplayable);
 }
 
