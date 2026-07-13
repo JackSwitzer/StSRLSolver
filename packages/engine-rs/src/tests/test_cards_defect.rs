@@ -1415,6 +1415,45 @@ mod defect_card_java_parity_tests {
         assert_eq!(result.like_water_block, 2);
     });
 
+    defect_test!(equilibrium_blocks_and_stacked_power_retains_for_each_round, {
+        // Equilibrium.java queues GainBlockAction before EquilibriumPower(1),
+        // and the upgrade changes only block from 13 to 16. EquilibriumPower
+        // retains every non-Ethereal hand card at end of turn and loses one
+        // stack at end of round.
+        let mut engine = bare_engine(
+            &[],
+            vec![enemy_no_intent("JawWorm", 200, 200)],
+        );
+        engine.state.energy = 4;
+        engine.state.max_energy = 4;
+        engine.state.hand = make_deck(&["Undo", "Undo+", "Strike", "Void"]);
+
+        assert!(play_self(&mut engine, "Undo"));
+        assert!(play_self(&mut engine, "Undo+"));
+        assert_eq!(engine.state.player.block, 29);
+        assert_eq!(engine.state.player.status(sid::EQUILIBRIUM), 2);
+
+        end_turn(&mut engine);
+        assert_eq!(hand_count(&engine, "Strike"), 1);
+        assert_eq!(exhaust_prefix_count(&engine, "Void"), 1);
+        assert_eq!(engine.state.player.status(sid::EQUILIBRIUM), 1);
+
+        engine.state.hand.retain(|card| {
+            engine.card_registry.card_name(card.def_id) == "Strike"
+        });
+        engine.state.draw_pile.clear();
+        engine.state.discard_pile.clear();
+        end_turn(&mut engine);
+        assert_eq!(hand_count(&engine, "Strike"), 1);
+        assert_eq!(engine.state.player.status(sid::EQUILIBRIUM), 0);
+
+        engine.state.draw_pile = make_deck_n("Defend", 5);
+        engine.state.discard_pile.clear();
+        end_turn(&mut engine);
+        assert_eq!(hand_count(&engine, "Strike"), 0);
+        assert_eq!(discard_prefix_count(&engine, "Strike"), 1);
+    });
+
     defect_test!(process_end_of_round_clears_debuffs, {
         let mut entity = crate::state::EntityState::new(50, 50);
         entity.set_status(sid::WEAKENED, 2);

@@ -518,7 +518,7 @@ pub fn has_equilibrium(entity: &EntityState) -> bool {
     entity.status(sid::EQUILIBRIUM) > 0
 }
 
-/// Decrement Equilibrium at end of turn.
+/// Decrement Equilibrium at end of round.
 
 pub fn decrement_equilibrium(entity: &mut EntityState) {
     decrement_status(entity, sid::EQUILIBRIUM);
@@ -738,9 +738,6 @@ pub fn process_end_of_turn(entity: &mut EntityState, in_calm: bool) -> EndOfTurn
     // Remove Rage at end of turn
     remove_rage_end_of_turn(entity);
 
-    // Decrement Equilibrium
-    decrement_equilibrium(entity);
-
     // Decrement Intangible
     decrement_intangible(entity);
 
@@ -750,6 +747,10 @@ pub fn process_end_of_turn(entity: &mut EntityState, in_calm: bool) -> EndOfTurn
 /// Process end-of-round triggers (after all entities have taken turns).
 
 pub fn process_end_of_round(entity: &mut EntityState) {
+    // EquilibriumPower.atEndOfRound reduces one stack after its end-of-turn
+    // retention trigger has resolved.
+    decrement_equilibrium(entity);
+
     // Debuff decrements
     decrement_debuffs(entity);
 

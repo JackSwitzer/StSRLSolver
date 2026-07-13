@@ -1981,9 +1981,13 @@ impl CombatEngine {
             self.state.hand = kept;
         } else {
             // Normal: retain tagged cards + explicitly retained (FLAG_RETAINED), exhaust ethereal, discard rest
-            // Equilibrium / Well-Laid Plans: retain entire hand
-            let retain_all = self.state.player.status(sid::RETAIN_HAND_FLAG) > 0;
-            if retain_all {
+            // EquilibriumPower.atEndOfTurn tags every non-Ethereal card for
+            // retention. Its amount is reduced only at end of round, so
+            // stacked copies can retain the hand for multiple rounds.
+            // Java: powers/EquilibriumPower.java::atEndOfTurn/atEndOfRound.
+            let retain_flag = self.state.player.status(sid::RETAIN_HAND_FLAG) > 0;
+            let retain_all = retain_flag || self.state.player.status(sid::EQUILIBRIUM) > 0;
+            if retain_flag {
                 self.state.player.set_status(sid::RETAIN_HAND_FLAG, 0);
             }
             let hand = std::mem::take(&mut self.state.hand);
@@ -2183,6 +2187,11 @@ impl CombatEngine {
         self.emit_event(crate::effects::runtime::GameEvent::empty(
             crate::effects::trigger::Trigger::RoundEnd,
         ));
+
+        // EquilibriumPower is turn-based and loses exactly one stack after
+        // the enemy turn, after it has already retained the player's hand.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/EquilibriumPower.java
+        powers::decrement_equilibrium(&mut self.state.player);
 
         // Panic Button constructs NoBlockPower with isSourceMonster=false, so
         // atEndOfRound immediately reduces its two-turn amount. It therefore

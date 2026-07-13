@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T16:52:38.701046+00:00",
+ "updated": "2026-07-13T16:57:23.178287+00:00",
  "status_counts": {
-  "verified": 567,
-  "unverified": 100
+  "verified": 568,
+  "unverified": 99
  },
  "rows": [
   {
@@ -3432,8 +3432,8 @@
    "class": "Equilibrium",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Equilibrium.java",
    "methods_ref": "reference/extracted/methods/card/Equilibrium.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
