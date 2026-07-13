@@ -266,6 +266,58 @@ mod ironclad_card_java_parity_tests {
     card_pair_test!(blood_for_blood, "Blood for Blood", "Blood for Blood+", 4, 18, -1, -1, 3, 22, -1, -1, CardType::Attack, CardTarget::Enemy, false);
     card_pair_test!(bloodletting, "Bloodletting", "Bloodletting+", 0, -1, -1, 2, 0, -1, -1, 3, CardType::Skill, CardTarget::SelfTarget, false);
     card_pair_test!(burning_pact, "Burning Pact", "Burning Pact+", 1, -1, -1, 2, 1, -1, -1, 3, CardType::Skill, CardTarget::None, false);
+
+    #[test]
+    fn burning_pact_auto_resolves_small_hands_then_draws_and_choices_large_hands() {
+        // BurningPact.java queues ExhaustAction(1, false) before its 2-card
+        // draw (3 upgraded). ExhaustAction immediately finishes on an empty
+        // hand, auto-exhausts the whole hand when size <= amount, and opens a
+        // mandatory selection only when more than one card remains.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/BurningPact.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ExhaustAction.java
+        let mut empty = engine_for(
+            &["Burning Pact+"],
+            &["Strike", "Defend", "Bash"],
+            &[],
+            vec![enemy_no_intent("Dummy", 50, 50)],
+            1,
+        );
+        assert!(play_self(&mut empty, "Burning Pact+"));
+        assert_eq!(empty.phase, crate::engine::CombatPhase::PlayerTurn);
+        assert_eq!(empty.state.hand.len(), 3);
+        assert_eq!(empty.state.energy, 0);
+
+        let mut singleton = engine_for(
+            &["Burning Pact", "Strike"],
+            &["Defend", "Bash"],
+            &[],
+            vec![enemy_no_intent("Dummy", 50, 50)],
+            1,
+        );
+        assert!(play_self(&mut singleton, "Burning Pact"));
+        assert_eq!(singleton.phase, crate::engine::CombatPhase::PlayerTurn);
+        assert_eq!(exhaust_prefix_count(&singleton, "Strike"), 1);
+        assert_eq!(singleton.state.hand.len(), 2);
+
+        let mut choice = engine_for(
+            &["Burning Pact+", "Strike", "Defend"],
+            &["Anger", "Cleave", "Bash"],
+            &[],
+            vec![enemy_no_intent("Dummy", 50, 50)],
+            1,
+        );
+        assert!(play_self(&mut choice, "Burning Pact+"));
+        assert_eq!(choice.phase, crate::engine::CombatPhase::AwaitingChoice);
+        assert_eq!(choice.state.hand.len(), 2, "draw waits for exhaust selection");
+        let defend_option = choice.choice.as_ref().unwrap().options.iter().position(|option| {
+            matches!(option, crate::engine::ChoiceOption::HandCard(index)
+                if choice.card_registry.card_name(choice.state.hand[*index].def_id) == "Defend")
+        }).expect("Defend exhaust option");
+        choice.execute_action(&Action::Choose(defend_option));
+        assert_eq!(choice.phase, crate::engine::CombatPhase::PlayerTurn);
+        assert_eq!(exhaust_prefix_count(&choice, "Defend"), 1);
+        assert_eq!(choice.state.hand.len(), 4);
+    }
     card_pair_test!(carnage, "Carnage", "Carnage+", 2, 20, -1, -1, 2, 28, -1, -1, CardType::Attack, CardTarget::Enemy, false);
     card_pair_test!(combust, "Combust", "Combust+", 1, -1, -1, 5, 1, -1, -1, 7, CardType::Power, CardTarget::SelfTarget, false);
     card_pair_test!(dark_embrace, "Dark Embrace", "Dark Embrace+", 2, -1, -1, 1, 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false);

@@ -181,8 +181,11 @@ mod ironclad_wave4_card_runtime_tests {
 
     #[test]
     fn burning_pact_exhausts_a_selected_card_and_draws_after_choice_resolution() {
+        // ExhaustAction auto-exhausts a singleton hand; two remaining cards
+        // are required for its manual selection screen.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ExhaustAction.java
         let mut engine = engine_for(
-            &["Burning Pact", "Strike"],
+            &["Burning Pact", "Strike", "Anger"],
             &["Defend", "Bash"],
             &[],
             50,
@@ -200,7 +203,12 @@ mod ironclad_wave4_card_runtime_tests {
 
         assert_eq!(engine.phase, CombatPhase::PlayerTurn);
         assert_eq!(exhaust_prefix_count(&engine, "Strike"), 1);
-        assert_eq!(engine.state.hand.len(), 2);
+        assert_eq!(engine.state.hand.len(), 3);
+        assert!(engine
+            .state
+            .hand
+            .iter()
+            .any(|card| engine.card_registry.card_name(card.def_id) == "Anger"));
         assert!(engine
             .state
             .hand

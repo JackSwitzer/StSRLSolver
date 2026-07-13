@@ -93,8 +93,11 @@ fn true_grit_plus_uses_the_choice_surface_to_exhaust_the_selected_card() {
 
 #[test]
 fn burning_pact_exhausts_selected_card_then_draws_after_resolution() {
+    // ExhaustAction auto-exhausts a singleton hand; keep two cards here so
+    // the source-defined manual-selection branch is exercised.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ExhaustAction.java
     let mut engine = engine_for(
-        &["Burning Pact", "Strike"],
+        &["Burning Pact", "Strike", "Anger"],
         &["Defend", "Bash"],
         &[],
         3,
@@ -108,7 +111,8 @@ fn burning_pact_exhausts_selected_card_then_draws_after_resolution() {
 
     let names = hand_names(&engine);
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
-    assert_eq!(names.len(), 2);
+    assert_eq!(names.len(), 3);
+    assert!(names.contains(&"Anger".to_string()));
     assert!(names.contains(&"Defend".to_string()));
     assert!(names.contains(&"Bash".to_string()));
 }

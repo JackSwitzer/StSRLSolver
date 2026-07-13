@@ -124,8 +124,11 @@ fn ironclad_wave12_registry_exports_promote_the_typed_surface_where_supported() 
 
 #[test]
 fn ironclad_wave12_burning_pact_uses_declarative_choice_and_deferred_draw() {
+    // ExhaustAction auto-exhausts a singleton hand; two remaining cards are
+    // required for its manual selection screen.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ExhaustAction.java
     let mut engine = engine_for(
-        &["Burning Pact", "Strike"],
+        &["Burning Pact", "Strike", "Anger"],
         &["Defend", "Bash"],
         &[],
         3,
@@ -140,7 +143,8 @@ fn ironclad_wave12_burning_pact_uses_declarative_choice_and_deferred_draw() {
     let names = hand_names(&engine);
     assert_eq!(engine.phase, crate::engine::CombatPhase::PlayerTurn);
     assert_eq!(engine.state.exhaust_pile.len(), 1);
-    assert_eq!(names.len(), 2);
+    assert_eq!(names.len(), 3);
+    assert!(names.contains(&"Anger".to_string()));
     assert!(names.contains(&"Defend".to_string()));
     assert!(names.contains(&"Bash".to_string()));
 }

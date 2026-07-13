@@ -1,8 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // ---- Ironclad Uncommon: Burning Pact ----
-    // Typed choice body carries its own post-choice draw amount.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/BurningPact.java
+    // Cost 1; exhaust one card, then draw 2 (3 upgraded).
     insert(cards, CardDef {
         id: "Burning Pact",
         name: "Burning Pact",

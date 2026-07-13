@@ -1285,6 +1285,11 @@ fn execute_choose_cards(
     post_choice_draw_src: AmountSource,
 ) {
     let pile = get_pile(engine, source);
+    let post_choice_draw = if post_choice_draw_src == AmountSource::Fixed(0) {
+        0
+    } else {
+        resolve_card_amount(engine, ctx, &post_choice_draw_src).max(0)
+    };
 
     // Build options from the source pile, applying filter
     let mut options: Vec<ChoiceOption> = pile.iter()
@@ -1325,14 +1330,21 @@ fn execute_choose_cards(
     }
 
     if options.is_empty() {
+        // ExhaustAction with an empty hand completes immediately; actions
+        // queued after it (Burning Pact's DrawCardAction) still resolve.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ExhaustAction.java
+        if post_choice_draw > 0 {
+            engine.draw_cards(post_choice_draw);
+        }
         return;
     }
 
     let is_meditate = matches!(ctx.card.id, "Meditate" | "Meditate+")
         && matches!(source, Pile::Discard)
         && matches!(action, ChoiceAction::MoveToHand);
-    let max_picks = (resolve_card_amount(engine, ctx, &max_picks_src).max(0) as usize)
-        .min(options.len());
+    let requested_min = resolve_card_amount(engine, ctx, &min_picks_src).max(0) as usize;
+    let requested_max = resolve_card_amount(engine, ctx, &max_picks_src).max(0) as usize;
+    let max_picks = requested_max.min(options.len());
 
     if max_picks == 0 {
         return;
@@ -1369,8 +1381,37 @@ fn execute_choose_cards(
     let min_picks = if is_meditate {
         max_picks
     } else {
-        resolve_card_amount(engine, ctx, &min_picks_src).max(0) as usize
+        requested_min
     };
+
+    // Non-random, fixed-count ExhaustAction automatically exhausts the whole
+    // hand when hand.size() <= amount instead of opening the selection screen.
+    // This covers Burning Pact/True Grit with a singleton remaining hand while
+    // preserving any-number choices such as Purity (min != max).
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ExhaustAction.java
+    if action == ChoiceAction::Exhaust
+        && source == Pile::Hand
+        && requested_min == requested_max
+        && options.len() <= requested_max
+    {
+        let mut indices: Vec<usize> = options
+            .iter()
+            .filter_map(|option| match option {
+                ChoiceOption::HandCard(index) => Some(*index),
+                _ => None,
+            })
+            .collect();
+        indices.sort_unstable_by(|left, right| right.cmp(left));
+        for index in indices {
+            let card = engine.state.hand.remove(index);
+            engine.state.exhaust_pile.push(card);
+            engine.trigger_card_on_exhaust(card);
+        }
+        if post_choice_draw > 0 {
+            engine.draw_cards(post_choice_draw);
+        }
+        return;
+    }
 
     let reason = choice_reason_for_action(action, source);
     if matches!(action, ChoiceAction::CopyToHand | ChoiceAction::StoreCardForNextTurnCopies) {
@@ -1385,8 +1426,7 @@ fn execute_choose_cards(
     } else {
         engine.begin_choice(reason, options, min_picks, max_picks);
     }
-    if post_choice_draw_src != AmountSource::Fixed(0) {
-        let post_choice_draw = resolve_card_amount(engine, ctx, &post_choice_draw_src).max(0);
+    if post_choice_draw > 0 {
         if let Some(choice) = engine.choice.as_mut() {
             choice.post_choice_draw = post_choice_draw;
         }

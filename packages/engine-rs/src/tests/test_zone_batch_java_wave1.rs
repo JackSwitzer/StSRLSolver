@@ -167,8 +167,11 @@ fn true_grit_plus_exhausts_the_selected_card_instead_of_a_random_one() {
 
 #[test]
 fn burning_pact_exhausts_selected_card_then_draws_after_resolution() {
+    // ExhaustAction auto-exhausts when hand.size() <= amount, so two cards
+    // must remain after Burning Pact leaves the hand to exercise selection.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ExhaustAction.java
     let mut engine = engine_for(
-        &["Burning Pact", "Strike"],
+        &["Burning Pact", "Strike", "Anger"],
         &["Defend", "Bash"],
         &[],
         3,
@@ -178,13 +181,14 @@ fn burning_pact_exhausts_selected_card_then_draws_after_resolution() {
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
     let choice = engine.choice.as_ref().expect("burning pact choice");
     assert_eq!(choice.reason, ChoiceReason::ExhaustFromHand);
-    assert_eq!(choice.options.len(), 1);
+    assert_eq!(choice.options.len(), 2);
 
     engine.execute_action(&Action::Choose(0));
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
     let names = hand_names(&engine);
-    assert_eq!(names.len(), 2);
+    assert_eq!(names.len(), 3);
+    assert!(names.contains(&"Anger".to_string()));
     assert!(names.contains(&"Defend".to_string()));
     assert!(names.contains(&"Bash".to_string()));
     assert_eq!(
