@@ -87,12 +87,22 @@ fn relic_wave15_ninja_scroll_fills_hand_then_spills_overflow_to_discard() {
 
 #[test]
 fn relic_wave15_mark_of_pain_adds_two_wounds_to_draw_pile_at_combat_start() {
-    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    // Source: reference/extracted/methods/relic/MarkOfPain.java and
+    // CardGroup.java::addToRandomSpot. Each Wound consumes one cardRandomRng
+    // tick; the draw-pile shuffle stream is untouched.
+    let mut engine = engine_without_start(
+        make_deck_n("Strike", 5),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
     engine.state.relics.push("Mark of Pain".to_string());
+    let before = engine.rng_counters();
 
     fire_combat_start(&mut engine);
 
     assert_eq!(draw_prefix_count(&engine, "Wound"), 2);
+    assert_eq!(engine.rng_counters()["cardRandom"], before["cardRandom"] + 2);
+    assert_eq!(engine.rng_counters()["card"], before["card"]);
 }
 
 #[test]

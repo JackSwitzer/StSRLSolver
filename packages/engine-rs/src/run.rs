@@ -2693,7 +2693,7 @@ impl RunEngine {
             }
         }
         // BustedCrown.java, CoffeeDripper.java, CursedKey.java, Ectoplasm.java,
-        // FusionHammer.java, RunicDome.java, VelvetChoker.java, and
+        // FusionHammer.java, MarkOfPain.java, RunicDome.java, VelvetChoker.java, and
         // PhilosopherStone.java and Sozu.java each increment energyMaster once
         // in onEquip.
         let slavers_collar_energy = i32::from(
@@ -2732,6 +2732,12 @@ impl RunEngine {
                 self.run_state
                     .relic_flags
                     .has(crate::relic_flags::flag::FUSION_HAMMER),
+            )
+            + i32::from(
+                self.run_state
+                    .relics
+                    .iter()
+                    .any(|relic| relic == "Mark of Pain"),
             )
             + i32::from(
                 self.run_state
@@ -12729,6 +12735,30 @@ mod tests {
         let combat = engine.combat_engine.as_ref().expect("combat should start");
         assert_eq!(combat.state.max_energy, 4);
         assert_eq!(combat.state.energy, 4);
+    }
+
+    #[test]
+    fn mark_of_pain_increases_master_energy_and_adds_two_wounds() {
+        // Source-derived (verify relic/Mark of Pain): MarkOfPain.java::onEquip
+        // increments energyMaster once and atBattleStart creates two Wounds.
+        let mut engine = RunEngine::new(46, 0);
+        engine.run_state.relics.push("Mark of Pain".to_string());
+        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+
+        engine.enter_specific_combat(vec!["JawWorm".to_string()]);
+        let combat = engine.combat_engine.as_ref().expect("combat should start");
+        assert_eq!(combat.state.max_energy, 4);
+        assert_eq!(combat.state.energy, 4);
+        assert_eq!(
+            combat
+                .state
+                .draw_pile
+                .iter()
+                .chain(&combat.state.hand)
+                .filter(|card| combat.card_registry.card_name(card.def_id) == "Wound")
+                .count(),
+            2
+        );
     }
 
     #[test]

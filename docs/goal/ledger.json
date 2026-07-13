@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T22:47:53.803242+00:00",
+ "updated": "2026-07-13T22:50:57.144581+00:00",
  "status_counts": {
-  "verified": 645,
-  "unverified": 22
+  "verified": 646,
+  "unverified": 21
  },
  "rows": [
   {
@@ -5632,8 +5632,8 @@
    "class": "MarkOfPain",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/MarkOfPain.java",
    "methods_ref": "reference/extracted/methods/relic/MarkOfPain.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
