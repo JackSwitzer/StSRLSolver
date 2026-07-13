@@ -43,7 +43,7 @@ fn colorless_wave3_registry_exports_match_typed_surface() {
         &[
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::Conditional(
-                Cond::EnemyKilled,
+                Cond::EnemyKilledNonMinion,
                 &[E::Simple(SE::ModifyPlayedCardDamage(A::Magic))],
                 &[],
             ),

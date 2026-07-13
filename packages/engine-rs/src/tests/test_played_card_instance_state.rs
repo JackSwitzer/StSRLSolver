@@ -157,3 +157,53 @@ fn genetic_algorithm_and_ritual_dagger_only_scale_the_played_copy() {
     assert_eq!(ritual_engine.state.draw_pile[0].misc, -1);
     assert_eq!(ritual_engine.state.discard_pile[0].misc, -1);
 }
+
+#[test]
+fn ritual_dagger_kill_persists_to_master_deck_but_minion_kill_does_not_scale() {
+    // RitualDaggerAction raises misc on the matching master-deck UUID and all
+    // same-UUID combat instances only when the target dies without halfDead or
+    // MinionPower. Ritual Dagger+ raises by five because its upgrade changes
+    // magicNumber from three to five.
+    // Sources: cards/colorless/RitualDagger.java,
+    // actions/unique/RitualDaggerAction.java, and
+    // helpers/GetAllInBattleInstances.java.
+    let mut persistent = engine_with_state(combat_state_with(
+        make_deck(&["RitualDagger+", "Strike"]),
+        vec![enemy_no_intent("JawWorm", 15, 15)],
+        3,
+    ));
+    persistent.state.hand.retain(|card| {
+        persistent.card_registry.card_name(card.def_id) == "RitualDagger+"
+    });
+
+    assert!(play_on_enemy(&mut persistent, "RitualDagger+", 0));
+
+    let exhausted = persistent
+        .state
+        .exhaust_pile
+        .iter()
+        .find(|card| persistent.card_registry.card_name(card.def_id) == "RitualDagger+")
+        .copied()
+        .expect("played Ritual Dagger+ should exhaust");
+    let master = persistent
+        .state
+        .master_deck
+        .iter()
+        .find(|card| persistent.card_registry.card_name(card.def_id) == "RitualDagger+")
+        .copied()
+        .expect("persistent Ritual Dagger+ in master deck");
+    assert_eq!(effective_misc_or(&persistent, exhausted, 15), 20);
+    assert_eq!(effective_misc_or(&persistent, master, 15), 20);
+
+    let mut minion = enemy_no_intent("TorchHead", 15, 15);
+    minion.is_minion = true;
+    let mut ignored = engine_with_state(combat_state_with(
+        make_deck(&["RitualDagger"]),
+        vec![minion],
+        3,
+    ));
+    assert!(play_on_enemy(&mut ignored, "RitualDagger", 0));
+
+    assert_eq!(ignored.state.exhaust_pile[0].misc, -1);
+    assert_eq!(ignored.state.master_deck[0].misc, -1);
+}

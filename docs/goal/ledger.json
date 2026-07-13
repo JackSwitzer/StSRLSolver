@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T14:03:52.439979+00:00",
+ "updated": "2026-07-13T14:10:00.895970+00:00",
  "status_counts": {
-  "verified": 511,
-  "unverified": 156
+  "verified": 512,
+  "unverified": 155
  },
  "rows": [
   {
@@ -2752,8 +2752,8 @@
    "class": "RitualDagger",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/RitualDagger.java",
    "methods_ref": "reference/extracted/methods/card/RitualDagger.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

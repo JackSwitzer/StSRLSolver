@@ -1389,6 +1389,39 @@ impl CombatEngine {
         }
     }
 
+    pub(crate) fn sync_ritual_dagger_master_deck(
+        &mut self,
+        before: CardInstance,
+        next_damage: i16,
+    ) {
+        // RitualDaggerAction matches the played card's UUID in masterDeck and
+        // raises that persistent card's misc/baseDamage. CardInstance has no
+        // UUID, but equal same-definition/misc copies are behaviorally
+        // interchangeable, so updating one matching member preserves the
+        // exact master-deck state multiset.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/
+        // RitualDaggerAction.java
+        let def = self.card_registry.card_def_by_id(before.def_id);
+        let previous_damage = if before.misc >= 0 {
+            before.misc
+        } else {
+            def.base_damage.max(0) as i16
+        };
+        if let Some(card) = self.state.master_deck.iter_mut().find(|card| {
+            if card.def_id != before.def_id {
+                return false;
+            }
+            let current = if card.misc >= 0 {
+                card.misc
+            } else {
+                def.base_damage.max(0) as i16
+            };
+            current == previous_damage
+        }) {
+            card.misc = next_damage;
+        }
+    }
+
     pub(crate) fn move_forethought_cards_to_bottom(&mut self, indices: &[usize]) {
         // HandCardSelectScreen.addToTop preserves click order, and each
         // moveToBottomOfDeck inserts at index zero. Capture the selected cards
