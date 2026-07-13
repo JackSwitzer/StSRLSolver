@@ -738,6 +738,14 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         // -- Played card mutation --
         SimpleEffect::ModifyPlayedCardCost(ref amount_src) => {
+            // Streamline queues ReduceCostAction after DamageAction. When that
+            // hit kills the final monster, DamageAction clears ReduceCostAction
+            // because it is neither damage, heal, block, nor UseCardAction.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DamageAction.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+            if engine.state.combat_over || engine.state.is_victory() {
+                return;
+            }
             let delta = resolve_card_amount(engine, ctx, amount_src);
             if let Some(mut card) = engine.runtime_played_card {
                 let current = if card.cost >= 0 {

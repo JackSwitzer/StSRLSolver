@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T15:50:31.448780+00:00",
+ "updated": "2026-07-13T15:56:52.846859+00:00",
  "status_counts": {
-  "verified": 542,
-  "unverified": 125
+  "verified": 543,
+  "unverified": 124
  },
  "rows": [
   {
@@ -3122,8 +3122,8 @@
    "class": "Streamline",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Streamline.java",
    "methods_ref": "reference/extracted/methods/card/Streamline.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

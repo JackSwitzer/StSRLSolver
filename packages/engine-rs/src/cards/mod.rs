@@ -1542,6 +1542,7 @@ impl CardRegistry {
             return;
         }
         if card.flags & CardInstance::FLAG_UPGRADED != 0 { return; }
+        let original_def_cost = self.id_to_def[card.def_id as usize].cost as i8;
         let upgraded = format!("{}+", name);
         if let Some(&id) = self.name_to_id.get(upgraded.as_str()) {
             if name == "Steam" && card.misc != -1 {
@@ -1556,7 +1557,15 @@ impl CardRegistry {
             card.def_id = id;
             card.flags |= CardInstance::FLAG_UPGRADED;
             if let Some(def) = self.id_to_def.get(id as usize) {
-                card.base_cost = def.cost as i8;
+                let upgraded_def_cost = def.cost as i8;
+                // Only an upgrade that calls upgradeBaseCost changes Java's
+                // permanent combat cost. Streamline.upgrade changes damage
+                // only, so a cost already lowered by ReduceCostAction survives.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/AbstractCard.java
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Streamline.java
+                if original_def_cost != upgraded_def_cost || card.base_cost == original_def_cost {
+                    card.base_cost = upgraded_def_cost;
+                }
             }
         }
     }
