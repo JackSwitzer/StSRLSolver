@@ -382,6 +382,7 @@ impl CombatEngine {
                 | "BronzeOrb" | "Bronze Orb" | "Byrd" | "Centurion"
                 | "Champ" | "TheChamp" | "Chosen" | "Mugger"
                 | "Shelled Parasite" | "ShelledParasite"
+                | "SlaverBoss" | "TaskMaster" | "Taskmaster"
                 | "CorruptHeart" | "Corrupt Heart"
                 | "SnakeDagger" | "Snake Dagger" | "Darkling" | "Deca" | "Donu"
                 | "Exploder" | "GiantHead" | "Giant Head"

@@ -2007,7 +2007,8 @@ fn is_elite_fight(engine: &CombatEngine) -> bool {
         matches!(
             enemy.id.as_str(),
             "GremlinNob" | "Lagavulin" | "Sentry" | "BookOfStabbing" | "GremlinLeader"
-                | "TaskMaster" | "Nemesis" | "Reptomancer" | "GiantHead"
+                | "SlaverBoss" | "TaskMaster" | "Taskmaster"
+                | "Nemesis" | "Reptomancer" | "GiantHead"
         )
     })
 }

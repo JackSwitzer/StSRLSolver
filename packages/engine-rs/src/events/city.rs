@@ -24,7 +24,7 @@ fn colosseum_fight_prompt() -> TypedEventDef {
         vec![supported(
             "Fight (enter the arena)",
             vec![EventProgramOp::combat_branch(
-                ["TaskMaster", "SlaverBlue", "SlaverRed"],
+                ["SlaverBlue", "SlaverRed"],
                 vec![EventProgramOp::continue_event(colosseum_post_combat())],
             )],
             EventEffect::Nothing,
@@ -40,7 +40,7 @@ fn colosseum_post_combat() -> TypedEventDef {
             supported(
                 "Continue (fight Nobs)",
                 vec![EventProgramOp::combat_branch(
-                    ["GremlinNob", "GremlinNob"],
+                    ["SlaverBoss", "GremlinNob"],
                     vec![
                         EventProgramOp::gain_relic("rare relic"),
                         EventProgramOp::gain_relic("uncommon relic"),

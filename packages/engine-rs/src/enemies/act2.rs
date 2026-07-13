@@ -399,9 +399,19 @@ pub(super) fn roll_gremlin_leader(
 }
 
 pub(super) fn roll_taskmaster(enemy: &mut EnemyCombatState, _num: i32) {
-    // Always Scouring Whip (7 damage + Wound card to discard)
-    enemy.set_move(move_ids::TASK_SCOURING_WHIP, 7, 1, 0);
-    enemy.add_effect(mfx::WOUND, 1);
+    // Source: reference/extracted/methods/monster/Taskmaster.java (`getMove`).
+    let damage = enemy.entity.status(sid::STARTING_DMG).max(7);
+    let wounds = enemy.entity.status(sid::BLOCK_AMT).max(1) as i16;
+    enemy.set_move(move_ids::TASK_SCOURING_WHIP, damage, 1, 0);
+    enemy.add_effect(mfx::WOUND, wounds);
+    if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
+        enemy.add_effect(mfx::STRENGTH, 1);
+    }
+    enemy.intent = Intent::AttackDebuff {
+        damage: damage as i16,
+        hits: 1,
+        effects: fx::WOUND,
+    };
 }
 
 pub(super) fn roll_spheric_guardian(enemy: &mut EnemyCombatState) {

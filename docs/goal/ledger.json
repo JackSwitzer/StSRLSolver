@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T20:34:15.855176+00:00",
+ "updated": "2026-07-13T20:39:04.201440+00:00",
  "status_counts": {
-  "verified": 610,
-  "unverified": 57
+  "verified": 611,
+  "unverified": 56
  },
  "rows": [
   {
@@ -4212,8 +4212,8 @@
    "class": "Taskmaster",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/city/Taskmaster.java",
    "methods_ref": "reference/extracted/methods/monster/Taskmaster.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

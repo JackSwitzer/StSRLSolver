@@ -444,8 +444,11 @@ mod enemy_ai_java_parity_tests {
         expect_status(&e, sid::BLOCK_AMT, 6);
         expect_status(&e, sid::COUNT, 0);
 
-        let e = make("Taskmaster", 60);
+        let e = make("SlaverBoss", 60);
         expect_move(&e, move_ids::TASK_SCOURING_WHIP, 7, 1, 0, &[(mfx::WOUND, 1)]);
+        assert!(matches!(e.intent, crate::combat_types::Intent::AttackDebuff { .. }));
+        expect_status(&e, sid::STARTING_DMG, 7);
+        expect_status(&e, sid::BLOCK_AMT, 1);
 
         let e = make("SphericGuardian", 135);
         expect_move(&e, move_ids::SPHER_INITIAL_BLOCK, 0, 0, 40, &[]);
@@ -647,7 +650,8 @@ mod enemy_ai_java_parity_tests {
         roll_with_num(&mut e, 0);
         expect_move(&e, move_ids::GL_STAB, 6, 3, 0, &[]);
 
-        let mut e = make("Taskmaster", 60);
+        // Source: reference/extracted/methods/monster/Taskmaster.java.
+        let mut e = make("SlaverBoss", 60);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::TASK_SCOURING_WHIP, 7, 1, 0, &[(mfx::WOUND, 1)]);
 

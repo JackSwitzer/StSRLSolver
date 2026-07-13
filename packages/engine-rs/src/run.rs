@@ -264,7 +264,7 @@ const ACT2_STRONG_ENCOUNTERS: &[&[&str]] = &[
 const ACT2_ELITE_ENCOUNTERS: &[&[&str]] = &[
     &["GremlinLeader"],
     &["BookOfStabbing"],
-    &["TaskMaster"],
+    &["SlaverBlue", "SlaverBoss", "SlaverRed"],
 ];
 
 // ---------------------------------------------------------------------------
@@ -2144,6 +2144,18 @@ impl RunEngine {
             enemy.entity.set_status(crate::status_ids::sid::PAINFUL_STABS, 1);
         }
 
+        // Source: reference/extracted/methods/monster/Taskmaster.java.
+        for enemy in enemy_states.iter_mut().filter(|e| matches!(e.id.as_str(),
+            "SlaverBoss" | "TaskMaster" | "Taskmaster"))
+        {
+            let wounds = if self.run_state.ascension >= 18 { 3 }
+                else if self.run_state.ascension >= 3 { 2 } else { 1 };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, 7);
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT, wounds);
+            enemy.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI,
+                if self.run_state.ascension >= 18 { 1 } else { 0 });
+        }
+
         // Source: reference/extracted/methods/monster/BronzeAutomaton.java.
         for enemy in enemy_states.iter_mut().filter(|e| matches!(e.id.as_str(),
             "BronzeAutomaton" | "Bronze Automaton")) {
@@ -2511,7 +2523,8 @@ impl RunEngine {
             self.run_state.relics.iter().any(|relic| relic == "SlaversCollar")
                 && expanded.iter().any(|enemy| matches!(enemy.as_str(),
                     "GremlinNob" | "Lagavulin" | "Sentry" | "BookOfStabbing"
-                    | "GremlinLeader" | "TaskMaster" | "Nemesis" | "Reptomancer"
+                    | "GremlinLeader" | "SlaverBoss" | "TaskMaster" | "Taskmaster"
+                    | "Nemesis" | "Reptomancer"
                     | "GiantHead" | "Hexaghost" | "SlimeBoss" | "TheGuardian"
                     | "BronzeAutomaton" | "TheCollector" | "TheChamp" | "AwakenedOne"
                     | "TimeEater" | "Donu" | "Deca" | "TheHeart" | "CorruptHeart"
@@ -2862,8 +2875,14 @@ impl RunEngine {
                 let hp = base + self.rng.gen_range(0..=4);
                 (hp, hp)
             }
-            "TaskMaster" => {
-                let hp = if a20 { 64 } else { 60 };
+            "SlaverBoss" | "TaskMaster" | "Taskmaster" => {
+                // Source: Taskmaster.java: inclusive 54..60, or 57..64 at A8.
+                let (base, width) = if self.run_state.ascension >= 8 {
+                    (57, 7)
+                } else {
+                    (54, 6)
+                };
+                let hp = base + self.rng.gen_range(0..=width);
                 (hp, hp)
             }
             "BronzeAutomaton" => {
@@ -8320,6 +8339,83 @@ mod tests {
         let wounds = combat.state.discard_pile.iter().filter(|card|
             combat.card_registry.card_name(card.def_id) == "Wound").count();
         assert_eq!(wounds, 1);
+    }
+
+    #[test]
+    fn taskmaster_stats_wounds_strength_group_and_ticks_match_java() {
+        // Sources: reference/extracted/methods/monster/Taskmaster.java and
+        // decompiled/java-src/com/megacrit/cardcrawl/helpers/MonsterHelper.java
+        // (`Slavers` encounter).
+        let mut low_hp = std::collections::BTreeSet::new();
+        let mut high_hp = std::collections::BTreeSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("SlaverBoss").0);
+            let mut high = RunEngine::new(seed, 8);
+            high_hp.insert(high.roll_enemy_hp("SlaverBoss").0);
+        }
+        assert_eq!(low_hp, (54..=60).collect());
+        assert_eq!(high_hp, (57..=64).collect());
+
+        for (ascension, hp_range, wounds, strength_each_turn) in [
+            (0, 54..=60, 1, 0),
+            (3, 54..=60, 2, 0),
+            (8, 57..=64, 2, 0),
+            (18, 57..=64, 3, 1),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["SlaverBoss".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            let taskmaster = &combat.state.enemies[0];
+            assert_eq!(taskmaster.id, "SlaverBoss");
+            assert!(hp_range.contains(&taskmaster.entity.hp));
+            assert_eq!(taskmaster.move_id,
+                crate::enemies::move_ids::TASK_SCOURING_WHIP);
+            assert_eq!(taskmaster.move_damage(), 7);
+            assert_eq!(taskmaster.effect(crate::combat_types::mfx::WOUND),
+                Some(wounds));
+            assert_eq!(taskmaster.effect(crate::combat_types::mfx::STRENGTH),
+                (strength_each_turn > 0).then_some(strength_each_turn));
+            assert!(matches!(taskmaster.intent,
+                crate::combat_types::Intent::AttackDebuff { .. }));
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        let mut a18 = RunEngine::new(42, 18);
+        a18.enter_specific_combat(vec!["SlaverBoss".to_string()]);
+        let combat = a18.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+        combat.state.discard_pile.clear();
+        let ai_before = combat.ai_rng.counter;
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.hp, 493);
+        assert_eq!(combat.state.discard_pile.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) == "Wound").count(), 3);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::STRENGTH), 1);
+        assert_eq!(combat.ai_rng.counter, ai_before + 1);
+
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.hp, 485,
+            "the second fixed-seven attack receives the first Strength stack");
+        assert_eq!(combat.state.discard_pile.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) == "Wound").count(), 6);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::STRENGTH), 2);
+        assert_eq!(combat.ai_rng.counter, ai_before + 2);
+
+        let mut group = RunEngine::new(42, 0);
+        group.enter_specific_combat(vec![
+            "SlaverBlue".to_string(),
+            "SlaverBoss".to_string(),
+            "SlaverRed".to_string(),
+        ]);
+        let combat = group.combat_engine.as_ref().unwrap();
+        assert_eq!(combat.state.enemies.iter().map(|enemy| enemy.id.as_str())
+            .collect::<Vec<_>>(), ["SlaverBlue", "SlaverBoss", "SlaverRed"]);
+        assert_eq!(combat.ai_rng.counter, 3,
+            "each Slavers group member consumes its opening rollMove draw");
     }
 
     #[test]

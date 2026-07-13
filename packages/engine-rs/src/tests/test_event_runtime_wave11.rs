@@ -40,8 +40,7 @@ fn colosseum_is_supported_and_uses_event_continuation_plus_two_combats() {
     assert!(first_fight.action_accepted);
     assert_eq!(engine.current_phase(), RunPhase::Combat);
     let combat = engine.get_combat_engine().expect("slavers combat");
-    assert_eq!(combat.state.enemies.len(), 3);
-    assert!(combat.state.enemies.iter().any(|enemy| enemy.id == "TaskMaster"));
+    assert_eq!(combat.state.enemies.len(), 2);
     assert!(combat.state.enemies.iter().any(|enemy| enemy.id == "SlaverBlue"));
     assert!(combat.state.enemies.iter().any(|enemy| enemy.id == "SlaverRed"));
 
@@ -57,7 +56,8 @@ fn colosseum_is_supported_and_uses_event_continuation_plus_two_combats() {
     assert_eq!(engine.current_phase(), RunPhase::Combat);
     let combat = engine.get_combat_engine().expect("nobs combat");
     assert_eq!(combat.state.enemies.len(), 2);
-    assert!(combat.state.enemies.iter().all(|enemy| enemy.id == "GremlinNob"));
+    assert!(combat.state.enemies.iter().any(|enemy| enemy.id == "SlaverBoss"));
+    assert!(combat.state.enemies.iter().any(|enemy| enemy.id == "GremlinNob"));
 
     let gold_before = engine.run_state.gold;
     engine.debug_force_current_combat_outcome(true);

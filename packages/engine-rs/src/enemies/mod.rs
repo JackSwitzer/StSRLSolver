@@ -50,7 +50,7 @@ pub fn known_enemy_ids() -> &'static [(&'static str, &'static str)] {
         ("Healer", "Mystic"),
         ("GremlinLeader", "Gremlin Leader"),
         ("BookOfStabbing", "Book of Stabbing"),
-        ("TaskMaster", "Taskmaster"),
+    ("SlaverBoss", "Taskmaster"),
         ("Darkling", "Darkling"),
         ("Orb Walker", "Orb Walker"),
         ("Repulsor", "Repulsor"),
@@ -692,10 +692,18 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::COUNT, 0);
             enemy.entity.set_status(sid::STARTING_DMG, 0);
         }
-        "Taskmaster" => {
-            // Always Scouring Whip (7 damage + Wounds)
+        "SlaverBoss" | "TaskMaster" | "Taskmaster" => {
+            // Source: reference/extracted/methods/monster/Taskmaster.java.
             enemy.set_move(move_ids::TASK_SCOURING_WHIP, 7, 1, 0);
             enemy.add_effect(mfx::WOUND, 1);
+            enemy.intent = Intent::AttackDebuff {
+                damage: 7,
+                hits: 1,
+                effects: fx::WOUND,
+            };
+            enemy.entity.set_status(sid::STARTING_DMG, 7);
+            enemy.entity.set_status(sid::BLOCK_AMT, 1);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "SphericGuardian" | "Spheric Guardian" => {
             // First turn: Activate (gain 40 block)
@@ -1093,7 +1101,9 @@ fn select_move(
         "GremlinLeader" | "Gremlin Leader" => {
             act2::roll_gremlin_leader(enemy, num, ai_rng)
         }
-        "Taskmaster" => act2::roll_taskmaster(enemy, num),
+        "SlaverBoss" | "TaskMaster" | "Taskmaster" => {
+            act2::roll_taskmaster(enemy, num)
+        }
         "SphericGuardian" | "Spheric Guardian" => act2::roll_spheric_guardian(enemy),
         "Snecko" => act2::roll_snecko(enemy, num),
         "BanditBear" | "Bear" => act2::roll_bear(enemy, num),
@@ -1953,7 +1963,7 @@ mod tests {
             // Act 2
             "Chosen", "Mugger", "Byrd", "Shelled Parasite", "SnakePlant",
             "Centurion", "Healer", "BookOfStabbing", "GremlinLeader",
-            "Taskmaster", "SphericGuardian", "Snecko",
+            "SlaverBoss", "SphericGuardian", "Snecko",
             "BanditBear", "BanditLeader", "BanditChild",
             "BronzeAutomaton", "BronzeOrb", "TorchHead",
             "Champ", "TheCollector",
@@ -1997,7 +2007,7 @@ mod tests {
             "TheGuardian", "Hexaghost", "SlimeBoss",
             "Chosen", "Mugger", "Byrd", "Shelled Parasite", "SnakePlant",
             "Centurion", "Healer", "BookOfStabbing", "GremlinLeader",
-            "Taskmaster", "SphericGuardian", "Snecko",
+            "SlaverBoss", "SphericGuardian", "Snecko",
             "BanditBear", "BanditLeader", "BanditChild",
             "BronzeAutomaton", "BronzeOrb", "TorchHead",
             "Champ", "TheCollector",
