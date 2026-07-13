@@ -810,6 +810,9 @@ fn is_debuff(status: StatusId) -> bool {
         || status == sid::CORPSE_EXPLOSION
         || status == sid::NO_DRAW
         || status == sid::BIASED_COG_FOCUS_LOSS
+        // LoseStrengthPower is explicitly PowerType.DEBUFF, so Artifact can
+        // make Flex's Strength gain permanent.
+        || status == sid::LOSE_STRENGTH
 }
 
 fn apply_status(
@@ -2619,6 +2622,7 @@ mod tests {
         assert!(is_debuff(sid::FRAIL));
         assert!(is_debuff(sid::POISON));
         assert!(is_debuff(sid::CORPSE_EXPLOSION));
+        assert!(is_debuff(sid::LOSE_STRENGTH));
         assert!(!is_debuff(sid::STRENGTH));
         assert!(!is_debuff(sid::VIGOR));
     }

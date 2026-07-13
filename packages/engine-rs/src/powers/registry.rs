@@ -81,6 +81,7 @@ pub(crate) fn status_is_debuff(status_id: StatusId) -> bool {
             | sid::FADING
             | sid::NO_BLOCK
             | sid::ENERGY_DOWN
+            | sid::LOSE_STRENGTH
     )
 }
 

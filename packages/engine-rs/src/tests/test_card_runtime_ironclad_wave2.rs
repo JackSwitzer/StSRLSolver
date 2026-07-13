@@ -146,7 +146,7 @@ mod ironclad_wave2_card_runtime_tests {
                 )),
                 Effect::Simple(SimpleEffect::AddStatus(
                     Target::Player,
-                    sid::TEMP_STRENGTH,
+                    sid::LOSE_STRENGTH,
                     AmountSource::Magic,
                 )),
             ],
@@ -170,7 +170,7 @@ mod ironclad_wave2_card_runtime_tests {
 
         assert!(play_self(&mut engine, "Flex"));
         assert_eq!(engine.state.player.strength(), 2);
-        assert_eq!(engine.state.player.status(sid::TEMP_STRENGTH), 2);
+        assert_eq!(engine.state.player.status(sid::LOSE_STRENGTH), 2);
 
         let hp_before = engine.state.player.hp;
         let energy_before = engine.state.energy;

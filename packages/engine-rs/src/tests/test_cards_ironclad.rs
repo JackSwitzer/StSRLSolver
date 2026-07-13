@@ -248,6 +248,44 @@ mod ironclad_card_java_parity_tests {
     card_pair_test!(cleave, "Cleave", "Cleave+", 1, 8, -1, -1, 1, 11, -1, -1, CardType::Attack, CardTarget::AllEnemy, false);
     card_pair_test!(clothesline, "Clothesline", "Clothesline+", 2, 12, -1, 2, 2, 14, -1, 3, CardType::Attack, CardTarget::Enemy, false);
     card_pair_test!(flex, "Flex", "Flex+", 0, -1, -1, 2, 0, -1, -1, 4, CardType::Skill, CardTarget::SelfTarget, false);
+
+    #[test]
+    fn flex_uses_artifact_blockable_lose_strength_power() {
+        // Flex.java applies StrengthPower before LoseStrengthPower of the same
+        // amount. LoseStrengthPower is a DEBUFF and removes that Strength at
+        // end of turn; Artifact consumes itself on only the second application,
+        // leaving the Strength gain permanent.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Flex.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/LoseStrengthPower.java
+        let mut ordinary = engine_for(
+            &["Flex+"],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            0,
+        );
+        assert!(play_self(&mut ordinary, "Flex+"));
+        assert_eq!(ordinary.state.player.strength(), 4);
+        assert_eq!(ordinary.state.player.status(sid::LOSE_STRENGTH), 4);
+        end_turn(&mut ordinary);
+        assert_eq!(ordinary.state.player.strength(), 0);
+        assert_eq!(ordinary.state.player.status(sid::LOSE_STRENGTH), 0);
+
+        let mut artifact = engine_for(
+            &["Flex+"],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            0,
+        );
+        artifact.state.player.set_status(sid::ARTIFACT, 1);
+        assert!(play_self(&mut artifact, "Flex+"));
+        assert_eq!(artifact.state.player.strength(), 4);
+        assert_eq!(artifact.state.player.status(sid::LOSE_STRENGTH), 0);
+        assert_eq!(artifact.state.player.status(sid::ARTIFACT), 0);
+        end_turn(&mut artifact);
+        assert_eq!(artifact.state.player.strength(), 4);
+    }
     card_pair_test!(havoc, "Havoc", "Havoc+", 1, -1, -1, -1, 0, -1, -1, -1, CardType::Skill, CardTarget::None, false);
     card_pair_test!(headbutt, "Headbutt", "Headbutt+", 1, 9, -1, -1, 1, 12, -1, -1, CardType::Attack, CardTarget::Enemy, false);
     card_pair_test!(heavy_blade, "Heavy Blade", "Heavy Blade+", 2, 14, -1, 3, 2, 14, -1, 5, CardType::Attack, CardTarget::Enemy, false);
