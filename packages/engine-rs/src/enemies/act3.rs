@@ -105,15 +105,15 @@ pub(super) fn roll_spiker(enemy: &mut EnemyCombatState, _num: i32) {
     }
 }
 
-pub(super) fn roll_repulsor(enemy: &mut EnemyCombatState, _num: i32) {
-    // Deterministic: Daze x4 -> Attack -> repeat
-    let turn = enemy.entity.status(sid::TURN_COUNT) + 1;
-    enemy.entity.set_status(sid::TURN_COUNT, turn);
-    if turn % 5 == 0 {
-        enemy.set_move(move_ids::REPULSOR_ATTACK, 11, 1, 0);
+pub(super) fn roll_repulsor(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/Repulsor.java (`getMove`).
+    if num < 20 && !last_move(enemy, move_ids::REPULSOR_ATTACK) {
+        let damage = enemy.entity.status(sid::STARTING_DMG).max(11);
+        enemy.set_move(move_ids::REPULSOR_ATTACK, damage, 1, 0);
     } else {
         enemy.set_move(move_ids::REPULSOR_DAZE, 0, 0, 0);
-        enemy.add_effect(mfx::DAZE, 2);
+        enemy.add_effect(mfx::DAZE_DRAW, 2);
+        enemy.intent = Intent::Debuff { effects: fx::DAZE };
     }
 }
 

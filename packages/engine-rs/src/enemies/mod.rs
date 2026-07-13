@@ -818,9 +818,11 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::THORNS, 3);
         }
         "Repulsor" => {
-            // Mostly Daze (add Daze cards). First turn: Daze
+            // Source: reference/extracted/methods/monster/Repulsor.java.
             enemy.set_move(move_ids::REPULSOR_DAZE, 0, 0, 0);
-            enemy.add_effect(mfx::DAZE, 2);
+            enemy.add_effect(mfx::DAZE_DRAW, 2);
+            enemy.intent = Intent::Debuff { effects: fx::DAZE };
+            enemy.entity.set_status(sid::STARTING_DMG, 11);
         }
         "Exploder" => {
             // Source: reference/extracted/methods/monster/Exploder.java.

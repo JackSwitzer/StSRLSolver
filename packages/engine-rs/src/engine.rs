@@ -386,7 +386,7 @@ impl CombatEngine {
                 | "Exploder" | "GiantHead" | "Giant Head"
                 | "GremlinLeader" | "Gremlin Leader" | "Healer" | "Mystic"
                 | "Maw" | "Nemesis" | "OrbWalker" | "Orb Walker"
-                | "Reptomancer")) {
+                | "Reptomancer" | "Repulsor")) {
             if enemy.id == "Centurion" {
                 enemy.entity.set_status(sid::COUNT, living_enemy_count);
             }
@@ -5398,6 +5398,7 @@ impl RustCombatEngine {
             "entangle" => mfx::ENTANGLE,
             "slimed" => mfx::SLIMED,
             "daze" => mfx::DAZE,
+            "daze_draw" => mfx::DAZE_DRAW,
             "burn" => mfx::BURN,
             "burn_plus" => mfx::BURN_PLUS,
             "burn_upgrade" => mfx::BURN_UPGRADE,

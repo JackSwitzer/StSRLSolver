@@ -2057,6 +2057,13 @@ impl RunEngine {
                 if self.run_state.ascension >= 17 { 5 } else { 3 });
         }
 
+        // Source: reference/extracted/methods/monster/Repulsor.java. Its
+        // attack changes at A2; HP is rolled separately below at A7.
+        for enemy in enemy_states.iter_mut().filter(|enemy| enemy.id == "Repulsor") {
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
+                if self.run_state.ascension >= 2 { 13 } else { 11 });
+        }
+
         // Source: reference/extracted/methods/monster/Reptomancer.java.
         let repto_others = enemy_states.iter().filter(|enemy| enemy.id != "Reptomancer"
             && enemy.is_alive()).count() as i32;
@@ -2854,7 +2861,14 @@ impl RunEngine {
                 (hp, hp)
             }
             "Repulsor" => {
-                let hp = if a20 { 36 } else { 29 };
+                // Source: reference/extracted/methods/monster/Repulsor.java:
+                // inclusive 29..35, or 31..38 at ascension 7.
+                let (base, width) = if self.run_state.ascension >= 7 {
+                    (31, 7)
+                } else {
+                    (29, 6)
+                };
+                let hp = base + self.rng.gen_range(0..=width);
                 (hp, hp)
             }
             "Exploder" => {
@@ -8951,6 +8965,93 @@ mod tests {
         assert!(combat.state.enemies.iter().all(|enemy| enemy.id == "Orb Walker"));
         assert_eq!(combat.ai_rng.counter, 2,
             "each event Orb Walker consumes its own opening roll");
+    }
+
+    #[test]
+    fn repulsor_stats_ai_draw_dazes_and_rng_ticks_match_java() {
+        // Sources: reference/extracted/methods/monster/Repulsor.java,
+        // decompiled/java-src/com/megacrit/cardcrawl/actions/common/
+        // MakeTempCardInDrawPileAction.java, and CardGroup.java.
+        let mut low_hp = std::collections::BTreeSet::new();
+        let mut high_hp = std::collections::BTreeSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("Repulsor").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("Repulsor").0);
+        }
+        assert_eq!(low_hp, (29..=35).collect());
+        assert_eq!(high_hp, (31..=38).collect());
+
+        for (ascension, hp_range, damage) in [
+            (0, 29..=35, 11),
+            (2, 29..=35, 13),
+            (7, 31..=38, 13),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["Repulsor".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            let repulsor = &combat.state.enemies[0];
+            assert!(hp_range.contains(&repulsor.entity.hp));
+            assert_eq!(repulsor.entity.status(crate::status_ids::sid::STARTING_DMG),
+                damage);
+            match repulsor.move_id {
+                crate::enemies::move_ids::REPULSOR_ATTACK => {
+                    assert_eq!(repulsor.move_damage(), damage);
+                }
+                crate::enemies::move_ids::REPULSOR_DAZE => {
+                    assert_eq!(repulsor.effect(crate::combat_types::mfx::DAZE_DRAW),
+                        Some(2));
+                    assert!(matches!(repulsor.intent,
+                        crate::combat_types::Intent::Debuff { .. }));
+                }
+                other => panic!("invalid Repulsor opener {other}"),
+            }
+            assert_eq!(combat.ai_rng.counter, 1,
+                "AbstractMonster.init consumes one opening rollMove draw");
+        }
+
+        let mut daze_run = RunEngine::new(42, 0);
+        daze_run.enter_specific_combat(vec!["Repulsor".to_string()]);
+        let combat = daze_run.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+        combat.state.draw_pile.clear();
+        combat.state.discard_pile.clear();
+        for _ in 0..3 {
+            combat.state.draw_pile.push(combat.card_registry.make_card("Strike"));
+        }
+        combat.state.enemies[0].set_move(
+            crate::enemies::move_ids::REPULSOR_DAZE, 0, 0, 0);
+        combat.state.enemies[0].move_effects.clear();
+        combat.state.enemies[0].add_effect(crate::combat_types::mfx::DAZE_DRAW, 2);
+        combat.state.enemies[0].intent = crate::combat_types::Intent::Debuff {
+            effects: crate::combat_types::fx::DAZE,
+        };
+        let ai_before = combat.ai_rng.counter;
+        let card_random_before = combat.card_random_rng.counter;
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.draw_pile.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) == "Dazed").count(), 2);
+        assert_eq!(combat.state.discard_pile.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) == "Dazed").count(), 0);
+        assert_eq!(combat.card_random_rng.counter, card_random_before + 2,
+            "each random draw-pile insertion consumes cardRandomRng");
+        assert_eq!(combat.ai_rng.counter, ai_before + 1,
+            "takeTurn always queues one RollMoveAction");
+
+        let mut attack_run = RunEngine::new(42, 2);
+        attack_run.enter_specific_combat(vec!["Repulsor".to_string()]);
+        let combat = attack_run.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+        combat.state.enemies[0].set_move(
+            crate::enemies::move_ids::REPULSOR_ATTACK, 13, 1, 0);
+        combat.state.enemies[0].move_effects.clear();
+        let ai_before = combat.ai_rng.counter;
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.hp, 487);
+        assert_eq!(combat.ai_rng.counter, ai_before + 1);
     }
 
     #[test]

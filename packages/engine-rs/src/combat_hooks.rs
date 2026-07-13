@@ -567,6 +567,25 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             engine.state.discard_pile.push(engine.card_registry.make_card("Dazed"));
         }
     }
+    if let Some(amt) = get_fx(&effects, mfx::DAZE_DRAW) {
+        // Source: reference/extracted/methods/monster/Repulsor.java and
+        // decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java.
+        // MakeTempCardInDrawPileAction(..., randomSpot=true) inserts each
+        // Dazed separately and consumes cardRandomRng whenever the pile is
+        // already nonempty.
+        for _ in 0..amt {
+            let card = engine.card_registry.make_card("Dazed");
+            if engine.state.draw_pile.is_empty() {
+                engine.state.draw_pile.push(card);
+            } else {
+                let idx = engine.card_random_rng.random_range(
+                    0,
+                    (engine.state.draw_pile.len() - 1) as i32,
+                ) as usize;
+                engine.state.draw_pile.insert(idx, card);
+            }
+        }
+    }
     if let Some(amt) = get_fx(&effects, mfx::BURN) {
         for _ in 0..amt {
             engine.state.discard_pile.push(engine.card_registry.make_card("Burn"));

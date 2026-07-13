@@ -719,7 +719,10 @@ mod enemy_ai_java_parity_tests {
         expect_status(&e, sid::THORNS, 3);
 
         let e = make("Repulsor", 29);
-        expect_move(&e, move_ids::REPULSOR_DAZE, 0, 0, 0, &[(mfx::DAZE, 2)]);
+        expect_move(&e, move_ids::REPULSOR_DAZE, 0, 0, 0,
+            &[(mfx::DAZE_DRAW, 2)]);
+        assert!(matches!(e.intent, crate::combat_types::Intent::Debuff { .. }));
+        expect_status(&e, sid::STARTING_DMG, 11);
 
         let e = make("Exploder", 30);
         expect_move(&e, move_ids::EXPLODER_ATTACK, 9, 1, 0, &[]);
@@ -819,8 +822,17 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::SPIKER_ATTACK, 7, 1, 0, &[]);
 
         let mut e = make("Repulsor", 29);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::REPULSOR_DAZE, 0, 0, 0, &[(mfx::DAZE, 2)]);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 19, &mut crate::seed::StsRandom::new(0));
+        expect_move(&e, move_ids::REPULSOR_ATTACK, 11, 1, 0, &[]);
+        roll_with_num(&mut e, 0);
+        expect_move(&e, move_ids::REPULSOR_DAZE, 0, 0, 0,
+            &[(mfx::DAZE_DRAW, 2)]);
+        roll_with_num(&mut e, 19);
+        expect_move(&e, move_ids::REPULSOR_ATTACK, 11, 1, 0, &[]);
+        roll_with_num(&mut e, 20);
+        expect_move(&e, move_ids::REPULSOR_DAZE, 0, 0, 0,
+            &[(mfx::DAZE_DRAW, 2)]);
 
         let mut e = make("Exploder", 30);
         e.entity.set_status(sid::TURN_COUNT, 1);

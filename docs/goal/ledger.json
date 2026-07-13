@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T20:16:45.011837+00:00",
+ "updated": "2026-07-13T20:21:00.551110+00:00",
  "status_counts": {
-  "verified": 607,
-  "unverified": 60
+  "verified": 608,
+  "unverified": 59
  },
  "rows": [
   {
@@ -4162,8 +4162,8 @@
    "class": "Repulsor",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/beyond/Repulsor.java",
    "methods_ref": "reference/extracted/methods/monster/Repulsor.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
