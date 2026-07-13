@@ -9,7 +9,7 @@ mod ironclad_card_java_parity_tests {
         combat_state_with, ensure_in_hand, engine_with, engine_with_enemies, force_player_turn,
         make_deck, make_deck_n, play_card, play_on_enemy, play_self, TEST_SEED, enemy,
         enemy_no_intent, end_turn,
-        discard_prefix_count, exhaust_prefix_count,
+        discard_prefix_count, exhaust_prefix_count, hand_count,
     };
     use crate::cards::{CardDef, CardRegistry, CardTarget, CardType};
     use crate::engine::CombatEngine;
@@ -808,6 +808,38 @@ mod ironclad_card_java_parity_tests {
     }
 
     card_pair_test!(second_wind, "Second Wind", "Second Wind+", 1, -1, 5, -1, 1, -1, 7, -1, CardType::Skill, CardTarget::SelfTarget, false);
+
+    #[test]
+    fn second_wind_plus_modifies_and_gains_block_once_per_non_attack() {
+        // BlockPerNonAttackAction snapshots the two remaining non-Attacks,
+        // exhausts them, and queues two GainBlockAction(this.block) calls.
+        // Second Wind+ has block 7, so two Dexterity makes each event 9; two
+        // Juggernaut procs each select through cardRandomRng even with one enemy.
+        // Java: reference/extracted/methods/card/SecondWind.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/
+        // BlockPerNonAttackAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/JuggernautPower.java
+        let mut engine = engine_for(
+            &["Second Wind+", "Defend", "Battle Trance", "Strike"],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 50, 50)],
+            1,
+        );
+        engine.state.player.set_status(sid::DEXTERITY, 2);
+        engine.state.player.set_status(sid::JUGGERNAUT, 5);
+        let card_random_before = engine.card_random_rng.counter;
+
+        assert!(play_self(&mut engine, "Second Wind+"));
+
+        assert_eq!(engine.state.player.block, 18);
+        assert_eq!(engine.state.enemies[0].entity.hp, 40);
+        assert_eq!(engine.card_random_rng.counter, card_random_before + 2);
+        assert_eq!(exhaust_prefix_count(&engine, "Defend"), 1);
+        assert_eq!(exhaust_prefix_count(&engine, "Battle Trance"), 1);
+        assert_eq!(hand_count(&engine, "Strike"), 1);
+    }
+
     card_pair_test!(seeing_red, "Seeing Red", "Seeing Red+", 1, -1, -1, 2, 0, -1, -1, 2, CardType::Skill, CardTarget::None, true);
     card_pair_test!(sentinel, "Sentinel", "Sentinel+", 1, -1, 5, 2, 1, -1, 8, 3, CardType::Skill, CardTarget::SelfTarget, false);
     card_pair_test!(sever_soul, "Sever Soul", "Sever Soul+", 2, 16, -1, -1, 2, 22, -1, -1, CardType::Attack, CardTarget::Enemy, false);

@@ -355,12 +355,21 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         // -- Block (routes through dex/frail pipeline) --
         SimpleEffect::GainBlock(ref amount_src) => {
-            let base = resolve_card_amount(engine, ctx, amount_src);
+            let mut base = resolve_card_amount(engine, ctx, amount_src);
             let mut multiplier = 1;
             // Java X-cost block cards like Reinforced Body resolve their modified
             // block once, then apply it per energy spent.
             if matches!(amount_src, AmountSource::Block) && ctx.card.cost == -1 && ctx.card.base_block > 0 {
                 multiplier = ctx.x_value.max(0);
+            }
+            // BlockPerNonAttackAction queues one GainBlockAction(this.block) per
+            // snapshotted non-Attack. Resolve the card's block separately and
+            // retain one block-gain event per exhausted card.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/
+            // BlockPerNonAttackAction.java
+            if matches!(amount_src, AmountSource::LastBulkCountTimesBlock) {
+                base = ctx.card.base_block;
+                multiplier = ctx.last_bulk_count.max(0);
             }
             // WallopAction passes target.lastDamageTaken straight to a
             // GainBlockAction, and DoubleYourBlockAction directly adds the
@@ -375,9 +384,9 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                 let frail = engine.state.player.is_frail();
                 damage::calculate_block(base, dex, frail)
             };
-            // ReinforcedBodyAction queues one GainBlockAction for every point
-            // of X. Keep those as distinct block-gain events so onGainedBlock
-            // powers such as Juggernaut and Wave of the Hand fire X times.
+            // ReinforcedBodyAction and BlockPerNonAttackAction queue separate
+            // GainBlockActions. Keep those as distinct events so onGainedBlock
+            // powers such as Juggernaut and Wave of the Hand fire each time.
             // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/
             // ReinforcedBodyAction.java
             for _ in 0..multiplier {
