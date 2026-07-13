@@ -241,6 +241,26 @@ mod silent_card_java_parity_tests {
         "Deflect", 0, -1, 4, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &[],
         "Deflect+", 0, -1, 7, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &[],
     );
+
+    #[test]
+    fn deflect_variants_gain_source_block_for_zero_energy() {
+        // Deflect.java queues GainBlockAction(this.block), using base Block 4
+        // or 7 after upgradeBlock(3). Two Dexterity therefore makes 6 or 9.
+        for (card_id, expected_block) in [("Deflect", 6), ("Deflect+", 9)] {
+            let mut engine = engine_without_start(
+                Vec::new(),
+                vec![enemy_no_intent("JawWorm", 40, 40)],
+                0,
+            );
+            force_player_turn(&mut engine);
+            engine.state.player.set_status(sid::DEXTERITY, 2);
+            engine.state.hand = make_deck(&[card_id]);
+
+            assert!(play_self(&mut engine, card_id));
+            assert_eq!(engine.state.player.block, expected_block);
+            assert_eq!(engine.state.energy, 0);
+        }
+    }
     card_pair_test!(dodge_and_roll,
         "Dodge and Roll", 1, -1, 4, 4, CardType::Skill, CardTarget::SelfTarget, false, None, &["next_turn_block"],
         "Dodge and Roll+", 1, -1, 6, 6, CardType::Skill, CardTarget::SelfTarget, false, None, &["next_turn_block"],

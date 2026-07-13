@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T07:03:06.142158+00:00",
+ "updated": "2026-07-13T07:04:39.354330+00:00",
  "status_counts": {
-  "verified": 373,
-  "unverified": 294
+  "verified": 374,
+  "unverified": 293
  },
  "rows": [
   {
@@ -1022,8 +1022,8 @@
    "class": "Deflect",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Deflect.java",
    "methods_ref": "reference/extracted/methods/card/Deflect.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
