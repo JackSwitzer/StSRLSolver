@@ -51,19 +51,58 @@ pub(super) fn roll_chosen(enemy: &mut EnemyCombatState, num: i32) {
 }
 
 pub(super) fn roll_mugger(enemy: &mut EnemyCombatState, _num: i32) {
-    let turns = enemy.move_history.len();
-    if turns < 2 {
-        enemy.set_move(move_ids::MUGGER_MUG, 10, 1, 0);
-    } else if turns == 2 {
-        // SmokeBomb or BigSwipe. Use BigSwipe (more threatening)
-        enemy.set_move(move_ids::MUGGER_BIG_SWIPE, 16, 1, 0);
-    } else if last_move(enemy, move_ids::MUGGER_BIG_SWIPE) {
-        enemy.set_move(move_ids::MUGGER_SMOKE_BOMB, 0, 0, 11);
-    } else if last_move(enemy, move_ids::MUGGER_SMOKE_BOMB) {
-        enemy.set_move(move_ids::MUGGER_ESCAPE, 0, 0, 0);
-        enemy.is_escaping = true;
-    } else {
-        enemy.set_move(move_ids::MUGGER_MUG, 10, 1, 0);
+    // Source: reference/extracted/methods/monster/Mugger.java (`getMove`).
+    // Only AbstractMonster.init calls getMove; takeTurn directly sets every
+    // later intent without queueing RollMoveAction.
+    let swipe = enemy.entity.status(sid::STARTING_DMG).max(10);
+    enemy.set_move(move_ids::MUGGER_MUG, swipe, 1, 0);
+}
+
+pub fn advance_mugger_after_turn(
+    enemy: &mut EnemyCombatState,
+    ai_rng: &mut crate::seed::StsRandom,
+) {
+    // Source: reference/extracted/methods/monster/Mugger.java (`takeTurn`,
+    // `playSfx`). Unlike Looter, every attack voice uses aiRng.random(2).
+    let current = enemy.move_id;
+    enemy.move_history.push(current);
+    enemy.move_effects.clear();
+    let swipe = enemy.entity.status(sid::STARTING_DMG).max(10);
+    let big_swipe = enemy.entity.status(sid::STR_AMT).max(16);
+    let escape_block = enemy.entity.status(sid::BLOCK_AMT).max(11);
+
+    match current {
+        move_ids::MUGGER_MUG => {
+            let slash_count = enemy.entity.status(sid::ATTACK_COUNT);
+            let _ = ai_rng.random(2); // playSfx
+            if slash_count == 1 {
+                let _ = ai_rng.random_float() < 0.6; // optional dialogue
+            }
+            enemy.entity.set_status(sid::ATTACK_COUNT, slash_count + 1);
+            if slash_count + 1 == 2 {
+                if ai_rng.random_float() < 0.5 {
+                    enemy.set_move(move_ids::MUGGER_SMOKE_BOMB, 0, 0, escape_block);
+                } else {
+                    enemy.set_move(move_ids::MUGGER_BIG_SWIPE, big_swipe, 1, 0);
+                }
+            } else {
+                enemy.set_move(move_ids::MUGGER_MUG, swipe, 1, 0);
+            }
+        }
+        move_ids::MUGGER_BIG_SWIPE => {
+            let _ = ai_rng.random(2); // playSfx
+            enemy.entity.add_status(sid::ATTACK_COUNT, 1);
+            enemy.set_move(move_ids::MUGGER_SMOKE_BOMB, 0, 0, escape_block);
+        }
+        move_ids::MUGGER_SMOKE_BOMB => {
+            enemy.set_move(move_ids::MUGGER_ESCAPE, 0, 0, 0);
+        }
+        move_ids::MUGGER_ESCAPE => {
+            enemy.is_escaping = true;
+            enemy.entity.hp = 0;
+            enemy.set_move(move_ids::MUGGER_ESCAPE, 0, 0, 0);
+        }
+        _ => {}
     }
 }
 

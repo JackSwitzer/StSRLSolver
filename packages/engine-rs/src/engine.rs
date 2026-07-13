@@ -380,7 +380,7 @@ impl CombatEngine {
                 | "BookOfStabbing" | "Book of Stabbing"
                 | "BronzeAutomaton" | "Bronze Automaton"
                 | "BronzeOrb" | "Bronze Orb" | "Byrd" | "Centurion"
-                | "Champ" | "TheChamp" | "Chosen"
+                | "Champ" | "TheChamp" | "Chosen" | "Mugger"
                 | "CorruptHeart" | "Corrupt Heart"
                 | "SnakeDagger" | "Snake Dagger" | "Darkling" | "Deca" | "Donu"
                 | "Exploder" | "GiantHead" | "Giant Head"
@@ -3614,6 +3614,13 @@ impl CombatEngine {
     pub(crate) fn finalize_enemy_death(&mut self, enemy_idx: usize) {
         if enemy_idx >= self.state.enemies.len() {
             return;
+        }
+
+        if self.state.enemies[enemy_idx].id == "Mugger" {
+            // Source: decompiled/java-src/com/megacrit/cardcrawl/monsters/
+            // city/Mugger.java (`die` -> `playDeathSfx`). The voice variant
+            // consumes aiRng.random(2), even when no gold was stolen.
+            let _ = self.ai_rng.random(2);
         }
 
         if matches!(self.state.enemies[enemy_idx].id.as_str(),

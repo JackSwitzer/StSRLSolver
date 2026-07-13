@@ -614,8 +614,13 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::SLAP_DMG, 5);
         }
         "Mugger" => {
-            // First turn: Mug (10 damage, steals gold)
+            // Source: reference/extracted/methods/monster/Mugger.java.
             enemy.set_move(move_ids::MUGGER_MUG, 10, 1, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 10);
+            enemy.entity.set_status(sid::STR_AMT, 16);
+            enemy.entity.set_status(sid::BLOCK_AMT, 11);
+            enemy.entity.set_status(sid::TURN_COUNT, 15);
+            enemy.entity.set_status(sid::ATTACK_COUNT, 0);
         }
         "Byrd" => {
             // Source: reference/extracted/methods/monster/Byrd.java.

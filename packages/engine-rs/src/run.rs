@@ -2141,6 +2141,24 @@ impl RunEngine {
             enemy.set_move(crate::enemies::move_ids::LOOTER_MUG, swipe, 1, 0);
         }
 
+        // Source: reference/extracted/methods/monster/Mugger.java. The attack
+        // fields change at A2; gold theft and Smoke Bomb block change at A17.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "Mugger") {
+            let (swipe, big_swipe) = if self.run_state.ascension >= 2 {
+                (11, 18)
+            } else {
+                (10, 16)
+            };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, swipe);
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT, big_swipe);
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if self.run_state.ascension >= 17 { 17 } else { 11 });
+            enemy.entity.set_status(crate::status_ids::sid::TURN_COUNT,
+                if self.run_state.ascension >= 17 { 20 } else { 15 });
+            enemy.entity.set_status(crate::status_ids::sid::ATTACK_COUNT, 0);
+            enemy.set_move(crate::enemies::move_ids::MUGGER_MUG, swipe, 1, 0);
+        }
+
         // Source: reference/extracted/methods/monster/GremlinFat.java.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "GremlinFat") {
             let damage = if self.run_state.ascension >= 2 { 5 } else { 4 };
@@ -2575,6 +2593,13 @@ impl RunEngine {
                 let hp = base + self.rng.gen_range(0..=4);
                 (hp, hp)
             }
+            "Mugger" => {
+                // Source: reference/extracted/methods/monster/Mugger.java:
+                // inclusive 48..52, or 50..54 at ascension 7.
+                let base = if a20 { 50 } else { 48 };
+                let hp = base + self.rng.gen_range(0..=4);
+                (hp, hp)
+            }
             "GremlinFat" => {
                 let base = if a20 { 14 } else { 13 };
                 let hp = base + self.rng.gen_range(0..=4);
@@ -2916,7 +2941,7 @@ impl RunEngine {
                 self.run_state.current_hp = engine.state.player.hp;
                 self.run_state.max_hp = engine.state.player.max_hp;
                 let recovered_stolen_gold: i32 = engine.state.enemies.iter()
-                    .filter(|enemy| enemy.id == "Looter"
+                    .filter(|enemy| matches!(enemy.id.as_str(), "Looter" | "Mugger")
                         && enemy.entity.hp <= 0 && !enemy.is_escaping)
                     .map(|enemy| enemy.entity.status(crate::status_ids::sid::COUNT))
                     .sum();
@@ -9816,6 +9841,131 @@ mod tests {
 
         let mut refund = RunEngine::new(42, 0);
         refund.enter_specific_combat(vec!["Looter".to_string()]);
+        refund.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        refund.combat_engine.as_mut().unwrap().state.enemies[0].entity.hp = 0;
+        refund.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        assert!((109..=119).contains(&refund.run_state.gold),
+            "death returns 15 stolen gold before the normal 10..=20 reward");
+    }
+
+    #[test]
+    fn mugger_stats_gold_theft_direct_moves_and_ai_ticks_match_java() {
+        // Sources: reference/extracted/methods/monster/Mugger.java and
+        // decompiled/java-src/com/megacrit/cardcrawl/actions/common/DamageAction.java.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("Mugger").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("Mugger").0);
+        }
+        assert_eq!(low_hp, (48..=52).collect());
+        assert_eq!(high_hp, (50..=54).collect());
+
+        for (ascension, swipe, big_swipe, block, gold, hp_range) in [
+            (0, 10, 16, 11, 15, 48..=52),
+            (2, 11, 18, 11, 15, 48..=52),
+            (7, 11, 18, 11, 15, 50..=54),
+            (17, 11, 18, 17, 20, 50..=54),
+        ] {
+            let mut engine = RunEngine::new(42, ascension);
+            engine.enter_specific_combat(vec!["Mugger".to_string()]);
+            let combat = engine.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert!(hp_range.contains(&enemy.entity.hp));
+            assert_eq!(enemy.move_id, crate::enemies::move_ids::MUGGER_MUG);
+            assert_eq!(enemy.move_damage(), swipe);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG), swipe);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), big_swipe);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::BLOCK_AMT), block);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::TURN_COUNT), gold);
+            assert_eq!(combat.ai_rng.counter, 1,
+                "AbstractMonster.init consumes the only getMove roll");
+        }
+
+        let smoke_seed = (1..10_000).find(|&seed| {
+            let mut rng = crate::seed::StsRandom::new(seed);
+            let _ = rng.random(2); // first Mug voice
+            let _ = rng.random(2); // second Mug voice
+            let _ = rng.random_float(); // second-Mug dialogue
+            rng.random_float() < 0.5 // Smoke Bomb branch
+        }).unwrap();
+        let mut engine = RunEngine::new(42, 0);
+        engine.enter_specific_combat(vec!["Mugger".to_string()]);
+        engine.combat_engine.as_mut().unwrap().ai_rng = crate::seed::StsRandom::new(smoke_seed);
+
+        engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        assert_eq!(engine.run_state.gold, 84);
+        {
+            let combat = engine.combat_engine.as_ref().unwrap();
+            assert_eq!(combat.state.enemies[0].move_id,
+                crate::enemies::move_ids::MUGGER_MUG);
+            assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::COUNT), 15);
+            assert_eq!(combat.ai_rng.counter, 1,
+                "first Mug consumes only playSfx's aiRng.random(2)");
+        }
+
+        engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        assert_eq!(engine.run_state.gold, 69);
+        {
+            let combat = engine.combat_engine.as_ref().unwrap();
+            assert_eq!(combat.state.enemies[0].move_id,
+                crate::enemies::move_ids::MUGGER_SMOKE_BOMB);
+            assert_eq!(combat.state.enemies[0].move_block(), 11);
+            assert_eq!(combat.ai_rng.counter, 4,
+                "second Mug consumes voice, dialogue, and route booleans");
+        }
+
+        engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        {
+            let combat = engine.combat_engine.as_ref().unwrap();
+            assert_eq!(combat.state.enemies[0].entity.block, 11);
+            assert_eq!(combat.state.enemies[0].move_id,
+                crate::enemies::move_ids::MUGGER_ESCAPE);
+            assert!(!combat.state.enemies[0].is_escaping);
+            assert_eq!(combat.ai_rng.counter, 4,
+                "direct SetMove actions consume no RollMoveAction tick");
+        }
+
+        let big_seed = (1..10_000).find(|&seed| {
+            let mut rng = crate::seed::StsRandom::new(seed);
+            let _ = rng.random(2);
+            let _ = rng.random(2);
+            let _ = rng.random_float();
+            rng.random_float() >= 0.5
+        }).unwrap();
+        let mut big = crate::enemies::create_enemy("Mugger", 52, 52);
+        let mut big_rng = crate::seed::StsRandom::new(big_seed);
+        crate::enemies::act2::advance_mugger_after_turn(&mut big, &mut big_rng);
+        crate::enemies::act2::advance_mugger_after_turn(&mut big, &mut big_rng);
+        assert_eq!(big.move_id, crate::enemies::move_ids::MUGGER_BIG_SWIPE);
+        assert_eq!(big.move_damage(), 16);
+        assert_eq!(big_rng.counter, 4);
+        crate::enemies::act2::advance_mugger_after_turn(&mut big, &mut big_rng);
+        assert_eq!(big.move_id, crate::enemies::move_ids::MUGGER_SMOKE_BOMB);
+        assert_eq!(big_rng.counter, 5, "Big Swipe consumes its voice roll");
+
+        let mut a17_smoke = crate::enemies::create_enemy("Mugger", 54, 54);
+        a17_smoke.entity.set_status(crate::status_ids::sid::BLOCK_AMT, 17);
+        let mut a17_rng = crate::seed::StsRandom::new(smoke_seed);
+        crate::enemies::act2::advance_mugger_after_turn(&mut a17_smoke, &mut a17_rng);
+        crate::enemies::act2::advance_mugger_after_turn(&mut a17_smoke, &mut a17_rng);
+        assert_eq!(a17_smoke.move_id, crate::enemies::move_ids::MUGGER_SMOKE_BOMB);
+        assert_eq!(a17_smoke.move_block(), 17,
+            "A17 adds six to the constructor's eleven escape block");
+
+        let mut death = RunEngine::new(42, 0);
+        death.enter_specific_combat(vec!["Mugger".to_string()]);
+        let combat = death.combat_engine.as_mut().unwrap();
+        let before_death = combat.ai_rng.counter;
+        let hp = combat.state.enemies[0].entity.hp;
+        combat.deal_damage_to_enemy(0, hp);
+        assert_eq!(combat.ai_rng.counter, before_death + 1,
+            "Mugger.die consumes one aiRng voice variant");
+
+        let mut refund = RunEngine::new(42, 0);
+        refund.enter_specific_combat(vec!["Mugger".to_string()]);
         refund.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
         refund.combat_engine.as_mut().unwrap().state.enemies[0].entity.hp = 0;
         refund.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));

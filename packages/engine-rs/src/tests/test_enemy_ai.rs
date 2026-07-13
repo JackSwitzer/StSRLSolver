@@ -398,6 +398,10 @@ mod enemy_ai_java_parity_tests {
 
         let e = make("Mugger", 48);
         expect_move(&e, move_ids::MUGGER_MUG, 10, 1, 0, &[]);
+        expect_status(&e, sid::STARTING_DMG, 10);
+        expect_status(&e, sid::STR_AMT, 16);
+        expect_status(&e, sid::BLOCK_AMT, 11);
+        expect_status(&e, sid::TURN_COUNT, 15);
 
         let e = make("Byrd", 25);
         expect_move(&e, move_ids::BYRD_PECK, 1, 5, 0, &[]);
@@ -477,14 +481,24 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::CHOSEN_ZAP, 18, 1, 0, &[]);
 
         let mut e = make("Mugger", 48);
-        roll_times(&mut e, 1);
+        let smoke_seed = (1..10_000).find(|&seed| {
+            let mut rng = crate::seed::StsRandom::new(seed);
+            let _ = rng.random(2);
+            let _ = rng.random(2);
+            let _ = rng.random_float();
+            rng.random_float() < 0.5
+        }).unwrap();
+        let mut mugger_rng = crate::seed::StsRandom::new(smoke_seed);
+        act2::advance_mugger_after_turn(&mut e, &mut mugger_rng);
         expect_move(&e, move_ids::MUGGER_MUG, 10, 1, 0, &[]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::MUGGER_BIG_SWIPE, 16, 1, 0, &[]);
-        roll_times(&mut e, 1);
+        assert_eq!(mugger_rng.counter, 1);
+        act2::advance_mugger_after_turn(&mut e, &mut mugger_rng);
         expect_move(&e, move_ids::MUGGER_SMOKE_BOMB, 0, 0, 11, &[]);
-        roll_times(&mut e, 1);
+        assert_eq!(mugger_rng.counter, 4);
+        act2::advance_mugger_after_turn(&mut e, &mut mugger_rng);
         expect_move(&e, move_ids::MUGGER_ESCAPE, 0, 0, 0, &[]);
+        assert!(!e.is_escaping);
+        act2::advance_mugger_after_turn(&mut e, &mut mugger_rng);
         assert!(e.is_escaping);
 
         let mut e = make("Byrd", 25);

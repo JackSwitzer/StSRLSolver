@@ -253,11 +253,17 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         enemies::act1::guardian_begin_twin_smash(&mut engine.state.enemies[enemy_idx]);
     }
 
-    // Source: Looter.java plus DamageAction.java (`stealGold`): Mug and Lunge
-    // steal before their damage resolves, even when block prevents HP loss.
-    if engine.state.enemies[enemy_idx].id == "Looter"
-        && matches!(engine.state.enemies[enemy_idx].move_id,
-        enemies::move_ids::LOOTER_MUG | enemies::move_ids::LOOTER_LUNGE)
+    // Sources: reference/extracted/methods/monster/{Looter,Mugger}.java plus
+    // DamageAction.java (`stealGold`): both attack variants steal before their
+    // damage resolves, even when block prevents HP loss.
+    let thief_attack = match engine.state.enemies[enemy_idx].id.as_str() {
+        "Looter" => matches!(engine.state.enemies[enemy_idx].move_id,
+            enemies::move_ids::LOOTER_MUG | enemies::move_ids::LOOTER_LUNGE),
+        "Mugger" => matches!(engine.state.enemies[enemy_idx].move_id,
+            enemies::move_ids::MUGGER_MUG | enemies::move_ids::MUGGER_BIG_SWIPE),
+        _ => false,
+    };
+    if thief_attack
     {
         let amount = engine.state.enemies[enemy_idx].entity.status(sid::TURN_COUNT);
         let stolen = amount.min(engine.state.run_gold);
@@ -1130,6 +1136,9 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         enemies::advance_acid_slime_s_after_turn(&mut engine.state.enemies[enemy_idx]);
     } else if engine.state.enemies[enemy_idx].id == "Looter" {
         enemies::act1::advance_looter_after_turn(
+            &mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
+    } else if engine.state.enemies[enemy_idx].id == "Mugger" {
+        enemies::act2::advance_mugger_after_turn(
             &mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
     } else {
         if engine.state.enemies[enemy_idx].id == "Centurion" {
