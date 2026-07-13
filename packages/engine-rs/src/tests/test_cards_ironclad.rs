@@ -598,6 +598,35 @@ mod ironclad_card_java_parity_tests {
     card_pair_test!(infernal_blade, "Infernal Blade", "Infernal Blade+", 1, -1, -1, -1, 0, -1, -1, -1, CardType::Skill, CardTarget::None, true);
     card_pair_test!(inflame, "Inflame", "Inflame+", 1, -1, -1, 2, 1, -1, -1, 3, CardType::Power, CardTarget::SelfTarget, false);
     card_pair_test!(intimidate, "Intimidate", "Intimidate+", 0, -1, -1, 1, 0, -1, -1, 2, CardType::Skill, CardTarget::AllEnemy, true);
+
+    #[test]
+    fn intimidate_source_applies_one_or_two_weak_to_each_enemy_and_exhausts() {
+        // Intimidate.java queues one WeakPower application for every monster.
+        // Base magicNumber is 1 and upgradeMagicNumber(1) raises it to 2;
+        // ApplyPowerAction lets each target's Artifact block independently.
+        let mut engine = engine_for(
+            &["Intimidate", "Intimidate+"],
+            &[],
+            &[],
+            vec![
+                enemy_no_intent("JawWorm", 40, 40),
+                enemy_no_intent("Cultist", 40, 40),
+            ],
+            0,
+        );
+        engine.state.enemies[1].entity.set_status(sid::ARTIFACT, 1);
+
+        assert!(play_self(&mut engine, "Intimidate"));
+        assert_eq!(engine.state.enemies[0].entity.status(sid::WEAKENED), 1);
+        assert_eq!(engine.state.enemies[1].entity.status(sid::WEAKENED), 0);
+        assert_eq!(engine.state.enemies[1].entity.status(sid::ARTIFACT), 0);
+
+        assert!(play_self(&mut engine, "Intimidate+"));
+        assert_eq!(engine.state.enemies[0].entity.status(sid::WEAKENED), 3);
+        assert_eq!(engine.state.enemies[1].entity.status(sid::WEAKENED), 2);
+        assert_eq!(engine.state.energy, 0);
+        assert_eq!(exhaust_prefix_count(&engine, "Intimidate"), 2);
+    }
     card_pair_test!(metallicize, "Metallicize", "Metallicize+", 1, -1, -1, 3, 1, -1, -1, 4, CardType::Power, CardTarget::SelfTarget, false);
     card_pair_test!(power_through, "Power Through", "Power Through+", 1, -1, 15, -1, 1, -1, 20, -1, CardType::Skill, CardTarget::SelfTarget, false);
     card_pair_test!(pummel, "Pummel", "Pummel+", 1, 2, -1, 4, 1, 2, -1, 5, CardType::Attack, CardTarget::Enemy, true);
