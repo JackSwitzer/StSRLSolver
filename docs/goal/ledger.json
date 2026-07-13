@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T17:23:14.070604+00:00",
+ "updated": "2026-07-13T17:25:31.166511+00:00",
  "status_counts": {
-  "verified": 576,
-  "unverified": 91
+  "verified": 577,
+  "unverified": 90
  },
  "rows": [
   {
@@ -3602,8 +3602,8 @@
    "class": "WhiteNoise",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/WhiteNoise.java",
    "methods_ref": "reference/extracted/methods/card/WhiteNoise.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

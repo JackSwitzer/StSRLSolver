@@ -7,6 +7,8 @@ mod defect_card_java_parity_tests {
     use crate::combat_types::Intent;
     use crate::status_ids::sid;
     use crate::engine::{CombatEngine, CombatPhase};
+    use crate::effects::declarative::GeneratedCardPool;
+    use crate::effects::interpreter::generated_card_pool;
     use crate::actions::Action;
     use crate::orbs::OrbType;
     use crate::powers::{process_end_of_round, process_end_of_turn, process_start_of_turn};
@@ -1095,13 +1097,40 @@ mod defect_card_java_parity_tests {
         assert_eq!(e.state.enemies[0].entity.hp, 40 - 28); // 4 hits of 7 base damage = 28
     });
 
-    defect_test!(white_noise_adds_a_power_card, {
-        let mut e = bare_engine(&["White Noise"], vec![enemy("JawWorm", 40, 0)]);
-        ensure_in_hand(&mut e, "White Noise");
-        let hand_before = e.state.hand.len();
-        play_self(&mut e, "White Noise");
-        assert_eq!(e.state.hand.len(), hand_before);
-        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id).starts_with("Defragment")));
+    defect_test!(white_noise_uses_card_random_defect_power_pool_and_zeroes_turn_cost, {
+        // WhiteNoise.use calls returnTrulyRandomCardInCombat(POWER) exactly
+        // once, makes a copy, sets costForTurn(0), and queues that copy into
+        // hand. The upgrade changes only the played card's cost from one to
+        // zero.
+        // Java: reference/extracted/methods/card/WhiteNoise.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+        for (card_id, expected_energy) in [("White Noise", 2), ("White Noise+", 3)] {
+            let mut e = bare_engine(&[card_id], vec![enemy("JawWorm", 40, 0)]);
+            ensure_in_hand(&mut e, card_id);
+            let pool = generated_card_pool(&e, GeneratedCardPool::DefectPower);
+            let mut oracle = e.card_random_rng.clone();
+            let expected = pool[oracle.random((pool.len() - 1) as i32) as usize];
+            let general_before = e.rng.counter;
+            let hand_before = e.state.hand.len();
+
+            assert!(play_self(&mut e, card_id));
+
+            assert_eq!(e.state.hand.len(), hand_before);
+            assert_eq!(e.state.energy, expected_energy);
+            assert_eq!(e.card_random_rng.counter, oracle.counter);
+            assert_eq!(e.rng.counter, general_before);
+            assert_eq!(
+                e.state
+                    .exhaust_pile
+                    .iter()
+                    .filter(|card| e.card_registry.card_name(card.def_id).starts_with("White Noise"))
+                    .count(),
+                1
+            );
+            let generated = e.state.hand.last().expect("generated Power");
+            assert_eq!(e.card_registry.card_name(generated.def_id), expected);
+            assert_eq!(generated.cost, 0);
+        }
     });
 
     defect_test!(all_for_one_returns_zero_cost_cards_from_discard, {
