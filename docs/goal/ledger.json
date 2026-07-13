@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T10:51:30.700635+00:00",
+ "updated": "2026-07-13T10:53:24.738707+00:00",
  "status_counts": {
-  "verified": 453,
-  "unverified": 214
+  "verified": 454,
+  "unverified": 213
  },
  "rows": [
   {
@@ -2032,8 +2032,8 @@
    "class": "LegSweep",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/LegSweep.java",
    "methods_ref": "reference/extracted/methods/card/LegSweep.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

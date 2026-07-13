@@ -577,6 +577,30 @@ mod silent_card_java_parity_tests {
         "Leg Sweep", 2, -1, 11, 2, CardType::Skill, CardTarget::Enemy, false, None, &["weak"],
         "Leg Sweep+", 2, -1, 14, 3, CardType::Skill, CardTarget::Enemy, false, None, &["weak"],
     );
+
+    #[test]
+    fn leg_sweep_source_applies_weak_before_gaining_block() {
+        // LegSweep.java queues ApplyPowerAction(Weak) before GainBlockAction.
+        // With one Artifact and Wave of the Hand, Leg Sweep's own Weak is
+        // blocked first; the later Block gain then applies exactly one Weak.
+        for (card_id, block) in [("Leg Sweep", 11), ("Leg Sweep+", 14)] {
+            let mut engine = engine_with_enemies(
+                Vec::new(),
+                vec![enemy_no_intent("JawWorm", 40, 40)],
+                2,
+            );
+            engine.state.hand = make_deck(&[card_id]);
+            engine.state.player.set_status(sid::WAVE_OF_THE_HAND, 1);
+            engine.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+
+            assert!(play_on_enemy(&mut engine, card_id, 0));
+
+            assert_eq!(engine.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+            assert_eq!(engine.state.enemies[0].entity.status(sid::WEAKENED), 1);
+            assert_eq!(engine.state.player.block, block);
+            assert_eq!(engine.state.energy, 0);
+        }
+    }
     card_pair_test!(masterful_stab,
         "Masterful Stab", 0, 12, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["cost_increase_on_hp_loss"],
         "Masterful Stab+", 0, 16, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["cost_increase_on_hp_loss"],
