@@ -14,12 +14,28 @@ fn relic_wave18_combat_start_data_disk_and_clockwork_souvenir_replace_helper_par
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
-    engine.state.relics = vec!["Data Disk".to_string(), "ClockworkSouvenir".to_string()];
+    engine.state.relics = vec!["DataDisk".to_string(), "ClockworkSouvenir".to_string()];
 
     engine.start_combat();
 
     assert_eq!(engine.state.player.status(sid::FOCUS), 1);
     assert_eq!(engine.state.player.status(sid::ARTIFACT), 1);
+}
+
+#[test]
+fn data_disk_uses_java_id_and_applies_exactly_one_focus_at_combat_start() {
+    // Source: reference/extracted/methods/relic/DataDisk.java
+    // DataDisk.ID is unspaced and atBattleStart applies one FocusPower.
+    let mut engine = engine_without_start(
+        make_deck_n("Strike", 5),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    engine.state.relics = vec!["DataDisk".to_string()];
+
+    engine.start_combat();
+
+    assert_eq!(engine.state.player.status(sid::FOCUS), 1);
 }
 
 #[test]

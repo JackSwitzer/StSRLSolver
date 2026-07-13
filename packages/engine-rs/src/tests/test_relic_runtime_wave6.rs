@@ -54,7 +54,7 @@ fn combat_start_bundle_applies_simple_java_relic_effects_on_runtime_path() {
             "Bronze Scales",
             "ClockworkSouvenir",
             "FossilizedHelix",
-            "Data Disk",
+            "DataDisk",
         ],
         &["Strike", "Strike", "Strike", "Strike", "Strike"],
         vec![
