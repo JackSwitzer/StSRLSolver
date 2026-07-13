@@ -1391,6 +1391,7 @@ impl EffectRuntime {
         match amount_src {
             AmountSource::Magic => 0,
             AmountSource::Block => 0,
+            AmountSource::ModifiedBlock => 0,
             AmountSource::Damage => 0,
             AmountSource::Fixed(value) => value,
             AmountSource::XCost => 0,

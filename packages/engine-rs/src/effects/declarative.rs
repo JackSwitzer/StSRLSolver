@@ -49,6 +49,8 @@ pub enum AmountSource {
     Magic,
     /// CardDef.base_block (for block pipeline).
     Block,
+    /// CardDef.base_block after the card's Dexterity/Frail block pipeline.
+    ModifiedBlock,
     /// CardDef.base_damage.
     Damage,
     /// A fixed constant.

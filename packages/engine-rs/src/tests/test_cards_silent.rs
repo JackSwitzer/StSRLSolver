@@ -262,9 +262,31 @@ mod silent_card_java_parity_tests {
         }
     }
     card_pair_test!(dodge_and_roll,
-        "Dodge and Roll", 1, -1, 4, 4, CardType::Skill, CardTarget::SelfTarget, false, None, &["next_turn_block"],
-        "Dodge and Roll+", 1, -1, 6, 6, CardType::Skill, CardTarget::SelfTarget, false, None, &["next_turn_block"],
+        "Dodge and Roll", 1, -1, 4, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["next_turn_block"],
+        "Dodge and Roll+", 1, -1, 6, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["next_turn_block"],
     );
+
+    #[test]
+    fn dodge_and_roll_uses_modified_block_for_now_and_next_turn() {
+        // DodgeAndRoll.java passes this.block to both GainBlockAction and
+        // NextTurnBlockPower. With two Dexterity, base grants/stores 6 and the
+        // upgraded card grants/stores 8 after upgradeBlock(2).
+        for (card_id, expected_block) in [("Dodge and Roll", 6), ("Dodge and Roll+", 8)] {
+            let mut engine = engine_without_start(
+                Vec::new(),
+                vec![enemy_no_intent("JawWorm", 40, 40)],
+                1,
+            );
+            force_player_turn(&mut engine);
+            engine.state.player.set_status(sid::DEXTERITY, 2);
+            engine.state.hand = make_deck(&[card_id]);
+
+            assert!(play_self(&mut engine, card_id));
+            assert_eq!(engine.state.player.block, expected_block);
+            assert_eq!(engine.state.player.status(sid::NEXT_TURN_BLOCK), expected_block);
+            assert_eq!(engine.state.energy, 0);
+        }
+    }
     card_pair_test!(flying_knee,
         "Flying Knee", 1, 8, -1, 1, CardType::Attack, CardTarget::Enemy, false, None, &["next_turn_energy"],
         "Flying Knee+", 1, 11, -1, 1, CardType::Attack, CardTarget::Enemy, false, None, &["next_turn_energy"],

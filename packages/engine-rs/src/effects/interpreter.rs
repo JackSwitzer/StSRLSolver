@@ -1027,6 +1027,18 @@ pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &A
                 ctx.card.base_block.max(0)
             }
         }
+        AmountSource::ModifiedBlock => {
+            let base = if ctx.card_inst.misc >= 0 {
+                ctx.card_inst.misc as i32
+            } else {
+                ctx.card.base_block.max(0)
+            };
+            damage::calculate_block(
+                base,
+                engine.state.player.dexterity(),
+                engine.state.player.is_frail(),
+            )
+        }
         AmountSource::Damage => ctx.card.base_damage.max(0),
         AmountSource::Fixed(n) => n,
         AmountSource::XCost => ctx.x_value,
