@@ -354,6 +354,42 @@ fn test_card_runtime_defect_wave2_coolheaded_fusion_darkness_and_rainbow_cover_c
 }
 
 #[test]
+fn rainbow_source_channels_in_order_and_upgrade_only_removes_exhaust() {
+    // Rainbow.java queues Lightning, Frost, then Dark. With three full slots
+    // holding that same sequence, the new channels evoke 8 damage, 5 Block,
+    // then 6 damage in order and leave the new sequence behind. upgrade()
+    // changes only exhaust to false.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.init_defect_orbs(3);
+    engine.channel_orb(OrbType::Lightning);
+    engine.channel_orb(OrbType::Frost);
+    engine.channel_orb(OrbType::Dark);
+    engine.state.hand = make_deck(&["Rainbow+"]);
+    let card_random_before = engine.rng_counters()["cardRandom"];
+
+    assert!(play_self(&mut engine, "Rainbow+"));
+
+    assert_eq!(engine.state.energy, 1);
+    assert_eq!(engine.state.enemies[0].entity.hp, 36);
+    assert_eq!(engine.state.player.block, 5);
+    assert_eq!(engine.rng_counters()["cardRandom"], card_random_before + 1);
+    assert_eq!(engine.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
+    assert_eq!(engine.state.orb_slots.slots[1].orb_type, OrbType::Frost);
+    assert_eq!(engine.state.orb_slots.slots[2].orb_type, OrbType::Dark);
+    assert!(engine.state.exhaust_pile.is_empty());
+    assert_eq!(engine.state.discard_pile.len(), 1);
+    assert_eq!(
+        engine.card_registry.card_name(engine.state.discard_pile[0].def_id),
+        "Rainbow+"
+    );
+}
+
+#[test]
 fn test_card_runtime_defect_wave2_rip_and_tear_hits_random_living_enemies_for_exact_total_damage() {
     let mut engine = engine_without_start(
         Vec::new(),
