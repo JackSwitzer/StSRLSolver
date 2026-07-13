@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T07:13:03.384120+00:00",
+ "updated": "2026-07-13T07:15:02.447156+00:00",
  "status_counts": {
-  "verified": 379,
-  "unverified": 288
+  "verified": 380,
+  "unverified": 287
  },
  "rows": [
   {
@@ -1122,8 +1122,8 @@
    "class": "Distraction",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Distraction.java",
    "methods_ref": "reference/extracted/methods/card/Distraction.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

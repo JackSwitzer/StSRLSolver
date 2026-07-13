@@ -18,7 +18,8 @@ use crate::cards::CardType;
 use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
 use crate::status_ids::sid;
 use crate::tests::support::{
-    combat_state_with, enemy_no_intent, engine_with_state, make_deck, play_self,
+    combat_state_with, enemy_no_intent, engine_with_state, exhaust_prefix_count, make_deck,
+    play_self,
 };
 
 fn use_potion(engine: &mut crate::engine::CombatEngine, potion_idx: usize, target_idx: i32) {
@@ -184,19 +185,27 @@ fn infernal_blade_uses_random_attack_pool_and_zeroes_cost() {
 
 #[test]
 fn distraction_uses_random_skill_pool_and_zeroes_cost() {
-    let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Distraction", "Strike", "Defend", "Strike", "Defend"]),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    ));
+    // Distraction.java selects exactly one current-class Skill, sets its
+    // costForTurn to -99 (free), and exhausts. Upgrade changes cost 1 to 0.
+    for (card_id, expected_energy) in [("Distraction", 2), ("Distraction+", 3)] {
+        let mut engine = engine_with_state(combat_state_with(
+            make_deck(&[card_id, "Strike", "Defend", "Strike", "Defend"]),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            3,
+        ));
 
-    let hand_before = engine.state.hand.len();
-    play_card(&mut engine, "Distraction");
-    assert_eq!(engine.state.hand.len(), hand_before);
-    let generated = *engine.state.hand.last().unwrap();
-    let generated_def = engine.card_registry.card_def_by_id(generated.def_id);
-    assert_eq!(generated_def.card_type, CardType::Skill);
-    assert_eq!(generated.cost, 0);
+        let hand_before = engine.state.hand.len();
+        let rng_before = engine.card_random_rng.counter;
+        play_card(&mut engine, card_id);
+        assert_eq!(engine.state.hand.len(), hand_before);
+        assert_eq!(engine.state.energy, expected_energy);
+        assert_eq!(engine.card_random_rng.counter, rng_before + 1);
+        assert_eq!(exhaust_prefix_count(&engine, "Distraction"), 1);
+        let generated = *engine.state.hand.last().unwrap();
+        let generated_def = engine.card_registry.card_def_by_id(generated.def_id);
+        assert_eq!(generated_def.card_type, CardType::Skill);
+        assert_eq!(generated.cost, 0);
+    }
 }
 
 #[test]

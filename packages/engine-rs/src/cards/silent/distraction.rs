@@ -8,6 +8,10 @@ static DISTRACTION: [Effect; 1] = [Effect::GenerateRandomCardsToHand {
 }];
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+    // Distraction.java consumes one cardRandom selection from the current
+    // character's Skill pool, makes that copy free this turn, and exhausts.
+    // Upgrading changes only the base cost from 1 to 0.
+    // Java: reference/extracted/methods/card/Distraction.java
     insert(cards, CardDef {
         id: "Distraction",
         name: "Distraction",
