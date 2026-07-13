@@ -76,7 +76,11 @@ fn calculated_gamble_discards_the_remaining_hand_then_draws_the_same_count() {
 }
 
 #[test]
-fn calculated_gamble_plus_draws_one_extra_card_after_discarding_the_remaining_hand() {
+fn calculated_gamble_plus_only_removes_exhaust_and_draws_the_same_count() {
+    // CalculatedGamble.upgrade only sets exhaust=false, and use() still constructs
+    // CalculatedGambleAction(false). The action's false branch draws exactly `count`.
+    // Java: cards/green/CalculatedGamble.java and
+    // actions/unique/CalculatedGambleAction.java.
     let mut engine = engine_for(
         &["Calculated Gamble+", "Strike", "Defend"],
         &["Neutralize", "Survivor", "Deflect"],
@@ -87,13 +91,14 @@ fn calculated_gamble_plus_draws_one_extra_card_after_discarding_the_remaining_ha
     assert!(play_self(&mut engine, "Calculated Gamble+"));
 
     let names = hand_names(&engine);
-    assert_eq!(names.len(), 3);
+    assert_eq!(names.len(), 2);
     assert!(names.iter().all(|name| matches!(
         name.as_str(),
         "Neutralize" | "Survivor" | "Deflect"
     )));
     assert_eq!(hand_count(&engine, "Strike"), 0);
     assert_eq!(hand_count(&engine, "Defend"), 0);
+    assert_eq!(engine.state.draw_pile.len(), 1);
     assert_eq!(engine.state.discard_pile.len(), 3);
     assert!(engine
         .state

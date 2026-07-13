@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T04:59:04.945023+00:00",
+ "updated": "2026-07-13T05:03:22.569890+00:00",
  "status_counts": {
-  "verified": 333,
-  "unverified": 334
+  "verified": 334,
+  "unverified": 333
  },
  "rows": [
   {
@@ -512,8 +512,8 @@
    "class": "CalculatedGamble",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/CalculatedGamble.java",
    "methods_ref": "reference/extracted/methods/card/CalculatedGamble.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

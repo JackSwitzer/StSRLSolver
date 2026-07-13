@@ -35,6 +35,10 @@ fn silent_wave14_calculated_gamble_is_declarative_and_uses_hand_size_at_play() {
     let calculated_gamble_plus = registry
         .get("Calculated Gamble+")
         .expect("Calculated Gamble+ should exist");
+    // CalculatedGamble.use constructs CalculatedGambleAction(false) even after
+    // upgrade, so the otherwise-present count+1 branch is never selected.
+    // Java: cards/green/CalculatedGamble.java and
+    // actions/unique/CalculatedGambleAction.java.
     assert_eq!(
         calculated_gamble_plus.effect_data,
         &[
@@ -43,7 +47,7 @@ fn silent_wave14_calculated_gamble_is_declarative_and_uses_hand_size_at_play() {
                 filter: CardFilter::All,
                 action: BulkAction::Discard,
             },
-            E::Simple(SE::DrawCards(A::HandSizeAtPlayPlus(1))),
+            E::Simple(SE::DrawCards(A::HandSizeAtPlay)),
         ],
     );
     assert!(calculated_gamble_plus.complex_hook.is_none());
