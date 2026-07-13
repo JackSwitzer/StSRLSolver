@@ -333,8 +333,12 @@ pub mod sid {
     // Enemy reactive power. Appended to preserve existing snapshot IDs.
     pub const PAINFUL_STABS: StatusId = StatusId(258);
 
+    // Generic marker for monster AI branches gated at the highest ascension.
+    // Appended to preserve existing snapshot IDs.
+    pub const HIGH_ASCENSION_AI: StatusId = StatusId(259);
+
     /// Total number of defined status IDs (exclusive upper bound).
-    pub const NUM_IDS: usize = 259;
+    pub const NUM_IDS: usize = 260;
 
     /// Array sizing constant (power of 2 for cache-friendly indexing).
     pub const MAX_STATUS_ID: usize = 512;
@@ -630,6 +634,7 @@ static STATUS_NAMES: &[&str] = &[
     "Phantasmal",         // 256
     "Rebound",            // 257
     "PainfulStabs",        // 258
+    "HighAscensionAi",     // 259
 ];
 
 #[cfg(test)]

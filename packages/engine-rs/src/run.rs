@@ -1847,6 +1847,26 @@ impl RunEngine {
             enemy.entity.set_status(crate::status_ids::sid::PAINFUL_STABS, 1);
         }
 
+        // Source: reference/extracted/methods/monster/BronzeAutomaton.java.
+        for enemy in enemy_states.iter_mut().filter(|e| matches!(e.id.as_str(),
+            "BronzeAutomaton" | "Bronze Automaton")) {
+            let (flail, beam, strength) = if self.run_state.ascension >= 4 {
+                (8, 50, 4)
+            } else {
+                (7, 45, 3)
+            };
+            enemy.entity.set_status(crate::status_ids::sid::FLAIL_DMG, flail);
+            enemy.entity.set_status(crate::status_ids::sid::BEAM_DMG, beam);
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT, strength);
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if self.run_state.ascension >= 9 { 12 } else { 9 });
+            enemy.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI,
+                if self.run_state.ascension >= 19 { 1 } else { 0 });
+            enemy.entity.set_status(crate::status_ids::sid::FIRST_TURN, 1);
+            enemy.entity.set_status(crate::status_ids::sid::NUM_TURNS, 0);
+            enemy.entity.set_status(crate::status_ids::sid::ARTIFACT, 3);
+        }
+
         // Source: reference/extracted/methods/monster/AcidSlime_S.java.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "AcidSlime_S") {
             let damage = if self.run_state.ascension >= 2 { 4 } else { 3 };
@@ -2464,7 +2484,7 @@ impl RunEngine {
                 (hp, hp)
             }
             "BronzeAutomaton" => {
-                let hp = if a20 { 320 } else { 300 };
+                let hp = if self.run_state.ascension >= 9 { 320 } else { 300 };
                 (hp, hp)
             }
             "TheCollector" => {
@@ -7857,6 +7877,69 @@ mod tests {
         let wounds = combat.state.discard_pile.iter().filter(|card|
             combat.card_registry.card_name(card.def_id) == "Wound").count();
         assert_eq!(wounds, 1);
+    }
+
+    #[test]
+    fn bronze_automaton_stats_cycle_a19_recovery_and_spawn_order_match_java() {
+        // Source: reference/extracted/methods/monster/BronzeAutomaton.java.
+        // HP changes at A9; Flail/Beam/Strength at A4; block at A9; and only
+        // A19 replaces the post-Beam Stunned turn with Boost. Artifact is 3.
+        for (ascension, hp, flail, beam, strength, block, high_ai) in [
+            (0, 300, 7, 45, 3, 9, 0),
+            (4, 300, 8, 50, 4, 9, 0),
+            (9, 320, 8, 50, 4, 12, 0),
+            (19, 320, 8, 50, 4, 12, 1),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["BronzeAutomaton".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!(enemy.entity.hp, hp);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::FLAIL_DMG), flail);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::BEAM_DMG), beam);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), strength);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::BLOCK_AMT), block);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::HIGH_ASCENSION_AI), high_ai);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::ARTIFACT), 3);
+            assert_eq!(enemy.move_id, crate::enemies::move_ids::BA_SPAWN_ORBS);
+            assert_eq!(combat.ai_rng.counter, 1);
+
+            let mut pattern = enemy.clone();
+            let mut secondary = crate::seed::StsRandom::new(0);
+            let expected = [
+                crate::enemies::move_ids::BA_FLAIL,
+                crate::enemies::move_ids::BA_BOOST,
+                crate::enemies::move_ids::BA_FLAIL,
+                crate::enemies::move_ids::BA_BOOST,
+                crate::enemies::move_ids::BA_HYPER_BEAM,
+                if high_ai > 0 {
+                    crate::enemies::move_ids::BA_BOOST
+                } else {
+                    crate::enemies::move_ids::BA_STUNNED
+                },
+            ];
+            for expected_move in expected {
+                crate::enemies::roll_next_move(&mut pattern, &mut secondary);
+                assert_eq!(pattern.move_id, expected_move);
+            }
+        }
+
+        // SpawnMonsterAction initializes each minion before the Automaton's
+        // queued RollMoveAction: opening Automaton tick + two Orb ticks + the
+        // Automaton's next-move tick = four. Both Orbs receive MinionPower.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/SpawnMonsterAction.java
+        let mut run = RunEngine::new(42, 19);
+        run.enter_specific_combat(vec!["BronzeAutomaton".to_string()]);
+        let combat = run.combat_engine.as_mut().unwrap();
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(combat.state.enemies.len(), 3);
+        assert!(combat.state.enemies[1].is_minion);
+        assert!(combat.state.enemies[2].is_minion);
+        assert_eq!(combat.state.enemies[1].entity.status(crate::status_ids::sid::COUNT), 0);
+        assert_eq!(combat.state.enemies[2].entity.status(crate::status_ids::sid::COUNT), 1);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::BA_FLAIL);
+        assert_eq!(combat.ai_rng.counter, 4);
     }
 
     #[test]

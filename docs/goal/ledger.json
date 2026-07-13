@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T18:03:16.296980+00:00",
+ "updated": "2026-07-13T18:09:06.205982+00:00",
  "status_counts": {
-  "verified": 587,
-  "unverified": 80
+  "verified": 588,
+  "unverified": 79
  },
  "rows": [
   {
@@ -3802,8 +3802,8 @@
    "class": "BronzeAutomaton",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/city/BronzeAutomaton.java",
    "methods_ref": "reference/extracted/methods/monster/BronzeAutomaton.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

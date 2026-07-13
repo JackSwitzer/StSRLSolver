@@ -826,6 +826,8 @@ mod enemy_tests {
     }
     #[test] fn automaton_hyper_beam() {
         let mut e = create_enemy("BronzeAutomaton", 300, 300);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 0, &mut crate::seed::StsRandom::new(0));
         let mut has_hyper = false;
         for _ in 0..10 {
             roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));

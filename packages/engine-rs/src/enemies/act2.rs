@@ -295,35 +295,55 @@ pub(crate) fn advance_bandit_leader_after_turn(enemy: &mut EnemyCombatState) {
 // =========================================================================
 
 pub(super) fn roll_bronze_automaton(enemy: &mut EnemyCombatState, _num: i32) {
-    let fd = { let v = enemy.entity.status(sid::FLAIL_DMG); if v > 0 { v } else { 7 } };
-    let bd = { let v = enemy.entity.status(sid::BEAM_DMG); if v > 0 { v } else { 45 } };
-    let sa = { let v = enemy.entity.status(sid::STR_AMT); if v > 0 { v } else { 3 } };
-    let ba = { let v = enemy.entity.status(sid::BLOCK_AMT); if v > 0 { v } else { 9 } };
-    if last_move(enemy, move_ids::BA_SPAWN_ORBS) || last_move(enemy, move_ids::BA_STUNNED) || last_move(enemy, move_ids::BA_BOOST) {
-        enemy.set_move(move_ids::BA_FLAIL, fd, 2, 0);
-    } else if last_move(enemy, move_ids::BA_FLAIL) {
-        let turns = enemy.move_history.len();
-        if turns >= 4 {
-            enemy.set_move(move_ids::BA_HYPER_BEAM, bd, 1, 0);
-        } else {
-            enemy.set_move(move_ids::BA_BOOST, 0, 0, ba);
-            enemy.add_effect(mfx::STRENGTH, sa as i16);
-        }
-    } else if last_move(enemy, move_ids::BA_HYPER_BEAM) {
-        enemy.set_move(move_ids::BA_STUNNED, 0, 0, 0);
-    } else {
-        enemy.set_move(move_ids::BA_FLAIL, fd, 2, 0);
+    // Java: reference/extracted/methods/monster/BronzeAutomaton.java (`getMove`).
+    let flail = enemy.entity.status(sid::FLAIL_DMG);
+    let beam = enemy.entity.status(sid::BEAM_DMG);
+    let strength = enemy.entity.status(sid::STR_AMT);
+    let block = enemy.entity.status(sid::BLOCK_AMT);
+    if enemy.entity.status(sid::FIRST_TURN) > 0 {
+        enemy.entity.set_status(sid::FIRST_TURN, 0);
+        enemy.set_move(move_ids::BA_SPAWN_ORBS, 0, 0, 0);
+        return;
     }
+    let num_turns = enemy.entity.status(sid::NUM_TURNS);
+    if num_turns == 4 {
+        enemy.entity.set_status(sid::NUM_TURNS, 0);
+        enemy.set_move(move_ids::BA_HYPER_BEAM, beam, 1, 0);
+        return;
+    }
+    if last_move(enemy, move_ids::BA_HYPER_BEAM) {
+        if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
+            enemy.set_move(move_ids::BA_BOOST, 0, 0, block);
+            enemy.add_effect(mfx::STRENGTH, strength as i16);
+        } else {
+            enemy.set_move(move_ids::BA_STUNNED, 0, 0, 0);
+        }
+        return;
+    }
+    if last_move(enemy, move_ids::BA_STUNNED)
+        || last_move(enemy, move_ids::BA_BOOST)
+        || last_move(enemy, move_ids::BA_SPAWN_ORBS)
+    {
+        enemy.set_move(move_ids::BA_FLAIL, flail, 2, 0);
+    } else {
+        enemy.set_move(move_ids::BA_BOOST, 0, 0, block);
+        enemy.add_effect(mfx::STRENGTH, strength as i16);
+    }
+    enemy.entity.set_status(sid::NUM_TURNS, num_turns + 1);
 }
 
-pub(super) fn roll_bronze_orb(enemy: &mut EnemyCombatState, _num: i32) {
-    // Stasis (first turn) -> Beam (8) / Support (12 block to Automaton)
-    if last_two_moves(enemy, move_ids::BO_BEAM) {
+pub(super) fn roll_bronze_orb(enemy: &mut EnemyCombatState, num: i32) {
+    // Java: reference/extracted/methods/monster/BronzeOrb.java (`getMove`).
+    if enemy.entity.status(sid::FIRST_MOVE) == 0 && num >= 25 {
+        enemy.entity.set_status(sid::FIRST_MOVE, 1);
+        enemy.set_move(move_ids::BO_STASIS, 0, 0, 0);
+        enemy.add_effect(mfx::STASIS, 1);
+    } else if num >= 70 && !last_two_moves(enemy, move_ids::BO_SUPPORT) {
         enemy.set_move(move_ids::BO_SUPPORT, 0, 0, 12);
-    } else if last_move(enemy, move_ids::BO_SUPPORT) {
+    } else if !last_two_moves(enemy, move_ids::BO_BEAM) {
         enemy.set_move(move_ids::BO_BEAM, 8, 1, 0);
     } else {
-        enemy.set_move(move_ids::BO_BEAM, 8, 1, 0);
+        enemy.set_move(move_ids::BO_SUPPORT, 0, 0, 12);
     }
 }
 

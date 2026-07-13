@@ -256,17 +256,23 @@ mod boss_java_parity_tests {
     }
 
     #[test]
-    fn bronze_automaton_a2_scaling_matches_java_expectations() {
-        let mut enemy = create_enemy("BronzeAutomaton", 320, 320);
-        assert_eq!(enemy.entity.hp, 320);
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_damage(), 8);
+    fn bronze_automaton_factory_uses_source_base_stats() {
+        // Source: reference/extracted/methods/monster/BronzeAutomaton.java.
+        // create_enemy has no ascension input, so RunEngine applies the
+        // independent A4/A9/A19 gates at the spawn site.
+        let enemy = create_enemy("BronzeAutomaton", 320, 320);
+        assert_eq!(enemy.entity.status(sid::FLAIL_DMG), 7);
+        assert_eq!(enemy.entity.status(sid::BEAM_DMG), 45);
+        assert_eq!(enemy.entity.status(sid::STR_AMT), 3);
+        assert_eq!(enemy.entity.status(sid::BLOCK_AMT), 9);
         assert_eq!(enemy.entity.status(sid::ARTIFACT), 3);
     }
 
     #[test]
     fn bronze_automaton_cycle_matches_java_base_pattern() {
         let mut enemy = create_enemy("BronzeAutomaton", 300, 300);
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 0, &mut crate::seed::StsRandom::new(0));
 
         roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::BA_FLAIL);
@@ -281,8 +287,14 @@ mod boss_java_parity_tests {
         assert_eq!(enemy.move_id, move_ids::BA_FLAIL);
 
         roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(enemy.move_id, move_ids::BA_BOOST);
+
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::BA_HYPER_BEAM);
         assert_eq!(enemy.move_damage(), 45);
+
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(enemy.move_id, move_ids::BA_STUNNED);
     }
 
     #[test]

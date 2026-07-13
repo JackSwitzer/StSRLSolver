@@ -609,6 +609,8 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::POINTY_STAB, 5, 2, 0, &[]);
 
         let mut e = make("BronzeAutomaton", 300);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 0, &mut crate::seed::StsRandom::new(0));
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::BA_FLAIL, 7, 2, 0, &[]);
         roll_times(&mut e, 1);
@@ -616,7 +618,26 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::BA_FLAIL, 7, 2, 0, &[]);
         roll_times(&mut e, 1);
+        expect_move(&e, move_ids::BA_BOOST, 0, 0, 9, &[(mfx::STRENGTH, 3)]);
+        roll_times(&mut e, 1);
         expect_move(&e, move_ids::BA_HYPER_BEAM, 45, 1, 0, &[]);
+        roll_times(&mut e, 1);
+        expect_move(&e, move_ids::BA_STUNNED, 0, 0, 0, &[]);
+
+        let mut a19 = make("BronzeAutomaton", 320);
+        a19.entity.set_status(sid::FLAIL_DMG, 8);
+        a19.entity.set_status(sid::BEAM_DMG, 50);
+        a19.entity.set_status(sid::STR_AMT, 4);
+        a19.entity.set_status(sid::BLOCK_AMT, 12);
+        a19.entity.set_status(sid::HIGH_ASCENSION_AI, 1);
+        roll_initial_move_with_num_and_rng(
+            &mut a19, 0, &mut crate::seed::StsRandom::new(0));
+        for _ in 0..5 {
+            roll_times(&mut a19, 1);
+        }
+        expect_move(&a19, move_ids::BA_HYPER_BEAM, 50, 1, 0, &[]);
+        roll_times(&mut a19, 1);
+        expect_move(&a19, move_ids::BA_BOOST, 0, 0, 12, &[(mfx::STRENGTH, 4)]);
 
         let mut e = make("BronzeOrb", 35);
         roll_times(&mut e, 1);

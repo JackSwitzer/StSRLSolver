@@ -688,22 +688,24 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::POINTY_STAB, 5, 2, 0);
         }
         "BronzeAutomaton" | "Bronze Automaton" => {
+            // A0 constructor/pre-battle values. Independent A4/A9/A19 gates
+            // are patched at the RunEngine spawn site.
+            // Java: reference/extracted/methods/monster/BronzeAutomaton.java
             enemy.set_move(move_ids::BA_SPAWN_ORBS, 0, 0, 0);
-            if hp >= 320 {
-                enemy.entity.set_status(sid::FLAIL_DMG, 8);
-                enemy.entity.set_status(sid::BEAM_DMG, 50);
-                enemy.entity.set_status(sid::STR_AMT, 4);
-                enemy.entity.set_status(sid::BLOCK_AMT, 12);
-            } else {
-                enemy.entity.set_status(sid::FLAIL_DMG, 7);
-                enemy.entity.set_status(sid::BEAM_DMG, 45);
-                enemy.entity.set_status(sid::STR_AMT, 3);
-                enemy.entity.set_status(sid::BLOCK_AMT, 9);
-            }
+            enemy.entity.set_status(sid::FLAIL_DMG, 7);
+            enemy.entity.set_status(sid::BEAM_DMG, 45);
+            enemy.entity.set_status(sid::STR_AMT, 3);
+            enemy.entity.set_status(sid::BLOCK_AMT, 9);
+            enemy.entity.set_status(sid::FIRST_TURN, 1);
+            enemy.entity.set_status(sid::NUM_TURNS, 0);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
             enemy.entity.set_status(sid::ARTIFACT, 3);
         }
         "BronzeOrb" | "Bronze Orb" => {
-            // First turn: Stasis (steal card from hand)
+            // Placeholder intent; SpawnMonsterAction/init performs the source
+            // opening roll. FIRST_MOVE represents usedStasis.
+            // Java: reference/extracted/methods/monster/BronzeOrb.java
+            enemy.entity.set_status(sid::FIRST_MOVE, 0);
             enemy.set_move(move_ids::BO_STASIS, 0, 0, 0);
             enemy.add_effect(mfx::STASIS, 1);
         }
@@ -1451,6 +1453,9 @@ mod tests {
     #[test]
     fn test_bronze_automaton_boss_pattern() {
         let mut enemy = create_enemy("BronzeAutomaton", 300, 300);
+        // Source: reference/extracted/methods/monster/BronzeAutomaton.java.
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 0, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::BA_SPAWN_ORBS);
 
         // After spawn: Flail

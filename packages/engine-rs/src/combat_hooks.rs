@@ -627,8 +627,20 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 }
             }
             ("BronzeAutomaton" | "Bronze Automaton", x) if x == move_ids::BA_SPAWN_ORBS => {
-                for _ in 0..2 {
-                    engine.add_spawned_enemy(enemies::create_enemy("BronzeOrb", 52, 52));
+                // SpawnMonsterAction calls init() on each new minion before the
+                // Automaton's queued RollMoveAction. Thus aiRng order is Orb 0,
+                // Orb 1, Automaton. Run-level monsterHp streams are not split
+                // yet, so choose an in-range HP semantically.
+                // Java: reference/extracted/methods/monster/BronzeAutomaton.java
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/SpawnMonsterAction.java
+                let high_hp = engine.state.enemies[enemy_idx].entity.max_hp >= 320;
+                for count in 0..2 {
+                    let hp = if high_hp { 54 } else { 52 };
+                    let mut orb = enemies::create_enemy("BronzeOrb", hp, hp);
+                    orb.is_minion = true;
+                    orb.entity.set_status(sid::COUNT, count);
+                    enemies::roll_initial_move(&mut orb, &mut engine.ai_rng);
+                    engine.add_spawned_enemy(orb);
                 }
             }
             ("Reptomancer", x) if x == move_ids::REPTO_SPAWN => {
