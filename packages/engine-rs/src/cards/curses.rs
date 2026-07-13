@@ -9,6 +9,9 @@ pub fn register_curses(cards: &mut HashMap<&'static str, CardDef>) {
             base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[], complex_hook: None,
         });
+        // Regret.java snapshots the post-retain hand size at end of turn and
+        // auto-plays one HP_LOSS hit for that amount. It cannot be upgraded.
+        // Java: reference/extracted/methods/card/Regret.java
         insert(cards, CardDef {
             id: "Regret", name: "Regret", card_type: CardType::Curse,
             target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,

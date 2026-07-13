@@ -18,7 +18,23 @@ use crate::status_ids::sid;
 ///
 /// Returns `true` if the player died from status damage (combat should end).
 pub fn process_end_turn_hand_cards(engine: &mut CombatEngine) -> bool {
-    let hand = engine.state.hand.clone();
+    // DiscardAtEndOfTurnAction first moves retain/selfRetain cards to limbo,
+    // then snapshots the remaining hand for triggerOnEndOfPlayerTurn. Retained
+    // cards therefore neither fire end-turn card hooks nor count toward
+    // Regret's hand-size snapshot. Runic Pyramid and Equilibrium do not mark
+    // their blanket-kept cards retained, so those cards remain in this list.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/
+    // DiscardAtEndOfTurnAction.java
+    let hand: Vec<_> = engine
+        .state
+        .hand
+        .iter()
+        .copied()
+        .filter(|card_inst| {
+            let card = engine.card_registry.card_def_by_id(card_inst.def_id);
+            !card.runtime_traits().retain && !card_inst.is_retained()
+        })
+        .collect();
     let hand_size = hand.len() as i32;
 
     for card_inst in &hand {
@@ -35,6 +51,9 @@ pub fn process_end_turn_hand_cards(engine: &mut CombatEngine) -> bool {
                         engine.deal_thorns_damage_to_player(raw);
                     }
                     EndTurnHandRule::Regret => {
+                        // Regret.triggerOnEndOfTurnForPlayingCard stores the
+                        // current hand size in magicNumber before auto-play.
+                        // Java: reference/extracted/methods/card/Regret.java
                         engine.player_lose_hp_from_damage(hand_size);
                     }
                     EndTurnHandRule::Weak => {

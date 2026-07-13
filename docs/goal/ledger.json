@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T13:50:33.430052+00:00",
+ "updated": "2026-07-13T13:53:08.467065+00:00",
  "status_counts": {
-  "verified": 506,
-  "unverified": 161
+  "verified": 507,
+  "unverified": 160
  },
  "rows": [
   {
@@ -2702,8 +2702,8 @@
    "class": "Regret",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Regret.java",
    "methods_ref": "reference/extracted/methods/card/Regret.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

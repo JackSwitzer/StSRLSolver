@@ -3,7 +3,7 @@
 // Java oracle sources for this wave:
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/status/Burn.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Decay.java
-// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/status/Regret.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Regret.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Pain.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/status/Void.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Parasite.java
@@ -261,6 +261,36 @@ fn support_wave1_end_turn_curse_and_status_hooks_fire_on_the_runtime_path() {
 
     assert_eq!(hp_before - engine.state.player.hp, 7);
     assert_eq!(draw_prefix_count(&engine, "Pride"), 1);
+}
+
+#[test]
+fn regret_uses_the_hand_size_after_explicitly_retained_cards_leave_hand() {
+    // DiscardAtEndOfTurnAction moves retained cards to limbo before calling
+    // triggerOnEndOfPlayerTurn. Regret then snapshots player.hand.size(), so
+    // the retained Strike neither counts nor prevents HP_LOSS bypassing Block.
+    // Sources: actions/common/DiscardAtEndOfTurnAction.java,
+    // cards/curses/Regret.java, and actions/common/LoseHPAction.java.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    let registry = global_registry();
+    let mut retained_strike = registry.make_card("Strike");
+    retained_strike.set_retained(true);
+    engine.state.hand = vec![
+        registry.make_card("Regret"),
+        retained_strike,
+        registry.make_card("Defend"),
+    ];
+    engine.state.player.block = 20;
+    let hp_before = engine.state.player.hp;
+
+    assert!(!crate::status_effects::process_end_turn_hand_cards(&mut engine));
+
+    assert_eq!(engine.state.player.hp, hp_before - 2);
+    assert_eq!(engine.state.player.block, 20);
 }
 
 #[test]
