@@ -8,13 +8,16 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Impatience.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Madness.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/MadnessAction.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Apparition.java
 
 use crate::actions::Action;
 use crate::cards::{global_registry, CardTarget, CardType};
 use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, Condition, Effect as E, Pile as P, SimpleEffect as SE};
 use crate::engine::CombatPhase;
+use crate::status_ids::sid;
 use crate::tests::support::{
-    enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self,
+    end_turn, enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy,
+    play_self,
 };
 
 #[test]
@@ -198,4 +201,55 @@ fn impatience_does_not_draw_when_an_attack_is_present() {
     assert!(play_self(&mut engine, "Impatience"));
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
     assert_eq!(engine.state.hand.len(), 2);
+}
+
+#[test]
+fn ghostly_applies_one_intangible_and_upgrade_only_removes_ethereal() {
+    // Apparition.java sets exhaust and Ethereal in the constructor. upgrade()
+    // only clears Ethereal; both versions apply IntangiblePlayerPower(1).
+    // Java: reference/extracted/methods/card/Apparition.java
+    let registry = global_registry();
+    let base = registry.get("Ghostly").expect("Ghostly");
+    let upgraded = registry.get("Ghostly+").expect("Ghostly+");
+    assert_eq!(base.cost, 1);
+    assert_eq!(upgraded.cost, 1);
+    assert!(base.exhaust && upgraded.exhaust);
+    assert!(base.runtime_traits().ethereal);
+    assert!(!upgraded.runtime_traits().ethereal);
+    assert_eq!(
+        base.effect_data,
+        &[E::Simple(SE::AddStatus(
+            crate::effects::declarative::Target::Player,
+            sid::INTANGIBLE,
+            A::Fixed(1),
+        ))],
+    );
+
+    let mut played = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        2,
+    );
+    force_player_turn(&mut played);
+    played.state.hand = make_deck(&["Ghostly", "Ghostly+"]);
+    assert!(play_self(&mut played, "Ghostly"));
+    assert!(play_self(&mut played, "Ghostly+"));
+    assert_eq!(played.state.player.status(sid::INTANGIBLE), 2);
+    assert_eq!(played.state.exhaust_pile.len(), 2);
+
+    let mut unplayed = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut unplayed);
+    unplayed.state.hand = make_deck(&["Ghostly", "Ghostly+"]);
+    unplayed.state.draw_pile = make_deck(&["Strike", "Strike", "Strike", "Strike", "Strike"]);
+    end_turn(&mut unplayed);
+    assert!(unplayed.state.exhaust_pile.iter().any(|card| {
+        unplayed.card_registry.card_name(card.def_id) == "Ghostly"
+    }));
+    assert!(unplayed.state.discard_pile.iter().any(|card| {
+        unplayed.card_registry.card_name(card.def_id) == "Ghostly+"
+    }));
 }
