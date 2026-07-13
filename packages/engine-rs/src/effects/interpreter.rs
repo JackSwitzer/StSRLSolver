@@ -884,7 +884,16 @@ fn apply_status(
         Target::RandomEnemy => {
             let living = engine.state.living_enemy_indices();
             if !living.is_empty() {
-                let idx = living[engine.rng_gen_range(0..living.len())];
+                // Card-owned random debuff targeting uses cardRandomRng. In
+                // particular, Bouncing Flask calls MonsterGroup.getRandomMonster
+                // once for the initial target and once per recursive bounce.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/BouncingFlask.java
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/BouncingFlaskAction.java
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/MonsterGroup.java
+                let selected = engine
+                    .card_random_rng
+                    .random_range(0, (living.len() - 1) as i32) as usize;
+                let idx = living[selected];
                 if is_debuff(status) {
                     engine.apply_player_debuff_to_enemy(idx, status, amount);
                 } else {

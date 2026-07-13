@@ -121,26 +121,42 @@ mod silent_wave4 {
     }
 
     #[test]
-    fn silent_wave4_bouncing_flask_applies_the_expected_total_poison() {
-        let mut engine = engine_for(
-            &["Bouncing Flask"],
-            &[],
-            vec![
-                enemy_no_intent("JawWorm", 40, 40),
-                enemy_no_intent("Cultist", 35, 35),
-            ],
-            3,
-        );
+    fn silent_wave4_bouncing_flask_matches_each_card_random_bounce() {
+        // BouncingFlask.use() selects the first target through cardRandomRng;
+        // BouncingFlaskAction recursively selects every later target through
+        // that same stream. Each selected target receives 3 Poison, and the
+        // upgrade changes numTimes from 3 to 4 by raising magicNumber.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/BouncingFlask.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/BouncingFlaskAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/MonsterGroup.java
+        for (card_id, bounces) in [("Bouncing Flask", 3), ("Bouncing Flask+", 4)] {
+            let mut engine = engine_for(
+                &[card_id],
+                &[],
+                vec![
+                    enemy_no_intent("A", 40, 40),
+                    enemy_no_intent("B", 40, 40),
+                    enemy_no_intent("C", 40, 40),
+                ],
+                3,
+            );
+            let mut oracle = engine.card_random_rng.clone();
+            let mut expected_hits = [0; 3];
+            for _ in 0..bounces {
+                let selected = oracle.random_range(0, 2) as usize;
+                expected_hits[selected] += 1;
+            }
+            let card_before = engine.rng_counters()["card"];
 
-        assert!(play_self(&mut engine, "Bouncing Flask"));
+            assert!(play_self(&mut engine, card_id));
 
-        let total_poison: i32 = engine
-            .state
-            .enemies
-            .iter()
-            .map(|enemy| enemy.entity.status(sid::POISON))
-            .sum();
-        assert_eq!(total_poison, 9);
+            for (enemy, hits) in engine.state.enemies.iter().zip(expected_hits) {
+                assert_eq!(enemy.entity.status(sid::POISON), hits * 3, "{card_id}");
+            }
+            assert_eq!(engine.card_random_rng.counter, oracle.counter, "{card_id}");
+            assert_eq!(engine.rng_counters()["card"], card_before, "{card_id}");
+            assert_eq!(engine.state.energy, 1, "{card_id}");
+        }
     }
 
     #[test]
