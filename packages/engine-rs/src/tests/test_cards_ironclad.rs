@@ -919,7 +919,9 @@ mod ironclad_card_java_parity_tests {
     }
     card_pair_test!(limit_break, "Limit Break", "Limit Break+", 1, -1, -1, -1, 1, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, true, false);
     card_pair_test!(offering, "Offering", "Offering+", 0, -1, -1, 3, 0, -1, -1, 5, CardType::Skill, CardTarget::SelfTarget, true);
-    card_pair_test!(reaper, "Reaper", "Reaper+", 2, 4, -1, -1, 2, 5, -1, -1, CardType::Attack, CardTarget::AllEnemy, false);
+    // Reaper.java sets exhaust=true in the constructor; upgradeDamage(1) does
+    // not remove it, so both the 4- and 5-damage variants Exhaust.
+    card_pair_test!(reaper, "Reaper", "Reaper+", 2, 4, -1, -1, 2, 5, -1, -1, CardType::Attack, CardTarget::AllEnemy, true);
 
     // ------------------------------------------------------------------
     // Deep behavior checks for cards that are already wired through Rust.

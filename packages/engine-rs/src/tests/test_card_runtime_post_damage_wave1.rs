@@ -248,3 +248,30 @@ fn test_card_runtime_post_damage_wave1_reaper_heals_for_total_unblocked_damage()
     assert_eq!(engine.state.enemies[0].entity.hp, 16);
     assert_eq!(engine.state.enemies[1].entity.hp, 16);
 }
+
+#[test]
+fn reaper_plus_heals_actual_damage_on_a_terminal_sweep_and_still_exhausts() {
+    // Reaper.java upgrades damage 4 -> 5 and remains Exhausting.
+    // VampireDamageAllEnemiesAction sums lastDamageTaken, queues HealAction,
+    // then clears post-combat actions; GameActionManager preserves HealAction.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![
+            enemy_no_intent("JawWorm", 3, 3),
+            enemy_no_intent("Cultist", 5, 5),
+        ],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.enemies[0].entity.block = 2;
+    engine.state.player.hp = 30;
+    engine.state.player.max_hp = 60;
+    engine.state.hand = make_deck(&["Reaper+"]);
+
+    assert!(play_on_enemy(&mut engine, "Reaper+", 0));
+
+    assert!(engine.state.combat_over);
+    assert_eq!(engine.state.player.hp, 38);
+    assert_eq!(exhaust_prefix_count(&engine, "Reaper"), 1);
+    assert_eq!(discard_prefix_count(&engine, "Reaper"), 0);
+}

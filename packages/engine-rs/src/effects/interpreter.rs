@@ -757,12 +757,11 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         // -- Heal HP (capped at max) --
         SimpleEffect::HealHp(_target, ref amount_src) => {
-            // DamageAction.java clears queued post-combat actions when its hit
-            // kills the final monster. Bite/Reaper healing queued after that
-            // damage therefore does not resolve on the lethal final hit.
-            if engine.state.combat_over || engine.state.is_victory() {
-                return;
-            }
+            // Post-combat cleanup explicitly preserves HealAction. Reaper's
+            // VampireDamageAllEnemiesAction queues its accumulated heal before
+            // cleanup, so terminal Reaper/Bite hits still heal the player.
+            // Java: actions/unique/VampireDamageAllEnemiesAction.java and
+            // actions/GameActionManager.java::clearPostCombatActions.
             let amount = resolve_card_amount(engine, ctx, amount_src);
             if amount > 0 {
                 engine.heal_player(amount);

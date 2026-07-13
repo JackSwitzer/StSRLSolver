@@ -381,9 +381,10 @@ fn bandage_up_heals_four_or_six_for_free_then_exhausts() {
 }
 
 #[test]
-fn bite_variants_heal_after_nonlethal_damage_but_not_after_final_lethal_damage() {
-    // Source: Bite.java queues 7 damage then HealAction(2), upgrading both by
-    // one. DamageAction.java clears queued post-combat actions after a final kill.
+fn bite_variants_heal_after_both_nonlethal_and_final_lethal_damage() {
+    // Bite.java lines 41-42 queue 7 damage then HealAction(2), upgrading both
+    // by one. Although DamageAction performs post-combat cleanup after a final
+    // kill, GameActionManager.java lines 124-130 explicitly preserve HealAction.
     for (card_id, damage, healing) in [("Bite", 7, 2), ("Bite+", 8, 3)] {
         let mut nonlethal = engine_without_start(
             Vec::new(),
@@ -408,7 +409,7 @@ fn bite_variants_heal_after_nonlethal_damage_but_not_after_final_lethal_damage()
         lethal.state.hand = make_deck(&[card_id]);
         assert!(play_on_enemy(&mut lethal, card_id, 0));
         assert!(lethal.state.enemies[0].entity.is_dead());
-        assert_eq!(lethal.state.player.hp, 50);
+        assert_eq!(lethal.state.player.hp, 50 + healing);
     }
 }
 
