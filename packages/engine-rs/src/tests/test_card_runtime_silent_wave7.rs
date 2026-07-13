@@ -158,6 +158,35 @@ fn piercing_wail_reduces_all_unprotected_attacks_then_restores_strength() {
 }
 
 #[test]
+fn poisoned_stab_deals_damage_before_applying_source_poison() {
+    // PoisonedStab.java queues 6 Damage then 3 Poison; upgradeDamage(2) and
+    // upgradeMagicNumber(1) make those 8 and 4. ApplyPowerAction means Artifact
+    // blocks only Poison, and DamageAction cancels the queued power on lethal.
+    let mut stacked = one_enemy_engine("JawWorm", 40, 0);
+    stacked.state.hand = make_deck(&["Poisoned Stab", "Poisoned Stab+"]);
+    assert!(play_on_enemy(&mut stacked, "Poisoned Stab", 0));
+    assert!(play_on_enemy(&mut stacked, "Poisoned Stab+", 0));
+    assert_eq!(stacked.state.enemies[0].entity.hp, 26);
+    assert_eq!(stacked.state.enemies[0].entity.status(sid::POISON), 7);
+    assert_eq!(stacked.state.energy, 1);
+
+    let mut artifact = one_enemy_engine("JawWorm", 20, 0);
+    artifact.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+    artifact.state.hand = make_deck(&["Poisoned Stab+"]);
+    assert!(play_on_enemy(&mut artifact, "Poisoned Stab+", 0));
+    assert_eq!(artifact.state.enemies[0].entity.hp, 12);
+    assert_eq!(artifact.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+    assert_eq!(artifact.state.enemies[0].entity.status(sid::POISON), 0);
+
+    let mut lethal = one_enemy_engine("JawWorm", 6, 0);
+    lethal.state.hand = make_deck(&["Poisoned Stab"]);
+    assert!(play_on_enemy(&mut lethal, "Poisoned Stab", 0));
+    assert_eq!(lethal.state.enemies[0].entity.hp, 0);
+    assert_eq!(lethal.state.enemies[0].entity.status(sid::POISON), 0,
+        "lethal DamageAction clears the queued ApplyPowerAction");
+}
+
+#[test]
 fn blur_does_not_decrement_during_vaults_skipped_enemy_round() {
     // Sources: Blur.java installs one BlurPower; GameActionManager.java skips
     // monsters.applyEndOfTurnPowers() under Vault but still checks Blur before

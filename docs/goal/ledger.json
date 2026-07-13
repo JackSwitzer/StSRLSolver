@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T12:37:57.135464+00:00",
+ "updated": "2026-07-13T12:39:44.515395+00:00",
  "status_counts": {
-  "verified": 487,
-  "unverified": 180
+  "verified": 488,
+  "unverified": 179
  },
  "rows": [
   {
@@ -2462,8 +2462,8 @@
    "class": "PoisonedStab",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/PoisonedStab.java",
    "methods_ref": "reference/extracted/methods/card/PoisonedStab.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
