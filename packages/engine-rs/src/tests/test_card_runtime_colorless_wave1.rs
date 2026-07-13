@@ -135,6 +135,37 @@ fn thinking_ahead_draws_before_put_on_deck_and_auto_moves_a_singleton() {
 }
 
 #[test]
+fn trip_base_targets_one_enemy_while_upgrade_applies_two_to_all() {
+    // Trip.java applies magicNumber 2 Vulnerable to its selected enemy. The
+    // upgrade changes target to ALL_ENEMY without changing amount or cost.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Trip.java
+    let enemies = vec![
+        enemy_no_intent("JawWorm", 40, 40),
+        enemy_no_intent("Cultist", 35, 35),
+    ];
+    let mut base = engine_without_start(Vec::new(), enemies.clone(), 0);
+    force_player_turn(&mut base);
+    base.state.hand = make_deck(&["Trip"]);
+
+    assert!(play_on_enemy(&mut base, "Trip", 1));
+    assert_eq!(base.state.energy, 0);
+    assert_eq!(base.state.enemies[0].entity.status(sid::VULNERABLE), 0);
+    assert_eq!(base.state.enemies[1].entity.status(sid::VULNERABLE), 2);
+
+    let mut upgraded = engine_without_start(Vec::new(), enemies, 0);
+    force_player_turn(&mut upgraded);
+    upgraded.state.hand = make_deck(&["Trip+"]);
+    upgraded.state.enemies[0].entity.set_status(sid::VULNERABLE, 1);
+    upgraded.state.enemies[1].entity.set_status(sid::ARTIFACT, 1);
+
+    assert!(play_self(&mut upgraded, "Trip+"));
+    assert_eq!(upgraded.state.energy, 0);
+    assert_eq!(upgraded.state.enemies[0].entity.status(sid::VULNERABLE), 3);
+    assert_eq!(upgraded.state.enemies[1].entity.status(sid::VULNERABLE), 0);
+    assert_eq!(upgraded.state.enemies[1].entity.status(sid::ARTIFACT), 0);
+}
+
+#[test]
 fn jax_source_loses_fixed_three_hp_then_gains_two_or_three_strength() {
     // JAX.java queues LoseHPAction(p, p, 3) before applying magicNumber
     // Strength (2, upgraded to 3). LoseHPAction uses HP_LOSS damage, so Buffer

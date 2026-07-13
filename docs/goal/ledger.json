@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T16:41:09.665904+00:00",
+ "updated": "2026-07-13T16:42:58.638865+00:00",
  "status_counts": {
-  "verified": 562,
-  "unverified": 105
+  "verified": 563,
+  "unverified": 104
  },
  "rows": [
   {
@@ -3382,8 +3382,8 @@
    "class": "Trip",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Trip.java",
    "methods_ref": "reference/extracted/methods/card/Trip.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
