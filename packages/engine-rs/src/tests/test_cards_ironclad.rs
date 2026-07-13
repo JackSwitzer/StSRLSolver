@@ -1044,12 +1044,34 @@ mod ironclad_card_java_parity_tests {
     }
 
     #[test]
-    fn iron_wave_damage_and_block() {
-        let mut e = engine_for(&["Iron Wave"], &[], &[], vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 3);
-        let hp = e.state.enemies[0].entity.hp;
-        assert!(play_on_enemy(&mut e, "Iron Wave", 0));
-        assert_eq!(e.state.enemies[0].entity.hp, hp - 5);
-        assert_eq!(e.state.player.block, 5);
+    fn iron_wave_source_blocks_before_damage_and_sharp_hide_retaliation() {
+        // IronWave.java queues GainBlockAction before DamageAction. UseCardAction
+        // then queues SharpHidePower's THORNS retaliation after the card's own
+        // actions, so Iron Wave's newly gained block absorbs that retaliation.
+        // Upgrade adds exactly two damage and two block.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/IronWave.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/SharpHidePower.java
+        for (card_id, amount, hp_loss, block_left) in [
+            ("Iron Wave", 5, 1, 0),
+            ("Iron Wave+", 7, 0, 1),
+        ] {
+            let mut engine = engine_for(
+                &[card_id],
+                &[],
+                &[],
+                vec![enemy_no_intent("JawWorm", 50, 50)],
+                3,
+            );
+            engine.state.enemies[0].entity.set_status(sid::SHARP_HIDE, 6);
+            let player_hp = engine.state.player.hp;
+
+            assert!(play_on_enemy(&mut engine, card_id, 0));
+
+            assert_eq!(engine.state.enemies[0].entity.hp, 50 - amount);
+            assert_eq!(engine.state.player.hp, player_hp - hp_loss);
+            assert_eq!(engine.state.player.block, block_left);
+            assert_eq!(engine.state.energy, 2);
+        }
     }
 
     #[test]
