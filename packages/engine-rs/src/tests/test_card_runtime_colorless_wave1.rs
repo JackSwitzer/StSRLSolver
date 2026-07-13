@@ -137,6 +137,31 @@ fn flash_of_steel_variants_deal_card_damage_then_draw_exactly_one() {
 }
 
 #[test]
+fn good_instincts_variants_gain_one_modified_block_amount_for_zero_energy() {
+    // GoodInstincts.java queues one GainBlockAction using block 6/9 and its
+    // upgrade changes only block by +3. Dexterity and Frail therefore apply
+    // once to the complete amount.
+    // Java: reference/extracted/methods/card/GoodInstincts.java
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        0,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Good Instincts", "Good Instincts+"]);
+    engine.state.player.set_status(sid::DEXTERITY, 2);
+    engine.state.player.set_status(sid::FRAIL, 1);
+
+    assert!(play_self(&mut engine, "Good Instincts"));
+    assert_eq!(engine.state.energy, 0);
+    assert_eq!(engine.state.player.block, 6); // floor((6 + 2) * 0.75)
+
+    assert!(play_self(&mut engine, "Good Instincts+"));
+    assert_eq!(engine.state.energy, 0);
+    assert_eq!(engine.state.player.block, 14); // + floor((9 + 2) * 0.75)
+}
+
+#[test]
 fn colorless_wave1_attack_and_block_cards_follow_java_oracle_on_engine_path() {
     let mut engine = engine_without_start(
         Vec::new(),
