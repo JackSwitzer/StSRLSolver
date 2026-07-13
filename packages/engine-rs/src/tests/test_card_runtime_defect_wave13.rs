@@ -89,3 +89,24 @@ fn test_card_runtime_defect_wave13_melter_removes_block_before_damage() {
     assert_eq!(engine.state.enemies[0].entity.block, 0);
     assert_eq!(engine.state.enemies[0].entity.hp, 30);
 }
+
+#[test]
+fn melter_source_removes_all_block_then_uses_normal_damage_modifiers() {
+    // Melter.java queues RemoveAllBlockAction first, then a NORMAL DamageInfo
+    // hit. Melter+ changes only base damage 10 -> 14.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Melter+"]);
+    engine.state.player.set_status(sid::STRENGTH, 2);
+    engine.state.enemies[0].entity.set_status(sid::VULNERABLE, 1);
+    engine.state.enemies[0].entity.block = 99;
+
+    assert!(play_on_enemy(&mut engine, "Melter+", 0));
+    assert_eq!(engine.state.enemies[0].entity.block, 0);
+    assert_eq!(engine.state.enemies[0].entity.hp, 26);
+    assert_eq!(engine.state.energy, 2);
+}
