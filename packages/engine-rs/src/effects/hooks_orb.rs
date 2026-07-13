@@ -152,13 +152,7 @@ pub fn hook_channel_lightning_x_plus_1(engine: &mut CombatEngine, ctx: &CardPlay
 
 /// Darkness/Darkness+: trigger dark orb passives (accumulate evoke damage).
 pub fn hook_trigger_dark_passive(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
-    let focus = engine.state.player.focus();
-    for orb in engine.state.orb_slots.slots.iter_mut() {
-        if orb.orb_type == OrbType::Dark {
-            let gain = (orb.base_passive + focus).max(0);
-            orb.evoke_amount += gain;
-        }
-    }
+    engine.trigger_dark_impulse();
 }
 
 /// Trigger all orb passives (Loop, etc.)

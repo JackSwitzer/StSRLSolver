@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T06:48:14.251487+00:00",
+ "updated": "2026-07-13T06:50:00.161392+00:00",
  "status_counts": {
-  "verified": 364,
-  "unverified": 303
+  "verified": 365,
+  "unverified": 302
  },
  "rows": [
   {
@@ -912,8 +912,8 @@
    "class": "Darkness",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Darkness.java",
    "methods_ref": "reference/extracted/methods/card/Darkness.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -3547,6 +3547,26 @@ impl CombatEngine {
         self.apply_passive_effect(effect);
     }
 
+    pub(crate) fn trigger_dark_impulse(&mut self) {
+        // DarkImpulseAction triggers every Dark orb's start/end callbacks, then
+        // repeats both callbacks for the front Dark orb when Cables is owned.
+        // Dark has no start callback, so each end callback adds one passive.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/DarkImpulseAction.java
+        let focus = self.state.player.focus();
+        for orb in self.state.orb_slots.slots.iter_mut() {
+            if orb.orb_type == crate::orbs::OrbType::Dark {
+                orb.evoke_amount += orb.passive_with_focus(focus);
+            }
+        }
+        if self.state.has_relic("Cables") {
+            if let Some(front_orb) = self.state.orb_slots.slots.first_mut() {
+                if front_orb.orb_type == crate::orbs::OrbType::Dark {
+                    front_orb.evoke_amount += front_orb.passive_with_focus(focus);
+                }
+            }
+        }
+    }
+
     fn apply_orb_impulse_passives(&mut self) {
         if !self.state.orb_slots.has_orbs() {
             return;

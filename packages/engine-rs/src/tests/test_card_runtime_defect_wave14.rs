@@ -238,6 +238,9 @@ fn consume_uses_the_typed_orb_slot_removal_surface() {
 
 #[test]
 fn darkness_plus_channels_dark_then_triggers_dark_passive() {
+    // Darkness.java queues ChannelAction before DarkImpulseAction. The latter
+    // pulses every Dark orb, then pulses the front Dark a second time with
+    // Cables (DarkImpulseAction.java).
     let mut state = crate::tests::support::combat_state_with(
         make_deck(&["Darkness+"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -248,12 +251,16 @@ fn darkness_plus_channels_dark_then_triggers_dark_passive() {
     force_player_turn(&mut engine);
     engine.state.turn = 1;
     engine.init_defect_orbs(3);
+    engine.channel_orb(OrbType::Dark);
+    engine.channel_orb(OrbType::Dark);
+    engine.state.relics.push("Cables".to_string());
 
     assert!(play_self(&mut engine, "Darkness+"));
 
-    assert_eq!(engine.state.orb_slots.occupied_count(), 1);
-    assert_eq!(engine.state.orb_slots.slots[0].orb_type, OrbType::Dark);
-    assert_eq!(engine.state.orb_slots.slots[0].evoke_amount, 12);
+    assert_eq!(engine.state.orb_slots.occupied_count(), 3);
+    assert_eq!(engine.state.orb_slots.slots[0].evoke_amount, 18);
+    assert_eq!(engine.state.orb_slots.slots[1].evoke_amount, 12);
+    assert_eq!(engine.state.orb_slots.slots[2].evoke_amount, 12);
 }
 
 #[test]

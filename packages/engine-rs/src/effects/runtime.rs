@@ -1080,13 +1080,7 @@ impl EffectRuntime {
                 engine.apply_evoke_effect(evoke);
             }
             SimpleEffect::TriggerDarkPassive => {
-                let focus = engine.state.player.focus();
-                for orb in engine.state.orb_slots.slots.iter_mut() {
-                    if orb.orb_type == crate::orbs::OrbType::Dark {
-                        let gain = (orb.base_passive + focus).max(0);
-                        orb.evoke_amount += gain;
-                    }
-                }
+                engine.trigger_dark_impulse();
             }
             SimpleEffect::EvokeAndRechannelFrontOrb => {
                 if engine.state.orb_slots.occupied_count() > 0 {
