@@ -986,16 +986,32 @@ fn multiply_status(
     match target {
         Target::Player => {
             let current = engine.state.player.status(status);
-            if current > 0 {
-                engine.state.player.set_status(status, current * multiplier);
+            if current != 0 {
+                let multiplied = current.saturating_mul(multiplier);
+                // LimitBreakAction reapplies the current signed Strength via
+                // StrengthPower.stackPower, which clamps its result to ±999.
+                // Java: actions/unique/LimitBreakAction.java and
+                // powers/StrengthPower.java.
+                let next = if status == sid::STRENGTH {
+                    multiplied.clamp(-999, 999)
+                } else {
+                    multiplied
+                };
+                engine.state.player.set_status(status, next);
             }
         }
         // Card effects do not currently install owner-aware runtime handlers.
         // Treat SelfEntity as player until self-owned status handlers become explicit.
         Target::SelfEntity => {
             let current = engine.state.player.status(status);
-            if current > 0 {
-                engine.state.player.set_status(status, current * multiplier);
+            if current != 0 {
+                let multiplied = current.saturating_mul(multiplier);
+                let next = if status == sid::STRENGTH {
+                    multiplied.clamp(-999, 999)
+                } else {
+                    multiplied
+                };
+                engine.state.player.set_status(status, next);
             }
         }
         Target::SelectedEnemy => {

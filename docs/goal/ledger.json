@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T10:53:24.738707+00:00",
+ "updated": "2026-07-13T10:56:11.226689+00:00",
  "status_counts": {
-  "verified": 454,
-  "unverified": 213
+  "verified": 455,
+  "unverified": 212
  },
  "rows": [
   {
@@ -2062,8 +2062,8 @@
    "class": "LimitBreak",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/LimitBreak.java",
    "methods_ref": "reference/extracted/methods/card/LimitBreak.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

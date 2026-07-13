@@ -1230,6 +1230,38 @@ mod ironclad_card_java_parity_tests {
     }
 
     #[test]
+    fn limit_break_source_doubles_signed_strength_caps_and_upgrade_does_not_exhaust() {
+        // LimitBreakAction reads the existing StrengthPower amount and applies
+        // another StrengthPower with that signed amount. StrengthPower.stackPower
+        // clamps to ±999. Limit Break's upgrade changes only exhaust=false.
+        // Java: actions/unique/LimitBreakAction.java and powers/StrengthPower.java.
+        let mut negative = engine_for(
+            &["Limit Break+"],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 50, 50)],
+            1,
+        );
+        negative.state.player.set_status(sid::STRENGTH, -2);
+        assert!(play_self(&mut negative, "Limit Break+"));
+        assert_eq!(negative.state.player.status(sid::STRENGTH), -4);
+        assert_eq!(discard_prefix_count(&negative, "Limit Break+"), 1);
+        assert_eq!(exhaust_prefix_count(&negative, "Limit Break+"), 0);
+
+        let mut capped = engine_for(
+            &["Limit Break"],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 50, 50)],
+            1,
+        );
+        capped.state.player.set_status(sid::STRENGTH, 600);
+        assert!(play_self(&mut capped, "Limit Break"));
+        assert_eq!(capped.state.player.status(sid::STRENGTH), 999);
+        assert_eq!(exhaust_prefix_count(&capped, "Limit Break"), 1);
+    }
+
+    #[test]
     fn feed_increases_max_hp_on_kill() {
         let mut e = engine_for(&["Feed"], &[], &[], vec![enemy("JawWorm", 10, 10, 1, 0, 1)], 3);
         let max_hp = e.state.player.max_hp;
