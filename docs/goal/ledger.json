@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T13:47:23.308904+00:00",
+ "updated": "2026-07-13T13:50:33.430052+00:00",
  "status_counts": {
-  "verified": 505,
-  "unverified": 162
+  "verified": 506,
+  "unverified": 161
  },
  "rows": [
   {
@@ -2692,8 +2692,8 @@
    "class": "Reflex",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Reflex.java",
    "methods_ref": "reference/extracted/methods/card/Reflex.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
