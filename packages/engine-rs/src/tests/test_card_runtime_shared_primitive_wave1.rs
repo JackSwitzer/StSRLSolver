@@ -35,14 +35,46 @@ fn shared_primitive_wave1_registry_exports_cover_alchemize_and_reaper() {
 
 #[test]
 fn shared_primitive_wave1_alchemize_obtains_a_random_potion_and_exhausts() {
-    let mut engine = crate::tests::support::engine_with(make_deck(&["Alchemize"]), 50, 0);
+    // Alchemize.java calls returnRandomPotion(true) before constructing its
+    // ObtainPotionAction. With potionRng seed 2, Java's rarity roll is 72
+    // (uncommon), the mandatory first limited draw is discarded, and the next
+    // draw is Liquid Bronze: exactly three potionRng calls. Sozu is checked by
+    // the later action and therefore cannot prevent those RNG calls.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Alchemize.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/PotionHelper.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ObtainPotionAction.java
+    for (card_id, starting_energy) in [("Alchemize", 1), ("Alchemize+", 0)] {
+        let mut engine = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 50, 50)],
+            starting_energy,
+        );
+        force_player_turn(&mut engine);
+        engine.potion_rng = crate::seed::StsRandom::new(2);
+        engine.state.hand = make_deck(&[card_id]);
 
-    assert!(play_self(&mut engine, "Alchemize"));
-    assert_eq!(crate::tests::support::exhaust_prefix_count(&engine, "Alchemize"), 1);
-    assert!(
-        engine.state.potions.iter().any(|p| !p.is_empty()),
-        "Alchemize should obtain a potion into the first empty slot"
+        assert!(play_self(&mut engine, card_id));
+        assert_eq!(engine.state.energy, 0, "{card_id}");
+        assert_eq!(engine.state.potions[0], "LiquidBronze", "{card_id}");
+        assert_eq!(engine.potion_rng.counter, 3, "{card_id}");
+        assert_eq!(crate::tests::support::exhaust_prefix_count(&engine, "Alchemize"), 1);
+    }
+
+    let mut blocked = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        0,
     );
+    force_player_turn(&mut blocked);
+    blocked.potion_rng = crate::seed::StsRandom::new(2);
+    blocked.state.relics.push("Sozu".to_string());
+    blocked.state.hand = make_deck(&["Alchemize+"]);
+
+    assert!(play_self(&mut blocked, "Alchemize+"));
+    assert!(blocked.state.potions.iter().all(String::is_empty));
+    assert_eq!(blocked.potion_rng.counter, 3);
+    assert_eq!(crate::tests::support::exhaust_prefix_count(&blocked, "Alchemize"), 1);
 }
 
 #[test]

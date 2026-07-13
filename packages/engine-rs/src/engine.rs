@@ -4671,24 +4671,23 @@ impl CombatEngine {
         crate::effects::card_runtime::apply_on_exhaust(self, card, card_inst);
     }
 
-    /// Obtain a random potion into the first empty potion slot, respecting Sozu.
+    /// Roll and obtain a limited random potion into the first empty slot.
     pub fn obtain_random_potion(&mut self) -> bool {
+        // Alchemize evaluates returnRandomPotion(true) while building its
+        // ObtainPotionAction, before that action checks Sozu or inventory
+        // capacity. The roll therefore always consumes potionRng and uses the
+        // current Watcher pool's rarity/rejection algorithm.
+        // Java: cards/green/Alchemize.java, dungeons/AbstractDungeon.java,
+        // and actions/common/ObtainPotionAction.java.
+        let potion_id =
+            crate::potions::defs::entropic_brew::roll_limited_watcher_potion(self);
+
         if self.state.has_relic("Sozu") {
             return false;
         }
         let Some(slot) = self.state.potions.iter().position(|p| p.is_empty()) else {
             return false;
         };
-
-        let pool: Vec<&'static str> = crate::potions::defs::POTION_DEFS
-            .iter()
-            .map(|def| def.id)
-            .collect();
-        if pool.is_empty() {
-            return false;
-        }
-
-        let potion_id = pool[self.rng_gen_range(0..pool.len())];
         self.state.potions[slot] = potion_id.to_string();
         self.rebuild_effect_runtime();
         true

@@ -52,7 +52,7 @@ pub(crate) fn is_watcher_limited_potion(id: &str) -> bool {
     id != "FruitJuice" && WATCHER_POTION_POOL.iter().any(|(candidate, _)| *candidate == id)
 }
 
-fn roll_limited_watcher_potion(engine: &mut CombatEngine) -> &'static str {
+pub(crate) fn roll_limited_watcher_potion(engine: &mut CombatEngine) -> &'static str {
     // returnRandomPotion first rolls rarity (65/25/10), then the `limited`
     // overload deliberately discards its first pool draw and retries until it
     // finds that rarity and a non-Fruit-Juice potion.

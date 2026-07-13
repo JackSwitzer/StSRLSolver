@@ -943,8 +943,8 @@ mod silent_card_java_parity_tests {
         assert_eq!(engine.state.enemies[0].entity.hp, 54);
     }
     card_pair_test!(alchemize,
-        "Alchemize", 1, -1, -1, -1, CardType::Skill, CardTarget::None, true, None, &["alchemize"],
-        "Alchemize+", 0, -1, -1, -1, CardType::Skill, CardTarget::None, true, None, &["alchemize"],
+        "Alchemize", 1, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, true, None, &["alchemize"],
+        "Alchemize+", 0, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, true, None, &["alchemize"],
     );
     card_pair_test!(bullet_time,
         "Bullet Time", 3, -1, -1, -1, CardType::Skill, CardTarget::None, false, None, &["bullet_time"],
