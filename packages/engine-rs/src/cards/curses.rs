@@ -57,7 +57,8 @@ pub fn register_curses(cards: &mut HashMap<&'static str, CardDef>) {
             base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[], complex_hook: None,
         });
-        // Injury: unplayable
+        // Injury.java constructs a cost -2 Curse with target NONE and leaves
+        // both use() and upgrade() empty; it does not set Ethereal.
         insert(cards, CardDef {
             id: "Injury", name: "Injury", card_type: CardType::Curse,
             target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,

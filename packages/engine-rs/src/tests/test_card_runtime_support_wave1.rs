@@ -105,6 +105,40 @@ fn curse_of_the_bell_is_unplayable_unupgradable_non_ethereal_and_unremovable() {
 }
 
 #[test]
+fn injury_is_unplayable_unupgradable_non_ethereal_and_inert() {
+    // Injury.java constructs a cost -2 Curse with target NONE, empty use(),
+    // empty upgrade(), and no Ethereal flag. It therefore has no legal play or
+    // end-turn effect and is discarded normally with the rest of the hand.
+    let registry = global_registry();
+    let injury = registry.get("Injury").expect("Injury is registered");
+    assert_eq!(injury.cost, -2);
+    assert!(injury.runtime_traits().unplayable);
+    assert!(!injury.runtime_traits().ethereal);
+    assert!(registry.get("Injury+").is_none());
+
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Injury"]);
+    engine.state.draw_pile = make_deck(&[
+        "Defend", "Defend", "Defend", "Defend", "Defend",
+    ]);
+    let hp_before = engine.state.player.hp;
+
+    assert!(!engine.get_legal_actions().iter().any(|action| {
+        matches!(action, Action::PlayCard { card_idx: 0, .. })
+    }));
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.hp, hp_before);
+    assert_eq!(discard_prefix_count(&engine, "Injury"), 1);
+    assert_eq!(exhaust_prefix_count(&engine, "Injury"), 0);
+}
+
+#[test]
 fn support_wave1_end_turn_curse_and_status_hooks_fire_on_the_runtime_path() {
     let mut engine = engine_without_start(
         Vec::new(),
