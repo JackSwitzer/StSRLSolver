@@ -656,7 +656,12 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.add_effect(mfx::CONFUSED, 1);
         }
         "BanditBear" | "Bear" => {
-            // First turn: Bear Hug (debuff: -2 Dexterity)
+            // A0 constructor values. Ascension variants are patched at the
+            // RunEngine spawn site, where ascension is available.
+            // Java: reference/extracted/methods/monster/BanditBear.java
+            enemy.entity.set_status(sid::STARTING_DMG, 18);
+            enemy.entity.set_status(sid::STR_AMT, 9);
+            enemy.entity.set_status(sid::BLOCK_AMT, 2);
             enemy.set_move(move_ids::BEAR_HUG, 0, 0, 0);
             enemy.add_effect(mfx::DEX_DOWN, 2);
         }

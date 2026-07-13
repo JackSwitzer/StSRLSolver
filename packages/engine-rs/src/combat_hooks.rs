@@ -749,6 +749,14 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         return;
     }
 
+    if matches!(engine.state.enemies[enemy_idx].id.as_str(), "BanditBear" | "Bear") {
+        // BanditBear.takeTurn uses SetMoveAction for every post-opener intent;
+        // there is no RollMoveAction and therefore no aiRng consumption.
+        // Java: reference/extracted/methods/monster/BanditBear.java
+        enemies::act2::advance_bear_after_turn(&mut engine.state.enemies[enemy_idx]);
+        return;
+    }
+
     // These Java takeTurn methods set their next move directly and do not queue
     // RollMoveAction.
     if engine.state.enemies[enemy_idx].id == "AcidSlime_S" {

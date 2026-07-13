@@ -373,7 +373,7 @@ impl CombatEngine {
                 | "GremlinWizard" | "GremlinTsundere" | "GremlinNob"
                 | "Lagavulin" | "Sentry" | "TheGuardian" | "Hexaghost"
                 | "SlimeBoss" | "Apology Slime" | "ApologySlime"
-                | "AwakenedOne" | "Awakened One")) {
+                | "AwakenedOne" | "Awakened One" | "BanditBear" | "Bear")) {
             crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
         }
 

@@ -186,14 +186,37 @@ pub(super) fn roll_snecko(enemy: &mut EnemyCombatState, _num: i32) {
 }
 
 pub(super) fn roll_bear(enemy: &mut EnemyCombatState, _num: i32) {
-    // Bear Hug (debuff) -> Maul (18) -> Lunge (9 + 9 block) -> cycle
-    if last_move(enemy, move_ids::BEAR_HUG) {
-        enemy.set_move(move_ids::BEAR_MAUL, 18, 1, 0);
-    } else if last_move(enemy, move_ids::BEAR_MAUL) {
-        enemy.set_move(move_ids::BEAR_LUNGE, 9, 1, 9);
+    // BanditBear.getMove always selects the one-time Bear Hug opener. Later
+    // intents are installed directly by takeTurn and never call rollMove.
+    // Java: reference/extracted/methods/monster/BanditBear.java
+    enemy.set_move(move_ids::BEAR_HUG, 0, 0, 0);
+    enemy.add_effect(
+        mfx::DEX_DOWN,
+        enemy.entity.status(sid::BLOCK_AMT) as i16,
+    );
+}
+
+pub(crate) fn advance_bear_after_turn(enemy: &mut EnemyCombatState) {
+    // takeTurn case 2 sets Lunge, then cases 3 and 1 alternate Lunge/Maul.
+    // SetMoveAction does not consume aiRng.
+    // Java: reference/extracted/methods/monster/BanditBear.java
+    let completed_move = enemy.move_id;
+    enemy.move_history.push(completed_move);
+    enemy.move_effects.clear();
+    if completed_move == move_ids::BEAR_LUNGE {
+        enemy.set_move(
+            move_ids::BEAR_MAUL,
+            enemy.entity.status(sid::STARTING_DMG),
+            1,
+            0,
+        );
     } else {
-        enemy.set_move(move_ids::BEAR_HUG, 0, 0, 0);
-        enemy.add_effect(mfx::DEX_DOWN, 2);
+        enemy.set_move(
+            move_ids::BEAR_LUNGE,
+            enemy.entity.status(sid::STR_AMT),
+            1,
+            9,
+        );
     }
 }
 
@@ -328,4 +351,3 @@ pub(super) fn roll_collector(enemy: &mut EnemyCombatState, _num: i32) {
         enemy.set_move(move_ids::COLL_FIREBALL, fd, 1, 0);
     }
 }
-

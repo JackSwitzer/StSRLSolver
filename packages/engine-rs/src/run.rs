@@ -1792,6 +1792,23 @@ impl RunEngine {
             enemy.set_move(crate::enemies::move_ids::RS_STAB, stab, 1, 0);
         }
 
+        // Source: reference/extracted/methods/monster/BanditBear.java.
+        for enemy in enemy_states.iter_mut().filter(|e| matches!(e.id.as_str(),
+            "BanditBear" | "Bear")) {
+            let (maul, lunge) = if self.run_state.ascension >= 2 {
+                (20, 10)
+            } else {
+                (18, 9)
+            };
+            let dexterity_down = if self.run_state.ascension >= 17 { 4 } else { 2 };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, maul);
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT, lunge);
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT, dexterity_down);
+            enemy.set_move(crate::enemies::move_ids::BEAR_HUG, 0, 0, 0);
+            enemy.move_effects.clear();
+            enemy.add_effect(crate::combat_types::mfx::DEX_DOWN, dexterity_down as i16);
+        }
+
         // Source: reference/extracted/methods/monster/AcidSlime_S.java.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "AcidSlime_S") {
             let damage = if self.run_state.ascension >= 2 { 4 } else { 3 };
@@ -2305,6 +2322,11 @@ impl RunEngine {
             }
             "RedSlaver" | "SlaverRed" => {
                 let base = if a20 { 48 } else { 46 };
+                let hp = base + self.rng.gen_range(0..=4);
+                (hp, hp)
+            }
+            "BanditBear" | "Bear" => {
+                let base = if a20 { 40 } else { 38 };
                 let hp = base + self.rng.gen_range(0..=4);
                 (hp, hp)
             }
@@ -7577,6 +7599,63 @@ mod tests {
             assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), scrape);
             assert_eq!(enemy.entity.status(crate::status_ids::sid::BLOCK_AMT), vulnerable);
             assert_eq!(enemy.entity.status(crate::status_ids::sid::IS_FIRST_MOVE), 0);
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+    }
+
+    #[test]
+    fn bandit_bear_stats_direct_cycle_and_ai_ticks_match_java() {
+        // Source: reference/extracted/methods/monster/BanditBear.java.
+        // Constructor: HP 38..42 (40..44 at A7), attacks 18/9 (20/10 at
+        // A2), and Bear Hug applies -2 Dexterity (-4 at A17). getMove consumes
+        // the opening roll, while each takeTurn uses SetMoveAction directly:
+        // Hug -> Lunge -> Maul -> Lunge, with no further aiRng calls.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("BanditBear").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("BanditBear").0);
+        }
+        assert_eq!(low_hp, (38..=42).collect());
+        assert_eq!(high_hp, (40..=44).collect());
+
+        for (ascension, maul, lunge, dexterity_down) in
+            [(0, 18, 9, 2), (2, 20, 10, 2), (17, 20, 10, 4)]
+        {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["BanditBear".to_string()]);
+            let combat = run.combat_engine.as_mut().unwrap();
+            assert_eq!(combat.ai_rng.counter, 1);
+            assert_eq!(combat.state.enemies[0].move_id,
+                crate::enemies::move_ids::BEAR_HUG);
+            assert_eq!(combat.state.enemies[0].effect(crate::combat_types::mfx::DEX_DOWN),
+                Some(dexterity_down as i16));
+
+            let hp_before = combat.state.player.hp;
+            combat.execute_action(&crate::actions::Action::EndTurn);
+            assert_eq!(combat.state.player.hp, hp_before);
+            assert_eq!(combat.state.player.status(crate::status_ids::sid::DEXTERITY),
+                -dexterity_down);
+            assert_eq!(combat.state.enemies[0].move_id,
+                crate::enemies::move_ids::BEAR_LUNGE);
+            assert_eq!(combat.state.enemies[0].move_damage(), lunge);
+            assert_eq!(combat.state.enemies[0].move_block(), 9);
+            assert_eq!(combat.ai_rng.counter, 1);
+
+            combat.execute_action(&crate::actions::Action::EndTurn);
+            assert_eq!(combat.state.player.hp, hp_before - lunge);
+            assert_eq!(combat.state.enemies[0].entity.block, 9);
+            assert_eq!(combat.state.enemies[0].move_id,
+                crate::enemies::move_ids::BEAR_MAUL);
+            assert_eq!(combat.state.enemies[0].move_damage(), maul);
+            assert_eq!(combat.ai_rng.counter, 1);
+
+            combat.execute_action(&crate::actions::Action::EndTurn);
+            assert_eq!(combat.state.player.hp, hp_before - lunge - maul);
+            assert_eq!(combat.state.enemies[0].move_id,
+                crate::enemies::move_ids::BEAR_LUNGE);
             assert_eq!(combat.ai_rng.counter, 1);
         }
     }

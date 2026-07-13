@@ -562,13 +562,16 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SNECKO_BITE, 15, 1, 0, &[]);
 
+        // Source: reference/extracted/methods/monster/BanditBear.java.
+        // Only the opener uses getMove; takeTurn then installs Lunge and Maul
+        // directly, alternating those two attacks without another Bear Hug.
         let mut e = make("BanditBear", 40);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::BEAR_MAUL, 18, 1, 0, &[]);
-        roll_times(&mut e, 1);
+        act2::advance_bear_after_turn(&mut e);
         expect_move(&e, move_ids::BEAR_LUNGE, 9, 1, 9, &[]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::BEAR_HUG, 0, 0, 0, &[(mfx::DEX_DOWN, 2)]);
+        act2::advance_bear_after_turn(&mut e);
+        expect_move(&e, move_ids::BEAR_MAUL, 18, 1, 0, &[]);
+        act2::advance_bear_after_turn(&mut e);
+        expect_move(&e, move_ids::BEAR_LUNGE, 9, 1, 9, &[]);
 
         let mut e = make("BanditLeader", 50);
         roll_times(&mut e, 1);
