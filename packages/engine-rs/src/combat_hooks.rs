@@ -253,6 +253,22 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     }
 
     if matches!(engine.state.enemies[enemy_idx].id.as_str(),
+        "TheCollector" | "Collector")
+    {
+        // Source: reference/extracted/methods/monster/TheCollector.java
+        // (`takeTurn`). These fields change after the selected move's actions
+        // and before the queued RollMoveAction resolves.
+        if engine.state.enemies[enemy_idx].move_id == enemies::move_ids::COLL_SPAWN {
+            engine.state.enemies[enemy_idx].entity.set_status(sid::FIRST_MOVE, 0);
+        }
+        if engine.state.enemies[enemy_idx].move_id == enemies::move_ids::COLL_MEGA_DEBUFF {
+            engine.state.enemies[enemy_idx]
+                .entity.set_status(sid::USED_MEGA_DEBUFF, 1);
+        }
+        engine.state.enemies[enemy_idx].entity.add_status(sid::TURN_COUNT, 1);
+    }
+
+    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
         "GremlinLeader" | "Gremlin Leader")
         && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::GL_ENCOURAGE
     {
@@ -1002,8 +1018,39 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         let mid = engine.state.enemies[enemy_idx].move_id;
         match (eid, mid) {
             ("TheCollector" | "Collector", x) if x == move_ids::COLL_SPAWN => {
+                // Source: reference/extracted/methods/monster/TheCollector.java
+                // and TorchHead.java. Each SpawnMonsterAction constructs a
+                // source-range minion, calls init (one aiRng roll), and applies
+                // MinionPower before Collector's own RollMoveAction.
+                let high_hp = engine.state.enemies[enemy_idx]
+                    .entity.status(sid::BLOCK_AMT) >= 18;
                 for _ in 0..2 {
-                    engine.add_spawned_enemy(enemies::create_enemy("TorchHead", 6, 6));
+                    let hp = if high_hp { 40 } else { 38 };
+                    let mut torch = enemies::create_enemy("TorchHead", hp, hp);
+                    torch.is_minion = true;
+                    enemies::roll_initial_move(&mut torch, &mut engine.ai_rng);
+                    engine.add_spawned_enemy(torch);
+                }
+            }
+            ("TheCollector" | "Collector", x) if x == move_ids::COLL_REVIVE => {
+                let high_hp = engine.state.enemies[enemy_idx]
+                    .entity.status(sid::BLOCK_AMT) >= 18;
+                let dead_slots: Vec<usize> = engine.state.enemies.iter().enumerate()
+                    .filter(|(_, enemy)| matches!(enemy.id.as_str(),
+                        "TorchHead" | "Torch Head") && !enemy.is_alive())
+                    .map(|(idx, _)| idx)
+                    .collect();
+                for idx in dead_slots {
+                    let hp = if high_hp { 40 } else { 38 };
+                    let mut torch = enemies::create_enemy("TorchHead", hp, hp);
+                    torch.is_minion = true;
+                    enemies::roll_initial_move(&mut torch, &mut engine.ai_rng);
+                    if engine.state.has_relic("Philosopher's Stone")
+                        || engine.state.has_relic("PhilosopherStone")
+                    {
+                        torch.entity.add_status(sid::STRENGTH, 1);
+                    }
+                    engine.state.enemies[idx] = torch;
                 }
             }
             ("BronzeAutomaton" | "Bronze Automaton", x) if x == move_ids::BA_SPAWN_ORBS => {
@@ -1257,6 +1304,19 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         return;
     }
 
+    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
+        "TorchHead" | "Torch Head")
+    {
+        // Source: reference/extracted/methods/monster/TorchHead.java. Tackle
+        // queues SetMoveAction rather than RollMoveAction, so later turns do
+        // not consume aiRng.
+        engine.state.enemies[enemy_idx].move_history
+            .push(enemies::move_ids::TORCH_TACKLE);
+        engine.state.enemies[enemy_idx].set_move(
+            enemies::move_ids::TORCH_TACKLE, 7, 1, 0);
+        return;
+    }
+
     if matches!(engine.state.enemies[enemy_idx].id.as_str(), "BanditBear" | "Bear") {
         // BanditBear.takeTurn uses SetMoveAction for every post-opener intent;
         // there is no RollMoveAction and therefore no aiRng consumption.
@@ -1362,6 +1422,17 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 .map(|enemy| enemy.entity.max_hp - enemy.entity.hp)
                 .sum();
             engine.state.enemies[enemy_idx].entity.set_status(sid::COUNT, missing_hp);
+        } else if matches!(engine.state.enemies[enemy_idx].id.as_str(),
+            "TheCollector" | "Collector")
+        {
+            // isMinionDead checks the two tracked Torch Head slots. Replacing
+            // a revived slot in-place prevents old corpses from staying true.
+            // Source: reference/extracted/methods/monster/TheCollector.java.
+            let minion_dead = engine.state.enemies.iter().any(|enemy|
+                matches!(enemy.id.as_str(), "TorchHead" | "Torch Head")
+                    && !enemy.is_alive());
+            engine.state.enemies[enemy_idx]
+                .entity.set_status(sid::COUNT, i32::from(minion_dead));
         }
         enemies::roll_next_move(&mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
     }

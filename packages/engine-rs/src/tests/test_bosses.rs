@@ -307,23 +307,101 @@ mod boss_java_parity_tests {
     #[test]
     fn collector_does_not_mega_debuff_immediately_after_spawn_like_java() {
         let mut enemy = create_enemy("TheCollector", 282, 282);
-
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_ne!(enemy.move_id, move_ids::COLL_MEGA_DEBUFF);
+        enemy.entity.set_status(sid::FIRST_MOVE, 0);
+        enemy.entity.set_status(sid::TURN_COUNT, 1);
+        roll_next_move_with_num(&mut enemy, 70);
+        assert_eq!(enemy.move_id, move_ids::COLL_FIREBALL);
     }
 
     #[test]
-    fn collector_a2_scaling_matches_java_expectations() {
-        let mut enemy = create_enemy("TheCollector", 300, 300);
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::COLL_FIREBALL);
-        assert_eq!(enemy.move_damage(), 21);
+    fn collector_stats_spawn_revive_debuff_buff_and_death_match_java() {
+        // Source: reference/extracted/methods/monster/TheCollector.java and
+        // TorchHead.java. Thresholds are A4/A9/A19, not inferred from HP.
+        for (ascension, hp, fireball, strength, block, mega) in [
+            (0, 282, 18, 3, 15, 3),
+            (4, 282, 21, 4, 15, 3),
+            (9, 300, 21, 4, 18, 3),
+            (19, 300, 21, 5, 23, 5),
+        ] {
+            let mut run = RunEngine::new(60, ascension);
+            run.debug_enter_specific_combat(&["TheCollector"]);
+            let combat = run.get_combat_engine().expect("Collector combat");
+            let collector = &combat.state.enemies[0];
+            assert_eq!((collector.entity.hp, collector.entity.max_hp), (hp, hp));
+            assert_eq!(collector.entity.status(sid::FIREBALL_DMG), fireball);
+            assert_eq!(collector.entity.status(sid::STR_AMT), strength);
+            assert_eq!(collector.entity.status(sid::BLOCK_AMT), block);
+            assert_eq!(collector.entity.status(sid::STARTING_DMG), mega);
+            assert_eq!(collector.move_id, move_ids::COLL_SPAWN);
+            assert_eq!(combat.ai_rng.counter, 1,
+                "initialSpawn still consumes AbstractMonster.rollMove's integer");
+        }
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::COLL_BUFF);
-        assert_eq!(enemy.move_block(), 18);
-        assert_eq!(enemy.effect(mfx::STRENGTH), Some(4));
+        let mut run = RunEngine::new(61, 0);
+        run.debug_enter_specific_combat(&["TheCollector"]);
+        let combat = run.debug_combat_engine_mut();
+        let ai_before = combat.ai_rng.counter;
+        do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies.len(), 3);
+        assert_eq!(combat.ai_rng.counter - ai_before, 3,
+            "two Torch Head init rolls, then Collector's RollMove");
+        assert_eq!(combat.state.enemies[0].entity.status(sid::FIRST_MOVE), 0);
+        assert_eq!(combat.state.enemies[0].entity.status(sid::TURN_COUNT), 1);
+        for torch in &combat.state.enemies[1..] {
+            assert_eq!(torch.id, "TorchHead");
+            assert_eq!(torch.entity.hp, 38);
+            assert!(torch.is_minion);
+            assert_eq!(torch.move_id, move_ids::TORCH_TACKLE);
+            assert_eq!(torch.move_damage(), 7);
+        }
+
+        combat.state.enemies[0].set_move(move_ids::COLL_BUFF, 0, 0, 15);
+        combat.state.enemies[0].intent = crate::combat_types::Intent::DefendBuff {
+            block: 15, effects: 0,
+        };
+        combat.state.enemies[0].add_effect(mfx::STRENGTH, 3);
+        combat.state.enemies[0].add_effect(mfx::STRENGTH_ALL_ALLIES, 3);
+        combat.state.enemies[1].move_id = -1;
+        combat.state.enemies[2].move_id = -1;
+        do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].entity.block, 15);
+        assert!(combat.state.enemies.iter().all(|enemy| enemy.entity.strength() == 3));
+
+        assert!(combat.instant_kill_enemy(1));
+        combat.state.enemies[0].set_move(move_ids::COLL_REVIVE, 0, 0, 0);
+        combat.state.enemies[0].intent = crate::combat_types::Intent::Unknown;
+        combat.state.enemies[2].move_id = -1;
+        let ai_before = combat.ai_rng.counter;
+        do_enemy_turns(combat);
+        assert!(combat.state.enemies[1].is_alive());
+        assert_eq!(combat.state.enemies[1].entity.hp, 38);
+        assert!(combat.state.enemies[1].is_minion);
+        assert_eq!(combat.ai_rng.counter - ai_before, 2,
+            "revived Torch Head init plus Collector RollMove");
+
+        let mut high = RunEngine::new(62, 19);
+        high.debug_enter_specific_combat(&["TheCollector"]);
+        let combat = high.debug_combat_engine_mut();
+        combat.state.player.set_status(sid::ARTIFACT, 1);
+        combat.state.enemies[0].set_move(move_ids::COLL_MEGA_DEBUFF, 0, 0, 0);
+        combat.state.enemies[0].intent = crate::combat_types::Intent::Debuff { effects: 0 };
+        combat.state.enemies[0].add_effect(mfx::WEAK, 5);
+        combat.state.enemies[0].add_effect(mfx::VULNERABLE, 5);
+        combat.state.enemies[0].add_effect(mfx::FRAIL, 5);
+        do_enemy_turns(combat);
+        assert_eq!(combat.state.player.status(sid::ARTIFACT), 0);
+        assert_eq!(combat.state.player.status(sid::WEAKENED), 0);
+        assert_eq!(combat.state.player.status(sid::VULNERABLE), 5);
+        assert_eq!(combat.state.player.status(sid::FRAIL), 5);
+        assert_eq!(combat.state.enemies[0].entity.status(sid::USED_MEGA_DEBUFF), 1);
+
+        // Collector.die queues SuicideAction for every surviving minion.
+        let mut death = RunEngine::new(63, 0);
+        death.debug_enter_specific_combat(&["TheCollector"]);
+        let combat = death.debug_combat_engine_mut();
+        do_enemy_turns(combat);
+        assert!(combat.instant_kill_enemy(0));
+        assert!(combat.state.enemies.iter().all(|enemy| !enemy.is_alive()));
     }
 
     #[test]

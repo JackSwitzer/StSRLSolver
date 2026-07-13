@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T21:14:09.867698+00:00",
+ "updated": "2026-07-13T21:22:01.778146+00:00",
  "status_counts": {
-  "verified": 617,
-  "unverified": 50
+  "verified": 618,
+  "unverified": 49
  },
  "rows": [
   {
@@ -4332,8 +4332,8 @@
    "class": "TheCollector",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/city/TheCollector.java",
    "methods_ref": "reference/extracted/methods/monster/TheCollector.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

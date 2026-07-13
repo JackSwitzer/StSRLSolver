@@ -1950,6 +1950,28 @@ impl RunEngine {
             enemy.entity.block = 40;
         }
 
+        // Source: reference/extracted/methods/monster/TheCollector.java.
+        // Fireball/Strength change at A4, HP and base Block at A9, while A19
+        // independently raises Strength, Mega Debuff, and effective Buff Block.
+        for enemy in enemy_states.iter_mut().filter(|e| matches!(e.id.as_str(),
+            "TheCollector" | "Collector"))
+        {
+            enemy.entity.set_status(crate::status_ids::sid::FIREBALL_DMG,
+                if self.run_state.ascension >= 4 { 21 } else { 18 });
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
+                if self.run_state.ascension >= 19 { 5 }
+                else if self.run_state.ascension >= 4 { 4 } else { 3 });
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if self.run_state.ascension >= 19 { 23 }
+                else if self.run_state.ascension >= 9 { 18 } else { 15 });
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
+                if self.run_state.ascension >= 19 { 5 } else { 3 });
+            enemy.entity.set_status(crate::status_ids::sid::TURN_COUNT, 0);
+            enemy.entity.set_status(crate::status_ids::sid::USED_MEGA_DEBUFF, 0);
+            enemy.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(crate::status_ids::sid::COUNT, 0);
+        }
+
         // Source: reference/extracted/methods/monster/Centurion.java.
         let monster_count = enemy_states.len() as i32;
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "Centurion") {
@@ -3021,7 +3043,9 @@ impl RunEngine {
                 (hp, hp)
             }
             "TheCollector" => {
-                let hp = if a20 { 318 } else { 282 };
+                // Source: reference/extracted/methods/monster/TheCollector.java:
+                // fixed 282 HP, raised to fixed 300 at ascension 9.
+                let hp = if self.run_state.ascension >= 9 { 300 } else { 282 };
                 (hp, hp)
             }
             "Champ" | "TheChamp" => {

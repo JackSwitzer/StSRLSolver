@@ -805,16 +805,19 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "TheCollector" | "Collector" => {
+            // Source: reference/extracted/methods/monster/TheCollector.java.
+            // A0 constructor state; independent A4/A9/A19 values are patched
+            // at the run spawn site.
             enemy.set_move(move_ids::COLL_SPAWN, 0, 0, 0);
-            if hp >= 300 {
-                enemy.entity.set_status(sid::FIREBALL_DMG, 21);
-                enemy.entity.set_status(sid::STR_AMT, 4);
-                enemy.entity.set_status(sid::BLOCK_AMT, 18);
-            } else {
-                enemy.entity.set_status(sid::FIREBALL_DMG, 18);
-                enemy.entity.set_status(sid::STR_AMT, 3);
-                enemy.entity.set_status(sid::BLOCK_AMT, 15);
-            }
+            enemy.intent = crate::combat_types::Intent::Unknown;
+            enemy.entity.set_status(sid::FIREBALL_DMG, 18);
+            enemy.entity.set_status(sid::STR_AMT, 3);
+            enemy.entity.set_status(sid::BLOCK_AMT, 15);
+            enemy.entity.set_status(sid::STARTING_DMG, 3);
+            enemy.entity.set_status(sid::TURN_COUNT, 0);
+            enemy.entity.set_status(sid::USED_MEGA_DEBUFF, 0);
+            enemy.entity.set_status(sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(sid::COUNT, 0);
         }
 
         // =================================================================
@@ -1678,25 +1681,35 @@ mod tests {
 
     #[test]
     fn test_collector_boss_pattern() {
+        // Source: reference/extracted/methods/monster/TheCollector.java.
         let mut enemy = create_enemy("TheCollector", 282, 282);
         assert_eq!(enemy.move_id, move_ids::COLL_SPAWN);
+        assert_eq!(enemy.entity.status(sid::FIRST_MOVE), 1);
+        assert_eq!(enemy.entity.status(sid::TURN_COUNT), 0);
 
-        // Java: after Spawn, Fireball cycle (not immediate Mega Debuff)
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        enemy.entity.set_status(sid::FIRST_MOVE, 0);
+        enemy.entity.set_status(sid::TURN_COUNT, 1);
+        roll_next_move_with_num(&mut enemy, 70);
         assert_eq!(enemy.move_id, move_ids::COLL_FIREBALL);
         assert_eq!(enemy.move_damage(), 18);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::COLL_FIREBALL);
+        enemy.entity.set_status(sid::COUNT, 1);
+        roll_next_move_with_num(&mut enemy, 25);
+        assert_eq!(enemy.move_id, move_ids::COLL_REVIVE);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        enemy.entity.set_status(sid::COUNT, 0);
+        roll_next_move_with_num(&mut enemy, 99);
         assert_eq!(enemy.move_id, move_ids::COLL_BUFF);
+        assert_eq!(enemy.move_block(), 15);
+        assert_eq!(enemy.effect(mfx::STRENGTH), Some(3));
+        assert_eq!(enemy.effect(mfx::STRENGTH_ALL_ALLIES), Some(3));
 
-        // Mega Debuff at turn 4 (turnsTaken >= 3)
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        enemy.entity.set_status(sid::TURN_COUNT, 3);
+        roll_next_move_with_num(&mut enemy, 99);
         assert_eq!(enemy.move_id, move_ids::COLL_MEGA_DEBUFF);
         assert_eq!(enemy.effect(mfx::VULNERABLE), Some(3));
         assert_eq!(enemy.effect(mfx::WEAK), Some(3));
+        assert_eq!(enemy.effect(mfx::FRAIL), Some(3));
     }
 
     // ----- Act 3 -----

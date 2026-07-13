@@ -381,6 +381,7 @@ impl CombatEngine {
                 | "BronzeAutomaton" | "Bronze Automaton"
                 | "BronzeOrb" | "Bronze Orb" | "Byrd" | "Centurion"
                 | "Champ" | "TheChamp" | "Chosen" | "Mugger"
+                | "TheCollector" | "Collector" | "TorchHead" | "Torch Head"
                 | "Shelled Parasite" | "ShelledParasite"
                 | "SlaverBoss" | "TaskMaster" | "Taskmaster"
                 | "CorruptHeart" | "Corrupt Heart"
@@ -3693,6 +3694,22 @@ impl CombatEngine {
                     // Escaped monsters are terminal in the compact state.
                     enemy.entity.hp = 0;
                 }
+            }
+        }
+
+        if matches!(self.state.enemies[enemy_idx].id.as_str(),
+            "TheCollector" | "Collector")
+        {
+            // Source: decompiled/java-src/com/megacrit/cardcrawl/monsters/
+            // city/TheCollector.java (`die`). Every surviving minion receives
+            // SuicideAction when the boss dies.
+            let victims: Vec<usize> = self.state.enemies.iter().enumerate()
+                .filter(|(idx, enemy)| *idx != enemy_idx && enemy.is_alive())
+                .map(|(idx, _)| idx)
+                .collect();
+            for idx in victims {
+                self.state.enemies[idx].entity.hp = 0;
+                self.finalize_enemy_death(idx);
             }
         }
 

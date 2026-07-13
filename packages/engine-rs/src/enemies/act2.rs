@@ -695,21 +695,39 @@ pub(super) fn roll_champ(enemy: &mut EnemyCombatState, num: i32) {
     }
 }
 
-pub(super) fn roll_collector(enemy: &mut EnemyCombatState, _num: i32) {
+pub(super) fn roll_collector(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/TheCollector.java (`getMove`).
     let fd = { let v = enemy.entity.status(sid::FIREBALL_DMG); if v > 0 { v } else { 18 } };
     let sa = { let v = enemy.entity.status(sid::STR_AMT); if v > 0 { v } else { 3 } };
     let ba = { let v = enemy.entity.status(sid::BLOCK_AMT); if v > 0 { v } else { 15 } };
-    let turns = enemy.move_history.len();
-    if turns == 4 && !enemy.move_history.iter().any(|&m| m == move_ids::COLL_MEGA_DEBUFF) {
+    let mega = enemy.entity.status(sid::STARTING_DMG).max(3);
+    if enemy.entity.status(sid::FIRST_MOVE) > 0 {
+        enemy.set_move(move_ids::COLL_SPAWN, 0, 0, 0);
+        enemy.intent = crate::combat_types::Intent::Unknown;
+    } else if enemy.entity.status(sid::TURN_COUNT) >= 3
+        && enemy.entity.status(sid::USED_MEGA_DEBUFF) == 0
+    {
         enemy.set_move(move_ids::COLL_MEGA_DEBUFF, 0, 0, 0);
-        enemy.add_effect(mfx::VULNERABLE, 3);
-        enemy.add_effect(mfx::WEAK, 3);
-        enemy.add_effect(mfx::FRAIL, 3);
-    } else if last_two_moves(enemy, move_ids::COLL_FIREBALL) {
-        enemy.set_move(move_ids::COLL_BUFF, 0, 0, ba);
-        enemy.add_effect(mfx::STRENGTH, sa as i16);
-    } else if last_move(enemy, move_ids::COLL_BUFF) || last_move(enemy, move_ids::COLL_MEGA_DEBUFF) {
+        enemy.intent = crate::combat_types::Intent::Debuff { effects: 0 };
+        enemy.add_effect(mfx::WEAK, mega as i16);
+        enemy.add_effect(mfx::VULNERABLE, mega as i16);
+        enemy.add_effect(mfx::FRAIL, mega as i16);
+    } else if num <= 25
+        && enemy.entity.status(sid::COUNT) > 0
+        && !last_move(enemy, move_ids::COLL_REVIVE)
+    {
+        enemy.set_move(move_ids::COLL_REVIVE, 0, 0, 0);
+        enemy.intent = crate::combat_types::Intent::Unknown;
+    } else if num <= 70 && !last_two_moves(enemy, move_ids::COLL_FIREBALL) {
         enemy.set_move(move_ids::COLL_FIREBALL, fd, 1, 0);
+    } else if !last_move(enemy, move_ids::COLL_BUFF) {
+        enemy.set_move(move_ids::COLL_BUFF, 0, 0, ba);
+        enemy.intent = crate::combat_types::Intent::DefendBuff {
+            block: ba as i16,
+            effects: 0,
+        };
+        enemy.add_effect(mfx::STRENGTH, sa as i16);
+        enemy.add_effect(mfx::STRENGTH_ALL_ALLIES, sa as i16);
     } else {
         enemy.set_move(move_ids::COLL_FIREBALL, fd, 1, 0);
     }
