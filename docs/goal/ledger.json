@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T13:05:31.751207+00:00",
+ "updated": "2026-07-13T13:09:46.022409+00:00",
  "status_counts": {
-  "verified": 498,
-  "unverified": 169
+  "verified": 499,
+  "unverified": 168
  },
  "rows": [
   {
@@ -2612,8 +2612,8 @@
    "class": "Rampage",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/Rampage.java",
    "methods_ref": "reference/extracted/methods/card/Rampage.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

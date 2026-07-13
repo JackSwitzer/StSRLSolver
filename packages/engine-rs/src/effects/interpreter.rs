@@ -720,6 +720,19 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
         }
 
         SimpleEffect::ModifyPlayedCardDamage(ref amount_src) => {
+            // ModifyDamageAction is CARD_MANIPULATION, so DamageAction removes
+            // it from the queue when the hit kills the final monster. The
+            // played card still grows when only its target dies and another
+            // monster remains alive.
+            // Java: cards/red/Rampage.java, cards/green/GlassKnife.java,
+            // actions/common/DamageAction.java, and actions/GameActionManager.java.
+            if matches!(
+                ctx.card.id,
+                "Rampage" | "Rampage+" | "Glass Knife" | "Glass Knife+"
+            ) && (engine.state.combat_over || engine.state.is_victory())
+            {
+                return;
+            }
             let delta = resolve_card_amount(engine, ctx, amount_src);
             if let Some(mut card) = engine.runtime_played_card {
                 let current = if card.misc >= 0 {
