@@ -10,7 +10,7 @@
 
 use crate::actions::Action;
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, BulkAction, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE, Target as T};
 use crate::engine::{ChoiceReason, CombatPhase};
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
@@ -100,15 +100,7 @@ fn defect_wave14_registry_exports_seek_on_the_typed_search_surface() {
     let reboot = global_registry().get("Reboot").expect("Reboot");
     assert_eq!(
         reboot.effect_data,
-        &[
-            E::ForEachInPile {
-                pile: P::Hand,
-                filter: CardFilter::All,
-                action: BulkAction::Discard,
-            },
-            E::Simple(SE::ShuffleDiscardIntoDraw),
-            E::Simple(SE::DrawCards(A::Magic)),
-        ]
+        &[E::Simple(SE::ShuffleAllAndDraw(A::Magic))]
     );
     assert!(reboot.complex_hook.is_none());
 
@@ -286,25 +278,116 @@ fn redo_reuses_the_front_orb_type_on_the_typed_surface() {
 
 #[test]
 fn reboot_moves_remaining_hand_and_discard_into_draw_then_draws_and_exhausts() {
+    // Reboot.java queues ShuffleAllAction, ShuffleAction(drawPile, false), then
+    // DrawCardAction(magicNumber). ShuffleAllAction delegates the hand to
+    // PutOnDeckAction rather than DiscardAction: this consumes one cardRandomRng
+    // tick per remaining hand card and never fires discard callbacks. Its
+    // discard shuffle and Reboot's explicit combined shuffle each consume one
+    // shuffleRng randomLong, while relic onShuffle hooks fire only once.
+    // Sources: reference/extracted/methods/card/Reboot.java;
+    // decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ShuffleAllAction.java;
+    // decompiled/java-src/com/megacrit/cardcrawl/actions/common/PutOnDeckAction.java;
+    // decompiled/java-src/com/megacrit/cardcrawl/actions/common/ShuffleAction.java;
+    // and decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java.
     let mut reboot = engine_without_start(
         Vec::new(),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
     force_player_turn(&mut reboot);
-    reboot.state.hand = make_deck(&["Reboot", "Strike", "Defend"]);
-    reboot.state.draw_pile.clear();
-    reboot.state.discard_pile = make_deck(&["Zap", "Dualcast", "Cold Snap"]);
+    reboot.state.hand = make_deck(&["Reboot+", "Strike", "Defend"]);
+    reboot.state.draw_pile = make_deck(&["Zap"]);
+    reboot.state.discard_pile = make_deck(&["Dualcast", "Cold Snap", "Gash"]);
+    reboot.clear_event_log();
+    let shuffle_before = reboot.rng.counter;
+    let card_random_before = reboot.card_random_rng.counter;
 
-    assert!(play_self(&mut reboot, "Reboot"));
+    assert!(play_self(&mut reboot, "Reboot+"));
 
-    assert_eq!(reboot.state.hand.len(), 4);
+    let hand_names: Vec<_> = reboot
+        .state
+        .hand
+        .iter()
+        .map(|card| reboot.card_registry.card_name(card.def_id))
+        .collect();
+    assert_eq!(
+        hand_names,
+        vec!["Strike", "Defend", "Zap", "Cold Snap", "Dualcast", "Gash"]
+    );
+    assert_eq!(reboot.rng.counter, shuffle_before + 2);
+    assert_eq!(reboot.card_random_rng.counter, card_random_before + 2);
+    assert_eq!(reboot.state.player.status(sid::DISCARDED_THIS_TURN), 0);
+    assert_eq!(
+        reboot
+            .event_log
+            .iter()
+            .filter(|record| record.event == crate::effects::trigger::Trigger::OnShuffle)
+            .count(),
+        1
+    );
+    assert!(reboot.state.draw_pile.is_empty());
     assert_eq!(reboot.state.exhaust_pile.len(), 1);
     assert_eq!(
         reboot.card_registry.card_name(reboot.state.exhaust_pile[0].def_id),
-        "Reboot"
+        "Reboot+"
     );
     assert_eq!(reboot.state.discard_pile.len(), 0);
+}
+
+#[test]
+fn reboot_waits_for_melange_scry_before_gathering_and_shuffling_piles() {
+    // ShuffleAllAction calls relic.onShuffle() in its constructor, before the
+    // action itself is added to the queue. Melange.onShuffle queues ScryAction,
+    // so that Scry resolves before Reboot moves the hand or shuffles discard.
+    // Sources: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ShuffleAllAction.java,
+    // decompiled/java-src/com/megacrit/cardcrawl/relics/Melange.java, and
+    // reference/extracted/methods/card/Reboot.java.
+    let mut reboot = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut reboot);
+    reboot.state.relics.push("Melange".to_string());
+    reboot.rebuild_effect_runtime();
+    reboot.state.hand = make_deck(&["Reboot+", "Strike"]);
+    reboot.state.draw_pile = make_deck(&["Zap", "Dualcast", "Cold Snap", "Weave"]);
+    reboot.state.discard_pile = make_deck(&["Bash"]);
+    let shuffle_before = reboot.rng.counter;
+    let card_random_before = reboot.card_random_rng.counter;
+
+    assert!(play_self(&mut reboot, "Reboot+"));
+
+    assert_eq!(reboot.phase, CombatPhase::AwaitingChoice);
+    assert_eq!(reboot.state.hand.len(), 1, "ShuffleAllAction is still queued");
+    assert_eq!(reboot.state.draw_pile.len(), 1, "Melange exposed three cards");
+    assert_eq!(reboot.state.discard_pile.len(), 1);
+    assert_eq!(reboot.rng.counter, shuffle_before);
+    assert_eq!(reboot.card_random_rng.counter, card_random_before);
+    assert_eq!(
+        reboot
+            .choice
+            .as_ref()
+            .and_then(|choice| choice.deferred_shuffle_all_draw),
+        Some(6)
+    );
+
+    // Select the exposed Weave. Java queues its DiscardToHandAction after the
+    // already-queued Reboot actions, so Reboot shuffles it out of discard first.
+    reboot.execute_action(&Action::Choose(2));
+    reboot.execute_action(&Action::ConfirmSelection);
+
+    assert_eq!(reboot.phase, CombatPhase::PlayerTurn);
+    assert_eq!(reboot.state.hand.len(), 6);
+    assert!(reboot.state.draw_pile.is_empty());
+    assert!(reboot.state.discard_pile.is_empty());
+    assert_eq!(reboot.rng.counter, shuffle_before + 2);
+    assert_eq!(reboot.card_random_rng.counter, card_random_before + 1);
+    assert_eq!(reboot.state.exhaust_pile.len(), 1);
+    assert_eq!(
+        reboot.card_registry.card_name(reboot.state.exhaust_pile[0].def_id),
+        "Reboot+"
+    );
 }
 
 #[test]

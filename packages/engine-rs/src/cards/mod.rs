@@ -624,6 +624,7 @@ fn collect_test_markers_from_simple(simple: &SimpleEffect, markers: &mut Vec<&'s
             add_test_marker(markers, "draw_to_ten");
         }
         SimpleEffect::DrawCards(_)
+        | SimpleEffect::ShuffleAllAndDraw(_)
         | SimpleEffect::DrawCardsThenDiscardDrawnNonZeroCost(_) => {
             add_test_marker(markers, "draw");
         }
@@ -789,6 +790,7 @@ fn effect_slice_has_gain_block(effects: &[Effect]) -> bool {
 fn effect_slice_has_draw(effects: &[Effect]) -> bool {
     effects.iter().any(|effect| match effect {
         Effect::Simple(SimpleEffect::DrawCards(_))
+        | Effect::Simple(SimpleEffect::ShuffleAllAndDraw(_))
         | Effect::Simple(SimpleEffect::DrawCardsThenDiscardDrawnNonZeroCost(_))
         | Effect::Simple(SimpleEffect::DrawToHandSize(_)) => true,
         Effect::Conditional(_, then_effects, else_effects) => {
@@ -917,6 +919,7 @@ fn find_declared_draw_count(effects: &[Effect]) -> Option<AmountSource> {
     for effect in effects {
         match effect {
             Effect::Simple(SimpleEffect::DrawCards(amount))
+            | Effect::Simple(SimpleEffect::ShuffleAllAndDraw(amount))
             | Effect::Simple(SimpleEffect::DrawCardsThenDiscardDrawnNonZeroCost(amount)) => {
                 return Some(*amount);
             }
@@ -1146,6 +1149,7 @@ fn collect_simple_x_cost_amounts(effect: &SimpleEffect, amounts: &mut Vec<Amount
         SimpleEffect::AddStatus(_, _, source)
         | SimpleEffect::SetStatus(_, _, source)
         | SimpleEffect::DrawCards(source)
+        | SimpleEffect::ShuffleAllAndDraw(source)
         | SimpleEffect::GainEnergy(source)
         | SimpleEffect::GainBlock(source)
         | SimpleEffect::ModifyHp(source)

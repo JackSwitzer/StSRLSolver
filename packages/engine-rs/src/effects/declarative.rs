@@ -350,6 +350,10 @@ pub enum SimpleEffect {
     SetFlag(BoolFlag),
     /// Shuffle discard pile into draw pile.
     ShuffleDiscardIntoDraw,
+    /// Reboot's ShuffleAllAction + ShuffleAction + DrawCardAction sequence.
+    /// Moves the remaining hand to the draw pile without discard hooks, uses
+    /// Java's exact cardRandom/shuffle RNG streams, and fires OnShuffle once.
+    ShuffleAllAndDraw(AmountSource),
     /// Randomly discard cards from a pile.
     DiscardRandomCardsFromPile(Pile, i32),
     /// Play the top card of the draw pile through the normal free-play path.

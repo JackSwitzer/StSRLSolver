@@ -580,6 +580,11 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             engine.shuffle_draw_pile();
         }
 
+        SimpleEffect::ShuffleAllAndDraw(ref amount_src) => {
+            let draw_count = resolve_card_amount(engine, ctx, amount_src);
+            engine.shuffle_all_and_draw(draw_count);
+        }
+
         // -- Discard random cards from a pile --
         SimpleEffect::DiscardRandomCardsFromPile(pile, count) => {
             execute_discard_random_cards_from_pile(engine, pile, count);

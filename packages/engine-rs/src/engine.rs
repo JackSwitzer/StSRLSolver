@@ -116,6 +116,8 @@ pub struct ChoiceContext {
     pub post_choice_draw: i32,
     /// Optional block/damage actions queued after a Scry choice.
     pub deferred_scry_card_effects: Option<DeferredScryCardEffects>,
+    /// Reboot's ShuffleAllAction sequence queued behind Melange's ScryAction.
+    pub deferred_shuffle_all_draw: Option<i32>,
     /// Optional stance action queued behind an interactive card choice.
     pub deferred_stance: Option<Stance>,
     /// Optional per-option payload for named choices like Wish.
@@ -639,6 +641,7 @@ impl CombatEngine {
             action,
             post_choice_draw: 0,
             deferred_scry_card_effects: None,
+            deferred_shuffle_all_draw: None,
             deferred_stance: None,
             named_payloads: None,
             generated_selected_cost_rule: None,
@@ -750,6 +753,7 @@ impl CombatEngine {
     fn resolve_scry(&mut self, ctx: ChoiceContext) {
         let post_choice_draw = ctx.post_choice_draw;
         let deferred_card_effects = ctx.deferred_scry_card_effects;
+        let deferred_shuffle_all_draw = ctx.deferred_shuffle_all_draw;
         // Selected indices are cards to discard from the revealed set.
         // The revealed cards were taken from top of draw pile and stored as options.
         // Non-selected go back on top of draw pile, selected go to discard.
@@ -772,26 +776,41 @@ impl CombatEngine {
             self.state.discard_pile.push(card);
         }
 
-        // Weave: return from discard to hand on Scry
-        let mut weave_indices = Vec::new();
-        for (i, card_inst) in self.state.discard_pile.iter().enumerate() {
-            if self
-                .card_registry
-                .card_name(card_inst.def_id)
-                .starts_with("Weave")
-            {
-                weave_indices.push(i);
+        // Weave normally queues DiscardToHandAction during ScryAction. With
+        // Reboot, that action is queued behind the already-present shuffle and
+        // therefore finds no card in discard; do not return Weave early here.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Weave.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/DiscardToHandAction.java
+        if deferred_shuffle_all_draw.is_none() {
+            let mut weave_indices = Vec::new();
+            for (i, card_inst) in self.state.discard_pile.iter().enumerate() {
+                if self
+                    .card_registry
+                    .card_name(card_inst.def_id)
+                    .starts_with("Weave")
+                {
+                    weave_indices.push(i);
+                }
+            }
+            for &i in weave_indices.iter().rev() {
+                // DiscardToHandAction leaves the card in discard when the hand is
+                // full; it never removes and destroys the card.
+                if self.state.hand.len() >= 10 {
+                    break;
+                }
+                let card = self.state.discard_pile.remove(i);
+                self.state.hand.push(card);
             }
         }
-        for &i in weave_indices.iter().rev() {
-            // DiscardToHandAction leaves the card in discard when the hand is
-            // full; it never removes and destroys the card.
-            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/DiscardToHandAction.java
-            if self.state.hand.len() >= 10 {
-                break;
-            }
-            let card = self.state.discard_pile.remove(i);
-            self.state.hand.push(card);
+
+        // ShuffleAllAction's constructor queues Melange's ScryAction before
+        // Reboot's ShuffleAllAction itself is added to the action manager. The
+        // revealed cards must therefore finish returning to draw/discard before
+        // Reboot gathers and shuffles every pile.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ShuffleAllAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Melange.java
+        if let Some(draw_count) = deferred_shuffle_all_draw {
+            self.continue_shuffle_all_and_draw(draw_count);
         }
 
         // CutThroughFate.java queues DrawCardAction(1) after ScryAction, so the
@@ -4038,6 +4057,55 @@ impl CombatEngine {
     /// Shuffle the draw pile (pub(crate) for card_effects).
     pub(crate) fn shuffle_draw_pile(&mut self) {
         self.state.draw_pile.shuffle(&mut self.rng);
+    }
+
+    /// Execute Reboot's ShuffleAllAction, explicit ShuffleAction, and draw.
+    /// ShuffleAllAction's constructor fires relic hooks before its pile work;
+    /// Melange can therefore pause this continuation on an interactive Scry.
+    pub(crate) fn shuffle_all_and_draw(&mut self, draw_count: i32) {
+        self.emit_event(crate::effects::runtime::GameEvent::empty(
+            crate::effects::trigger::Trigger::OnShuffle,
+        ));
+        if self.phase == CombatPhase::AwaitingChoice {
+            if let Some(choice) = self.choice.as_mut() {
+                choice.deferred_shuffle_all_draw = Some(draw_count);
+            }
+            return;
+        }
+        self.continue_shuffle_all_and_draw(draw_count);
+    }
+
+    fn continue_shuffle_all_and_draw(&mut self, draw_count: i32) {
+        // ShuffleAllAction always shuffles the discard group, even when empty.
+        // CardGroup.shuffle consumes exactly one shuffleRng.randomLong().
+        let discard_seed = self.rng.random_long();
+        crate::seed::java_util_shuffle(&mut self.state.discard_pile, discard_seed);
+
+        // PutOnDeckAction selects each remaining hand card with one inclusive
+        // cardRandomRng.random(size - 1), including the singleton case, then
+        // puts it on top of the draw pile without firing discard callbacks.
+        while !self.state.hand.is_empty() {
+            let idx = self
+                .card_random_rng
+                .random((self.state.hand.len() - 1) as i32) as usize;
+            let card = self.state.hand.remove(idx);
+            self.state.draw_pile.push(card);
+        }
+
+        // ShuffleAllAction iterates the pre-shuffled discard group from bottom
+        // to top and Soul.shuffle adds each card to the top of the draw group.
+        self.state
+            .draw_pile
+            .append(&mut self.state.discard_pile);
+
+        // Reboot then queues ShuffleAction(drawPile, false), which consumes a
+        // second shuffleRng.randomLong() but does not trigger relics again.
+        // Java: reference/extracted/methods/card/Reboot.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/PutOnDeckAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ShuffleAction.java
+        let draw_seed = self.rng.random_long();
+        crate::seed::java_util_shuffle(&mut self.state.draw_pile, draw_seed);
+        self.draw_cards(draw_count.max(0));
     }
 
     /// Havoc/PlayTopCardAction: select a random target, shuffle if necessary,

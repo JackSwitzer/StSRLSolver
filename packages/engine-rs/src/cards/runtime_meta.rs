@@ -256,6 +256,7 @@ fn effect_draws_cards(effects: &[Effect]) -> bool {
     effects.iter().any(|effect| match effect {
         Effect::Simple(
             SimpleEffect::DrawCards(_)
+            | SimpleEffect::ShuffleAllAndDraw(_)
             | SimpleEffect::DrawCardsThenDiscardDrawnNonZeroCost(_)
             | SimpleEffect::DrawToHandSize(_)
             | SimpleEffect::DrawRandomCardsFromPileToHand(_, _, _),

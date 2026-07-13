@@ -1117,6 +1117,10 @@ impl EffectRuntime {
                 engine.state.draw_pile.append(&mut cards);
                 engine.shuffle_draw_pile();
             }
+            SimpleEffect::ShuffleAllAndDraw(amount_src) => {
+                let draw_count = self.resolve_amount(engine, instance_idx, owner, amount_src);
+                engine.shuffle_all_and_draw(draw_count);
+            }
             SimpleEffect::DiscardRandomCardsFromPile(pile, count) => {
                 self.execute_discard_random_cards_from_pile(engine, pile, count);
             }
