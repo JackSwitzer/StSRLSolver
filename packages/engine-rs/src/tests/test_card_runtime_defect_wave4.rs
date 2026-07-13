@@ -8,7 +8,8 @@ use crate::effects::types::CardRuntimeTraits;
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
 use crate::tests::support::{
-    enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self,
+    enemy_no_intent, engine_with, engine_without_start, exhaust_prefix_count, force_player_turn,
+    hand_count, make_deck, make_deck_n, play_on_enemy, play_self,
 };
 
 fn assert_gameplay_card_export(
@@ -157,6 +158,37 @@ fn test_card_runtime_defect_wave4_capacitor_and_chaos_change_orb_state_on_engine
     for orb in &chaos.state.orb_slots.slots[0..2] {
         assert_ne!(orb.orb_type, OrbType::Empty);
     }
+}
+
+#[test]
+fn chill_channels_per_living_enemy_and_upgrade_is_innate_only() {
+    // Chill.java counts monsters for which isDeadOrEscaped is false, channels
+    // count * magicNumber Frost, and Exhausts. upgrade() changes only isInnate.
+    let registry = global_registry();
+    assert!(!registry.get("Chill").expect("Chill").runtime_traits().innate);
+    assert!(registry.get("Chill+").expect("Chill+").runtime_traits().innate);
+
+    let mut deck = make_deck_n("Defend", 9);
+    deck.push(registry.make_card("Chill+"));
+    let opening = engine_with(deck, 40, 0);
+    assert_eq!(hand_count(&opening, "Chill+"), 1);
+
+    let mut enemies = vec![
+        enemy_no_intent("JawWorm", 40, 40),
+        enemy_no_intent("Cultist", 40, 40),
+        enemy_no_intent("Dead", 0, 40),
+    ];
+    enemies[2].entity.hp = 0;
+    let mut count = engine_without_start(Vec::new(), enemies, 0);
+    force_player_turn(&mut count);
+    count.init_defect_orbs(3);
+    count.state.hand = make_deck(&["Chill"]);
+    assert!(play_self(&mut count, "Chill"));
+    assert_eq!(count.state.orb_slots.occupied_count(), 2);
+    assert!(count.state.orb_slots.slots[0..2]
+        .iter()
+        .all(|orb| orb.orb_type == OrbType::Frost));
+    assert_eq!(exhaust_prefix_count(&count, "Chill"), 1);
 }
 
 #[test]
