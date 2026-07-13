@@ -2,7 +2,10 @@ use crate::cards::prelude::*;
 use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Rip and Tear: 1 cost, deal 7 dmg twice to random enemies
+    // RipAndTear.java queues magicNumber (2) independent
+    // NewRipAndTearActions. Each chooses a fresh random living enemy; the
+    // upgrade adds 2 damage without changing the hit count.
+    // Java: reference/extracted/methods/card/RipAndTear.java
     insert(cards, CardDef {
                 id: "Rip and Tear", name: "Rip and Tear", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 1, base_damage: 7, base_block: -1,

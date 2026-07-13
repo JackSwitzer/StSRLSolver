@@ -223,6 +223,29 @@ fn defect_wave12_rip_and_tear_chooses_a_fresh_random_target_for_each_hit() {
     assert!(engine.state.enemies[0].entity.hp < 30);
     assert!(engine.state.enemies[1].entity.hp < 30);
 }
+
+#[test]
+fn rip_and_tear_plus_consumes_one_card_random_tick_per_hit_with_one_target() {
+    // RipAndTear.java queues two NewRipAndTearActions. Each superclass update
+    // calls MonsterGroup.getRandomMonster through cardRandomRng, whose
+    // random(0, 0) still consumes a counter tick. The card's ALL_ENEMY target
+    // requires no selected target, and upgradeDamage(2) makes 9 + 2 Strength
+    // damage per hit.
+    // Sources: cards/blue/RipAndTear.java,
+    // actions/defect/NewRipAndTearAction.java,
+    // actions/common/AttackDamageRandomEnemyAction.java, and
+    // monsters/MonsterGroup.java.
+    let mut engine = one_enemy_engine(50, 3);
+    engine.state.hand = make_deck(&["Rip and Tear+"]);
+    engine.state.player.set_status(sid::STRENGTH, 2);
+    let card_random_before = engine.rng_counters()["cardRandom"];
+
+    assert!(play_self(&mut engine, "Rip and Tear+"));
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 28);
+    assert_eq!(engine.rng_counters()["cardRandom"], card_random_before + 2);
+    assert_eq!(engine.state.energy, 2);
+}
 #[test]
 fn defect_wave12_thunder_strike_deals_no_damage_with_zero_lightning() {
     let mut thunder = one_enemy_engine(60, 3);
