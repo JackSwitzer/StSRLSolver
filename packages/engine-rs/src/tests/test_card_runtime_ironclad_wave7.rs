@@ -237,10 +237,16 @@ fn ironclad_wave7_combust_inflame_and_shrug_it_off_follow_engine_path() {
     assert_eq!(stacked.state.enemies[0].entity.block, 0);
     assert_eq!(stacked.state.enemies[0].entity.status(sid::MALLEABLE), 1);
 
+    // Inflame.java applies 2 Strength for one energy, upgradeMagicNumber(1)
+    // raises that to 3, and both Power cards leave combat piles after play.
     let mut inflame = one_enemy_engine("JawWorm", 50);
-    inflame.state.hand = make_deck(&["Inflame+"]);
+    inflame.state.hand = make_deck(&["Inflame", "Inflame+"]);
+    assert!(play_self(&mut inflame, "Inflame"));
     assert!(play_self(&mut inflame, "Inflame+"));
-    assert_eq!(inflame.state.player.status(sid::STRENGTH), 3);
+    assert_eq!(inflame.state.player.status(sid::STRENGTH), 5);
+    assert_eq!(inflame.state.energy, 1);
+    assert!(inflame.state.hand.is_empty());
+    assert!(inflame.state.discard_pile.is_empty());
 
     let mut shrug_it_off = one_enemy_engine("JawWorm", 50);
     shrug_it_off.state.hand = make_deck(&["Shrug It Off+"]);
