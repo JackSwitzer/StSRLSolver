@@ -42,6 +42,10 @@ fn colorless_wave1_registry_exports_match_typed_surface() {
     assert_eq!(good_instincts.target, CardTarget::SelfTarget);
     assert_eq!(good_instincts.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
 
+    let finesse = registry.get("Finesse").expect("Finesse should exist");
+    assert_eq!(finesse.base_magic, -1);
+    assert_eq!(finesse.effect_data, &[E::Simple(SE::DrawCards(A::Fixed(1)))]);
+
     let swift_strike = registry
         .get("Swift Strike")
         .expect("Swift Strike should exist");
@@ -72,6 +76,32 @@ fn colorless_wave1_registry_exports_match_typed_surface() {
         sadistic.effect_data,
         &[E::Simple(SE::AddStatus(T::Player, sid::SADISTIC, A::Magic))]
     );
+}
+
+#[test]
+fn finesse_gains_modified_block_and_draws_exactly_one() {
+    // Finesse.java queues GainBlockAction(this.block) and DrawCardAction(1);
+    // the upgrade adds two Block and does not change the draw amount.
+    // Java: reference/extracted/methods/card/Finesse.java
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        0,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Finesse", "Finesse+"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend"]);
+    engine.state.player.set_status(sid::DEXTERITY, 2);
+    engine.state.player.set_status(sid::FRAIL, 1);
+
+    assert!(play_self(&mut engine, "Finesse"));
+    assert_eq!(engine.state.player.block, 3);
+    assert_eq!(engine.state.hand.len(), 2);
+
+    assert!(play_self(&mut engine, "Finesse+"));
+    assert_eq!(engine.state.player.block, 7);
+    assert_eq!(engine.state.hand.len(), 2);
+    assert!(engine.state.draw_pile.is_empty());
 }
 
 #[test]
