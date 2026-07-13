@@ -49,7 +49,9 @@ pub fn register_temp(cards: &mut HashMap<&'static str, CardDef>) {
         });
         // Insight: registered in watcher/insight.rs (with effect_data for DrawCards)
 
-        // Safety: 1 cost, 12 block, retain, exhaust
+        // Safety.java costs 1, gains 12 block, self-retains, and exhausts;
+        // upgradeBlock(4) raises only its block to 16.
+        // Java: reference/extracted/methods/card/Safety.java
         insert(cards, CardDef {
             id: "Safety", name: "Safety", card_type: CardType::Skill,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 12,

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T14:17:14.970051+00:00",
+ "updated": "2026-07-13T14:19:40.284324+00:00",
  "status_counts": {
-  "verified": 514,
-  "unverified": 153
+  "verified": 515,
+  "unverified": 152
  },
  "rows": [
   {
@@ -2782,8 +2782,8 @@
    "class": "Safety",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Safety.java",
    "methods_ref": "reference/extracted/methods/card/Safety.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

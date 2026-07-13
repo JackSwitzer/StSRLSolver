@@ -54,6 +54,37 @@ fn temp_wave1_registry_exports_typed_surface_for_live_temp_cards() {
 }
 
 #[test]
+fn safety_plus_self_retains_then_gains_modified_block_and_exhausts() {
+    // Safety.java is a one-cost, self-retaining, exhausting Skill with 12 Block;
+    // upgradeBlock(4) makes Safety+ grant 16 before ordinary card block powers.
+    // GainBlockAction receives `this.block`, so two Dexterity raises the live
+    // block gain to 18 after the retained card is eventually played.
+    // Java: reference/extracted/methods/card/Safety.java
+    let registry = global_registry();
+    let base = registry.get("Safety").expect("Safety should exist");
+    let upgraded = registry.get("Safety+").expect("Safety+ should exist");
+    assert_eq!((base.cost, base.base_block), (1, 12));
+    assert_eq!((upgraded.cost, upgraded.base_block), (1, 16));
+
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        1,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Safety+"]);
+    engine.state.player.set_status(sid::DEXTERITY, 2);
+
+    end_turn(&mut engine);
+    assert_eq!(hand_count(&engine, "Safety+"), 1);
+    assert_eq!(discard_prefix_count(&engine, "Safety"), 0);
+
+    assert!(play_self(&mut engine, "Safety+"));
+    assert_eq!(engine.state.player.block, 18);
+    assert_eq!(exhaust_prefix_count(&engine, "Safety"), 1);
+}
+
+#[test]
 fn temp_wave1_safety_through_violence_and_shiv_follow_engine_path() {
     let mut engine = engine_without_start(
         Vec::new(),
