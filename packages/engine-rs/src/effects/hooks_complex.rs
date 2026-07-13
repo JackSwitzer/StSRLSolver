@@ -805,16 +805,6 @@ pub fn hook_recursion(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
 }
 
 // =========================================================================
-// Defect: Claw — increment CLAW_BONUS status (all Claws gain +2 damage)
-// =========================================================================
-
-/// Claw: after dealing damage, add base_magic (2) to CLAW_BONUS for future Claws.
-pub fn hook_claw(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    let bonus = ctx.card.base_magic.max(2);
-    engine.state.player.add_status(sid::CLAW_BONUS, bonus);
-}
-
-// =========================================================================
 // Defect: Chaos upgrade — channel N random orbs
 // =========================================================================
 

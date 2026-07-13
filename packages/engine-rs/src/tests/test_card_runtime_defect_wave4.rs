@@ -78,7 +78,7 @@ fn test_card_runtime_defect_wave4_registry_exports_cover_runtime_progress() {
     let claw = reg.get("Gash").expect("Gash");
     assert_eq!(
         claw.effect_data,
-        &[E::Simple(SE::AddStatus(T::Player, sid::CLAW_BONUS, A::Magic))]
+        &[E::Simple(SE::IncreaseAllClawDamage(A::Magic))]
     );
     assert!(claw.complex_hook.is_none());
 
@@ -222,11 +222,29 @@ fn test_card_runtime_defect_wave4_ftl_draw_gate_and_claw_scaling_follow_engine_r
         3,
     );
     force_player_turn(&mut claw);
-    claw.state.hand = make_deck(&["Gash", "Gash"]);
+    // GashAction increases the played instance and Claws in hand/draw/discard
+    // after damage. Exhausted and subsequently created Claws are untouched.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Claw.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/GashAction.java
+    claw.state.hand = make_deck(&["Gash", "Gash+"]);
+    claw.state.draw_pile = make_deck(&["Gash"]);
+    claw.state.discard_pile = make_deck(&["Gash+"]);
+    claw.state.exhaust_pile = make_deck(&["Gash"]);
+
     assert!(play_on_enemy(&mut claw, "Gash", 0));
-    assert_eq!(claw.state.player.status(sid::CLAW_BONUS), 2);
+    assert_eq!(claw.state.enemies[0].entity.hp, 57);
+    assert_eq!(claw.state.hand[0].misc, 7);
+    assert_eq!(claw.state.draw_pile[0].misc, 5);
+    assert_eq!(claw.state.exhaust_pile[0].misc, -1);
+    assert!(claw.state.discard_pile.iter().any(|card| {
+        claw.card_registry.card_def_by_id(card.def_id).id == "Gash+" && card.misc == 7
+    }));
+    assert!(claw.state.discard_pile.iter().any(|card| {
+        claw.card_registry.card_def_by_id(card.def_id).id == "Gash" && card.misc == 5
+    }));
+
+    claw.state.hand.push(claw.card_registry.make_card("Gash"));
     let hp_before = claw.state.enemies[0].entity.hp;
     assert!(play_on_enemy(&mut claw, "Gash", 0));
-    assert_eq!(claw.state.enemies[0].entity.hp, hp_before - 5);
-    assert_eq!(claw.state.player.status(sid::CLAW_BONUS), 4);
+    assert_eq!(claw.state.enemies[0].entity.hp, hp_before - 3);
 }

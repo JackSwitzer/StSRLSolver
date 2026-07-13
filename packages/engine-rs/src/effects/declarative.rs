@@ -367,6 +367,9 @@ pub enum SimpleEffect {
     ModifyPlayedCardBlock(AmountSource),
     /// Modify the played card instance's current damage by a delta.
     ModifyPlayedCardDamage(AmountSource),
+    /// Increase the current damage of the played Claw and every Claw in hand,
+    /// draw, and discard. Claws in exhaust and future Claws are unaffected.
+    IncreaseAllClawDamage(AmountSource),
     /// Heal HP capped at max HP.
     HealHp(Target, AmountSource),
     /// Increment a counter status; fires associated effect at threshold.

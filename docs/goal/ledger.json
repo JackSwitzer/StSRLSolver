@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T09:12:13.672066+00:00",
+ "updated": "2026-07-13T09:16:36.388781+00:00",
  "status_counts": {
-  "verified": 419,
-  "unverified": 248
+  "verified": 420,
+  "unverified": 247
  },
  "rows": [
   {
@@ -1642,8 +1642,8 @@
    "class": "Claw",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Claw.java",
    "methods_ref": "reference/extracted/methods/card/Claw.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

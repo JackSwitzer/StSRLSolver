@@ -1162,7 +1162,8 @@ fn collect_simple_x_cost_amounts(effect: &SimpleEffect, amounts: &mut Vec<Amount
         | SimpleEffect::HealHp(_, source)
         | SimpleEffect::ModifyMaxHp(source)
         | SimpleEffect::ModifyMaxEnergy(source)
-        | SimpleEffect::ModifyGold(source) => {
+        | SimpleEffect::ModifyGold(source)
+        | SimpleEffect::IncreaseAllClawDamage(source) => {
             if amount_uses_x_cost(source) {
                 amounts.push(*source);
             }

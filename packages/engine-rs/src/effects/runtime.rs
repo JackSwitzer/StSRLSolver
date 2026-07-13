@@ -878,6 +878,10 @@ impl EffectRuntime {
                     engine.runtime_played_card = Some(card);
                 }
             }
+            SimpleEffect::IncreaseAllClawDamage(amount_src) => {
+                let delta = self.resolve_amount(engine, instance_idx, owner, amount_src);
+                engine.increase_all_claw_damage(delta);
+            }
             SimpleEffect::GainEnergy(amount_src) => {
                 let amount = self.resolve_amount(engine, instance_idx, owner, amount_src);
                 engine.state.energy += amount;

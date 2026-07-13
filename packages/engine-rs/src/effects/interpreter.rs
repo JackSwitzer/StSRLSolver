@@ -746,6 +746,14 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             }
         }
 
+        SimpleEffect::IncreaseAllClawDamage(ref amount_src) => {
+            let delta = resolve_card_amount(engine, ctx, amount_src);
+            engine.increase_all_claw_damage(delta);
+            if let Some(updated) = engine.runtime_played_card {
+                ctx.card_inst = updated;
+            }
+        }
+
         // -- Heal HP (capped at max) --
         SimpleEffect::HealHp(_target, ref amount_src) => {
             // DamageAction.java clears queued post-combat actions when its hit

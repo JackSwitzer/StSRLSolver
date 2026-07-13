@@ -3,7 +3,6 @@
 use crate::cards::CardDef;
 use crate::combat_types::CardInstance;
 use crate::engine::CombatEngine;
-use crate::status_ids::sid;
 use super::types::DamageModifier;
 
 /// Heavy Blade: multiply strength contribution (3x base, 5x upgraded).
@@ -115,10 +114,15 @@ pub fn hook_damage_random_x_times(_engine: &CombatEngine, _card: &CardDef, _card
     }
 }
 
-/// Claw: bonus damage from CLAW_BONUS status (incremented each time any Claw is played).
-pub fn hook_claw_damage(engine: &CombatEngine, _card: &CardDef, _card_inst: CardInstance) -> DamageModifier {
+/// Claw: GashAction stores the mutable base damage on each affected instance.
+pub fn hook_claw_damage(_engine: &CombatEngine, card: &CardDef, card_inst: CardInstance) -> DamageModifier {
+    let current_damage = if card_inst.misc >= 0 {
+        card_inst.misc as i32
+    } else {
+        card.base_damage
+    };
     DamageModifier {
-        base_damage_bonus: engine.state.player.status(sid::CLAW_BONUS),
+        base_damage_bonus: current_damage - card.base_damage,
         ..DamageModifier::default()
     }
 }

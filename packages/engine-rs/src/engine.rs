@@ -1270,6 +1270,38 @@ impl CombatEngine {
         self.move_forethought_cards_to_bottom(&indices);
     }
 
+    pub(crate) fn increase_all_claw_damage(&mut self, amount: i32) {
+        // GashAction mutates the played card, then Claws in discard, draw, and
+        // hand. It deliberately excludes exhaust and cards created later.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/GashAction.java
+        let registry = &self.card_registry;
+        let increase = |card: &mut CardInstance| {
+            let def = registry.card_def_by_id(card.def_id);
+            if !matches!(def.id, "Gash" | "Gash+") {
+                return;
+            }
+            let current = if card.misc >= 0 {
+                card.misc as i32
+            } else {
+                def.base_damage
+            };
+            card.misc = (current + amount).max(0).min(i16::MAX as i32) as i16;
+        };
+
+        if let Some(card) = self.runtime_played_card.as_mut() {
+            increase(card);
+        }
+        for card in &mut self.state.discard_pile {
+            increase(card);
+        }
+        for card in &mut self.state.draw_pile {
+            increase(card);
+        }
+        for card in &mut self.state.hand {
+            increase(card);
+        }
+    }
+
     pub(crate) fn move_forethought_cards_to_bottom(&mut self, indices: &[usize]) {
         // HandCardSelectScreen.addToTop preserves click order, and each
         // moveToBottomOfDeck inserts at index zero. Capture the selected cards
