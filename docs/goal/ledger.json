@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T07:19:40.010334+00:00",
+ "updated": "2026-07-13T07:21:37.377689+00:00",
  "status_counts": {
-  "verified": 381,
-  "unverified": 286
+  "verified": 382,
+  "unverified": 285
  },
  "rows": [
   {
@@ -1142,8 +1142,8 @@
    "class": "DoomAndGloom",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/DoomAndGloom.java",
    "methods_ref": "reference/extracted/methods/card/DoomAndGloom.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -450,6 +450,29 @@ mod defect_card_java_parity_tests {
         assert_eq!(e.state.orb_slots.slots[0].evoke_amount, 12);
     });
 
+    defect_test!(doom_and_gloom_damages_every_enemy_then_channels_one_dark, {
+        // DoomAndGloom.java queues DamageAllEnemiesAction for 10 damage, then
+        // ChannelAction(new Dark()). upgradeDamage(4) is its only upgrade.
+        // Java: reference/extracted/methods/card/DoomAndGloom.java
+        for (card_id, expected_hp) in [("Doom and Gloom", 30), ("Doom and Gloom+", 26)] {
+            let mut e = bare_engine(
+                &[card_id],
+                vec![enemy("JawWorm", 40, 0), enemy("Cultist", 40, 0)],
+            );
+            e.init_defect_orbs(3);
+            e.state.energy = 2;
+            ensure_in_hand(&mut e, card_id);
+
+            assert!(play_self(&mut e, card_id));
+
+            assert_eq!(e.state.enemies[0].entity.hp, expected_hp);
+            assert_eq!(e.state.enemies[1].entity.hp, expected_hp);
+            assert_eq!(e.state.orb_slots.occupied_count(), 1);
+            assert_eq!(e.state.orb_slots.slots[0].orb_type, OrbType::Dark);
+            assert_eq!(e.state.energy, 0);
+        }
+    });
+
     defect_test!(defragment_gains_focus, {
         // Defragment.java applies FocusPower(magicNumber) at 1 base, while
         // upgradeMagicNumber(1) makes 2 and leaves the one-energy cost intact.
