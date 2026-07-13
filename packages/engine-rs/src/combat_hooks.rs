@@ -588,14 +588,39 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     // decrement is skipped. Without this, 1-stack Weak/Vuln/Frail vanishes
     // the same turn it lands -- radically under-models enemy debuff pressure
     // (Sentry beam, Boot Steel Pads, Sphere Slam, Time Eater Ripple).
-    if let Some(amt) = get_fx(&effects, mfx::WEAK) {
-        powers::apply_debuff_from_enemy(&mut engine.state.player, sid::WEAKENED, amt as i32);
+    let time_eater_ripple = matches!(engine.state.enemies[enemy_idx].id.as_str(),
+        "TimeEater" | "Time Eater")
+        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::TE_RIPPLE;
+    if time_eater_ripple {
+        // Source: reference/extracted/methods/monster/TimeEater.java
+        // (`takeTurn`, RIPPLE). Preserve ApplyPowerAction order because one
+        // Artifact stack blocks Vulnerable first, then Weak, then A19 Frail.
+        if let Some(amt) = get_fx(&effects, mfx::VULNERABLE) {
+            powers::apply_debuff_from_enemy(
+                &mut engine.state.player, sid::VULNERABLE, amt as i32);
+        }
+        if let Some(amt) = get_fx(&effects, mfx::WEAK) {
+            powers::apply_debuff_from_enemy(
+                &mut engine.state.player, sid::WEAKENED, amt as i32);
+        }
+        if let Some(amt) = get_fx(&effects, mfx::FRAIL) {
+            powers::apply_debuff_from_enemy(
+                &mut engine.state.player, sid::FRAIL, amt as i32);
+        }
     }
-    if let Some(amt) = get_fx(&effects, mfx::VULNERABLE) {
-        powers::apply_debuff_from_enemy(&mut engine.state.player, sid::VULNERABLE, amt as i32);
-    }
-    if let Some(amt) = get_fx(&effects, mfx::FRAIL) {
-        powers::apply_debuff_from_enemy(&mut engine.state.player, sid::FRAIL, amt as i32);
+    if !time_eater_ripple {
+        if let Some(amt) = get_fx(&effects, mfx::WEAK) {
+            powers::apply_debuff_from_enemy(
+                &mut engine.state.player, sid::WEAKENED, amt as i32);
+        }
+        if let Some(amt) = get_fx(&effects, mfx::VULNERABLE) {
+            powers::apply_debuff_from_enemy(
+                &mut engine.state.player, sid::VULNERABLE, amt as i32);
+        }
+        if let Some(amt) = get_fx(&effects, mfx::FRAIL) {
+            powers::apply_debuff_from_enemy(
+                &mut engine.state.player, sid::FRAIL, amt as i32);
+        }
     }
     if get_fx(&effects, mfx::HEART_STATUS_CARDS).unwrap_or(0) > 0 {
         // Source: reference/extracted/methods/monster/CorruptHeart.java
@@ -769,6 +794,19 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         let half = engine.state.enemies[enemy_idx].entity.max_hp / 2;
         engine.state.enemies[enemy_idx].entity.hp = half;
     }
+    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
+        "TimeEater" | "Time Eater")
+        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::TE_HASTE
+        && engine.state.enemies[enemy_idx]
+            .entity.status(sid::HIGH_ASCENSION_AI) > 0
+    {
+        // Source: reference/extracted/methods/monster/TimeEater.java
+        // (`takeTurn`, HASTE). A19 gains Block equal to Head Slam's damage
+        // after debuff removal and healing resolve.
+        let block = engine.state.enemies[enemy_idx]
+            .entity.status(sid::HEAD_SLAM_DMG).max(26);
+        engine.state.enemies[enemy_idx].entity.block += block;
+    }
 
     // Heal full (Awakened One rebirth, etc.)
     if get_fx(&effects, mfx::HEAL_FULL).unwrap_or(0) > 0 {
@@ -822,7 +860,14 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
 
     // Draw Reduction: reduce player draw next turn
     if let Some(amt) = get_fx(&effects, mfx::DRAW_REDUCTION) {
-        engine.state.player.add_status(sid::DRAW_REDUCTION, amt as i32);
+        // Source: reference/extracted/methods/monster/TimeEater.java and
+        // DrawReductionPower.java. ApplyPowerAction means Artifact can block
+        // it, and justApplied preserves the reduced draw for the next turn.
+        powers::apply_debuff_from_enemy(
+            &mut engine.state.player,
+            sid::DRAW_REDUCTION,
+            amt as i32,
+        );
     }
 
     // Hex: apply Hex to player

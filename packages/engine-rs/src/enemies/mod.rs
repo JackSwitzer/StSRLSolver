@@ -975,12 +975,15 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "TimeEater" | "Time Eater" => {
-            let (rd, hsd) = if hp >= 480 { (8, 32) } else { (7, 26) };
-            enemy.set_move(move_ids::TE_REVERBERATE, rd, 3, 0);
+            // Source: reference/extracted/methods/monster/TimeEater.java.
+            // A0 defaults; the run spawn site patches independent A4/A9/A19
+            // thresholds before the source-random opening roll.
+            enemy.set_move(move_ids::TE_REVERBERATE, 7, 3, 0);
             enemy.entity.set_status(sid::CARD_COUNT, 0);
             enemy.entity.set_status(sid::USED_HASTE, 0);
-            enemy.entity.set_status(sid::REVERB_DMG, rd);
-            enemy.entity.set_status(sid::HEAD_SLAM_DMG, hsd);
+            enemy.entity.set_status(sid::REVERB_DMG, 7);
+            enemy.entity.set_status(sid::HEAD_SLAM_DMG, 26);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
             enemy.entity.set_status(sid::TIME_WARP_ACTIVE, 1);
         }
 
@@ -1178,7 +1181,7 @@ fn select_move(
         "AwakenedOne" | "Awakened One" => act3::roll_awakened_one(enemy, num),
         "Donu" => act3::roll_donu(enemy, num),
         "Deca" => act3::roll_deca(enemy, num),
-        "TimeEater" | "Time Eater" => act3::roll_time_eater(enemy, num),
+        "TimeEater" | "Time Eater" => act3::roll_time_eater(enemy, num, ai_rng),
         // Act 4
         "SpireShield" | "Spire Shield" => act4::roll_spire_shield(enemy, ai_rng),
         "SpireSpear" | "Spire Spear" => act4::roll_spire_spear(enemy, ai_rng),
@@ -1759,20 +1762,33 @@ mod tests {
 
     #[test]
     fn test_time_eater_boss() {
+        // Source: reference/extracted/methods/monster/TimeEater.java.
         let mut enemy = create_enemy("TimeEater", 456, 456);
         assert_eq!(enemy.move_id, move_ids::TE_REVERBERATE);
         assert_eq!(enemy.move_damage(), 7);
         assert_eq!(enemy.move_hits(), 3);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        // After first reverberate, second reverberate
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 44, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::TE_REVERBERATE);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        // After two reverberates: Head Slam (gives draw_reduction, not slimed)
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 45, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::TE_HEAD_SLAM);
         assert_eq!(enemy.move_damage(), 26);
         assert_eq!(enemy.effect(mfx::DRAW_REDUCTION), Some(1));
+
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 80, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(enemy.move_id, move_ids::TE_RIPPLE);
+        assert_eq!(enemy.move_block(), 20);
+
+        enemy.entity.hp = 227;
+        enemy.entity.set_status(sid::USED_HASTE, 0);
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 0, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(enemy.move_id, move_ids::TE_HASTE);
+        assert_eq!(enemy.entity.status(sid::USED_HASTE), 1);
     }
 
     #[test]

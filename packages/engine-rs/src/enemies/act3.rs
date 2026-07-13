@@ -2,6 +2,7 @@ use crate::state::EnemyCombatState;
 use crate::combat_types::{fx, mfx, Intent};
 use super::{last_move, last_two_moves};
 use super::move_ids;
+use crate::seed::StsRandom;
 use crate::status_ids::sid;
 
 // =========================================================================
@@ -528,11 +529,14 @@ pub(super) fn roll_deca(enemy: &mut EnemyCombatState, _num: i32) {
     }
 }
 
-pub(super) fn roll_time_eater(enemy: &mut EnemyCombatState, _num: i32) {
-    // Java: Haste triggered when HP < maxHP/2 (once only).
-    // Haste: remove debuffs, heal to 50%, A19 also gains headSlamDmg block.
-    // Reverberate (reverbDmg x3), Head Slam (headSlamDmg + draw reduction, A19 + 2 Slimed),
-    // Ripple (20 block + Vuln 1 + Weak 1, A19 also Frail 1).
+pub(super) fn roll_time_eater(
+    enemy: &mut EnemyCombatState,
+    num: i32,
+    ai_rng: &mut StsRandom,
+) {
+    // Source: reference/extracted/methods/monster/TimeEater.java (`getMove`).
+    // Repeated Reverberate/Ripple branches recursively draw replacement nums;
+    // repeated Head Slam consumes a 0.66 probability float.
     let reverb_dmg = {
         let v = enemy.entity.status(sid::REVERB_DMG);
         if v > 0 { v } else { 7 }
@@ -542,28 +546,58 @@ pub(super) fn roll_time_eater(enemy: &mut EnemyCombatState, _num: i32) {
         if v > 0 { v } else { 26 }
     };
 
-    // Check for Haste trigger
     if enemy.entity.hp < enemy.entity.max_hp / 2 && enemy.entity.status(sid::USED_HASTE) == 0 {
         enemy.entity.set_status(sid::USED_HASTE, 1);
         enemy.set_move(move_ids::TE_HASTE, 0, 0, 0);
+        enemy.intent = Intent::Buff { effects: 0 };
         enemy.add_effect(mfx::REMOVE_DEBUFFS, 1);
         enemy.add_effect(mfx::HEAL_TO_HALF, 1);
         return;
     }
 
-    // Pattern: RNG-based in Java, deterministic for MCTS.
-    // Reverberate can't be used 3 in a row, Head Slam can't repeat, Ripple can't repeat.
-    if last_move(enemy, move_ids::TE_HASTE) || last_two_moves(enemy, move_ids::TE_REVERBERATE) {
-        enemy.set_move(move_ids::TE_HEAD_SLAM, head_slam_dmg, 1, 0);
-        // Head Slam: draw reduction (not Slimed). A19 also adds 2 Slimed.
-        enemy.add_effect(mfx::DRAW_REDUCTION, 1);
-    } else if last_move(enemy, move_ids::TE_HEAD_SLAM) {
-        enemy.set_move(move_ids::TE_RIPPLE, 0, 0, 20);
-        enemy.add_effect(mfx::VULNERABLE, 1);
-        enemy.add_effect(mfx::WEAK, 1);
-    } else if last_move(enemy, move_ids::TE_RIPPLE) {
+    if num < 45 {
+        if last_two_moves(enemy, move_ids::TE_REVERBERATE) {
+            let reroll = ai_rng.random_range(50, 99);
+            roll_time_eater(enemy, reroll, ai_rng);
+            return;
+        }
         enemy.set_move(move_ids::TE_REVERBERATE, reverb_dmg, 3, 0);
+        return;
+    }
+
+    if num < 80 {
+        if !last_move(enemy, move_ids::TE_HEAD_SLAM) {
+            enemy.set_move(move_ids::TE_HEAD_SLAM, head_slam_dmg, 1, 0);
+            enemy.intent = Intent::AttackDebuff {
+                damage: head_slam_dmg as i16,
+                hits: 1,
+                effects: 0,
+            };
+            enemy.add_effect(mfx::DRAW_REDUCTION, 1);
+            if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
+                enemy.add_effect(mfx::SLIMED, 2);
+            }
+        } else if ai_rng.random_float() < 0.66 {
+            enemy.set_move(move_ids::TE_REVERBERATE, reverb_dmg, 3, 0);
+        } else {
+            set_time_eater_ripple(enemy);
+        }
+        return;
+    }
+
+    if !last_move(enemy, move_ids::TE_RIPPLE) {
+        set_time_eater_ripple(enemy);
     } else {
-        enemy.set_move(move_ids::TE_REVERBERATE, reverb_dmg, 3, 0);
+        let reroll = ai_rng.random(74);
+        roll_time_eater(enemy, reroll, ai_rng);
+    }
+}
+
+fn set_time_eater_ripple(enemy: &mut EnemyCombatState) {
+    enemy.set_move(move_ids::TE_RIPPLE, 0, 0, 20);
+    enemy.add_effect(mfx::VULNERABLE, 1);
+    enemy.add_effect(mfx::WEAK, 1);
+    if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
+        enemy.add_effect(mfx::FRAIL, 1);
     }
 }

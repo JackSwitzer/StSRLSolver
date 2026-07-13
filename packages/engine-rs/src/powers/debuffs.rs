@@ -24,6 +24,11 @@ pub fn decrement_debuffs(entity: &mut EntityState) {
         sid::FRAIL,
         sid::FRAIL_JUST_APPLIED,
     );
+    decrement_debuff_with_just_applied(
+        entity,
+        sid::DRAW_REDUCTION,
+        sid::DRAW_REDUCTION_JUST_APPLIED,
+    );
 }
 
 fn decrement_debuff_with_just_applied(
@@ -67,6 +72,8 @@ fn just_applied_flag_for(status: StatusId) -> Option<StatusId> {
         Some(sid::VULNERABLE_JUST_APPLIED)
     } else if status == sid::FRAIL {
         Some(sid::FRAIL_JUST_APPLIED)
+    } else if status == sid::DRAW_REDUCTION {
+        Some(sid::DRAW_REDUCTION_JUST_APPLIED)
     } else {
         None
     }

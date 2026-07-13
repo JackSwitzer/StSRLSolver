@@ -2158,6 +2158,21 @@ impl RunEngine {
             enemy.entity.set_status(crate::status_ids::sid::SLOW, 1);
         }
 
+        // Source: reference/extracted/methods/monster/TimeEater.java.
+        // Damage changes at A4, HP at A9, and the extra move payloads at A19.
+        for enemy in enemy_states.iter_mut().filter(|enemy| matches!(enemy.id.as_str(),
+            "TimeEater" | "Time Eater"))
+        {
+            enemy.entity.set_status(crate::status_ids::sid::REVERB_DMG,
+                if self.run_state.ascension >= 4 { 8 } else { 7 });
+            enemy.entity.set_status(crate::status_ids::sid::HEAD_SLAM_DMG,
+                if self.run_state.ascension >= 4 { 32 } else { 26 });
+            enemy.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI,
+                if self.run_state.ascension >= 19 { 1 } else { 0 });
+            enemy.entity.set_status(crate::status_ids::sid::USED_HASTE, 0);
+            enemy.entity.set_status(crate::status_ids::sid::TIME_WARP_ACTIVE, 1);
+        }
+
         // Source: reference/extracted/methods/monster/Maw.java. Maw has fixed
         // 300 HP; only Slam changes at A2, while Drool and Roar change at A17.
         for enemy in enemy_states.iter_mut().filter(|enemy| enemy.id == "Maw") {
@@ -3152,7 +3167,9 @@ impl RunEngine {
                 (hp, hp)
             }
             "TimeEater" => {
-                let hp = if a20 { 480 } else { 456 };
+                // Source: reference/extracted/methods/monster/TimeEater.java:
+                // fixed 456 HP, raised to fixed 480 at ascension 9.
+                let hp = if self.run_state.ascension >= 9 { 480 } else { 456 };
                 (hp, hp)
             }
             "DonuAndDeca" | "Donu" | "Deca" => {

@@ -621,32 +621,145 @@ mod boss_java_parity_tests {
 
     #[test]
     fn time_eater_a9_and_a4_scaling_matches_java_expectations() {
+        // create_enemy has no ascension input; HP must not imply A4 damage.
         let enemy = create_enemy("TimeEater", 480, 480);
         assert_eq!(enemy.entity.hp, 480);
         assert_eq!(enemy.entity.max_hp, 480);
-        assert_eq!(enemy.move_damage(), 8);
+        assert_eq!(enemy.move_damage(), 7);
         assert_eq!(enemy.move_hits(), 3);
     }
 
     #[test]
-    fn time_eater_haste_and_head_slam_cycle_matches_java() {
+    fn time_eater_ai_stats_haste_and_a19_payloads_match_java() {
+        // Source: reference/extracted/methods/monster/TimeEater.java.
+        for (ascension, hp, reverb, head, high_ai) in [
+            (0, 456, 7, 26, 0),
+            (4, 456, 8, 32, 0),
+            (9, 480, 8, 32, 0),
+            (19, 480, 8, 32, 1),
+        ] {
+            let mut run = RunEngine::new(70, ascension);
+            run.debug_enter_specific_combat(&["TimeEater"]);
+            let combat = run.get_combat_engine().expect("Time Eater combat");
+            let enemy = &combat.state.enemies[0];
+            assert_eq!((enemy.entity.hp, enemy.entity.max_hp), (hp, hp));
+            assert_eq!(enemy.entity.status(sid::REVERB_DMG), reverb);
+            assert_eq!(enemy.entity.status(sid::HEAD_SLAM_DMG), head);
+            assert_eq!(enemy.entity.status(sid::HIGH_ASCENSION_AI), high_ai);
+            assert!(matches!(enemy.move_id,
+                move_ids::TE_REVERBERATE | move_ids::TE_HEAD_SLAM | move_ids::TE_RIPPLE));
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
         let mut enemy = create_enemy("TimeEater", 456, 456);
-        enemy.entity.hp = 200;
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        enemy.entity.hp = 228;
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 0, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(enemy.move_id, move_ids::TE_REVERBERATE,
+            "exactly half HP does not trigger Haste");
+        enemy.entity.hp = 227;
+        enemy.entity.set_status(sid::USED_HASTE, 0);
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 99, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::TE_HASTE);
         assert_eq!(enemy.effect(mfx::REMOVE_DEBUFFS), Some(1));
         assert_eq!(enemy.effect(mfx::HEAL_TO_HALF), Some(1));
+        assert_eq!(enemy.entity.status(sid::USED_HASTE), 1);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::TE_HEAD_SLAM);
-        assert_eq!(enemy.move_damage(), 26);
-        assert_eq!(enemy.effect(mfx::DRAW_REDUCTION), Some(1));
+        // Haste does not force a follow-up: normal num branches resume.
+        enemy.move_id = move_ids::TE_HASTE;
+        enemy.move_history.clear();
+        roll_next_move_with_num(&mut enemy, 0);
+        assert_eq!(enemy.move_id, move_ids::TE_REVERBERATE);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::TE_RIPPLE);
-        assert_eq!(enemy.move_block(), 20);
-        assert_eq!(enemy.effect(mfx::VULNERABLE), Some(1));
-        assert_eq!(enemy.effect(mfx::WEAK), Some(1));
+        // Two Reverberates recursively reroll 50..99 and consume one ai tick.
+        enemy.move_id = move_ids::TE_REVERBERATE;
+        enemy.move_history = vec![move_ids::TE_REVERBERATE];
+        let mut rng = crate::seed::StsRandom::new(0);
+        roll_next_move_with_num_and_rng(&mut enemy, 0, &mut rng);
+        assert!(matches!(enemy.move_id, move_ids::TE_HEAD_SLAM | move_ids::TE_RIPPLE));
+        assert_eq!(rng.counter, 1);
+
+        // Repeated Head Slam consumes randomBoolean(0.66), selecting either
+        // Reverberate or Ripple; repeated Ripple recursively random(74).
+        enemy.move_id = move_ids::TE_HEAD_SLAM;
+        enemy.move_history.clear();
+        let mut rng = crate::seed::StsRandom::new(1);
+        roll_next_move_with_num_and_rng(&mut enemy, 45, &mut rng);
+        assert!(matches!(enemy.move_id, move_ids::TE_REVERBERATE | move_ids::TE_RIPPLE));
+        assert_eq!(rng.counter, 1);
+        enemy.move_id = move_ids::TE_RIPPLE;
+        enemy.move_history.clear();
+        let mut rng = crate::seed::StsRandom::new(2);
+        roll_next_move_with_num_and_rng(&mut enemy, 80, &mut rng);
+        assert!(matches!(enemy.move_id, move_ids::TE_REVERBERATE | move_ids::TE_HEAD_SLAM));
+        assert_eq!(rng.counter, 1);
+
+        let mut high = RunEngine::new(71, 19);
+        high.debug_enter_specific_combat(&["TimeEater"]);
+        let combat = high.debug_combat_engine_mut();
+        combat.state.enemies[0].entity.hp = 200;
+        combat.state.enemies[0].entity.set_status(sid::VULNERABLE, 2);
+        combat.state.enemies[0].entity.set_status(sid::POISON, 5);
+        combat.state.enemies[0].set_move(move_ids::TE_HASTE, 0, 0, 0);
+        combat.state.enemies[0].add_effect(mfx::REMOVE_DEBUFFS, 1);
+        combat.state.enemies[0].add_effect(mfx::HEAL_TO_HALF, 1);
+        do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].entity.hp, 240);
+        assert_eq!(combat.state.enemies[0].entity.block, 32);
+        assert_eq!(combat.state.enemies[0].entity.status(sid::VULNERABLE), 0);
+        assert_eq!(combat.state.enemies[0].entity.status(sid::POISON), 0);
+
+        // Ripple applies Vulnerable, then Weak, then A19 Frail. Artifact blocks
+        // only the first. Head Slam's Draw Reduction is also Artifact-aware,
+        // while its two Slimed cards still enter discard.
+        let mut ripple = RunEngine::new(72, 19);
+        ripple.debug_enter_specific_combat(&["TimeEater"]);
+        let combat = ripple.debug_combat_engine_mut();
+        combat.state.player.set_status(sid::ARTIFACT, 1);
+        combat.state.enemies[0].set_move(move_ids::TE_RIPPLE, 0, 0, 20);
+        combat.state.enemies[0].add_effect(mfx::VULNERABLE, 1);
+        combat.state.enemies[0].add_effect(mfx::WEAK, 1);
+        combat.state.enemies[0].add_effect(mfx::FRAIL, 1);
+        do_enemy_turns(combat);
+        assert_eq!(combat.state.player.status(sid::VULNERABLE), 0);
+        assert_eq!(combat.state.player.status(sid::WEAKENED), 1);
+        assert_eq!(combat.state.player.status(sid::FRAIL), 1);
+
+        let mut slam = RunEngine::new(73, 19);
+        slam.debug_enter_specific_combat(&["TimeEater"]);
+        let combat = slam.debug_combat_engine_mut();
+        combat.state.player.set_status(sid::ARTIFACT, 1);
+        combat.state.enemies[0].set_move(move_ids::TE_HEAD_SLAM, 32, 1, 0);
+        combat.state.enemies[0].intent = crate::combat_types::Intent::AttackDebuff {
+            damage: 32, hits: 1, effects: 0,
+        };
+        combat.state.enemies[0].add_effect(mfx::DRAW_REDUCTION, 1);
+        combat.state.enemies[0].add_effect(mfx::SLIMED, 2);
+        do_enemy_turns(combat);
+        assert_eq!(combat.state.player.status(sid::ARTIFACT), 0);
+        assert_eq!(combat.state.player.status(sid::DRAW_REDUCTION), 0);
+        assert_eq!(combat.state.discard_pile.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) == "Slimed").count(), 2);
+
+        let mut lifetime = RunEngine::new(74, 0);
+        lifetime.debug_enter_specific_combat(&["TimeEater"]);
+        let combat = lifetime.debug_combat_engine_mut();
+        combat.state.enemies[0].set_move(move_ids::TE_HEAD_SLAM, 26, 1, 0);
+        combat.state.enemies[0].intent = crate::combat_types::Intent::AttackDebuff {
+            damage: 26, hits: 1, effects: 0,
+        };
+        combat.state.enemies[0].add_effect(mfx::DRAW_REDUCTION, 1);
+        do_enemy_turns(combat);
+        assert_eq!(combat.state.player.status(sid::DRAW_REDUCTION), 1);
+        assert_eq!(combat.state.player.status(sid::DRAW_REDUCTION_JUST_APPLIED), 1);
+        crate::powers::decrement_debuffs(&mut combat.state.player);
+        assert_eq!(combat.state.player.status(sid::DRAW_REDUCTION_JUST_APPLIED), 0);
+        assert_eq!(combat.state.player.status(sid::DRAW_REDUCTION), 1);
+        combat.state.enemies[0].set_move(move_ids::TE_REVERBERATE, 7, 3, 0);
+        do_enemy_turns(combat);
+        crate::powers::decrement_debuffs(&mut combat.state.player);
+        assert_eq!(combat.state.player.status(sid::DRAW_REDUCTION), 0);
     }
 
     // ---------------------------------------------------------------------

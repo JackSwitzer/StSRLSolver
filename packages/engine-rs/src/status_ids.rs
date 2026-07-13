@@ -337,8 +337,12 @@ pub mod sid {
     // Appended to preserve existing snapshot IDs.
     pub const HIGH_ASCENSION_AI: StatusId = StatusId(259);
 
+    // Mirrors DrawReductionPower.justApplied so its one reduced draw survives
+    // the application round before the turn-based power begins decrementing.
+    pub const DRAW_REDUCTION_JUST_APPLIED: StatusId = StatusId(260);
+
     /// Total number of defined status IDs (exclusive upper bound).
-    pub const NUM_IDS: usize = 260;
+    pub const NUM_IDS: usize = 261;
 
     /// Array sizing constant (power of 2 for cache-friendly indexing).
     pub const MAX_STATUS_ID: usize = 512;
@@ -635,6 +639,7 @@ static STATUS_NAMES: &[&str] = &[
     "Rebound",            // 257
     "PainfulStabs",        // 258
     "HighAscensionAi",     // 259
+    "DrawReductionJustApplied", // 260
 ];
 
 #[cfg(test)]
