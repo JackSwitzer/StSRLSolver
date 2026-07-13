@@ -21,11 +21,14 @@ pub fn register_temp(cards: &mut HashMap<&'static str, CardDef>) {
                 E::Simple(SE::AddStatus(T::Player, sid::OMEGA, A::Magic)),
             ], complex_hook: None,
         });
-        // Expunger: 1 cost, 9 dmg x magic (from Conjure Blade)
+        // Expunger.setX stores Conjure Blade's X in card-owned state, and use
+        // queues exactly that many 9-damage actions. The upgrade adds 6 damage.
+        // Java: reference/extracted/methods/card/Expunger.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Expunger.java
         insert(cards, CardDef {
             id: "Expunger", name: "Expunger", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 9, base_block: -1,
-            base_magic: 0, exhaust: false, enter_stance: None,
+            base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[
                 E::ExtraHits(A::CardMisc),
                 E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
@@ -34,7 +37,7 @@ pub fn register_temp(cards: &mut HashMap<&'static str, CardDef>) {
         insert(cards, CardDef {
             id: "Expunger+", name: "Expunger+", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 1, base_damage: 15, base_block: -1,
-            base_magic: 0, exhaust: false, enter_stance: None,
+            base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[
                 E::ExtraHits(A::CardMisc),
                 E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),

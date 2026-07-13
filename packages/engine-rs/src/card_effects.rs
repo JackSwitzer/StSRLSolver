@@ -59,7 +59,12 @@ fn pick_random_living_enemy(engine: &mut CombatEngine) -> Option<usize> {
 fn extra_hits_allow_zero(card_id: &str) -> bool {
     matches!(
         card_id,
-        "Barrage" | "Barrage+" | "Thunder Strike" | "Thunder Strike+"
+        "Barrage"
+            | "Barrage+"
+            | "Expunger"
+            | "Expunger+"
+            | "Thunder Strike"
+            | "Thunder Strike+"
     )
 }
 
@@ -354,7 +359,16 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
 
         // X-cost attacks: Whirlwind = X hits AoE, Skewer = X hits single
         let hits = if let Some(amount_src) = card.declared_extra_hits() {
-            crate::effects::interpreter::resolve_card_amount(engine, &pre_damage_ctx, &amount_src).max(1)
+            let resolved = crate::effects::interpreter::resolve_card_amount(
+                engine,
+                &pre_damage_ctx,
+                &amount_src,
+            );
+            if resolved <= 0 && extra_hits_allow_zero(card_id) {
+                0
+            } else {
+                resolved.max(1)
+            }
         } else if card.uses_x_cost() && card.cost == -1 {
             x_value
         } else if card.uses_multi_hit_hint() && card.base_magic > 0 {

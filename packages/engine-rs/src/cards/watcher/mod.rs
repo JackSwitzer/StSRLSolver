@@ -28,7 +28,6 @@ mod emptymind;
 mod eruption;
 mod establishment;
 mod evaluate;
-mod expunger;
 mod fasting;
 mod fearnoevil;
 mod flurry;
@@ -118,7 +117,6 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
     eruption::register(cards);
     establishment::register(cards);
     evaluate::register(cards);
-    expunger::register(cards);
     fasting::register(cards);
     fearnoevil::register(cards);
     flurry::register(cards);
