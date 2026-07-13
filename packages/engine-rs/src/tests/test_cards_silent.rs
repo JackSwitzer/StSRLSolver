@@ -169,6 +169,33 @@ mod silent_card_java_parity_tests {
         "Dagger Spray", 1, 4, -1, 2, CardType::Attack, CardTarget::AllEnemy, false, None, &["multi_hit"],
         "Dagger Spray+", 1, 6, -1, 2, CardType::Attack, CardTarget::AllEnemy, false, None, &["multi_hit"],
     );
+
+    #[test]
+    fn dagger_spray_plus_resolves_as_two_separate_six_damage_aoe_hits() {
+        // DaggerSpray.java queues two distinct DamageAllEnemiesActions; its
+        // upgrade adds 2 to each 4-damage hit. Malleable therefore gains 3
+        // block after hit one, blocks 3 of hit two, then gains 4 block.
+        let mut engine = engine_without_start(
+            Vec::new(),
+            vec![
+                enemy_no_intent("JawWorm", 40, 40),
+                enemy_no_intent("SnakePlant", 40, 40),
+            ],
+            1,
+        );
+        force_player_turn(&mut engine);
+        engine.state.enemies[1].entity.set_status(sid::MALLEABLE, 3);
+        engine.state.hand = make_deck(&["Dagger Spray+"]);
+
+        assert!(play_on_enemy(&mut engine, "Dagger Spray+", 0));
+
+        assert_eq!(engine.state.enemies[0].entity.hp, 28);
+        assert_eq!(engine.state.enemies[1].entity.hp, 31);
+        assert_eq!(engine.state.enemies[1].entity.block, 4);
+        assert_eq!(engine.state.enemies[1].entity.status(sid::MALLEABLE), 5);
+        assert_eq!(engine.state.energy, 0);
+    }
+
     card_pair_test!(dagger_throw,
         "Dagger Throw", 1, 9, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["draw", "discard"],
         "Dagger Throw+", 1, 12, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["draw", "discard"],
