@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T18:09:06.205982+00:00",
+ "updated": "2026-07-13T18:14:11.679728+00:00",
  "status_counts": {
-  "verified": 588,
-  "unverified": 79
+  "verified": 589,
+  "unverified": 78
  },
  "rows": [
   {
@@ -3812,8 +3812,8 @@
    "class": "BronzeOrb",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/city/BronzeOrb.java",
    "methods_ref": "reference/extracted/methods/monster/BronzeOrb.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

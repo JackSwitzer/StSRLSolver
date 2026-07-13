@@ -639,13 +639,20 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut a19, 1);
         expect_move(&a19, move_ids::BA_BOOST, 0, 0, 12, &[(mfx::STRENGTH, 4)]);
 
-        let mut e = make("BronzeOrb", 35);
-        roll_times(&mut e, 1);
+        // Source: reference/extracted/methods/monster/BronzeOrb.java.
+        let mut e = make("BronzeOrb", 52);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 24, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::BO_BEAM, 8, 1, 0, &[]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::BO_BEAM, 8, 1, 0, &[]);
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 25);
+        expect_move(&e, move_ids::BO_STASIS, 0, 0, 0, &[(mfx::STASIS, 1)]);
+        expect_status(&e, sid::FIRST_MOVE, 1);
+        roll_with_num(&mut e, 70);
         expect_move(&e, move_ids::BO_SUPPORT, 0, 0, 12, &[]);
+        roll_with_num(&mut e, 70);
+        expect_move(&e, move_ids::BO_SUPPORT, 0, 0, 12, &[]);
+        roll_with_num(&mut e, 70);
+        expect_move(&e, move_ids::BO_BEAM, 8, 1, 0, &[]);
 
         let e = make("TorchHead", 35);
         expect_move(&e, move_ids::TORCH_TACKLE, 7, 1, 0, &[]);

@@ -347,7 +347,20 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     // Block
     let move_blk = engine.state.enemies[enemy_idx].move_block();
     if move_blk > 0 {
-        engine.state.enemies[enemy_idx].entity.block += move_blk;
+        if matches!(engine.state.enemies[enemy_idx].id.as_str(), "BronzeOrb" | "Bronze Orb")
+            && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::BO_SUPPORT
+        {
+            // BronzeOrb SUPPORT_BEAM targets the boss, not the Orb itself.
+            // Java: reference/extracted/methods/monster/BronzeOrb.java
+            if let Some(automaton) = engine.state.enemies.iter_mut().find(|enemy|
+                matches!(enemy.id.as_str(), "BronzeAutomaton" | "Bronze Automaton")
+                    && enemy.is_alive())
+            {
+                automaton.entity.block += move_blk;
+            }
+        } else {
+            engine.state.enemies[enemy_idx].entity.block += move_blk;
+        }
     }
 
     // Apply move effects
@@ -503,11 +516,43 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         }
     }
 
-    // Stasis: steal random card from player hand (simplified: remove from hand)
+    // ApplyStasisAction uses draw if nonempty, otherwise discard. It tries
+    // Rare, Uncommon, Common, then any card, and getRandomCard consumes one
+    // cardRandomRng tick among the chosen candidates. The card remains held by
+    // StasisPower until this Orb dies.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ApplyStasisAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
     if get_fx(&effects, mfx::STASIS).unwrap_or(0) > 0 {
-        if !engine.state.hand.is_empty() {
-            let idx = engine.state.hand.len() - 1;
-            engine.state.hand.remove(idx);
+        let use_draw = !engine.state.draw_pile.is_empty();
+        let zone = if use_draw {
+            &engine.state.draw_pile
+        } else {
+            &engine.state.discard_pile
+        };
+        if !zone.is_empty() {
+            let preferred_rank = [3_u8, 2, 1]
+                .into_iter()
+                .find(|rank| zone.iter().any(|card|
+                    crate::run::stasis_card_rarity_rank(
+                        engine.card_registry.card_def_by_id(card.def_id).id) == *rank));
+            let mut candidates: Vec<usize> = zone.iter().enumerate()
+                .filter(|(_, card)| preferred_rank.is_none_or(|rank|
+                    crate::run::stasis_card_rarity_rank(
+                        engine.card_registry.card_def_by_id(card.def_id).id) == rank))
+                .map(|(idx, _)| idx)
+                .collect();
+            if preferred_rank.is_some() {
+                candidates.sort_by_key(|idx|
+                    engine.card_registry.card_def_by_id(zone[*idx].def_id).id);
+            }
+            let pick = engine.card_random_rng.random(candidates.len() as i32 - 1) as usize;
+            let zone_idx = candidates[pick];
+            let card = if use_draw {
+                engine.state.draw_pile.remove(zone_idx)
+            } else {
+                engine.state.discard_pile.remove(zone_idx)
+            };
+            engine.state.enemies[enemy_idx].stasis_card = Some(card);
         }
     }
 

@@ -376,7 +376,8 @@ impl CombatEngine {
                 | "AwakenedOne" | "Awakened One" | "BanditBear" | "Bear"
                 | "BanditChild" | "BanditPointy" | "Pointy" | "BanditLeader"
                 | "BookOfStabbing" | "Book of Stabbing"
-                | "BronzeAutomaton" | "Bronze Automaton")) {
+                | "BronzeAutomaton" | "Bronze Automaton"
+                | "BronzeOrb" | "Bronze Orb")) {
             crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
         }
 
@@ -3569,6 +3570,17 @@ impl CombatEngine {
     pub(crate) fn finalize_enemy_death(&mut self, enemy_idx: usize) {
         if enemy_idx >= self.state.enemies.len() {
             return;
+        }
+
+        // StasisPower.onDeath returns its held card to hand, or to discard at
+        // the ten-card hand limit.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/StasisPower.java
+        if let Some(card) = self.state.enemies[enemy_idx].stasis_card.take() {
+            if self.state.hand.len() < 10 {
+                self.state.hand.push(card);
+            } else {
+                self.state.discard_pile.push(card);
+            }
         }
 
         // Source: decompiled GremlinFat/Thief/Warrior/Wizard/Tsundere.java

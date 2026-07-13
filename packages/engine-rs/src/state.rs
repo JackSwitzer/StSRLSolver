@@ -155,6 +155,8 @@ pub struct EnemyCombatState {
     pub move_history: Vec<i32>,
     pub first_turn: bool,
     pub is_escaping: bool,
+    /// Card held by Java's StasisPower (Bronze Orb), returned on death.
+    pub stasis_card: Option<CardInstance>,
 }
 
 impl EnemyCombatState {
@@ -171,6 +173,7 @@ impl EnemyCombatState {
             move_history: Vec::new(),
             first_turn: true,
             is_escaping: false,
+            stasis_card: None,
         }
     }
 

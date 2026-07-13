@@ -2487,6 +2487,11 @@ impl RunEngine {
                 let hp = if self.run_state.ascension >= 9 { 320 } else { 300 };
                 (hp, hp)
             }
+            "BronzeOrb" | "Bronze Orb" => {
+                let base = if self.run_state.ascension >= 9 { 54 } else { 52 };
+                let hp = base + self.rng.gen_range(0..=6);
+                (hp, hp)
+            }
             "TheCollector" => {
                 let hp = if a20 { 318 } else { 282 };
                 (hp, hp)
@@ -7267,6 +7272,16 @@ fn event_card_rarity(card_id: &str) -> Option<EventCardRarity> {
         .copied()
 }
 
+/// ApplyStasisAction rarity priority: Rare > Uncommon > Common > any.
+pub(crate) fn stasis_card_rarity_rank(card_id: &str) -> u8 {
+    match event_card_rarity(card_id) {
+        Some(EventCardRarity::Rare) => 3,
+        Some(EventCardRarity::Uncommon) => 2,
+        Some(EventCardRarity::Common) => 1,
+        _ => 0,
+    }
+}
+
 #[derive(Debug, Clone)]
 struct EventCardCatalogEntry {
     id: String,
@@ -7940,6 +7955,68 @@ mod tests {
         assert_eq!(combat.state.enemies[0].move_id,
             crate::enemies::move_ids::BA_FLAIL);
         assert_eq!(combat.ai_rng.counter, 4);
+    }
+
+    #[test]
+    fn bronze_orb_hp_ai_support_and_stasis_lifecycle_match_java() {
+        // Source: reference/extracted/methods/monster/BronzeOrb.java.
+        // HP is 52..58 (54..60 at A9), Beam deals 8, Support gives the
+        // Automaton 12 Block, and the first >=25 AI roll uses Stasis once.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("BronzeOrb").0);
+            let mut high = RunEngine::new(seed, 9);
+            high_hp.insert(high.roll_enemy_hp("BronzeOrb").0);
+        }
+        assert_eq!(low_hp, (52..=58).collect());
+        assert_eq!(high_hp, (54..=60).collect());
+
+        let deck = crate::tests::support::make_deck_n("Defend", 20);
+        let automaton = crate::enemies::create_enemy("BronzeAutomaton", 300, 300);
+        let orb = crate::enemies::create_enemy("BronzeOrb", 52, 52);
+        let state = crate::state::CombatState::new(80, 80, vec![automaton, orb], deck, 3);
+        let mut support = crate::engine::CombatEngine::new(state, 42);
+        support.start_combat();
+        support.state.enemies[0].set_move(
+            crate::enemies::move_ids::BA_STUNNED, 0, 0, 0);
+        support.state.enemies[1].set_move(
+            crate::enemies::move_ids::BO_SUPPORT, 0, 0, 12);
+        support.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(support.state.enemies[0].entity.block, 12);
+        assert_eq!(support.state.enemies[1].entity.block, 0);
+
+        // ApplyStasisAction chooses from draw before discard, prioritizes Rare,
+        // consumes one cardRandomRng tick, and StasisPower returns the exact
+        // held card to hand when the Orb dies.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ApplyStasisAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/StasisPower.java
+        let mut run = RunEngine::new(42, 0);
+        run.enter_specific_combat(vec!["BronzeOrb".to_string()]);
+        let combat = run.combat_engine.as_mut().unwrap();
+        combat.state.draw_pile = ["Strike", "CutThroughFate", "ForeignInfluence", "Omniscience"]
+            .into_iter()
+            .map(|id| combat.card_registry.make_card(id))
+            .collect();
+        combat.state.discard_pile.clear();
+        combat.state.enemies[0].set_move(
+            crate::enemies::move_ids::BO_STASIS, 0, 0, 0);
+        combat.state.enemies[0].add_effect(crate::combat_types::mfx::STASIS, 1);
+        let card_random_before = combat.card_random_rng.counter;
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        let held = combat.state.enemies[0].stasis_card
+            .expect("Stasis should hold one card");
+        assert_eq!(combat.card_registry.card_name(held.def_id), "Omniscience");
+        assert_eq!(combat.card_random_rng.counter, card_random_before + 1);
+        assert!(!combat.state.draw_pile.iter().chain(&combat.state.discard_pile)
+            .chain(&combat.state.hand)
+            .any(|card| combat.card_registry.card_name(card.def_id) == "Omniscience"));
+
+        assert!(combat.instant_kill_enemy(0));
+        assert!(combat.state.hand.iter()
+            .any(|card| combat.card_registry.card_name(card.def_id) == "Omniscience"));
+        assert!(combat.state.enemies[0].stasis_card.is_none());
     }
 
     #[test]
