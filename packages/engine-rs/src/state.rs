@@ -301,7 +301,8 @@ pub struct CombatState {
     // Enemies
     pub enemies: Vec<EnemyCombatState>,
 
-    // Potions
+    // Empty strings represent Java's inert PotionSlot placeholder objects.
+    // Source: reference/extracted/methods/potion/PotionSlot.java.
     pub potions: Vec<String>,
 
     // Combat tracking

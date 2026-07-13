@@ -350,6 +350,8 @@ pub struct RunState {
     #[serde(default)]
     pub deck_card_states: Vec<crate::combat_types::CardInstance>,
     pub relics: Vec<String>,
+    /// Empty strings represent Java's inert PotionSlot placeholder objects.
+    /// Source: reference/extracted/methods/potion/PotionSlot.java.
     pub potions: Vec<String>,
     pub max_potions: usize,
     #[serde(default)]
