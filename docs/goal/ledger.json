@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T07:09:18.322233+00:00",
+ "updated": "2026-07-13T07:11:27.740136+00:00",
  "status_counts": {
-  "verified": 377,
-  "unverified": 290
+  "verified": 378,
+  "unverified": 289
  },
  "rows": [
   {
@@ -1092,8 +1092,8 @@
    "class": "Disarm",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/Disarm.java",
    "methods_ref": "reference/extracted/methods/card/Disarm.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

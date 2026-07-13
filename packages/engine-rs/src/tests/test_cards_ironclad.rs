@@ -356,6 +356,42 @@ mod ironclad_card_java_parity_tests {
         assert_eq!(defeated.state.draw_pile.len(), 1);
     }
     card_pair_test!(disarm, "Disarm", "Disarm+", 1, -1, -1, 2, 1, -1, -1, 3, CardType::Skill, CardTarget::Enemy, true);
+
+    #[test]
+    fn disarm_permanently_reduces_strength_unless_artifact_blocks_it() {
+        // Disarm.java applies StrengthPower(-2), upgraded to -3, and queues no
+        // restoration power. Negative StrengthPower is blocked by Artifact.
+        let mut base = engine_for(
+            &["Disarm"],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            1,
+        );
+        base.state.enemies[0].entity.set_status(sid::STRENGTH, 5);
+
+        assert!(play_on_enemy(&mut base, "Disarm", 0));
+        assert_eq!(base.state.enemies[0].entity.status(sid::STRENGTH), 3);
+        assert_eq!(base.state.enemies[0].entity.status(sid::TEMP_STRENGTH_LOSS), 0);
+        assert_eq!(exhaust_prefix_count(&base, "Disarm"), 1);
+        base.execute_action(&Action::EndTurn);
+        assert_eq!(base.state.enemies[0].entity.status(sid::STRENGTH), 3);
+
+        let mut blocked = engine_for(
+            &["Disarm+"],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            1,
+        );
+        blocked.state.enemies[0].entity.set_status(sid::STRENGTH, 5);
+        blocked.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+
+        assert!(play_on_enemy(&mut blocked, "Disarm+", 0));
+        assert_eq!(blocked.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+        assert_eq!(blocked.state.enemies[0].entity.status(sid::STRENGTH), 5);
+        assert_eq!(blocked.state.enemies[0].entity.status(sid::TEMP_STRENGTH_LOSS), 0);
+    }
     card_pair_test!(dropkick, "Dropkick", "Dropkick+", 1, 5, -1, -1, 1, 8, -1, -1, CardType::Attack, CardTarget::Enemy, false);
     card_pair_test!(dual_wield, "Dual Wield", "Dual Wield+", 1, -1, -1, 1, 1, -1, -1, 2, CardType::Skill, CardTarget::None, false);
     card_pair_test!(entrench, "Entrench", "Entrench+", 2, -1, -1, -1, 1, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, false);
