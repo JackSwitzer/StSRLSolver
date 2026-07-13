@@ -42,22 +42,8 @@ mod silent_wave3 {
         assert!(finisher_plus.complex_hook.is_none());
 
         let malaise = reg.get("Malaise").expect("Malaise");
-        assert_eq!(
-            malaise.effect_data,
-            &[
-                E::Simple(SE::AddStatus(
-                    T::SelectedEnemy,
-                    sid::WEAKENED,
-                    A::MagicPlusX,
-                )),
-                E::Simple(SE::AddStatus(
-                    T::SelectedEnemy,
-                    sid::STRENGTH,
-                    A::MagicPlusXNeg,
-                )),
-            ]
-        );
-        assert!(malaise.complex_hook.is_none());
+        assert!(malaise.effect_data.is_empty());
+        assert!(malaise.complex_hook.is_some());
 
         let bane = reg.get("Bane").expect("Bane");
         assert_eq!(
@@ -209,6 +195,49 @@ mod silent_wave3 {
         assert!(play_on_enemy(&mut malaise_plus, "Malaise+", 0));
         assert_eq!(malaise_plus.state.enemies[0].entity.status(sid::WEAKENED), 4);
         assert_eq!(malaise_plus.state.enemies[0].entity.strength(), 3);
+    }
+
+    #[test]
+    fn malaise_source_gates_zero_effect_and_applies_strength_before_weak() {
+        // MalaiseAction.java does nothing when effect == 0. Chemical X adds two;
+        // upgrade adds one. StrengthPower is queued before WeakPower, so a single
+        // Artifact charge blocks only the Strength loss.
+        let mut zero = engine_for(
+            &["Malaise"],
+            &[],
+            vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
+            0,
+        );
+        zero.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+        assert!(play_on_enemy(&mut zero, "Malaise", 0));
+        assert_eq!(zero.state.enemies[0].entity.status(sid::ARTIFACT), 1);
+        assert_eq!(zero.state.enemies[0].entity.status(sid::WEAKENED), 0);
+
+        let mut chemical = engine_for(
+            &["Malaise"],
+            &[],
+            vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
+            0,
+        );
+        chemical.state.relics.push("Chemical X".to_string());
+        chemical.state.enemies[0].entity.set_status(sid::STRENGTH, 5);
+        assert!(play_on_enemy(&mut chemical, "Malaise", 0));
+        assert_eq!(chemical.state.enemies[0].entity.strength(), 3);
+        assert_eq!(chemical.state.enemies[0].entity.status(sid::WEAKENED), 2);
+
+        let mut artifact = engine_for(
+            &["Malaise+"],
+            &[],
+            vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
+            2,
+        );
+        artifact.state.enemies[0].entity.set_status(sid::STRENGTH, 5);
+        artifact.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+        assert!(play_on_enemy(&mut artifact, "Malaise+", 0));
+        assert_eq!(artifact.state.energy, 0);
+        assert_eq!(artifact.state.enemies[0].entity.strength(), 5);
+        assert_eq!(artifact.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+        assert_eq!(artifact.state.enemies[0].entity.status(sid::WEAKENED), 3);
     }
 
     #[test]

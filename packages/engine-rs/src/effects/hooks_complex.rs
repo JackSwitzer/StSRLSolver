@@ -711,20 +711,6 @@ pub fn hook_escape_plan(engine: &mut CombatEngine, ctx: &CardPlayContext) {
 }
 
 // =========================================================================
-// Malaise: apply X weak + reduce X strength
-// =========================================================================
-
-/// Malaise: apply (X + base_magic) Weak and reduce (X + base_magic) Strength to target enemy.
-pub fn hook_malaise(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    let amount = ctx.x_value + ctx.card.base_magic.max(0);
-    if amount > 0 && ctx.target_idx >= 0 && (ctx.target_idx as usize) < engine.state.enemies.len() {
-        let tidx = ctx.target_idx as usize;
-        engine.apply_player_debuff_to_enemy(tidx, sid::WEAKENED, amount);
-        engine.state.enemies[tidx].entity.add_status(sid::STRENGTH, -amount);
-    }
-}
-
-// =========================================================================
 // Wraith Form: gain Intangible + set Wraith Form power
 // =========================================================================
 
