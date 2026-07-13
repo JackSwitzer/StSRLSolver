@@ -459,6 +459,47 @@ mod ironclad_card_java_parity_tests {
         assert_eq!(exhaust_prefix_count(&engine, "Defend"), 1);
     }
     card_pair_test!(fire_breathing, "Fire Breathing", "Fire Breathing+", 1, -1, -1, 6, 1, -1, -1, 10, CardType::Power, CardTarget::SelfTarget, false);
+
+    #[test]
+    fn fire_breathing_status_and_curse_draws_deal_thorns_damage_to_all_enemies() {
+        // FireBreathingPower.onCardDraw triggers only for Status and Curse
+        // cards, using a pure damage matrix and DamageType.THORNS. Flight and
+        // Slow therefore neither alter the damage nor consume Flight stacks.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/FireBreathingPower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/FlightPower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/SlowPower.java
+        let mut engine = engine_for(
+            &["Fire Breathing+"],
+            &[],
+            &[],
+            vec![
+                enemy_no_intent("Byrd", 60, 60),
+                enemy_no_intent("GiantHead", 60, 60),
+            ],
+            1,
+        );
+        assert!(play_self(&mut engine, "Fire Breathing+"));
+        assert_eq!(engine.state.player.status(sid::FIRE_BREATHING), 10);
+        engine.state.enemies[0].entity.set_status(sid::FLIGHT, 3);
+        engine.state.enemies[1].entity.set_status(sid::SLOW, 3);
+
+        engine.state.draw_pile = make_deck(&["Wound"]);
+        engine.draw_cards(1);
+        assert_eq!(engine.state.enemies[0].entity.hp, 50);
+        assert_eq!(engine.state.enemies[1].entity.hp, 50);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::FLIGHT), 3);
+
+        engine.state.draw_pile = make_deck(&["Doubt"]);
+        engine.draw_cards(1);
+        assert_eq!(engine.state.enemies[0].entity.hp, 40);
+        assert_eq!(engine.state.enemies[1].entity.hp, 40);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::FLIGHT), 3);
+
+        engine.state.draw_pile = make_deck(&["Strike"]);
+        engine.draw_cards(1);
+        assert_eq!(engine.state.enemies[0].entity.hp, 40);
+        assert_eq!(engine.state.enemies[1].entity.hp, 40);
+    }
     card_pair_test!(flame_barrier, "Flame Barrier", "Flame Barrier+", 2, -1, 12, 4, 2, -1, 16, 6, CardType::Skill, CardTarget::SelfTarget, false);
     card_pair_test!(ghostly_armor, "Ghostly Armor", "Ghostly Armor+", 1, -1, 10, -1, 1, -1, 13, -1, CardType::Skill, CardTarget::SelfTarget, false);
     card_pair_test!(hemokinesis, "Hemokinesis", "Hemokinesis+", 1, 15, -1, 2, 1, 20, -1, 2, CardType::Attack, CardTarget::Enemy, false);

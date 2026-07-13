@@ -3660,14 +3660,16 @@ impl CombatEngine {
                     extra_draws += evolve;
                 }
 
-                // Fire Breathing: damage all enemies when drawing Status or Curse
+                // FireBreathingPower.onCardDraw uses a pure damage matrix with
+                // DamageType.THORNS for both Status and Curse cards.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/FireBreathingPower.java
                 let fire_breathing = self.state.player.status(sid::FIRE_BREATHING);
                 if fire_breathing > 0
                     && (card_type == CardType::Status || card_type == CardType::Curse)
                 {
                     for i in 0..self.state.enemies.len() {
                         if self.state.enemies[i].is_targetable() {
-                            self.deal_damage_to_enemy(i, fire_breathing);
+                            self.deal_thorns_damage_to_enemy(i, fire_breathing);
                         }
                     }
                 }
