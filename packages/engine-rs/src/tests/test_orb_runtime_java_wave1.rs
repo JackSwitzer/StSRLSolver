@@ -215,7 +215,36 @@ fn orb_wave1_cracked_core_and_frozen_core_follow_current_runtime_path() {
     cracked.init_defect_orbs(3);
     cracked.state.relics.push("Cracked Core".to_string());
     cracked.start_combat();
-    assert!(cracked.state.orb_slots.slots.iter().any(|orb| orb.orb_type == OrbType::Lightning));
+    assert_eq!(cracked.state.orb_slots.occupied_count(), 1);
+    assert_eq!(cracked.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
+
+    // CrackedCore.java and SymbioticVirus.java channel synchronously during
+    // atPreBattle. Ownership order therefore determines which full-slot orb is
+    // evoked and which remains, rather than a fixed orb-type order. Lightning
+    // evokes for eight and Dark for six (orbs/Lightning.java and Dark.java).
+    let mut lightning_then_dark = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    lightning_then_dark.init_defect_orbs(1);
+    lightning_then_dark.state.relics =
+        vec!["Cracked Core".to_string(), "Symbiotic Virus".to_string()];
+    lightning_then_dark.start_combat();
+    assert_eq!(lightning_then_dark.state.orb_slots.slots[0].orb_type, OrbType::Dark);
+    assert_eq!(lightning_then_dark.state.enemies[0].entity.hp, 32);
+
+    let mut dark_then_lightning = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    dark_then_lightning.init_defect_orbs(1);
+    dark_then_lightning.state.relics =
+        vec!["Symbiotic Virus".to_string(), "Cracked Core".to_string()];
+    dark_then_lightning.start_combat();
+    assert_eq!(dark_then_lightning.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
+    assert_eq!(dark_then_lightning.state.enemies[0].entity.hp, 34);
 
     let mut frozen = engine_without_start(
         Vec::new(),

@@ -4,7 +4,7 @@
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::engine::CombatEngine;
-use crate::status_ids::sid;
+use crate::orbs::OrbType;
 
 fn hook(
     engine: &mut CombatEngine,
@@ -12,8 +12,9 @@ fn hook(
     _event: &crate::effects::runtime::GameEvent,
     _state: &mut crate::effects::runtime::EffectState,
 ) {
-    // Set the flag for the deferred channel in start_combat()
-    engine.state.player.set_status(sid::CHANNEL_LIGHTNING_START, 1);
+    // Source: reference/extracted/methods/relic/CrackedCore.java. atPreBattle
+    // channels immediately, preserving ownership order with other relics.
+    engine.channel_orb(OrbType::Lightning);
 }
 
 static TRIGGERS: [TriggeredEffect; 1] = [

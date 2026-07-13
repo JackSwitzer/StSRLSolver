@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T22:27:08.635914+00:00",
+ "updated": "2026-07-13T22:30:44.291282+00:00",
  "status_counts": {
-  "verified": 638,
-  "unverified": 29
+  "verified": 639,
+  "unverified": 28
  },
  "rows": [
   {
@@ -5172,8 +5172,8 @@
    "class": "CrackedCore",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/CrackedCore.java",
    "methods_ref": "reference/extracted/methods/relic/CrackedCore.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

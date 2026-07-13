@@ -410,22 +410,6 @@ impl CombatEngine {
         }
         }
 
-        // Channel orbs from combat-start relics (need engine context)
-        if self.state.player.status(sid::CHANNEL_DARK_START) > 0 {
-            self.channel_orb(crate::orbs::OrbType::Dark);
-            self.state.player.set_status(sid::CHANNEL_DARK_START, 0);
-        }
-        if self.state.player.status(sid::CHANNEL_LIGHTNING_START) > 0 {
-            self.channel_orb(crate::orbs::OrbType::Lightning);
-            self.state
-                .player
-                .set_status(sid::CHANNEL_LIGHTNING_START, 0);
-        }
-        if self.state.player.status(sid::CHANNEL_PLASMA_START) > 0 {
-            self.channel_orb(crate::orbs::OrbType::Plasma);
-            self.state.player.set_status(sid::CHANNEL_PLASMA_START, 0);
-        }
-
         // Shuffle draw pile
         self.state.draw_pile.shuffle(&mut self.rng);
 
