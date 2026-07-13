@@ -887,6 +887,34 @@ mod ironclad_card_java_parity_tests {
         assert_eq!(discard_prefix_count(&engine, "Sever Soul"), 1);
     }
     card_pair_test!(shockwave, "Shockwave", "Shockwave+", 2, -1, -1, 3, 2, -1, -1, 5, CardType::Skill, CardTarget::AllEnemy, true);
+
+    #[test]
+    fn shockwave_applies_weak_then_vulnerable_to_every_monster_and_exhausts() {
+        // Shockwave.java queues Weak before Vulnerable for each monster. With
+        // one Artifact, the first monster therefore blocks Weak, consumes its
+        // Artifact, and still receives Vulnerable; an unprotected monster gets
+        // both debuffs. The base card applies three stacks and exhausts.
+        let mut protected = enemy_no_intent("Sentry", 40, 40);
+        protected.entity.set_status(sid::ARTIFACT, 1);
+        let mut engine = engine_for(
+            &["Shockwave"],
+            &[],
+            &[],
+            vec![protected, enemy_no_intent("JawWorm", 40, 40)],
+            2,
+        );
+
+        assert!(play_self(&mut engine, "Shockwave"));
+
+        assert_eq!(engine.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::WEAKENED), 0);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 3);
+        assert_eq!(engine.state.enemies[1].entity.status(sid::WEAKENED), 3);
+        assert_eq!(engine.state.enemies[1].entity.status(sid::VULNERABLE), 3);
+        assert_eq!(engine.state.energy, 0);
+        assert_eq!(exhaust_prefix_count(&engine, "Shockwave"), 1);
+    }
+
     card_pair_test!(spot_weakness, "Spot Weakness", "Spot Weakness+", 1, -1, -1, 3, 1, -1, -1, 4, CardType::Skill, CardTarget::Enemy, false);
     card_pair_test!(uppercut, "Uppercut", "Uppercut+", 2, 13, -1, 1, 2, 13, -1, 2, CardType::Attack, CardTarget::Enemy, false);
     card_pair_test!(whirlwind, "Whirlwind", "Whirlwind+", -1, 5, -1, -1, -1, 8, -1, -1, CardType::Attack, CardTarget::AllEnemy, false);

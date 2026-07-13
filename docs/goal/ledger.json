@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T15:11:04.448814+00:00",
+ "updated": "2026-07-13T15:13:52.421698+00:00",
  "status_counts": {
-  "verified": 528,
-  "unverified": 139
+  "verified": 529,
+  "unverified": 138
  },
  "rows": [
   {
@@ -2962,8 +2962,8 @@
    "class": "Shockwave",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/Shockwave.java",
    "methods_ref": "reference/extracted/methods/card/Shockwave.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
