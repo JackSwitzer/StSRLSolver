@@ -2381,6 +2381,16 @@ impl CombatEngine {
                 crate::effects::trigger::Trigger::OnUseCard,
                 &pre_ctx,
             ));
+            if card.card_type == CardType::Power {
+                // HeatsinkPower/StormPower/CuriosityPower react from the set
+                // that existed before the played Power's use() resolves. A
+                // newly played Heatsinks or Storm must not trigger itself.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/HeatsinkPower.java
+                self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+                    crate::effects::trigger::Trigger::OnPowerPlayed,
+                    &pre_ctx,
+                ));
+            }
         }
 
         // Execute effects (last_card_type refers to card played BEFORE this one)
@@ -2576,15 +2586,6 @@ impl CombatEngine {
 
         if card.card_type == CardType::Power {
             self.install_power(&card);
-            let post_ctx = crate::effects::trigger::TriggerContext {
-                card_type: Some(card.card_type),
-                is_first_turn: self.state.turn == 1,
-                target_idx,
-            };
-            self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
-                crate::effects::trigger::Trigger::OnPowerPlayed,
-                &post_ctx,
-            ));
         }
 
         let exhausts_on_use = card.exhaust

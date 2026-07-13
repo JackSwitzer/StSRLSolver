@@ -175,6 +175,38 @@ fn defect_wave7_buffer_heatsinks_hello_world_and_loop_follow_engine_path() {
 }
 
 #[test]
+fn heatsinks_triggers_with_preexisting_stacks_before_the_new_power_resolves() {
+    // HeatsinkPower.onUseCard queues a draw using its current amount before the
+    // played Power's use() action resolves. Therefore Heatsinks does not draw
+    // for itself, and a second Heatsinks draws using only the old stack count.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/HeatsinkPower.java
+    let mut engine = one_enemy_engine(50);
+    engine.state.hand = make_deck(&["Heatsinks", "Heatsinks+"]);
+    engine.state.draw_pile = make_deck(&[
+        "Strike",
+        "Defend",
+        "Defend",
+        "Defend",
+        "Buffer",
+    ]);
+    engine.state.energy = 5;
+
+    assert!(play_self(&mut engine, "Heatsinks"));
+    assert_eq!(engine.state.player.status(sid::HEATSINK), 1);
+    assert_eq!(engine.state.draw_pile.len(), 5, "first Heatsinks cannot trigger itself");
+
+    assert!(play_self(&mut engine, "Heatsinks+"));
+    assert_eq!(engine.state.player.status(sid::HEATSINK), 3);
+    assert_eq!(engine.state.draw_pile.len(), 4, "second Heatsinks draws from the old one stack");
+    assert_eq!(hand_count(&engine, "Buffer"), 1);
+
+    assert!(play_self(&mut engine, "Buffer"));
+    assert_eq!(engine.state.player.status(sid::BUFFER), 1);
+    assert_eq!(engine.state.draw_pile.len(), 1);
+    assert_eq!(engine.state.hand.len(), 3, "three Heatsink stacks draw three cards");
+}
+
+#[test]
 fn buffer_stacks_and_only_consumes_after_block_leaves_positive_damage() {
     // Buffer.java applies magicNumber stacks (1, upgraded to 2). In
     // AbstractPlayer.damage, block is decremented before

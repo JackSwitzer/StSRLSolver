@@ -62,6 +62,8 @@ pub static DEF_RAGE: EntityDef = EntityDef {
 // Heatsink — OnPowerPlayed: draw cards equal to stacks
 // ===========================================================================
 
+// Java: decompiled/java-src/com/megacrit/cardcrawl/powers/HeatsinkPower.java
+
 static HEATSINK_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::DrawCards(
     AmountSource::StatusValue(sid::HEATSINK),
 ))];
