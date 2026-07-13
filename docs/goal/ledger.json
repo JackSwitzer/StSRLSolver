@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T12:53:16.632581+00:00",
+ "updated": "2026-07-13T12:55:06.052129+00:00",
  "status_counts": {
-  "verified": 493,
-  "unverified": 174
+  "verified": 494,
+  "unverified": 173
  },
  "rows": [
   {
@@ -2552,8 +2552,8 @@
    "class": "Pummel",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/Pummel.java",
    "methods_ref": "reference/extracted/methods/card/Pummel.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

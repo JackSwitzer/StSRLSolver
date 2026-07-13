@@ -151,6 +151,35 @@ mod ironclad_wave3_card_runtime_tests {
     }
 
     #[test]
+    fn pummel_source_uses_four_or_five_separate_two_damage_hits_then_exhausts() {
+        // Pummel.java queues magicNumber damage actions: four at base and five
+        // after upgradeMagicNumber(1). DamageInfo snapshots the Strength-adjusted
+        // damage for each hit, so three Block absorbs exactly the first 3-damage hit.
+        for (card_id, hits) in [("Pummel", 4), ("Pummel+", 5)] {
+            let mut engine = engine_without_start(
+                Vec::new(),
+                vec![enemy_no_intent("JawWorm", 60, 60)],
+                3,
+            );
+            force_player_turn(&mut engine);
+            engine.state.player.set_status(sid::STRENGTH, 1);
+            engine.state.enemies[0].entity.block = 3;
+            engine.state.hand = make_deck(&[card_id]);
+
+            assert!(play_on_enemy(&mut engine, card_id, 0));
+
+            assert_eq!(engine.state.energy, 2, "{card_id}");
+            assert_eq!(engine.state.enemies[0].entity.block, 0, "{card_id}");
+            assert_eq!(
+                engine.state.enemies[0].entity.hp,
+                60 - (hits - 1) * 3,
+                "{card_id}"
+            );
+            assert_eq!(exhaust_prefix_count(&engine, "Pummel"), 1, "{card_id}");
+        }
+    }
+
+    #[test]
     fn battle_trance_draws_then_blocks_future_draws_on_the_engine_path() {
         let mut engine = engine_without_start(
             Vec::new(),
