@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // J.A.X.: 0 cost, lose 3 HP, gain 2 str
+    // JAX.java queues a literal 3-point LoseHPAction before applying
+    // magicNumber Strength (2); upgradeMagicNumber(1) changes only Strength.
     insert(cards, CardDef {
                 id: "J.A.X.", name: "J.A.X.", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,

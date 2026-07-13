@@ -9,6 +9,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/DramaticEntrance.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/GoodInstincts.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/FlashOfSteel.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/JAX.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Magnetism.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Mayhem.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Panache.java
@@ -19,6 +20,51 @@ use crate::cards::{global_registry, CardTarget, CardType};
 use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
 use crate::status_ids::sid;
 use crate::tests::support::*;
+
+#[test]
+fn jax_source_loses_fixed_three_hp_then_gains_two_or_three_strength() {
+    // JAX.java queues LoseHPAction(p, p, 3) before applying magicNumber
+    // Strength (2, upgraded to 3). LoseHPAction uses HP_LOSS damage, so Buffer
+    // can prevent the HP loss and its Rupture trigger while block is untouched.
+    // Java: cards/colorless/JAX.java and actions/common/LoseHPAction.java.
+    for (card_id, card_strength) in [("J.A.X.", 2), ("J.A.X.+", 3)] {
+        let mut engine = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            0,
+        );
+        force_player_turn(&mut engine);
+        engine.state.hand = make_deck(&[card_id]);
+        engine.state.player.set_status(sid::RUPTURE, 2);
+        let hp_before = engine.state.player.hp;
+
+        assert!(play_self(&mut engine, card_id));
+
+        assert_eq!(engine.state.player.hp, hp_before - 3);
+        assert_eq!(engine.state.player.status(sid::STRENGTH), card_strength + 2);
+        assert_eq!(engine.state.energy, 0);
+        assert_eq!(discard_prefix_count(&engine, "J.A.X."), 1);
+
+        let mut buffered = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            0,
+        );
+        force_player_turn(&mut buffered);
+        buffered.state.hand = make_deck(&[card_id]);
+        buffered.state.player.block = 9;
+        buffered.state.player.set_status(sid::BUFFER, 1);
+        buffered.state.player.set_status(sid::RUPTURE, 2);
+        let hp_before = buffered.state.player.hp;
+
+        assert!(play_self(&mut buffered, card_id));
+
+        assert_eq!(buffered.state.player.hp, hp_before);
+        assert_eq!(buffered.state.player.block, 9);
+        assert_eq!(buffered.state.player.status(sid::BUFFER), 0);
+        assert_eq!(buffered.state.player.status(sid::STRENGTH), card_strength);
+    }
+}
 
 #[test]
 fn colorless_wave1_registry_exports_match_typed_surface() {
