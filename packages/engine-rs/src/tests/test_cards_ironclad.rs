@@ -949,6 +949,30 @@ mod ironclad_card_java_parity_tests {
         assert_eq!(discard_prefix_count(&engine, "Spot Weakness"), 2);
     }
     card_pair_test!(uppercut, "Uppercut", "Uppercut+", 2, 13, -1, 1, 2, 13, -1, 2, CardType::Attack, CardTarget::Enemy, false);
+
+    #[test]
+    fn uppercut_variants_damage_before_weak_then_vulnerable() {
+        // Uppercut.java queues 13 damage, then Weak, then Vulnerable. Artifact
+        // therefore blocks Weak first, Vulnerable still lands, and the new
+        // Vulnerable cannot amplify this card's preceding hit. The upgrade
+        // changes only both debuff amounts from one to two.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Uppercut.java
+        for (card_id, debuff_amount) in [("Uppercut", 1), ("Uppercut+", 2)] {
+            let mut target = enemy_no_intent("JawWorm", 50, 50);
+            target.entity.set_status(sid::ARTIFACT, 1);
+            let mut engine = engine_for(&[card_id], &[], &[], vec![target], 2);
+
+            assert!(play_on_enemy(&mut engine, card_id, 0));
+            assert_eq!(engine.state.enemies[0].entity.hp, 37, "{card_id}");
+            assert_eq!(engine.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+            assert_eq!(engine.state.enemies[0].entity.status(sid::WEAKENED), 0);
+            assert_eq!(
+                engine.state.enemies[0].entity.status(sid::VULNERABLE),
+                debuff_amount,
+                "{card_id}",
+            );
+        }
+    }
     card_pair_test!(whirlwind, "Whirlwind", "Whirlwind+", -1, 5, -1, -1, -1, 8, -1, -1, CardType::Attack, CardTarget::AllEnemy, false);
 
     card_pair_test!(barricade, "Barricade", "Barricade+", 3, -1, -1, -1, 2, -1, -1, -1, CardType::Power, CardTarget::SelfTarget, false);

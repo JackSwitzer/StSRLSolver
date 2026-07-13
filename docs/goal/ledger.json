@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T17:00:17.983562+00:00",
+ "updated": "2026-07-13T17:02:05.864103+00:00",
  "status_counts": {
-  "verified": 569,
-  "unverified": 98
+  "verified": 570,
+  "unverified": 97
  },
  "rows": [
   {
@@ -3462,8 +3462,8 @@
    "class": "Uppercut",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/Uppercut.java",
    "methods_ref": "reference/extracted/methods/card/Uppercut.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
