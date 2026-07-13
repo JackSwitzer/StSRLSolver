@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T13:53:08.467065+00:00",
+ "updated": "2026-07-13T13:55:38.446536+00:00",
  "status_counts": {
-  "verified": 507,
-  "unverified": 160
+  "verified": 508,
+  "unverified": 159
  },
  "rows": [
   {
@@ -2712,8 +2712,8 @@
    "class": "ReinforcedBody",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ReinforcedBody.java",
    "methods_ref": "reference/extracted/methods/card/ReinforcedBody.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

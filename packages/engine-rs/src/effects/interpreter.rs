@@ -355,8 +355,15 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                 let dex = engine.state.player.dexterity();
                 let frail = engine.state.player.is_frail();
                 damage::calculate_block(base, dex, frail)
-            } * multiplier;
-            engine.gain_block_player(block);
+            };
+            // ReinforcedBodyAction queues one GainBlockAction for every point
+            // of X. Keep those as distinct block-gain events so onGainedBlock
+            // powers such as Juggernaut and Wave of the Hand fire X times.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/
+            // ReinforcedBodyAction.java
+            for _ in 0..multiplier {
+                engine.gain_block_player(block);
+            }
         }
         SimpleEffect::GainBlockIfLastDrawnCardType(card_type, ref amount_src) => {
             if ctx.last_drawn_card_types.contains(&card_type) {
