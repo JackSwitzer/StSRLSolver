@@ -12,7 +12,9 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/ForeignInfluenceAction.java
 
 use crate::actions::Action;
+use crate::cards::global_registry;
 use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
+use crate::effects::declarative::{Effect, GeneratedCardPool, GeneratedCostRule};
 use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_state, make_deck, play_self};
 
 const COLORLESS_CHOICES: &[&str] = &[
@@ -26,7 +28,19 @@ const COLORLESS_CHOICES: &[&str] = &[
 ];
 
 #[test]
-fn discovery_moves_to_generated_choice_runtime_and_resolves_a_zero_cost_colorless_card() {
+fn discovery_offers_watcher_cards_and_resolves_the_selection_at_zero_cost() {
+    // Discovery.java uses DiscoveryAction() with neither the colorless flag nor
+    // a type filter. DiscoveryAction therefore samples the current character's
+    // normal pools, previews base-cost cards, and sets the selected copy to 0.
+    assert_eq!(
+        global_registry().get("Discovery").expect("Discovery").effect_data,
+        &[Effect::GenerateDiscoveryChoice {
+            pool: GeneratedCardPool::WatcherAny,
+            option_count: 3,
+            preview_cost_rule: GeneratedCostRule::Base,
+            selected_cost_rule: GeneratedCostRule::ZeroThisTurn,
+        }]
+    );
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Discovery", "Strike", "Defend"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -45,10 +59,7 @@ fn discovery_moves_to_generated_choice_runtime_and_resolves_a_zero_cost_colorles
             panic!("Discovery should present generated-card options");
         };
         let generated_name = engine.card_registry.card_name(card.def_id);
-        assert!(
-            COLORLESS_CHOICES.contains(&generated_name),
-            "Discovery should generate colorless card choices, got {generated_name}"
-        );
+        assert!(!COLORLESS_CHOICES.contains(&generated_name));
     }
 
     engine.execute_action(&Action::Choose(0));

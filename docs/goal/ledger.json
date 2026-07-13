@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T07:11:27.740136+00:00",
+ "updated": "2026-07-13T07:13:03.384120+00:00",
  "status_counts": {
-  "verified": 378,
-  "unverified": 289
+  "verified": 379,
+  "unverified": 288
  },
  "rows": [
   {
@@ -1112,8 +1112,8 @@
    "class": "Discovery",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Discovery.java",
    "methods_ref": "reference/extracted/methods/card/Discovery.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
