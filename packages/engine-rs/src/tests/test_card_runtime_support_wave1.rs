@@ -11,7 +11,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
 
 use crate::actions::Action;
-use crate::cards::global_registry;
+use crate::cards::{global_registry, CardTarget};
 use crate::effects::types::{CardRuntimeTrigger, EndTurnHandRule, OnDrawRule, WhileInHandRule};
 use crate::status_ids::sid;
 use crate::tests::support::*;
@@ -261,6 +261,50 @@ fn support_wave1_end_turn_curse_and_status_hooks_fire_on_the_runtime_path() {
 
     assert_eq!(hp_before - engine.state.player.hp, 7);
     assert_eq!(draw_prefix_count(&engine, "Pride"), 1);
+}
+
+#[test]
+fn pride_is_playable_or_copies_itself_to_the_top_without_rng() {
+    // Pride.java constructs a one-cost SELF Curse with Exhaust and Innate,
+    // defines no upgrade, and has an empty use(). Its end-turn hand trigger
+    // queues one stat-equivalent copy with randomSpot=false.
+    let registry = global_registry();
+    let pride = registry.get("Pride").expect("Pride");
+    assert_eq!(pride.cost, 1);
+    assert_eq!(pride.target, CardTarget::SelfTarget);
+    assert!(pride.exhaust);
+    assert!(pride.runtime_traits().innate);
+    assert!(!pride.runtime_traits().unplayable);
+    assert!(registry.get("Pride+").is_none());
+
+    let mut played = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut played);
+    played.state.hand = make_deck(&["Pride"]);
+    assert!(play_self(&mut played, "Pride"));
+    assert_eq!(played.state.energy, 2);
+    assert_eq!(exhaust_prefix_count(&played, "Pride"), 1);
+    assert_eq!(draw_prefix_count(&played, "Pride"), 0);
+
+    let mut held = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut held);
+    held.state.draw_pile = make_deck(&["Strike", "Defend"]);
+    let mut pride_instance = registry.make_card("Pride");
+    pride_instance.misc = 17;
+    held.state.hand = vec![pride_instance];
+    let card_random_before = held.rng_counters()["cardRandom"];
+
+    assert!(!crate::status_effects::process_end_turn_hand_cards(&mut held));
+
+    assert_eq!(held.state.draw_pile.last(), Some(&pride_instance));
+    assert_eq!(held.rng_counters()["cardRandom"], card_random_before);
 }
 
 #[test]

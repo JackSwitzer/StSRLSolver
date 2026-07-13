@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T12:50:10.196168+00:00",
+ "updated": "2026-07-13T12:53:16.632581+00:00",
  "status_counts": {
-  "verified": 492,
-  "unverified": 175
+  "verified": 493,
+  "unverified": 174
  },
  "rows": [
   {
@@ -2522,8 +2522,8 @@
    "class": "Pride",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Pride.java",
    "methods_ref": "reference/extracted/methods/card/Pride.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

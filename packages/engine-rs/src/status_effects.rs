@@ -44,6 +44,10 @@ pub fn process_end_turn_hand_cards(engine: &mut CombatEngine) -> bool {
                         powers::apply_debuff(&mut engine.state.player, sid::FRAIL, 1);
                     }
                     EndTurnHandRule::AddCopy => {
+                        // Pride passes false for randomSpot, so the copied card
+                        // is added to the top without consuming cardRandomRng.
+                        // Java: cards/curses/Pride.java and
+                        // actions/common/MakeTempCardInDrawPileAction.java.
                         engine.state.draw_pile.push(*card_inst);
                     }
                 }

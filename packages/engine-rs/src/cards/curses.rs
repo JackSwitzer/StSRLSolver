@@ -104,7 +104,9 @@ pub fn register_curses(cards: &mut HashMap<&'static str, CardDef>) {
             base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[], complex_hook: None,
         });
-        // Pride: 1 cost, exhaust, innate, add copy to draw pile at end of turn
+        // Pride is a playable one-cost, Innate, Exhausting Curse. If left in
+        // hand, it makes a stat-equivalent copy on top of the draw pile.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Pride.java
         insert(cards, CardDef {
             id: "Pride", name: "Pride", card_type: CardType::Curse,
             target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
