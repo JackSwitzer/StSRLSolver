@@ -2,6 +2,7 @@
 
 use crate::combat_types::mfx;
 use crate::effects::runtime::EffectOwner;
+use crate::effects::trigger::Trigger;
 use crate::enemies::create_enemy;
 use crate::status_ids::sid;
 use crate::tests::support::{
@@ -25,6 +26,34 @@ fn power_card_install_rebuilds_runtime_from_typed_metadata() {
     assert!(engine
         .effect_runtime
         .has_instance("demon_form", EffectOwner::PlayerPower));
+}
+
+#[test]
+fn demon_form_plus_gains_three_strength_in_the_post_draw_phase() {
+    // DemonForm.java applies magicNumber 2 (3 upgraded). DemonFormPower.java
+    // gains that amount specifically in atStartOfTurnPostDraw.
+    let mut engine = engine_with_state(combat_state_with(
+        Vec::new(),
+        vec![create_enemy("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand = make_deck(&["Demon Form+"]);
+    engine.state.draw_pile.clear();
+    engine.state.discard_pile.clear();
+
+    assert!(play_self(&mut engine, "Demon Form+"));
+    assert_eq!(engine.state.player.status(sid::DEMON_FORM), 3);
+    engine.clear_event_log();
+
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.status(sid::STRENGTH), 3);
+    assert!(engine.event_log.iter().any(|record| {
+        record.event == Trigger::TurnStartPostDraw && record.def_id == Some("demon_form")
+    }));
+    assert!(!engine.event_log.iter().any(|record| {
+        record.event == Trigger::TurnStart && record.def_id == Some("demon_form")
+    }));
 }
 
 #[test]

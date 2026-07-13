@@ -75,7 +75,7 @@ pub static DEF_ENERGY_DOWN: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Demon Form — TurnStart: gain Strength equal to stacks
+// Demon Form — post-draw turn start: gain Strength equal to stacks
 // ===========================================================================
 
 static DEMON_FORM_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddStatus(
@@ -85,7 +85,9 @@ static DEMON_FORM_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddStatus
 ))];
 
 static DEMON_FORM_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnStart,
+    // DemonFormPower overrides atStartOfTurnPostDraw, not atStartOfTurn.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DemonFormPower.java
+    trigger: Trigger::TurnStartPostDraw,
     condition: TriggerCondition::Always,
     effects: &DEMON_FORM_EFFECTS,
     counter: None,
@@ -595,7 +597,7 @@ mod tests {
     #[test]
     fn test_demon_form_def() {
         assert_eq!(DEF_DEMON_FORM.triggers.len(), 1);
-        assert_eq!(DEF_DEMON_FORM.triggers[0].trigger, Trigger::TurnStart);
+        assert_eq!(DEF_DEMON_FORM.triggers[0].trigger, Trigger::TurnStartPostDraw);
         assert_eq!(DEF_DEMON_FORM.triggers[0].condition, TriggerCondition::Always);
         assert!(DEF_DEMON_FORM.complex_hook.is_none());
     }
@@ -608,7 +610,7 @@ mod tests {
     #[test]
     fn test_all_simple_turn_start_defs_have_correct_trigger() {
         let defs = [
-            &DEF_ENERGIZED, &DEF_DEMON_FORM, &DEF_NOXIOUS_FUMES,
+            &DEF_ENERGIZED, &DEF_NOXIOUS_FUMES,
             &DEF_BERSERK, &DEF_INFINITE_BLADES, &DEF_BATTLE_HYMN,
             &DEF_WRAITH_FORM, &DEF_DEVA_FORM,
             &DEF_HELLO_WORLD, &DEF_MAGNETISM,
@@ -622,6 +624,7 @@ mod tests {
         // BrutalityPower overrides atStartOfTurnPostDraw, not atStartOfTurn.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BrutalityPower.java
         assert_eq!(DEF_BRUTALITY.triggers[0].trigger, Trigger::TurnStartPostDraw);
+        assert_eq!(DEF_DEMON_FORM.triggers[0].trigger, Trigger::TurnStartPostDraw);
         assert_eq!(DEF_DEVOTION.triggers[0].trigger, Trigger::TurnStartPostDraw);
     }
 
