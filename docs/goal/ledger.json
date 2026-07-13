@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T11:26:39.151596+00:00",
+ "updated": "2026-07-13T11:28:44.277038+00:00",
  "status_counts": {
-  "verified": 466,
-  "unverified": 201
+  "verified": 467,
+  "unverified": 200
  },
  "rows": [
   {
@@ -2212,8 +2212,8 @@
    "class": "Metamorphosis",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Metamorphosis.java",
    "methods_ref": "reference/extracted/methods/card/Metamorphosis.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -23,6 +23,14 @@ const JAVA_WATCHER_SKILL_POOL: &[&str] = &[
     "DeusExMachina",
 ];
 
+const JAVA_WATCHER_ATTACK_POOL: &[&str] = &[
+    "EmptyFist", "CrushJoints", "FollowUp", "CutThroughFate", "SashWhip",
+    "FlurryOfBlows", "JustLucky", "FlyingSleeves", "BowlingBash", "Consecrate",
+    "SignatureMove", "Weave", "Tantrum", "Conclude", "SandsOfTime", "FearNoEvil",
+    "ReachHeaven", "Wallop", "CarveReality", "WindmillStrike", "TalkToTheHand",
+    "WheelKick", "Brilliance", "Ragnarok",
+];
+
 #[test]
 fn chrysalis_moves_to_typed_generate_to_draw_surface() {
     let registry = global_registry();
@@ -134,6 +142,63 @@ fn chrysalis_plus_matches_watcher_pool_rng_placement_and_master_reality() {
     for card in &engine.state.draw_pile {
         let name = engine.card_registry.card_name(card.def_id);
         if name.ends_with('+') && selected.iter().any(|id| name == format!("{id}+")) {
+            let base = engine.card_registry.get(name.trim_end_matches('+')).expect("base card");
+            if base.cost > 0 {
+                assert_eq!(card.cost, 0, "positive-cost {name} should be zero this combat");
+            }
+        }
+    }
+}
+
+#[test]
+fn metamorphosis_plus_matches_watcher_attack_rng_placement_and_master_reality() {
+    // Metamorphosis.java selects all five Attacks through cardRandomRng before
+    // its queued MakeTempCardInDrawPileActions resolve. Positive costs become
+    // zero, each action inserts randomly, and Master Reality upgrades the copy.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike", "Defend", "Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand.clear();
+    engine.state.hand.push(engine.card_registry.make_card("Metamorphosis+"));
+    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Strike"]);
+    engine.state.player.set_status(sid::MASTER_REALITY, 1);
+
+    let general_before = engine.rng.counter;
+    let mut oracle = engine.card_random_rng.clone();
+    let selected: Vec<&str> = (0..5)
+        .map(|_| {
+            let idx = oracle.random((JAVA_WATCHER_ATTACK_POOL.len() - 1) as i32) as usize;
+            JAVA_WATCHER_ATTACK_POOL[idx]
+        })
+        .collect();
+    let mut expected_draw: Vec<String> = engine
+        .state
+        .draw_pile
+        .iter()
+        .map(|card| engine.card_registry.card_name(card.def_id).to_string())
+        .collect();
+    for id in &selected {
+        let idx = oracle.random((expected_draw.len() - 1) as i32) as usize;
+        expected_draw.insert(idx, format!("{id}+"));
+    }
+
+    assert!(play_self(&mut engine, "Metamorphosis+"));
+
+    let actual_draw: Vec<String> = engine
+        .state
+        .draw_pile
+        .iter()
+        .map(|card| engine.card_registry.card_name(card.def_id).to_string())
+        .collect();
+    assert_eq!(actual_draw, expected_draw);
+    assert_eq!(engine.card_random_rng.counter, oracle.counter);
+    assert_eq!(engine.rng.counter, general_before);
+    assert_eq!(engine.state.exhaust_pile.len(), 1);
+    for card in &engine.state.draw_pile {
+        let name = engine.card_registry.card_name(card.def_id);
+        if selected.iter().any(|id| name == format!("{id}+")) {
             let base = engine.card_registry.get(name.trim_end_matches('+')).expect("base card");
             if base.cost > 0 {
                 assert_eq!(card.cost, 0, "positive-cost {name} should be zero this combat");

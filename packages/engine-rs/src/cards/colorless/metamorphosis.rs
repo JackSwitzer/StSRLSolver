@@ -8,6 +8,9 @@ static METAMORPHOSIS: [E; 1] = [E::GenerateRandomCardsToDraw {
 }];
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+    // Metamorphosis.java rolls three current-character Attacks immediately,
+    // zeroes only positive costs, inserts them randomly into draw, and exhausts;
+    // upgradeMagicNumber(2) raises the count to five.
     insert(cards, CardDef {
         id: "Metamorphosis",
         name: "Metamorphosis",
