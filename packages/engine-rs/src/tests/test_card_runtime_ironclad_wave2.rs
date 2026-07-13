@@ -243,6 +243,41 @@ mod ironclad_wave2_card_runtime_tests {
     }
 
     #[test]
+    fn pommel_strike_upgrade_draws_two_after_damage_but_lethal_draws_nothing() {
+        // PommelStrike.java queues DamageAction before DrawCardAction. Base is
+        // 9 damage/draw 1; upgradeDamage(1) and upgradeMagicNumber(1) produce
+        // 10 damage/draw 2. A lethal DamageAction clears the queued draw.
+        let mut upgraded = engine_for(
+            &["Pommel Strike+"],
+            &["Strike", "Defend"],
+            &[],
+            50,
+            3,
+        );
+        assert!(play_on_enemy(&mut upgraded, "Pommel Strike+", 0));
+        assert_eq!(upgraded.state.enemies[0].entity.hp, 40);
+        assert_eq!(upgraded.state.hand.len(), 2);
+        assert_eq!(upgraded.state.draw_pile.len(), 0);
+        assert_eq!(upgraded.state.energy, 2);
+
+        let mut lethal = engine_for(
+            &["Pommel Strike"],
+            &["Strike"],
+            &[],
+            9,
+            3,
+        );
+        assert!(play_on_enemy(&mut lethal, "Pommel Strike", 0));
+        assert!(lethal.state.combat_over);
+        assert_eq!(lethal.state.draw_pile.len(), 1);
+        assert!(!lethal
+            .state
+            .hand
+            .iter()
+            .any(|card| lethal.card_registry.card_name(card.def_id) == "Strike"));
+    }
+
+    #[test]
     fn rampage_battle_trance_and_bloodletting_cover_scaling_draw_and_no_draw() {
         let mut rampage_engine = engine_for(&["Rampage"], &[], &[], 80, 3);
         let hp_before = rampage_engine.state.enemies[0].entity.hp;

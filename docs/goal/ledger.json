@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T12:39:44.515395+00:00",
+ "updated": "2026-07-13T12:41:45.261136+00:00",
  "status_counts": {
-  "verified": 488,
-  "unverified": 179
+  "verified": 489,
+  "unverified": 178
  },
  "rows": [
   {
@@ -2472,8 +2472,8 @@
    "class": "PommelStrike",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/PommelStrike.java",
    "methods_ref": "reference/extracted/methods/card/PommelStrike.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
