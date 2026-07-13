@@ -35,7 +35,9 @@ pub static DEF_AFTER_IMAGE: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Rage — OnAttackPlayed: gain block equal to stacks
+// RagePower.onUseCard queues one GainBlockAction per Attack card (not per hit)
+// and removes itself at the end of the player's turn.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RagePower.java
 // ===========================================================================
 
 static RAGE_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::GainBlock(

@@ -1,6 +1,9 @@
 use crate::actions::Action;
 use crate::status_ids::sid;
-use crate::tests::support::{engine_with, ensure_in_hand, make_deck};
+use crate::tests::support::{
+    end_turn, engine_with, engine_without_start, enemy_no_intent, ensure_in_hand,
+    force_player_turn, make_deck,
+};
 
 #[test]
 fn body_slam_engine_path_uses_direct_damage_modifier_cutover() {
@@ -36,4 +39,35 @@ fn rage_legal_action_and_engine_path_still_work_after_inline_cutover() {
 
     assert_eq!(engine.state.player.status(sid::RAGE), 3);
     assert_eq!(engine.state.player.block, 3);
+}
+
+#[test]
+fn rage_source_stacks_once_per_attack_card_and_expires_at_turn_end() {
+    // Rage.java applies 3 (5 upgraded) RagePower. RagePower.onUseCard queues
+    // one block gain for an Attack regardless of its hit count, then removes
+    // the entire stacked power at the end of the turn.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 100, 100)],
+        10,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Rage", "Rage+", "Defend", "Pummel"]);
+
+    assert!(crate::tests::support::play_self(&mut engine, "Rage"));
+    assert!(crate::tests::support::play_self(&mut engine, "Rage+"));
+    assert_eq!(engine.state.player.status(sid::RAGE), 8);
+
+    assert!(crate::tests::support::play_self(&mut engine, "Defend"));
+    assert_eq!(engine.state.player.block, 5);
+    assert!(crate::tests::support::play_on_enemy(&mut engine, "Pummel", 0));
+    assert_eq!(engine.state.player.block, 13);
+    assert_eq!(engine.state.enemies[0].entity.hp, 92);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.status(sid::RAGE), 0);
+    engine.state.hand = make_deck(&["Strike"]);
+    engine.state.energy = 3;
+    assert!(crate::tests::support::play_on_enemy(&mut engine, "Strike", 0));
+    assert_eq!(engine.state.player.block, 0);
 }
