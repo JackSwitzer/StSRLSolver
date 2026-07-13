@@ -1624,7 +1624,7 @@ mod ironclad_card_java_parity_tests {
     }
 
     #[test]
-    fn warcry_draws_and_exhausts_itself() {
+    fn warcry_variants_draw_then_put_one_card_on_top_and_exhaust() {
         // Warcry.java queues DrawCardAction before PutOnDeckAction(1, false).
         // With one resulting hand card, PutOnDeckAction skips selection and
         // getRandomCard consumes one cardRandomRng tick before moving it.
@@ -1638,7 +1638,46 @@ mod ironclad_card_java_parity_tests {
         assert_eq!(e.card_random_rng.counter, card_random_before + 1);
         assert_eq!(e.state.hand.len(), 0);
         assert_eq!(e.state.draw_pile.len(), 1);
+        assert_eq!(e.card_registry.card_name(e.state.draw_pile[0].def_id), "Strike");
         assert_eq!(exhaust_prefix_count(&e, "Warcry"), 1);
+
+        // The upgrade draws two. With two cards now in hand, PutOnDeckAction
+        // opens its mandatory one-card selection and does not consume
+        // cardRandomRng; the selected card becomes the draw-pile top.
+        let mut upgraded = engine_for(
+            &["Warcry+"],
+            &["Strike", "Defend"],
+            &[],
+            vec![enemy("JawWorm", 50, 50, 1, 0, 1)],
+            0,
+        );
+        let card_random_before = upgraded.card_random_rng.counter;
+        assert!(play_self(&mut upgraded, "Warcry+"));
+        assert_eq!(upgraded.phase, crate::engine::CombatPhase::AwaitingChoice);
+        assert_eq!(upgraded.card_random_rng.counter, card_random_before);
+        let choice = upgraded.choice.as_ref().expect("Warcry+ should choose one hand card");
+        assert_eq!(choice.min_picks, 1);
+        assert_eq!(choice.max_picks, 1);
+        assert_eq!(choice.options.len(), 2);
+        let selected_hand_idx = match choice.options[0] {
+            crate::engine::ChoiceOption::HandCard(index) => index,
+            ref other => panic!("expected hand-card option, got {other:?}"),
+        };
+        let selected_name = upgraded
+            .card_registry
+            .card_name(upgraded.state.hand[selected_hand_idx].def_id)
+            .to_string();
+
+        upgraded.execute_action(&Action::Choose(0));
+        assert_eq!(upgraded.phase, crate::engine::CombatPhase::PlayerTurn);
+        assert_eq!(upgraded.state.hand.len(), 1);
+        assert_eq!(
+            upgraded
+                .card_registry
+                .card_name(upgraded.state.draw_pile.last().expect("selected card on draw").def_id),
+            selected_name,
+        );
+        assert_eq!(exhaust_prefix_count(&upgraded, "Warcry"), 1);
     }
 
     #[test]
