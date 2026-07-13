@@ -39,7 +39,9 @@ pub fn register_status(cards: &mut HashMap<&'static str, CardDef>) {
             base_magic: 4, exhaust: false, enter_stance: None,
                 effect_data: &[], complex_hook: None,
         });
-        // Void: unplayable, ethereal, lose 1 energy on draw
+        // Void is an unplayable, non-upgradable Ethereal Status whose draw
+        // trigger queues LoseEnergyAction(1).
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/status/VoidCard.java
         insert(cards, CardDef {
             id: "Void", name: "Void", card_type: CardType::Status,
             target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,

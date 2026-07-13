@@ -7,7 +7,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Regret.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Shame.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Pain.java
-// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/status/Void.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/status/VoidCard.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Parasite.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Necronomicurse.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
@@ -540,6 +540,10 @@ fn support_wave1_pain_triggers_when_any_other_card_is_played() {
 
 #[test]
 fn support_wave1_void_loses_energy_when_drawn() {
+    // VoidCard.java is cost -2, has no upgrade, is Ethereal, and queues
+    // LoseEnergyAction(1) when drawn. EnergyManager.use cannot take energy
+    // below zero; unplayed Void exhausts even through Runic Pyramid.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/status/VoidCard.java
     let mut engine = engine_without_start(
         make_deck(&["Void"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -551,6 +555,31 @@ fn support_wave1_void_loses_energy_when_drawn() {
 
     assert_eq!(engine.state.energy, energy_before - 1);
     assert_eq!(hand_count(&engine, "Void"), 1);
+    assert!(global_registry().get("Void+").is_none());
+
+    force_player_turn(&mut engine);
+    engine.state.relics.push("Runic Pyramid".to_string());
+    let void_idx = engine
+        .state
+        .hand
+        .iter()
+        .position(|card| engine.card_registry.card_name(card.def_id) == "Void")
+        .expect("drawn Void should be in hand");
+    assert!(!engine.get_legal_actions().iter().any(|action| matches!(
+        action,
+        Action::PlayCard { card_idx, .. } if *card_idx == void_idx
+    )));
+    end_turn(&mut engine);
+    assert_eq!(hand_count(&engine, "Void"), 0);
+    assert_eq!(exhaust_prefix_count(&engine, "Void"), 1);
+
+    let mut zero_energy = engine_without_start(
+        make_deck(&["Void"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        0,
+    );
+    zero_energy.draw_cards(1);
+    assert_eq!(zero_energy.state.energy, 0);
 }
 
 #[test]
