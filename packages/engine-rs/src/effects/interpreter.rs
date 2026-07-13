@@ -2186,7 +2186,8 @@ pub(crate) fn generate_random_card(
     }
     let choice_index = if matches!(
         pool,
-        GeneratedCardPool::Skill
+        GeneratedCardPool::Attack
+            | GeneratedCardPool::Skill
             | GeneratedCardPool::DefectCommon
             | GeneratedCardPool::DefectPower
             | GeneratedCardPool::WatcherPower
@@ -2229,29 +2230,13 @@ pub(crate) fn generate_unique_random_cards(
     picked
 }
 
-fn generated_card_pool(engine: &CombatEngine, pool: GeneratedCardPool) -> Vec<&'static str> {
+pub(crate) fn generated_card_pool(
+    engine: &CombatEngine,
+    pool: GeneratedCardPool,
+) -> Vec<&'static str> {
     match pool {
         GeneratedCardPool::Colorless => COLORLESS_GENERATION_POOL.to_vec(),
-        GeneratedCardPool::Attack => engine
-            .card_registry
-            .all_card_defs()
-            .iter()
-            .filter(|def| !def.id.ends_with('+'))
-            .filter(|def| {
-                matches!(
-                    generated_card_meta(def.id),
-                    Some(GeneratedCardMeta {
-                        card_type: CardType::Attack,
-                        rarity: GeneratedPoolRarity::Common
-                            | GeneratedPoolRarity::Uncommon
-                            | GeneratedPoolRarity::Rare,
-                        watcher: true,
-                    })
-                )
-            })
-            .filter(|def| def.id != "LessonLearned")
-            .map(|def| def.id)
-            .collect(),
+        GeneratedCardPool::Attack => WATCHER_ATTACK_GENERATION_POOL.to_vec(),
         GeneratedCardPool::Skill => WATCHER_SKILL_GENERATION_POOL.to_vec(),
         GeneratedCardPool::Power => engine
             .card_registry
@@ -2323,6 +2308,18 @@ const WATCHER_SKILL_GENERATION_POOL: &[&str] = &[
     "WreathOfFlame", "ForeignInfluence", "Indignation", "Sanctity", "Vengeance", "Judgement",
     "ConjureBlade", "Blasphemy", "Scrawl", "Vault", "Alpha", "Omniscience", "SpiritShield",
     "DeusExMachina",
+];
+
+// Watcher's srcCommon/srcUncommon/srcRare Attack pools in Java HashMap
+// iteration order. Lesson Learned is excluded by its HEALING tag.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
+// Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+const WATCHER_ATTACK_GENERATION_POOL: &[&str] = &[
+    "EmptyFist", "CrushJoints", "FollowUp", "CutThroughFate", "SashWhip",
+    "FlurryOfBlows", "JustLucky", "FlyingSleeves", "BowlingBash", "Consecrate",
+    "SignatureMove", "Weave", "Tantrum", "Conclude", "SandsOfTime", "FearNoEvil",
+    "ReachHeaven", "Wallop", "CarveReality", "WindmillStrike", "TalkToTheHand",
+    "WheelKick", "Brilliance", "Ragnarok",
 ];
 
 // Defect's srcCommonCardPool in Java HashMap iteration order. CardLibrary

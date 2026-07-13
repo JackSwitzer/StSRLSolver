@@ -164,6 +164,31 @@ const WATCHER_ATTACK_CHOICES: &[&str] = &[
     "WindmillStrike",
 ];
 
+const WATCHER_ATTACK_POOL_IN_JAVA_ORDER: &[&str] = &[
+    "EmptyFist", "CrushJoints", "FollowUp", "CutThroughFate", "SashWhip",
+    "FlurryOfBlows", "JustLucky", "FlyingSleeves", "BowlingBash", "Consecrate",
+    "SignatureMove", "Weave", "Tantrum", "Conclude", "SandsOfTime", "FearNoEvil",
+    "ReachHeaven", "Wallop", "CarveReality", "WindmillStrike", "TalkToTheHand",
+    "WheelKick", "Brilliance", "Ragnarok",
+];
+
+#[test]
+fn watcher_attack_generation_pool_matches_java_source_pool_order() {
+    // CardLibrary HashMap iteration plus initializeCardPools establish this
+    // common-then-uncommon-then-rare order. HEALING-tagged Lesson Learned is excluded.
+    // Java: helpers/CardLibrary.java and dungeons/AbstractDungeon.java.
+    let engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+
+    assert_eq!(
+        super::generated_card_pool(&engine, super::GeneratedCardPool::Attack),
+        WATCHER_ATTACK_POOL_IN_JAVA_ORDER
+    );
+}
+
 fn use_potion(engine: &mut crate::engine::CombatEngine, potion_idx: usize, target_idx: i32) {
     engine.execute_action(&Action::UsePotion {
         potion_idx,

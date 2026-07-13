@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T10:27:28.175582+00:00",
+ "updated": "2026-07-13T10:31:54.645578+00:00",
  "status_counts": {
-  "verified": 442,
-  "unverified": 225
+  "verified": 443,
+  "unverified": 224
  },
  "rows": [
   {
@@ -1892,8 +1892,8 @@
    "class": "InfernalBlade",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/InfernalBlade.java",
    "methods_ref": "reference/extracted/methods/card/InfernalBlade.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

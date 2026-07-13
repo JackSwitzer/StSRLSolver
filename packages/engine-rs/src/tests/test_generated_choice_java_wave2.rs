@@ -16,6 +16,8 @@
 use crate::actions::Action;
 use crate::cards::CardType;
 use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
+use crate::effects::declarative::GeneratedCardPool;
+use crate::effects::interpreter::generated_card_pool;
 use crate::status_ids::sid;
 use crate::tests::support::{
     combat_state_with, enemy_no_intent, engine_with_state, exhaust_prefix_count, make_deck,
@@ -167,20 +169,34 @@ fn jack_of_all_trades_uses_random_colorless_pool() {
 }
 
 #[test]
-fn infernal_blade_uses_random_attack_pool_and_zeroes_cost() {
-    let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Infernal Blade", "Strike", "Defend", "Strike", "Defend"]),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    ));
+fn infernal_blade_uses_card_random_attack_pool_and_zeroes_turn_cost() {
+    // InfernalBlade.java selects exactly once through cardRandomRng from
+    // returnTrulyRandomCardInCombat(ATTACK), then sets costForTurn to zero.
+    // Upgrade changes only the played card's base cost from 1 to 0.
+    // Java: cards/red/InfernalBlade.java and dungeons/AbstractDungeon.java.
+    for (card_id, expected_energy) in [("Infernal Blade", 2), ("Infernal Blade+", 3)] {
+        let mut engine = engine_with_state(combat_state_with(
+            make_deck(&[card_id, "Strike", "Defend", "Strike", "Defend"]),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            3,
+        ));
+        let attack_pool = generated_card_pool(&engine, GeneratedCardPool::Attack);
+        let mut oracle = engine.card_random_rng.clone();
+        let expected = attack_pool[oracle.random((attack_pool.len() - 1) as i32) as usize];
+        let general_before = engine.rng.counter;
+        let hand_before = engine.state.hand.len();
 
-    let hand_before = engine.state.hand.len();
-    play_card(&mut engine, "Infernal Blade");
-    assert_eq!(engine.state.hand.len(), hand_before);
-    let generated = *engine.state.hand.last().unwrap();
-    let generated_def = engine.card_registry.card_def_by_id(generated.def_id);
-    assert_eq!(generated_def.card_type, CardType::Attack);
-    assert_eq!(generated.cost, 0);
+        play_card(&mut engine, card_id);
+
+        assert_eq!(engine.state.hand.len(), hand_before);
+        assert_eq!(engine.state.energy, expected_energy);
+        assert_eq!(engine.card_random_rng.counter, oracle.counter);
+        assert_eq!(engine.rng.counter, general_before);
+        assert_eq!(exhaust_prefix_count(&engine, "Infernal Blade"), 1);
+        let generated = *engine.state.hand.last().unwrap();
+        assert_eq!(engine.card_registry.card_name(generated.def_id), expected);
+        assert_eq!(generated.cost, 0);
+    }
 }
 
 #[test]
