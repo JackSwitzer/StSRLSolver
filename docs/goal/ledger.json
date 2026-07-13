@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T23:14:15.260705+00:00",
+ "updated": "2026-07-13T23:16:02.726456+00:00",
  "status_counts": {
-  "verified": 655,
-  "unverified": 12
+  "verified": 656,
+  "unverified": 11
  },
  "rows": [
   {
@@ -6142,8 +6142,8 @@
    "class": "RunicCube",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/RunicCube.java",
    "methods_ref": "reference/extracted/methods/relic/RunicCube.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

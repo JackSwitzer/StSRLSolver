@@ -122,6 +122,29 @@ fn relic_wave12_runtime_hp_loss_families_match_canonical_runtime() {
 }
 
 #[test]
+fn runic_cube_draws_one_card_per_positive_hp_loss_event() {
+    // RunicCube.java::wasHPLost checks only that combat is active and the
+    // reported damageAmount is positive, then queues exactly one DrawCardAction.
+    // The amount lost does not change the draw count.
+    let mut engine = engine_without_start(
+        make_deck(&["Strike", "Defend", "Bash"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    engine.state.relics = vec!["Runic Cube".to_string()];
+    engine.rebuild_effect_runtime();
+    engine.state.hand.clear();
+    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Bash"]);
+
+    engine.player_lose_hp(1);
+    assert_eq!(engine.state.hand.len(), 1);
+    engine.player_lose_hp(17);
+    assert_eq!(engine.state.hand.len(), 2);
+    engine.player_lose_hp(0);
+    assert_eq!(engine.state.hand.len(), 2);
+}
+
+#[test]
 fn relic_wave12_runtime_shuffle_and_enemy_death_families_match_canonical_runtime() {
     let mut shuffle = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     shuffle.state.relics = vec!["Sundial".to_string(), "TheAbacus".to_string()];
