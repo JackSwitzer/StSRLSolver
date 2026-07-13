@@ -939,6 +939,15 @@ fn set_status(
 }
 
 fn add_player_status(engine: &mut CombatEngine, status: StatusId, amount: i32) {
+    if status == sid::ORB_SLOTS && amount > 0 {
+        let before = engine.state.orb_slots.max_slots;
+        for _ in 0..amount {
+            engine.state.orb_slots.add_slot();
+        }
+        let gained = engine.state.orb_slots.max_slots.saturating_sub(before) as i32;
+        engine.state.player.add_status(status, gained);
+        return;
+    }
     if matches!(status, sid::COLLECT_MIRACLES | sid::LIKE_WATER) {
         // Java CollectPower.stackPower() and LikeWaterPower.stackPower() cap
         // their amounts at 999.
@@ -948,11 +957,6 @@ fn add_player_status(engine: &mut CombatEngine, status: StatusId, amount: i32) {
         engine.state.player.set_status(status, next);
     } else {
         engine.state.player.add_status(status, amount);
-    }
-    if status == sid::ORB_SLOTS && amount > 0 {
-        for _ in 0..amount {
-            engine.state.orb_slots.add_slot();
-        }
     }
 }
 

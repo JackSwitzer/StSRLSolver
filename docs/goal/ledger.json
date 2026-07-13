@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T05:06:13.578379+00:00",
+ "updated": "2026-07-13T05:08:59.908174+00:00",
  "status_counts": {
-  "verified": 335,
-  "unverified": 332
+  "verified": 336,
+  "unverified": 331
  },
  "rows": [
   {
@@ -532,8 +532,8 @@
    "class": "Capacitor",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Capacitor.java",
    "methods_ref": "reference/extracted/methods/card/Capacitor.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

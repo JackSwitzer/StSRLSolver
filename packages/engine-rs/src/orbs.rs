@@ -210,6 +210,13 @@ impl OrbSlots {
 
     /// Add a new orb slot (e.g. from Capacitor).
     pub fn add_slot(&mut self) {
+        // AbstractPlayer.increaseMaxOrbSlots refuses further gains at ten.
+        // IncreaseMaxOrbAction invokes it once per requested slot, so a card
+        // played at nine slots reaches ten and its remaining iterations no-op.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+        if self.max_slots >= 10 {
+            return;
+        }
         self.max_slots += 1;
         self.slots.push(Orb::new(OrbType::Empty));
     }

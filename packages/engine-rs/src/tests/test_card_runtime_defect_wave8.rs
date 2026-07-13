@@ -106,3 +106,25 @@ fn defect_wave8_storm_force_field_and_rebound_follow_engine_path() {
     assert!(play_on_enemy(&mut rebound, "Rebound", 0));
     assert_eq!(rebound.state.enemies[0].entity.hp, 31);
 }
+
+#[test]
+fn capacitor_adds_two_or_three_slots_and_stops_at_the_java_cap() {
+    // Capacitor.java queues IncreaseMaxOrbAction for magicNumber 2 (3 upgraded).
+    // That action calls AbstractPlayer.increaseMaxOrbSlots(1, true) repeatedly;
+    // increaseMaxOrbSlots refuses each call once maxOrbs reaches ten.
+    let mut stacking = one_enemy_engine(40, 2);
+    stacking.init_defect_orbs(3);
+    stacking.state.hand = make_deck(&["Capacitor", "Capacitor+"]);
+    assert!(play_self(&mut stacking, "Capacitor"));
+    assert!(play_self(&mut stacking, "Capacitor+"));
+    assert_eq!(stacking.state.orb_slots.max_slots, 8);
+    assert_eq!(stacking.state.player.status(sid::ORB_SLOTS), 5);
+
+    let mut capped = one_enemy_engine(40, 1);
+    capped.init_defect_orbs(9);
+    capped.state.hand = make_deck(&["Capacitor+"]);
+    assert!(play_self(&mut capped, "Capacitor+"));
+    assert_eq!(capped.state.orb_slots.max_slots, 10);
+    assert_eq!(capped.state.orb_slots.slots.len(), 10);
+    assert_eq!(capped.state.player.status(sid::ORB_SLOTS), 1);
+}
