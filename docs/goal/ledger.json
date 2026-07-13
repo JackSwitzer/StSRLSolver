@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T17:29:15.849864+00:00",
+ "updated": "2026-07-13T17:34:18.037310+00:00",
  "status_counts": {
-  "verified": 579,
-  "unverified": 88
+  "verified": 580,
+  "unverified": 87
  },
  "rows": [
   {
@@ -3672,8 +3672,8 @@
    "class": "WraithForm",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/WraithForm.java",
    "methods_ref": "reference/extracted/methods/card/WraithForm.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

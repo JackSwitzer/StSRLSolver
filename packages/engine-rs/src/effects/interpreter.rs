@@ -928,6 +928,10 @@ fn is_debuff(status: StatusId, amount: i32) -> bool {
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NoBlockPower.java
         || status == sid::NO_BLOCK
         || status == sid::BIASED_COG_FOCUS_LOSS
+        // WraithFormPower declares DEBUFF even though the Rust status stores
+        // its negative magnitude as a positive stack count.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/WraithFormPower.java
+        || status == sid::WRAITH_FORM
         // LoseStrengthPower is explicitly PowerType.DEBUFF, so Artifact can
         // make Flex's Strength gain permanent.
         || status == sid::LOSE_STRENGTH
@@ -3002,6 +3006,7 @@ mod tests {
         assert!(is_debuff(sid::POISON, 1));
         assert!(is_debuff(sid::CORPSE_EXPLOSION, 1));
         assert!(is_debuff(sid::LOSE_STRENGTH, 1));
+        assert!(is_debuff(sid::WRAITH_FORM, 1));
         assert!(is_debuff(sid::FOCUS, -3));
         assert!(!is_debuff(sid::FOCUS, 3));
         assert!(!is_debuff(sid::STRENGTH, 1));

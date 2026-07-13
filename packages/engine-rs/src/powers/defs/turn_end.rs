@@ -59,6 +59,46 @@ pub static DEF_PLATED_ARMOR: EntityDef = EntityDef {
 };
 
 // ===========================================================================
+// Wraith Form — TurnEnd: apply its negative amount as Dexterity
+// ===========================================================================
+
+static WRAITH_FORM_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::TurnEnd,
+    condition: TriggerCondition::Always,
+    effects: &[],
+    counter: None,
+}];
+
+fn hook_wraith_form(
+    engine: &mut CombatEngine,
+    owner: EffectOwner,
+    event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    if owner != EffectOwner::PlayerPower || event.kind != Trigger::TurnEnd {
+        return;
+    }
+    let amount = engine.state.player.status(sid::WRAITH_FORM);
+    if amount > 0 {
+        // WraithFormPower stores a negative amount and queues one negative
+        // DexterityPower application at player turn end. Negative Dexterity is
+        // a DEBUFF, so a later Artifact can block the entire stacked tick.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/WraithFormPower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DexterityPower.java
+        crate::powers::apply_debuff(&mut engine.state.player, sid::DEXTERITY, -amount);
+    }
+}
+
+pub static DEF_WRAITH_FORM: EntityDef = EntityDef {
+    id: "wraith_form",
+    name: "Wraith Form",
+    kind: EntityKind::Power,
+    triggers: &WRAITH_FORM_TRIGGERS,
+    complex_hook: Some(hook_wraith_form),
+    status_guard: Some(sid::WRAITH_FORM),
+};
+
+// ===========================================================================
 // Combust — TurnEnd: lose HP, then deal THORNS damage to all enemies
 // ===========================================================================
 
@@ -254,7 +294,7 @@ mod tests {
     #[test]
     fn test_all_turn_end_defs() {
         let defs = [
-            &DEF_METALLICIZE, &DEF_PLATED_ARMOR, &DEF_COMBUST,
+            &DEF_METALLICIZE, &DEF_PLATED_ARMOR, &DEF_WRAITH_FORM, &DEF_COMBUST,
             &DEF_OMEGA, &DEF_LIKE_WATER, &DEF_STUDY,
         ];
         for def in &defs {

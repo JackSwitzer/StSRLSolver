@@ -321,32 +321,6 @@ pub static DEF_DEVOTION: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Wraith Form — TurnStart: lose 1 Dexterity each turn
-// ===========================================================================
-
-static WRAITH_FORM_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddStatus(
-    Target::Player,
-    sid::DEXTERITY,
-    AmountSource::Fixed(-1),
-))];
-
-static WRAITH_FORM_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnStart,
-    condition: TriggerCondition::Always,
-    effects: &WRAITH_FORM_EFFECTS,
-    counter: None,
-}];
-
-pub static DEF_WRAITH_FORM: EntityDef = EntityDef {
-    id: "wraith_form",
-    name: "Wraith Form",
-    kind: EntityKind::Power,
-    triggers: &WRAITH_FORM_TRIGGERS,
-    complex_hook: None,
-    status_guard: Some(sid::WRAITH_FORM),
-};
-
-// ===========================================================================
 // Deva Form — TurnStart: gain energy (escalating)
 // Java DevaPower keeps amount and energyGainAmount separate: recharge grants
 // energyGainAmount, then increments it by amount.
@@ -739,7 +713,7 @@ mod tests {
         let defs = [
             &DEF_ENERGIZED,
             &DEF_BERSERK, &DEF_INFINITE_BLADES, &DEF_BATTLE_HYMN,
-            &DEF_WRAITH_FORM, &DEF_DEVA_FORM,
+            &DEF_DEVA_FORM,
             &DEF_HELLO_WORLD, &DEF_MAGNETISM,
             &DEF_DOPPELGANGER_DRAW, &DEF_DOPPELGANGER_ENERGY,
         ];

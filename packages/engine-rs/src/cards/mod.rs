@@ -2115,7 +2115,7 @@ mod tests {
             "Bullet Time", "Burst", "Corpse Explosion", "Die Die Die",
             "Doppelganger", "Glass Knife", "Grand Finale", "Malaise",
             "Night Terror", "Phantasmal Killer", "Storm of Steel",
-            "Tools of the Trade", "Unload", "Wraith Form",
+            "Tools of the Trade", "Unload", "Wraith Form v2",
         ];
         for id in &silent_cards {
             assert!(reg.get(id).is_some(), "Silent card '{}' missing from registry", id);
@@ -2176,8 +2176,8 @@ mod tests {
     #[test]
     fn test_wraith_form_stats() {
         let reg = super::global_registry();
-        assert_card(&reg, "Wraith Form", 3, -1, -1, 2, CardType::Power);
-        assert_card(&reg, "Wraith Form+", 3, -1, -1, 3, CardType::Power);
+        assert_card(&reg, "Wraith Form v2", 3, -1, -1, 2, CardType::Power);
+        assert_card(&reg, "Wraith Form v2+", 3, -1, -1, 3, CardType::Power);
         // Wraith Form now uses complex_hook, no effect tags
     }
 

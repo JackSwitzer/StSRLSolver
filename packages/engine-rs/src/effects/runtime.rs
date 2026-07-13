@@ -2028,4 +2028,5 @@ fn is_debuff(status_id: StatusId) -> bool {
         || status_id == sid::POISON
         || status_id == sid::CONSTRICTED
         || status_id == sid::LOSE_STRENGTH
+        || status_id == sid::WRAITH_FORM
 }

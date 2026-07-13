@@ -1289,7 +1289,7 @@ mod silent_card_java_parity_tests {
                 "Defend",
                 "Reflex",
                 "Tactician",
-                "Wraith Form",
+                "Wraith Form v2",
             ]);
             engine.state.draw_pile = make_deck(&["Neutralize", "Bash", "Strike+"]);
 
@@ -1297,7 +1297,7 @@ mod silent_card_java_parity_tests {
             assert_eq!(engine.state.enemies[0].entity.hp, 200 - damage, "{card_id}");
             assert_eq!(engine.state.energy, 1, "Tactician should refund one Energy");
             assert_eq!(engine.state.player.status(sid::DISCARDED_THIS_TURN), 4);
-            for discarded in ["Defend", "Reflex", "Tactician", "Wraith Form"] {
+            for discarded in ["Defend", "Reflex", "Tactician", "Wraith Form v2"] {
                 assert_eq!(discard_prefix_count(&engine, discarded), 1, "{card_id}: {discarded}");
             }
             assert!(engine.state.hand.iter().all(|card| {
@@ -1307,8 +1307,8 @@ mod silent_card_java_parity_tests {
         }
     }
     card_pair_test!(wraith_form,
-        "Wraith Form", 3, -1, -1, 2, CardType::Power, CardTarget::SelfTarget, false, None, &[],
-        "Wraith Form+", 3, -1, -1, 3, CardType::Power, CardTarget::SelfTarget, false, None, &[],
+        "Wraith Form v2", 3, -1, -1, 2, CardType::Power, CardTarget::SelfTarget, false, None, &[],
+        "Wraith Form v2+", 3, -1, -1, 3, CardType::Power, CardTarget::SelfTarget, false, None, &[],
     );
 
     // ---------------------------------------------------------------------
@@ -1719,12 +1719,58 @@ mod silent_card_java_parity_tests {
     }
 
     #[test]
-    fn wraith_form_sets_intangible() {
-        let mut engine = engine_with(make_deck_n("Wraith Form", 8), 40, 0);
-        ensure_in_hand(&mut engine, "Wraith Form");
-        assert!(play_self(&mut engine, "Wraith Form"));
-        assert_eq!(engine.state.player.status(sid::INTANGIBLE), 2);
-        assert_eq!(engine.state.player.status(sid::WRAITH_FORM), 1);
+    fn wraith_form_uses_canonical_id_artifact_blocking_and_turn_end_dexterity_loss() {
+        // WraithForm.java's canonical ID is "Wraith Form v2". It applies
+        // Intangible before the DEBUFF WraithFormPower; the upgrade adds one
+        // Intangible. WraithFormPower stacks negative amounts and at player
+        // turn end applies one equally negative DexterityPower, which a newly
+        // gained Artifact may block.
+        // Java: reference/extracted/methods/card/WraithForm.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/WraithFormPower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DexterityPower.java
+        assert!(reg().get("Wraith Form").is_none());
+        let mut engine = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            6,
+        );
+        force_player_turn(&mut engine);
+        engine.state.hand = make_deck(&["Wraith Form v2", "Wraith Form v2+"]);
+        engine.state.player.set_status(sid::DEXTERITY, 3);
+
+        assert!(play_self(&mut engine, "Wraith Form v2"));
+        assert!(play_self(&mut engine, "Wraith Form v2+"));
+        assert_eq!(engine.state.player.status(sid::INTANGIBLE), 5);
+        assert_eq!(engine.state.player.status(sid::WRAITH_FORM), 2);
+
+        engine.emit_event(crate::effects::runtime::GameEvent::empty(
+            crate::effects::trigger::Trigger::TurnEnd,
+        ));
+        assert_eq!(engine.state.player.status(sid::DEXTERITY), 1);
+
+        engine.state.player.set_status(sid::ARTIFACT, 1);
+        engine.emit_event(crate::effects::runtime::GameEvent::empty(
+            crate::effects::trigger::Trigger::TurnEnd,
+        ));
+        assert_eq!(engine.state.player.status(sid::DEXTERITY), 1);
+        assert_eq!(engine.state.player.status(sid::ARTIFACT), 0);
+        engine.emit_event(crate::effects::runtime::GameEvent::empty(
+            crate::effects::trigger::Trigger::TurnStart,
+        ));
+        assert_eq!(engine.state.player.status(sid::DEXTERITY), 1);
+
+        let mut protected = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            3,
+        );
+        force_player_turn(&mut protected);
+        protected.state.hand = make_deck(&["Wraith Form v2"]);
+        protected.state.player.set_status(sid::ARTIFACT, 1);
+        assert!(play_self(&mut protected, "Wraith Form v2"));
+        assert_eq!(protected.state.player.status(sid::INTANGIBLE), 2);
+        assert_eq!(protected.state.player.status(sid::WRAITH_FORM), 0);
+        assert_eq!(protected.state.player.status(sid::ARTIFACT), 0);
     }
 
     #[test]
