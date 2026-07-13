@@ -107,6 +107,39 @@ fn slimed_is_a_one_cost_self_targeted_no_op_that_exhausts() {
 }
 
 #[test]
+fn wound_is_unplayable_unupgradable_non_ethereal_and_discards_normally() {
+    // Wound.java constructs a NONE-targeted cost -2 Status and leaves use()
+    // and upgrade() empty. It sets neither Ethereal nor Exhaust, so an
+    // ordinary copy cannot be played and moves from hand to discard at end of
+    // turn.
+    // Java: reference/extracted/methods/card/Wound.java
+    let registry = global_registry();
+    let wound = registry.get("Wound").expect("Wound");
+    assert_eq!(wound.target, CardTarget::None);
+    assert_eq!(wound.cost, -2);
+    assert!(wound.runtime_traits().unplayable);
+    assert!(!wound.runtime_traits().ethereal);
+    assert!(!wound.exhaust);
+    assert!(registry.get("Wound+").is_none());
+
+    let mut engine = engine_without_start(
+        make_deck_n("Strike", 10),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Wound"]);
+    assert!(!engine.get_legal_actions().iter().any(|action| {
+        matches!(action, Action::PlayCard { card_idx: 0, .. })
+    }));
+
+    end_turn(&mut engine);
+
+    assert_eq!(discard_prefix_count(&engine, "Wound"), 1);
+    assert_eq!(exhaust_prefix_count(&engine, "Wound"), 0);
+}
+
+#[test]
 fn curse_of_the_bell_is_unplayable_unupgradable_non_ethereal_and_unremovable() {
     // CurseOfTheBell.java constructs a cost -2 Curse with empty use/upgrade
     // and no Ethereal flag. CardGroup.getPurgeableCards explicitly excludes

@@ -11,6 +11,9 @@ pub fn register_status(cards: &mut HashMap<&'static str, CardDef>) {
             base_magic: -1, exhaust: true, enter_stance: None,
                 effect_data: &[], complex_hook: None,
         });
+        // Wound.java is an unplayable cost -2 Status with empty use and
+        // upgrade methods. It is neither Ethereal nor intrinsically Exhausting.
+        // Java: reference/extracted/methods/card/Wound.java
         insert(cards, CardDef {
             id: "Wound", name: "Wound", card_type: CardType::Status,
             target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,

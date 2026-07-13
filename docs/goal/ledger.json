@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T17:27:32.205157+00:00",
+ "updated": "2026-07-13T17:29:15.849864+00:00",
  "status_counts": {
-  "verified": 578,
-  "unverified": 89
+  "verified": 579,
+  "unverified": 88
  },
  "rows": [
   {
@@ -3662,8 +3662,8 @@
    "class": "Wound",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/status/Wound.java",
    "methods_ref": "reference/extracted/methods/card/Wound.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
