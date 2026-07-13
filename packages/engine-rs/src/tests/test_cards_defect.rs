@@ -298,6 +298,27 @@ mod defect_card_java_parity_tests {
         for case in cases { assert_stats(case); }
     });
 
+    defect_test!(skim_plus_spends_one_energy_draws_four_and_discards_normally, {
+        // Skim.java queues one DrawCardAction for magicNumber=3; its only
+        // upgrade raises that number to 4. The Skill neither exhausts nor
+        // changes target behavior.
+        let mut engine = bare_engine(&[], vec![enemy("JawWorm", 40, 0)]);
+        engine.state.energy = 1;
+        engine.state.hand = make_deck(&["Skim+"]);
+        engine.state.draw_pile = make_deck(&[
+            "Strike", "Defend", "Bash", "Inflame", "Zap",
+        ]);
+        engine.state.discard_pile.clear();
+
+        assert!(play_self(&mut engine, "Skim+"));
+
+        assert_eq!(engine.state.energy, 0);
+        assert_eq!(engine.state.hand.len(), 4);
+        assert_eq!(engine.state.draw_pile.len(), 1);
+        assert_eq!(discard_prefix_count(&engine, "Skim"), 1);
+        assert_eq!(exhaust_prefix_count(&engine, "Skim"), 0);
+    });
+
     defect_test!(lock_on_source_applies_after_its_hit_and_amplifies_orb_thorns, {
         // LockOn.java deals damage before applying its DEBUFF power. Lock-On+
         // deals 11 and applies 3. AbstractOrb.applyLockOn multiplies Lightning
