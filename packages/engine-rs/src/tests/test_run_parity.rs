@@ -387,6 +387,7 @@ mod run_java_parity_tests {
                 .pending_run_gold,
             30
         );
+        assert_eq!(engine.run_state.gold, gold_before + 30);
         engine.debug_force_current_combat_outcome(true);
         engine.debug_resolve_current_combat_outcome();
 

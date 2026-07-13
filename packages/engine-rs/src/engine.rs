@@ -1008,7 +1008,7 @@ impl CombatEngine {
                                 .set_status(status, current + payload.amount);
                         }
                         NamedOptionKind::GainRunGold => {
-                            self.state.pending_run_gold += payload.amount.max(0);
+                            self.gain_run_gold(payload.amount);
                         }
                         NamedOptionKind::SetStance(stance) => {
                             self.change_stance(stance);
@@ -2909,6 +2909,20 @@ impl CombatEngine {
                 0,
                 0,
             );
+        }
+    }
+
+    /// Apply AbstractPlayer.gainGold while combat owns the live run state.
+    pub(crate) fn gain_run_gold(&mut self, amount: i32) {
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+        if amount <= 0 || self.state.has_relic("Ectoplasm") {
+            return;
+        }
+        self.state.run_gold += amount;
+        self.state.pending_run_gold += amount;
+        if self.state.has_relic("Bloody Idol") || self.state.has_relic("BloodyIdol") {
+            // BloodyIdol.java::onGainGold heals once per gainGold call.
+            self.heal_player(5);
         }
     }
 

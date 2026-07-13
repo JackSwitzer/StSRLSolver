@@ -326,7 +326,8 @@ pub struct CombatState {
     pub total_damage_dealt: i32,
     pub total_damage_taken: i32,
     pub total_cards_played: i32,
-    /// Gold earned during combat that should be synced back to RunState on resolution.
+    /// Cumulative gold earned during combat, retained for telemetry/tests.
+    /// `run_gold` is updated at the same time and is the authoritative balance.
     pub pending_run_gold: i32,
     /// Current run gold while combat is active (Looter/Mugger steal immediately).
     pub run_gold: i32,

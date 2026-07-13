@@ -1211,7 +1211,10 @@ impl EffectRuntime {
             }
             SimpleEffect::PlayTopCardOfDraw => {}
             SimpleEffect::ResolveFission { .. } => {}
-            SimpleEffect::ModifyGold(_amount_src) => {}
+            SimpleEffect::ModifyGold(amount_src) => {
+                let amount = self.resolve_amount(engine, instance_idx, owner, amount_src);
+                engine.gain_run_gold(amount);
+            }
             SimpleEffect::FleeCombat => {
                 engine.state.combat_over = true;
             }

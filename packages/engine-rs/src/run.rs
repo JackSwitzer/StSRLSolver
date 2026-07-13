@@ -2512,14 +2512,9 @@ impl RunEngine {
                     .map(|card| engine.card_registry.card_name(card.def_id).to_string())
                     .collect();
                 self.run_state.deck_card_states = engine.state.master_deck.clone();
-                if engine.state.pending_run_gold > 0
-                    && !self
-                        .run_state
-                        .relic_flags
-                        .has(crate::relic_flags::flag::ECTOPLASM)
-                {
-                    adjust_run_gold_state(&mut self.run_state, engine.state.pending_run_gold);
-                }
+                // Combat gainGold calls update run_gold immediately. It was
+                // synchronized above after the accepted action, so replaying
+                // pending_run_gold here would award the same gold twice.
                 self.run_state.relic_flags.counters = engine.state.relic_counters;
                 self.run_state.lizard_tail_used = engine
                     .state

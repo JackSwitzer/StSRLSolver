@@ -801,9 +801,10 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             engine.state.energy = engine.state.energy.min(engine.state.max_energy);
         }
 
-        // -- Modify gold (no-op in combat context; wired in Wave 2) --
-        SimpleEffect::ModifyGold(_amount_src) => {
-            // Gold is on RunState, not CombatEngine. Handled at dispatch level.
+        // -- Modify live run gold --
+        SimpleEffect::ModifyGold(ref amount_src) => {
+            let amount = resolve_card_amount(engine, ctx, amount_src);
+            engine.gain_run_gold(amount);
         }
 
         // -- Flee combat --

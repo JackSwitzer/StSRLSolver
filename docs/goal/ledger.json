@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T09:40:37.656985+00:00",
+ "updated": "2026-07-13T09:45:57.257647+00:00",
  "status_counts": {
-  "verified": 428,
-  "unverified": 239
+  "verified": 429,
+  "unverified": 238
  },
  "rows": [
   {
@@ -1742,8 +1742,8 @@
    "class": "HandOfGreed",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/HandOfGreed.java",
    "methods_ref": "reference/extracted/methods/card/HandOfGreed.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
