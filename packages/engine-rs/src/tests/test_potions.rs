@@ -136,6 +136,7 @@ mod potion_tests {
 
     // ---- Poison Potion ----
     #[test] fn poison_6() {
+        // Source: reference/extracted/methods/potion/PoisonPotion.java.
         let mut e = engine();
         e.state.potions[0] = "Poison Potion".to_string();
         use_potion(&mut e, 0, 0);

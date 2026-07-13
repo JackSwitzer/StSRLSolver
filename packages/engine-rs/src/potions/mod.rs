@@ -183,7 +183,8 @@ fn potion_potency(potion_id: &str) -> Option<(i32, i32)> {
         "Weak Potion" | "WeakenPotion" => Some((3, 3)),
         // FearPotion.java getPotency ignores ascension and always returns 3.
         "FearPotion" | "Fear Potion" => Some((3, 3)),
-        "Poison Potion" | "PoisonPotion" => Some((6, 4)),
+        // PoisonPotion.java getPotency ignores ascension and always returns 6.
+        "Poison Potion" | "PoisonPotion" => Some((6, 6)),
         // EnergyPotion.java getPotency ignores ascension and always returns 2.
         "Energy Potion" | "EnergyPotion" => Some((2, 2)),
         // SwiftPotion.java getPotency ignores ascension and always returns 3.
@@ -1033,10 +1034,16 @@ mod tests {
     }
 
     #[test]
-    fn test_a11_poison_potion_reduced() {
+    fn test_a11_poison_potion_stays_at_six_and_bark_doubles_it() {
+        // Source: reference/extracted/methods/potion/PoisonPotion.java.
         let mut state = make_test_state();
         apply_potion_scaled(&mut state, "Poison Potion", 0, 11);
-        assert_eq!(state.enemies[0].entity.status(sid::POISON), 4);
+        assert_eq!(state.enemies[0].entity.status(sid::POISON), 6);
+
+        state.enemies[0].entity.set_status(sid::POISON, 0);
+        state.relics.push("SacredBark".to_string());
+        apply_potion_scaled(&mut state, "PoisonPotion", 0, 20);
+        assert_eq!(state.enemies[0].entity.status(sid::POISON), 12);
     }
 
     #[test]
