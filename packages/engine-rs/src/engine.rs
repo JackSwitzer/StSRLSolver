@@ -3790,20 +3790,12 @@ impl CombatEngine {
             powers::apply_debuff(&mut self.state.player, sid::VULNERABLE, spore);
         }
 
-        // Fire owner-aware death hooks (Gremlin Horn, The Specimen, etc.).
-        let ctx = crate::effects::trigger::TriggerContext {
-            card_type: None,
-            is_first_turn: false,
-            target_idx: enemy_idx as i32,
-        };
-        self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
-            crate::effects::trigger::Trigger::OnEnemyDeath,
-            &ctx,
-        ));
-
         // CorpseExplosionPower.onDeath queues source-less THORNS damage equal
-        // to owner.maxHealth * amount. THORNS bypasses NORMAL-only reactions.
+        // to owner.maxHealth * amount before relic onMonsterDeath actions are
+        // queued. Resolve it before owner-aware relic effects so The Specimen
+        // selects only among monsters that survive the explosion.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/CorpseExplosionPower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/AbstractMonster.java
         let ce = self.state.enemies[enemy_idx]
             .entity
             .status(sid::CORPSE_EXPLOSION);
@@ -3816,6 +3808,18 @@ impl CombatEngine {
                 }
             }
         }
+
+        // Fire owner-aware death hooks (Gremlin Horn, The Specimen, etc.)
+        // after earlier monster-power death actions have resolved.
+        let ctx = crate::effects::trigger::TriggerContext {
+            card_type: None,
+            is_first_turn: false,
+            target_idx: enemy_idx as i32,
+        };
+        self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+            crate::effects::trigger::Trigger::OnEnemyDeath,
+            &ctx,
+        ));
     }
 
     pub(crate) fn deal_player_attack_hit_to_enemy(&mut self, enemy_idx: usize, damage: i32) -> i32 {

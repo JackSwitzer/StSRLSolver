@@ -38,8 +38,9 @@ fn sadistic_nature_deals_damage_when_player_applies_a_debuff() {
 }
 
 #[test]
-fn the_specimen_uses_combat_rng_instead_of_always_picking_first_alive_enemy() {
-    // Java oracle: decompiled/java-src/com/megacrit/cardcrawl/relics/TheSpecimen.java
+fn the_specimen_uses_card_random_rng_instead_of_always_picking_first_alive_enemy() {
+    // TheSpecimen.java queues ApplyPowerToRandomEnemyAction, whose update calls
+    // MonsterGroup.getRandomMonster with AbstractDungeon.cardRandomRng.
     let mut hit_left = false;
     let mut hit_right = false;
 
@@ -58,7 +59,14 @@ fn the_specimen_uses_combat_rng_instead_of_always_picking_first_alive_enemy() {
 
         engine.state.enemies[1].entity.set_status(sid::POISON, 7);
         engine.state.enemies[1].entity.hp = 0;
+        let counters_before = engine.rng_counters();
         engine.finalize_enemy_death(1);
+
+        assert_eq!(
+            engine.rng_counters()["cardRandom"],
+            counters_before["cardRandom"] + 1
+        );
+        assert_eq!(engine.rng_counters()["card"], counters_before["card"]);
 
         hit_left |= engine.state.enemies[0].entity.status(sid::POISON) == 7;
         hit_right |= engine.state.enemies[2].entity.status(sid::POISON) == 7;
@@ -70,6 +78,36 @@ fn the_specimen_uses_combat_rng_instead_of_always_picking_first_alive_enemy() {
 
     assert!(hit_left, "expected at least one seed to target the left enemy");
     assert!(hit_right, "expected at least one seed to target the right enemy");
+}
+
+#[test]
+fn corpse_explosion_resolves_before_the_specimen_selects_a_target() {
+    // AbstractMonster.die invokes CorpseExplosionPower.onDeath before relic
+    // onMonsterDeath callbacks. Its queued DamageAllEnemiesAction therefore
+    // kills the last target before The Specimen's later
+    // ApplyPowerToRandomEnemyAction executes; no random roll is consumed.
+    // Java: monsters/AbstractMonster.java, powers/CorpseExplosionPower.java,
+    // relics/TheSpecimen.java, and actions/common/ApplyPowerToRandomEnemyAction.java.
+    let mut state = combat_state_with(
+        make_deck(&["Strike"]),
+        vec![
+            enemy_no_intent("JawWorm", 10, 10),
+            enemy_no_intent("Cultist", 10, 10),
+        ],
+        3,
+    );
+    state.relics.push("The Specimen".to_string());
+    let mut engine = engine_with_state(state);
+    engine.state.enemies[0].entity.set_status(sid::POISON, 5);
+    engine.state.enemies[0].entity.set_status(sid::CORPSE_EXPLOSION, 1);
+    engine.state.enemies[0].entity.hp = 0;
+    let card_random_before = engine.rng_counters()["cardRandom"];
+
+    engine.finalize_enemy_death(0);
+
+    assert_eq!(engine.state.enemies[1].entity.hp, 0);
+    assert_eq!(engine.state.enemies[1].entity.status(sid::POISON), 0);
+    assert_eq!(engine.rng_counters()["cardRandom"], card_random_before);
 }
 
 #[test]
