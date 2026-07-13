@@ -610,8 +610,15 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::MUGGER_MUG, 10, 1, 0);
         }
         "Byrd" => {
-            // Starts flying with Flight power. First turn: Peck (1x5)
+            // Source: reference/extracted/methods/monster/Byrd.java.
+            // Ascension-derived values are patched at the run spawn site.
             enemy.set_move(move_ids::BYRD_PECK, 1, 5, 0);
+            enemy.entity.set_status(sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(sid::STARTING_DMG, 1);
+            enemy.entity.set_status(sid::STR_AMT, 5);
+            enemy.entity.set_status(sid::SLASH_DMG, 12);
+            enemy.entity.set_status(sid::HEAD_SLAM_DMG, 3);
+            enemy.entity.set_status(sid::BLOCK_AMT, 3);
             enemy.entity.set_status(sid::FLIGHT, 3);
         }
         "Shelled Parasite" | "ShelledParasite" => {
@@ -997,7 +1004,7 @@ fn select_move(
         // Act 2
         "Chosen" => act2::roll_chosen(enemy, num),
         "Mugger" => act2::roll_mugger(enemy, num),
-        "Byrd" => act2::roll_byrd(enemy, num),
+        "Byrd" => act2::roll_byrd(enemy, num, ai_rng),
         "Shelled Parasite" | "ShelledParasite" => act2::roll_shelled_parasite(enemy, num),
         "SnakePlant" => act2::roll_snake_plant(enemy, num),
         "Centurion" => act2::roll_centurion(enemy, num),
@@ -1406,19 +1413,57 @@ mod tests {
     }
 
     #[test]
-    fn test_byrd_pattern() {
+    fn test_byrd_source_ai_windows_and_conditional_rng() {
+        // Source: reference/extracted/methods/monster/Byrd.java (`getMove`).
         let mut enemy = create_enemy("Byrd", 28, 28);
         assert_eq!(enemy.move_id, move_ids::BYRD_PECK);
         assert_eq!(enemy.move_damage(), 1);
         assert_eq!(enemy.move_hits(), 5);
         assert_eq!(enemy.entity.status(sid::FLIGHT), 3);
+        assert_eq!(enemy.entity.status(sid::FIRST_MOVE), 1);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        let seed_for = |chance: f32, expected: bool| (1..10_000).find(|&seed| {
+            let mut rng = crate::seed::StsRandom::new(seed);
+            (rng.random_float() < chance) == expected
+        }).unwrap();
+
+        for (caws, expected) in [
+            (true, move_ids::BYRD_CAW),
+            (false, move_ids::BYRD_PECK),
+        ] {
+            let mut opening = create_enemy("Byrd", 28, 28);
+            let mut rng = crate::seed::StsRandom::new(seed_for(0.375, caws));
+            roll_initial_move_with_num_and_rng(&mut opening, 99, &mut rng);
+            assert_eq!(opening.move_id, expected);
+            assert_eq!(rng.counter, 1);
+        }
+
+        enemy.entity.set_status(sid::FIRST_MOVE, 0);
+        roll_next_move_with_num(&mut enemy, 0);
         assert_eq!(enemy.move_id, move_ids::BYRD_PECK);
-
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 60);
         assert_eq!(enemy.move_id, move_ids::BYRD_SWOOP);
         assert_eq!(enemy.move_damage(), 12);
+
+        for (swoops, expected) in [
+            (true, move_ids::BYRD_SWOOP),
+            (false, move_ids::BYRD_CAW),
+        ] {
+            let mut repeated_peck = create_enemy("Byrd", 28, 28);
+            repeated_peck.entity.set_status(sid::FIRST_MOVE, 0);
+            repeated_peck.move_history.push(move_ids::BYRD_PECK);
+            let mut rng = crate::seed::StsRandom::new(seed_for(0.4, swoops));
+            roll_next_move_with_num_and_rng(&mut repeated_peck, 0, &mut rng);
+            assert_eq!(repeated_peck.move_id, expected);
+            assert_eq!(rng.counter, 1);
+        }
+
+        enemy.entity.set_status(sid::FLIGHT, 0);
+        let mut rng = crate::seed::StsRandom::new(7);
+        roll_next_move_with_num_and_rng(&mut enemy, 99, &mut rng);
+        assert_eq!(enemy.move_id, move_ids::BYRD_HEADBUTT);
+        assert_eq!(enemy.move_damage(), 3);
+        assert_eq!(rng.counter, 0);
     }
 
     #[test]

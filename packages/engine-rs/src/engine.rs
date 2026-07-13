@@ -377,7 +377,7 @@ impl CombatEngine {
                 | "BanditChild" | "BanditPointy" | "Pointy" | "BanditLeader"
                 | "BookOfStabbing" | "Book of Stabbing"
                 | "BronzeAutomaton" | "Bronze Automaton"
-                | "BronzeOrb" | "Bronze Orb")) {
+                | "BronzeOrb" | "Bronze Orb" | "Byrd")) {
             crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
         }
 
@@ -3476,10 +3476,12 @@ impl CombatEngine {
             (damage as f64 * slow_mult) as i32
         };
 
-        // Flight: halve incoming damage while Flight > 0, decrement per hit
+        // FlightPower.atDamageFinalReceive halves NORMAL damage. Its later
+        // onAttacked callback sees post-block damage and queues the reduction;
+        // fully blocked hits therefore do not consume Flight.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/FlightPower.java
         let flight = enemy.entity.status(sid::FLIGHT);
         let effective_damage = if flight > 0 && !pure_matrix {
-            enemy.entity.set_status(sid::FLIGHT, flight - 1);
             (damage_after_slow as f64 * 0.5) as i32
         } else {
             damage_after_slow
@@ -3501,13 +3503,18 @@ impl CombatEngine {
 
         // On-hit enemy reactions (only when HP damage dealt)
         if hp_damage > 0 {
-            // Pure matrices skip Flight.atDamageFinalReceive, but the later
-            // FlightPower.onAttacked hook still consumes one stack when its
-            // half-damage survival check passes.
-            if pure_matrix && flight > 0 && (hp_damage as f64 * 0.5) < hp_before as f64 {
-                self.state.enemies[enemy_idx]
-                    .entity
-                    .set_status(sid::FLIGHT, flight - 1);
+            // FlightPower.onAttacked applies its half-damage survival check a
+            // second time to the post-block damageAmount. That hook runs for a
+            // pure matrix too even though the first receive modifier was skipped.
+            if flight > 0 && (hp_damage as f64 * 0.5) < hp_before as f64 {
+                let remaining = flight - 1;
+                self.state.enemies[enemy_idx].entity.set_status(sid::FLIGHT, remaining);
+                if remaining == 0 && self.state.enemies[enemy_idx].id == "Byrd" {
+                    // FlightPower.onRemove -> Byrd.changeState("GROUNDED").
+                    // Java: reference/extracted/methods/monster/Byrd.java.
+                    self.state.enemies[enemy_idx].set_move(
+                        crate::enemies::move_ids::BYRD_STUNNED, 0, 0, 0);
+                }
             }
 
             // D63 parity fix: Java CurlUpPower.onAttacked requires

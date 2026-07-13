@@ -478,11 +478,12 @@ mod enemy_ai_java_parity_tests {
         assert!(e.is_escaping);
 
         let mut e = make("Byrd", 25);
-        roll_times(&mut e, 1);
+        e.entity.set_status(sid::FIRST_MOVE, 0);
+        roll_with_num(&mut e, 0);
         expect_move(&e, move_ids::BYRD_PECK, 1, 5, 0, &[]);
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 60);
         expect_move(&e, move_ids::BYRD_SWOOP, 12, 1, 0, &[]);
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 0);
         expect_move(&e, move_ids::BYRD_PECK, 1, 5, 0, &[]);
 
         let mut e = make("ShelledParasite", 68);
@@ -928,7 +929,9 @@ mod enemy_ai_java_parity_tests {
         let act2_weak = enter_forced_combat(2, 0, RoomType::Monster, 0);
         let combat = act2_weak.get_combat_engine().expect("combat engine");
         assert_eq!(combat.state.enemies[0].id, "Byrd");
-        assert_eq!(combat.state.enemies[0].entity.hp, 25);
+        // Source: reference/extracted/methods/monster/Byrd.java:
+        // the constructor uses inclusive setHp(25, 31), not fixed 25 HP.
+        assert!((25..=31).contains(&combat.state.enemies[0].entity.hp));
 
         let act2_strong = enter_forced_combat(2, 20, RoomType::Monster, 3);
         let combat = act2_strong.get_combat_engine().expect("combat engine");

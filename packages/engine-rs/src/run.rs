@@ -1817,6 +1817,22 @@ impl RunEngine {
             enemy.set_move(crate::enemies::move_ids::POINTY_STAB, damage, 2, 0);
         }
 
+        // Source: reference/extracted/methods/monster/Byrd.java (constructor).
+        // Damage changes at A2, while the stored Flight amount changes at A17.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "Byrd") {
+            let peck_count = if self.run_state.ascension >= 2 { 6 } else { 5 };
+            let swoop_damage = if self.run_state.ascension >= 2 { 14 } else { 12 };
+            let flight = if self.run_state.ascension >= 17 { 4 } else { 3 };
+            enemy.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, 1);
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT, peck_count);
+            enemy.entity.set_status(crate::status_ids::sid::SLASH_DMG, swoop_damage);
+            enemy.entity.set_status(crate::status_ids::sid::HEAD_SLAM_DMG, 3);
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT, flight);
+            enemy.entity.set_status(crate::status_ids::sid::FLIGHT, flight);
+            enemy.set_move(crate::enemies::move_ids::BYRD_PECK, 1, peck_count, 0);
+        }
+
         // Source: reference/extracted/methods/monster/BanditLeader.java.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "BanditLeader") {
             let (cross_slash, agonizing_slash) = if self.run_state.ascension >= 2 {
@@ -2447,7 +2463,10 @@ impl RunEngine {
             }
             // Act 2 enemies
             "Byrd" => {
-                let hp = if a20 { 28 } else { 25 };
+                // Source: reference/extracted/methods/monster/Byrd.java:
+                // setHp(25,31), or setHp(26,33) at ascension 7+.
+                let (base, width) = if a20 { (26, 7) } else { (25, 6) };
+                let hp = base + self.rng.gen_range(0..=width);
                 (hp, hp)
             }
             "Chosen" => {
@@ -8017,6 +8036,100 @@ mod tests {
         assert!(combat.state.hand.iter()
             .any(|card| combat.card_registry.card_name(card.def_id) == "Omniscience"));
         assert!(combat.state.enemies[0].stasis_card.is_none());
+    }
+
+    #[test]
+    fn byrd_stats_rng_flight_grounding_and_fly_up_match_java() {
+        // Sources: reference/extracted/methods/monster/Byrd.java and
+        // decompiled/java-src/com/megacrit/cardcrawl/powers/FlightPower.java.
+        // HP changes at A7, Peck/Swoop at A2, and Flight at A17. The opening
+        // always consumes rollMove's integer plus randomBoolean(0.375).
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("Byrd").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("Byrd").0);
+        }
+        assert_eq!(low_hp, (25..=31).collect());
+        assert_eq!(high_hp, (26..=33).collect());
+
+        for (ascension, pecks, swoop, flight) in [
+            (0, 5, 12, 3),
+            (2, 6, 14, 3),
+            (7, 6, 14, 3),
+            (17, 6, 14, 4),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["Byrd".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), pecks);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::SLASH_DMG), swoop);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::BLOCK_AMT), flight);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::FLIGHT), flight);
+            assert_eq!(combat.ai_rng.counter, 2);
+
+            let mut forced_swoop = enemy.clone();
+            forced_swoop.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 0);
+            crate::enemies::roll_initial_move_with_num_and_rng(
+                &mut forced_swoop, 60, &mut crate::seed::StsRandom::new(0));
+            assert_eq!(forced_swoop.move_id, crate::enemies::move_ids::BYRD_SWOOP);
+            assert_eq!(forced_swoop.move_damage(), swoop);
+        }
+
+        // FlightPower.onAttacked receives post-block damage: a fully blocked
+        // hit consumes nothing. A positive nonlethal hit consumes one stack,
+        // and atStartOfTurn restores the stored amount while Flight remains.
+        let mut reset = RunEngine::new(42, 0);
+        reset.enter_specific_combat(vec!["Byrd".to_string()]);
+        let combat = reset.combat_engine.as_mut().unwrap();
+        combat.state.enemies[0].entity.block = 10;
+        combat.deal_damage_to_enemy(0, 10);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::FLIGHT), 3);
+        combat.state.enemies[0].entity.block = 0;
+        combat.deal_damage_to_enemy(0, 2);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::FLIGHT), 2);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::FLIGHT), 3);
+
+        // Removing the final stack invokes changeState("GROUNDED") immediately.
+        // Stunned rolls Headbutt; Headbutt installs Fly Up directly without an
+        // RNG draw; Fly Up reapplies Flight and then performs one normal roll.
+        let mut grounded = RunEngine::new(42, 0);
+        grounded.enter_specific_combat(vec!["Byrd".to_string()]);
+        let combat = grounded.combat_engine.as_mut().unwrap();
+        for remaining in [2, 1, 0] {
+            combat.deal_damage_to_enemy(0, 2);
+            assert_eq!(combat.state.enemies[0].entity.status(
+                crate::status_ids::sid::FLIGHT), remaining);
+        }
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::BYRD_STUNNED);
+
+        let before_stunned = combat.ai_rng.counter;
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::BYRD_HEADBUTT);
+        assert_eq!(combat.ai_rng.counter, before_stunned + 1);
+
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::BYRD_FLY_UP);
+        assert_eq!(combat.ai_rng.counter, before_stunned + 1);
+
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::FLIGHT), 3);
+        assert!(matches!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::BYRD_PECK
+                | crate::enemies::move_ids::BYRD_SWOOP
+                | crate::enemies::move_ids::BYRD_CAW));
+        assert_eq!(combat.ai_rng.counter, before_stunned + 2);
     }
 
     #[test]

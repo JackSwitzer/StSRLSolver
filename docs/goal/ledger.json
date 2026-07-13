@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T18:14:11.679728+00:00",
+ "updated": "2026-07-13T18:23:23.909408+00:00",
  "status_counts": {
-  "verified": 589,
-  "unverified": 78
+  "verified": 590,
+  "unverified": 77
  },
  "rows": [
   {
@@ -3822,8 +3822,8 @@
    "class": "Byrd",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/city/Byrd.java",
    "methods_ref": "reference/extracted/methods/monster/Byrd.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -32,6 +32,16 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
         // Reset Invincible per-turn damage tracker
         powers::reset_invincible_damage_taken(&mut engine.state.enemies[i].entity);
 
+        // FlightPower.atStartOfTurn restores its constructor amount as long as
+        // the power still exists. Byrd's BLOCK_AMT stores that amount (3/4).
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/FlightPower.java
+        if engine.state.enemies[i].id == "Byrd"
+            && engine.state.enemies[i].entity.status(sid::FLIGHT) > 0
+        {
+            let stored = engine.state.enemies[i].entity.status(sid::BLOCK_AMT);
+            engine.state.enemies[i].entity.set_status(sid::FLIGHT, stored);
+        }
+
         // Nemesis: gain Intangible at start of turn if not already present
         if engine.state.enemies[i].id == "Nemesis"
             && engine.state.enemies[i].entity.status(sid::INTANGIBLE) <= 0
@@ -365,6 +375,16 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
 
     // Apply move effects
     let effects: SmallVec<[(u8, i16); 4]> = engine.state.enemies[enemy_idx].move_effects.clone();
+
+    if engine.state.enemies[enemy_idx].id == "Byrd"
+        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::BYRD_FLY_UP
+    {
+        // Byrd.takeTurn case FLY_UP applies a fresh FlightPower before its
+        // queued RollMoveAction selects the next airborne intent.
+        // Java: reference/extracted/methods/monster/Byrd.java.
+        let flight = engine.state.enemies[enemy_idx].entity.status(sid::BLOCK_AMT);
+        engine.state.enemies[enemy_idx].entity.set_status(sid::FLIGHT, flight);
+    }
 
     fn get_fx(effects: &SmallVec<[(u8, i16); 4]>, id: u8) -> Option<i16> {
         effects.iter().find(|e| e.0 == id).map(|e| e.1)
@@ -841,6 +861,19 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         // Java: reference/extracted/methods/monster/BanditLeader.java
         enemies::act2::advance_bandit_leader_after_turn(
             &mut engine.state.enemies[enemy_idx]);
+        return;
+    }
+
+    if engine.state.enemies[enemy_idx].id == "Byrd"
+        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::BYRD_HEADBUTT
+    {
+        // Byrd.takeTurn case HEADBUTT sets FLY_UP directly and returns without
+        // queuing RollMoveAction, so this transition consumes no aiRng tick.
+        // Java: reference/extracted/methods/monster/Byrd.java.
+        engine.state.enemies[enemy_idx].move_history
+            .push(enemies::move_ids::BYRD_HEADBUTT);
+        engine.state.enemies[enemy_idx].set_move(
+            enemies::move_ids::BYRD_FLY_UP, 0, 0, 0);
         return;
     }
 

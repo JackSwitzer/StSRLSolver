@@ -45,26 +45,69 @@ pub(super) fn roll_mugger(enemy: &mut EnemyCombatState, _num: i32) {
     }
 }
 
-pub(super) fn roll_byrd(enemy: &mut EnemyCombatState, _num: i32) {
-    let is_flying = enemy.entity.status(sid::FLIGHT) > 0;
+pub(super) fn roll_byrd(
+    enemy: &mut EnemyCombatState,
+    num: i32,
+    ai_rng: &mut crate::seed::StsRandom,
+) {
+    let peck_damage = enemy.entity.status(sid::STARTING_DMG).max(1);
+    let peck_count = enemy.entity.status(sid::STR_AMT).max(5);
+    let swoop_damage = enemy.entity.status(sid::SLASH_DMG).max(12);
+    let headbutt_damage = enemy.entity.status(sid::HEAD_SLAM_DMG).max(3);
 
-    if !is_flying {
-        // Grounded: Headbutt then Fly Up
-        if last_move(enemy, move_ids::BYRD_STUNNED) {
-            enemy.set_move(move_ids::BYRD_HEADBUTT, 3, 1, 0);
+    let peck = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::BYRD_PECK, peck_damage, peck_count, 0);
+    };
+    let swoop = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::BYRD_SWOOP, swoop_damage, 1, 0);
+    };
+    let caw = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::BYRD_CAW, 0, 0, 0);
+        enemy.add_effect(mfx::STRENGTH, 1);
+    };
+
+    // Source: reference/extracted/methods/monster/Byrd.java (`getMove`).
+    // The opening roll ignores `num` but consumes a conditional 37.5% draw.
+    if enemy.entity.status(sid::FIRST_MOVE) > 0 {
+        enemy.entity.set_status(sid::FIRST_MOVE, 0);
+        if ai_rng.random_float() < 0.375 {
+            caw(enemy);
         } else {
-            enemy.set_move(move_ids::BYRD_FLY_UP, 0, 0, 0);
-            enemy.entity.set_status(sid::FLIGHT, 3);
+            peck(enemy);
+        }
+        return;
+    }
+
+    if enemy.entity.status(sid::FLIGHT) <= 0 {
+        enemy.set_move(move_ids::BYRD_HEADBUTT, headbutt_damage, 1, 0);
+    } else if num < 50 {
+        if last_two_moves(enemy, move_ids::BYRD_PECK) {
+            if ai_rng.random_float() < 0.4 {
+                swoop(enemy);
+            } else {
+                caw(enemy);
+            }
+        } else {
+            peck(enemy);
+        }
+    } else if num < 70 {
+        if last_move(enemy, move_ids::BYRD_SWOOP) {
+            if ai_rng.random_float() < 0.375 {
+                caw(enemy);
+            } else {
+                peck(enemy);
+            }
+        } else {
+            swoop(enemy);
+        }
+    } else if last_move(enemy, move_ids::BYRD_CAW) {
+        if ai_rng.random_float() < 0.2857 {
+            swoop(enemy);
+        } else {
+            peck(enemy);
         }
     } else {
-        // Flying: alternate Peck and Swoop
-        if last_two_moves(enemy, move_ids::BYRD_PECK) {
-            enemy.set_move(move_ids::BYRD_SWOOP, 12, 1, 0);
-        } else if last_move(enemy, move_ids::BYRD_SWOOP) {
-            enemy.set_move(move_ids::BYRD_PECK, 1, 5, 0);
-        } else {
-            enemy.set_move(move_ids::BYRD_PECK, 1, 5, 0);
-        }
+        caw(enemy);
     }
 }
 
