@@ -179,6 +179,43 @@ fn injury_is_unplayable_unupgradable_non_ethereal_and_inert() {
 }
 
 #[test]
+fn normality_blocks_every_card_from_the_fourth_play_only_while_in_hand() {
+    // Normality.java::canPlay checks cardsPlayedThisTurn.size() >= 3. Because
+    // AbstractCard.hasEnoughEnergy polls canPlay on every card in hand, one
+    // Normality blocks every candidate (including itself with Blue Candle).
+    let registry = global_registry();
+    let normality = registry.get("Normality").expect("Normality is registered");
+    assert_eq!(normality.cost, -2);
+    assert!(normality.runtime_traits().unplayable);
+    assert!(!normality.runtime_traits().ethereal);
+    assert!(registry.get("Normality+").is_none());
+
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        99,
+    );
+    force_player_turn(&mut engine);
+    engine.state.relics.push("Blue Candle".to_string());
+    engine.state.hand = make_deck(&["Normality", "Strike", "Defend"]);
+
+    engine.state.cards_played_this_turn = 2;
+    assert!(engine.get_legal_actions().iter().any(|action| {
+        matches!(action, Action::PlayCard { card_idx: 1, .. })
+    }));
+
+    engine.state.cards_played_this_turn = 3;
+    assert!(!engine.get_legal_actions().iter().any(|action| {
+        matches!(action, Action::PlayCard { .. })
+    }));
+
+    engine.state.hand.remove(0);
+    assert!(engine.get_legal_actions().iter().any(|action| {
+        matches!(action, Action::PlayCard { card_idx: 0, .. })
+    }));
+}
+
+#[test]
 fn support_wave1_end_turn_curse_and_status_hooks_fire_on_the_runtime_path() {
     let mut engine = engine_without_start(
         Vec::new(),

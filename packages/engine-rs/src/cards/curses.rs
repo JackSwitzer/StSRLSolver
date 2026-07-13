@@ -75,7 +75,10 @@ pub fn register_curses(cards: &mut HashMap<&'static str, CardDef>) {
             base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[], complex_hook: None,
         });
-        // Normality: unplayable, can only play 3 cards per turn
+        // Normality.java constructs an unplayable, unupgradable Curse and its
+        // canPlay hook rejects every card once three cards have been played
+        // while this copy remains in hand.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Normality.java
         insert(cards, CardDef {
             id: "Normality", name: "Normality", card_type: CardType::Curse,
             target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,

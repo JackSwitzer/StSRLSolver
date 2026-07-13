@@ -2061,7 +2061,9 @@ impl CombatEngine {
             return false;
         }
 
-        // Normality curse: max 3 cards per turn when Normality is in hand
+        // Normality.canPlay is polled from every card in hand and rejects the
+        // candidate once cardsPlayedThisTurn.size() reaches three.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Normality.java
         if self.state.cards_played_this_turn >= 3 {
             let has_normality = self.state.hand.iter().any(|c| {
                 let def = self.card_registry.card_def_by_id(c.def_id);

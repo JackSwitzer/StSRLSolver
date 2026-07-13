@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T11:53:13.530647+00:00",
+ "updated": "2026-07-13T11:55:24.778185+00:00",
  "status_counts": {
-  "verified": 474,
-  "unverified": 193
+  "verified": 475,
+  "unverified": 192
  },
  "rows": [
   {
@@ -2302,8 +2302,8 @@
    "class": "Normality",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Normality.java",
    "methods_ref": "reference/extracted/methods/card/Normality.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
