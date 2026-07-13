@@ -2119,7 +2119,7 @@ impl CombatEngine {
         // Establishment: cost already physically reduced in end_turn on_retain loop.
         // Do NOT reduce again here to avoid double-dipping.
 
-        cost = self.apply_card_runtime_cost_modifiers(card, cost);
+        cost = self.apply_card_runtime_cost_modifiers(card, card_inst, cost);
 
         cost
     }
@@ -2153,13 +2153,18 @@ impl CombatEngine {
         // Establishment: cost already physically reduced in end_turn on_retain loop.
         // Do NOT reduce again here to avoid double-dipping.
 
-        cost = self.apply_card_runtime_cost_modifiers(card, cost);
+        cost = self.apply_card_runtime_cost_modifiers(card, card_inst, cost);
 
         cost
     }
 
-    fn apply_card_runtime_cost_modifiers(&self, card: &CardDef, base_cost: i32) -> i32 {
-        effects::card_runtime::apply_cost_modifiers(self, card, base_cost)
+    fn apply_card_runtime_cost_modifiers(
+        &self,
+        card: &CardDef,
+        card_inst: CardInstance,
+        base_cost: i32,
+    ) -> i32 {
+        effects::card_runtime::apply_cost_modifiers(self, card, card_inst, base_cost)
     }
 
     pub(crate) fn play_card(&mut self, hand_idx: usize, target_idx: i32) {
@@ -2248,6 +2253,12 @@ impl CombatEngine {
         self.state.total_cards_played += 1;
         if card.card_type == CardType::Attack {
             self.state.attacks_played_this_turn += 1;
+        } else if card.card_type == CardType::Power {
+            // ForceField.triggerOnCardPlayed permanently reduces every copy in
+            // hand/draw/discard once per POWER card. Tracking the history also
+            // implements configureCostsOnNewCard for later-created copies.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ForceField.java
+            self.state.power_cards_played_this_combat += 1;
         }
 
         {
@@ -3646,6 +3657,16 @@ impl CombatEngine {
                 if self.state.player.status(sid::CONFUSION) > 0 && card_def.cost >= 0 {
                     let new_cost = self.card_random_rng.random(3) as i8;
                     drawn.set_permanent_cost(new_cost);
+                    if matches!(card_def.id, "Force Field" | "Force Field+") {
+                        // ConfusionPower overwrites both cost and costForTurn,
+                        // erasing Force Field reductions from earlier Power
+                        // plays. Only later Power cards reduce this new cost.
+                        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ConfusionPower.java
+                        drawn.misc = self
+                            .state
+                            .power_cards_played_this_combat
+                            .min(i16::MAX as i32) as i16;
+                    }
                     drawn.flags &= !CardInstance::FLAG_FREE;
                 }
                 self.state.hand.push(drawn);

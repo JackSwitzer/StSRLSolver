@@ -305,6 +305,9 @@ pub struct CombatState {
     pub turn: i32,
     pub cards_played_this_turn: i32,
     pub attacks_played_this_turn: i32,
+    /// POWER cards played in this combat. ForceField.configureCostsOnNewCard
+    /// and triggerOnCardPlayed use this history, not currently active powers.
+    pub power_cards_played_this_combat: i32,
     pub combat_over: bool,
     pub player_won: bool,
 
@@ -369,6 +372,7 @@ impl CombatState {
             turn: 0,
             cards_played_this_turn: 0,
             attacks_played_this_turn: 0,
+            power_cards_played_this_combat: 0,
             combat_over: false,
             player_won: false,
             mantra: 0,
@@ -511,6 +515,10 @@ impl PyCombatState {
         dict.set_item("total_damage_dealt", self.inner.total_damage_dealt)?;
         dict.set_item("total_damage_taken", self.inner.total_damage_taken)?;
         dict.set_item("total_cards_played", self.inner.total_cards_played)?;
+        dict.set_item(
+            "power_cards_played_this_combat",
+            self.inner.power_cards_played_this_combat,
+        )?;
 
         Ok(dict)
     }

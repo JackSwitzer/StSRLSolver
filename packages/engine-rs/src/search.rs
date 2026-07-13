@@ -1106,6 +1106,10 @@ pub(crate) fn combat_state_hash(engine: &CombatEngine) -> u64 {
     engine.state.player_won.hash(&mut hasher);
     engine.state.cards_played_this_turn.hash(&mut hasher);
     engine.state.attacks_played_this_turn.hash(&mut hasher);
+    engine
+        .state
+        .power_cards_played_this_combat
+        .hash(&mut hasher);
     engine.state.total_damage_dealt.hash(&mut hasher);
     engine.state.total_damage_taken.hash(&mut hasher);
     engine.state.total_cards_played.hash(&mut hasher);

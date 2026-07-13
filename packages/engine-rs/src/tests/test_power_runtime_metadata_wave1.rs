@@ -57,7 +57,7 @@ fn demon_form_plus_gains_three_strength_in_the_post_draw_phase() {
 }
 
 #[test]
-fn force_field_cost_scales_from_runtime_owned_player_powers() {
+fn force_field_cost_scales_from_power_cards_played_this_combat() {
     let mut engine = engine_with_state(combat_state_with(
         Vec::new(),
         vec![create_enemy("JawWorm", 50, 50)],

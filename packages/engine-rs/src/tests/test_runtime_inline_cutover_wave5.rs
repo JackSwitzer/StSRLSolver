@@ -51,8 +51,7 @@ fn canonical_cost_helper_matches_runtime_scaling_rules() {
     let blood_for_blood_inst = registry.make_card("Blood for Blood");
     assert_eq!(engine.effective_cost_inst(blood_for_blood, blood_for_blood_inst), 2);
 
-    engine.state.player.set_status(sid::DEMON_FORM, 1);
-    engine.state.player.set_status(sid::NOXIOUS_FUMES, 1);
+    engine.state.power_cards_played_this_combat = 2;
     let force_field = registry.get("Force Field").expect("Force Field");
     let force_field_inst = registry.make_card("Force Field");
     assert_eq!(engine.effective_cost_inst(force_field, force_field_inst), 2);

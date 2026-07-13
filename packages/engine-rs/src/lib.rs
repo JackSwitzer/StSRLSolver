@@ -917,6 +917,10 @@ impl StSEngine {
                     combat.set_item("block", cs.player.block)?;
                     combat.set_item("mantra", cs.mantra)?;
                     combat.set_item("cards_played_this_turn", cs.cards_played_this_turn)?;
+                    combat.set_item(
+                        "power_cards_played_this_combat",
+                        cs.power_cards_played_this_combat,
+                    )?;
 
                     let hand_names: Vec<String> = cs
                         .hand

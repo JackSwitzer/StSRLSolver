@@ -88,6 +88,8 @@ pub struct CombatGlobalTokenV1 {
     pub max_energy: i32,
     pub cards_played_this_turn: i32,
     pub attacks_played_this_turn: i32,
+    #[serde(default)]
+    pub power_cards_played_this_combat: i32,
     pub hand_size: usize,
     pub draw_pile_size: usize,
     pub discard_pile_size: usize,
@@ -531,6 +533,8 @@ pub struct CombatSnapshotV1 {
     pub turn: i32,
     pub cards_played_this_turn: i32,
     pub attacks_played_this_turn: i32,
+    #[serde(default)]
+    pub power_cards_played_this_combat: i32,
     pub stance: String,
     pub mantra: i32,
     pub mantra_gained: i32,
@@ -668,6 +672,7 @@ pub fn combat_snapshot_from_combat(engine: &CombatEngine) -> CombatSnapshotV1 {
         turn: state.turn,
         cards_played_this_turn: state.cards_played_this_turn,
         attacks_played_this_turn: state.attacks_played_this_turn,
+        power_cards_played_this_combat: state.power_cards_played_this_combat,
         stance: state.stance.as_str().to_string(),
         mantra: state.mantra,
         mantra_gained: state.mantra_gained,
@@ -767,6 +772,7 @@ pub fn combat_engine_from_snapshot(snapshot: &CombatSnapshotV1) -> CombatEngine 
     state.turn = snapshot.turn;
     state.cards_played_this_turn = snapshot.cards_played_this_turn;
     state.attacks_played_this_turn = snapshot.attacks_played_this_turn;
+    state.power_cards_played_this_combat = snapshot.power_cards_played_this_combat;
     state.stance = crate::state::Stance::from_str(&snapshot.stance);
     state.mantra = snapshot.mantra;
     state.mantra_gained = snapshot.mantra_gained;
@@ -840,6 +846,7 @@ fn build_combat_observation(engine: &CombatEngine) -> CombatObservationSchemaV1 
             max_energy: state.max_energy,
             cards_played_this_turn: state.cards_played_this_turn,
             attacks_played_this_turn: state.attacks_played_this_turn,
+            power_cards_played_this_combat: state.power_cards_played_this_combat,
             hand_size: state.hand.len(),
             draw_pile_size: state.draw_pile.len(),
             discard_pile_size: state.discard_pile.len(),

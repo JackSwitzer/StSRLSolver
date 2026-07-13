@@ -42,7 +42,12 @@ pub fn allows_play(engine: &CombatEngine, card: &CardDef, card_inst: CardInstanc
     true
 }
 
-pub fn apply_cost_modifiers(engine: &CombatEngine, card: &CardDef, base_cost: i32) -> i32 {
+pub fn apply_cost_modifiers(
+    engine: &CombatEngine,
+    card: &CardDef,
+    card_inst: CardInstance,
+    base_cost: i32,
+) -> i32 {
     let mut cost = base_cost;
     for trigger in card.runtime_triggers() {
         if let CardRuntimeTrigger::ModifyCost(rule) = trigger {
@@ -52,9 +57,14 @@ pub fn apply_cost_modifiers(engine: &CombatEngine, card: &CardDef, base_cost: i3
                     cost = (cost - damage_events).max(0);
                 }
                 CostModifierRule::ReducePerPower => {
-                    let power_count =
-                        crate::powers::registry::active_player_power_count(&engine.state.player);
-                    cost = (cost - power_count).max(0);
+                    // ForceField.updateCost(-1) fires once for every Power card
+                    // played this combat. `misc` records the history baseline
+                    // when an overwrite such as Confusion replaces its cost.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ForceField.java
+                    let baseline = card_inst.misc.max(0) as i32;
+                    let reductions =
+                        (engine.state.power_cards_played_this_combat - baseline).max(0);
+                    cost = (cost - reductions).max(0);
                 }
                 CostModifierRule::IncreaseOnHpLoss => {
                     cost += engine.state.total_damage_taken;

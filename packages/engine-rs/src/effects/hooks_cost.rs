@@ -11,10 +11,10 @@ pub fn hook_cost_reduce_on_hp_loss(state: &CombatState, _card: &CardDef, _card_i
     (cost - damage_events).max(0)
 }
 
-/// Force Field: reduce cost by number of active powers on player.
-pub fn hook_reduce_cost_per_power(state: &CombatState, _card: &CardDef, _card_inst: CardInstance, cost: i32) -> i32 {
-    let power_count = crate::powers::registry::active_player_power_count(&state.player);
-    (cost - power_count).max(0)
+/// Force Field: reduce cost once per Power card played this combat.
+pub fn hook_reduce_cost_per_power(state: &CombatState, _card: &CardDef, card_inst: CardInstance, cost: i32) -> i32 {
+    let baseline = card_inst.misc.max(0) as i32;
+    (cost - (state.power_cards_played_this_combat - baseline).max(0)).max(0)
 }
 
 /// Masterful Stab: increase cost by total damage taken this combat.
