@@ -361,6 +361,30 @@ fn colorless_wave1_attack_and_block_cards_follow_java_oracle_on_engine_path() {
 }
 
 #[test]
+fn swift_strike_is_free_and_carries_the_source_strike_tag() {
+    // Swift Strike costs zero, deals 7 damage, upgrades by 3, and carries the
+    // STRIKE tag. StrikeDummy.atDamageModify adds 3 to each tagged attack.
+    // Java: reference/extracted/methods/card/SwiftStrike.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/StrikeDummy.java
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 30, 30)],
+        0,
+    );
+    force_player_turn(&mut engine);
+    engine.state.relics.push("StrikeDummy".to_string());
+    engine.state.hand = make_deck(&["Swift Strike", "Swift Strike+"]);
+
+    assert!(play_on_enemy(&mut engine, "Swift Strike", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp, 20);
+    assert_eq!(engine.state.energy, 0);
+
+    assert!(play_on_enemy(&mut engine, "Swift Strike+", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp, 7);
+    assert_eq!(engine.state.energy, 0);
+}
+
+#[test]
 fn dramatic_entrance_deals_one_free_aoe_hit_and_exhausts() {
     // DramaticEntrance.java deals multiDamage 8 to all enemies for 0 energy,
     // exhausts, and upgradeDamage(4) is the only numerical upgrade.
