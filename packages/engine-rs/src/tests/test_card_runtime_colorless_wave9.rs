@@ -48,3 +48,41 @@ fn madness_sets_one_random_eligible_hand_card_to_zero_cost_and_exhausts() {
         1
     );
 }
+
+#[test]
+fn madness_source_retries_card_random_and_can_make_a_temporarily_free_card_permanent() {
+    // MadnessAction.java samples the whole hand with cardRandomRng until it
+    // finds costForTurn > 0. For seed 42 and the two-card post-play hand below,
+    // indices are 1,1,1,1,0: four rejected temporary-zero Defends, then Strike.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Madness", "Strike", "Defend"]);
+    engine.state.hand[2].set_cost_for_turn(0);
+    let card_random_before = engine.card_random_rng.counter;
+
+    assert!(play_self(&mut engine, "Madness"));
+    assert_eq!(engine.card_random_rng.counter, card_random_before + 5);
+    assert_eq!(engine.state.hand[0].base_cost, 0);
+    assert_eq!(engine.state.hand[1].base_cost, 1);
+
+    // With no positive costForTurn, MadnessAction falls back to permanent
+    // `cost > 0`, so a temporarily free Strike still becomes permanently free.
+    let mut fallback = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut fallback);
+    fallback.state.hand = make_deck(&["Madness+", "Strike"]);
+    fallback.state.hand[1].set_cost_for_turn(0);
+    let fallback_rng_before = fallback.card_random_rng.counter;
+
+    assert!(play_self(&mut fallback, "Madness+"));
+    assert_eq!(fallback.card_random_rng.counter, fallback_rng_before + 1);
+    assert_eq!(fallback.state.hand[0].cost, 0);
+    assert_eq!(fallback.state.hand[0].base_cost, 0);
+}

@@ -3995,6 +3995,60 @@ impl CombatEngine {
         self.rng.gen_range(range)
     }
 
+    pub(crate) fn apply_madness_action(&mut self, cost: i8) {
+        // MadnessAction.java first prefers any card whose costForTurn is
+        // positive. It samples the entire hand through cardRandomRng and retries
+        // rejected cards, consuming one counter tick per sample. If no such card
+        // exists, it instead targets a card whose permanent cost is positive,
+        // including one that is temporarily free this turn.
+        let registry = self.card_registry;
+        let costs = |card: CardInstance| {
+            let def_cost = registry.card_def_by_id(card.def_id).cost as i8;
+            let permanent_cost = if card.base_cost >= 0 {
+                card.base_cost
+            } else {
+                def_cost
+            };
+            let cost_for_turn = if card.cost >= 0 {
+                card.cost
+            } else {
+                permanent_cost
+            };
+            (cost_for_turn, permanent_cost)
+        };
+        let better_possible = self
+            .state
+            .hand
+            .iter()
+            .copied()
+            .any(|card| costs(card).0 > 0);
+        let possible = self
+            .state
+            .hand
+            .iter()
+            .copied()
+            .any(|card| costs(card).1 > 0);
+        if !better_possible && !possible {
+            return;
+        }
+
+        loop {
+            let idx = self
+                .card_random_rng
+                .random(self.state.hand.len() as i32 - 1) as usize;
+            let (cost_for_turn, permanent_cost) = costs(self.state.hand[idx]);
+            let eligible = if better_possible {
+                cost_for_turn > 0
+            } else {
+                permanent_cost > 0
+            };
+            if eligible {
+                self.state.hand[idx].set_permanent_cost(cost);
+                return;
+            }
+        }
+    }
+
     // =======================================================================
     // Stance
     // =======================================================================

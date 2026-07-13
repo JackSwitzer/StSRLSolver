@@ -316,25 +316,7 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
         }
 
         SimpleEffect::SetRandomHandCardCost(cost) => {
-            let eligible: Vec<usize> = engine.state.hand.iter()
-                .enumerate()
-                .filter(|(_, card)| {
-                    let current_cost = if card.cost >= 0 {
-                        card.cost as i32
-                    } else {
-                        engine.card_registry.card_def_by_id(card.def_id).cost
-                    };
-                    current_cost > 0
-                })
-                .map(|(idx, _)| idx)
-                .collect();
-
-            if !eligible.is_empty() {
-                let idx = eligible[engine.rng_gen_range(0..eligible.len())];
-                if idx < engine.state.hand.len() {
-                    engine.state.hand[idx].set_permanent_cost(cost as i8);
-                }
-            }
+            engine.apply_madness_action(cost as i8);
         }
 
         SimpleEffect::ObtainRandomPotion => {
