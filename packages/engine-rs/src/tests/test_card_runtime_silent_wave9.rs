@@ -6,6 +6,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/GrandFinale.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/MasterfulStab.java
 
+use crate::actions::Action;
 use crate::cards::{global_registry, CardTarget, CardType};
 use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
 use crate::tests::support::*;
@@ -71,6 +72,31 @@ fn silent_wave9_primary_typed_damage_cards_follow_engine_path() {
     let hp_before = stab_engine.state.enemies[0].entity.hp;
     assert!(play_on_enemy(&mut stab_engine, "Masterful Stab", 0));
     assert_eq!(stab_engine.state.enemies[0].entity.hp, hp_before - 12);
+}
+
+#[test]
+fn grand_finale_requires_an_empty_draw_pile_and_upgrade_deals_sixty_to_all() {
+    // Java: reference/extracted/methods/card/GrandFinale.java
+    // canUse rejects any non-empty draw pile; baseDamage is 50 and upgradeDamage(10).
+    let mut blocked = engine_with(Vec::new(), 100, 0);
+    blocked.state.hand = make_deck(&["Grand Finale"]);
+    blocked.state.draw_pile = make_deck(&["Strike"]);
+    blocked.state.discard_pile.clear();
+    assert!(!blocked.get_legal_actions().iter().any(|action| {
+        matches!(action, Action::PlayCard { card_idx: 0, target_idx: -1 })
+    }));
+
+    let mut upgraded = engine_with(Vec::new(), 100, 0);
+    upgraded.state.hand = make_deck(&["Grand Finale+"]);
+    upgraded.state.draw_pile.clear();
+    upgraded.state.discard_pile.clear();
+    upgraded.state.enemies.push(enemy_no_intent("Cultist", 80, 80));
+    upgraded.state.energy = 2;
+
+    assert!(play_self(&mut upgraded, "Grand Finale+"));
+    assert_eq!(upgraded.state.enemies[0].entity.hp, 40);
+    assert_eq!(upgraded.state.enemies[1].entity.hp, 20);
+    assert_eq!(upgraded.state.energy, 2);
 }
 
 #[test]

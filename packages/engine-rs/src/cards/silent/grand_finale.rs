@@ -1,6 +1,7 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+        // Java: reference/extracted/methods/card/GrandFinale.java
         // ---- Silent Rare: Grand Finale ---- (cost 0, 50 dmg AoE, only if draw pile empty; +10 dmg)
     insert(cards, CardDef {
                 id: "Grand Finale", name: "Grand Finale", card_type: CardType::Attack,
