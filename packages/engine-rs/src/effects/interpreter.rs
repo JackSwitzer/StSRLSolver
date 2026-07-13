@@ -344,6 +344,14 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         // -- Energy --
         SimpleEffect::GainEnergy(ref amount_src) => {
+            // SunderAction queues GainEnergyAction after its damage, then
+            // clearPostCombatActions removes that refund if the kill ended
+            // combat. A kill with another live monster keeps the action.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/SunderAction.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+            if engine.state.combat_over || engine.state.is_victory() {
+                return;
+            }
             let amount = resolve_card_amount(engine, ctx, amount_src);
             engine.state.energy += amount;
         }

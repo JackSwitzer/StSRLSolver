@@ -992,12 +992,35 @@ mod defect_card_java_parity_tests {
         assert!(e.state.orb_slots.slots.iter().all(|orb| orb.orb_type == OrbType::Lightning));
     });
 
-    defect_test!(sunder_kill_refunds_energy, {
-        let mut e = filled_engine(&["Sunder"], 12, 0);
-        ensure_in_hand(&mut e, "Sunder");
-        e.state.energy = 3;
-        play_on_enemy(&mut e, "Sunder", 0);
-        assert_eq!(e.state.energy, 3); // Sunder costs 3, kills 12HP enemy (24 dmg), refunds 3
+    defect_test!(sunder_refunds_only_when_its_kill_does_not_end_combat, {
+        // SunderAction deals 24 damage (32 upgraded), queues 3 energy on a
+        // kill, then clears that queued non-combat action when all monsters
+        // are basically dead.
+        // Java: reference/extracted/methods/card/Sunder.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/SunderAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+        let mut mid_fight = bare_engine(
+            &[],
+            vec![enemy("JawWorm", 24, 0), enemy("Cultist", 40, 0)],
+        );
+        mid_fight.state.hand = make_deck(&["Sunder"]);
+        mid_fight.state.energy = 3;
+        assert!(play_on_enemy(&mut mid_fight, "Sunder", 0));
+        assert_eq!(mid_fight.state.enemies[0].entity.hp, 0);
+        assert_eq!(mid_fight.state.enemies[1].entity.hp, 40);
+        assert_eq!(mid_fight.state.energy, 3);
+
+        let mut nonlethal = filled_engine(&["Sunder"], 25, 0);
+        nonlethal.state.energy = 3;
+        assert!(play_on_enemy(&mut nonlethal, "Sunder", 0));
+        assert_eq!(nonlethal.state.enemies[0].entity.hp, 1);
+        assert_eq!(nonlethal.state.energy, 0);
+
+        let mut final_kill = filled_engine(&["Sunder+"], 32, 0);
+        final_kill.state.energy = 3;
+        assert!(play_on_enemy(&mut final_kill, "Sunder+", 0));
+        assert_eq!(final_kill.state.enemies[0].entity.hp, 0);
+        assert_eq!(final_kill.state.energy, 0);
     });
 
     defect_test!(tempest_channels_x_lightning, {
