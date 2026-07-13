@@ -437,9 +437,33 @@ mod silent_card_java_parity_tests {
         "Endless Agony+", 0, 6, -1, -1, CardType::Attack, CardTarget::Enemy, true, None, &["copy_on_draw"],
     );
     card_pair_test!(envenom,
-        "Envenom", 2, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["envenom"],
-        "Envenom+", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["envenom"],
+        "Envenom", 2, -1, -1, -1, CardType::Power, CardTarget::SelfTarget, false, None, &["envenom"],
+        "Envenom+", 1, -1, -1, -1, CardType::Power, CardTarget::SelfTarget, false, None, &["envenom"],
     );
+
+    #[test]
+    fn envenom_cards_stack_one_power_each_and_poison_on_positive_attack_damage() {
+        // Envenom.java applies a literal one EnvenomPower per copy. The power's
+        // onAttack hook applies its stacked amount after positive NORMAL damage.
+        // Java: reference/extracted/methods/card/Envenom.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/EnvenomPower.java
+        let mut engine = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            4,
+        );
+        force_player_turn(&mut engine);
+        engine.state.hand = make_deck(&["Envenom", "Envenom+", "Strike"]);
+
+        assert!(play_self(&mut engine, "Envenom"));
+        assert!(play_self(&mut engine, "Envenom+"));
+        assert_eq!(engine.state.player.status(sid::ENVENOM), 2);
+
+        assert!(play_on_enemy(&mut engine, "Strike", 0));
+        assert_eq!(engine.state.enemies[0].entity.hp, 34);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 2);
+        assert_eq!(engine.state.energy, 0);
+    }
     card_pair_test!(escape_plan,
         "Escape Plan", 0, -1, 3, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["block_if_skill"],
         "Escape Plan+", 0, -1, 5, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["block_if_skill"],
