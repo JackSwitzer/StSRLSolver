@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T16:37:38.124760+00:00",
+ "updated": "2026-07-13T16:41:09.665904+00:00",
  "status_counts": {
-  "verified": 561,
-  "unverified": 106
+  "verified": 562,
+  "unverified": 105
  },
  "rows": [
   {
@@ -3372,8 +3372,8 @@
    "class": "Transmutation",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Transmutation.java",
    "methods_ref": "reference/extracted/methods/card/Transmutation.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
