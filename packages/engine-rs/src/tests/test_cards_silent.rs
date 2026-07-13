@@ -1158,6 +1158,46 @@ mod silent_card_java_parity_tests {
         "Unload", 1, 14, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["discard_non_attacks"],
         "Unload+", 1, 18, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["discard_non_attacks"],
     );
+
+    #[test]
+    fn unload_variants_damage_then_manually_discard_every_non_attack() {
+        // Unload.java queues its 14-damage hit before UnloadAction; the upgrade
+        // adds four damage. UnloadAction snapshots every non-Attack in hand and
+        // DiscardSpecificCardAction marks each discard manual, so Reflex and
+        // Tactician trigger while Attacks remain.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Unload.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/UnloadAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DiscardSpecificCardAction.java
+        for (card_id, damage) in [("Unload", 14), ("Unload+", 18)] {
+            let mut engine = engine_without_start(
+                Vec::new(),
+                vec![enemy_no_intent("JawWorm", 200, 200)],
+                1,
+            );
+            force_player_turn(&mut engine);
+            engine.state.hand = make_deck(&[
+                card_id,
+                "Strike",
+                "Defend",
+                "Reflex",
+                "Tactician",
+                "Wraith Form",
+            ]);
+            engine.state.draw_pile = make_deck(&["Neutralize", "Bash", "Strike+"]);
+
+            assert!(play_on_enemy(&mut engine, card_id, 0));
+            assert_eq!(engine.state.enemies[0].entity.hp, 200 - damage, "{card_id}");
+            assert_eq!(engine.state.energy, 1, "Tactician should refund one Energy");
+            assert_eq!(engine.state.player.status(sid::DISCARDED_THIS_TURN), 4);
+            for discarded in ["Defend", "Reflex", "Tactician", "Wraith Form"] {
+                assert_eq!(discard_prefix_count(&engine, discarded), 1, "{card_id}: {discarded}");
+            }
+            assert!(engine.state.hand.iter().all(|card| {
+                engine.card_registry.card_def_by_id(card.def_id).card_type == CardType::Attack
+            }));
+            assert_eq!(engine.state.hand.len(), 3, "Strike plus two Reflex draws");
+        }
+    }
     card_pair_test!(wraith_form,
         "Wraith Form", 3, -1, -1, 2, CardType::Power, CardTarget::SelfTarget, false, None, &[],
         "Wraith Form+", 3, -1, -1, 3, CardType::Power, CardTarget::SelfTarget, false, None, &[],

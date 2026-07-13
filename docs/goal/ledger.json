@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T16:57:23.178287+00:00",
+ "updated": "2026-07-13T17:00:17.983562+00:00",
  "status_counts": {
-  "verified": 568,
-  "unverified": 99
+  "verified": 569,
+  "unverified": 98
  },
  "rows": [
   {
@@ -3442,8 +3442,8 @@
    "class": "Unload",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Unload.java",
    "methods_ref": "reference/extracted/methods/card/Unload.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
