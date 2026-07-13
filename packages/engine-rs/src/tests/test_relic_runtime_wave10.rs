@@ -262,3 +262,44 @@ fn relic_wave10_turn_progression_relics_follow_runtime_path() {
     assert_eq!(inserter.state.player.status(crate::status_ids::sid::ORB_SLOTS), 1);
     assert_eq!(inserter.hidden_effect_value("Inserter", EffectOwner::PlayerRelic { slot: 0 }, 0), 0);
 }
+
+#[test]
+fn inserter_grows_live_orb_slots_every_second_turn_and_respects_the_cap() {
+    // Source: reference/extracted/methods/relic/Inserter.java and
+    // IncreaseMaxOrbAction.java. atTurnStart increments the counter, resets it
+    // at two, and grows the live orb collection by one up to ten slots.
+    let mut state = combat_state_with(
+        make_deck_n("Defend", 20),
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+    state.relics.push("Inserter".to_string());
+    let mut engine = engine_with_state(state);
+    engine.init_defect_orbs(3);
+
+    assert_eq!(engine.state.orb_slots.get_slot_count(), 3);
+    assert_eq!(engine.hidden_effect_value("Inserter", EffectOwner::PlayerRelic { slot: 0 }, 0), 1);
+    end_turn(&mut engine);
+    assert_eq!(engine.state.orb_slots.get_slot_count(), 4);
+    assert_eq!(engine.state.player.status(sid::ORB_SLOTS), 1);
+    assert_eq!(engine.hidden_effect_value("Inserter", EffectOwner::PlayerRelic { slot: 0 }, 0), 0);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.orb_slots.get_slot_count(), 4);
+    end_turn(&mut engine);
+    assert_eq!(engine.state.orb_slots.get_slot_count(), 5);
+    assert_eq!(engine.state.player.status(sid::ORB_SLOTS), 2);
+
+    let mut capped_state = combat_state_with(
+        make_deck_n("Defend", 10),
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+    capped_state.relics.push("Inserter".to_string());
+    let mut capped = engine_with_state(capped_state);
+    capped.init_defect_orbs(10);
+    end_turn(&mut capped);
+    assert_eq!(capped.state.orb_slots.get_slot_count(), 10);
+    assert_eq!(capped.state.player.status(sid::ORB_SLOTS), 0);
+    assert_eq!(capped.hidden_effect_value("Inserter", EffectOwner::PlayerRelic { slot: 0 }, 0), 0);
+}

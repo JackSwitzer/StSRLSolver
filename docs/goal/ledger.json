@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T22:44:44.981559+00:00",
+ "updated": "2026-07-13T22:47:53.803242+00:00",
  "status_counts": {
-  "verified": 644,
-  "unverified": 23
+  "verified": 645,
+  "unverified": 22
  },
  "rows": [
   {
@@ -5542,8 +5542,8 @@
    "class": "Inserter",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Inserter.java",
    "methods_ref": "reference/extracted/methods/relic/Inserter.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
