@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T14:44:55.153537+00:00",
+ "updated": "2026-07-13T14:46:57.883945+00:00",
  "status_counts": {
-  "verified": 520,
-  "unverified": 147
+  "verified": 521,
+  "unverified": 146
  },
  "rows": [
   {
@@ -2882,8 +2882,8 @@
    "class": "SeeingRed",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/SeeingRed.java",
    "methods_ref": "reference/extracted/methods/card/SeeingRed.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

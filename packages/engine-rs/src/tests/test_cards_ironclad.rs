@@ -1403,11 +1403,29 @@ mod ironclad_card_java_parity_tests {
 
     #[test]
     fn seeing_red_grants_energy() {
+        // SeeingRed.java spends the base cost of one, then queues
+        // GainEnergyAction(2), for a net gain of one, and always Exhausts.
         let mut e = engine_for(&["Seeing Red"], &[], &[], vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 3);
         let energy = e.state.energy;
         assert!(play_self(&mut e, "Seeing Red"));
         assert_eq!(e.state.energy, energy + 1);
         assert_eq!(exhaust_prefix_count(&e, "Seeing Red"), 1);
+    }
+
+    #[test]
+    fn seeing_red_upgrade_gains_two_energy_for_free_and_still_exhausts() {
+        let mut e = engine_for(
+            &["Seeing Red+"],
+            &[],
+            &[],
+            vec![enemy("JawWorm", 50, 50, 1, 0, 1)],
+            0,
+        );
+
+        assert!(play_self(&mut e, "Seeing Red+"));
+        assert_eq!(e.state.energy, 2);
+        assert_eq!(exhaust_prefix_count(&e, "Seeing Red"), 1);
+        assert!(e.state.discard_pile.is_empty());
     }
 
     #[test]
