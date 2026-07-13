@@ -2605,7 +2605,11 @@ impl CombatEngine {
         // UseCardAction clears freeToPlayOnce before moving the card to its
         // post-play pile, so Forethought's flag applies to exactly one play.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
-        let post_play_card = card_inst.set_free(false);
+        let mut post_play_card = card_inst.set_free(false);
+        // UseCardAction clears the one-use exhaust flag after choosing the
+        // destination, including when Havoc or Omniscience supplied it.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
+        post_play_card.flags &= !CardInstance::FLAG_EXHAUST_ON_USE;
 
         if card_inst.flags & CardInstance::FLAG_PURGE != 0 || card.card_type == CardType::Power {
             // purgeOnUse copies disappear after their effects. Power cards are
@@ -3842,6 +3846,69 @@ impl CombatEngine {
     /// Shuffle the draw pile (pub(crate) for card_effects).
     pub(crate) fn shuffle_draw_pile(&mut self) {
         self.state.draw_pile.shuffle(&mut self.rng);
+    }
+
+    /// Havoc/PlayTopCardAction: select a random target, shuffle if necessary,
+    /// then autoplay and exhaust the top card without changing its stored cost.
+    pub(crate) fn play_top_card_of_draw(&mut self) {
+        // Havoc.java evaluates getRandomMonster(..., cardRandomRng) while
+        // constructing PlayTopCardAction, before that action inspects either pile.
+        // Java: reference/extracted/methods/card/Havoc.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/PlayTopCardAction.java
+        let living = self.state.targetable_enemy_indices();
+        let target_idx = if living.is_empty() {
+            -1
+        } else {
+            let selected = self
+                .card_random_rng
+                .random_range(0, (living.len() - 1) as i32) as usize;
+            living[selected] as i32
+        };
+
+        if self.state.draw_pile.is_empty() {
+            if self.state.discard_pile.is_empty() {
+                return;
+            }
+            let mut cards = std::mem::take(&mut self.state.discard_pile);
+            self.state.draw_pile.append(&mut cards);
+            self.shuffle_draw_pile();
+        }
+
+        let mut card = self.state.draw_pile.pop().expect("non-empty after shuffle");
+        card.flags |= CardInstance::FLAG_FREE | CardInstance::FLAG_EXHAUST_ON_USE;
+        let def = self.card_registry.card_def_by_id(card.def_id).clone();
+        let can_play = self.can_play_card_inst(&def, card);
+
+        if can_play {
+            self.state.hand.push(card);
+            let hand_idx = self.state.hand.len() - 1;
+            let plays_before = self.state.total_cards_played;
+            self.play_card(hand_idx, target_idx);
+            if self.state.total_cards_played > plays_before {
+                return;
+            }
+            // A second legality check can only differ because the autoplayed
+            // instance temporarily occupies the hand. Fall through to Java's
+            // failed-autoplay cleanup if it remained there.
+            card = self.state.hand.remove(hand_idx);
+        }
+
+        // GameActionManager marks a failed autoplay dontTriggerOnUseCard, then
+        // queues UseCardAction solely to perform its normal destination move.
+        let mut post_play_card = card.set_free(false);
+        post_play_card.flags &= !CardInstance::FLAG_EXHAUST_ON_USE;
+        if def.card_type == CardType::Power {
+            return;
+        }
+        let spoon_saved = (self.state.has_relic("Strange Spoon")
+            || self.state.has_relic("StrangeSpoon"))
+            && self.card_random_rng.random_boolean();
+        if spoon_saved {
+            self.state.discard_pile.push(post_play_card);
+        } else {
+            self.state.exhaust_pile.push(post_play_card);
+            self.trigger_card_on_exhaust(post_play_card);
+        }
     }
 
     /// Generate a random range using the engine RNG (pub(crate) for card_effects).

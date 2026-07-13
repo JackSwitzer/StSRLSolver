@@ -5,7 +5,7 @@
 //!
 //! Logic is copied verbatim from card_effects.rs to preserve exact parity.
 
-use crate::cards::{CardTarget, CardType};
+use crate::cards::CardType;
 use crate::combat_types::CardInstance;
 use crate::damage;
 use crate::engine::{CombatEngine, ChoiceOption, ChoiceReason};
@@ -544,20 +544,7 @@ pub fn hook_draw_attacks_from_draw(engine: &mut CombatEngine, ctx: &CardPlayCont
 
 /// Havoc: play top card of draw pile for free.
 pub fn hook_play_top_card(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
-    if !engine.state.draw_pile.is_empty() {
-        let top = engine.state.draw_pile.pop().unwrap();
-        let def = engine.card_registry.card_def_by_id(top.def_id).clone();
-        // Pick a valid target
-        let target = if def.target == CardTarget::Enemy {
-            let living = engine.state.living_enemy_indices();
-            if living.is_empty() { -1 } else { living[0] as i32 }
-        } else {
-            -1
-        };
-        // Execute the card effects directly (free play)
-        engine.execute_card_effects_with_enemy_on_use(&def, top, target);
-        engine.state.discard_pile.push(top);
-    }
+    engine.play_top_card_of_draw();
 }
 
 // =========================================================================
