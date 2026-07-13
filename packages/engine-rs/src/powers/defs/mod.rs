@@ -91,6 +91,7 @@ pub static POWER_DEFS: &[&EntityDef] = &[
     &enemy::DEF_REGENERATION,
     &enemy::DEF_GROWTH,
     &enemy::DEF_METALLICIZE_ENEMY,
+    &enemy::DEF_PLATED_ARMOR_ENEMY,
 
     // -- Complex (hook-based) --
     &complex::DEF_ECHO_FORM,
@@ -177,6 +178,7 @@ pub static RUNTIME_ENEMY_POWER_DEFS: &[&EntityDef] = &[
     &enemy::DEF_REGENERATION,
     &enemy::DEF_GROWTH,
     &enemy::DEF_METALLICIZE_ENEMY,
+    &enemy::DEF_PLATED_ARMOR_ENEMY,
 ];
 
 // ===========================================================================

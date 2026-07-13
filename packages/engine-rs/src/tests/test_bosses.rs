@@ -522,12 +522,14 @@ mod boss_java_parity_tests {
     }
 
     #[test]
-    fn deca_a2_and_a19_scaling_matches_java_expectations() {
+    fn deca_constructor_defaults_do_not_infer_ascension_from_hp() {
+        // Source: reference/extracted/methods/monster/Deca.java. create_enemy
+        // has no ascension input; run.rs tests the independent thresholds.
         let enemy = create_enemy("Deca", 265, 265);
         assert_eq!(enemy.entity.hp, 265);
         assert_eq!(enemy.entity.max_hp, 265);
-        assert_eq!(enemy.entity.status(sid::ARTIFACT), 3);
-        assert_eq!(enemy.move_damage(), 12);
+        assert_eq!(enemy.entity.status(sid::ARTIFACT), 2);
+        assert_eq!(enemy.move_damage(), 10);
     }
 
     #[test]

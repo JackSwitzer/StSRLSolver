@@ -148,6 +148,30 @@ pub static DEF_METALLICIZE_ENEMY: EntityDef = EntityDef {
 };
 
 // ===========================================================================
+// Plated Armor (Enemy) — gain block after the monster group acts
+// ===========================================================================
+
+static PLATED_ARMOR_ENEMY_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::GainBlock(
+    AmountSource::StatusValue(sid::PLATED_ARMOR),
+))];
+
+static PLATED_ARMOR_ENEMY_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::EnemyTurnEnd,
+    condition: TriggerCondition::Always,
+    effects: &PLATED_ARMOR_ENEMY_EFFECTS,
+    counter: None,
+}];
+
+pub static DEF_PLATED_ARMOR_ENEMY: EntityDef = EntityDef {
+    id: "plated_armor_enemy",
+    name: "Plated Armor (Enemy)",
+    kind: EntityKind::Power,
+    triggers: &PLATED_ARMOR_ENEMY_TRIGGERS,
+    complex_hook: None,
+    status_guard: Some(sid::PLATED_ARMOR),
+};
+
+// ===========================================================================
 // Tests
 // ===========================================================================
 

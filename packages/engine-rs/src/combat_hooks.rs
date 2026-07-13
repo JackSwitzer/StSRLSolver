@@ -736,6 +736,15 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             }
         }
     }
+    if let Some(amt) = get_fx(&effects, mfx::PLATED_ARMOR_ALL) {
+        // Source: reference/extracted/methods/monster/Deca.java (`takeTurn`,
+        // case 2). A19 Square applies Plated Armor to every monster, including
+        // Deca, and repeated Squares stack it.
+        for enemy in engine.state.enemies.iter_mut().filter(|enemy| enemy.is_alive()) {
+            enemy.entity.add_status(sid::PLATED_ARMOR, amt as i32);
+        }
+        engine.rebuild_effect_runtime();
+    }
     if let Some(amt) = get_fx(&effects, mfx::HEAL_LOWEST_ALLY) {
         let mut lowest_idx: Option<usize> = None;
         let mut lowest_hp = i32::MAX;

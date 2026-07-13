@@ -161,6 +161,7 @@ pub mod mfx {
     pub const BURN_PLUS: u8 = 37;
     pub const METALLICIZE: u8 = 38;
     pub const HEART_STATUS_CARDS: u8 = 39;
+    pub const PLATED_ARMOR_ALL: u8 = 40;
 }
 
 // ---------------------------------------------------------------------------

@@ -1921,6 +1921,14 @@ fn owner_is_active(engine: &CombatEngine, owner: EffectOwner, def: &EntityDef) -
 
 fn owner_matches_event(owner: EffectOwner, event: &GameEvent) -> bool {
     match owner {
+        EffectOwner::EnemyPower { enemy_idx }
+            if matches!(event.kind, Trigger::EnemyTurnStart | Trigger::EnemyTurnEnd) =>
+        {
+            // MonsterGroup dispatches these callbacks to the acting/ending
+            // monster's powers, not to every enemy-owned power once per group
+            // member. This matters for Deca's team-wide Plated Armor.
+            event.enemy_idx < 0 || event.enemy_idx == enemy_idx as i32
+        }
         EffectOwner::PotionSlot { slot }
             if matches!(event.kind, Trigger::ManualActivation | Trigger::OnPotionUsed) =>
         {

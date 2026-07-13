@@ -382,7 +382,7 @@ impl CombatEngine {
                 | "BronzeOrb" | "Bronze Orb" | "Byrd" | "Centurion"
                 | "Champ" | "TheChamp" | "Chosen"
                 | "CorruptHeart" | "Corrupt Heart"
-                | "SnakeDagger" | "Snake Dagger" | "Darkling")) {
+                | "SnakeDagger" | "Snake Dagger" | "Darkling" | "Deca")) {
             if enemy.id == "Centurion" {
                 enemy.entity.set_status(sid::COUNT, living_enemy_count);
             }
@@ -3512,6 +3512,15 @@ impl CombatEngine {
 
         // On-hit enemy reactions (only when HP damage dealt)
         if hp_damage > 0 {
+            // PlatedArmorPower.wasHPLost loses one stack after unblocked,
+            // non-THORNS/non-HP_LOSS damage from another creature.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/PlatedArmorPower.java
+            let plated = self.state.enemies[enemy_idx].entity.status(sid::PLATED_ARMOR);
+            if plated > 0 {
+                self.state.enemies[enemy_idx]
+                    .entity.set_status(sid::PLATED_ARMOR, plated - 1);
+            }
+
             // FlightPower.onAttacked applies its half-damage survival check a
             // second time to the post-block damageAmount. That hook runs for a
             // pure matrix too even though the first receive modifier was skipped.

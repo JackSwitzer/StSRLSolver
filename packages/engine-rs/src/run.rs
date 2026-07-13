@@ -1927,6 +1927,19 @@ impl RunEngine {
             enemy.entity.set_status(crate::status_ids::sid::REGROW, 1);
         }
 
+        // Source: reference/extracted/methods/monster/Deca.java. Damage changes
+        // at A4, HP at A9, and Artifact/Square's Plated Armor at A19.
+        for enemy in enemy_states.iter_mut().filter(|enemy| enemy.id == "Deca") {
+            let beam = if self.run_state.ascension >= 4 { 12 } else { 10 };
+            enemy.entity.set_status(crate::status_ids::sid::BEAM_DMG, beam);
+            enemy.entity.set_status(crate::status_ids::sid::ARTIFACT,
+                if self.run_state.ascension >= 19 { 3 } else { 2 });
+            enemy.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI,
+                if self.run_state.ascension >= 19 { 1 } else { 0 });
+            enemy.set_move(crate::enemies::move_ids::DECA_BEAM, beam, 2, 0);
+            enemy.add_effect(crate::combat_types::mfx::DAZE, 2);
+        }
+
         // Source: reference/extracted/methods/monster/BanditLeader.java.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "BanditLeader") {
             let (cross_slash, agonizing_slash) = if self.run_state.ascension >= 2 {
@@ -2678,7 +2691,8 @@ impl RunEngine {
                 (hp, hp)
             }
             "DonuAndDeca" | "Donu" | "Deca" => {
-                let hp = if a20 { 282 } else { 250 };
+                // Source: Deca.java (and Donu.java) changes HP at A9.
+                let hp = if self.run_state.ascension >= 9 { 265 } else { 250 };
                 (hp, hp)
             }
             // Act 4 enemies
@@ -8863,6 +8877,94 @@ mod tests {
             enemy.entity.hp == 0
                 && enemy.entity.status(crate::status_ids::sid::REBIRTH_PENDING) == 0));
         assert!(combat.state.is_victory());
+    }
+
+    #[test]
+    fn deca_thresholds_cycle_team_block_and_plated_armor_match_java() {
+        // Source: reference/extracted/methods/monster/Deca.java.
+        for (ascension, hp, beam, artifact, high_ai) in [
+            (0, 250, 10, 2, 0),
+            (4, 250, 12, 2, 0),
+            (9, 265, 12, 2, 0),
+            (19, 265, 12, 3, 1),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["Deca".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            let deca = &combat.state.enemies[0];
+            assert_eq!((deca.entity.hp, deca.entity.max_hp), (hp, hp));
+            assert_eq!(deca.entity.status(crate::status_ids::sid::BEAM_DMG), beam);
+            assert_eq!(deca.entity.status(crate::status_ids::sid::ARTIFACT), artifact);
+            assert_eq!(deca.entity.status(crate::status_ids::sid::HIGH_ASCENSION_AI), high_ai);
+            assert_eq!(deca.move_id, crate::enemies::move_ids::DECA_BEAM);
+            assert_eq!((deca.move_damage(), deca.move_hits()), (beam, 2));
+            assert_eq!(deca.effect(crate::combat_types::mfx::DAZE), Some(2));
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        let mut base = RunEngine::new(42, 0);
+        base.enter_specific_combat(vec!["Deca".to_string()]);
+        let combat = base.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+        combat.state.discard_pile.clear();
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.hp, 480);
+        assert_eq!(combat.state.discard_pile.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) == "Dazed").count(), 2);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::DECA_SQUARE);
+        assert_eq!(combat.state.enemies[0].move_block(), 16);
+        assert_eq!(combat.state.enemies[0].effect(
+            crate::combat_types::mfx::BLOCK_ALL_ALLIES), Some(16));
+        assert_eq!(combat.state.enemies[0].effect(
+            crate::combat_types::mfx::PLATED_ARMOR_ALL), None);
+        assert_eq!(combat.ai_rng.counter, 2);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].entity.block, 16);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::DECA_BEAM);
+        assert_eq!(combat.ai_rng.counter, 3);
+
+        let mut high = RunEngine::new(42, 19);
+        high.enter_specific_combat(vec!["DonuAndDeca".to_string()]);
+        let combat = high.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+        combat.state.enemies[1].set_move(
+            crate::enemies::move_ids::DECA_SQUARE, 0, 0, 16);
+        combat.state.enemies[1].add_effect(
+            crate::combat_types::mfx::BLOCK_ALL_ALLIES, 16);
+        combat.state.enemies[1].add_effect(
+            crate::combat_types::mfx::PLATED_ARMOR_ALL, 3);
+        crate::combat_hooks::do_enemy_turns(combat);
+        for enemy in &combat.state.enemies {
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::PLATED_ARMOR), 3);
+            assert_eq!(enemy.entity.block, 19,
+                "Square's 16 block resolves before Plated Armor's end-turn 3");
+        }
+
+        combat.state.enemies[0].entity.block = 0;
+        let hp_before = combat.state.enemies[0].entity.hp;
+        combat.deal_damage_to_enemy(0, 1);
+        assert_eq!(combat.state.enemies[0].entity.hp, hp_before - 1);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::PLATED_ARMOR), 2,
+            "unblocked NORMAL damage removes one Plated Armor");
+
+        combat.state.enemies[1].set_move(
+            crate::enemies::move_ids::DECA_SQUARE, 0, 0, 16);
+        combat.state.enemies[1].add_effect(
+            crate::combat_types::mfx::BLOCK_ALL_ALLIES, 16);
+        combat.state.enemies[1].add_effect(
+            crate::combat_types::mfx::PLATED_ARMOR_ALL, 3);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::PLATED_ARMOR), 5);
+        assert_eq!(combat.state.enemies[1].entity.status(
+            crate::status_ids::sid::PLATED_ARMOR), 6);
+        assert_eq!(combat.state.enemies[0].entity.block, 21);
+        assert_eq!(combat.state.enemies[1].entity.block, 22);
     }
 
     #[test]

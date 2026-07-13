@@ -411,11 +411,14 @@ pub(super) fn roll_donu(enemy: &mut EnemyCombatState, _num: i32) {
 }
 
 pub(super) fn roll_deca(enemy: &mut EnemyCombatState, _num: i32) {
-    // Java: Deca starts with isAttacking=true, alternates.
-    // Beam (beamDmg x2 + 2 Daze) then Square (16 block, A19 also +3 Plated Armor).
-    // beamDmg: A4+ = 12, else 10. Artifact: A19 = 3, else 2.
+    // Source: reference/extracted/methods/monster/Deca.java (`getMove` and
+    // `takeTurn`). Deca starts attacking and alternates after each execution.
     if last_move(enemy, move_ids::DECA_BEAM) {
         enemy.set_move(move_ids::DECA_SQUARE, 0, 0, 16);
+        enemy.add_effect(mfx::BLOCK_ALL_ALLIES, 16);
+        if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
+            enemy.add_effect(mfx::PLATED_ARMOR_ALL, 3);
+        }
     } else {
         let bd = { let v = enemy.entity.status(sid::BEAM_DMG); if v > 0 { v } else { 10 } };
         enemy.set_move(move_ids::DECA_BEAM, bd, 2, 0);

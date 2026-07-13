@@ -878,11 +878,13 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             else { enemy.entity.set_status(sid::ARTIFACT, 2); enemy.entity.set_status(sid::BEAM_DMG, 10); }
         }
         "Deca" => {
-            let bdmg = if hp >= 265 { 12 } else { 10 };
-            enemy.set_move(move_ids::DECA_BEAM, bdmg, 2, 0);
+            // Source: reference/extracted/methods/monster/Deca.java. These are
+            // A0 defaults; A4/A9/A19 are independent run-site thresholds.
+            enemy.set_move(move_ids::DECA_BEAM, 10, 2, 0);
             enemy.add_effect(mfx::DAZE, 2);
-            if hp >= 265 { enemy.entity.set_status(sid::ARTIFACT, 3); } else { enemy.entity.set_status(sid::ARTIFACT, 2); }
-            enemy.entity.set_status(sid::BEAM_DMG, bdmg);
+            enemy.entity.set_status(sid::ARTIFACT, 2);
+            enemy.entity.set_status(sid::BEAM_DMG, 10);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "TimeEater" | "Time Eater" => {
             let (rd, hsd) = if hp >= 480 { (8, 32) } else { (7, 26) };
