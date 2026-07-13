@@ -2018,9 +2018,6 @@ pub(crate) fn generate_random_cards_to_hand(
     cost_rule: GeneratedCostRule,
 ) {
     for _ in 0..count {
-        if engine.state.hand.len() >= 10 {
-            break;
-        }
         if let Some(mut card) = generate_random_card(engine, pool) {
             apply_generated_upgrade_rule(
                 engine,
@@ -2028,7 +2025,17 @@ pub(crate) fn generate_random_cards_to_hand(
                 upgrade_rule_from_cost_rule(cost_rule),
             );
             apply_generated_cost_rule(&mut card, cost_rule);
-            engine.state.hand.push(card);
+            // MakeTempCardInHandAction still creates a card when the hand is
+            // full, sending that copy to discard. Cards such as Jack Of All
+            // Trades choose each random card before those queued actions
+            // resolve, so every requested copy also consumes its RNG roll.
+            // Java: cards/colorless/JackOfAllTrades.java and
+            // actions/common/MakeTempCardInHandAction.java.
+            if engine.state.hand.len() < 10 {
+                engine.state.hand.push(card);
+            } else {
+                engine.state.discard_pile.push(card);
+            }
         }
     }
 }
@@ -2186,7 +2193,8 @@ pub(crate) fn generate_random_card(
     }
     let choice_index = if matches!(
         pool,
-        GeneratedCardPool::Attack
+        GeneratedCardPool::Colorless
+            | GeneratedCardPool::Attack
             | GeneratedCardPool::Skill
             | GeneratedCardPool::DefectCommon
             | GeneratedCardPool::DefectPower
@@ -2618,41 +2626,17 @@ fn apply_generated_upgrade_rule(
     }
 }
 
+// srcColorlessCardPool order produced by CardLibrary's 512-bucket HashMap and
+// AbstractDungeon.addColorlessCards adding each normal-rarity card to the top.
+// Bandage Up is then excluded by its HEALING tag.
+// Java: helpers/CardLibrary.java and dungeons/AbstractDungeon.java.
 const COLORLESS_GENERATION_POOL: &[&str] = &[
-    "Apotheosis",
-    "Blind",
-    "Chrysalis",
-    "Dark Shackles",
-    "Deep Breath",
-    "Discovery",
-    "Dramatic Entrance",
-    "Enlightenment",
-    "Finesse",
-    "Flash of Steel",
-    "Forethought",
-    "Good Instincts",
-    "HandOfGreed",
-    "Impatience",
-    "Jack Of All Trades",
-    "Madness",
-    "Magnetism",
-    "Master of Strategy",
-    "Mayhem",
-    "Metamorphosis",
-    "Mind Blast",
-    "Panacea",
-    "Panache",
-    "PanicButton",
-    "Purity",
-    "Sadistic Nature",
-    "Secret Technique",
-    "Secret Weapon",
-    "Swift Strike",
-    "The Bomb",
-    "Thinking Ahead",
-    "Transmutation",
-    "Trip",
-    "Violence",
+    "Madness", "Thinking Ahead", "Mind Blast", "Metamorphosis", "Jack Of All Trades",
+    "Swift Strike", "Good Instincts", "Master of Strategy", "Magnetism", "Finesse",
+    "Discovery", "Chrysalis", "Transmutation", "Panacea", "Purity", "Enlightenment",
+    "Forethought", "Flash of Steel", "HandOfGreed", "Mayhem", "Apotheosis", "Secret Weapon",
+    "Panache", "Violence", "Deep Breath", "Secret Technique", "Blind", "The Bomb",
+    "Impatience", "Dramatic Entrance", "Trip", "PanicButton", "Sadistic Nature", "Dark Shackles",
 ];
 
 pub fn is_colorless_generation_card(card_id: &str) -> bool {

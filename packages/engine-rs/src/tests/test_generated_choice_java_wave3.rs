@@ -28,41 +28,58 @@ const COLORLESS_CHOICES: &[&str] = &[
 ];
 
 const COLORLESS_POTION_CHOICES: &[&str] = &[
-    "Apotheosis",
-    "Blind",
-    "Chrysalis",
-    "Dark Shackles",
-    "Deep Breath",
-    "Discovery",
-    "Dramatic Entrance",
-    "Enlightenment",
-    "Finesse",
-    "Flash of Steel",
-    "Forethought",
-    "Good Instincts",
-    "HandOfGreed",
-    "Impatience",
-    "Jack Of All Trades",
     "Madness",
-    "Magnetism",
-    "Master of Strategy",
-    "Mayhem",
-    "Metamorphosis",
-    "Mind Blast",
-    "Panacea",
-    "Panache",
-    "PanicButton",
-    "Purity",
-    "Sadistic Nature",
-    "Secret Technique",
-    "Secret Weapon",
-    "Swift Strike",
-    "The Bomb",
     "Thinking Ahead",
+    "Mind Blast",
+    "Metamorphosis",
+    "Jack Of All Trades",
+    "Swift Strike",
+    "Good Instincts",
+    "Master of Strategy",
+    "Magnetism",
+    "Finesse",
+    "Discovery",
+    "Chrysalis",
     "Transmutation",
-    "Trip",
+    "Panacea",
+    "Purity",
+    "Enlightenment",
+    "Forethought",
+    "Flash of Steel",
+    "HandOfGreed",
+    "Mayhem",
+    "Apotheosis",
+    "Secret Weapon",
+    "Panache",
     "Violence",
+    "Deep Breath",
+    "Secret Technique",
+    "Blind",
+    "The Bomb",
+    "Impatience",
+    "Dramatic Entrance",
+    "Trip",
+    "PanicButton",
+    "Sadistic Nature",
+    "Dark Shackles",
 ];
+
+#[test]
+fn colorless_generation_pool_matches_java_source_pool_order() {
+    // CardLibrary HashMap iteration is reversed by addColorlessCards' addToTop;
+    // returnTrulyRandomColorlessCardInCombat then excludes HEALING Bandage Up.
+    // Java: helpers/CardLibrary.java and dungeons/AbstractDungeon.java.
+    let engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+
+    assert_eq!(
+        super::generated_card_pool(&engine, super::GeneratedCardPool::Colorless),
+        COLORLESS_POTION_CHOICES
+    );
+}
 
 const WATCHER_SKILL_POOL_IN_JAVA_ORDER: &[&str] = &[
     "Prostrate", "Evaluate", "PathToVictory", "EmptyBody", "ClearTheMind", "Crescendo",

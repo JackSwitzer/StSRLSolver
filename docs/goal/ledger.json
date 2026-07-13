@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T10:42:39.602296+00:00",
+ "updated": "2026-07-13T10:47:39.034347+00:00",
  "status_counts": {
-  "verified": 450,
-  "unverified": 217
+  "verified": 451,
+  "unverified": 216
  },
  "rows": [
   {
@@ -1982,8 +1982,8 @@
    "class": "JackOfAllTrades",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/JackOfAllTrades.java",
    "methods_ref": "reference/extracted/methods/card/JackOfAllTrades.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
