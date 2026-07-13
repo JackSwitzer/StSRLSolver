@@ -623,29 +623,6 @@ pub fn hook_double_if_poisoned(engine: &mut CombatEngine, ctx: &CardPlayContext)
     }
 }
 
-/// Finisher: damage per attack played this turn (extra hits beyond the first).
-pub fn hook_finisher(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    let attacks = engine.state.attacks_played_this_turn;
-    if attacks > 1 && ctx.target_idx >= 0 && (ctx.target_idx as usize) < engine.state.enemies.len() {
-        let tidx = ctx.target_idx as usize;
-        let base_damage = engine.player_attack_base_damage(ctx.card, ctx.card_inst);
-        let player_strength = engine.state.player.strength();
-        let player_weak = engine.state.player.is_weak();
-        let stance_mult = engine.state.stance.outgoing_mult();
-        let enemy_vuln = engine.state.enemies[tidx].entity.is_vulnerable();
-        let enemy_intangible = engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
-        let dmg = damage::calculate_damage(
-            base_damage, player_strength + ctx.vigor, player_weak,
-            stance_mult, enemy_vuln, enemy_intangible,
-        );
-        // Already dealt 1 hit in main damage; deal (attacks - 1) more
-        for _ in 0..(attacks - 1) {
-            if engine.state.enemies[tidx].entity.is_dead() { break; }
-            engine.deal_player_attack_hit_to_enemy(tidx, dmg);
-        }
-    }
-}
-
 /// Flechettes: damage per Skill in hand.
 pub fn hook_flechettes(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     let skill_count = engine.state.hand.iter()

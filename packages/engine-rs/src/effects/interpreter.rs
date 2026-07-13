@@ -1085,7 +1085,9 @@ pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &A
         AmountSource::LastBulkCountTimesBlock => {
             ctx.last_bulk_count.max(0) * ctx.card.base_block.max(0)
         }
-        AmountSource::AttacksThisTurn => engine.state.attacks_played_this_turn,
+        AmountSource::PriorAttacksThisTurn => {
+            (engine.state.attacks_played_this_turn - 1).max(0)
+        }
         AmountSource::SkillsInHand => {
             engine.state.hand.iter()
                 .filter(|c| {

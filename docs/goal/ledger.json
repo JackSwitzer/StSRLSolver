@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T08:32:32.800029+00:00",
+ "updated": "2026-07-13T08:35:13.763749+00:00",
  "status_counts": {
-  "verified": 407,
-  "unverified": 260
+  "verified": 408,
+  "unverified": 259
  },
  "rows": [
   {
@@ -1482,8 +1482,8 @@
    "class": "Finisher",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Finisher.java",
    "methods_ref": "reference/extracted/methods/card/Finisher.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

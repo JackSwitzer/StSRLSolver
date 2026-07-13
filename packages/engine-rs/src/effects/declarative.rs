@@ -96,8 +96,8 @@ pub enum AmountSource {
     PercentMaxHp(i32),
     /// Draw pile size divided by N (Aggregate: draw_pile / 4).
     DrawPileDivN(i32),
-    /// Number of attacks played this turn (Finisher).
-    AttacksThisTurn,
+    /// Number of attacks played before the current card (Finisher).
+    PriorAttacksThisTurn,
     /// Number of Skill cards in hand (Flechettes).
     SkillsInHand,
     /// Potion effective potency (base value scaled by A11 + Sacred Bark).

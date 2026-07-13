@@ -1437,7 +1437,9 @@ impl EffectRuntime {
             AmountSource::LastBulkCount => 0,
             AmountSource::LastBulkCountTimesBlock => 0,
             AmountSource::DrawPileSize => engine.state.draw_pile.len() as i32,
-            AmountSource::AttacksThisTurn => engine.state.attacks_played_this_turn,
+            AmountSource::PriorAttacksThisTurn => {
+                (engine.state.attacks_played_this_turn - 1).max(0)
+            }
             AmountSource::SkillsInHand => engine
                 .state
                 .hand

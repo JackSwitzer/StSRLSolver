@@ -63,6 +63,8 @@ fn extra_hits_allow_zero(card_id: &str) -> bool {
             | "Barrage+"
             | "Expunger"
             | "Expunger+"
+            | "Finisher"
+            | "Finisher+"
             | "Thunder Strike"
             | "Thunder Strike+"
     )

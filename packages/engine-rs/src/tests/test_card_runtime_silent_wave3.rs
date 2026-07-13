@@ -34,11 +34,11 @@ mod silent_wave3 {
         let reg = global_registry();
 
         let finisher = reg.get("Finisher").expect("Finisher");
-        assert_eq!(finisher.effect_data, &[E::ExtraHits(A::AttacksThisTurn)]);
+        assert_eq!(finisher.effect_data, &[E::ExtraHits(A::PriorAttacksThisTurn)]);
         assert!(finisher.complex_hook.is_none());
 
         let finisher_plus = reg.get("Finisher+").expect("Finisher+");
-        assert_eq!(finisher_plus.effect_data, &[E::ExtraHits(A::AttacksThisTurn)]);
+        assert_eq!(finisher_plus.effect_data, &[E::ExtraHits(A::PriorAttacksThisTurn)]);
         assert!(finisher_plus.complex_hook.is_none());
 
         let malaise = reg.get("Malaise").expect("Malaise");
@@ -99,6 +99,10 @@ mod silent_wave3 {
 
     #[test]
     fn silent_wave3_bane_and_finisher_follow_poison_and_attack_count_engine_rules() {
+        // DamagePerAttackPlayedAction subtracts the current Finisher and queues
+        // one DamageAction per earlier Attack, so zero earlier Attacks means
+        // zero damage.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DamagePerAttackPlayedAction.java
         let mut bane_engine = engine_for(
             &["Deadly Poison", "Bane"],
             &[],
@@ -121,7 +125,16 @@ mod silent_wave3 {
         let hp_before = finisher_engine.state.enemies[0].entity.hp;
         assert!(play_on_enemy(&mut finisher_engine, "Finisher", 0));
         assert_eq!(finisher_engine.state.attacks_played_this_turn, 3);
-        assert_eq!(finisher_engine.state.enemies[0].entity.hp, hp_before - 18);
+        assert_eq!(finisher_engine.state.enemies[0].entity.hp, hp_before - 12);
+
+        let mut first_attack = engine_for(
+            &["Finisher"],
+            &[],
+            vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
+            1,
+        );
+        assert!(play_on_enemy(&mut first_attack, "Finisher", 0));
+        assert_eq!(first_attack.state.enemies[0].entity.hp, 40);
     }
 
     #[test]
