@@ -957,9 +957,10 @@ fn add_player_status(engine: &mut CombatEngine, status: StatusId, amount: i32) {
     }
     if matches!(status, sid::COLLECT_MIRACLES | sid::LIKE_WATER | sid::ENERGIZED) {
         // Java CollectPower.stackPower(), LikeWaterPower.stackPower(), and
-        // EnergizedBluePower.stackPower() cap their amounts at 999.
+        // EnergizedPower.stackPower()/EnergizedBluePower.stackPower() cap at 999.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/CollectPower.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/LikeWaterPower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/EnergizedPower.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/EnergizedBluePower.java
         let next = (engine.state.player.status(status) + amount).min(999);
         engine.state.player.set_status(status, next);

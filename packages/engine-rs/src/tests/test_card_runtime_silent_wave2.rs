@@ -251,6 +251,33 @@ mod silent_wave2 {
     }
 
     #[test]
+    fn outmaneuver_stacks_base_and_upgrade_for_one_next_turn_recharge() {
+        // Outmaneuver.java applies EnergizedPower(2), or 3 upgraded.
+        // EnergizedPower.onEnergyRecharge grants the stacked amount and queues
+        // removal, so the bonus occurs on exactly one recharge.
+        let mut engine = engine_for(
+            &["Outmaneuver", "Outmaneuver+"],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            3,
+        );
+
+        assert!(play_self(&mut engine, "Outmaneuver"));
+        assert!(play_self(&mut engine, "Outmaneuver+"));
+        assert_eq!(engine.state.energy, 1);
+        assert_eq!(engine.state.player.status(sid::ENERGIZED), 5);
+
+        engine.execute_action(&Action::EndTurn);
+        assert_eq!(engine.state.energy, 8);
+        assert_eq!(engine.state.player.status(sid::ENERGIZED), 0);
+
+        engine.execute_action(&Action::EndTurn);
+        assert_eq!(engine.state.energy, 3);
+        assert_eq!(engine.state.player.status(sid::ENERGIZED), 0);
+    }
+
+    #[test]
     fn silent_wave2_sneaky_strike_condition_stays_dormant_without_a_discard() {
         let mut engine = engine_for(
             &["Sneaky Strike"],

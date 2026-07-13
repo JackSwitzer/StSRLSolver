@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T12:04:04.925105+00:00",
+ "updated": "2026-07-13T12:06:19.498455+00:00",
  "status_counts": {
-  "verified": 478,
-  "unverified": 189
+  "verified": 479,
+  "unverified": 188
  },
  "rows": [
   {
@@ -2352,8 +2352,8 @@
    "class": "Outmaneuver",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Outmaneuver.java",
    "methods_ref": "reference/extracted/methods/card/Outmaneuver.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

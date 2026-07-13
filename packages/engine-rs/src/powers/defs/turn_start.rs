@@ -16,8 +16,10 @@ use crate::status_ids::sid;
 // Energized — OnEnergyRecharge: gain stored energy, then remove the power
 // ===========================================================================
 
-// Source: decompiled/java-src/com/megacrit/cardcrawl/powers/EnergizedBluePower.java
-// gains amount during onEnergyRecharge and queues removal of the power.
+// EnergizedPower and EnergizedBluePower gain their amount during
+// onEnergyRecharge and queue removal of the shared "Energized" power.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/powers/EnergizedPower.java
+// Java: decompiled/java-src/com/megacrit/cardcrawl/powers/EnergizedBluePower.java
 
 static ENERGIZED_EFFECTS: [Effect; 2] = [
     Effect::Simple(SimpleEffect::GainEnergy(AmountSource::StatusValue(
