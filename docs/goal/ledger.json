@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T07:40:10.411463+00:00",
+ "updated": "2026-07-13T07:42:20.760576+00:00",
  "status_counts": {
-  "verified": 391,
-  "unverified": 276
+  "verified": 392,
+  "unverified": 275
  },
  "rows": [
   {
@@ -1242,8 +1242,8 @@
    "class": "Electrodynamics",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Electrodynamics.java",
    "methods_ref": "reference/extracted/methods/card/Electrodynamics.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

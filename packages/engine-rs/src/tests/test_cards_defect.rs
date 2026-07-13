@@ -878,12 +878,29 @@ mod defect_card_java_parity_tests {
         assert_eq!(stacked.state.player.status(sid::ECHO_FORM), 3);
     });
 
-    defect_test!(electrodynamics_channels_lightning, {
-        let mut e = filled_engine(&["Electrodynamics"], 40, 0);
-        e.init_defect_orbs(1);
-        ensure_in_hand(&mut e, "Electrodynamics");
-        play_self(&mut e, "Electrodynamics");
-        assert_eq!(e.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
+    defect_test!(electrodynamics_installs_electro_before_channeling_lightning, {
+        // Electrodynamics.java queues ElectroPower before its 2/3
+        // ChannelActions. With one full Lightning slot, every channel evokes
+        // the prior Lightning for 8 damage to every enemy under ElectroPower.
+        // Java: reference/extracted/methods/card/Electrodynamics.java
+        for (card_id, expected_hp) in [("Electrodynamics", 24), ("Electrodynamics+", 16)] {
+            let mut e = bare_engine(
+                &[card_id],
+                vec![enemy("JawWorm", 40, 0), enemy("Cultist", 40, 0)],
+            );
+            e.init_defect_orbs(1);
+            e.channel_orb(OrbType::Lightning);
+            e.state.energy = 2;
+            ensure_in_hand(&mut e, card_id);
+
+            assert!(play_self(&mut e, card_id));
+            assert_eq!(e.state.player.status(sid::ELECTRODYNAMICS), 1);
+            assert_eq!(e.state.enemies[0].entity.hp, expected_hp);
+            assert_eq!(e.state.enemies[1].entity.hp, expected_hp);
+            assert_eq!(e.state.orb_slots.occupied_count(), 1);
+            assert_eq!(e.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
+            assert_eq!(e.state.energy, 0);
+        }
     });
 
     defect_test!(machine_learning_will_add_draw_status, {
