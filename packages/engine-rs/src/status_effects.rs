@@ -62,7 +62,15 @@ pub fn process_end_turn_hand_cards(engine: &mut CombatEngine) -> bool {
                         powers::apply_debuff(&mut engine.state.player, sid::WEAKENED, 1);
                     }
                     EndTurnHandRule::Frail => {
-                        powers::apply_debuff(&mut engine.state.player, sid::FRAIL, 1);
+                        // Shame constructs FrailPower(player, 1, true), whose
+                        // justApplied flag skips this round's decrement.
+                        // Java: reference/extracted/methods/card/Shame.java and
+                        // decompiled/.../powers/FrailPower.java::atEndOfRound.
+                        powers::apply_debuff_from_enemy(
+                            &mut engine.state.player,
+                            sid::FRAIL,
+                            1,
+                        );
                     }
                     EndTurnHandRule::AddCopy => {
                         // Pride passes false for randomSpot, so the copied card

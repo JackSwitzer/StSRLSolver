@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T15:04:42.503701+00:00",
+ "updated": "2026-07-13T15:08:02.226174+00:00",
  "status_counts": {
-  "verified": 526,
-  "unverified": 141
+  "verified": 527,
+  "unverified": 140
  },
  "rows": [
   {
@@ -2942,8 +2942,8 @@
    "class": "Shame",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Shame.java",
    "methods_ref": "reference/extracted/methods/card/Shame.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

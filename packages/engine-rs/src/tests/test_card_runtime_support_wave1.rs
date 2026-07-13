@@ -4,6 +4,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/status/Burn.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Decay.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Regret.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Shame.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Pain.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/status/Void.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Parasite.java
@@ -261,6 +262,32 @@ fn support_wave1_end_turn_curse_and_status_hooks_fire_on_the_runtime_path() {
 
     assert_eq!(hp_before - engine.state.player.hp, 7);
     assert_eq!(draw_prefix_count(&engine, "Pride"), 1);
+}
+
+#[test]
+fn shame_applies_one_frail_that_survives_its_application_round() {
+    // Shame.java leaves the inherited magic number at -1, then queues itself
+    // at end of turn and constructs FrailPower(player, 1, true). FrailPower's
+    // true justApplied flag skips the immediately following atEndOfRound
+    // decrement, so the player starts the next turn with exactly one Frail.
+    let registry = global_registry();
+    let shame = registry.get("Shame").expect("Shame");
+    assert_eq!(shame.cost, -2);
+    assert_eq!(shame.base_magic, -1);
+    assert!(registry.get("Shame+").is_none());
+
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Shame"]);
+
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.status(sid::FRAIL), 1);
+    assert_eq!(engine.state.player.status(sid::FRAIL_JUST_APPLIED), 0);
 }
 
 #[test]

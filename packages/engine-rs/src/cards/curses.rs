@@ -27,10 +27,13 @@ pub fn register_curses(cards: &mut HashMap<&'static str, CardDef>) {
             base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[], complex_hook: None,
         });
+        // Shame.java leaves AbstractCard's magic number at -1. Its queued
+        // end-turn auto-play applies a literal one-turn FrailPower.
+        // Java: reference/extracted/methods/card/Shame.java
         insert(cards, CardDef {
             id: "Shame", name: "Shame", card_type: CardType::Curse,
             target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,
-            base_magic: 1, exhaust: false, enter_stance: None,
+            base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[], complex_hook: None,
         });
         insert(cards, CardDef {
