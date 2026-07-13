@@ -256,6 +256,34 @@ fn defect_wave12_thunder_strike_deals_no_damage_with_zero_lightning() {
 }
 
 #[test]
+fn thunder_strike_plus_uses_strike_tag_and_card_random_once_per_lightning() {
+    // ThunderStrike.java counts Lightning instances channeled this combat,
+    // queues one NewThunderStrikeAction per instance, and carries STRIKE.
+    // AttackDamageRandomEnemyAction selects through cardRandomRng even when
+    // only one enemy is alive; StrikeDummy adds three to every tagged hit.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ThunderStrike.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/NewThunderStrikeAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/AttackDamageRandomEnemyAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/StrikeDummy.java
+    let mut engine = one_enemy_engine(100, 3);
+    engine.init_defect_orbs(3);
+    engine.channel_orb(OrbType::Lightning);
+    engine.channel_orb(OrbType::Lightning);
+    engine.state.relics.push("StrikeDummy".to_string());
+    engine.state.player.set_status(sid::STRENGTH, 2);
+    engine.state.hand = make_deck(&["Thunder Strike+"]);
+    let card_random_before = engine.rng_counters()["cardRandom"];
+    let generic_before = engine.rng_counters()["card"];
+
+    assert!(play_self(&mut engine, "Thunder Strike+"));
+
+    assert_eq!(engine.state.energy, 0);
+    assert_eq!(engine.state.enemies[0].entity.hp, 72);
+    assert_eq!(engine.rng_counters()["cardRandom"], card_random_before + 2);
+    assert_eq!(engine.rng_counters()["card"], generic_before);
+}
+
+#[test]
 fn defect_wave12_thunder_strike_chooses_a_fresh_random_target_for_each_lightning_hit() {
     let seed = (0u64..128)
         .find(|seed| {

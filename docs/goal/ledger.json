@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T16:30:36.447840+00:00",
+ "updated": "2026-07-13T16:32:49.039192+00:00",
  "status_counts": {
-  "verified": 558,
-  "unverified": 109
+  "verified": 559,
+  "unverified": 108
  },
  "rows": [
   {
@@ -3342,8 +3342,8 @@
    "class": "ThunderStrike",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ThunderStrike.java",
    "methods_ref": "reference/extracted/methods/card/ThunderStrike.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

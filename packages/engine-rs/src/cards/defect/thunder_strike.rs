@@ -3,7 +3,10 @@ use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect a
 use crate::status_ids::sid;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Thunder Strike: 3 cost, deal 7 dmg for each Lightning channeled this combat
+        // ThunderStrike.java queues one random-enemy action per Lightning orb
+        // channeled this combat, carries the STRIKE tag, and upgrades 7 -> 9.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ThunderStrike.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/NewThunderStrikeAction.java
     insert(cards, CardDef {
                 id: "Thunder Strike", name: "Thunder Strike", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 3, base_damage: 7, base_block: -1,
