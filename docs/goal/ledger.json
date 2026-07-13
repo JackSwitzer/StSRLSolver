@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T06:35:17.726628+00:00",
+ "updated": "2026-07-13T06:36:55.820070+00:00",
  "status_counts": {
-  "verified": 358,
-  "unverified": 309
+  "verified": 359,
+  "unverified": 308
  },
  "rows": [
   {
@@ -832,8 +832,8 @@
    "class": "CripplingPoison",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/CripplingPoison.java",
    "methods_ref": "reference/extracted/methods/card/CripplingPoison.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

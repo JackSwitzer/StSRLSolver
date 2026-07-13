@@ -294,6 +294,34 @@ mod silent_card_java_parity_tests {
         "Crippling Cloud", 2, -1, -1, 4, CardType::Skill, CardTarget::AllEnemy, true, None, &["poison_all", "weak_all"],
         "Crippling Cloud+", 2, -1, -1, 7, CardType::Skill, CardTarget::AllEnemy, true, None, &["poison_all", "weak_all"],
     );
+
+    #[test]
+    fn crippling_cloud_plus_applies_seven_poison_then_two_weak_and_exhausts() {
+        // Source: CripplingPoison.java queues 4 Poison then 2 Weak per living
+        // enemy; upgradeMagicNumber(3) changes only Poison to 7.
+        let mut engine = engine_without_start(
+            Vec::new(),
+            vec![
+                enemy_no_intent("JawWorm", 40, 40),
+                enemy_no_intent("Cultist", 35, 35),
+            ],
+            2,
+        );
+        force_player_turn(&mut engine);
+        engine.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+        engine.state.hand = make_deck(&["Crippling Cloud+"]);
+
+        assert!(play_self(&mut engine, "Crippling Cloud+"));
+
+        assert_eq!(engine.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 0);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::WEAKENED), 2);
+        assert_eq!(engine.state.enemies[1].entity.status(sid::POISON), 7);
+        assert_eq!(engine.state.enemies[1].entity.status(sid::WEAKENED), 2);
+        assert_eq!(engine.state.energy, 0);
+        assert_eq!(engine.state.exhaust_pile.len(), 1);
+    }
+
     card_pair_test!(dash,
         "Dash", 2, 10, 10, -1, CardType::Attack, CardTarget::Enemy, false, None, &[],
         "Dash+", 2, 13, 13, -1, CardType::Attack, CardTarget::Enemy, false, None, &[],
