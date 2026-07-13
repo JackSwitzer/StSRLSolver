@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // Magnetism: 2 cost, power, add random colorless card to hand each turn (upgrade: cost 1)
+    // Magnetism.java applies one MagnetismPower stack. Its upgrade changes only
+    // base cost 2 -> 1; MagnetismPower generates one random Colorless per stack.
     insert(cards, CardDef {
         id: "Magnetism", name: "Magnetism", card_type: CardType::Power,
         target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,

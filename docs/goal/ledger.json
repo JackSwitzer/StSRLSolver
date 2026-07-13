@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T11:09:05.309245+00:00",
+ "updated": "2026-07-13T11:11:18.180415+00:00",
  "status_counts": {
-  "verified": 459,
-  "unverified": 208
+  "verified": 460,
+  "unverified": 207
  },
  "rows": [
   {
@@ -2112,8 +2112,8 @@
    "class": "Magnetism",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Magnetism.java",
    "methods_ref": "reference/extracted/methods/card/Magnetism.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

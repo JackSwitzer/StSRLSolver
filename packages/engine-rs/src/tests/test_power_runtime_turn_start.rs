@@ -23,6 +23,15 @@ const DEFECT_COMMON_POOL: &[&str] = &[
     "Compile Driver", "Redo", "Streamline", "Ball Lightning", "Go for the Eyes",
 ];
 
+const COLORLESS_POOL: &[&str] = &[
+    "Madness", "Thinking Ahead", "Mind Blast", "Metamorphosis", "Jack Of All Trades",
+    "Swift Strike", "Good Instincts", "Master of Strategy", "Magnetism", "Finesse",
+    "Discovery", "Chrysalis", "Transmutation", "Panacea", "Purity", "Enlightenment",
+    "Forethought", "Flash of Steel", "HandOfGreed", "Mayhem", "Apotheosis", "Secret Weapon",
+    "Panache", "Violence", "Deep Breath", "Secret Technique", "Blind", "The Bomb",
+    "Impatience", "Dramatic Entrance", "Trip", "PanicButton", "Sadistic Nature", "Dark Shackles",
+];
+
 #[test]
 fn hello_world_hook_rolls_every_stack_and_spills_past_hand_limit() {
     // HelloPower.atStartOfTurn calls getCard(COMMON, cardRandomRng) once per
@@ -45,6 +54,42 @@ fn hello_world_hook_rolls_every_stack_and_spills_past_hand_limit() {
 
     let mut runtime_state = EffectState::default();
     hook_hello_world(
+        &mut engine,
+        EffectOwner::PlayerPower,
+        &post_draw_event(),
+        &mut runtime_state,
+    );
+
+    assert_eq!(engine.state.hand.len(), 10);
+    assert_eq!(engine.card_registry.card_name(engine.state.hand[9].def_id), expected[0]);
+    assert_eq!(engine.state.discard_pile.len(), 2);
+    assert_eq!(engine.card_registry.card_name(engine.state.discard_pile[0].def_id), expected[1]);
+    assert_eq!(engine.card_registry.card_name(engine.state.discard_pile[1].def_id), expected[2]);
+    assert_eq!(engine.card_random_rng.counter, oracle.counter);
+}
+
+#[test]
+fn magnetism_hook_rolls_one_colorless_per_stack_and_spills_past_hand_limit() {
+    // MagnetismPower.atStartOfTurn calls the truly-random Colorless helper once
+    // per stack. The source pool/order comes from CardLibrary plus
+    // AbstractDungeon.addColorlessCards; MakeTempCardInHandAction spills at ten.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    engine.state.player.set_status(sid::MAGNETISM, 3);
+    engine.state.hand = make_deck(&[
+        "Strike", "Strike", "Strike", "Strike", "Strike",
+        "Strike", "Strike", "Strike", "Strike",
+    ]);
+    let mut oracle = engine.card_random_rng.clone();
+    let expected: Vec<&str> = (0..3)
+        .map(|_| COLORLESS_POOL[oracle.random((COLORLESS_POOL.len() - 1) as i32) as usize])
+        .collect();
+
+    let mut runtime_state = EffectState::default();
+    hook_magnetism(
         &mut engine,
         EffectOwner::PlayerPower,
         &post_draw_event(),

@@ -105,6 +105,9 @@ fn colorless_wave1_registry_exports_match_typed_surface() {
     assert_eq!(swift_strike.effect_data, &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]);
 
     let magnetism = registry.get("Magnetism").expect("Magnetism should exist");
+    let magnetism_plus = registry.get("Magnetism+").expect("Magnetism+ should exist");
+    assert_eq!((magnetism.cost, magnetism.base_magic), (2, 1));
+    assert_eq!((magnetism_plus.cost, magnetism_plus.base_magic), (1, 1));
     assert_eq!(
         magnetism.effect_data,
         &[E::Simple(SE::AddStatus(T::Player, sid::MAGNETISM, A::Magic))]

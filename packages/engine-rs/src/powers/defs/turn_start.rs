@@ -375,14 +375,10 @@ pub static DEF_HELLO_WORLD: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Magnetism — TurnStart: add Strike to hand (MCTS approximation)
+// Magnetism — TurnStart: add one random Colorless card per stack
 // ===========================================================================
 
-static MAGNETISM_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddCard(
-    "Strike",
-    Pile::Hand,
-    AmountSource::Fixed(1),
-))];
+static MAGNETISM_EFFECTS: [Effect; 0] = [];
 
 static MAGNETISM_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::TurnStart,
@@ -391,12 +387,40 @@ static MAGNETISM_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     counter: None,
 }];
 
+fn hook_magnetism(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    _event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    // MagnetismPower.atStartOfTurn calls returnTrulyRandomColorlessCardInCombat
+    // once per stack, then queues one MakeTempCardInHandAction per base copy.
+    // That selection consumes cardRandomRng and hand overflow goes to discard.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/MagnetismPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
+    let magnetism = engine.state.player.status(sid::MAGNETISM);
+    for _ in 0..magnetism {
+        let Some(card) = crate::effects::interpreter::generate_random_card(
+            engine,
+            GeneratedCardPool::Colorless,
+        ) else {
+            continue;
+        };
+        if engine.state.hand.len() < 10 {
+            engine.state.hand.push(card);
+        } else {
+            engine.state.discard_pile.push(card);
+        }
+    }
+}
+
 pub static DEF_MAGNETISM: EntityDef = EntityDef {
     id: "magnetism",
     name: "Magnetism",
     kind: EntityKind::Power,
     triggers: &MAGNETISM_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_magnetism),
     status_guard: Some(sid::MAGNETISM),
 };
 
