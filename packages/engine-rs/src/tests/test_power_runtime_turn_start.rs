@@ -17,6 +17,48 @@ const DEFECT_POWER_POOL: &[&str] = &[
     "Biased Cognition", "Machine Learning", "Electrodynamics", "Buffer", "Echo Form", "Creative AI",
 ];
 
+const DEFECT_COMMON_POOL: &[&str] = &[
+    "Steam", "Cold Snap", "Leap", "Beam Cell", "Hologram", "Conserve Battery",
+    "Sweeping Beam", "Turbo", "Coolheaded", "Gash", "Rebound", "Stack", "Barrage",
+    "Compile Driver", "Redo", "Streamline", "Ball Lightning", "Go for the Eyes",
+];
+
+#[test]
+fn hello_world_hook_rolls_every_stack_and_spills_past_hand_limit() {
+    // HelloPower.atStartOfTurn calls getCard(COMMON, cardRandomRng) once per
+    // stack. MakeTempCardInHandAction then puts overflow into the discard pile.
+    // Java: powers/HelloPower.java and actions/common/MakeTempCardInHandAction.java.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    engine.state.player.set_status(sid::HELLO_WORLD, 3);
+    engine.state.hand = make_deck(&[
+        "Strike", "Strike", "Strike", "Strike", "Strike",
+        "Strike", "Strike", "Strike", "Strike",
+    ]);
+    let mut oracle = engine.card_random_rng.clone();
+    let expected: Vec<&str> = (0..3)
+        .map(|_| DEFECT_COMMON_POOL[oracle.random((DEFECT_COMMON_POOL.len() - 1) as i32) as usize])
+        .collect();
+
+    let mut runtime_state = EffectState::default();
+    hook_hello_world(
+        &mut engine,
+        EffectOwner::PlayerPower,
+        &post_draw_event(),
+        &mut runtime_state,
+    );
+
+    assert_eq!(engine.state.hand.len(), 10);
+    assert_eq!(engine.card_registry.card_name(engine.state.hand[9].def_id), expected[0]);
+    assert_eq!(engine.state.discard_pile.len(), 2);
+    assert_eq!(engine.card_registry.card_name(engine.state.discard_pile[0].def_id), expected[1]);
+    assert_eq!(engine.card_registry.card_name(engine.state.discard_pile[1].def_id), expected[2]);
+    assert_eq!(engine.card_random_rng.counter, oracle.counter);
+}
+
 #[test]
 fn creative_ai_hook_rolls_every_stack_and_spills_past_hand_limit() {
     // CreativeAIPower.java rolls one source-pool Power per stack before
@@ -150,6 +192,10 @@ fn tools_of_the_trade_hook_draws_and_opens_single_discard_choice() {
 
 #[test]
 fn complex_turn_start_power_defs_use_java_trigger_phases() {
+    assert_eq!(DEF_HELLO_WORLD.triggers.len(), 1);
+    assert_eq!(DEF_HELLO_WORLD.triggers[0].trigger, Trigger::TurnStart);
+    assert!(DEF_HELLO_WORLD.complex_hook.is_some());
+
     assert_eq!(DEF_CREATIVE_AI.triggers.len(), 1);
     assert_eq!(DEF_CREATIVE_AI.triggers[0].trigger, Trigger::TurnStart);
     assert!(DEF_CREATIVE_AI.complex_hook.is_some());

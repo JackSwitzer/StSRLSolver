@@ -2153,6 +2153,7 @@ pub(crate) fn generate_random_card(
     let choice_index = if matches!(
         pool,
         GeneratedCardPool::Skill
+            | GeneratedCardPool::DefectCommon
             | GeneratedCardPool::DefectPower
             | GeneratedCardPool::WatcherPower
             | GeneratedCardPool::WatcherAny
@@ -2225,6 +2226,7 @@ fn generated_card_pool(engine: &CombatEngine, pool: GeneratedCardPool) -> Vec<&'
             .filter(|def| def.card_type == CardType::Power && !def.id.ends_with('+'))
             .map(|def| def.id)
             .collect(),
+        GeneratedCardPool::DefectCommon => DEFECT_COMMON_GENERATION_POOL.to_vec(),
         GeneratedCardPool::DefectPower => DEFECT_POWER_GENERATION_POOL.to_vec(),
         GeneratedCardPool::WatcherPower => engine
             .card_registry
@@ -2287,6 +2289,18 @@ const WATCHER_SKILL_GENERATION_POOL: &[&str] = &[
     "WreathOfFlame", "ForeignInfluence", "Indignation", "Sanctity", "Vengeance", "Judgement",
     "ConjureBlade", "Blasphemy", "Scrawl", "Vault", "Alpha", "Omniscience", "SpiritShield",
     "DeusExMachina",
+];
+
+// Defect's srcCommonCardPool in Java HashMap iteration order. CardLibrary
+// inserts the unlocked blue cards into tmpPool, initializeCardPools adds each
+// common to the top of commonCardPool, and getCard(COMMON, cardRandomRng)
+// selects directly from that resulting order.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
+// Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+const DEFECT_COMMON_GENERATION_POOL: &[&str] = &[
+    "Steam", "Cold Snap", "Leap", "Beam Cell", "Hologram", "Conserve Battery",
+    "Sweeping Beam", "Turbo", "Coolheaded", "Gash", "Rebound", "Stack", "Barrage",
+    "Compile Driver", "Redo", "Streamline", "Ball Lightning", "Go for the Eyes",
 ];
 
 // Defect's srcUncommon/srcRare Power pools in Java HashMap iteration order.

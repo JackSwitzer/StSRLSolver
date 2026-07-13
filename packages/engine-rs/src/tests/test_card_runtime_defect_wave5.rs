@@ -277,7 +277,10 @@ fn test_card_runtime_defect_wave5_heatsinks_hello_world_and_loop_install_runtime
     assert_eq!(hello_world.state.player.status(sid::HELLO_WORLD), 1);
     end_turn(&mut hello_world);
     assert_eq!(hello_world.state.hand.len(), 1);
-    assert_eq!(
+    // HelloPower.java selects from the current character's commonCardPool;
+    // Strike is BASIC and therefore cannot be generated. Exact pool order and
+    // cardRandomRng consumption are covered by the source-derived power test.
+    assert_ne!(
         hello_world.card_registry.card_name(hello_world.state.hand[0].def_id),
         "Strike"
     );

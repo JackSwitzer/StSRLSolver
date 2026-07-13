@@ -159,7 +159,9 @@ fn defect_wave7_buffer_heatsinks_hello_world_and_loop_follow_engine_path() {
     assert_eq!(hello_world.state.player.status(sid::HELLO_WORLD), 1);
     end_turn(&mut hello_world);
     assert_eq!(hello_world.state.hand.len(), 1);
-    assert_eq!(
+    // Java: powers/HelloPower.java draws from commonCardPool, which excludes
+    // the BASIC Strike that the old approximation generated.
+    assert_ne!(
         hello_world.card_registry.card_name(hello_world.state.hand[0].def_id),
         "Strike"
     );

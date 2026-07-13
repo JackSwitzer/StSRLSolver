@@ -78,6 +78,29 @@ const DEFECT_POWER_POOL_IN_JAVA_ORDER: &[&str] = &[
     "Biased Cognition", "Machine Learning", "Electrodynamics", "Buffer", "Echo Form", "Creative AI",
 ];
 
+const DEFECT_COMMON_POOL_IN_JAVA_ORDER: &[&str] = &[
+    "Steam", "Cold Snap", "Leap", "Beam Cell", "Hologram", "Conserve Battery",
+    "Sweeping Beam", "Turbo", "Coolheaded", "Gash", "Rebound", "Stack", "Barrage",
+    "Compile Driver", "Redo", "Streamline", "Ball Lightning", "Go for the Eyes",
+];
+
+#[test]
+fn defect_common_generation_pool_matches_java_source_pool_order() {
+    // CardLibrary's HashMap iteration and initializeCardPools establish the
+    // exact commonCardPool order consumed by HelloPower through getCard.
+    // Java: CardLibrary.java, AbstractDungeon.java, and HelloPower.java.
+    let engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+
+    assert_eq!(
+        super::generated_card_pool(&engine, super::GeneratedCardPool::DefectCommon),
+        DEFECT_COMMON_POOL_IN_JAVA_ORDER
+    );
+}
+
 #[test]
 fn defect_power_generation_pool_matches_java_source_pool_order() {
     // CardLibrary's HashMap iteration and initializeCardPools establish this

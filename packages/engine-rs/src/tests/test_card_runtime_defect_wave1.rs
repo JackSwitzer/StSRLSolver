@@ -156,7 +156,9 @@ fn test_card_runtime_defect_wave1_machine_learning_and_hello_world_trigger_start
     assert!(play_self(&mut hello_world, "Hello World"));
     end_turn(&mut hello_world);
     assert_eq!(hello_world.state.hand.len(), 1);
-    assert_eq!(hello_world.card_registry.card_name(hello_world.state.hand[0].def_id), "Strike");
+    // Java: powers/HelloPower.java selects from commonCardPool; BASIC Strike
+    // is excluded. Exact source-pool ordering and RNG are tested with the hook.
+    assert_ne!(hello_world.card_registry.card_name(hello_world.state.hand[0].def_id), "Strike");
 }
 
 #[test]

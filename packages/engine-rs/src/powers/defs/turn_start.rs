@@ -322,14 +322,10 @@ pub static DEF_DEVA_FORM: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Hello World — TurnStart: add Strike to hand (MCTS approximation)
+// Hello World — atStartOfTurn: add one random common card per stack
 // ===========================================================================
 
-static HELLO_WORLD_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddCard(
-    "Strike",
-    Pile::Hand,
-    AmountSource::StatusValue(sid::HELLO_WORLD),
-))];
+static HELLO_WORLD_EFFECTS: [Effect; 0] = [];
 
 static HELLO_WORLD_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::TurnStart,
@@ -338,12 +334,40 @@ static HELLO_WORLD_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     counter: None,
 }];
 
+fn hook_hello_world(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    _event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    // HelloPower.atStartOfTurn calls getCard(COMMON, cardRandomRng) once per
+    // stack and queues a MakeTempCardInHandAction for each base copy. The temp
+    // action applies Master Reality and spills cards past the hand cap.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/HelloPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
+    let hello_world = engine.state.player.status(sid::HELLO_WORLD);
+    for _ in 0..hello_world {
+        let Some(card) = crate::effects::interpreter::generate_random_card(
+            engine,
+            GeneratedCardPool::DefectCommon,
+        ) else {
+            continue;
+        };
+        if engine.state.hand.len() < 10 {
+            engine.state.hand.push(card);
+        } else {
+            engine.state.discard_pile.push(card);
+        }
+    }
+}
+
 pub static DEF_HELLO_WORLD: EntityDef = EntityDef {
     id: "hello_world",
     name: "Hello World",
     kind: EntityKind::Power,
     triggers: &HELLO_WORLD_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_hello_world),
     status_guard: Some(sid::HELLO_WORLD),
 };
 
