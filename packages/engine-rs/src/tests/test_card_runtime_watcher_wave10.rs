@@ -88,6 +88,27 @@ fn watcher_wave10_protect_smite_and_power_installs_follow_engine_path() {
 }
 
 #[test]
+fn smite_plus_self_retains_until_played_then_deals_sixteen_and_exhausts() {
+    // Smite.java sets both selfRetain and exhaust, deals 12 damage for one
+    // energy, and upgrades only with upgradeDamage(4). Thus Smite+ survives an
+    // unplayed turn but moves to exhaust after its single 16-damage hit.
+    let mut engine = one_enemy_engine("JawWorm", 60, 0);
+    engine.state.hand = make_deck(&["Smite+"]);
+
+    end_turn(&mut engine);
+
+    assert_eq!(hand_count(&engine, "Smite+"), 1);
+    assert_eq!(discard_prefix_count(&engine, "Smite"), 0);
+    assert_eq!(exhaust_prefix_count(&engine, "Smite"), 0);
+
+    assert!(play_on_enemy(&mut engine, "Smite+", 0));
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 44);
+    assert_eq!(hand_count(&engine, "Smite+"), 0);
+    assert_eq!(exhaust_prefix_count(&engine, "Smite"), 1);
+}
+
+#[test]
 fn watcher_wave10_mental_fortress_master_reality_and_tranquility_behave_like_java() {
     let mut mental_fortress = one_enemy_engine("JawWorm", 80, 0);
     set_stance(&mut mental_fortress, Stance::Wrath);

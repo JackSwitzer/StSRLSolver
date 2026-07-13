@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T15:24:12.468877+00:00",
+ "updated": "2026-07-13T15:26:00.352350+00:00",
  "status_counts": {
-  "verified": 534,
-  "unverified": 133
+  "verified": 535,
+  "unverified": 132
  },
  "rows": [
   {
@@ -3032,8 +3032,8 @@
    "class": "Smite",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Smite.java",
    "methods_ref": "reference/extracted/methods/card/Smite.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
