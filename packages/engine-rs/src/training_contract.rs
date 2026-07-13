@@ -1003,7 +1003,9 @@ fn restore_card_snapshots(
         .collect()
 }
 
-fn collect_status_tokens(statuses: &[i16; 256]) -> Vec<StatusTokenV1> {
+fn collect_status_tokens(
+    statuses: &[i16; crate::status_ids::sid::MAX_STATUS_ID],
+) -> Vec<StatusTokenV1> {
     statuses
         .iter()
         .enumerate()
@@ -1022,8 +1024,11 @@ fn collect_status_tokens(statuses: &[i16; 256]) -> Vec<StatusTokenV1> {
         .collect()
 }
 
-fn apply_status_tokens(statuses: &mut [i16; 256], tokens: &[StatusTokenV1]) {
-    *statuses = [0; 256];
+fn apply_status_tokens(
+    statuses: &mut [i16; crate::status_ids::sid::MAX_STATUS_ID],
+    tokens: &[StatusTokenV1],
+) {
+    *statuses = [0; crate::status_ids::sid::MAX_STATUS_ID];
     for token in tokens {
         let idx = token.status_id as usize;
         if idx < statuses.len() {

@@ -322,11 +322,15 @@ pub mod sid {
     pub const VULNERABLE_JUST_APPLIED: StatusId = StatusId(254);
     pub const FRAIL_JUST_APPLIED: StatusId = StatusId(255);
 
+    // Silent delayed damage power. Appended to preserve every existing numeric
+    // ID used by trace/training snapshots.
+    pub const PHANTASMAL: StatusId = StatusId(256);
+
     /// Total number of defined status IDs (exclusive upper bound).
-    pub const NUM_IDS: usize = 256;
+    pub const NUM_IDS: usize = 257;
 
     /// Array sizing constant (power of 2 for cache-friendly indexing).
-    pub const MAX_STATUS_ID: usize = 256;
+    pub const MAX_STATUS_ID: usize = 512;
 }
 
 // =========================================================================
@@ -616,6 +620,7 @@ static STATUS_NAMES: &[&str] = &[
     "WeakenedJustApplied", // 253
     "VulnerableJustApplied", // 254
     "FrailJustApplied",   // 255
+    "Phantasmal",         // 256
 ];
 
 #[cfg(test)]

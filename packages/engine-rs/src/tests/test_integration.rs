@@ -3075,15 +3075,66 @@ mod effect_handler_tests {
         assert!(has_backstab, "Innate card (Backstab) should appear in opening hand");
     }
 
-    #[test] fn phantasmal_killer_sets_double_damage() {
+    #[test] fn phantasmal_killer_schedules_full_double_damage_turns() {
+        // Sources: cards/green/PhantasmalKiller.java,
+        // powers/PhantasmalPower.java, and powers/DoubleDamagePower.java.
         let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend", 10), 200, 0);
         e.start_combat();
         e.state.energy = 10;
-        let pk = e.card_registry.make_card("Phantasmal Killer");
-        e.state.hand.push(pk);
+        e.state.hand.push(e.card_registry.make_card("Phantasmal Killer"));
+        e.state.hand.push(e.card_registry.make_card("Phantasmal Killer"));
+        e.state.hand.push(e.card_registry.make_card("Strike"));
+
         play_card(&mut e, "Phantasmal Killer", -1);
+        play_card(&mut e, "Phantasmal Killer", -1);
+        assert_eq!(e.state.player.status(sid::PHANTASMAL), 2);
+        assert_eq!(e.state.player.status(sid::DOUBLE_DAMAGE), 0,
+            "Phantasmal Killer must not double damage on the play turn");
+
+        play_card(&mut e, "Strike", 0);
+        assert_eq!(e.state.enemies[0].entity.hp, 194,
+            "the play-turn Strike remains at its normal six damage");
+
+        e.execute_action(&Action::EndTurn);
+        assert_eq!(e.state.player.status(sid::PHANTASMAL), 1);
+        assert_eq!(e.state.player.status(sid::DOUBLE_DAMAGE), 1);
+        e.state.enemies[0].entity.block = 0;
+        e.state.hand.push(e.card_registry.make_card("Strike"));
+        e.state.hand.push(e.card_registry.make_card("Strike"));
+        play_card(&mut e, "Strike", 0);
+        play_card(&mut e, "Strike", 0);
+        assert_eq!(e.state.enemies[0].entity.hp, 170,
+            "DoubleDamagePower doubles every NORMAL attack for the turn");
         assert_eq!(e.state.player.status(sid::DOUBLE_DAMAGE), 1,
-            "Phantasmal Killer should set DOUBLE_DAMAGE = 1");
+            "attacks do not consume a turn-based DoubleDamagePower");
+
+        e.execute_action(&Action::EndTurn);
+        assert_eq!(e.state.player.status(sid::PHANTASMAL), 0);
+        assert_eq!(e.state.player.status(sid::DOUBLE_DAMAGE), 1,
+            "the second Phantasmal stack schedules the following turn");
+        e.state.enemies[0].entity.block = 0;
+        e.state.hand.push(e.card_registry.make_card("Strike"));
+        play_card(&mut e, "Strike", 0);
+        assert_eq!(e.state.enemies[0].entity.hp, 158);
+
+        e.execute_action(&Action::EndTurn);
+        assert_eq!(e.state.player.status(sid::DOUBLE_DAMAGE), 0,
+            "DoubleDamagePower reduces once at end of round");
+    }
+
+    #[test] fn phantasmal_stacks_pending_amount_into_existing_double_damage() {
+        // PhantasmalPower.java passes `this.amount` as ApplyPowerAction's
+        // stackAmount even though the newly constructed DoubleDamagePower is 1.
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend", 10), 200, 0);
+        e.start_combat();
+        e.state.player.set_status(sid::PHANTASMAL, 3);
+        e.state.player.set_status(sid::DOUBLE_DAMAGE, 2);
+
+        e.execute_action(&Action::EndTurn);
+
+        assert_eq!(e.state.player.status(sid::PHANTASMAL), 2);
+        assert_eq!(e.state.player.status(sid::DOUBLE_DAMAGE), 4,
+            "round end reduces 2 to 1, then three pending stacks add 3");
     }
 
     #[test] fn biased_cognition_loses_focus_each_turn() {

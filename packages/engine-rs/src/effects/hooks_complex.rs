@@ -648,10 +648,6 @@ pub fn hook_damage_random_hits(engine: &mut CombatEngine, ctx: &CardPlayContext)
     let weak_pc = engine.state.has_relic("Paper Crane");
     let stance_mult = engine.state.stance.outgoing_mult();
     let double_damage = engine.state.player.status(sid::DOUBLE_DAMAGE) > 0;
-    if double_damage {
-        let dd = engine.state.player.status(sid::DOUBLE_DAMAGE);
-        engine.state.player.set_status(sid::DOUBLE_DAMAGE, dd - 1);
-    }
 
     for i in 0..hits {
         let living = engine.state.living_enemy_indices();

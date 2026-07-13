@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T12:26:33.165071+00:00",
+ "updated": "2026-07-13T12:34:19.183429+00:00",
  "status_counts": {
-  "verified": 485,
-  "unverified": 182
+  "verified": 486,
+  "unverified": 181
  },
  "rows": [
   {
@@ -2442,8 +2442,8 @@
    "class": "PhantasmalKiller",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/PhantasmalKiller.java",
    "methods_ref": "reference/extracted/methods/card/PhantasmalKiller.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

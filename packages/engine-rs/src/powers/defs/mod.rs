@@ -35,6 +35,7 @@ pub use complex::*;
 pub static POWER_DEFS: &[&EntityDef] = &[
     // -- Turn Start (simple) --
     &turn_start::DEF_ENERGIZED,
+    &turn_start::DEF_PHANTASMAL,
     &turn_start::DEF_DEMON_FORM,
     &turn_start::DEF_NOXIOUS_FUMES,
     &turn_start::DEF_BRUTALITY,
@@ -113,6 +114,7 @@ pub static POWER_DEFS: &[&EntityDef] = &[
 /// excluded until their runtime hooks are migrated.
 pub static RUNTIME_PLAYER_POWER_DEFS: &[&EntityDef] = &[
     &turn_start::DEF_ENERGIZED,
+    &turn_start::DEF_PHANTASMAL,
     &turn_start::DEF_DEMON_FORM,
     &turn_start::DEF_NOXIOUS_FUMES,
     &turn_start::DEF_BRUTALITY,

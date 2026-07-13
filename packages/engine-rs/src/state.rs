@@ -1,7 +1,7 @@
 //! Combat state types — mirrors packages/engine/state/combat.py.
 //!
 //! Design: all state is owned, Clone for MCTS tree copies. Statuses use a flat
-//! [i16; 256] array indexed by StatusId for O(1) access and fast cloning.
+//! fixed array indexed by StatusId for O(1) access and fast cloning.
 
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -74,7 +74,7 @@ pub struct EntityState {
     pub max_hp: i32,
     pub block: i32,
     /// All statuses as a flat array indexed by StatusId. Zero means absent.
-    pub statuses: [i16; 256],
+    pub statuses: [i16; sid::MAX_STATUS_ID],
 }
 
 impl EntityState {
@@ -83,7 +83,7 @@ impl EntityState {
             hp,
             max_hp,
             block: 0,
-            statuses: [0; 256],
+            statuses: [0; sid::MAX_STATUS_ID],
         }
     }
 

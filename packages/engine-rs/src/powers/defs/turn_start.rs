@@ -77,6 +77,60 @@ pub static DEF_ENERGY_DOWN: EntityDef = EntityDef {
 };
 
 // ===========================================================================
+// Phantasmal — grant one turn of Double Damage, then consume one schedule stack
+// ===========================================================================
+
+fn hook_phantasmal(
+    engine: &mut CombatEngine,
+    owner: EffectOwner,
+    event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    if owner != EffectOwner::PlayerPower || event.kind != Trigger::TurnStart {
+        return;
+    }
+
+    let phantasmal = engine.state.player.status(sid::PHANTASMAL);
+    if phantasmal <= 0 {
+        return;
+    }
+
+    // Java: powers/PhantasmalPower.java constructs DoubleDamagePower(amount=1)
+    // but passes the full Phantasmal amount as ApplyPowerAction.stackAmount.
+    // Thus an absent power starts at one; an existing power gains all pending
+    // stacks. Phantasmal itself always loses exactly one stack per turn.
+    let double_damage = engine.state.player.status(sid::DOUBLE_DAMAGE);
+    if double_damage > 0 {
+        engine
+            .state
+            .player
+            .set_status(sid::DOUBLE_DAMAGE, double_damage + phantasmal);
+    } else {
+        engine.state.player.set_status(sid::DOUBLE_DAMAGE, 1);
+    }
+    engine
+        .state
+        .player
+        .set_status(sid::PHANTASMAL, phantasmal - 1);
+}
+
+static PHANTASMAL_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::TurnStart,
+    condition: TriggerCondition::Always,
+    effects: &[],
+    counter: None,
+}];
+
+pub static DEF_PHANTASMAL: EntityDef = EntityDef {
+    id: "phantasmal",
+    name: "Phantasmal",
+    kind: EntityKind::Power,
+    triggers: &PHANTASMAL_TRIGGERS,
+    complex_hook: Some(hook_phantasmal),
+    status_guard: Some(sid::PHANTASMAL),
+};
+
+// ===========================================================================
 // Demon Form — post-draw turn start: gain Strength equal to stacks
 // ===========================================================================
 

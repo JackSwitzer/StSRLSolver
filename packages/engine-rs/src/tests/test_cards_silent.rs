@@ -944,9 +944,11 @@ mod silent_card_java_parity_tests {
             assert_eq!(card.effect_data, &expected, "{id} effect_data");
         }
     }
+    // Source: cards/green/PhantasmalKiller.java — SELF target, neither version
+    // is Ethereal, and upgradeBaseCost changes only the cost from 1 to 0.
     card_pair_test!(phantasmal_killer,
-        "Phantasmal Killer", 1, -1, -1, -1, CardType::Skill, CardTarget::None, false, None, &["phantasmal_killer", "ethereal"],
-        "Phantasmal Killer+", 1, -1, -1, -1, CardType::Skill, CardTarget::None, false, None, &["phantasmal_killer"],
+        "Phantasmal Killer", 1, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["phantasmal_killer"],
+        "Phantasmal Killer+", 0, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["phantasmal_killer"],
     );
     card_pair_test!(storm_of_steel,
         "Storm of Steel", 1, -1, -1, -1, CardType::Skill, CardTarget::None, false, None, &["storm_of_steel"],

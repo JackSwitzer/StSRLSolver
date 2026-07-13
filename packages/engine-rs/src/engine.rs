@@ -2025,6 +2025,16 @@ impl CombatEngine {
             self.state.player.set_status(sid::NO_BLOCK, no_block - 1);
         }
 
+        // DoubleDamagePower applies to every NORMAL hit while present and is
+        // turn-based, reducing once here rather than when an attack is played.
+        // Java: powers/DoubleDamagePower.java::atDamageGive/atEndOfRound.
+        let double_damage = self.state.player.status(sid::DOUBLE_DAMAGE);
+        if double_damage > 0 {
+            self.state
+                .player
+                .set_status(sid::DOUBLE_DAMAGE, double_damage - 1);
+        }
+
         // Check combat end
         if !self.check_combat_end() {
             self.start_player_turn();

@@ -811,7 +811,7 @@ pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
         name
     };
 
-    let powers_from_statuses = |statuses: &[i16; 256]| -> Vec<PowerPostState> {
+    let powers_from_statuses = |statuses: &[i16; crate::status_ids::sid::MAX_STATUS_ID]| -> Vec<PowerPostState> {
         statuses
             .iter()
             .enumerate()

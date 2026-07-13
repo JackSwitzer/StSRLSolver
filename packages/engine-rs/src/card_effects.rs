@@ -137,10 +137,6 @@ pub(crate) fn execute_primary_attack(
     let stance_mult = engine.state.stance.outgoing_mult();
 
     let double_damage = engine.state.player.status(sid::DOUBLE_DAMAGE) > 0;
-    if double_damage {
-        let dd = engine.state.player.status(sid::DOUBLE_DAMAGE);
-        engine.state.player.set_status(sid::DOUBLE_DAMAGE, dd - 1);
-    }
 
     match target {
         crate::effects::declarative::Target::SelectedEnemy => {
@@ -392,12 +388,9 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         let weak_paper_crane = engine.state.has_relic("Paper Crane");
         let stance_mult = engine.state.stance.outgoing_mult();
 
-        // DoubleDamage (Phantasmal Killer, Double Damage potion): consume and double
+        // DoubleDamagePower modifies every NORMAL attack for its full duration;
+        // powers/DoubleDamagePower.java decrements it only at end of round.
         let double_damage = engine.state.player.status(sid::DOUBLE_DAMAGE) > 0;
-        if double_damage {
-            let dd = engine.state.player.status(sid::DOUBLE_DAMAGE);
-            engine.state.player.set_status(sid::DOUBLE_DAMAGE, dd - 1);
-        }
 
         match card.target {
             CardTarget::Enemy => {

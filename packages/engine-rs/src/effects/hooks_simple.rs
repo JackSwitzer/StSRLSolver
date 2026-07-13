@@ -290,7 +290,8 @@ pub fn hook_retain_hand(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
 
 /// Phantasmal Killer: double damage next turn.
 pub fn hook_phantasmal_killer(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
-    engine.state.player.add_status(sid::DOUBLE_DAMAGE, 1);
+    // Java: cards/green/PhantasmalKiller.java::use applies PhantasmalPower.
+    engine.state.player.add_status(sid::PHANTASMAL, 1);
 }
 
 /// Sentinel: gain energy when exhausted (only under Corruption).

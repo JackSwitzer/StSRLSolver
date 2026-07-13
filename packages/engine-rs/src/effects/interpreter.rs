@@ -133,10 +133,6 @@ fn execute_scaled_attack_damage(
     let vigor = ctx.vigor;
 
     let double_damage = engine.state.player.status(sid::DOUBLE_DAMAGE) > 0;
-    if double_damage {
-        let dd = engine.state.player.status(sid::DOUBLE_DAMAGE);
-        engine.state.player.set_status(sid::DOUBLE_DAMAGE, dd - 1);
-    }
 
     match target {
         Target::SelectedEnemy => {
