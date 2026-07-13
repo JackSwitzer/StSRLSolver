@@ -246,10 +246,9 @@ pub(super) fn roll_maw(enemy: &mut EnemyCombatState, num: i32) {
 }
 
 pub(super) fn roll_transient(enemy: &mut EnemyCombatState, _num: i32) {
-    let count = enemy.entity.status(sid::ATTACK_COUNT) + 1;
-    enemy.entity.set_status(sid::ATTACK_COUNT, count);
-    // Java: damage list pre-computed as startingDeathDmg + count*10
-    // startingDeathDmg = 30 (A2+ = 40). count increments in takeTurn.
+    let count = enemy.entity.status(sid::ATTACK_COUNT);
+    // Source: reference/extracted/methods/monster/Transient.java (`getMove`).
+    // Selection only reads count; takeTurn increments it and uses SetMoveAction.
     let starting_dmg = enemy.entity.status(sid::STARTING_DMG);
     let base = if starting_dmg > 0 { starting_dmg } else { 30 };
     let dmg = base + count * 10;

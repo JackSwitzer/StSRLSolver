@@ -916,6 +916,77 @@ mod enemy_ai_java_parity_tests {
     }
 
     #[test]
+    fn transient_stats_fading_escalation_and_shifting_match_java() {
+        // Sources: reference/extracted/methods/monster/Transient.java plus
+        // decompiled FadingPower.java and ShiftingPower.java.
+        for (ascension, damage, fading) in [
+            (0, 30, 5), (1, 30, 5), (2, 40, 5), (16, 40, 5), (17, 40, 6),
+        ] {
+            let mut run = RunEngine::new(170 + ascension as u64, ascension);
+            run.debug_enter_specific_combat(&["Transient"]);
+            let combat = run.get_combat_engine().expect("Transient combat");
+            let transient = &combat.state.enemies[0];
+            assert_eq!((transient.entity.hp, transient.entity.max_hp), (999, 999));
+            expect_move(transient, move_ids::TRANSIENT_ATTACK, damage, 1, 0, &[]);
+            expect_status(transient, sid::FADING, fading);
+            expect_status(transient, sid::SHIFTING, 1);
+            expect_status(transient, sid::ATTACK_COUNT, 0);
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        let mut high = RunEngine::new(188, 17);
+        high.debug_enter_specific_combat(&["Transient"]);
+        let combat = high.debug_combat_engine_mut();
+        combat.state.player.max_hp = 9_999;
+        combat.state.player.hp = 9_999;
+        let ai_before = combat.ai_rng.counter;
+        for _ in 0..5 {
+            crate::combat_hooks::do_enemy_turns(combat);
+        }
+        assert!(combat.state.enemies[0].is_alive());
+        assert_eq!(combat.state.enemies[0].entity.status(sid::FADING), 1);
+        assert_eq!(combat.state.enemies[0].entity.status(sid::ATTACK_COUNT), 5);
+        expect_move(&combat.state.enemies[0], move_ids::TRANSIENT_ATTACK, 90, 1, 0, &[]);
+        assert_eq!(combat.state.player.hp, 9_999 - (40 + 50 + 60 + 70 + 80));
+        assert_eq!(combat.ai_rng.counter, ai_before,
+            "takeTurn uses SetMoveAction after the one initial rollMove");
+        let hp_before_fade = combat.state.player.hp;
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert!(!combat.state.enemies[0].is_alive());
+        assert_eq!(combat.state.player.hp, hp_before_fade,
+            "FadingPower suicides before a sixth attack");
+        assert_eq!(combat.ai_rng.counter, ai_before);
+
+        let mut shifting = RunEngine::new(189, 0);
+        shifting.debug_enter_specific_combat(&["Transient"]);
+        let combat = shifting.debug_combat_engine_mut();
+        combat.state.enemies[0].entity.set_status(sid::STRENGTH, 10);
+        combat.state.enemies[0].entity.block = 2;
+        let hp_before = combat.state.enemies[0].entity.hp;
+        combat.deal_damage_to_enemy(0, 7);
+        assert_eq!(combat.state.enemies[0].entity.hp, hp_before - 5);
+        assert_eq!(combat.state.enemies[0].entity.block, 0);
+        assert_eq!(combat.state.enemies[0].entity.status(sid::STRENGTH), 5);
+        assert_eq!(combat.state.enemies[0].entity.status(sid::TEMP_STRENGTH_LOSS), 5);
+        combat.deal_thorns_damage_to_enemy(0, 3);
+        assert_eq!(combat.state.enemies[0].entity.status(sid::STRENGTH), 2);
+        assert_eq!(combat.state.enemies[0].entity.status(sid::TEMP_STRENGTH_LOSS), 8);
+        assert_eq!(combat.enemy_lose_hp_from_damage(0, 2), 2);
+        assert_eq!(combat.state.enemies[0].entity.status(sid::STRENGTH), 0);
+        assert_eq!(combat.state.enemies[0].entity.status(sid::TEMP_STRENGTH_LOSS), 10);
+
+        let mut artifact = RunEngine::new(190, 0);
+        artifact.debug_enter_specific_combat(&["Transient"]);
+        let combat = artifact.debug_combat_engine_mut();
+        combat.state.enemies[0].entity.set_status(sid::STRENGTH, 10);
+        combat.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+        combat.deal_damage_to_enemy(0, 4);
+        assert_eq!(combat.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+        assert_eq!(combat.state.enemies[0].entity.status(sid::STRENGTH), 10);
+        assert_eq!(combat.state.enemies[0].entity.status(sid::TEMP_STRENGTH_LOSS), 0);
+    }
+
+    #[test]
     fn act3_patterns_match_java() {
         let mut e = make("Darkling", 48);
         roll_times(&mut e, 1);
@@ -1051,12 +1122,11 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::MAW_NOM, 5, 2, 0, &[]);
 
         let mut e = make("Transient", 999);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::TRANSIENT_ATTACK, 40, 1, 0, &[]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::TRANSIENT_ATTACK, 50, 1, 0, &[]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::TRANSIENT_ATTACK, 60, 1, 0, &[]);
+        for (count, damage) in [(1, 40), (2, 50), (3, 60)] {
+            e.entity.set_status(sid::ATTACK_COUNT, count);
+            roll_times(&mut e, 1);
+            expect_move(&e, move_ids::TRANSIENT_ATTACK, damage, 1, 0, &[]);
+        }
 
         let mut e = make("GiantHead", 500);
         e.move_id = move_ids::GH_GLARE;

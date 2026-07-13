@@ -1368,6 +1368,20 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         return;
     }
 
+    if engine.state.enemies[enemy_idx].id == "Transient" {
+        // Source: reference/extracted/methods/monster/Transient.java. takeTurn
+        // increments count and directly sets the next attack, so only the
+        // initial AbstractMonster.init roll consumes aiRng.
+        let count = engine.state.enemies[enemy_idx].entity.status(sid::ATTACK_COUNT) + 1;
+        let base = engine.state.enemies[enemy_idx].entity.status(sid::STARTING_DMG);
+        engine.state.enemies[enemy_idx].entity.set_status(sid::ATTACK_COUNT, count);
+        engine.state.enemies[enemy_idx].move_history
+            .push(enemies::move_ids::TRANSIENT_ATTACK);
+        engine.state.enemies[enemy_idx].set_move(
+            enemies::move_ids::TRANSIENT_ATTACK, base + count * 10, 1, 0);
+        return;
+    }
+
     if matches!(engine.state.enemies[enemy_idx].id.as_str(), "BanditBear" | "Bear") {
         // BanditBear.takeTurn uses SetMoveAction for every post-opener intent;
         // there is no RollMoveAction and therefore no aiRng consumption.

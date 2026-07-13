@@ -392,7 +392,8 @@ impl CombatEngine {
                 | "Reptomancer" | "Repulsor" | "Serpent" | "SnakePlant" | "Snecko"
                 | "SphericGuardian" | "Spheric Guardian" | "Spiker"
                 | "SpireGrowth" | "Spire Growth" | "SpireShield" | "Spire Shield"
-                | "SpireSpear" | "Spire Spear" | "TimeEater" | "Time Eater")) {
+                | "SpireSpear" | "Spire Spear" | "TimeEater" | "Time Eater"
+                | "Transient")) {
             if enemy.id == "Centurion" {
                 enemy.entity.set_status(sid::COUNT, living_enemy_count);
             }
@@ -3489,6 +3490,27 @@ impl CombatEngine {
         self.deal_precomputed_normal_damage_to_enemy(enemy_idx, damage, false);
     }
 
+    fn apply_shifting_after_hit(&mut self, enemy_idx: usize, damage_amount: i32) {
+        if damage_amount <= 0
+            || self.state.enemies[enemy_idx].entity.status(sid::SHIFTING) <= 0
+        {
+            return;
+        }
+
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/ShiftingPower.java.
+        // Every positive onAttacked amount applies equal negative Strength and,
+        // absent Artifact, GainStrengthPower restores it after the monster acts.
+        let artifact = self.state.enemies[enemy_idx].entity.status(sid::ARTIFACT);
+        if artifact > 0 {
+            self.state.enemies[enemy_idx].entity.set_status(sid::ARTIFACT, artifact - 1);
+        } else {
+            self.state.enemies[enemy_idx].entity.add_status(sid::STRENGTH, -damage_amount);
+            self.state.enemies[enemy_idx]
+                .entity
+                .add_status(sid::TEMP_STRENGTH_LOSS, damage_amount);
+        }
+    }
+
     /// Deal NORMAL damage whose output was precomputed with Java's
     /// `DamageInfo.createDamageMatrix(..., true)`. Offensive/receiving power
     /// modifiers are skipped, while block and on-attacked hooks still resolve.
@@ -3625,11 +3647,7 @@ impl CombatEngine {
                     .add_status(sid::MALLEABLE, 1);
             }
 
-            // Shifting: gain block equal to unblocked damage
-            let shifting = self.state.enemies[enemy_idx].entity.status(sid::SHIFTING);
-            if shifting > 0 {
-                self.state.enemies[enemy_idx].entity.block += hp_damage;
-            }
+            self.apply_shifting_after_hit(enemy_idx, hp_damage);
         }
 
         self.record_enemy_hp_damage(enemy_idx, hp_damage);
@@ -3977,12 +3995,7 @@ impl CombatEngine {
         self.state.total_damage_dealt += hp_damage;
 
         // ShiftingPower.onAttacked applies to positive damage of every type.
-        if hp_damage > 0 {
-            let shifting = self.state.enemies[enemy_idx].entity.status(sid::SHIFTING);
-            if shifting > 0 {
-                self.state.enemies[enemy_idx].entity.block += hp_damage;
-            }
-        }
+        self.apply_shifting_after_hit(enemy_idx, hp_damage);
 
         self.record_enemy_hp_damage(enemy_idx, hp_damage);
     }
@@ -4024,21 +4037,7 @@ impl CombatEngine {
         let actual_hp_lost = hp_damage.min(hp_before).max(0);
         self.state.total_damage_dealt += actual_hp_lost;
 
-        // ShiftingPower.onAttacked applies to every positive damage type. Its
-        // paired Strength loss/Shackled restoration is entirely blocked by
-        // Artifact; otherwise record both the loss and its later restoration.
-        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ShiftingPower.java
-        if hp_damage > 0 && self.state.enemies[enemy_idx].entity.status(sid::SHIFTING) > 0 {
-            let artifact = self.state.enemies[enemy_idx].entity.status(sid::ARTIFACT);
-            if artifact > 0 {
-                self.state.enemies[enemy_idx].entity.set_status(sid::ARTIFACT, artifact - 1);
-            } else {
-                self.state.enemies[enemy_idx].entity.add_status(sid::STRENGTH, -hp_damage);
-                self.state.enemies[enemy_idx]
-                    .entity
-                    .add_status(sid::TEMP_STRENGTH_LOSS, hp_damage);
-            }
-        }
+        self.apply_shifting_after_hit(enemy_idx, hp_damage);
 
         self.record_enemy_hp_damage(enemy_idx, actual_hp_lost);
         actual_hp_lost

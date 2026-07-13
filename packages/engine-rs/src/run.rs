@@ -2173,6 +2173,17 @@ impl RunEngine {
             enemy.entity.set_status(crate::status_ids::sid::TIME_WARP_ACTIVE, 1);
         }
 
+        // Source: reference/extracted/methods/monster/Transient.java. Damage
+        // changes at A2, while Fading lasts six turns only at A17+.
+        for enemy in enemy_states.iter_mut().filter(|enemy| enemy.id == "Transient") {
+            let damage = if self.run_state.ascension >= 2 { 40 } else { 30 };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, damage);
+            enemy.entity.set_status(crate::status_ids::sid::ATTACK_COUNT, 0);
+            enemy.entity.set_status(crate::status_ids::sid::FADING,
+                if self.run_state.ascension >= 17 { 6 } else { 5 });
+            enemy.entity.set_status(crate::status_ids::sid::SHIFTING, 1);
+        }
+
         // Source: reference/extracted/methods/monster/Maw.java. Maw has fixed
         // 300 HP; only Slam changes at A2, while Drool and Roar change at A17.
         for enemy in enemy_states.iter_mut().filter(|enemy| enemy.id == "Maw") {
@@ -3160,8 +3171,9 @@ impl RunEngine {
                 (hp, hp)
             }
             "Transient" => {
-                let hp = if a20 { 1000 } else { 999 };
-                (hp, hp)
+                // Source: reference/extracted/methods/monster/Transient.java:
+                // fixed 999 HP at every ascension.
+                (999, 999)
             }
             "Maw" => {
                 // Source: reference/extracted/methods/monster/Maw.java: the

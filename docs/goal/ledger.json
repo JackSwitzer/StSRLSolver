@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T21:32:47.266082+00:00",
+ "updated": "2026-07-13T21:37:53.108427+00:00",
  "status_counts": {
-  "verified": 620,
-  "unverified": 47
+  "verified": 621,
+  "unverified": 46
  },
  "rows": [
   {
@@ -4372,8 +4372,8 @@
    "class": "Transient",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/beyond/Transient.java",
    "methods_ref": "reference/extracted/methods/monster/Transient.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

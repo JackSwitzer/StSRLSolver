@@ -904,13 +904,13 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         }
         "Transient" => {
             // Escalating damage. A2: starts at 40, else 30. +10 each turn.
-            // Fading: A17 = 6 turns, else 5 turns. Has Shifting power (reduces all damage to block).
+            // Fading: A17 = 6 turns, else 5 turns. Has Shifting power.
             // startingDeathDmg stored as status for escalation.
             enemy.set_move(move_ids::TRANSIENT_ATTACK, 30, 1, 0);
             enemy.entity.set_status(sid::ATTACK_COUNT, 0);
             enemy.entity.set_status(sid::STARTING_DMG, 30);
             enemy.entity.set_status(sid::SHIFTING, 1);
-            // Fading: dies after 5 turns (6 at A17+, but Transient always 999hp so use 5)
+            // Base factory represents A0; RunEngine applies ascension thresholds.
             enemy.entity.set_status(sid::FADING, 5);
         }
         "GiantHead" | "Giant Head" => {
@@ -1877,14 +1877,12 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::TRANSIENT_ATTACK);
         assert_eq!(enemy.move_damage(), 30);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_damage(), 40); // 30 + 10
-
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_damage(), 50); // 30 + 20
-
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_damage(), 60); // 30 + 30
+        // Source: Transient.java getMove reads count; takeTurn owns increment.
+        for (count, damage) in [(1, 40), (2, 50), (3, 60)] {
+            enemy.entity.set_status(sid::ATTACK_COUNT, count);
+            roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+            assert_eq!(enemy.move_damage(), damage);
+        }
     }
 
     // ----- Act 4 -----
