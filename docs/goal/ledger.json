@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T07:43:57.085727+00:00",
+ "updated": "2026-07-13T07:48:03.239711+00:00",
  "status_counts": {
-  "verified": 393,
-  "unverified": 274
+  "verified": 394,
+  "unverified": 273
  },
  "rows": [
   {
@@ -1292,8 +1292,8 @@
    "class": "Enlightenment",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Enlightenment.java",
    "methods_ref": "reference/extracted/methods/card/Enlightenment.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

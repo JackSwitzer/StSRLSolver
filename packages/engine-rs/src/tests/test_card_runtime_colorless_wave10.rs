@@ -125,3 +125,62 @@ fn enlightenment_base_reduces_hand_cards_above_one_for_this_turn() {
             i32::from(card.cost) == def.cost
         }));
 }
+
+#[test]
+fn enlightenment_preserves_zero_one_and_x_costs_and_upgrade_preserves_a_lower_turn_cost() {
+    // EnlightenmentAction.java checks costForTurn > 1 and, when upgraded,
+    // separately checks base cost > 1. Zero-, one-, and X-cost cards are not
+    // raised, and a temporary 0 remains 0 while the upgraded base becomes 1.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/EnlightenmentAction.java
+    let mut base = crate::engine::CombatEngine::new(
+        crate::tests::support::combat_state_with(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            0,
+        ),
+        TEST_SEED,
+    );
+    force_player_turn(&mut base);
+    base.state.hand = make_deck(&[
+        "Enlightenment", "Mind Blast", "Flash of Steel", "Transmutation", "Strike",
+    ]);
+
+    assert!(play_self(&mut base, "Enlightenment"));
+    let costs: Vec<(&str, i8, i8)> = base.state.hand.iter().map(|card| {
+        (base.card_registry.card_name(card.def_id), card.cost, card.base_cost)
+    }).collect();
+    assert_eq!(costs, vec![
+        ("Mind Blast", 1, 2),
+        ("Flash of Steel", -1, 0),
+        ("Transmutation", -1, -1),
+        ("Strike", -1, 1),
+    ]);
+
+    let mut upgraded = crate::engine::CombatEngine::new(
+        crate::tests::support::combat_state_with(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            0,
+        ),
+        TEST_SEED,
+    );
+    force_player_turn(&mut upgraded);
+    upgraded.state.hand = make_deck(&[
+        "Enlightenment+", "Mind Blast", "Flash of Steel", "Transmutation", "Strike",
+    ]);
+    upgraded.state.hand[1].set_cost_for_turn(0);
+
+    assert!(play_self(&mut upgraded, "Enlightenment+"));
+    assert_eq!(upgraded.state.hand[0].cost, 0);
+    assert_eq!(upgraded.state.hand[0].base_cost, 1);
+    upgraded.state.hand[0].reset_cost_for_turn();
+    assert_eq!(upgraded.state.hand[0].cost, 1);
+    let unchanged: Vec<(&str, i8, i8)> = upgraded.state.hand[1..].iter().map(|card| {
+        (upgraded.card_registry.card_name(card.def_id), card.cost, card.base_cost)
+    }).collect();
+    assert_eq!(unchanged, vec![
+        ("Flash of Steel", -1, 0),
+        ("Transmutation", -1, -1),
+        ("Strike", -1, 1),
+    ]);
+}

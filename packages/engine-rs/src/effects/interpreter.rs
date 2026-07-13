@@ -1636,19 +1636,50 @@ fn execute_for_each(
         }
 
         BulkAction::SetCostForTurn(cost) => {
-            let pile_ref = get_pile_mut(engine, pile);
             for &i in &matching {
-                if i < pile_ref.len() {
-                    pile_ref[i].cost = cost as i8;
+                let current_cost = get_pile(engine, pile).get(i).map(|card| {
+                    let def = engine.card_registry.card_def_by_id(card.def_id);
+                    if card.cost >= 0 {
+                        card.cost as i32
+                    } else if card.base_cost >= 0 {
+                        card.base_cost as i32
+                    } else {
+                        def.cost
+                    }
+                });
+                if current_cost.is_some_and(|current| current > cost) {
+                    get_pile_mut(engine, pile)[i].set_cost_for_turn(cost as i8);
                 }
             }
         }
 
         BulkAction::SetCost(cost) => {
-            let pile_ref = get_pile_mut(engine, pile);
             for &i in &matching {
-                if i < pile_ref.len() {
-                    pile_ref[i].set_permanent_cost(cost as i8);
+                let costs = get_pile(engine, pile).get(i).map(|card| {
+                    let def = engine.card_registry.card_def_by_id(card.def_id);
+                    let permanent = if card.base_cost >= 0 {
+                        card.base_cost as i32
+                    } else {
+                        def.cost
+                    };
+                    let current = if card.cost >= 0 {
+                        card.cost as i32
+                    } else {
+                        permanent
+                    };
+                    (current, permanent)
+                });
+                if let Some((current, permanent)) = costs {
+                    let card = &mut get_pile_mut(engine, pile)[i];
+                    // EnlightenmentAction always applies the turn-only branch,
+                    // then (upgraded) changes the base cost independently.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/EnlightenmentAction.java
+                    if current > cost {
+                        card.set_cost_for_turn(cost as i8);
+                    }
+                    if permanent > cost {
+                        card.base_cost = cost as i8;
+                    }
                 }
             }
         }
