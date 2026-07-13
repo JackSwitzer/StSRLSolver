@@ -321,6 +321,40 @@ mod ironclad_card_java_parity_tests {
     card_pair_test!(carnage, "Carnage", "Carnage+", 2, 20, -1, -1, 2, 28, -1, -1, CardType::Attack, CardTarget::Enemy, false);
     card_pair_test!(combust, "Combust", "Combust+", 1, -1, -1, 5, 1, -1, -1, 7, CardType::Power, CardTarget::SelfTarget, false);
     card_pair_test!(dark_embrace, "Dark Embrace", "Dark Embrace+", 2, -1, -1, 1, 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false);
+
+    #[test]
+    fn dark_embrace_stacks_draws_per_exhaust_and_stops_when_monsters_are_dead() {
+        // Source: DarkEmbrace.java applies one stack and changes only cost on
+        // upgrade. DarkEmbracePower.java draws `amount` on each exhaust unless
+        // areMonstersBasicallyDead() is true.
+        let mut active = engine_for(
+            &["Dark Embrace+", "Dark Embrace+", "Seeing Red+"],
+            &["Strike", "Defend"],
+            &[],
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            2,
+        );
+        assert!(play_self(&mut active, "Dark Embrace+"));
+        assert!(play_self(&mut active, "Dark Embrace+"));
+        assert_eq!(active.state.energy, 0);
+        assert_eq!(active.state.player.status(sid::DARK_EMBRACE), 2);
+
+        assert!(play_self(&mut active, "Seeing Red+"));
+        assert_eq!(active.state.hand.len(), 2);
+        assert_eq!(active.state.draw_pile.len(), 0);
+
+        let mut defeated = engine_for(
+            &[],
+            &["Strike"],
+            &[],
+            vec![enemy_no_intent("JawWorm", 0, 40)],
+            0,
+        );
+        defeated.state.player.set_status(sid::DARK_EMBRACE, 1);
+        defeated.trigger_on_exhaust();
+        assert!(defeated.state.hand.is_empty());
+        assert_eq!(defeated.state.draw_pile.len(), 1);
+    }
     card_pair_test!(disarm, "Disarm", "Disarm+", 1, -1, -1, 2, 1, -1, -1, 3, CardType::Skill, CardTarget::Enemy, true);
     card_pair_test!(dropkick, "Dropkick", "Dropkick+", 1, 5, -1, -1, 1, 8, -1, -1, CardType::Attack, CardTarget::Enemy, false);
     card_pair_test!(dual_wield, "Dual Wield", "Dual Wield+", 1, -1, -1, 1, 1, -1, -1, 2, CardType::Skill, CardTarget::None, false);

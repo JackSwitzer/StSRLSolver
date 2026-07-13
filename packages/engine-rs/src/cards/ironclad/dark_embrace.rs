@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Ironclad Uncommon: Dark Embrace ---- (cost 2, power, draw 1 on exhaust; upgrade: cost 1)
+    // Source: reference/extracted/methods/card/DarkEmbrace.java applies one
+    // Dark Embrace; upgrading changes only the base cost from 2 to 1.
     insert(cards, CardDef {
                 id: "Dark Embrace", name: "Dark Embrace", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,

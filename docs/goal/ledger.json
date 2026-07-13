@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T06:42:09.121412+00:00",
+ "updated": "2026-07-13T06:46:37.924306+00:00",
  "status_counts": {
-  "verified": 362,
-  "unverified": 305
+  "verified": 363,
+  "unverified": 304
  },
  "rows": [
   {
@@ -892,8 +892,8 @@
    "class": "DarkEmbrace",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/DarkEmbrace.java",
    "methods_ref": "reference/extracted/methods/card/DarkEmbrace.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

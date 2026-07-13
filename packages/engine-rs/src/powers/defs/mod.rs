@@ -234,7 +234,7 @@ mod tests {
         let simple_ids = [
             "demon_form", "noxious_fumes", "brutality", "berserk",
             "metallicize", "plated_armor", "after_image", "rage",
-            "feel_no_pain", "dark_embrace", "mental_fortress", "rushdown",
+            "feel_no_pain", "mental_fortress", "rushdown",
             "doppelganger_draw", "doppelganger_energy", "heatsink",
             "curiosity", "beat_of_death", "slow", "forcefield", "skill_burn",
         ];
@@ -255,7 +255,7 @@ mod tests {
         let complex_ids = [
             "echo_form", "double_tap", "burst", "thorns", "flame_barrier",
             "creative_ai", "enter_divinity", "mayhem", "tools_of_the_trade",
-            "storm", "time_warp", "static_discharge",
+            "storm", "time_warp", "static_discharge", "dark_embrace",
         ];
         for id in &complex_ids {
             let def = POWER_DEFS.iter().find(|d| d.id == *id);
