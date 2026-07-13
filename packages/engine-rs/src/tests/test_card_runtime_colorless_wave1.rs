@@ -13,6 +13,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Magnetism.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Mayhem.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Panache.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Panacea.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/SadisticNature.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/SwiftStrike.java
 
@@ -64,6 +65,36 @@ fn jax_source_loses_fixed_three_hp_then_gains_two_or_three_strength() {
         assert_eq!(buffered.state.player.status(sid::BUFFER), 0);
         assert_eq!(buffered.state.player.status(sid::STRENGTH), card_strength);
     }
+}
+
+#[test]
+fn panacea_base_and_upgrade_stack_three_artifact_for_free_and_exhaust() {
+    // Panacea.java applies magic 1 ArtifactPower (2 upgraded), costs zero,
+    // targets self, and exhausts. Upgrade changes only the magic number.
+    let registry = global_registry();
+    let base = registry.get("Panacea").expect("Panacea is registered");
+    let upgraded = registry.get("Panacea+").expect("Panacea+ is registered");
+    assert_eq!(base.cost, 0);
+    assert_eq!(base.card_type, CardType::Skill);
+    assert_eq!(base.target, CardTarget::SelfTarget);
+    assert_eq!(base.base_magic, 1);
+    assert_eq!(upgraded.base_magic, 2);
+    assert!(base.exhaust && upgraded.exhaust);
+
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        0,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Panacea", "Panacea+"]);
+
+    assert!(play_self(&mut engine, "Panacea"));
+    assert!(play_self(&mut engine, "Panacea+"));
+
+    assert_eq!(engine.state.energy, 0);
+    assert_eq!(engine.state.player.status(sid::ARTIFACT), 3);
+    assert_eq!(exhaust_prefix_count(&engine, "Panacea"), 2);
 }
 
 #[test]

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T12:09:48.413197+00:00",
+ "updated": "2026-07-13T12:11:28.859025+00:00",
  "status_counts": {
-  "verified": 480,
-  "unverified": 187
+  "verified": 481,
+  "unverified": 186
  },
  "rows": [
   {
@@ -2372,8 +2372,8 @@
    "class": "Panacea",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Panacea.java",
    "methods_ref": "reference/extracted/methods/card/Panacea.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
