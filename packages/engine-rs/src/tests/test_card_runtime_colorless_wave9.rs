@@ -5,6 +5,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/EnlightenmentAction.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Madness.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/MadnessAction.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/MasterOfStrategy.java
 
 use crate::cards::{global_registry, CardTarget, CardType};
 use crate::effects::declarative::{Effect as E, SimpleEffect as SE};
@@ -85,4 +86,31 @@ fn madness_source_retries_card_random_and_can_make_a_temporarily_free_card_perma
     assert_eq!(fallback.card_random_rng.counter, fallback_rng_before + 1);
     assert_eq!(fallback.state.hand[0].cost, 0);
     assert_eq!(fallback.state.hand[0].base_cost, 0);
+}
+
+#[test]
+fn master_of_strategy_source_draws_three_or_four_for_free_then_exhausts() {
+    // MasterOfStrategy.java queues DrawCardAction(magicNumber), starts at three,
+    // and upgradeMagicNumber(1) is the only upgrade behavior.
+    for (card_id, expected_draw) in [("Master of Strategy", 3), ("Master of Strategy+", 4)] {
+        let def = global_registry().get(card_id).expect(card_id);
+        assert_eq!(def.cost, 0);
+        assert_eq!(def.base_magic, expected_draw);
+        assert!(def.exhaust);
+
+        let mut engine = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            3,
+        );
+        force_player_turn(&mut engine);
+        engine.state.hand = make_deck(&[card_id]);
+        engine.state.draw_pile = make_deck(&["Strike", "Defend", "Zap", "Dualcast"]);
+
+        assert!(play_self(&mut engine, card_id));
+        assert_eq!(engine.state.energy, 3);
+        assert_eq!(engine.state.hand.len(), expected_draw as usize);
+        assert_eq!(engine.state.exhaust_pile.len(), 1);
+        assert_eq!(engine.card_registry.card_name(engine.state.exhaust_pile[0].def_id), card_id);
+    }
 }

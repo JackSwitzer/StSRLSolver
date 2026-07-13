@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T11:14:17.157295+00:00",
+ "updated": "2026-07-13T11:15:39.058060+00:00",
  "status_counts": {
-  "verified": 461,
-  "unverified": 206
+  "verified": 462,
+  "unverified": 205
  },
  "rows": [
   {
@@ -2132,8 +2132,8 @@
    "class": "MasterOfStrategy",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/MasterOfStrategy.java",
    "methods_ref": "reference/extracted/methods/card/MasterOfStrategy.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
