@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T23:18:50.184048+00:00",
+ "updated": "2026-07-13T23:22:43.390453+00:00",
  "status_counts": {
-  "verified": 657,
-  "unverified": 10
+  "verified": 658,
+  "unverified": 9
  },
  "rows": [
   {
@@ -6252,8 +6252,8 @@
    "class": "SneckoSkull",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/SneckoSkull.java",
    "methods_ref": "reference/extracted/methods/relic/SneckoSkull.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

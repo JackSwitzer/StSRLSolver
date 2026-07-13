@@ -765,8 +765,11 @@ fn wrist_blade_buffs_zero_cost_attacks_on_engine_path() {
 
 #[test]
 fn snecko_skull_buffs_player_applied_poison_on_engine_path() {
+    // SneckoSkull.java declares ID "Snake Skull" and EFFECT 1;
+    // ApplyPowerAction.java adds that one only to player-sourced Poison on an
+    // enemy target.
     let mut state = combat_state_with(make_deck(&["Deadly Poison"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
-    state.relics.push("SneckoSkull".to_string());
+    state.relics.push("Snake Skull".to_string());
 
     let mut engine = engine_with_state(state);
     engine.state.hand = make_deck(&["Deadly Poison"]);
@@ -986,6 +989,44 @@ fn the_specimen_transfers_poison_on_engine_death_path() {
     assert!(events
         .iter()
         .any(|record| record.event == Trigger::OnEnemyDeath && record.def_id == Some("The Specimen")));
+}
+
+#[test]
+fn snake_skull_buffs_specimen_transfer_and_artifact_blocks_the_application() {
+    // TheSpecimen.java uses ApplyPowerToRandomEnemyAction with the player as
+    // source. That action consumes one cardRandomRng roll and delegates to
+    // ApplyPowerAction.java, where Snake Skull adds one before Artifact checks.
+    let make = |artifact: i32| {
+        let mut state = combat_state_with(
+            make_deck(&["Strike"]),
+            vec![
+                enemy_no_intent("JawWorm", 10, 10),
+                enemy_no_intent("Cultist", 30, 30),
+            ],
+            3,
+        );
+        state.relics = vec!["The Specimen".to_string(), "Snake Skull".to_string()];
+        let mut engine = engine_with_state(state);
+        engine.state.enemies[0].entity.set_status(sid::POISON, 5);
+        engine.state.enemies[0].entity.hp = 0;
+        engine.state.enemies[1].entity.set_status(sid::ARTIFACT, artifact);
+        engine
+    };
+
+    let mut applied = make(0);
+    let counters_before = applied.rng_counters();
+    applied.finalize_enemy_death(0);
+    assert_eq!(applied.state.enemies[1].entity.status(sid::POISON), 6);
+    assert_eq!(
+        applied.rng_counters()["cardRandom"],
+        counters_before["cardRandom"] + 1
+    );
+    assert_eq!(applied.rng_counters()["card"], counters_before["card"]);
+
+    let mut blocked = make(1);
+    blocked.finalize_enemy_death(0);
+    assert_eq!(blocked.state.enemies[1].entity.status(sid::POISON), 0);
+    assert_eq!(blocked.state.enemies[1].entity.status(sid::ARTIFACT), 0);
 }
 
 #[test]
