@@ -221,18 +221,17 @@ impl OrbSlots {
         self.slots.push(Orb::new(OrbType::Empty));
     }
 
-    /// Remove a slot. If all slots are occupied, evokes the last orb.
-    /// Returns any evoke effect from the removed orb.
-    pub fn remove_slot(&mut self, focus: i32) -> EvokeEffect {
+    /// Remove the last slot and silently discard its orb.
+    pub fn remove_slot(&mut self, _focus: i32) -> EvokeEffect {
+        // AbstractPlayer.decreaseMaxOrbSlots removes the final orb directly;
+        // it never invokes the orb's onEvoke hook.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
         if self.max_slots == 0 {
             return EvokeEffect::None;
         }
         self.max_slots -= 1;
-
-        // If we have more orbs than slots, evoke the last one
         if self.slots.len() > self.max_slots {
-            let orb = self.slots.pop().unwrap_or(Orb::new(OrbType::Empty));
-            return Self::compute_evoke_effect(&orb, focus);
+            self.slots.pop();
         }
         EvokeEffect::None
     }
@@ -590,15 +589,18 @@ mod tests {
     }
 
     #[test]
-    fn remove_slot_evokes_if_full() {
+    fn remove_slot_silently_discards_last_orb_if_full() {
+        // AbstractPlayer.decreaseMaxOrbSlots removes the final orb without
+        // calling onEvoke, so removing Frost does not produce Block.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
         let mut slots = OrbSlots::new(2);
         slots.channel(OrbType::Lightning, 0);
         slots.channel(OrbType::Frost, 0);
-        // Both slots occupied, remove one -> evokes last
         let effect = slots.remove_slot(0);
-        assert!(matches!(effect, EvokeEffect::FrostBlock(5)));
+        assert!(matches!(effect, EvokeEffect::None));
         assert_eq!(slots.get_slot_count(), 1);
         assert_eq!(slots.occupied_count(), 1);
+        assert_eq!(slots.slots[0].orb_type, OrbType::Lightning);
     }
 
     // -- Mixed orbs --

@@ -209,6 +209,9 @@ fn fission_reboot_and_scrape_follow_the_current_defect_runtime_paths() {
 
 #[test]
 fn consume_uses_the_typed_orb_slot_removal_surface() {
+    // Source: Consume.java queues FocusPower(2) before DecreaseMaxOrbAction(1).
+    // AbstractPlayer.decreaseMaxOrbSlots removes the last orb without evoking
+    // it, so the removed Plasma grants no energy.
     let mut state = crate::tests::support::combat_state_with(
         make_deck(&["Consume"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -228,7 +231,7 @@ fn consume_uses_the_typed_orb_slot_removal_surface() {
     assert_eq!(engine.state.player.focus(), 2);
     assert_eq!(engine.state.orb_slots.get_slot_count(), 2);
     assert_eq!(engine.state.orb_slots.occupied_count(), 2);
-    assert_eq!(engine.state.energy, 3);
+    assert_eq!(engine.state.energy, 1);
     assert_eq!(engine.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
     assert_eq!(engine.state.orb_slots.slots[1].orb_type, OrbType::Frost);
 }

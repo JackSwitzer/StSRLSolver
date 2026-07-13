@@ -423,6 +423,24 @@ mod defect_card_java_parity_tests {
         assert_eq!(e.state.player.focus(), 2);
     });
 
+    defect_test!(consume_plus_removes_the_last_orb_without_evoking_it, {
+        // Source: Consume.java queues FocusPower(3 upgraded) before
+        // DecreaseMaxOrbAction(1). AbstractPlayer.decreaseMaxOrbSlots removes
+        // the final orb directly and does not invoke onEvoke.
+        let mut e = bare_engine(&["Consume+"], vec![enemy("JawWorm", 50, 0)]);
+        e.init_defect_orbs(2);
+        e.channel_orb(OrbType::Lightning);
+        e.channel_orb(OrbType::Frost);
+        ensure_in_hand(&mut e, "Consume+");
+
+        assert!(play_self(&mut e, "Consume+"));
+
+        assert_eq!(e.state.player.focus(), 3);
+        assert_eq!(e.state.orb_slots.get_slot_count(), 1);
+        assert_eq!(e.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
+        assert_eq!(e.state.player.block, 0);
+    });
+
     defect_test!(darkness_plus_accumulates_on_entry, {
         let mut e = bare_engine(&["Darkness+"], vec![enemy("JawWorm", 50, 0)]);
         e.init_defect_orbs(1);

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T06:08:48.328709+00:00",
+ "updated": "2026-07-13T06:11:29.404718+00:00",
  "status_counts": {
-  "verified": 352,
-  "unverified": 315
+  "verified": 353,
+  "unverified": 314
  },
  "rows": [
   {
@@ -762,8 +762,8 @@
    "class": "Consume",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Consume.java",
    "methods_ref": "reference/extracted/methods/card/Consume.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
