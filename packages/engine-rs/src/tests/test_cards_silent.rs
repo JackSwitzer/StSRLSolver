@@ -1117,6 +1117,28 @@ mod silent_card_java_parity_tests {
     }
 
     #[test]
+    fn slice_plus_costs_zero_deals_nine_and_discards() {
+        // Slice.java constructs a zero-cost 6-damage Attack and queues one
+        // DamageAction. upgradeDamage(3) makes Slice+ deal 9; it gains no
+        // exhaust, retain, or other destination-changing flag.
+        let mut engine = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            0,
+        );
+        force_player_turn(&mut engine);
+        engine.state.energy = 0;
+        engine.state.hand = make_deck(&["Slice+"]);
+
+        assert!(play_on_enemy(&mut engine, "Slice+", 0));
+
+        assert_eq!(engine.state.enemies[0].entity.hp, 31);
+        assert_eq!(engine.state.energy, 0);
+        assert_eq!(discard_prefix_count(&engine, "Slice"), 1);
+        assert_eq!(exhaust_prefix_count(&engine, "Slice"), 0);
+    }
+
+    #[test]
     fn sucker_punch_applies_weak() {
         let mut engine = engine_with(make_deck_n("Sucker Punch", 8), 40, 0);
         ensure_in_hand(&mut engine, "Sucker Punch");

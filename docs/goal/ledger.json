@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T15:20:57.462272+00:00",
+ "updated": "2026-07-13T15:22:32.053344+00:00",
  "status_counts": {
-  "verified": 532,
-  "unverified": 135
+  "verified": 533,
+  "unverified": 134
  },
  "rows": [
   {
@@ -3012,8 +3012,8 @@
    "class": "Slice",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Slice.java",
    "methods_ref": "reference/extracted/methods/card/Slice.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
