@@ -306,6 +306,30 @@ fn orb_wave1_emotion_chip_replays_all_orb_passives_on_next_turn_start() {
 }
 
 #[test]
+fn emotion_chip_coalesces_repeated_hp_loss_into_one_impulse() {
+    // Source: reference/extracted/methods/relic/EmotionChip.java and full
+    // EmotionChip.java::wasHPLost. Its boolean pulse is only set once, and
+    // ImpulseAction invokes one onEndOfTurn callback for this Dark orb.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    engine.init_defect_orbs(1);
+    engine.state.relics.push("Emotion Chip".to_string());
+    engine.channel_orb(OrbType::Dark);
+    engine.start_combat();
+
+    engine.player_lose_hp(1);
+    engine.player_lose_hp(1);
+    end_turn(&mut engine);
+
+    // Six base + six normal end-of-turn + six from one ImpulseAction.
+    assert_eq!(engine.state.orb_slots.slots[0].evoke_amount, 18);
+    assert_eq!(engine.state.player.status(crate::status_ids::sid::EMOTION_CHIP_TRIGGER), 0);
+}
+
+#[test]
 fn orb_wave1_emotion_chip_and_cables_replay_front_orb_twice_like_java() {
     let mut engine = engine_without_start(
         Vec::new(),

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T22:36:14.561593+00:00",
+ "updated": "2026-07-13T22:38:54.140776+00:00",
  "status_counts": {
-  "verified": 641,
-  "unverified": 26
+  "verified": 642,
+  "unverified": 25
  },
  "rows": [
   {
@@ -5292,8 +5292,8 @@
    "class": "EmotionChip",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/EmotionChip.java",
    "methods_ref": "reference/extracted/methods/relic/EmotionChip.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

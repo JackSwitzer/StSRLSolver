@@ -1,4 +1,4 @@
-//! Emotion Chip: On HP loss, trigger front orb passive next turn.
+//! Emotion Chip: after HP loss, trigger every orb's callbacks next turn.
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
@@ -21,6 +21,8 @@ fn hook(
     _event: &GameEvent,
     _state: &mut EffectState,
 ) {
+    // EmotionChip.java stores a boolean pulse, so repeated HP-loss callbacks
+    // before the next atTurnStart still schedule exactly one ImpulseAction.
     engine.state.player.set_status(sid::EMOTION_CHIP_TRIGGER, 1);
 }
 
