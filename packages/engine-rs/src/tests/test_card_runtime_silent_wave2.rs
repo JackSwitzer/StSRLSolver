@@ -123,6 +123,40 @@ mod silent_wave2 {
     }
 
     #[test]
+    fn quick_slash_source_resolves_damage_before_its_one_card_draw() {
+        // QuickSlash.java queues DamageAction before DrawCardAction(1), and
+        // upgradeDamage(4) changes eight damage to twelve. A final lethal hit
+        // clears post-combat actions, while a kill with another enemy alive
+        // still permits the queued draw.
+        let mut nonterminal = engine_for(
+            &["Quick Slash+"],
+            &["Strike"],
+            &[],
+            vec![
+                enemy_no_intent("JawWorm", 12, 12),
+                enemy_no_intent("Cultist", 40, 40),
+            ],
+            3,
+        );
+        assert!(play_on_enemy(&mut nonterminal, "Quick Slash+", 0));
+        assert!(nonterminal.state.enemies[0].entity.is_dead());
+        assert_eq!(hand_count(&nonterminal, "Strike"), 1);
+        assert!(nonterminal.state.draw_pile.is_empty());
+
+        let mut terminal = engine_for(
+            &["Quick Slash"],
+            &["Strike"],
+            &[],
+            vec![enemy_no_intent("JawWorm", 8, 8)],
+            3,
+        );
+        assert!(play_on_enemy(&mut terminal, "Quick Slash", 0));
+        assert!(terminal.state.combat_over);
+        assert_eq!(hand_count(&terminal, "Strike"), 0);
+        assert_eq!(terminal.state.draw_pile.len(), 1);
+    }
+
+    #[test]
     fn backflip_uses_source_block_upgrade_and_draw_count() {
         // Source: Backflip.java queues GainBlockAction(this.block), followed by
         // DrawCardAction(p, 2); upgradeBlock(3) changes 5 block to 8.
