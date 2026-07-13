@@ -248,4 +248,15 @@ fn relic_wave12_runtime_victory_families_match_canonical_runtime() {
     assert!(black_engine.state.combat_over);
     assert!(black_engine.state.player_won);
     assert_eq!(black_engine.state.player.hp, 72);
+
+    // BlackBlood.java guards its twelve-point heal with currentHealth > 0;
+    // simultaneous zero player/enemy HP must not turn the relic into a revive.
+    let mut zero_state =
+        combat_state_with(Vec::new(), vec![enemy_no_intent("JawWorm", 1, 1)], 3);
+    zero_state.relics = vec!["Black Blood".to_string()];
+    zero_state.player.hp = 0;
+    zero_state.enemies[0].entity.hp = 0;
+    let mut zero_engine = engine_with_state(zero_state);
+    zero_engine.check_combat_end();
+    assert_eq!(zero_engine.state.player.hp, 0);
 }

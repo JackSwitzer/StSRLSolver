@@ -690,6 +690,7 @@ impl EffectRuntime {
                 let threshold = (engine.state.player.max_hp * (*pct as i32)) / 100;
                 engine.state.player.hp <= threshold
             }
+            TriggerCondition::PlayerAlive => engine.state.player.hp > 0,
             TriggerCondition::HandEmpty => engine.state.hand.is_empty(),
             TriggerCondition::CardTypeIs(card_type) => event.card_type == Some(*card_type),
             TriggerCondition::IsBossFight => is_boss_fight(engine),

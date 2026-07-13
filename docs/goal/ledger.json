@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T22:12:41.602305+00:00",
+ "updated": "2026-07-13T22:14:58.604331+00:00",
  "status_counts": {
-  "verified": 632,
-  "unverified": 35
+  "verified": 633,
+  "unverified": 34
  },
  "rows": [
   {
@@ -4902,8 +4902,8 @@
    "class": "BlackBlood",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/BlackBlood.java",
    "methods_ref": "reference/extracted/methods/relic/BlackBlood.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

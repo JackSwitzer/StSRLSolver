@@ -113,6 +113,8 @@ pub enum TriggerCondition {
     HasStatus(StatusId),
     /// Only when player HP is below this percentage (0-100).
     HpBelow(u8),
+    /// Only while the player's current HP is positive.
+    PlayerAlive,
     /// Only when the player has no block.
     NoBlock,
     /// Only when the player's hand is empty.
