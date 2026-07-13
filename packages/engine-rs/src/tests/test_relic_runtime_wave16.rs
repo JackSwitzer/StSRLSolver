@@ -59,9 +59,15 @@ fn relic_wave16_opening_draw_relics_match_canonical_runtime() {
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
+    // Source: reference/extracted/methods/relic/SnakeRing.java
+    // atBattleStart queues exactly one DrawCardAction(2).
     ring.state.relics.push("Ring of the Snake".to_string());
     ring.start_combat();
     assert_eq!(ring.state.hand.len(), 7);
+
+    end_turn(&mut ring);
+    assert_eq!(ring.state.turn, 2);
+    assert_eq!(ring.state.hand.len(), 5);
 }
 
 #[test]

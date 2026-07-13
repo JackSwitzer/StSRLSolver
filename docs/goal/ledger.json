@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T23:06:55.151071+00:00",
+ "updated": "2026-07-13T23:08:56.095837+00:00",
  "status_counts": {
-  "verified": 653,
-  "unverified": 14
+  "verified": 654,
+  "unverified": 13
  },
  "rows": [
   {
@@ -6122,8 +6122,8 @@
    "class": "SnakeRing",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/SnakeRing.java",
    "methods_ref": "reference/extracted/methods/relic/SnakeRing.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
