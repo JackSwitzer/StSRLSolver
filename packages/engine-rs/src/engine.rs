@@ -3591,7 +3591,7 @@ impl CombatEngine {
     // =======================================================================
 
     /// Pick a random living enemy index using cardRandomRng.
-    fn random_living_enemy(&mut self) -> Option<usize> {
+    pub(crate) fn random_living_enemy(&mut self) -> Option<usize> {
         let living = self.state.living_enemy_indices();
         if living.is_empty() {
             return None;
@@ -3974,21 +3974,17 @@ impl CombatEngine {
     }
 
     /// Havoc/PlayTopCardAction: select a random target, shuffle if necessary,
-    /// then autoplay and exhaust the top card without changing its stored cost.
-    pub(crate) fn play_top_card_of_draw(&mut self) {
+    /// then autoplay the top card without changing its stored cost.
+    pub(crate) fn play_top_card_of_draw(&mut self, exhausts: bool) {
         // Havoc.java evaluates getRandomMonster(..., cardRandomRng) while
         // constructing PlayTopCardAction, before that action inspects either pile.
         // Java: reference/extracted/methods/card/Havoc.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/PlayTopCardAction.java
-        let living = self.state.targetable_enemy_indices();
-        let target_idx = if living.is_empty() {
-            -1
-        } else {
-            let selected = self
-                .card_random_rng
-                .random_range(0, (living.len() - 1) as i32) as usize;
-            living[selected] as i32
-        };
+        let target_idx = self.random_living_enemy().map_or(-1, |idx| idx as i32);
+        self.play_top_card_of_draw_at_target(target_idx, exhausts);
+    }
+
+    pub(crate) fn play_top_card_of_draw_at_target(&mut self, target_idx: i32, exhausts: bool) {
 
         if self.state.draw_pile.is_empty() {
             if self.state.discard_pile.is_empty() {
@@ -4000,7 +3996,10 @@ impl CombatEngine {
         }
 
         let mut card = self.state.draw_pile.pop().expect("non-empty after shuffle");
-        card.flags |= CardInstance::FLAG_FREE | CardInstance::FLAG_EXHAUST_ON_USE;
+        card.flags |= CardInstance::FLAG_FREE;
+        if exhausts {
+            card.flags |= CardInstance::FLAG_EXHAUST_ON_USE;
+        }
         let def = self.card_registry.card_def_by_id(card.def_id).clone();
         let can_play = self.can_play_card_inst(&def, card);
 
@@ -4025,14 +4024,18 @@ impl CombatEngine {
         if def.card_type == CardType::Power {
             return;
         }
-        let spoon_saved = (self.state.has_relic("Strange Spoon")
-            || self.state.has_relic("StrangeSpoon"))
-            && self.card_random_rng.random_boolean();
-        if spoon_saved {
+        if !exhausts {
             self.state.discard_pile.push(post_play_card);
         } else {
-            self.state.exhaust_pile.push(post_play_card);
-            self.trigger_card_on_exhaust(post_play_card);
+            let spoon_saved = (self.state.has_relic("Strange Spoon")
+                || self.state.has_relic("StrangeSpoon"))
+                && self.card_random_rng.random_boolean();
+            if spoon_saved {
+                self.state.discard_pile.push(post_play_card);
+            } else {
+                self.state.exhaust_pile.push(post_play_card);
+                self.trigger_card_on_exhaust(post_play_card);
+            }
         }
     }
 

@@ -579,7 +579,7 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         // -- Play the top card of the draw pile through the normal free-play path --
         SimpleEffect::PlayTopCardOfDraw => {
-            engine.play_top_card_of_draw();
+            engine.play_top_card_of_draw(true);
         }
 
         // -- Deal flat damage (no strength/stance modifiers) --

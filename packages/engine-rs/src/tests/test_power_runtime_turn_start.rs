@@ -165,7 +165,7 @@ fn enter_divinity_hook_clears_flag_and_enters_divinity() {
 }
 
 #[test]
-fn mayhem_hook_moves_top_draw_cards_into_hand() {
+fn mayhem_hook_autoplays_top_draw_cards_for_free_without_exhausting() {
     let mut state = combat_state_with(
         Vec::new(),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -174,8 +174,10 @@ fn mayhem_hook_moves_top_draw_cards_into_hand() {
     state.draw_pile = make_deck(&["Strike", "Defend", "Bash"]);
 
     let mut engine = engine_without_start(state.draw_pile.clone(), state.enemies.clone(), 3);
+    engine.phase = CombatPhase::PlayerTurn;
     engine.state.draw_pile = state.draw_pile;
     engine.state.player.set_status(sid::MAYHEM, 2);
+    let card_random_before = engine.card_random_rng.counter;
 
     let mut runtime_state = EffectState::default();
     hook_mayhem(
@@ -185,12 +187,6 @@ fn mayhem_hook_moves_top_draw_cards_into_hand() {
         &mut runtime_state,
     );
 
-    let hand_names: Vec<_> = engine
-        .state
-        .hand
-        .iter()
-        .map(|card| engine.card_registry.card_name(card.def_id).to_string())
-        .collect();
     let draw_names: Vec<_> = engine
         .state
         .draw_pile
@@ -198,8 +194,20 @@ fn mayhem_hook_moves_top_draw_cards_into_hand() {
         .map(|card| engine.card_registry.card_name(card.def_id).to_string())
         .collect();
 
-    assert_eq!(hand_names, vec!["Bash".to_string(), "Defend".to_string()]);
     assert_eq!(draw_names, vec!["Strike".to_string()]);
+    assert!(engine.state.hand.is_empty());
+    assert_eq!(engine.state.player.block, 5);
+    assert_eq!(engine.state.enemies[0].entity.hp, 32);
+    assert_eq!(engine.state.energy, 3);
+    assert_eq!(engine.state.exhaust_pile.len(), 0);
+    let discard_names: Vec<_> = engine
+        .state
+        .discard_pile
+        .iter()
+        .map(|card| engine.card_registry.card_name(card.def_id).to_string())
+        .collect();
+    assert_eq!(discard_names, vec!["Bash".to_string(), "Defend".to_string()]);
+    assert_eq!(engine.card_random_rng.counter, card_random_before + 2);
 }
 
 #[test]

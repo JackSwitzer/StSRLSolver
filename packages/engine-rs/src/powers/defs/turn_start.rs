@@ -555,9 +555,7 @@ pub static DEF_ENTER_DIVINITY: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Mayhem — TurnStartPostDraw: move top draw card(s) into hand
-// Preserve current engine behavior exactly, including the MCTS approximation
-// that adds the top card to hand instead of auto-playing it.
+// Mayhem — TurnStartPostDraw: autoplay the top draw card once per stack
 // ===========================================================================
 
 static MAYHEM_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
@@ -574,13 +572,19 @@ fn hook_mayhem(
     _state: &mut EffectState,
 ) {
     let mayhem = engine.state.player.status(sid::MAYHEM);
-    for _ in 0..mayhem {
-        if engine.state.hand.len() >= 10 {
+    // MayhemPower queues all wrapper actions before any PlayTopCardAction runs,
+    // so every stack selects its target first. Each selection consumes
+    // cardRandomRng even with one living monster. Unlike Havoc, exhausts=false.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/MayhemPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/PlayTopCardAction.java
+    let targets: Vec<i32> = (0..mayhem)
+        .map(|_| engine.random_living_enemy().map_or(-1, |idx| idx as i32))
+        .collect();
+    for target_idx in targets {
+        if engine.state.combat_over {
             break;
         }
-        if let Some(card_id) = engine.state.draw_pile.pop() {
-            engine.state.hand.push(card_id);
-        }
+        engine.play_top_card_of_draw_at_target(target_idx, false);
     }
 }
 

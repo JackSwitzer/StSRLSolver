@@ -544,7 +544,7 @@ pub fn hook_draw_attacks_from_draw(engine: &mut CombatEngine, ctx: &CardPlayCont
 
 /// Havoc: play top card of draw pile for free.
 pub fn hook_play_top_card(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
-    engine.play_top_card_of_draw();
+    engine.play_top_card_of_draw(true);
 }
 
 // =========================================================================

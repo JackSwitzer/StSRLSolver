@@ -114,6 +114,9 @@ fn colorless_wave1_registry_exports_match_typed_surface() {
     );
 
     let mayhem = registry.get("Mayhem").expect("Mayhem should exist");
+    let mayhem_plus = registry.get("Mayhem+").expect("Mayhem+ should exist");
+    assert_eq!((mayhem.cost, mayhem.base_magic), (2, 1));
+    assert_eq!((mayhem_plus.cost, mayhem_plus.base_magic), (1, 1));
     assert_eq!(
         mayhem.effect_data,
         &[E::Simple(SE::AddStatus(T::Player, sid::MAYHEM, A::Magic))]

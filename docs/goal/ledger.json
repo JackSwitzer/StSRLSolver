@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T11:20:07.505018+00:00",
+ "updated": "2026-07-13T11:23:17.414848+00:00",
  "status_counts": {
-  "verified": 463,
-  "unverified": 204
+  "verified": 464,
+  "unverified": 203
  },
  "rows": [
   {
@@ -2162,8 +2162,8 @@
    "class": "Mayhem",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Mayhem.java",
    "methods_ref": "reference/extracted/methods/card/Mayhem.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
