@@ -210,7 +210,8 @@ fn potion_potency(potion_id: &str) -> Option<(i32, i32)> {
         "BottledMiracle" => Some((2, 1)),
         // CunningPotion.java getPotency ignores ascension and always returns 3.
         "CunningPotion" => Some((3, 3)),
-        "PotionOfCapacity" => Some((2, 1)),
+        // PotionOfCapacity.java getPotency ignores ascension and always returns 2.
+        "Potion of Capacity" | "PotionOfCapacity" => Some((2, 2)),
         _ => None,
     }
 }
@@ -549,7 +550,7 @@ pub(crate) fn apply_potion_scaled(
             true
         }
 
-        "PotionOfCapacity" => {
+        "Potion of Capacity" | "PotionOfCapacity" => {
             let potency = effective_potency(potion_id, ascension, bark_mult);
             state.player.add_status(sid::ORB_SLOTS, potency);
             true
@@ -947,10 +948,16 @@ mod tests {
     }
 
     #[test]
-    fn test_potion_of_capacity() {
+    fn test_potion_of_capacity_stays_at_two_on_a20_and_bark_doubles_it() {
+        // Source: reference/extracted/methods/potion/PotionOfCapacity.java.
         let mut state = make_test_state();
-        apply_potion(&mut state, "PotionOfCapacity", -1);
+        apply_potion_scaled(&mut state, "Potion of Capacity", -1, 20);
         assert_eq!(state.player.status(sid::ORB_SLOTS), 2);
+
+        state.player.set_status(sid::ORB_SLOTS, 0);
+        state.relics.push("SacredBark".to_string());
+        apply_potion_scaled(&mut state, "PotionOfCapacity", -1, 20);
+        assert_eq!(state.player.status(sid::ORB_SLOTS), 4);
     }
 
     #[test]

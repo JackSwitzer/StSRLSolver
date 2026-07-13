@@ -113,12 +113,16 @@ fn declarative_potions_drop_hooks_and_apply_runtime_effects() {
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
+    // PotionOfCapacity.java returns potency two and queues
+    // IncreaseMaxOrbAction; AbstractPotion doubles potency with Sacred Bark.
+    capacity.init_defect_orbs(3);
     capacity.state.relics.push("SacredBark".to_string());
     capacity.state.potions = vec![String::new(); 3];
-    equip_potion(&mut capacity, 0, "PotionOfCapacity");
+    equip_potion(&mut capacity, 0, "Potion of Capacity");
     let orb_slots_before = capacity.state.player.status(sid::ORB_SLOTS);
     use_potion(&mut capacity, 0, -1);
     assert_eq!(capacity.state.player.status(sid::ORB_SLOTS), orb_slots_before + 4);
+    assert_eq!(capacity.state.orb_slots.max_slots, 7);
 
     let mut miracle = engine_with_state(combat_state_with(
         make_deck(&["Strike", "Defend", "Bash"]),

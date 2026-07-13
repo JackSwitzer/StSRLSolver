@@ -1583,7 +1583,22 @@ impl EffectRuntime {
     ) {
         match target {
             Target::Player => {
-                if is_hidden_status_for_def(self.instances[instance_idx].def.id, status_id) {
+                if status_id == sid::ORB_SLOTS && amount > 0 {
+                    // Source: decompiled/java-src/com/megacrit/cardcrawl/actions/
+                    // defect/IncreaseMaxOrbAction.java. Runtime-owned effects
+                    // that request orb slots must grow the actual capped slot
+                    // collection, not only its compact bookkeeping status.
+                    let before = engine.state.orb_slots.max_slots;
+                    for _ in 0..amount {
+                        engine.state.orb_slots.add_slot();
+                    }
+                    let gained = engine
+                        .state
+                        .orb_slots
+                        .max_slots
+                        .saturating_sub(before) as i32;
+                    engine.state.player.add_status(status_id, gained);
+                } else if is_hidden_status_for_def(self.instances[instance_idx].def.id, status_id) {
                     let current = self.instances[instance_idx]
                         .state
                         .get(hidden_status_slot(self.instances[instance_idx].def.id, status_id).unwrap());

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T22:07:47.114631+00:00",
+ "updated": "2026-07-13T22:10:39.580614+00:00",
  "status_counts": {
-  "verified": 630,
-  "unverified": 37
+  "verified": 631,
+  "unverified": 36
  },
  "rows": [
   {
@@ -4692,8 +4692,8 @@
    "class": "PotionOfCapacity",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/PotionOfCapacity.java",
    "methods_ref": "reference/extracted/methods/potion/PotionOfCapacity.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
