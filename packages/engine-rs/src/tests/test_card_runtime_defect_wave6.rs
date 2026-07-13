@@ -5,6 +5,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Defend_Blue.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Leap.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/SelfRepair.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/RepairPower.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/BootSequence.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/MachineLearning.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ReinforcedBody.java
@@ -131,12 +132,13 @@ fn defect_wave6_self_repair_machine_learning_and_static_discharge_install_runtim
     );
     force_player_turn(&mut self_repair);
     self_repair.state.player.hp = 40;
-    self_repair.state.hand = make_deck(&["Self Repair+", "Strike"]);
+    self_repair.state.hand = make_deck(&["Self Repair", "Self Repair+", "Strike"]);
+    assert!(play_self(&mut self_repair, "Self Repair"));
     assert!(play_self(&mut self_repair, "Self Repair+"));
-    assert_eq!(self_repair.state.player.status(sid::SELF_REPAIR), 10);
+    assert_eq!(self_repair.state.player.status(sid::SELF_REPAIR), 17);
     assert!(play_on_enemy(&mut self_repair, "Strike", 0));
     assert!(self_repair.state.player_won);
-    assert_eq!(self_repair.state.player.hp, 40);
+    assert_eq!(self_repair.state.player.hp, 57);
 
     let mut machine_learning = engine_without_start(
         Vec::new(),

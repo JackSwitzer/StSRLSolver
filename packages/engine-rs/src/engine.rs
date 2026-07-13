@@ -4745,6 +4745,16 @@ impl CombatEngine {
                     &ctx,
                 ));
             }
+            // AbstractPlayer.onVictory invokes relics before powers, and
+            // RepairPower heals its stacked amount only while the player is
+            // alive. Keep this in the combat engine so standalone combat state
+            // and the run wrapper observe the same single heal.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RepairPower.java
+            let repair = self.state.player.status(sid::SELF_REPAIR);
+            if self.state.player.hp > 0 && repair > 0 {
+                self.heal_player(repair);
+            }
             return true;
         }
 

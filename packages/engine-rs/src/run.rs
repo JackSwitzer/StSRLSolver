@@ -2517,12 +2517,6 @@ impl RunEngine {
                 // Combat win reward
                 reward += 1.0;
 
-                // Self Repair: heal at end of combat
-                let self_repair = engine.state.player.status(crate::status_ids::sid::SELF_REPAIR);
-                if self_repair > 0 {
-                    engine.state.heal_player(self_repair);
-                }
-
                 // Update run state from combat result
                 self.run_state.current_hp = engine.state.player.hp;
                 self.run_state.max_hp = engine.state.player.max_hp;
