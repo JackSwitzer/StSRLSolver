@@ -1167,4 +1167,25 @@ mod ironclad_card_java_parity_tests {
         assert_eq!(e.state.player.block, 30);
         assert_eq!(exhaust_prefix_count(&e, "Impervious"), 1);
     }
+
+    #[test]
+    fn impervious_upgrade_changes_only_block_and_still_exhausts() {
+        // Impervious.java upgrades block by exactly 10; its 2 cost and Exhaust
+        // flag are unchanged.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Impervious.java
+        let mut engine = engine_for(
+            &["Impervious+"],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 50, 50)],
+            3,
+        );
+
+        assert!(play_self(&mut engine, "Impervious+"));
+
+        assert_eq!(engine.state.energy, 1);
+        assert_eq!(engine.state.player.block, 40);
+        assert_eq!(exhaust_prefix_count(&engine, "Impervious"), 1);
+        assert_eq!(discard_prefix_count(&engine, "Impervious"), 0);
+    }
 }

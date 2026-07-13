@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T10:21:21.627281+00:00",
+ "updated": "2026-07-13T10:22:43.683610+00:00",
  "status_counts": {
-  "verified": 440,
-  "unverified": 227
+  "verified": 441,
+  "unverified": 226
  },
  "rows": [
   {
@@ -1862,8 +1862,8 @@
    "class": "Impervious",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/Impervious.java",
    "methods_ref": "reference/extracted/methods/card/Impervious.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
