@@ -204,6 +204,29 @@ fn impatience_does_not_draw_when_an_attack_is_present() {
 }
 
 #[test]
+fn impatience_plus_draws_three_after_the_played_skill_leaves_hand() {
+    // Impatience.java upgrades only magicNumber from 2 to 3.
+    // ConditionalDrawAction scans the remaining hand for ATTACK cards, so the
+    // played Impatience+ itself cannot suppress its draw.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Impatience.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/ConditionalDrawAction.java
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Impatience+", "Defend"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Strike", "Strike"]);
+
+    assert!(play_self(&mut engine, "Impatience+"));
+
+    assert_eq!(engine.state.energy, 3);
+    assert_eq!(engine.state.hand.len(), 4);
+    assert_eq!(engine.state.draw_pile.len(), 0);
+}
+
+#[test]
 fn ghostly_applies_one_intangible_and_upgrade_only_removes_ethereal() {
     // Apparition.java sets exhaust and Ethereal in the constructor. upgrade()
     // only clears Ethereal; both versions apply IntangiblePlayerPower(1).

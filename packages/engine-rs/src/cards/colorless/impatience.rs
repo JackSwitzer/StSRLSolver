@@ -15,7 +15,11 @@ static IMPATIENCE_PLUS: [Effect; 1] = [Effect::Conditional(
 )];
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Impatience: 0 cost, draw 2 if no attacks in hand
+    // ConditionalDrawAction scans the hand after Impatience has left it and
+    // draws only when no Attack remains. Base draws 2; upgrade draws 3 and
+    // changes neither the 0 cost nor any other property.
+    // Java: reference/extracted/methods/card/Impatience.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/ConditionalDrawAction.java
     insert(cards, CardDef {
                 id: "Impatience", name: "Impatience", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
