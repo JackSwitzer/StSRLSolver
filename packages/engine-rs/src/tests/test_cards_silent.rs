@@ -625,6 +625,87 @@ mod silent_card_java_parity_tests {
         "Setup", 1, -1, -1, -1, CardType::Skill, CardTarget::None, false, None, &["setup"],
         "Setup+", 0, -1, -1, -1, CardType::Skill, CardTarget::None, false, None, &["setup"],
     );
+
+    #[test]
+    fn setup_auto_moves_a_single_positive_cost_card_and_free_survives_cost_reset() {
+        // SetupAction auto-moves a singleton, checks the permanent `cost`, and
+        // sets freeToPlayOnce before moveToDeck(card, false) puts it on top.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/SetupAction.java
+        let mut engine = engine_without_start(
+            make_deck(&["Defend"]),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            0,
+        );
+        force_player_turn(&mut engine);
+        engine.state.hand = make_deck(&["Setup+", "Strike"]);
+
+        assert!(play_self(&mut engine, "Setup+"));
+
+        assert_eq!(engine.phase, crate::engine::CombatPhase::PlayerTurn);
+        assert!(engine.choice.is_none());
+        assert!(engine.state.hand.is_empty());
+        assert_eq!(engine.card_registry.card_name(engine.state.draw_pile.last().unwrap().def_id), "Strike");
+        assert!(engine.state.draw_pile.last().unwrap().is_free());
+        assert_eq!(engine.state.draw_pile.last().unwrap().cost, -1);
+
+        engine.state.draw_pile.last_mut().unwrap().reset_cost_for_turn();
+        engine.draw_cards(1);
+        assert!(play_on_enemy(&mut engine, "Strike", 0));
+        assert_eq!(engine.state.enemies[0].entity.hp, 34);
+        assert!(!engine.state.discard_pile.last().unwrap().is_free());
+    }
+
+    #[test]
+    fn setup_uses_permanent_cost_and_does_not_free_zero_or_x_cost_cards() {
+        // SetupAction checks AbstractCard.cost, not costForTurn. A positive-cost
+        // card discounted for this turn becomes free once, while zero and X
+        // cards keep their original cost semantics.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/SetupAction.java
+        for (card_id, turn_cost, should_be_free, reset_cost) in [
+            ("Neutralize", None, false, 0),
+            ("Skewer", None, false, -1),
+            ("Dash", Some(0), true, 2),
+        ] {
+            let mut engine = engine_without_start(
+                Vec::new(),
+                vec![enemy_no_intent("JawWorm", 40, 40)],
+                0,
+            );
+            force_player_turn(&mut engine);
+            engine.state.hand = make_deck(&["Setup+", card_id, "Defend"]);
+            if let Some(cost) = turn_cost {
+                engine.state.hand[1].set_cost_for_turn(cost);
+            }
+
+            assert!(play_self(&mut engine, "Setup+"));
+            assert_eq!(engine.phase, crate::engine::CombatPhase::AwaitingChoice);
+            engine.execute_action(&Action::Choose(0));
+
+            let moved = engine.state.draw_pile.last_mut().expect("Setup moved card");
+            assert_eq!(moved.is_free(), should_be_free, "{card_id}");
+            moved.reset_cost_for_turn();
+            assert_eq!(moved.cost, reset_cost, "{card_id}");
+        }
+    }
+
+    #[test]
+    fn setup_is_playable_as_a_no_op_when_it_is_the_only_card_in_hand() {
+        let mut engine = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            1,
+        );
+        force_player_turn(&mut engine);
+        engine.state.hand = make_deck(&["Setup"]);
+
+        assert!(play_self(&mut engine, "Setup"));
+
+        assert_eq!(engine.phase, crate::engine::CombatPhase::PlayerTurn);
+        assert!(engine.choice.is_none());
+        assert!(engine.state.hand.is_empty());
+        assert!(engine.state.draw_pile.is_empty());
+        assert_eq!(discard_prefix_count(&engine, "Setup"), 1);
+    }
     card_pair_test!(skewer,
         "Skewer", -1, 7, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["x_cost"],
         "Skewer+", -1, 10, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["x_cost"],

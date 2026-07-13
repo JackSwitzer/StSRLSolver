@@ -1526,6 +1526,20 @@ fn execute_choose_cards(
         return;
     }
 
+    // SetupAction directly moves the only card remaining after Setup leaves the
+    // hand; hand selection opens only when at least two cards remain.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/SetupAction.java
+    if matches!(ctx.card.id, "Setup" | "Setup+")
+        && source == Pile::Hand
+        && action == ChoiceAction::PutOnTopAtCostZero
+        && options.len() == 1
+    {
+        if let ChoiceOption::HandCard(index) = options[0] {
+            engine.move_setup_card_to_top(index);
+        }
+        return;
+    }
+
     // DiscardPileToTopOfDeckAction moves a singleton discard pile directly;
     // grid selection is used only when more than one card is available.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DiscardPileToTopOfDeckAction.java

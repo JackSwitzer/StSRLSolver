@@ -1507,16 +1507,31 @@ impl CombatEngine {
     }
 
     fn resolve_setup(&mut self, ctx: ChoiceContext) {
-        // Setup: set card cost to 0 and put on top of draw pile (last = top)
         if let Some(&sel) = ctx.selected.first() {
             if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
-                if idx < self.state.hand.len() {
-                    let mut card = self.state.hand.remove(idx);
-                    card.cost = 0;
-                    self.state.draw_pile.push(card);
-                }
+                self.move_setup_card_to_top(idx);
             }
         }
+    }
+
+    pub(crate) fn move_setup_card_to_top(&mut self, idx: usize) {
+        if idx >= self.state.hand.len() {
+            return;
+        }
+        let mut card = self.state.hand.remove(idx);
+        let def = self.card_registry.card_def_by_id(card.def_id);
+        let permanent_cost = if card.base_cost >= 0 {
+            card.base_cost
+        } else {
+            def.cost as i8
+        };
+        if permanent_cost > 0 {
+            card.flags |= CardInstance::FLAG_FREE;
+        }
+        // moveToDeck(card, false) adds to the top; last = top in Rust.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/SetupAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/Soul.java
+        self.state.draw_pile.push(card);
     }
 
     fn resolve_discard_for_effect(&mut self, ctx: ChoiceContext) {

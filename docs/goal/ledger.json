@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T14:57:43.849472+00:00",
+ "updated": "2026-07-13T15:01:00.075271+00:00",
  "status_counts": {
-  "verified": 524,
-  "unverified": 143
+  "verified": 525,
+  "unverified": 142
  },
  "rows": [
   {
@@ -2922,8 +2922,8 @@
    "class": "Setup",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Setup.java",
    "methods_ref": "reference/extracted/methods/card/Setup.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
