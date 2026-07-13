@@ -474,6 +474,14 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         // -- Channel orb --
         SimpleEffect::ChannelOrb(orb_type, ref amount_src) => {
+            // DamageAction removes later non-damage actions when the last
+            // monster dies. Damage-then-channel cards (Meteor Strike, Ball
+            // Lightning, Cold Snap, Doom and Gloom) therefore do not channel
+            // after a combat-ending hit.
+            // Java: actions/common/DamageAction.java and actions/GameActionManager.java.
+            if engine.state.combat_over || engine.state.is_victory() {
+                return;
+            }
             let count = resolve_card_amount(engine, ctx, amount_src).max(0);
             for _ in 0..count {
                 engine.channel_orb(orb_type);

@@ -808,6 +808,35 @@ mod defect_card_java_parity_tests {
         assert_eq!(e.state.orb_slots.slots[0].orb_type, OrbType::Plasma);
     });
 
+    defect_test!(meteor_strike_source_damage_precedes_three_plasma_channels, {
+        // MeteorStrike.java queues its DamageAction before three ChannelActions.
+        // A nonlethal Meteor Strike+ channels all three, while lethal damage
+        // clears those queued channels. The constructor also adds STRIKE.
+        let registry = crate::cards::global_registry();
+        assert!(registry.is_strike(registry.card_id("Meteor Strike")));
+        assert!(registry.is_strike(registry.card_id("Meteor Strike+")));
+
+        let mut nonlethal = bare_engine(&[], vec![enemy_no_intent("JawWorm", 80, 80)]);
+        nonlethal.init_defect_orbs(3);
+        nonlethal.state.energy = 5;
+        nonlethal.state.hand = make_deck(&["Meteor Strike+"]);
+        assert!(play_on_enemy(&mut nonlethal, "Meteor Strike+", 0));
+        assert_eq!(nonlethal.state.enemies[0].entity.hp, 50);
+        assert_eq!(nonlethal.state.orb_slots.occupied_count(), 3);
+        assert!(nonlethal.state.orb_slots.slots.iter().all(|orb| {
+            orb.orb_type == OrbType::Plasma
+        }));
+        assert_eq!(nonlethal.state.energy, 0);
+
+        let mut lethal = bare_engine(&[], vec![enemy_no_intent("JawWorm", 20, 20)]);
+        lethal.init_defect_orbs(3);
+        lethal.state.energy = 5;
+        lethal.state.hand = make_deck(&["Meteor Strike"]);
+        assert!(play_on_enemy(&mut lethal, "Meteor Strike", 0));
+        assert!(lethal.state.enemies[0].entity.is_dead());
+        assert_eq!(lethal.state.orb_slots.occupied_count(), 0);
+    });
+
     defect_test!(multi_cast_evokes_front_orb_x_times, {
         let mut e = bare_engine(&["Multi-Cast"], vec![enemy("JawWorm", 80, 0)]);
         set_orbs(&mut e, &[OrbType::Lightning, OrbType::Frost, OrbType::Dark]);
