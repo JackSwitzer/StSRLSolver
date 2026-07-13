@@ -531,6 +531,35 @@ mod defect_card_java_parity_tests {
         assert_eq!(e.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
     });
 
+    defect_test!(zap_variants_channel_exactly_one_lightning_without_rng, {
+        // Zap.java loops magicNumber times around ChannelAction(new
+        // Lightning()); magicNumber remains one after upgrade, which changes
+        // only cost 1 to 0. When slots are full, ChannelAction evokes the
+        // front orb before placing that single Lightning and consumes no RNG.
+        // Java: reference/extracted/methods/card/Zap.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ChannelAction.java
+        for (card_id, expected_energy) in [("Zap", 2), ("Zap+", 3)] {
+            let mut e = filled_engine(&[], 40, 0);
+            e.init_defect_orbs(2);
+            e.channel_orb(OrbType::Frost);
+            e.channel_orb(OrbType::Dark);
+            e.state.hand = make_deck(&[card_id]);
+            e.state.energy = 3;
+            let card_random_before = e.card_random_rng.counter;
+            let general_before = e.rng.counter;
+
+            assert!(play_self(&mut e, card_id));
+
+            assert_eq!(e.state.energy, expected_energy);
+            assert_eq!(e.state.player.block, 5, "front Frost should evoke once");
+            assert_eq!(e.state.orb_slots.slots[0].orb_type, OrbType::Dark);
+            assert_eq!(e.state.orb_slots.slots[1].orb_type, OrbType::Lightning);
+            assert_eq!(e.state.player.status(sid::LIGHTNING_CHANNELED), 1);
+            assert_eq!(e.card_random_rng.counter, card_random_before);
+            assert_eq!(e.rng.counter, general_before);
+        }
+    });
+
     defect_test!(dualcast_evokes_the_same_front_orb_twice, {
         // Dualcast.java queues EvokeWithoutRemovingOrbAction(1), then
         // EvokeOrbAction(1). A front Lightning therefore deals 8 twice and is

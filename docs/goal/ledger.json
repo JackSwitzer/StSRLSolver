@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T17:36:06.869223+00:00",
+ "updated": "2026-07-13T17:37:58.370212+00:00",
  "status_counts": {
-  "verified": 581,
-  "unverified": 86
+  "verified": 582,
+  "unverified": 85
  },
  "rows": [
   {
@@ -3702,8 +3702,8 @@
    "class": "Zap",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Zap.java",
    "methods_ref": "reference/extracted/methods/card/Zap.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
