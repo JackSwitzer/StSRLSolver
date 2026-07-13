@@ -1850,6 +1850,58 @@ impl CombatEngine {
         });
     }
 
+    pub(crate) fn schedule_the_bomb(&mut self, turns: i32, damage: i32) {
+        self.state
+            .pending_bombs
+            .push((turns as i16, damage as i16));
+        self.sync_the_bomb_statuses();
+    }
+
+    fn sync_the_bomb_statuses(&mut self) {
+        let damage = self
+            .state
+            .pending_bombs
+            .iter()
+            .map(|(_, damage)| i32::from(*damage))
+            .sum();
+        let turns = self
+            .state
+            .pending_bombs
+            .iter()
+            .map(|(turns, _)| i32::from(*turns))
+            .min()
+            .unwrap_or(0);
+        self.state.player.set_status(sid::THE_BOMB, damage);
+        self.state.player.set_status(sid::THE_BOMB_TURNS, turns);
+    }
+
+    fn resolve_the_bombs_at_end_of_turn(&mut self) {
+        let bombs = std::mem::take(&mut self.state.pending_bombs);
+        let mut remaining = smallvec::SmallVec::new();
+
+        // TheBombPower.atEndOfTurn queues ReducePowerAction first and queues a
+        // source-less THORNS DamageAllEnemiesAction when the old amount was one.
+        // Every application has a unique ID, so process each countdown alone.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/TheBombPower.java
+        for (turns, damage) in bombs {
+            let next_turns = turns - 1;
+            if next_turns > 0 {
+                remaining.push((next_turns, damage));
+                continue;
+            }
+
+            for target in self.state.living_enemy_indices() {
+                self.deal_thorns_damage_to_enemy(target, i32::from(damage));
+            }
+            if self.check_combat_end() {
+                break;
+            }
+        }
+
+        self.state.pending_bombs = remaining;
+        self.sync_the_bomb_statuses();
+    }
+
     pub(crate) fn end_turn(&mut self) {
         if self.phase != CombatPhase::PlayerTurn {
             return;
@@ -1874,6 +1926,11 @@ impl CombatEngine {
             }
         }
 
+        if self.state.combat_over {
+            return;
+        }
+
+        self.resolve_the_bombs_at_end_of_turn();
         if self.state.combat_over {
             return;
         }

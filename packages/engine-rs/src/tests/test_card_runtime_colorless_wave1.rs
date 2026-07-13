@@ -18,11 +18,65 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/NoBlockPower.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/SadisticNature.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/SwiftStrike.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/TheBomb.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/TheBombPower.java
 
 use crate::cards::{global_registry, CardTarget, CardType};
 use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
 use crate::status_ids::sid;
 use crate::tests::support::*;
+
+#[test]
+fn the_bomb_keeps_independent_three_turn_countdowns_and_damage() {
+    // TheBomb.java installs TheBombPower(3, 40/50). TheBombPower gives every
+    // application a unique ID, decrements at player turn end, and at amount 1
+    // deals source-less THORNS damage to all enemies after reducing itself.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/TheBomb.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/TheBombPower.java
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![
+            enemy_no_intent("JawWorm", 200, 200),
+            enemy_no_intent("Cultist", 200, 200),
+        ],
+        2,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["The Bomb"]);
+
+    assert!(play_self(&mut engine, "The Bomb"));
+    assert_eq!(engine.state.energy, 0);
+    assert_eq!(engine.state.player.status(sid::THE_BOMB), 40);
+    assert_eq!(engine.state.player.status(sid::THE_BOMB_TURNS), 3);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.status(sid::THE_BOMB_TURNS), 2);
+    assert_eq!(engine.state.enemies[0].entity.hp, 200);
+    assert_eq!(engine.state.enemies[1].entity.hp, 200);
+
+    ensure_in_hand(&mut engine, "The Bomb+");
+    assert!(play_self(&mut engine, "The Bomb+"));
+    assert_eq!(engine.state.player.status(sid::THE_BOMB), 90);
+    assert_eq!(engine.state.player.status(sid::THE_BOMB_TURNS), 2);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.status(sid::THE_BOMB), 90);
+    assert_eq!(engine.state.player.status(sid::THE_BOMB_TURNS), 1);
+    assert_eq!(engine.state.enemies[0].entity.hp, 200);
+    assert_eq!(engine.state.enemies[1].entity.hp, 200);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.status(sid::THE_BOMB), 50);
+    assert_eq!(engine.state.player.status(sid::THE_BOMB_TURNS), 1);
+    assert_eq!(engine.state.enemies[0].entity.hp, 160);
+    assert_eq!(engine.state.enemies[1].entity.hp, 160);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.status(sid::THE_BOMB), 0);
+    assert_eq!(engine.state.player.status(sid::THE_BOMB_TURNS), 0);
+    assert_eq!(engine.state.enemies[0].entity.hp, 110);
+    assert_eq!(engine.state.enemies[1].entity.hp, 110);
+}
 
 #[test]
 fn jax_source_loses_fixed_three_hp_then_gains_two_or_three_strength() {

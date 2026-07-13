@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T16:19:22.211121+00:00",
+ "updated": "2026-07-13T16:24:20.252703+00:00",
  "status_counts": {
-  "verified": 555,
-  "unverified": 112
+  "verified": 556,
+  "unverified": 111
  },
  "rows": [
   {
@@ -3302,8 +3302,8 @@
    "class": "TheBomb",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/TheBomb.java",
    "methods_ref": "reference/extracted/methods/card/TheBomb.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
