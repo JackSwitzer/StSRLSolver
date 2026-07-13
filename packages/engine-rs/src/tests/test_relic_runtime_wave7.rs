@@ -43,6 +43,29 @@ fn twisted_funnel_applies_poison_to_all_enemies_on_runtime_path() {
 }
 
 #[test]
+fn twisted_funnel_uses_player_sourced_poison_for_skull_and_artifact() {
+    // TwistedFunnel.java queues one player-sourced ApplyPowerAction for four
+    // Poison on every living monster. ApplyPowerAction.java adds Snake Skull's
+    // one before Artifact consumes and blocks the complete application.
+    let mut engine = engine_without_start_with_relics(
+        &["TwistedFunnel", "Snake Skull"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
+        vec![
+            enemy_no_intent("JawWorm", 40, 40),
+            enemy_no_intent("Cultist", 44, 44),
+        ],
+        3,
+    );
+    engine.state.enemies[1].entity.set_status(sid::ARTIFACT, 1);
+
+    engine.start_combat();
+
+    assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 5);
+    assert_eq!(engine.state.enemies[1].entity.status(sid::POISON), 0);
+    assert_eq!(engine.state.enemies[1].entity.status(sid::ARTIFACT), 0);
+}
+
+#[test]
 fn snecko_eye_confuses_and_draws_two_extra_cards_on_runtime_path() {
     let mut engine = engine_without_start_with_relics(
         &["Snecko Eye"],

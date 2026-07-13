@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T23:29:40.490111+00:00",
+ "updated": "2026-07-13T23:31:19.295481+00:00",
  "status_counts": {
-  "verified": 665,
-  "unverified": 2
+  "verified": 666,
+  "unverified": 1
  },
  "rows": [
   {
@@ -6562,8 +6562,8 @@
    "class": "TwistedFunnel",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/TwistedFunnel.java",
    "methods_ref": "reference/extracted/methods/relic/TwistedFunnel.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
