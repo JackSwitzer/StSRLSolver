@@ -286,40 +286,46 @@ pub(super) fn roll_snake_dagger(enemy: &mut EnemyCombatState, _num: i32) {
 // Act 3 Bosses
 // =========================================================================
 
-pub(super) fn roll_awakened_one(enemy: &mut EnemyCombatState, _num: i32) {
+pub(super) fn roll_awakened_one(enemy: &mut EnemyCombatState, num: i32) {
     let phase = enemy.entity.status(sid::PHASE);
 
     if phase == 1 {
-        // Phase 1: Java getMove uses RNG < 25 for Soul Strike, else Slash.
-        // Anti-repeat: can't use Soul Strike twice in a row, can't Slash 3 in a row.
-        // Deterministic MCTS: alternate Slash and Soul Strike.
-        if last_move(enemy, move_ids::AO_SLASH) {
-            enemy.set_move(move_ids::AO_SOUL_STRIKE, 6, 4, 0);
-        } else if last_move(enemy, move_ids::AO_SOUL_STRIKE) || last_two_moves(enemy, move_ids::AO_SLASH) {
+        // Java getMove: first intent is always Slash. Thereafter num < 25
+        // selects Soul Strike unless it was just used; num >= 25 selects Slash
+        // unless that would be the third consecutive Slash.
+        // Java: reference/extracted/methods/monster/AwakenedOne.java
+        if enemy.move_history.is_empty() {
+            enemy.set_move(move_ids::AO_SLASH, 20, 1, 0);
+        } else if num < 25 {
+            if !last_move(enemy, move_ids::AO_SOUL_STRIKE) {
+                enemy.set_move(move_ids::AO_SOUL_STRIKE, 6, 4, 0);
+            } else {
+                enemy.set_move(move_ids::AO_SLASH, 20, 1, 0);
+            }
+        } else if !last_two_moves(enemy, move_ids::AO_SLASH) {
             enemy.set_move(move_ids::AO_SLASH, 20, 1, 0);
         } else {
-            enemy.set_move(move_ids::AO_SLASH, 20, 1, 0);
+            enemy.set_move(move_ids::AO_SOUL_STRIKE, 6, 4, 0);
         }
     } else {
-        // Phase 2: Dark Echo (40), Sludge (18 + Void card), Tackle (10x3).
-        // Java: firstTurn of P2 = Dark Echo. Then RNG < 50 for Sludge, else Tackle.
-        // Anti-repeat: Sludge can't be used 3 in a row, Tackle can't be used 3 in a row.
-        // Sludge adds a Void card to draw pile (not Slimed!).
-        if last_move(enemy, move_ids::AO_DARK_ECHO) {
-            enemy.set_move(move_ids::AO_SLUDGE, 18, 1, 0);
-            enemy.add_effect(mfx::VOID, 1);
-        } else if last_two_moves(enemy, move_ids::AO_SLUDGE) {
-            enemy.set_move(move_ids::AO_TACKLE, 10, 3, 0);
-        } else if last_two_moves(enemy, move_ids::AO_TACKLE) {
-            enemy.set_move(move_ids::AO_SLUDGE, 18, 1, 0);
-            enemy.add_effect(mfx::VOID, 1);
-        } else if last_move(enemy, move_ids::AO_SLUDGE) {
-            enemy.set_move(move_ids::AO_TACKLE, 10, 3, 0);
-        } else if last_move(enemy, move_ids::AO_TACKLE) {
-            enemy.set_move(move_ids::AO_SLUDGE, 18, 1, 0);
-            enemy.add_effect(mfx::VOID, 1);
-        } else {
+        // Java getMove: first phase-two intent is Dark Echo. Thereafter num <
+        // 50 chooses Sludge unless it would be the third; num >= 50 chooses
+        // Tackle unless it would be the third.
+        // Java: reference/extracted/methods/monster/AwakenedOne.java
+        if enemy.move_history.is_empty() {
             enemy.set_move(move_ids::AO_DARK_ECHO, 40, 1, 0);
+        } else if num < 50 {
+            if !last_two_moves(enemy, move_ids::AO_SLUDGE) {
+                enemy.set_move(move_ids::AO_SLUDGE, 18, 1, 0);
+                enemy.add_effect(mfx::VOID, 1);
+            } else {
+                enemy.set_move(move_ids::AO_TACKLE, 10, 3, 0);
+            }
+        } else if !last_two_moves(enemy, move_ids::AO_TACKLE) {
+            enemy.set_move(move_ids::AO_TACKLE, 10, 3, 0);
+        } else {
+            enemy.set_move(move_ids::AO_SLUDGE, 18, 1, 0);
+            enemy.add_effect(mfx::VOID, 1);
         }
     }
 }
@@ -337,6 +343,10 @@ pub fn awakened_one_rebirth(enemy: &mut EnemyCombatState) {
                 enemy.entity.statuses[i] = 0;
             }
         }
+    }
+    enemy.entity.set_status(sid::TEMP_STRENGTH_LOSS, 0);
+    if enemy.entity.strength() < 0 {
+        enemy.entity.set_status(sid::STRENGTH, 0);
     }
     // Heal to full (second form HP)
     enemy.entity.hp = enemy.entity.max_hp;

@@ -1703,6 +1703,29 @@ impl RunEngine {
             })
             .collect();
 
+        // AwakenedOne.usePreBattleAction applies independent ascension
+        // thresholds: +2 Strength at A4, 320 HP at A9 (rolled above), and
+        // Curiosity 2 / Regenerate 15 at A19. create_enemy has no ascension,
+        // so these belong at the run spawn site.
+        // Java: reference/extracted/methods/monster/AwakenedOne.java
+        for enemy in enemy_states
+            .iter_mut()
+            .filter(|enemy| matches!(enemy.id.as_str(), "AwakenedOne" | "Awakened One"))
+        {
+            let high_ai = self.run_state.ascension >= 19;
+            enemy
+                .entity
+                .set_status(crate::status_ids::sid::CURIOSITY, if high_ai { 2 } else { 1 });
+            enemy.entity.set_status(
+                crate::status_ids::sid::REGENERATION,
+                if high_ai { 15 } else { 10 },
+            );
+            enemy.entity.set_status(
+                crate::status_ids::sid::STRENGTH,
+                if self.run_state.ascension >= 4 { 2 } else { 0 },
+            );
+        }
+
         // Source: reference/extracted/methods/monster/JawWorm.java (constructor).
         // Ascension is only known here, so patch the fields and opening CHOMP.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "JawWorm") {
@@ -2424,7 +2447,7 @@ impl RunEngine {
                 (hp, hp)
             }
             "AwakenedOne" => {
-                let hp = if a20 { 320 } else { 300 };
+                let hp = if self.run_state.ascension >= 9 { 320 } else { 300 };
                 (hp, hp)
             }
             "TimeEater" => {

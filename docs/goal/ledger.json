@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T17:37:58.370212+00:00",
+ "updated": "2026-07-13T17:47:14.850916+00:00",
  "status_counts": {
-  "verified": 582,
-  "unverified": 85
+  "verified": 583,
+  "unverified": 84
  },
  "rows": [
   {
@@ -3752,8 +3752,8 @@
    "class": "AwakenedOne",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/beyond/AwakenedOne.java",
    "methods_ref": "reference/extracted/methods/monster/AwakenedOne.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

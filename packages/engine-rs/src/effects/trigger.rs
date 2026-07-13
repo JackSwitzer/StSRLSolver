@@ -69,6 +69,8 @@ pub enum Trigger {
     OnPotionUsed,
     /// At the start of the enemy turn.
     EnemyTurnStart,
+    /// After all monsters have acted, when monster atEndOfTurn powers fire.
+    EnemyTurnEnd,
     /// Only fires when manually activated (e.g. potion use).
     ManualActivation,
     /// When unblocked damage is resolved (for min-damage / reduction relics).

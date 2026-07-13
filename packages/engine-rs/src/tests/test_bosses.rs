@@ -19,6 +19,7 @@ mod boss_java_parity_tests {
     use crate::engine::CombatEngine;
     use crate::enemies::*;
     use crate::enemies::move_ids;
+    use crate::run::RunEngine;
     use crate::tests::support::*;
 
     fn boss_engine(id: &str, hp: i32, max_hp: i32) -> CombatEngine {
@@ -367,26 +368,50 @@ mod boss_java_parity_tests {
         assert_eq!(enemy.move_damage(), 20);
         assert_eq!(enemy.entity.status(sid::CURIOSITY), 1);
         assert_eq!(enemy.entity.status(sid::PHASE), 1);
-        assert_eq!(enemy.entity.status(sid::REGENERATE), 10);
+        assert_eq!(enemy.entity.status(sid::REGENERATION), 10);
     }
 
     #[test]
-    fn awakened_one_a9_and_a4_scaling_matches_java_expectations() {
-        let enemy = create_enemy("AwakenedOne", 320, 320);
-        assert_eq!(enemy.entity.hp, 320);
-        assert_eq!(enemy.entity.max_hp, 320);
-        assert_eq!(enemy.entity.status(sid::CURIOSITY), 2);
-        assert_eq!(enemy.entity.status(sid::REGENERATE), 15);
-        assert_eq!(enemy.entity.status(sid::STRENGTH), 2);
+    fn awakened_one_run_spawn_uses_independent_a4_a9_and_a19_thresholds() {
+        // AwakenedOne's constructor changes HP at A9; usePreBattleAction adds
+        // 2 Strength at A4 and changes Curiosity/Regenerate only at A19.
+        // Java: reference/extracted/methods/monster/AwakenedOne.java
+        for (ascension, hp, strength, curiosity, regen) in [
+            (0, 300, 0, 1, 10),
+            (4, 300, 2, 1, 10),
+            (9, 320, 2, 1, 10),
+            (19, 320, 2, 2, 15),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.debug_enter_specific_combat(&["AwakenedOne"]);
+            let combat = run.get_combat_engine().expect("Awakened One combat");
+            let enemy = &combat.state.enemies[0];
+            assert_eq!(enemy.entity.hp, hp, "A{ascension}");
+            assert_eq!(enemy.entity.max_hp, hp, "A{ascension}");
+            assert_eq!(enemy.entity.status(sid::STRENGTH), strength, "A{ascension}");
+            assert_eq!(enemy.entity.status(sid::CURIOSITY), curiosity, "A{ascension}");
+            assert_eq!(enemy.entity.status(sid::REGENERATION), regen, "A{ascension}");
+            assert_eq!(combat.rng_counters()["ai"], 1, "opening roll at A{ascension}");
+            assert_eq!(enemy.move_id, move_ids::AO_SLASH);
+        }
     }
 
     #[test]
     fn awakened_one_phase_two_rebirth_matches_java() {
         let mut engine = boss_engine("AwakenedOne", 300, 300);
+        engine.state.enemies[0].entity.set_status(sid::VULNERABLE, 2);
+        engine.state.enemies[0].entity.set_status(sid::STRENGTH, -3);
+        engine.state.enemies[0].entity.set_status(sid::TEMP_STRENGTH_LOSS, 3);
         engine.deal_damage_to_enemy(0, 300);
 
         assert_eq!(engine.state.enemies[0].entity.status(sid::REBIRTH_PENDING), 1);
         assert_eq!(engine.state.enemies[0].entity.hp, 0);
+        assert_eq!(engine.state.enemies[0].move_id, move_ids::AO_REBIRTH);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::CURIOSITY), 0);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 0);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::STRENGTH), 0);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::TEMP_STRENGTH_LOSS), 0);
+        let ai_before = engine.rng_counters()["ai"];
 
         do_enemy_turns(&mut engine);
 
@@ -395,6 +420,37 @@ mod boss_java_parity_tests {
         assert_eq!(engine.state.enemies[0].move_id, move_ids::AO_DARK_ECHO);
         assert_eq!(engine.state.enemies[0].move_damage(), 40);
         assert!(engine.state.enemies[0].move_history.is_empty());
+        assert_eq!(engine.rng_counters()["ai"], ai_before + 1);
+    }
+
+    #[test]
+    fn awakened_one_sludge_randomly_inserts_void_then_regenerates_after_acting() {
+        // Sludge queues 18 damage before a random-spot Void. After every
+        // monster has acted, RegenerateMonsterPower heals its fixed amount.
+        // Java: reference/extracted/methods/monster/AwakenedOne.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RegenerateMonsterPower.java
+        let mut engine = boss_engine("AwakenedOne", 250, 300);
+        engine.state.draw_pile = make_deck(&["Strike", "Defend", "Bash"]);
+        engine.state.enemies[0].entity.set_status(sid::PHASE, 2);
+        engine.state.enemies[0].set_move(move_ids::AO_SLUDGE, 18, 1, 0);
+        engine.state.enemies[0].add_effect(mfx::VOID, 1);
+        let mut oracle = engine.card_random_rng.clone();
+        let expected_idx = oracle.random_range(0, 2) as usize;
+
+        do_enemy_turns(&mut engine);
+
+        assert_eq!(engine.state.player.hp, 62);
+        assert_eq!(engine.state.enemies[0].entity.hp, 260);
+        assert_eq!(engine.card_random_rng.counter, oracle.counter);
+        assert_eq!(
+            engine.card_registry.card_name(engine.state.draw_pile[expected_idx].def_id),
+            "Void"
+        );
+        assert_eq!(
+            engine.card_registry.card_name(engine.state.draw_pile.last().unwrap().def_id),
+            "Bash"
+        );
     }
 
     #[test]

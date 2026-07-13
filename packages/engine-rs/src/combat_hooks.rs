@@ -121,6 +121,27 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
         // Mark first turn complete
         engine.state.enemies[i].first_turn = false;
     }
+
+    // MonsterGroup.applyEndOfTurnPowers runs only after every queued monster
+    // has acted. RegenerateMonsterPower heals here, not at enemy-turn start.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/MonsterGroup.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RegenerateMonsterPower.java
+    for i in 0..num_enemies {
+        if engine.state.enemies[i].is_alive() {
+            engine.emit_event(crate::effects::runtime::GameEvent {
+                kind: crate::effects::trigger::Trigger::EnemyTurnEnd,
+                card_type: None,
+                card_inst: None,
+                is_first_turn: false,
+                target_idx: i as i32,
+                enemy_idx: i as i32,
+                potion_slot: -1,
+                status_id: None,
+                amount: 0,
+                replay_window: false,
+            });
+        }
+    }
 }
 
 /// Execute a single enemy's move (attack, block, status effects).
@@ -129,6 +150,11 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     if engine.state.enemies[enemy_idx].entity.status(sid::REBIRTH_PENDING) > 0 {
         engine.state.enemies[enemy_idx].entity.set_status(sid::REBIRTH_PENDING, 0);
         enemies::awakened_one_rebirth(&mut engine.state.enemies[enemy_idx]);
+        // Rebirth's takeTurn still ends with RollMoveAction. The phase-two
+        // first-turn branch ignores the rolled value but consumes one aiRng
+        // tick before setting Dark Echo.
+        // Java: reference/extracted/methods/monster/AwakenedOne.java
+        enemies::roll_initial_move(&mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
         return;
     }
 
@@ -497,7 +523,20 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     // Void: add Void card to player draw pile
     if let Some(amt) = get_fx(&effects, mfx::VOID) {
         for _ in 0..amt {
-            engine.state.draw_pile.push(engine.card_registry.make_card("Void"));
+            let card = engine.card_registry.make_card("Void");
+            if engine.state.draw_pile.is_empty() {
+                engine.state.draw_pile.push(card);
+            } else {
+                // MakeTempCardInDrawPileAction(..., randomSpot=true) delegates
+                // to CardGroup.addToRandomSpot and consumes cardRandomRng.
+                // Java: reference/extracted/methods/monster/AwakenedOne.java
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
+                let idx = engine.card_random_rng.random_range(
+                    0,
+                    (engine.state.draw_pile.len() - 1) as i32,
+                ) as usize;
+                engine.state.draw_pile.insert(idx, card);
+            }
         }
     }
 
@@ -779,8 +818,26 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
             // until next enemy turn when rebirth executes (heal to full, phase 2).
             let phase = engine.state.enemies[enemy_idx].entity.status(sid::PHASE);
             if phase == 1 && engine.state.enemies[enemy_idx].entity.hp <= 0 {
-                engine.state.enemies[enemy_idx].entity.hp = 0;
-                engine.state.enemies[enemy_idx].entity.set_status(sid::REBIRTH_PENDING, 1);
+                let enemy = &mut engine.state.enemies[enemy_idx];
+                enemy.entity.hp = 0;
+                enemy.entity.set_status(sid::REBIRTH_PENDING, 1);
+                // damage() immediately removes all debuffs, Curiosity,
+                // Unawakened, and Shackled before the later REBIRTH turn.
+                // PHASE represents Unawakened in the Rust state and remains 1
+                // until changeState; the other removable powers clear here.
+                // Java: reference/extracted/methods/monster/AwakenedOne.java
+                enemy.entity.set_status(sid::CURIOSITY, 0);
+                enemy.entity.set_status(sid::TEMP_STRENGTH_LOSS, 0);
+                if enemy.entity.strength() < 0 {
+                    enemy.entity.set_status(sid::STRENGTH, 0);
+                }
+                for status_idx in 0..256 {
+                    let status = crate::ids::StatusId(status_idx as u16);
+                    if crate::powers::registry::status_is_debuff(status) {
+                        enemy.entity.statuses[status_idx] = 0;
+                    }
+                }
+                enemy.set_move(enemies::move_ids::AO_REBIRTH, 0, 0, 0);
             }
         }
         "Champ" => {

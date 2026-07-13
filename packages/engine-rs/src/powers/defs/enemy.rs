@@ -68,7 +68,7 @@ pub static DEF_RITUAL: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Regeneration — EnemyTurnStart: heal HP equal to stacks (turn-based)
+// Regeneration — EnemyTurnEnd: heal HP equal to stacks after all monsters act
 // ===========================================================================
 
 static REGENERATION_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::HealHp(
@@ -77,7 +77,7 @@ static REGENERATION_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::HealHp(
 ))];
 
 static REGENERATION_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::EnemyTurnStart,
+    trigger: Trigger::EnemyTurnEnd,
     condition: TriggerCondition::Always,
     effects: &REGENERATION_EFFECTS,
     counter: None,
@@ -167,6 +167,7 @@ mod tests {
     #[test]
     fn test_regeneration_always_fires() {
         assert_eq!(DEF_REGENERATION.triggers[0].condition, TriggerCondition::Always);
+        assert_eq!(DEF_REGENERATION.triggers[0].trigger, Trigger::EnemyTurnEnd);
     }
 
     #[test]
@@ -176,7 +177,7 @@ mod tests {
 
     #[test]
     fn test_all_enemy_defs_fire_on_enemy_turn() {
-        let defs = [&DEF_RITUAL, &DEF_REGENERATION, &DEF_GROWTH, &DEF_METALLICIZE_ENEMY];
+        let defs = [&DEF_RITUAL, &DEF_GROWTH, &DEF_METALLICIZE_ENEMY];
         for def in &defs {
             assert_eq!(def.triggers[0].trigger, Trigger::EnemyTurnStart);
         }

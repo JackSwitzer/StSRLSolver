@@ -810,20 +810,14 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.add_effect(mfx::WOUND, 1);
         }
         "AwakenedOne" | "Awakened One" => {
-            // Phase 1. Curiosity: gains Str when player plays a Power (A19: 2, else 1).
-            // Regen: A19 = 15, else 10. A4: starts with +2 Str.
-            // First turn always Slash (20 damage). Has Unawakened power.
+            // Ascension-dependent pre-battle values are patched at the run
+            // spawn site. These are the A0 constructor/usePreBattle defaults.
+            // Java: reference/extracted/methods/monster/AwakenedOne.java
             enemy.set_move(move_ids::AO_SLASH, 20, 1, 0);
             enemy.entity.set_status(sid::PHASE, 1);
             enemy.entity.set_status(sid::FIRST_TURN, 0);
-            if hp >= 320 {
-                enemy.entity.set_status(sid::CURIOSITY, 2);
-                enemy.entity.set_status(sid::REGENERATE, 15);
-                enemy.entity.set_status(sid::STRENGTH, 2);
-            } else {
-                enemy.entity.set_status(sid::CURIOSITY, 1);
-                enemy.entity.set_status(sid::REGENERATE, 10);
-            }
+            enemy.entity.set_status(sid::CURIOSITY, 1);
+            enemy.entity.set_status(sid::REGENERATION, 10);
         }
         "Donu" => {
             enemy.set_move(move_ids::DONU_CIRCLE, 0, 0, 0);
@@ -1492,29 +1486,45 @@ mod tests {
 
     #[test]
     fn test_awakened_one_boss() {
+        // Source-derived branch table for AwakenedOne.getMove. Phase one uses
+        // a 25% Soul Strike branch with one-/two-move guards; phase two uses a
+        // 50% Sludge branch and permits either normal attack twice, not three
+        // times. Java: reference/extracted/methods/monster/AwakenedOne.java.
         let mut enemy = create_enemy("AwakenedOne", 300, 300);
         assert_eq!(enemy.move_id, move_ids::AO_SLASH);
         assert_eq!(enemy.move_damage(), 20);
         assert_eq!(enemy.entity.status(sid::PHASE), 1);
         assert_eq!(enemy.entity.status(sid::CURIOSITY), 1);
+        assert_eq!(enemy.entity.status(sid::REGENERATION), 10);
 
-        // Phase 1 cycle: Slash -> Soul Strike
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 80);
+        assert_eq!(enemy.move_id, move_ids::AO_SLASH);
+        roll_next_move_with_num(&mut enemy, 80);
         assert_eq!(enemy.move_id, move_ids::AO_SOUL_STRIKE);
         assert_eq!(enemy.move_damage(), 6);
         assert_eq!(enemy.move_hits(), 4);
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::AO_SLASH);
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::AO_SOUL_STRIKE);
 
-        // Trigger rebirth
         awakened_one_rebirth(&mut enemy);
         assert_eq!(enemy.entity.status(sid::PHASE), 2);
         assert_eq!(enemy.entity.hp, 300);
         assert_eq!(enemy.move_id, move_ids::AO_DARK_ECHO);
         assert_eq!(enemy.move_damage(), 40);
 
-        // Phase 2: Dark Echo -> Sludge (adds Void, not Slimed)
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 75);
+        assert_eq!(enemy.move_id, move_ids::AO_TACKLE);
+        roll_next_move_with_num(&mut enemy, 75);
+        assert_eq!(enemy.move_id, move_ids::AO_TACKLE);
+        roll_next_move_with_num(&mut enemy, 75);
         assert_eq!(enemy.move_id, move_ids::AO_SLUDGE);
         assert_eq!(enemy.effect(mfx::VOID), Some(1));
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::AO_SLUDGE);
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::AO_TACKLE);
     }
 
     #[test]
