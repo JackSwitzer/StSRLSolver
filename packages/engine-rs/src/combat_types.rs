@@ -159,6 +159,7 @@ pub mod mfx {
     pub const ENRAGE: u8 = 35;
     pub const SHARP_HIDE: u8 = 36;
     pub const BURN_PLUS: u8 = 37;
+    pub const METALLICIZE: u8 = 38;
 }
 
 // ---------------------------------------------------------------------------

@@ -375,6 +375,9 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
 
     // Apply move effects
     let effects: SmallVec<[(u8, i16); 4]> = engine.state.enemies[enemy_idx].move_effects.clone();
+    let champ_anger = matches!(engine.state.enemies[enemy_idx].id.as_str(),
+        "Champ" | "TheChamp")
+        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::CHAMP_ANGER;
 
     if engine.state.enemies[enemy_idx].id == "Byrd"
         && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::BYRD_FLY_UP
@@ -404,10 +407,24 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     if let Some(amt) = get_fx(&effects, mfx::FRAIL) {
         powers::apply_debuff_from_enemy(&mut engine.state.player, sid::FRAIL, amt as i32);
     }
-    if let Some(amt) = get_fx(&effects, mfx::STRENGTH) {
+    if let Some(amt) = get_fx(&effects, mfx::STRENGTH).filter(|_| !champ_anger) {
         engine.state.enemies[enemy_idx]
             .entity
             .add_status(sid::STRENGTH, amt as i32);
+    }
+    if let Some(amt) = get_fx(&effects, mfx::METALLICIZE) {
+        engine.state.enemies[enemy_idx]
+            .entity
+            .add_status(sid::METALLICIZE, amt as i32);
+        // MetallicizePower.atEndOfTurnPreEndTurnCards fires later in this same
+        // monster round. Enemy Metallicize's persistent runtime trigger is
+        // modeled at the following enemy-turn start (equivalent after block
+        // clear), so realize this one installation-round proc here.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/MetallicizePower.java
+        engine.state.enemies[enemy_idx].entity.block += amt as i32;
+        // The owner-aware runtime is built from installed powers; refresh it
+        // so the new power participates in subsequent rounds.
+        engine.rebuild_effect_runtime();
     }
     if let Some(amt) = get_fx(&effects, mfx::RITUAL) {
         engine.state.enemies[enemy_idx]
@@ -464,6 +481,21 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 if crate::powers::registry::status_is_debuff(sid) {
                     statuses[i] = 0;
                 }
+            }
+        }
+        // Negative StrengthPower and GainStrengthPower ("Shackled") are both
+        // DEBUFF powers. Champ explicitly removes Shackled before applying its
+        // phase-two Strength, so the gain must resolve after this cleanup.
+        // Java: reference/extracted/methods/monster/Champ.java (`takeTurn`).
+        if engine.state.enemies[enemy_idx].entity.strength() < 0 {
+            engine.state.enemies[enemy_idx].entity.set_status(sid::STRENGTH, 0);
+        }
+        engine.state.enemies[enemy_idx]
+            .entity.set_status(sid::TEMP_STRENGTH_LOSS, 0);
+        if champ_anger {
+            if let Some(amt) = get_fx(&effects, mfx::STRENGTH) {
+                engine.state.enemies[enemy_idx]
+                    .entity.add_status(sid::STRENGTH, amt as i32);
             }
         }
     }
@@ -897,8 +929,8 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     }
 }
 
-/// Handle boss-specific damage hooks (Guardian mode shift, SlimeBoss split, Lagavulin wake,
-/// Awakened One rebirth, Champ execute threshold).
+/// Handle boss-specific damage hooks (Guardian mode shift, SlimeBoss split,
+/// Lagavulin wake, and Awakened One rebirth).
 ///
 /// Called from `deal_damage_to_enemy()` when HP damage is dealt.
 pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: i32) {
@@ -974,23 +1006,6 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
                     }
                 }
                 enemy.set_move(enemies::move_ids::AO_REBIRTH, 0, 0, 0);
-            }
-        }
-        "Champ" => {
-            // When Champ drops to <= 50% HP, immediately trigger Phase 2 (Anger).
-            // roll_champ handles the move selection, but we re-roll here so the
-            // transition happens mid-turn rather than waiting for next enemy turn.
-            if engine.state.enemies[enemy_idx].entity.hp
-                <= engine.state.enemies[enemy_idx].entity.max_hp / 2
-                && engine.state.enemies[enemy_idx]
-                    .entity
-                    .status(sid::THRESHOLD_REACHED)
-                    == 0
-            {
-                enemies::roll_next_move(
-                    &mut engine.state.enemies[enemy_idx],
-                    &mut engine.ai_rng,
-                );
             }
         }
         _ => {}

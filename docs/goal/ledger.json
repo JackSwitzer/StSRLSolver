@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T18:27:48.284314+00:00",
+ "updated": "2026-07-13T18:36:43.832629+00:00",
  "status_counts": {
-  "verified": 591,
-  "unverified": 76
+  "verified": 592,
+  "unverified": 75
  },
  "rows": [
   {
@@ -3842,8 +3842,8 @@
    "class": "Champ",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/city/Champ.java",
    "methods_ref": "reference/extracted/methods/monster/Champ.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

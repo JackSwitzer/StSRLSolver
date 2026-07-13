@@ -727,11 +727,11 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::TORCH_TACKLE, 7, 1, 0);
         }
         "Champ" | "TheChamp" => {
-            let (slash_dmg, slap_dmg, str_amt, forge_amt, block_amt) = if hp >= 440 {
-                (18, 14, 4, 7, 20)
-            } else {
-                (16, 12, 2, 5, 15)
-            };
+            // A0 constructor values. Independent A4/A9/A19 thresholds are
+            // patched at the run spawn site.
+            // Java: reference/extracted/methods/monster/Champ.java.
+            let (slash_dmg, slap_dmg, str_amt, forge_amt, block_amt) =
+                (16, 12, 2, 5, 15);
             enemy.set_move(move_ids::CHAMP_FACE_SLAP, slap_dmg, 1, 0);
             enemy.add_effect(mfx::FRAIL, 2);
             enemy.add_effect(mfx::VULNERABLE, 2);
@@ -743,6 +743,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::FORGE_TIMES, 0);
             enemy.entity.set_status(sid::SLASH_DMG, slash_dmg);
             enemy.entity.set_status(sid::SLAP_DMG, slap_dmg);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "TheCollector" | "Collector" => {
             enemy.set_move(move_ids::COLL_SPAWN, 0, 0, 0);
@@ -1518,6 +1519,7 @@ mod tests {
 
     #[test]
     fn test_champ_boss_pattern() {
+        // Source: reference/extracted/methods/monster/Champ.java.
         let mut enemy = create_enemy("Champ", 420, 420);
         assert_eq!(enemy.move_id, move_ids::CHAMP_FACE_SLAP);
         assert_eq!(enemy.move_damage(), 12);
@@ -1525,14 +1527,17 @@ mod tests {
         assert_eq!(enemy.effect(mfx::FRAIL), Some(2));
         assert_eq!(enemy.effect(mfx::VULNERABLE), Some(2));
 
-        // Phase 1 cycle
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 99, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::CHAMP_HEAVY_SLASH);
-        assert_eq!(enemy.move_damage(), 16); // base (non-A4) slash dmg
+        assert_eq!(enemy.move_damage(), 16);
 
-        // Trigger phase 2 at half HP
-        enemy.entity.hp = 200;
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        // Exactly half does not trigger; strictly below half does.
+        enemy.entity.hp = 210;
+        roll_next_move_with_num(&mut enemy, 99);
+        assert_ne!(enemy.move_id, move_ids::CHAMP_ANGER);
+        enemy.entity.hp = 209;
+        roll_next_move_with_num(&mut enemy, 99);
         assert_eq!(enemy.move_id, move_ids::CHAMP_ANGER);
     }
 

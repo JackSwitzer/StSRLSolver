@@ -341,30 +341,43 @@ mod boss_java_parity_tests {
 
     #[test]
     fn champ_turn_four_uses_java_taunt_branch() {
+        // Source: reference/extracted/methods/monster/Champ.java (`getMove`).
         let mut enemy = create_enemy("Champ", 420, 420);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 99, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::CHAMP_HEAVY_SLASH);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::CHAMP_GLOAT);
-
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 99);
         assert_eq!(enemy.move_id, move_ids::CHAMP_FACE_SLAP);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 99);
+        assert_eq!(enemy.move_id, move_ids::CHAMP_HEAVY_SLASH);
+
+        roll_next_move_with_num(&mut enemy, 99);
         assert_eq!(enemy.move_id, move_ids::CHAMP_TAUNT);
         assert_eq!(enemy.entity.status(sid::NUM_TURNS), 0);
     }
 
     #[test]
     fn champ_a4_and_a19_scaling_matches_java_expectations() {
-        let enemy = create_enemy("Champ", 440, 440);
-        assert_eq!(enemy.entity.hp, 440);
-        assert_eq!(enemy.move_damage(), 14);
-        assert_eq!(enemy.entity.status(sid::STR_AMT), 4);
-        assert_eq!(enemy.entity.status(sid::FORGE_AMT), 7);
-        assert_eq!(enemy.entity.status(sid::BLOCK_AMT), 20);
+        // Source: reference/extracted/methods/monster/Champ.java (constructor).
+        for (ascension, hp, slash, slap, strength, forge, block) in [
+            (0, 420, 16, 12, 2, 5, 15),
+            (4, 420, 18, 14, 3, 5, 15),
+            (9, 440, 18, 14, 3, 6, 18),
+            (19, 440, 18, 14, 4, 7, 20),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.debug_enter_specific_combat(&["TheChamp"]);
+            let enemy = &run.get_combat_engine().unwrap().state.enemies[0];
+            assert_eq!(enemy.entity.hp, hp, "A{ascension}");
+            assert_eq!(enemy.entity.status(sid::SLASH_DMG), slash, "A{ascension}");
+            assert_eq!(enemy.entity.status(sid::SLAP_DMG), slap, "A{ascension}");
+            assert_eq!(enemy.entity.status(sid::STR_AMT), strength, "A{ascension}");
+            assert_eq!(enemy.entity.status(sid::FORGE_AMT), forge, "A{ascension}");
+            assert_eq!(enemy.entity.status(sid::BLOCK_AMT), block, "A{ascension}");
+        }
     }
 
     // ---------------------------------------------------------------------

@@ -1850,6 +1850,31 @@ impl RunEngine {
             enemy.set_move(crate::enemies::move_ids::CENT_SLASH, slash, 1, 0);
         }
 
+        // Source: reference/extracted/methods/monster/Champ.java (constructor
+        // and `getMove`). Its A4/A9/A19 thresholds are independent of HP.
+        for enemy in enemy_states.iter_mut().filter(|e| matches!(e.id.as_str(),
+            "Champ" | "TheChamp")) {
+            let high_damage = self.run_state.ascension >= 4;
+            enemy.entity.set_status(crate::status_ids::sid::SLASH_DMG,
+                if high_damage { 18 } else { 16 });
+            enemy.entity.set_status(crate::status_ids::sid::SLAP_DMG,
+                if high_damage { 14 } else { 12 });
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
+                if self.run_state.ascension >= 19 { 4 }
+                else if self.run_state.ascension >= 4 { 3 } else { 2 });
+            enemy.entity.set_status(crate::status_ids::sid::FORGE_AMT,
+                if self.run_state.ascension >= 19 { 7 }
+                else if self.run_state.ascension >= 9 { 6 } else { 5 });
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if self.run_state.ascension >= 19 { 20 }
+                else if self.run_state.ascension >= 9 { 18 } else { 15 });
+            enemy.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI,
+                if self.run_state.ascension >= 19 { 1 } else { 0 });
+            enemy.entity.set_status(crate::status_ids::sid::NUM_TURNS, 0);
+            enemy.entity.set_status(crate::status_ids::sid::FORGE_TIMES, 0);
+            enemy.entity.set_status(crate::status_ids::sid::THRESHOLD_REACHED, 0);
+        }
+
         // Source: reference/extracted/methods/monster/BanditLeader.java.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "BanditLeader") {
             let (cross_slash, agonizing_slash) = if self.run_state.ascension >= 2 {
@@ -2535,8 +2560,10 @@ impl RunEngine {
                 let hp = if a20 { 318 } else { 282 };
                 (hp, hp)
             }
-            "TheChamp" => {
-                let hp = if a20 { 440 } else { 420 };
+            "Champ" | "TheChamp" => {
+                // Source: Champ.java changes boss HP at A9, not the ordinary
+                // monster A7 threshold represented by `a20` above.
+                let hp = if self.run_state.ascension >= 9 { 440 } else { 420 };
                 (hp, hp)
             }
             // Act 3 enemies
@@ -8245,6 +8272,129 @@ mod tests {
         assert_eq!(combat.state.enemies[0].entity.block, 15);
         assert_eq!(combat.ai_rng.counter, 1);
         assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::COUNT), 1);
+    }
+
+    #[test]
+    fn champ_rng_forge_delayed_anger_and_execute_cadence_match_java() {
+        // Source: reference/extracted/methods/monster/Champ.java (`getMove`,
+        // `takeTurn`, and constructor).
+        let mut defensive = crate::enemies::create_enemy("Champ", 420, 420);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut defensive, 15, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(defensive.move_id, crate::enemies::move_ids::CHAMP_DEFENSIVE);
+        assert_eq!(defensive.move_block(), 15);
+        assert_eq!(defensive.effect(crate::combat_types::mfx::METALLICIZE), Some(5));
+        assert_eq!(defensive.entity.status(crate::status_ids::sid::FORGE_TIMES), 1);
+
+        let mut gloat = crate::enemies::create_enemy("Champ", 420, 420);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut gloat, 16, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(gloat.move_id, crate::enemies::move_ids::CHAMP_GLOAT);
+        assert_eq!(gloat.effect(crate::combat_types::mfx::STRENGTH), Some(2));
+
+        let mut slap = crate::enemies::create_enemy("Champ", 420, 420);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut slap, 31, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(slap.move_id, crate::enemies::move_ids::CHAMP_FACE_SLAP);
+
+        let mut slash = crate::enemies::create_enemy("Champ", 420, 420);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut slash, 56, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(slash.move_id, crate::enemies::move_ids::CHAMP_HEAVY_SLASH);
+
+        // A19 widens only the Defensive Stance window from <=15 to <=30.
+        let mut a19 = crate::enemies::create_enemy("Champ", 440, 440);
+        a19.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI, 1);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut a19, 30, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(a19.move_id, crate::enemies::move_ids::CHAMP_DEFENSIVE);
+
+        // Forge is capped at two uses and cannot repeat immediately.
+        crate::enemies::roll_next_move_with_num(&mut defensive, 0);
+        assert_ne!(defensive.move_id, crate::enemies::move_ids::CHAMP_DEFENSIVE);
+        crate::enemies::roll_next_move_with_num(&mut defensive, 0);
+        assert_eq!(defensive.move_id, crate::enemies::move_ids::CHAMP_DEFENSIVE);
+        assert_eq!(defensive.entity.status(crate::status_ids::sid::FORGE_TIMES), 2);
+        crate::enemies::roll_next_move_with_num(&mut defensive, 0);
+        crate::enemies::roll_next_move_with_num(&mut defensive, 0);
+        assert_ne!(defensive.move_id, crate::enemies::move_ids::CHAMP_DEFENSIVE);
+        assert_eq!(defensive.entity.status(crate::status_ids::sid::FORGE_TIMES), 2);
+
+        // Exactly half HP does not trigger the threshold.
+        let mut half = crate::enemies::create_enemy("Champ", 210, 420);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut half, 99, &mut crate::seed::StsRandom::new(0));
+        assert_ne!(half.move_id, crate::enemies::move_ids::CHAMP_ANGER);
+
+        // Damage below half does not change the current intent or consume RNG.
+        // The current action resolves first; its queued RollMoveAction selects
+        // Anger. Anger then cleans debuffs/Shackled before adding 3*Strength.
+        let mut run = RunEngine::new(42, 0);
+        run.enter_specific_combat(vec!["TheChamp".to_string()]);
+        let combat = run.combat_engine.as_mut().unwrap();
+        combat.state.enemies[0].set_move(
+            crate::enemies::move_ids::CHAMP_FACE_SLAP, 12, 1, 0);
+        combat.state.enemies[0].add_effect(crate::combat_types::mfx::FRAIL, 2);
+        combat.state.enemies[0].add_effect(crate::combat_types::mfx::VULNERABLE, 2);
+        let ai_before_damage = combat.ai_rng.counter;
+        combat.deal_damage_to_enemy(0, 211);
+        assert_eq!(combat.state.enemies[0].entity.hp, 209);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::CHAMP_FACE_SLAP);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::THRESHOLD_REACHED), 0);
+        assert_eq!(combat.ai_rng.counter, ai_before_damage);
+
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::CHAMP_ANGER);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::THRESHOLD_REACHED), 1);
+        assert_eq!(combat.ai_rng.counter, ai_before_damage + 1);
+
+        combat.state.enemies[0].entity.set_status(crate::status_ids::sid::STRENGTH, -4);
+        combat.state.enemies[0].entity.set_status(
+            crate::status_ids::sid::TEMP_STRENGTH_LOSS, 4);
+        combat.state.enemies[0].entity.set_status(crate::status_ids::sid::WEAKENED, 2);
+        combat.state.enemies[0].entity.set_status(crate::status_ids::sid::POISON, 2);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::STRENGTH), 6);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::TEMP_STRENGTH_LOSS), 0);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::WEAKENED), 0);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::POISON), 0);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::CHAMP_EXECUTE);
+
+        // Execute is selected only when neither of the prior two moves was
+        // Execute: one Execute, two normal intents, then Execute again.
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_ne!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::CHAMP_EXECUTE);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_ne!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::CHAMP_EXECUTE);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::CHAMP_EXECUTE);
+
+        // Defensive Stance grants its immediate block and installs
+        // Metallicize, which also fires at the end of the same enemy round.
+        let mut forge_run = RunEngine::new(42, 0);
+        forge_run.enter_specific_combat(vec!["TheChamp".to_string()]);
+        let combat = forge_run.combat_engine.as_mut().unwrap();
+        combat.state.enemies[0].set_move(
+            crate::enemies::move_ids::CHAMP_DEFENSIVE, 0, 0, 15);
+        combat.state.enemies[0].add_effect(crate::combat_types::mfx::METALLICIZE, 5);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::METALLICIZE), 5);
+        assert_eq!(combat.state.enemies[0].entity.block, 20);
     }
 
     #[test]

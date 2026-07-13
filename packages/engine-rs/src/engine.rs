@@ -379,7 +379,8 @@ impl CombatEngine {
                 | "BanditChild" | "BanditPointy" | "Pointy" | "BanditLeader"
                 | "BookOfStabbing" | "Book of Stabbing"
                 | "BronzeAutomaton" | "Bronze Automaton"
-                | "BronzeOrb" | "Bronze Orb" | "Byrd" | "Centurion")) {
+                | "BronzeOrb" | "Bronze Orb" | "Byrd" | "Centurion"
+                | "Champ" | "TheChamp")) {
             if enemy.id == "Centurion" {
                 enemy.entity.set_status(sid::COUNT, living_enemy_count);
             }

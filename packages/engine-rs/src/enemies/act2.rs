@@ -410,44 +410,39 @@ pub(super) fn roll_bronze_orb(enemy: &mut EnemyCombatState, num: i32) {
     }
 }
 
-pub(super) fn roll_champ(enemy: &mut EnemyCombatState, _num: i32) {
+pub(super) fn roll_champ(enemy: &mut EnemyCombatState, num: i32) {
     let num_turns = enemy.entity.status(sid::NUM_TURNS) + 1;
     enemy.entity.set_status(sid::NUM_TURNS, num_turns);
 
     let str_amt = enemy.entity.status(sid::STR_AMT).max(2);
-    let _forge_amt = enemy.entity.status(sid::FORGE_AMT).max(5);
-    let _block_amt = enemy.entity.status(sid::BLOCK_AMT).max(15);
+    let forge_amt = enemy.entity.status(sid::FORGE_AMT).max(5);
+    let block_amt = enemy.entity.status(sid::BLOCK_AMT).max(15);
     let slash_dmg = enemy.entity.status(sid::SLASH_DMG).max(16);
     let slap_dmg = enemy.entity.status(sid::SLAP_DMG).max(12);
 
-    let threshold_reached_now = enemy.entity.hp <= enemy.entity.max_hp / 2;
+    // Source: reference/extracted/methods/monster/Champ.java (`getMove`).
+    let threshold_reached_now = enemy.entity.hp < enemy.entity.max_hp / 2;
 
-    // Phase 2 trigger: Anger (remove debuffs, gain 3*strAmt Str)
     if threshold_reached_now && enemy.entity.status(sid::THRESHOLD_REACHED) == 0 {
         enemy.entity.set_status(sid::THRESHOLD_REACHED, 1);
         enemy.set_move(move_ids::CHAMP_ANGER, 0, 0, 0);
-        // Java: Anger gives 3*strAmt Strength (not strAmt)
         enemy.add_effect(mfx::STRENGTH, (str_amt * 3) as i16);
         enemy.add_effect(mfx::REMOVE_DEBUFFS, 1);
         return;
     }
 
-    // Phase 2: Execute spam
-    if enemy.entity.status(sid::THRESHOLD_REACHED) > 0 {
-        // Java: Execute (10x2) every turn if threshold reached.
-        // Uses lastMove and lastMoveBefore to check.
-        if !last_move(enemy, move_ids::CHAMP_EXECUTE) {
-            enemy.set_move(move_ids::CHAMP_EXECUTE, 10, 2, 0);
-        } else {
-            enemy.set_move(move_ids::CHAMP_EXECUTE, 10, 2, 0);
-        }
+    let history_len = enemy.move_history.len();
+    let last_move_before_execute = history_len >= 2
+        && enemy.move_history[history_len - 2] == move_ids::CHAMP_EXECUTE;
+    if enemy.entity.status(sid::THRESHOLD_REACHED) > 0
+        && !last_move(enemy, move_ids::CHAMP_EXECUTE)
+        && !last_move_before_execute
+    {
+        enemy.set_move(move_ids::CHAMP_EXECUTE, 10, 2, 0);
         return;
     }
 
-    // Phase 1: Java uses numTurns==4 for Taunt, then RNG-based selection.
-    // Deterministic MCTS: simplified cycle.
-    if num_turns == 4 {
-        // Taunt at turn 4 (Java)
+    if num_turns == 4 && enemy.entity.status(sid::THRESHOLD_REACHED) == 0 {
         enemy.set_move(move_ids::CHAMP_TAUNT, 0, 0, 0);
         enemy.add_effect(mfx::VULNERABLE, 2);
         enemy.add_effect(mfx::WEAK, 2);
@@ -455,17 +450,31 @@ pub(super) fn roll_champ(enemy: &mut EnemyCombatState, _num: i32) {
         return;
     }
 
-    if last_move(enemy, move_ids::CHAMP_FACE_SLAP) || last_move(enemy, move_ids::CHAMP_TAUNT) {
-        enemy.set_move(move_ids::CHAMP_HEAVY_SLASH, slash_dmg, 1, 0);
-    } else if last_move(enemy, move_ids::CHAMP_HEAVY_SLASH) {
-        // Gloat (gain strAmt Str)
+    let forge_times = enemy.entity.status(sid::FORGE_TIMES);
+    let forge_roll_max = if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
+        30
+    } else {
+        15
+    };
+    if !last_move(enemy, move_ids::CHAMP_DEFENSIVE)
+        && forge_times < 2
+        && num <= forge_roll_max
+    {
+        enemy.entity.set_status(sid::FORGE_TIMES, forge_times + 1);
+        enemy.set_move(move_ids::CHAMP_DEFENSIVE, 0, 0, block_amt);
+        enemy.add_effect(mfx::METALLICIZE, forge_amt as i16);
+    } else if !last_move(enemy, move_ids::CHAMP_GLOAT)
+        && !last_move(enemy, move_ids::CHAMP_DEFENSIVE)
+        && num <= 30
+    {
         enemy.set_move(move_ids::CHAMP_GLOAT, 0, 0, 0);
         enemy.add_effect(mfx::STRENGTH, str_amt as i16);
-    } else if last_move(enemy, move_ids::CHAMP_GLOAT) || last_move(enemy, move_ids::CHAMP_DEFENSIVE) {
+    } else if !last_move(enemy, move_ids::CHAMP_FACE_SLAP) && num <= 55 {
         enemy.set_move(move_ids::CHAMP_FACE_SLAP, slap_dmg, 1, 0);
-        // Java: Face Slap gives Frail 2 + Vulnerable 2
         enemy.add_effect(mfx::FRAIL, 2);
         enemy.add_effect(mfx::VULNERABLE, 2);
+    } else if !last_move(enemy, move_ids::CHAMP_HEAVY_SLASH) {
+        enemy.set_move(move_ids::CHAMP_HEAVY_SLASH, slash_dmg, 1, 0);
     } else {
         enemy.set_move(move_ids::CHAMP_FACE_SLAP, slap_dmg, 1, 0);
         enemy.add_effect(mfx::FRAIL, 2);
