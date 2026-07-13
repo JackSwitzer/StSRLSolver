@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Ironclad Rare: Offering ---- (cost 0, lose 6 HP, gain 2 energy, draw 3, exhaust; +2 draw)
+    // Offering.java queues LoseHPAction(6), GainEnergyAction(2), then draws
+    // magic 3. Upgrade adds two draw only; the fixed HP loss stays six.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Offering.java
     insert(cards, CardDef {
                 id: "Offering", name: "Offering", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,

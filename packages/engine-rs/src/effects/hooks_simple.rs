@@ -217,7 +217,11 @@ pub fn hook_heal_on_play(engine: &mut CombatEngine, ctx: &CardPlayContext) {
 
 /// Offering: lose 6 HP, gain 2 energy, draw N cards.
 pub fn hook_offering(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    engine.state.player.hp = (engine.state.player.hp - 6).max(0);
+    // Offering.java uses LoseHPAction, whose HP_LOSS DamageInfo passes through
+    // Intangible, Buffer, Tungsten Rod, and on-HP-loss hooks such as Rupture.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Offering.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/LoseHPAction.java
+    engine.player_lose_hp_from_damage(6);
     engine.state.energy += 2;
     let draw_count = ctx.card.base_magic.max(3);
     engine.draw_cards(draw_count);

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T11:58:31.047228+00:00",
+ "updated": "2026-07-13T12:00:57.765923+00:00",
  "status_counts": {
-  "verified": 476,
-  "unverified": 191
+  "verified": 477,
+  "unverified": 190
  },
  "rows": [
   {
@@ -2322,8 +2322,8 @@
    "class": "Offering",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/Offering.java",
    "methods_ref": "reference/extracted/methods/card/Offering.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

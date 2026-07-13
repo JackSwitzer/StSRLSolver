@@ -119,6 +119,50 @@ fn ironclad_wave7_battle_trance_bloodletting_and_offering_run_through_typed_effe
 }
 
 #[test]
+fn offering_loses_fixed_six_through_hp_loss_then_gains_energy_and_draws() {
+    // Offering.java queues LoseHPAction(6), GainEnergyAction(2), and then draw
+    // magic 3 (5 upgraded). LoseHPAction is HP_LOSS damage, so it bypasses
+    // block, triggers Rupture after positive loss, and can be stopped by Buffer.
+    let mut base = one_enemy_engine("JawWorm", 60);
+    base.state.energy = 0;
+    base.state.player.block = 9;
+    base.state.player.set_status(sid::RUPTURE, 2);
+    base.state.hand = make_deck(&["Offering"]);
+    base.state.draw_pile = make_deck(&["Strike", "Defend", "Bash", "Inflame"]);
+    let hp_before = base.state.player.hp;
+
+    assert!(play_self(&mut base, "Offering"));
+
+    assert_eq!(base.state.player.hp, hp_before - 6);
+    assert_eq!(base.state.player.block, 9);
+    assert_eq!(base.state.player.status(sid::STRENGTH), 2);
+    assert_eq!(base.state.energy, 2);
+    assert_eq!(base.state.hand.len(), 3);
+    assert_eq!(exhaust_prefix_count(&base, "Offering"), 1);
+
+    let mut upgraded = one_enemy_engine("JawWorm", 60);
+    upgraded.state.energy = 0;
+    upgraded.state.player.block = 9;
+    upgraded.state.player.set_status(sid::BUFFER, 1);
+    upgraded.state.player.set_status(sid::RUPTURE, 2);
+    upgraded.state.hand = make_deck(&["Offering+"]);
+    upgraded.state.draw_pile = make_deck(&[
+        "Strike", "Defend", "Bash", "Shrug It Off", "Inflame", "Strike",
+    ]);
+    let hp_before = upgraded.state.player.hp;
+
+    assert!(play_self(&mut upgraded, "Offering+"));
+
+    assert_eq!(upgraded.state.player.hp, hp_before);
+    assert_eq!(upgraded.state.player.block, 9);
+    assert_eq!(upgraded.state.player.status(sid::BUFFER), 0);
+    assert_eq!(upgraded.state.player.status(sid::STRENGTH), 0);
+    assert_eq!(upgraded.state.energy, 2);
+    assert_eq!(upgraded.state.hand.len(), 5);
+    assert_eq!(exhaust_prefix_count(&upgraded, "Offering"), 1);
+}
+
+#[test]
 fn bloodletting_hp_loss_obeys_intangible_buffer_and_tungsten_before_gaining_energy() {
     // Source: Bloodletting.java queues LoseHPAction(3) before GainEnergyAction;
     // HP_LOSS still passes IntangiblePlayerPower, BufferPower, and TungstenRod
