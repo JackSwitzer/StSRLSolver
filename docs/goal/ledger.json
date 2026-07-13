@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T08:46:25.254338+00:00",
+ "updated": "2026-07-13T08:48:27.011557+00:00",
  "status_counts": {
-  "verified": 412,
-  "unverified": 255
+  "verified": 413,
+  "unverified": 254
  },
  "rows": [
   {
@@ -1532,8 +1532,8 @@
    "class": "Flechettes",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Flechettes.java",
    "methods_ref": "reference/extracted/methods/card/Flechettes.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

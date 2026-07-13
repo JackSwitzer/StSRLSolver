@@ -169,6 +169,35 @@ fn silent_wave10_typed_primary_surfaces_follow_java_oracle_on_engine_path() {
 }
 
 #[test]
+fn flechettes_deals_exactly_one_hit_per_remaining_skill_including_zero() {
+    // FlechetteAction loops over the hand after Flechettes has left it and
+    // queues a DamageAction only for each card whose type is SKILL. With zero
+    // Skills there is no hit; two Skills produce two 6-damage hits for the
+    // upgraded card.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Flechettes.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/FlechetteAction.java
+    let mut zero = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        1,
+    );
+    force_player_turn(&mut zero);
+    zero.state.hand = make_deck(&["Flechettes", "Strike"]);
+    assert!(play_on_enemy(&mut zero, "Flechettes", 0));
+    assert_eq!(zero.state.enemies[0].entity.hp, 40);
+
+    let mut two = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        1,
+    );
+    force_player_turn(&mut two);
+    two.state.hand = make_deck(&["Flechettes+", "Defend", "Escape Plan", "Strike"]);
+    assert!(play_on_enemy(&mut two, "Flechettes+", 0));
+    assert_eq!(two.state.enemies[0].entity.hp, 28);
+}
+
+#[test]
 fn silent_wave10_expertise_draws_to_n_on_engine_path() {
     let mut engine = engine_without_start(
         make_deck(&["Strike", "Strike", "Strike", "Strike", "Strike", "Strike"]),
