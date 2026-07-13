@@ -93,7 +93,10 @@ pub fn tick_poison(entity: &mut EntityState) -> i32 {
         return 0;
     }
 
-    let damage = poison;
+    // Source: reference/extracted/methods/monster/Nemesis.java (`damage`) and
+    // decompiled PoisonLoseHpAction.java. Poison constructs HP_LOSS DamageInfo,
+    // so an installed Intangible power caps the tick to one before HP changes.
+    let damage = if entity.status(sid::INTANGIBLE) > 0 { 1 } else { poison };
     entity.hp -= damage;
 
     let new_poison = poison - 1;

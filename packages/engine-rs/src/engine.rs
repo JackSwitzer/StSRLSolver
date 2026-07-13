@@ -385,7 +385,7 @@ impl CombatEngine {
                 | "SnakeDagger" | "Snake Dagger" | "Darkling" | "Deca" | "Donu"
                 | "Exploder" | "GiantHead" | "Giant Head"
                 | "GremlinLeader" | "Gremlin Leader" | "Healer" | "Mystic"
-                | "Maw")) {
+                | "Maw" | "Nemesis")) {
             if enemy.id == "Centurion" {
                 enemy.entity.set_status(sid::COUNT, living_enemy_count);
             }
@@ -3505,6 +3505,20 @@ impl CombatEngine {
             (damage_after_slow as f64 * 0.5) as i32
         } else {
             damage_after_slow
+        };
+        // Source: reference/extracted/methods/monster/Nemesis.java (`damage`)
+        // and IntangiblePower.java. Nemesis caps DamageInfo.output before
+        // AbstractMonster consumes block and player relic hooks such as Boot.
+        // A pure precomputed matrix bypasses IntangiblePower recalculation,
+        // but not Nemesis's concrete damage override.
+        let intangible_applies = !pure_matrix || enemy.id == "Nemesis";
+        let effective_damage = if intangible_applies
+            && enemy.entity.status(sid::INTANGIBLE) > 0
+            && effective_damage > 1
+        {
+            1
+        } else {
+            effective_damage
         };
 
         let blocked = enemy.entity.block.min(effective_damage);

@@ -42,13 +42,6 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
             engine.state.enemies[i].entity.set_status(sid::FLIGHT, stored);
         }
 
-        // Nemesis: gain Intangible at start of turn if not already present
-        if engine.state.enemies[i].id == "Nemesis"
-            && engine.state.enemies[i].entity.status(sid::INTANGIBLE) <= 0
-        {
-            engine.state.enemies[i].entity.set_status(sid::INTANGIBLE, 1);
-        }
-
         let is_first = engine.state.enemies[i].first_turn;
         engine.emit_event(crate::effects::runtime::GameEvent {
             kind: crate::effects::trigger::Trigger::EnemyTurnStart,
@@ -1128,6 +1121,16 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         engine.state.enemies[enemy_idx].set_move(
             enemies::move_ids::BYRD_FLY_UP, 0, 0, 0);
         return;
+    }
+
+    if engine.state.enemies[enemy_idx].id == "Nemesis"
+        && engine.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) <= 0
+    {
+        // Source: reference/extracted/methods/monster/Nemesis.java (`takeTurn`)
+        // and IntangiblePower.java. Java installs the power after the move and
+        // its justApplied flag skips this round's decrement. Rust stores 2 so
+        // the shared end-of-round decrement leaves the visible amount at 1.
+        engine.state.enemies[enemy_idx].entity.set_status(sid::INTANGIBLE, 2);
     }
 
     // These Java takeTurn methods set their next move directly and do not queue

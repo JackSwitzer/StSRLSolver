@@ -266,42 +266,67 @@ pub(super) fn roll_giant_head(enemy: &mut EnemyCombatState, num: i32) {
     }
 }
 
-pub(super) fn roll_nemesis(enemy: &mut EnemyCombatState, _num: i32) {
-    // Java: scytheCooldown decremented FIRST in getMove, then pattern checked.
-    // Intangible applied every turn in takeTurn if not already present (not just Scythe).
-    // fireDmg default = 6 (A3+ = 7). Scythe always 45.
-    // Burn count: 3 (A18+ = 5).
+pub(super) fn roll_nemesis(
+    enemy: &mut EnemyCombatState,
+    num: i32,
+    ai_rng: &mut crate::seed::StsRandom,
+) {
+    // Source: reference/extracted/methods/monster/Nemesis.java (`getMove`).
+    // scytheCooldown decrements before every branch, including the opener.
     let cooldown = enemy.entity.status(sid::SCYTHE_COOLDOWN) - 1;
-    enemy.entity.set_status(sid::SCYTHE_COOLDOWN, cooldown.max(0));
-
-    let fire_dmg = 6; // base; caller should adjust for A3+ (7)
-
-    // Java getMove: first move handled separately
-    let first_move = enemy.entity.status(sid::FIRST_MOVE) > 0;
-    if first_move {
-        enemy.entity.set_status(sid::FIRST_MOVE, 0);
-        // 50/50: Tri Attack or Burn. Deterministic: Tri Attack.
+    enemy.entity.set_status(sid::SCYTHE_COOLDOWN, cooldown);
+    let fire_dmg = enemy.entity.status(sid::STARTING_DMG).max(6);
+    let burn_count = enemy.entity.status(sid::BLOCK_AMT).max(3) as i16;
+    let tri_attack = |enemy: &mut EnemyCombatState| {
         enemy.set_move(move_ids::NEM_TRI_ATTACK, fire_dmg, 3, 0);
+    };
+    let burn = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::NEM_BURN, 0, 0, 0);
+        enemy.add_effect(mfx::BURN, burn_count);
+    };
+    let scythe = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::NEM_SCYTHE, 45, 1, 0);
+        enemy.entity.set_status(sid::SCYTHE_COOLDOWN, 2);
+    };
+
+    if enemy.entity.status(sid::FIRST_MOVE) > 0 {
+        enemy.entity.set_status(sid::FIRST_MOVE, 0);
+        if num < 50 { tri_attack(enemy); } else { burn(enemy); }
         return;
     }
 
-    // Deterministic MCTS pattern matching Java probabilities:
-    // Scythe when off cooldown and haven't used recently,
-    // otherwise alternate Tri Attack and Burn with anti-repeat.
-    if cooldown <= 0 && !last_move(enemy, move_ids::NEM_SCYTHE) {
-        enemy.set_move(move_ids::NEM_SCYTHE, 45, 1, 0);
-        enemy.entity.set_status(sid::SCYTHE_COOLDOWN, 2);
-    } else if last_two_moves(enemy, move_ids::NEM_TRI_ATTACK) {
-        enemy.set_move(move_ids::NEM_BURN, 0, 0, 0);
-        enemy.add_effect(mfx::BURN, 3);
-    } else if last_move(enemy, move_ids::NEM_BURN) {
-        enemy.set_move(move_ids::NEM_TRI_ATTACK, fire_dmg, 3, 0);
-    } else if last_move(enemy, move_ids::NEM_SCYTHE) {
-        // After Scythe: prefer Burn or Tri Attack
-        enemy.set_move(move_ids::NEM_BURN, 0, 0, 0);
-        enemy.add_effect(mfx::BURN, 3);
+    if num < 30 {
+        if !last_move(enemy, move_ids::NEM_SCYTHE) && cooldown <= 0 {
+            scythe(enemy);
+        } else if ai_rng.random_boolean() {
+            if !last_two_moves(enemy, move_ids::NEM_TRI_ATTACK) {
+                tri_attack(enemy);
+            } else {
+                burn(enemy);
+            }
+        } else if !last_move(enemy, move_ids::NEM_BURN) {
+            burn(enemy);
+        } else {
+            tri_attack(enemy);
+        }
+    } else if num < 65 {
+        if !last_two_moves(enemy, move_ids::NEM_TRI_ATTACK) {
+            tri_attack(enemy);
+        } else if ai_rng.random_boolean() {
+            if cooldown > 0 {
+                burn(enemy);
+            } else {
+                scythe(enemy);
+            }
+        } else {
+            burn(enemy);
+        }
+    } else if !last_move(enemy, move_ids::NEM_BURN) {
+        burn(enemy);
+    } else if ai_rng.random_boolean() && cooldown <= 0 {
+        scythe(enemy);
     } else {
-        enemy.set_move(move_ids::NEM_TRI_ATTACK, fire_dmg, 3, 0);
+        tri_attack(enemy);
     }
 }
 

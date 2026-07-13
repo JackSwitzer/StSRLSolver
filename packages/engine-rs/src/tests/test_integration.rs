@@ -2688,31 +2688,45 @@ mod effect_handler_tests {
 
     #[test]
     fn nemesis_gains_intangible_on_turn() {
+        // Sources: reference/extracted/methods/monster/Nemesis.java (`takeTurn`,
+        // `damage`) and decompiled IntangiblePower.java (`justApplied`).
         let deck = make_deck_n("Defend", 20);
-        let mut nem = crate::enemies::create_enemy("Nemesis", 185, 185);
-        nem.set_move(nem.move_id, 0, 0, 0); // Neuter damage
+        let nem = crate::enemies::create_enemy("Nemesis", 185, 185);
         let state = CombatState::new(80, 80, vec![nem], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
 
-        // Nemesis starts without Intangible
         assert_eq!(e.state.enemies[0].entity.status(sid::INTANGIBLE), 0,
-            "Nemesis should not start with Intangible");
+            "Nemesis starts without Intangible");
 
-        // After enemy turn, should have Intangible
+        e.state.enemies[0].set_move(crate::enemies::move_ids::NEM_BURN, 0, 0, 0);
+        e.state.enemies[0].move_effects.clear();
         e.execute_action(&Action::EndTurn);
-        // Intangible was set to 1 at enemy turn start, then decremented at end of round
-        // So after a full turn cycle it should be 0 (applied, then decremented)
-        // But Nemesis re-applies next turn. Let's check mid-turn:
-        // The important thing is damage is capped during enemy turn.
-        // After end_turn: intangible was set to 1, enemy acts, then end-of-round decrements it to 0.
-        // Next turn it gets reapplied. This is correct Java behavior.
-        // Test that it was applied by checking after second end_turn (fresh application)
-        // Actually, let's just verify the cycling works over multiple turns
+        assert_eq!(e.state.enemies[0].entity.status(sid::INTANGIBLE), 1,
+            "post-turn application survives its justApplied end-turn hook");
+        let hp = e.state.enemies[0].entity.hp;
+        e.deal_damage_to_enemy(0, 50);
+        assert_eq!(e.state.enemies[0].entity.hp, hp - 1);
+
+        e.state.enemies[0].entity.set_status(sid::POISON, 10);
+        e.state.enemies[0].set_move(crate::enemies::move_ids::NEM_BURN, 0, 0, 0);
+        e.state.enemies[0].move_effects.clear();
+        let hp = e.state.enemies[0].entity.hp;
         e.execute_action(&Action::EndTurn);
-        // After 2nd EndTurn: Nemesis got intangible=1 at its turn start, then decremented to 0 at end
-        // The pattern is: each enemy turn, Nemesis has intangible during its attack phase
-        assert!(e.state.enemies[0].is_alive(), "Nemesis should still be alive");
+        assert_eq!(e.state.enemies[0].entity.hp, hp - 1,
+            "Nemesis.damage caps PoisonLoseHpAction while Intangible is active");
+        assert_eq!(e.state.enemies[0].entity.status(sid::POISON), 9);
+        assert_eq!(e.state.enemies[0].entity.status(sid::INTANGIBLE), 0,
+            "the existing one-turn power expires after the next enemy turn");
+        let hp = e.state.enemies[0].entity.hp;
+        e.deal_damage_to_enemy(0, 10);
+        assert_eq!(e.state.enemies[0].entity.hp, hp - 10);
+
+        e.state.enemies[0].set_move(crate::enemies::move_ids::NEM_BURN, 0, 0, 0);
+        e.state.enemies[0].move_effects.clear();
+        e.execute_action(&Action::EndTurn);
+        assert_eq!(e.state.enemies[0].entity.status(sid::INTANGIBLE), 1,
+            "Nemesis reapplies Intangible on the following alternating turn");
     }
 
     // ===== C5: Spawn Logic =====

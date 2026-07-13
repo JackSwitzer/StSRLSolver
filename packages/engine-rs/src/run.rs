@@ -2016,6 +2016,17 @@ impl RunEngine {
             enemy.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 0);
         }
 
+        // Source: reference/extracted/methods/monster/Nemesis.java. Fire
+        // damage changes at A3 and the Burn payload changes at A18.
+        for enemy in enemy_states.iter_mut().filter(|enemy| enemy.id == "Nemesis") {
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
+                if self.run_state.ascension >= 3 { 7 } else { 6 });
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if self.run_state.ascension >= 18 { 5 } else { 3 });
+            enemy.entity.set_status(crate::status_ids::sid::SCYTHE_COOLDOWN, 0);
+            enemy.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 1);
+        }
+
         // Source: reference/extracted/methods/monster/BanditLeader.java.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "BanditLeader") {
             let (cross_slash, agonizing_slash) = if self.run_state.ascension >= 2 {
@@ -2816,7 +2827,9 @@ impl RunEngine {
                 (hp, hp)
             }
             "Nemesis" => {
-                let hp = if a20 { 200 } else { 185 };
+                // Source: reference/extracted/methods/monster/Nemesis.java:
+                // fixed HP changes at ascension 8, not ascension 7.
+                let hp = if self.run_state.ascension >= 8 { 200 } else { 185 };
                 (hp, hp)
             }
             "Reptomancer" => {
@@ -8703,6 +8716,79 @@ mod tests {
         crate::combat_hooks::do_enemy_turns(combat);
         assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::STRENGTH), 5);
         assert_eq!(combat.ai_rng.counter, ai_before + 2);
+    }
+
+    #[test]
+    fn nemesis_stats_full_ai_burns_and_rng_ticks_match_java() {
+        // Source: reference/extracted/methods/monster/Nemesis.java
+        // (`constructor`, `getMove`, and `takeTurn`).
+        for (ascension, hp, fire, burns) in [
+            (0, 185, 6, 3),
+            (3, 185, 7, 3),
+            (7, 185, 7, 3),
+            (8, 200, 7, 3),
+            (18, 200, 7, 5),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            assert_eq!(run.roll_enemy_hp("Nemesis"), (hp, hp));
+            run.enter_specific_combat(vec!["Nemesis".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            let nemesis = &combat.state.enemies[0];
+            assert_eq!((nemesis.entity.hp, nemesis.entity.max_hp), (hp, hp));
+            assert_eq!(nemesis.entity.status(crate::status_ids::sid::STARTING_DMG), fire);
+            assert_eq!(nemesis.entity.status(crate::status_ids::sid::BLOCK_AMT), burns);
+            assert_eq!(nemesis.entity.status(crate::status_ids::sid::FIRST_MOVE), 0);
+            assert_eq!(nemesis.entity.status(crate::status_ids::sid::SCYTHE_COOLDOWN), -1);
+            match nemesis.move_id {
+                crate::enemies::move_ids::NEM_TRI_ATTACK => {
+                    assert_eq!((nemesis.move_damage(), nemesis.move_hits()), (fire, 3));
+                }
+                crate::enemies::move_ids::NEM_BURN => {
+                    assert_eq!(nemesis.effect(crate::combat_types::mfx::BURN), Some(burns as i16));
+                }
+                other => panic!("invalid source opener {other}"),
+            }
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        let mut tri = crate::enemies::create_enemy("Nemesis", 200, 200);
+        tri.entity.set_status(crate::status_ids::sid::STARTING_DMG, 7);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut tri, 49, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(tri.move_id, crate::enemies::move_ids::NEM_TRI_ATTACK);
+        assert_eq!((tri.move_damage(), tri.move_hits()), (7, 3));
+        assert_eq!(tri.entity.status(crate::status_ids::sid::SCYTHE_COOLDOWN), -1);
+
+        let mut burn = crate::enemies::create_enemy("Nemesis", 200, 200);
+        burn.entity.set_status(crate::status_ids::sid::BLOCK_AMT, 5);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut burn, 50, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(burn.move_id, crate::enemies::move_ids::NEM_BURN);
+        assert_eq!(burn.effect(crate::combat_types::mfx::BURN), Some(5));
+
+        crate::enemies::roll_next_move_with_num(&mut tri, 29);
+        assert_eq!(tri.move_id, crate::enemies::move_ids::NEM_SCYTHE);
+        assert_eq!(tri.move_damage(), 45);
+        assert_eq!(tri.entity.status(crate::status_ids::sid::SCYTHE_COOLDOWN), 2);
+
+        let no_boolean_seed = (1..10_000).find(|&seed| {
+            let mut rng = crate::seed::StsRandom::new(seed);
+            (30..65).contains(&rng.random(99))
+        }).unwrap();
+        let mut run = RunEngine::new(42, 18);
+        run.enter_specific_combat(vec!["Nemesis".to_string()]);
+        let combat = run.combat_engine.as_mut().unwrap();
+        combat.state.enemies[0].set_move(crate::enemies::move_ids::NEM_BURN, 0, 0, 0);
+        combat.state.enemies[0].move_effects.clear();
+        combat.state.enemies[0].add_effect(crate::combat_types::mfx::BURN, 5);
+        combat.ai_rng = crate::seed::StsRandom::new(no_boolean_seed);
+        run.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        let combat = run.combat_engine.as_ref().unwrap();
+        assert_eq!(combat.state.discard_pile.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) == "Burn").count(), 5);
+        assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::INTANGIBLE), 1);
+        assert_eq!(combat.ai_rng.counter, 1,
+            "the mid window without two Tri Attacks consumes only RollMoveAction");
     }
 
     #[test]

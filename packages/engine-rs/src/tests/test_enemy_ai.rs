@@ -758,6 +758,8 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::NEM_TRI_ATTACK, 6, 3, 0, &[]);
         expect_status(&e, sid::SCYTHE_COOLDOWN, 0);
         expect_status(&e, sid::FIRST_MOVE, 1);
+        expect_status(&e, sid::STARTING_DMG, 6);
+        expect_status(&e, sid::BLOCK_AMT, 3);
 
         let e = make("Reptomancer", 190);
         expect_move(&e, move_ids::REPTO_SPAWN, 0, 0, 0, &[]);
@@ -880,27 +882,34 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::GH_IT_IS_TIME, 30, 1, 0, &[]);
 
         let mut e = make("Nemesis", 185);
-        e.entity.set_status(sid::FIRST_MOVE, 0);
-        e.entity.set_status(sid::SCYTHE_COOLDOWN, 0);
-        e.move_history = vec![move_ids::NEM_TRI_ATTACK];
-        roll_times(&mut e, 1);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 49, &mut crate::seed::StsRandom::new(0));
+        expect_move(&e, move_ids::NEM_TRI_ATTACK, 6, 3, 0, &[]);
+        expect_status(&e, sid::SCYTHE_COOLDOWN, -1);
+        roll_with_num(&mut e, 29);
         expect_move(&e, move_ids::NEM_SCYTHE, 45, 1, 0, &[]);
         expect_status(&e, sid::SCYTHE_COOLDOWN, 2);
 
-        e.move_id = move_ids::NEM_SCYTHE;
-        e.move_history = vec![move_ids::NEM_SCYTHE];
-        e.entity.set_status(sid::SCYTHE_COOLDOWN, 2);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::NEM_BURN, 0, 0, 0, &[(mfx::BURN, 3)]);
+        let true_seed = (1..10_000).find(|&seed| {
+            crate::seed::StsRandom::new(seed).random_boolean()
+        }).unwrap();
+        let mut true_rng = crate::seed::StsRandom::new(true_seed);
+        crate::enemies::roll_next_move_with_num_and_rng(&mut e, 29, &mut true_rng);
+        expect_move(&e, move_ids::NEM_TRI_ATTACK, 6, 3, 0, &[]);
+        assert_eq!(true_rng.counter, 1,
+            "low window after Scythe consumes its conditional randomBoolean");
 
-        e.move_id = move_ids::NEM_TRI_ATTACK;
-        e.move_history = vec![move_ids::NEM_TRI_ATTACK, move_ids::NEM_TRI_ATTACK];
-        e.entity.set_status(sid::SCYTHE_COOLDOWN, 1);
-        roll_times(&mut e, 1);
-        assert!(
-            matches!(e.move_id, move_ids::NEM_BURN | move_ids::NEM_SCYTHE),
-            "Nemesis should not use Tri Attack three times in a row once Scythe is available again"
-        );
+        let false_seed = (1..10_000).find(|&seed| {
+            !crate::seed::StsRandom::new(seed).random_boolean()
+        }).unwrap();
+        let mut middle = make("Nemesis", 185);
+        middle.entity.set_status(sid::FIRST_MOVE, 0);
+        middle.entity.set_status(sid::SCYTHE_COOLDOWN, 1);
+        middle.move_history = vec![move_ids::NEM_TRI_ATTACK];
+        let mut false_rng = crate::seed::StsRandom::new(false_seed);
+        crate::enemies::roll_next_move_with_num_and_rng(&mut middle, 30, &mut false_rng);
+        expect_move(&middle, move_ids::NEM_BURN, 0, 0, 0, &[(mfx::BURN, 3)]);
+        assert_eq!(false_rng.counter, 1);
 
         let mut e = make("Reptomancer", 190);
         roll_times(&mut e, 1);

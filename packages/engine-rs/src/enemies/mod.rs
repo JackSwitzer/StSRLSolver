@@ -869,13 +869,12 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::SLOW, 1);
         }
         "Nemesis" => {
-            // Intangible cycling — gains Intangible every turn in takeTurn if not already present.
-            // First move: 50% Tri Attack (fireDmg x3), 50% Burn (3 burns, 5 at A18).
-            // Deterministic MCTS: use Tri Attack as default first move.
-            // fireDmg: A3+ = 7, else 6. Scythe always 45.
+            // Source: reference/extracted/methods/monster/Nemesis.java.
             enemy.set_move(move_ids::NEM_TRI_ATTACK, 6, 3, 0);
             enemy.entity.set_status(sid::SCYTHE_COOLDOWN, 0);
             enemy.entity.set_status(sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(sid::STARTING_DMG, 6);
+            enemy.entity.set_status(sid::BLOCK_AMT, 3);
         }
         "Reptomancer" => {
             // First turn: Spawn daggers
@@ -1089,7 +1088,7 @@ fn select_move(
         "Maw" => act3::roll_maw(enemy, num),
         "Transient" => act3::roll_transient(enemy, num),
         "GiantHead" | "Giant Head" => act3::roll_giant_head(enemy, num),
-        "Nemesis" => act3::roll_nemesis(enemy, num),
+        "Nemesis" => act3::roll_nemesis(enemy, num, ai_rng),
         "Reptomancer" => act3::roll_reptomancer(enemy, num),
         "SnakeDagger" | "Snake Dagger" => act3::roll_snake_dagger(enemy, num),
         "AwakenedOne" | "Awakened One" => act3::roll_awakened_one(enemy, num),

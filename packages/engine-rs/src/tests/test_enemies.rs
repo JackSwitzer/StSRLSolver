@@ -799,11 +799,11 @@ mod enemy_tests {
 
     // ========== Nemesis (Elite) ==========
 
-    #[test] fn nemesis_intangible_applied_at_turn_start() {
-        // Nemesis doesn't start with Intangible — it's applied at enemy turn start
+    #[test] fn nemesis_starts_without_intangible() {
+        // Source: Nemesis.java applies Intangible near the end of takeTurn.
         let e = create_enemy("Nemesis", 185, 185);
         assert_eq!(e.entity.status(sid::INTANGIBLE), 0,
-            "Nemesis should not start with Intangible (applied per turn)");
+            "Nemesis should not start with Intangible (applied after its turn)");
     }
     #[test] fn nemesis_scythe_attack() {
         let mut e = create_enemy("Nemesis", 185, 185);
