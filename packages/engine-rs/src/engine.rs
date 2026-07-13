@@ -1780,21 +1780,6 @@ impl CombatEngine {
             }
         }
 
-        // TempStrengthLoss: restore temporary Strength loss on all enemies at end of turn
-        for ei in 0..self.state.enemies.len() {
-            if self.state.enemies[ei].is_alive() {
-                let tsl = self.state.enemies[ei]
-                    .entity
-                    .status(sid::TEMP_STRENGTH_LOSS);
-                if tsl > 0 {
-                    self.state.enemies[ei].entity.add_status(sid::STRENGTH, tsl);
-                    self.state.enemies[ei]
-                        .entity
-                        .set_status(sid::TEMP_STRENGTH_LOSS, 0);
-                }
-            }
-        }
-
         // 3. End-of-turn hand card triggers (Burn, Decay, Regret, Doubt, Shame)
         let player_died = status_effects::process_end_turn_hand_cards(self);
         if player_died {
@@ -1984,6 +1969,22 @@ impl CombatEngine {
             // Intangible; they persist into the next round. Matches Java.
         } else {
             combat_hooks::do_enemy_turns(self);
+
+            // GainStrengthPower ("Shackled") restores temporary enemy Strength
+            // only after that monster has acted. Vault skips the entire
+            // monsters.applyEndOfTurnPowers pass, so the loss persists when the
+            // monster turn is skipped.
+            // Java: powers/GainStrengthPower.java::atEndOfTurn and
+            // actions/GameActionManager.java::update.
+            for enemy in &mut self.state.enemies {
+                if enemy.is_alive() {
+                    let restore = enemy.entity.status(sid::TEMP_STRENGTH_LOSS);
+                    if restore > 0 {
+                        enemy.entity.add_status(sid::STRENGTH, restore);
+                        enemy.entity.set_status(sid::TEMP_STRENGTH_LOSS, 0);
+                    }
+                }
+            }
 
             // End of round: decrement debuffs on player (enemy debuffs stick
             // one turn; the justApplied flag covers the apply-turn skip per D59).

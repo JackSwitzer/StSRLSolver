@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T12:34:19.183429+00:00",
+ "updated": "2026-07-13T12:37:57.135464+00:00",
  "status_counts": {
-  "verified": 486,
-  "unverified": 181
+  "verified": 487,
+  "unverified": 180
  },
  "rows": [
   {
@@ -2452,8 +2452,8 @@
    "class": "PiercingWail",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/PiercingWail.java",
    "methods_ref": "reference/extracted/methods/card/PiercingWail.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

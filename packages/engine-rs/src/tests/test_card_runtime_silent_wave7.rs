@@ -105,6 +105,59 @@ fn footwork_variants_stack_two_and_three_permanent_dexterity() {
 }
 
 #[test]
+fn piercing_wail_reduces_all_unprotected_attacks_then_restores_strength() {
+    // PiercingWail.java applies StrengthPower(-8) to every monster, but its
+    // second loop skips GainStrengthPower when Artifact was present. The
+    // unprotected monster therefore attacks at reduced Strength before
+    // GainStrengthPower.java restores it at the end of the monster turn.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![
+            enemy("JawWorm", 50, 50, 1, 10, 1),
+            enemy("Cultist", 50, 50, 1, 10, 1),
+        ],
+        1,
+    );
+    force_player_turn(&mut engine);
+    for enemy in &mut engine.state.enemies {
+        enemy.entity.set_status(sid::STRENGTH, 4);
+    }
+    engine.state.enemies[1].entity.set_status(sid::ARTIFACT, 1);
+    engine.state.hand = make_deck(&["Piercing Wail+"]);
+
+    assert!(play_self(&mut engine, "Piercing Wail+"));
+    assert_eq!(engine.state.energy, 0);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::STRENGTH), -4);
+    assert_eq!(
+        engine.state.enemies[0]
+            .entity
+            .status(sid::TEMP_STRENGTH_LOSS),
+        8
+    );
+    assert_eq!(engine.state.enemies[1].entity.status(sid::ARTIFACT), 0);
+    assert_eq!(engine.state.enemies[1].entity.status(sid::STRENGTH), 4);
+    assert_eq!(
+        engine.state.enemies[1]
+            .entity
+            .status(sid::TEMP_STRENGTH_LOSS),
+        0
+    );
+    assert_eq!(exhaust_prefix_count(&engine, "Piercing Wail"), 1);
+
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.hp, 60,
+        "unprotected enemy deals 10-4 while Artifact enemy deals 10+4");
+    assert_eq!(engine.state.enemies[0].entity.status(sid::STRENGTH), 4);
+    assert_eq!(
+        engine.state.enemies[0]
+            .entity
+            .status(sid::TEMP_STRENGTH_LOSS),
+        0
+    );
+}
+
+#[test]
 fn blur_does_not_decrement_during_vaults_skipped_enemy_round() {
     // Sources: Blur.java installs one BlurPower; GameActionManager.java skips
     // monsters.applyEndOfTurnPowers() under Vault but still checks Blur before
