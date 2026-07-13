@@ -484,14 +484,17 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         SimpleEffect::ChannelRandomOrb(ref amount_src) => {
             let count = resolve_card_amount(engine, ctx, amount_src).max(0);
+            // AbstractOrb.getRandomOrb(true) uses this exact list order and
+            // cardRandomRng.random(3), consuming one counter tick per orb.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/orbs/AbstractOrb.java
             let orb_types = [
-                crate::orbs::OrbType::Lightning,
-                crate::orbs::OrbType::Frost,
                 crate::orbs::OrbType::Dark,
+                crate::orbs::OrbType::Frost,
+                crate::orbs::OrbType::Lightning,
                 crate::orbs::OrbType::Plasma,
             ];
             for _ in 0..count {
-                let idx = engine.rng_gen_range(0..orb_types.len());
+                let idx = engine.card_random_rng.random(3) as usize;
                 engine.channel_orb(orb_types[idx]);
             }
         }

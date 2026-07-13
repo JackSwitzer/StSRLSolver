@@ -1028,13 +1028,13 @@ impl EffectRuntime {
             SimpleEffect::ChannelRandomOrb(amount_src) => {
                 let count = self.resolve_amount(engine, instance_idx, owner, amount_src).max(0);
                 let orb_types = [
-                    crate::orbs::OrbType::Lightning,
-                    crate::orbs::OrbType::Frost,
                     crate::orbs::OrbType::Dark,
+                    crate::orbs::OrbType::Frost,
+                    crate::orbs::OrbType::Lightning,
                     crate::orbs::OrbType::Plasma,
                 ];
                 for _ in 0..count {
-                    let idx = engine.rng_gen_range(0..orb_types.len());
+                    let idx = engine.card_random_rng.random(3) as usize;
                     engine.channel_orb(orb_types[idx]);
                 }
             }

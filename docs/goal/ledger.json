@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T05:13:23.598082+00:00",
+ "updated": "2026-07-13T05:17:07.554203+00:00",
  "status_counts": {
-  "verified": 338,
-  "unverified": 329
+  "verified": 339,
+  "unverified": 328
  },
  "rows": [
   {
@@ -572,8 +572,8 @@
    "class": "Chaos",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Chaos.java",
    "methods_ref": "reference/extracted/methods/card/Chaos.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

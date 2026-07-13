@@ -127,26 +127,31 @@ fn defect_wave12_barrage_rip_and_tear_and_thunder_strike_follow_typed_primary_pa
 }
 
 #[test]
-fn defect_wave12_chaos_channels_random_orbs_deterministically_for_identical_seeds() {
-    let mut left = one_enemy_engine(60, 3);
-    left.init_defect_orbs(3);
-    left.state.hand = make_deck(&["Chaos", "Chaos+"]);
+fn defect_wave12_chaos_uses_java_orb_order_and_card_random_rng() {
+    // Chaos.java calls AbstractOrb.getRandomOrb(true) once, or twice upgraded.
+    // AbstractOrb.java builds [Dark, Frost, Lightning, Plasma] and selects with
+    // cardRandomRng.random(3), so each orb consumes exactly one cardRandom tick.
+    let mut engine = one_enemy_engine(60, 3);
+    engine.init_defect_orbs(3);
+    engine.state.hand = make_deck(&["Chaos", "Chaos+"]);
 
-    let mut right = one_enemy_engine(60, 3);
-    right.init_defect_orbs(3);
-    right.state.hand = make_deck(&["Chaos", "Chaos+"]);
+    let java_orbs = [OrbType::Dark, OrbType::Frost, OrbType::Lightning, OrbType::Plasma];
+    let mut oracle = engine.card_random_rng.clone();
+    let expected: Vec<OrbType> = (0..3)
+        .map(|_| java_orbs[oracle.random(3) as usize])
+        .collect();
+    let generic_before = engine.rng_counters()["card"];
 
-    assert!(play_self(&mut left, "Chaos"));
-    assert!(play_self(&mut right, "Chaos"));
-    assert_eq!(left.state.orb_slots.occupied_count(), 1);
-    assert_eq!(right.state.orb_slots.occupied_count(), 1);
-    assert_eq!(left.state.orb_slots.front_orb_type(), right.state.orb_slots.front_orb_type());
+    assert!(play_self(&mut engine, "Chaos"));
+    assert!(play_self(&mut engine, "Chaos+"));
 
-    assert!(play_self(&mut left, "Chaos+"));
-    assert!(play_self(&mut right, "Chaos+"));
-    assert_eq!(left.state.orb_slots.occupied_count(), 3);
-    assert_eq!(right.state.orb_slots.occupied_count(), 3);
-    assert_eq!(left.state.orb_slots.front_orb_type(), right.state.orb_slots.front_orb_type());
+    let actual: Vec<OrbType> = engine.state.orb_slots.slots[0..3]
+        .iter()
+        .map(|orb| orb.orb_type)
+        .collect();
+    assert_eq!(actual, expected);
+    assert_eq!(engine.card_random_rng.counter, oracle.counter);
+    assert_eq!(engine.rng_counters()["card"], generic_before);
 }
 
 #[test]
