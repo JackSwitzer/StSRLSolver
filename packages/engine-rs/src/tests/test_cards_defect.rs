@@ -451,10 +451,19 @@ mod defect_card_java_parity_tests {
     });
 
     defect_test!(defragment_gains_focus, {
-        let mut e = filled_engine(&["Defragment"], 40, 0);
-        ensure_in_hand(&mut e, "Defragment");
-        play_self(&mut e, "Defragment");
+        // Defragment.java applies FocusPower(magicNumber) at 1 base, while
+        // upgradeMagicNumber(1) makes 2 and leaves the one-energy cost intact.
+        let mut e = bare_engine(&[], vec![enemy("JawWorm", 40, 0)]);
+        e.state.hand = make_deck(&["Defragment", "Defragment+"]);
+        e.state.energy = 2;
+
+        assert!(play_self(&mut e, "Defragment"));
         assert_eq!(e.state.player.focus(), 1);
+        assert_eq!(e.state.energy, 1);
+
+        assert!(play_self(&mut e, "Defragment+"));
+        assert_eq!(e.state.player.focus(), 3);
+        assert_eq!(e.state.energy, 0);
     });
 
     defect_test!(double_energy_doubles_current_energy, {

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T07:04:39.354330+00:00",
+ "updated": "2026-07-13T07:06:07.625563+00:00",
  "status_counts": {
-  "verified": 374,
-  "unverified": 293
+  "verified": 375,
+  "unverified": 292
  },
  "rows": [
   {
@@ -1032,8 +1032,8 @@
    "class": "Defragment",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Defragment.java",
    "methods_ref": "reference/extracted/methods/card/Defragment.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
