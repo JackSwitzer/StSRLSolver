@@ -141,9 +141,9 @@ pub fn modify_damage_receive(entity: &EntityState, damage: f64) -> f64 {
     let mut d = damage;
 
     // Slow: +10% per stack
-    let slow = entity.status(sid::SLOW);
-    if slow > 0 {
-        d *= 1.0 + (slow as f64 * 0.1);
+    let slow_amount = (entity.status(sid::SLOW) - 1).max(0);
+    if slow_amount > 0 {
+        d *= 1.0 + (slow_amount as f64 * 0.1);
     }
 
     // Intangible: cap at 1
@@ -275,12 +275,12 @@ pub fn reset_invincible_damage_taken(entity: &mut EntityState) {
 /// Slow: returns the damage multiplier for an entity with Slow stacks.
 /// Each stack adds +10% damage taken.
 pub fn slow_damage_multiplier(entity: &EntityState) -> f64 {
-    let slow = entity.status(sid::SLOW);
-    if slow > 0 {
-        1.0 + (slow as f64 * 0.10)
-    } else {
-        1.0
-    }
+    // SlowPower is installed with amount zero. Because a zero status cannot
+    // keep an EntityDef active, Rust stores that installed state as sentinel
+    // one and the Java amount is `status - 1`.
+    // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/SlowPower.java.
+    let amount = (entity.status(sid::SLOW) - 1).max(0);
+    1.0 + (amount as f64 * 0.10)
 }
 
 // ---------------------------------------------------------------------------

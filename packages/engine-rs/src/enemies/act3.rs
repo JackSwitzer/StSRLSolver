@@ -224,11 +224,10 @@ pub(super) fn roll_transient(enemy: &mut EnemyCombatState, _num: i32) {
 // Act 3 Elites
 // =========================================================================
 
-pub(super) fn roll_giant_head(enemy: &mut EnemyCombatState, _num: i32) {
-    // Java: count starts at 5 (A18: 4). Decremented in getMove each call.
-    // When count <= 1: It Is Time mode. Damage = startingDeathDmg - count*5
-    // (count goes negative: -1, -2, etc., capped at -6).
-    // Before count <= 1: alternate Glare (Weak 1) and Count (13 dmg).
+pub(super) fn roll_giant_head(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/GiantHead.java (`getMove`).
+    // Count starts at 5 (A18: 4) and decrements on every selection. Above one,
+    // num splits Glare/Count at 50 with only a two-in-a-row guard.
     let count = enemy.entity.status(sid::COUNT);
     let starting_death_dmg = {
         let v = enemy.entity.status(sid::STARTING_DEATH_DMG);
@@ -244,17 +243,18 @@ pub(super) fn roll_giant_head(enemy: &mut EnemyCombatState, _num: i32) {
     } else {
         let new_count = count - 1;
         enemy.entity.set_status(sid::COUNT, new_count);
-        // Alternate Glare and Count with anti-repeat (lastTwoMoves)
-        if last_two_moves(enemy, move_ids::GH_GLARE) {
-            enemy.set_move(move_ids::GH_COUNT, 13, 1, 0);
-        } else if last_two_moves(enemy, move_ids::GH_COUNT) {
-            enemy.set_move(move_ids::GH_GLARE, 0, 0, 0);
-            enemy.add_effect(mfx::WEAK, 1);
-        } else if last_move(enemy, move_ids::GH_GLARE) {
+        if num < 50 {
+            if !last_two_moves(enemy, move_ids::GH_GLARE) {
+                enemy.set_move(move_ids::GH_GLARE, 0, 0, 0);
+                enemy.add_effect(mfx::WEAK, 1);
+            } else {
+                enemy.set_move(move_ids::GH_COUNT, 13, 1, 0);
+            }
+        } else if !last_two_moves(enemy, move_ids::GH_COUNT) {
             enemy.set_move(move_ids::GH_COUNT, 13, 1, 0);
         } else {
-            // Default: Count (attack)
-            enemy.set_move(move_ids::GH_COUNT, 13, 1, 0);
+            enemy.set_move(move_ids::GH_GLARE, 0, 0, 0);
+            enemy.add_effect(mfx::WEAK, 1);
         }
     }
 }

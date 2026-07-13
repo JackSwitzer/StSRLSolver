@@ -383,7 +383,7 @@ impl CombatEngine {
                 | "Champ" | "TheChamp" | "Chosen"
                 | "CorruptHeart" | "Corrupt Heart"
                 | "SnakeDagger" | "Snake Dagger" | "Darkling" | "Deca" | "Donu"
-                | "Exploder")) {
+                | "Exploder" | "GiantHead" | "Giant Head")) {
             if enemy.id == "Centurion" {
                 enemy.entity.set_status(sid::COUNT, living_enemy_count);
             }
@@ -2252,6 +2252,14 @@ impl CombatEngine {
         self.emit_event(crate::effects::runtime::GameEvent::empty(
             crate::effects::trigger::Trigger::RoundEnd,
         ));
+
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/SlowPower.java.
+        // Rust stores the zero-amount installed power as sentinel 1; reset its
+        // per-card amount to that sentinel after every round.
+        powers::reset_slow(&mut self.state.player);
+        for enemy in &mut self.state.enemies {
+            powers::reset_slow(&mut enemy.entity);
+        }
 
         // EquilibriumPower is turn-based and loses exactly one stack after
         // the enemy turn, after it has already retained the player's hand.

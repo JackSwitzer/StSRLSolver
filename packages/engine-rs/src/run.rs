@@ -1962,6 +1962,19 @@ impl RunEngine {
             enemy.set_move(crate::enemies::move_ids::EXPLODER_ATTACK, damage, 1, 0);
         }
 
+        // Source: reference/extracted/methods/monster/GiantHead.java. The
+        // zero-amount Slow power uses sentinel 1 in Rust; A18 decrements count
+        // once in usePreBattleAction before the opening rollMove.
+        for enemy in enemy_states.iter_mut().filter(|enemy| matches!(enemy.id.as_str(),
+            "GiantHead" | "Giant Head"))
+        {
+            enemy.entity.set_status(crate::status_ids::sid::COUNT,
+                if self.run_state.ascension >= 18 { 4 } else { 5 });
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DEATH_DMG,
+                if self.run_state.ascension >= 3 { 40 } else { 30 });
+            enemy.entity.set_status(crate::status_ids::sid::SLOW, 1);
+        }
+
         // Source: reference/extracted/methods/monster/BanditLeader.java.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "BanditLeader") {
             let (cross_slash, agonizing_slash) = if self.run_state.ascension >= 2 {
@@ -2686,7 +2699,9 @@ impl RunEngine {
                 (hp, hp)
             }
             "GiantHead" => {
-                let hp = if a20 { 520 } else { 500 };
+                // Source: reference/extracted/methods/monster/GiantHead.java:
+                // the fixed HP increase is at ascension 8.
+                let hp = if self.run_state.ascension >= 8 { 520 } else { 500 };
                 (hp, hp)
             }
             "Nemesis" => {
@@ -9059,6 +9074,92 @@ mod tests {
         assert_eq!(combat.state.discard_pile.iter().filter(|card|
             combat.card_registry.card_name(card.def_id) == "Dazed").count(), 4);
         assert_eq!(combat.ai_rng.counter, 8);
+    }
+
+    #[test]
+    fn giant_head_thresholds_rng_countdown_damage_and_slow_match_java() {
+        // Sources: reference/extracted/methods/monster/GiantHead.java and
+        // decompiled/java-src/com/megacrit/cardcrawl/powers/SlowPower.java.
+        for (ascension, hp, death_damage, count_after_opening) in [
+            (0, 500, 30, 4),
+            (3, 500, 40, 4),
+            (7, 500, 40, 4),
+            (8, 520, 40, 4),
+            (18, 520, 40, 3),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["GiantHead".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            let head = &combat.state.enemies[0];
+            assert_eq!((head.entity.hp, head.entity.max_hp), (hp, hp));
+            assert_eq!(head.entity.status(crate::status_ids::sid::STARTING_DEATH_DMG),
+                death_damage);
+            assert_eq!(head.entity.status(crate::status_ids::sid::COUNT),
+                count_after_opening);
+            assert_eq!(head.entity.status(crate::status_ids::sid::SLOW), 1,
+                "sentinel one represents SlowPower's installed amount zero");
+            assert!(matches!(head.move_id,
+                crate::enemies::move_ids::GH_GLARE
+                    | crate::enemies::move_ids::GH_COUNT));
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        let mut rng = crate::seed::StsRandom::new(0);
+        let mut low_roll = crate::enemies::create_enemy("GiantHead", 500, 500);
+        crate::enemies::roll_initial_move_with_num_and_rng(&mut low_roll, 0, &mut rng);
+        assert_eq!(low_roll.move_id, crate::enemies::move_ids::GH_GLARE);
+        assert_eq!(low_roll.effect(crate::combat_types::mfx::WEAK), Some(1));
+        assert_eq!(low_roll.entity.status(crate::status_ids::sid::COUNT), 4);
+
+        let mut high_roll = crate::enemies::create_enemy("GiantHead", 500, 500);
+        crate::enemies::roll_initial_move_with_num_and_rng(&mut high_roll, 99, &mut rng);
+        assert_eq!(high_roll.move_id, crate::enemies::move_ids::GH_COUNT);
+
+        // A single previous Glare does not force alternation; only lastTwoMoves
+        // blocks the low-roll Glare branch.
+        low_roll.move_history.clear();
+        low_roll.entity.set_status(crate::status_ids::sid::COUNT, 4);
+        crate::enemies::roll_next_move_with_num(&mut low_roll, 0);
+        assert_eq!(low_roll.move_id, crate::enemies::move_ids::GH_GLARE);
+        crate::enemies::roll_next_move_with_num(&mut low_roll, 0);
+        assert_eq!(low_roll.move_id, crate::enemies::move_ids::GH_COUNT);
+
+        let mut death = crate::enemies::create_enemy("GiantHead", 500, 500);
+        death.entity.set_status(crate::status_ids::sid::COUNT, 1);
+        let expected_damage = [30, 35, 40, 45, 50, 55, 60, 60];
+        for expected in expected_damage {
+            crate::enemies::roll_next_move_with_num(&mut death, 0);
+            assert_eq!(death.move_id, crate::enemies::move_ids::GH_IT_IS_TIME);
+            assert_eq!(death.move_damage(), expected);
+        }
+
+        // Slow increments after each card. With four Strength, the two Strikes
+        // have raw damage ten and receive +10%, then +20%, from earlier cards.
+        let mut run = RunEngine::new(7, 0);
+        run.enter_specific_combat(vec!["GiantHead".to_string()]);
+        let combat = run.combat_engine.as_mut().unwrap();
+        combat.state.player.set_status(crate::status_ids::sid::STRENGTH, 4);
+        combat.state.hand = ["Defend", "Strike", "Strike"]
+            .iter().map(|name| combat.card_registry.make_card(name)).collect();
+        combat.state.energy = 10;
+        combat.state.draw_pile.clear();
+        assert_eq!(combat.state.enemies[0].entity.hp, 500);
+
+        combat.execute_action(&crate::actions::Action::PlayCard {
+            card_idx: 0, target_idx: -1 });
+        assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::SLOW), 2);
+        combat.execute_action(&crate::actions::Action::PlayCard {
+            card_idx: 0, target_idx: 0 });
+        assert_eq!(combat.state.enemies[0].entity.hp, 489);
+        combat.execute_action(&crate::actions::Action::PlayCard {
+            card_idx: 0, target_idx: 0 });
+        assert_eq!(combat.state.enemies[0].entity.hp, 477);
+        assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::SLOW), 4);
+
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::SLOW), 1,
+            "SlowPower.atEndOfRound resets amount without removing the power");
+        assert_eq!(combat.ai_rng.counter, 2);
     }
 
     #[test]

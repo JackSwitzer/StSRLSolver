@@ -58,7 +58,10 @@ pub fn increment_time_warp(entity: &mut EntityState) -> bool {
 
 pub fn reset_slow(entity: &mut EntityState) {
     if entity.status(sid::SLOW) != 0 {
-        entity.set_status(sid::SLOW, 0);
+        // SlowPower.atEndOfRound resets amount to zero without removing the
+        // power. Sentinel 1 represents that installed zero amount in Rust.
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/SlowPower.java.
+        entity.set_status(sid::SLOW, 1);
     }
 }
 

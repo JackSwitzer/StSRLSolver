@@ -1009,7 +1009,8 @@ mod tests {
     #[test]
     fn test_slow_damage_modification() {
         let mut entity = EntityState::new(50, 50);
-        entity.set_status(sid::SLOW, 3);
+        // SlowPower starts at amount zero; sentinel one keeps it installed.
+        entity.set_status(sid::SLOW, 4);
 
         let modified = modify_damage_receive(&entity, 10.0);
         assert!((modified - 13.0).abs() < 0.01); // 10 * 1.3 = 13
@@ -1237,7 +1238,7 @@ mod tests {
         assert_eq!(entity.status(sid::WEAKENED), 1);
         assert_eq!(entity.status(sid::VULNERABLE), 0);
         assert_eq!(entity.status(sid::BLUR), 0);
-        assert_eq!(entity.status(sid::SLOW), 0);
+        assert_eq!(entity.status(sid::SLOW), 1);
         assert_eq!(entity.status(sid::LOCK_ON), 1);
     }
 }

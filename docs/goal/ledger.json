@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T19:19:07.672210+00:00",
+ "updated": "2026-07-13T19:25:06.437316+00:00",
  "status_counts": {
-  "verified": 599,
-  "unverified": 68
+  "verified": 600,
+  "unverified": 67
  },
  "rows": [
   {
@@ -3962,8 +3962,8 @@
    "class": "GiantHead",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/beyond/GiantHead.java",
    "methods_ref": "reference/extracted/methods/monster/GiantHead.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
