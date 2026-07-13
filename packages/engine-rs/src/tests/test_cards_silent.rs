@@ -809,7 +809,7 @@ mod silent_card_java_parity_tests {
     );
     card_pair_test!(glass_knife,
         "Glass Knife", 1, 8, -1, 2, CardType::Attack, CardTarget::Enemy, false, None, &["multi_hit", "glass_knife"],
-        "Glass Knife+", 1, 10, -1, 2, CardType::Attack, CardTarget::Enemy, false, None, &["multi_hit", "glass_knife"],
+        "Glass Knife+", 1, 12, -1, 2, CardType::Attack, CardTarget::Enemy, false, None, &["multi_hit", "glass_knife"],
     );
     card_pair_test!(grand_finale,
         "Grand Finale", 0, 50, -1, -1, CardType::Attack, CardTarget::AllEnemy, false, None, &["only_empty_draw"],

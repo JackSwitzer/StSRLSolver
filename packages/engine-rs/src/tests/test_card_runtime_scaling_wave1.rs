@@ -52,6 +52,7 @@ fn scaling_wave1_registry_exports_typed_played_instance_damage_mutation_surface(
     assert!(glass_knife.complex_hook.is_none());
 
     let glass_knife_plus = reg.get("Glass Knife+").expect("Glass Knife+");
+    assert_eq!(glass_knife_plus.base_damage, 12);
     assert_eq!(
         glass_knife_plus.effect_data,
         &[
@@ -103,4 +104,30 @@ fn rampage_and_glass_knife_update_the_played_instance_damage_seed_for_future_pla
 
     assert!(play_on_enemy(&mut glass_knife, "Glass Knife", 0));
     assert_eq!(glass_knife.state.enemies[0].entity.hp, 12);
+
+    // GlassKnife.upgrade() calls upgradeDamage(4), so the upgraded card deals
+    // 12 twice, stores 10, then deals 10 twice on its next play.
+    // Java: reference/extracted/methods/card/GlassKnife.java
+    let mut upgraded = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 100, 100)],
+        3,
+    );
+    force_player_turn(&mut upgraded);
+    upgraded.state.hand = make_deck(&["Glass Knife+"]);
+
+    assert!(play_on_enemy(&mut upgraded, "Glass Knife+", 0));
+    assert_eq!(upgraded.state.enemies[0].entity.hp, 76);
+    let played = upgraded
+        .state
+        .discard_pile
+        .pop()
+        .expect("played Glass Knife+ should land in discard");
+    assert_eq!(played.misc, 10);
+
+    upgraded.state.hand.push(played);
+    upgraded.state.energy = 1;
+    assert!(play_on_enemy(&mut upgraded, "Glass Knife+", 0));
+    assert_eq!(upgraded.state.enemies[0].entity.hp, 56);
+    assert_eq!(upgraded.state.discard_pile.last().unwrap().misc, 8);
 }
