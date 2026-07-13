@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Ironclad Common: Clash ---- (cost 0, 14 dmg, only if hand is all attacks; +4 dmg)
+        // Clash.canUse rejects any non-Attack remaining in hand; upgrade adds 4 damage.
+        // Source: reference/extracted/methods/card/Clash.java
     insert(cards, CardDef {
                 id: "Clash", name: "Clash", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 0, base_damage: 14, base_block: -1,

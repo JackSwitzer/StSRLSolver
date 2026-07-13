@@ -221,6 +221,39 @@ fn ironclad_wave6_clash_and_heavy_blade_cover_legality_and_strength_scaling() {
 }
 
 #[test]
+fn clash_source_requires_every_remaining_hand_card_to_be_an_attack() {
+    // Clash.canUse loops over the whole hand and rejects every card whose type
+    // is not ATTACK, including Skills, Powers, Statuses, and Curses. The upgrade
+    // changes only base damage from 14 to 18.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Clash.java.
+    for blocker in ["Defend", "Inflame", "Burn", "AscendersBane"] {
+        let mut engine = one_enemy_engine("JawWorm", 50);
+        engine.state.hand = make_deck(&["Clash+", "Strike", blocker]);
+        let clash_idx = engine
+            .state
+            .hand
+            .iter()
+            .position(|card| engine.card_registry.card_name(card.def_id) == "Clash+")
+            .expect("Clash+ should be in hand");
+
+        assert!(!engine.get_legal_actions().iter().any(|action| matches!(
+            action,
+            Action::PlayCard {
+                card_idx,
+                target_idx: 0,
+            } if *card_idx == clash_idx
+        )), "{blocker} should prevent Clash+");
+    }
+
+    let mut allowed = one_enemy_engine("JawWorm", 50);
+    allowed.state.hand = make_deck(&["Clash+", "Strike", "Anger"]);
+    let energy_before = allowed.state.energy;
+    assert!(play_on_enemy(&mut allowed, "Clash+", 0));
+    assert_eq!(allowed.state.enemies[0].entity.hp, 32);
+    assert_eq!(allowed.state.energy, energy_before);
+}
+
+#[test]
 fn ironclad_wave6_iron_wave_carnage_and_impervious_cover_block_ethereal_and_exhaust() {
     let mut iron_wave = one_enemy_engine("JawWorm", 40);
     ensure_in_hand(&mut iron_wave, "Iron Wave");
