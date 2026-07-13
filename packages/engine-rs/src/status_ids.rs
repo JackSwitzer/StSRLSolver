@@ -326,8 +326,12 @@ pub mod sid {
     // ID used by trace/training snapshots.
     pub const PHANTASMAL: StatusId = StatusId(256);
 
+    // Defect one-shot card destination power. Appended to preserve every
+    // existing numeric ID used by trace/training snapshots.
+    pub const REBOUND: StatusId = StatusId(257);
+
     /// Total number of defined status IDs (exclusive upper bound).
-    pub const NUM_IDS: usize = 257;
+    pub const NUM_IDS: usize = 258;
 
     /// Array sizing constant (power of 2 for cache-friendly indexing).
     pub const MAX_STATUS_ID: usize = 512;
@@ -621,6 +625,7 @@ static STATUS_NAMES: &[&str] = &[
     "VulnerableJustApplied", // 254
     "FrailJustApplied",   // 255
     "Phantasmal",         // 256
+    "Rebound",            // 257
 ];
 
 #[cfg(test)]

@@ -13,7 +13,8 @@ use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect a
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
 use crate::tests::support::{
-    enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self,
+    end_turn, enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy,
+    play_self,
 };
 
 fn one_enemy_engine(hp: i32, energy: i32) -> crate::engine::CombatEngine {
@@ -57,7 +58,10 @@ fn defect_wave8_registry_exports_match_typed_runtime_progress() {
     let rebound = reg.get("Rebound+").expect("Rebound+");
     assert_eq!(
         rebound.effect_data,
-        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+        &[
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
+            E::Simple(SE::AddStatus(T::Player, sid::REBOUND, A::Fixed(1))),
+        ]
     );
     assert!(rebound.has_test_marker("next_card_to_top"));
     assert!(rebound.uses_typed_primary_preamble());
@@ -134,6 +138,104 @@ fn defect_wave8_storm_force_field_and_rebound_follow_engine_path() {
     rebound.state.hand = make_deck(&["Rebound"]);
     assert!(play_on_enemy(&mut rebound, "Rebound", 0));
     assert_eq!(rebound.state.enemies[0].entity.hp, 31);
+}
+
+#[test]
+fn rebound_source_skips_itself_then_puts_the_next_non_power_on_draw_top_without_rng() {
+    // Rebound.java deals 9 before applying ReboundPower(1). The new power's
+    // justEvoked flag ignores Rebound's own UseCardAction; on the next
+    // non-Power, ReboundPower sets UseCardAction.reboundCard and reduces one
+    // stack. UseCardAction.moveToDeck(card, false) adds to the top directly.
+    // Sources: reference/extracted/methods/card/Rebound.java;
+    // decompiled/java-src/com/megacrit/cardcrawl/powers/ReboundPower.java; and
+    // decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java.
+    let mut engine = one_enemy_engine(40, 3);
+    engine.state.hand = make_deck(&["Rebound", "Defend"]);
+    engine.state.draw_pile = make_deck(&["Strike"]);
+    let card_random_before = engine.card_random_rng.counter;
+
+    assert!(play_on_enemy(&mut engine, "Rebound", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp, 31);
+    assert_eq!(engine.state.player.status(sid::REBOUND), 1);
+    assert_eq!(engine.state.discard_pile.len(), 1);
+    assert_eq!(
+        engine.card_registry.card_name(engine.state.discard_pile[0].def_id),
+        "Rebound"
+    );
+
+    assert!(play_self(&mut engine, "Defend"));
+    assert_eq!(engine.state.player.block, 5);
+    assert_eq!(engine.state.player.status(sid::REBOUND), 0);
+    assert_eq!(engine.state.draw_pile.len(), 2);
+    assert_eq!(
+        engine
+            .card_registry
+            .card_name(engine.state.draw_pile.last().expect("draw top").def_id),
+        "Defend"
+    );
+    assert_eq!(engine.state.discard_pile.len(), 1);
+    assert_eq!(engine.card_random_rng.counter, card_random_before);
+}
+
+#[test]
+fn stacked_rebound_rebounds_the_second_copy_but_a_power_only_consumes_the_stack() {
+    // ApplyPowerAction stacks a new ReboundPower into the existing instance,
+    // whose justEvoked flag is already false. Thus a second Rebound is itself
+    // moved to draw top: its new stack raises the amount to two, then the
+    // existing power consumes one. ReboundPower excludes Power cards from the
+    // destination change but still queues ReducePowerAction for them.
+    // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/ReboundPower.java.
+    let mut engine = one_enemy_engine(60, 5);
+    engine.state.hand = make_deck(&["Rebound", "Rebound+", "Defragment"]);
+    let card_random_before = engine.card_random_rng.counter;
+
+    assert!(play_on_enemy(&mut engine, "Rebound", 0));
+    assert_eq!(engine.state.player.status(sid::REBOUND), 1);
+
+    assert!(play_on_enemy(&mut engine, "Rebound+", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp, 39);
+    assert_eq!(engine.state.player.status(sid::REBOUND), 1);
+    assert_eq!(
+        engine
+            .card_registry
+            .card_name(engine.state.draw_pile.last().expect("draw top").def_id),
+        "Rebound+"
+    );
+    assert_eq!(engine.card_random_rng.counter, card_random_before);
+
+    assert!(play_self(&mut engine, "Defragment"));
+    assert_eq!(engine.state.player.focus(), 1);
+    assert_eq!(engine.state.player.status(sid::REBOUND), 0);
+    assert_eq!(engine.state.draw_pile.len(), 1);
+    assert_eq!(engine.state.discard_pile.len(), 1);
+}
+
+#[test]
+fn rebound_expires_at_turn_end_and_does_not_override_exhaust() {
+    // ReboundPower.atEndOfTurn removes all unused stacks. When it does trigger,
+    // it only sets reboundCard on UseCardAction; UseCardAction's exhaust branch
+    // still wins, so an exhausting Skill consumes Rebound but remains exhausted.
+    // Sources: decompiled/java-src/com/megacrit/cardcrawl/powers/ReboundPower.java
+    // and decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java.
+    let mut exhaust = one_enemy_engine(40, 2);
+    exhaust.state.hand = make_deck(&["Rebound", "Miracle"]);
+    assert!(play_on_enemy(&mut exhaust, "Rebound", 0));
+    assert!(play_self(&mut exhaust, "Miracle"));
+    assert_eq!(exhaust.state.player.status(sid::REBOUND), 0);
+    assert_eq!(exhaust.state.exhaust_pile.len(), 1);
+    assert_eq!(
+        exhaust
+            .card_registry
+            .card_name(exhaust.state.exhaust_pile[0].def_id),
+        "Miracle"
+    );
+
+    let mut expiry = one_enemy_engine(40, 1);
+    expiry.state.hand = make_deck(&["Rebound"]);
+    assert!(play_on_enemy(&mut expiry, "Rebound", 0));
+    assert_eq!(expiry.state.player.status(sid::REBOUND), 1);
+    end_turn(&mut expiry);
+    assert_eq!(expiry.state.player.status(sid::REBOUND), 0);
 }
 
 #[test]

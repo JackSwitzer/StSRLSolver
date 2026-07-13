@@ -61,6 +61,65 @@ pub static DEF_RAGE: EntityDef = EntityDef {
 };
 
 // ===========================================================================
+// Rebound — next used card consumes one stack; non-Powers move to draw top.
+// ===========================================================================
+
+static REBOUND_TRIGGERS: [TriggeredEffect; 2] = [
+    TriggeredEffect {
+        trigger: Trigger::OnAfterUseCard,
+        condition: TriggerCondition::Always,
+        effects: &[],
+        counter: None,
+    },
+    TriggeredEffect {
+        trigger: Trigger::TurnEnd,
+        condition: TriggerCondition::Always,
+        effects: &[],
+        counter: None,
+    },
+];
+
+fn hook_rebound(
+    engine: &mut CombatEngine,
+    owner: EffectOwner,
+    event: &GameEvent,
+    state: &mut EffectState,
+) {
+    if owner != EffectOwner::PlayerPower {
+        return;
+    }
+    match event.kind {
+        Trigger::OnAfterUseCard => {
+            // A newly applied ReboundPower sees the Rebound card's own
+            // UseCardAction and ignores exactly that first callback. Stacking
+            // into an existing power preserves its already-cleared flag.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ReboundPower.java
+            if state.get(0) == 0 {
+                state.set(0, 1);
+                return;
+            }
+            if event.card_type != Some(crate::cards::CardType::Power) {
+                engine.rebound_current_card();
+            }
+            engine.state.player.add_status(sid::REBOUND, -1);
+        }
+        Trigger::TurnEnd => {
+            engine.state.player.set_status(sid::REBOUND, 0);
+        }
+        _ => {}
+    }
+}
+
+pub static DEF_REBOUND: EntityDef = EntityDef {
+    id: "rebound",
+    name: "Rebound",
+    kind: EntityKind::Power,
+    triggers: &REBOUND_TRIGGERS,
+    complex_hook: Some(hook_rebound),
+    status_guard: Some(sid::REBOUND),
+};
+
+// ===========================================================================
 // Heatsink — OnPowerPlayed: draw cards equal to stacks
 // ===========================================================================
 

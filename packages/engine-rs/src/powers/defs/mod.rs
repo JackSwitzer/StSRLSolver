@@ -69,6 +69,7 @@ pub static POWER_DEFS: &[&EntityDef] = &[
     // -- Card Play --
     &card_play::DEF_AFTER_IMAGE,
     &card_play::DEF_RAGE,
+    &card_play::DEF_REBOUND,
     &card_play::DEF_HEATSINK,
     &card_play::DEF_STORM,
     &card_play::DEF_CURIOSITY,
@@ -142,6 +143,7 @@ pub static RUNTIME_PLAYER_POWER_DEFS: &[&EntityDef] = &[
     &turn_end::DEF_NO_DRAW,
     &card_play::DEF_AFTER_IMAGE,
     &card_play::DEF_RAGE,
+    &card_play::DEF_REBOUND,
     &card_play::DEF_HEATSINK,
     &card_play::DEF_STORM,
     &complex::DEF_ECHO_FORM,

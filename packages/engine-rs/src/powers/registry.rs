@@ -63,6 +63,7 @@ const PLAYER_POWER_STATUSES: &[StatusId] = &[
     sid::DRAW,
     sid::PHANTASMAL,
     sid::DOUBLE_DAMAGE,
+    sid::REBOUND,
 ];
 
 pub(crate) fn status_is_debuff(status_id: StatusId) -> bool {

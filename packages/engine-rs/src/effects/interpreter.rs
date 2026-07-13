@@ -984,6 +984,13 @@ fn add_player_status(engine: &mut CombatEngine, status: StatusId, amount: i32) {
     } else {
         engine.state.player.add_status(status, amount);
     }
+    // ReboundPower is applied during Rebound.use, before UseCardAction invokes
+    // onAfterUseCard. Install its runtime handler immediately so the new power
+    // can ignore that first callback via its Java `justEvoked` flag.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ReboundPower.java
+    if status == sid::REBOUND {
+        engine.rebuild_effect_runtime();
+    }
 }
 
 fn set_player_status(engine: &mut CombatEngine, status: StatusId, value: i32) {

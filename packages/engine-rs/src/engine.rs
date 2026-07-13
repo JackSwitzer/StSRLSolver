@@ -162,7 +162,9 @@ pub struct CombatEngine {
     pub event_log: Vec<crate::effects::runtime::GameEventRecord>,
     pub runtime_played_card: Option<CardInstance>,
     pub(crate) runtime_play_target_idx: Option<i32>,
-    pub(crate) runtime_play_stack: Vec<(CardInstance, i32)>,
+    pub(crate) runtime_play_stack: Vec<(CardInstance, i32, bool)>,
+    /// UseCardAction.reboundCard for the active card-resolution frame.
+    pub(crate) runtime_rebound_card: bool,
     pub runtime_replay_window: bool,
     /// Raw energyOnUse captured for the current X-cost card. Necronomicon's
     /// queued copy reuses this value without spending energy a second time.
@@ -207,6 +209,7 @@ impl CombatEngine {
             runtime_played_card: None,
             runtime_play_target_idx: None,
             runtime_play_stack: Vec::new(),
+            runtime_rebound_card: false,
             runtime_replay_window: false,
             runtime_last_x_energy_on_use: 0,
             runtime_x_energy_override: None,
@@ -272,20 +275,26 @@ impl CombatEngine {
 
     fn begin_runtime_play_context(&mut self, card_inst: CardInstance, target_idx: i32) {
         if let Some(current) = self.runtime_played_card {
-            self.runtime_play_stack
-                .push((current, self.runtime_play_target_idx.unwrap_or(-1)));
+            self.runtime_play_stack.push((
+                current,
+                self.runtime_play_target_idx.unwrap_or(-1),
+                self.runtime_rebound_card,
+            ));
         }
         self.runtime_played_card = Some(card_inst);
         self.runtime_play_target_idx = Some(target_idx);
+        self.runtime_rebound_card = false;
     }
 
     fn finish_runtime_play_context(&mut self) {
-        if let Some((card_inst, target_idx)) = self.runtime_play_stack.pop() {
+        if let Some((card_inst, target_idx, rebound_card)) = self.runtime_play_stack.pop() {
             self.runtime_played_card = Some(card_inst);
             self.runtime_play_target_idx = Some(target_idx);
+            self.runtime_rebound_card = rebound_card;
         } else {
             self.runtime_played_card = None;
             self.runtime_play_target_idx = None;
+            self.runtime_rebound_card = false;
         }
     }
 
@@ -293,7 +302,12 @@ impl CombatEngine {
         self.runtime_played_card = None;
         self.runtime_play_target_idx = None;
         self.runtime_play_stack.clear();
+        self.runtime_rebound_card = false;
         self.omniscience_autoplay.clear();
+    }
+
+    pub(crate) fn rebound_current_card(&mut self) {
+        self.runtime_rebound_card = true;
     }
 
     pub fn hidden_effect_value(
@@ -537,6 +551,7 @@ impl CombatEngine {
             runtime_played_card: self.runtime_played_card,
             runtime_play_target_idx: self.runtime_play_target_idx,
             runtime_play_stack: self.runtime_play_stack.clone(),
+            runtime_rebound_card: self.runtime_rebound_card,
             runtime_replay_window: self.runtime_replay_window,
             runtime_last_x_energy_on_use: self.runtime_last_x_energy_on_use,
             runtime_x_energy_override: self.runtime_x_energy_override,
@@ -2695,6 +2710,14 @@ impl CombatEngine {
         } else if exhausts_on_use && !spoon_saved {
             self.state.exhaust_pile.push(post_play_card);
             self.trigger_card_on_exhaust(post_play_card);
+        } else if self.runtime_rebound_card {
+            // ReboundPower sets UseCardAction.reboundCard for non-Powers. The
+            // exhaust branch above still wins unless Strange Spoon saved the
+            // card; otherwise moveToDeck(card, false) puts it on top without
+            // consuming cardRandomRng, ahead of Tantrum's random destination.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ReboundPower.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
+            self.state.draw_pile.push(post_play_card);
         } else if post_play_dest == crate::effects::types::PostPlayDestination::ShuffleIntoDraw {
             // Tantrum's UseCardAction calls hand.moveToDeck(card, true), which
             // delegates to CardGroup.addToRandomSpot and cardRandomRng. It does
