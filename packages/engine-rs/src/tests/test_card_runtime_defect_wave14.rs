@@ -16,7 +16,7 @@ use crate::orbs::OrbType;
 use crate::status_ids::sid;
 use crate::tests::support::{
     discard_prefix_count, enemy_no_intent, engine_without_start, force_player_turn, hand_prefix_count,
-    make_deck, play_self, TEST_SEED,
+    make_deck, play_on_enemy, play_self, TEST_SEED,
 };
 
 #[test]
@@ -423,7 +423,7 @@ fn reboot_waits_for_melange_scry_before_gathering_and_shuffling_piles() {
 }
 
 #[test]
-fn scrape_draws_then_discards_only_newly_drawn_positive_cost_cards() {
+fn scrape_draws_then_discards_only_newly_drawn_nonzero_cost_cards() {
     let mut scrape = engine_without_start(
         Vec::new(),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -441,4 +441,68 @@ fn scrape_draws_then_discards_only_newly_drawn_positive_cost_cards() {
     assert_eq!(discard_prefix_count(&scrape, "Scrape"), 1);
     assert_eq!(discard_prefix_count(&scrape, "Turbo"), 0);
     assert_eq!(scrape.state.discard_pile.len(), 2);
+}
+
+#[test]
+fn scrape_follow_up_discards_direct_nonzero_costs_in_order_before_evolve_draws() {
+    // Scrape.java deals 7 then draws 4. ScrapeFollowUpAction iterates that
+    // DrawCardAction's drawnCards in order and manually discards everything
+    // except costForTurn == 0 or freeToPlayOnce. EvolvePower queues its extra
+    // draw behind the follow-up, so the Defend drawn for Burn is not inspected.
+    // Java: reference/extracted/methods/card/Scrape.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/
+    // ScrapeFollowUpAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/EvolvePower.java
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        1,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Scrape"]);
+    // Draw pile top is the final element: direct draws are Burn, Reinforced
+    // Body, Turbo, Strike; Evolve then draws the remaining Defend.
+    engine.state.draw_pile = make_deck(&[
+        "Defend",
+        "Strike",
+        "Turbo",
+        "Reinforced Body",
+        "Burn",
+    ]);
+    engine.state.player.set_status(sid::EVOLVE, 1);
+
+    assert!(play_on_enemy(&mut engine, "Scrape", 0));
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 33);
+    assert_eq!(hand_prefix_count(&engine, "Turbo"), 1);
+    assert_eq!(hand_prefix_count(&engine, "Defend"), 1);
+    assert_eq!(hand_prefix_count(&engine, "Burn"), 0);
+    assert_eq!(hand_prefix_count(&engine, "Reinforced Body"), 0);
+    assert_eq!(hand_prefix_count(&engine, "Strike"), 0);
+    let discard_names: Vec<_> = engine
+        .state
+        .discard_pile
+        .iter()
+        .map(|card| engine.card_registry.card_name(card.def_id))
+        .collect();
+    assert_eq!(
+        discard_names,
+        vec!["Burn", "Reinforced Body", "Strike", "Scrape"]
+    );
+
+    // DamageAction clears the queued DrawCardAction when the opening hit ends
+    // combat, so even upgraded Scrape leaves the draw pile untouched on lethal.
+    let mut lethal = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 10, 10)],
+        1,
+    );
+    force_player_turn(&mut lethal);
+    lethal.state.hand = make_deck(&["Scrape+"]);
+    lethal.state.draw_pile = make_deck(&["Strike", "Defend"]);
+
+    assert!(play_on_enemy(&mut lethal, "Scrape+", 0));
+    assert!(lethal.state.combat_over);
+    assert!(lethal.state.hand.is_empty());
+    assert_eq!(lethal.state.draw_pile.len(), 2);
 }
