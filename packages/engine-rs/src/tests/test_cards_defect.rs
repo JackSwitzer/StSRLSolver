@@ -314,15 +314,26 @@ mod defect_card_java_parity_tests {
         assert_eq!(e.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
     });
 
-    defect_test!(dualcast_evokes_twice, {
-        let mut e = bare_engine(&["Dualcast"], vec![enemy("JawWorm", 40, 0)]);
-        e.init_defect_orbs(1);
-        e.channel_orb(OrbType::Lightning);
-        ensure_in_hand(&mut e, "Dualcast");
-        let hp = e.state.enemies[0].entity.hp;
-        play_self(&mut e, "Dualcast");
-        assert_eq!(e.state.enemies[0].entity.hp, hp - 8);
-        assert_eq!(e.state.orb_slots.occupied_count(), 0);
+    defect_test!(dualcast_evokes_the_same_front_orb_twice, {
+        // Dualcast.java queues EvokeWithoutRemovingOrbAction(1), then
+        // EvokeOrbAction(1). A front Lightning therefore deals 8 twice and is
+        // removed, while the Frost behind it is not evoked.
+        // Java: reference/extracted/methods/card/Dualcast.java
+        for (card_id, starting_energy) in [("Dualcast", 1), ("Dualcast+", 0)] {
+            let mut e = bare_engine(&[card_id], vec![enemy("JawWorm", 40, 0)]);
+            e.init_defect_orbs(2);
+            e.channel_orb(OrbType::Lightning);
+            e.channel_orb(OrbType::Frost);
+            e.state.energy = starting_energy;
+            ensure_in_hand(&mut e, card_id);
+
+            assert!(play_self(&mut e, card_id));
+            assert_eq!(e.state.enemies[0].entity.hp, 24);
+            assert_eq!(e.state.orb_slots.occupied_count(), 1);
+            assert_eq!(e.state.orb_slots.slots[0].orb_type, OrbType::Frost);
+            assert_eq!(e.state.player.block, 0);
+            assert_eq!(e.state.energy, 0);
+        }
     });
 
     defect_test!(ball_lightning_channels_and_hits, {

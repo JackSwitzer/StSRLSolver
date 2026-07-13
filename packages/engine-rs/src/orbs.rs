@@ -276,6 +276,14 @@ impl OrbSlots {
         effect
     }
 
+    /// Trigger the front orb's evoke effect without removing the orb.
+    pub fn evoke_front_without_removing(&self, focus: i32) -> EvokeEffect {
+        self.slots
+            .first()
+            .map(|orb| Self::compute_evoke_effect(orb, focus))
+            .unwrap_or(EvokeEffect::None)
+    }
+
     /// Evoke all orbs (e.g. from Multicast). Returns a list of effects.
     pub fn evoke_all(&mut self, focus: i32) -> Vec<EvokeEffect> {
         let mut effects = Vec::new();

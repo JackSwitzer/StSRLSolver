@@ -302,6 +302,9 @@ fn collect_evoke_hint(
 ) {
     for effect in effects {
         match effect {
+            Effect::Simple(SimpleEffect::EvokeOrbWithoutRemoving) => {
+                *fixed_count = fixed_count.saturating_add(1);
+            }
             Effect::Simple(SimpleEffect::EvokeOrb(amount)) => match amount {
                 AmountSource::Fixed(count) if *count > 0 => {
                     *fixed_count = fixed_count.saturating_add(*count as u8);

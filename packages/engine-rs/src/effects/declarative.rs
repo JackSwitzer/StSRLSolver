@@ -329,6 +329,8 @@ pub enum SimpleEffect {
     RemoveOrbSlot,
     /// Evoke the front orb N times.
     EvokeOrb(AmountSource),
+    /// Trigger the front orb's evoke effect once without removing it.
+    EvokeOrbWithoutRemoving,
     /// Evoke the front orb, then channel the same orb type back.
     EvokeAndRechannelFrontOrb,
     /// Fission: remove or evoke all orbs, then gain energy and draw per occupied orb.

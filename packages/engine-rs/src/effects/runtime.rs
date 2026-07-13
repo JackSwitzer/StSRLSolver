@@ -1094,6 +1094,9 @@ impl EffectRuntime {
                     }
                 }
             }
+            SimpleEffect::EvokeOrbWithoutRemoving => {
+                engine.evoke_front_orb_without_removing();
+            }
             SimpleEffect::EvokeOrb(amount_src) => {
                 let count = self.resolve_amount(engine, instance_idx, owner, amount_src).max(0);
                 if count > 0 {

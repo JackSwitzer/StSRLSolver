@@ -3989,6 +3989,13 @@ impl CombatEngine {
         self.apply_evoke_effect(effect);
     }
 
+    /// Trigger the front orb's evoke effect without removing it.
+    pub fn evoke_front_orb_without_removing(&mut self) {
+        let focus = self.state.player.focus();
+        let effect = self.state.orb_slots.evoke_front_without_removing(focus);
+        self.apply_evoke_effect(effect);
+    }
+
     /// Evoke the front orb N times.
     pub fn evoke_front_orb_n(&mut self, n: usize) {
         let focus = self.state.player.focus();

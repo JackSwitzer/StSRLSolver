@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T07:34:34.751161+00:00",
+ "updated": "2026-07-13T07:37:42.692107+00:00",
  "status_counts": {
-  "verified": 389,
-  "unverified": 278
+  "verified": 390,
+  "unverified": 277
  },
  "rows": [
   {
@@ -1222,8 +1222,8 @@
    "class": "Dualcast",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Dualcast.java",
    "methods_ref": "reference/extracted/methods/card/Dualcast.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -666,7 +666,9 @@ fn collect_test_markers_from_simple(simple: &SimpleEffect, markers: &mut Vec<&'s
             OrbType::Plasma => add_test_marker(markers, "channel_plasma"),
             OrbType::Empty => {}
         },
-        SimpleEffect::EvokeOrb(_) => add_test_marker(markers, "evoke_orb"),
+        SimpleEffect::EvokeOrb(_) | SimpleEffect::EvokeOrbWithoutRemoving => {
+            add_test_marker(markers, "evoke_orb")
+        }
         SimpleEffect::ChangeStance(Stance::Neutral) => add_test_marker(markers, "exit_stance"),
         SimpleEffect::SetFlag(flag) => match flag {
             BoolFlag::SkipEnemyTurn => add_test_marker(markers, "skip_enemy_turn"),
@@ -1057,9 +1059,14 @@ fn collect_declared_channel_orbs(
 }
 
 fn find_declared_evoke_count(effects: &[Effect]) -> Option<AmountSource> {
+    let mut fixed_count = 0;
     for effect in effects {
         match effect {
+            Effect::Simple(SimpleEffect::EvokeOrb(AmountSource::Fixed(amount))) => {
+                fixed_count += *amount;
+            }
             Effect::Simple(SimpleEffect::EvokeOrb(amount)) => return Some(*amount),
+            Effect::Simple(SimpleEffect::EvokeOrbWithoutRemoving) => fixed_count += 1,
             Effect::Conditional(_, then_effects, else_effects) => {
                 if let Some(amount) = find_declared_evoke_count(then_effects) {
                     return Some(amount);
@@ -1071,7 +1078,7 @@ fn find_declared_evoke_count(effects: &[Effect]) -> Option<AmountSource> {
             _ => {}
         }
     }
-    None
+    (fixed_count > 0).then_some(AmountSource::Fixed(fixed_count))
 }
 
 fn collect_declared_player_statuses(effects: &[Effect], statuses: &mut Vec<StatusId>) {
@@ -1178,6 +1185,7 @@ fn collect_simple_x_cost_amounts(effect: &SimpleEffect, amounts: &mut Vec<Amount
         | SimpleEffect::ObtainRandomPotion
         | SimpleEffect::TriggerDarkPassive
         | SimpleEffect::RemoveOrbSlot
+        | SimpleEffect::EvokeOrbWithoutRemoving
         | SimpleEffect::EvokeAndRechannelFrontOrb
         | SimpleEffect::ChannelRandomOrb(_)
         | SimpleEffect::DiscardRandomCardsFromPile(_, _)

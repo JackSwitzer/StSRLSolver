@@ -522,6 +522,10 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             }
         }
 
+        SimpleEffect::EvokeOrbWithoutRemoving => {
+            engine.evoke_front_orb_without_removing();
+        }
+
         // -- Fission --
         SimpleEffect::ResolveFission { evoke } => {
             let orb_count = engine.state.orb_slots.occupied_count() as i32;
