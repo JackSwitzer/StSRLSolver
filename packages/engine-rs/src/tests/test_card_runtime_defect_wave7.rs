@@ -15,8 +15,8 @@ use crate::effects::types::{CardRuntimeTraits, CardBlockHint};
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
 use crate::tests::support::{
-    end_turn, enemy, enemy_no_intent, engine_with, engine_without_start, exhaust_prefix_count,
-    force_player_turn, hand_count, make_deck, make_deck_n, play_self,
+    discard_prefix_count, end_turn, enemy, enemy_no_intent, engine_with, engine_without_start,
+    exhaust_prefix_count, force_player_turn, hand_count, make_deck, make_deck_n, play_self,
 };
 
 fn one_enemy_engine(hp: i32) -> crate::engine::CombatEngine {
@@ -116,6 +116,25 @@ fn defect_wave7_auto_shields_boot_sequence_and_leap_follow_engine_path() {
     leap.state.hand = make_deck(&["Leap+"]);
     assert!(play_self(&mut leap, "Leap+"));
     assert_eq!(leap.state.player.block, 12);
+}
+
+#[test]
+fn leap_source_gains_modified_nine_or_twelve_block_for_one_energy() {
+    // Leap.java uses this.block in one GainBlockAction. Base Block is 9 and
+    // upgradeBlock(3) makes 12; Dexterity and Frail therefore modify each play
+    // independently through AbstractCard.applyPowers.
+    let mut engine = one_enemy_engine(40);
+    engine.state.hand = make_deck(&["Leap", "Leap+"]);
+    engine.state.energy = 2;
+    engine.state.player.set_status(sid::DEXTERITY, 1);
+    engine.state.player.set_status(sid::FRAIL, 1);
+
+    assert!(play_self(&mut engine, "Leap"));
+    assert_eq!(engine.state.player.block, 7); // floor((9 + 1) * 0.75)
+    assert!(play_self(&mut engine, "Leap+"));
+    assert_eq!(engine.state.player.block, 16); // + floor((12 + 1) * 0.75)
+    assert_eq!(engine.state.energy, 0);
+    assert_eq!(discard_prefix_count(&engine, "Leap"), 2);
 }
 
 #[test]

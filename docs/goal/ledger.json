@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T10:50:15.498959+00:00",
+ "updated": "2026-07-13T10:51:30.700635+00:00",
  "status_counts": {
-  "verified": 452,
-  "unverified": 215
+  "verified": 453,
+  "unverified": 214
  },
  "rows": [
   {
@@ -2022,8 +2022,8 @@
    "class": "Leap",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Leap.java",
    "methods_ref": "reference/extracted/methods/card/Leap.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
