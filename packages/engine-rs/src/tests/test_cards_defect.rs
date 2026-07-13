@@ -853,11 +853,29 @@ mod defect_card_java_parity_tests {
         assert_eq!(e.card_random_rng.counter, oracle.counter);
     });
 
-    defect_test!(echo_form_installs_echo_form, {
-        let mut e = bare_engine(&["Echo Form"], vec![enemy("JawWorm", 40, 0)]);
-        ensure_in_hand(&mut e, "Echo Form");
-        play_self(&mut e, "Echo Form");
-        assert_eq!(e.state.player.status(sid::ECHO_FORM), 1);
+    defect_test!(echo_form_installs_one_echo_without_replaying_itself, {
+        // EchoForm.java queues ApplyPowerAction for exactly one EchoPower. The
+        // newly installed power was absent from this card's onUseCard window,
+        // so the first Echo Form must not immediately copy itself.
+        // Java: reference/extracted/methods/card/EchoForm.java
+        for card_id in ["Echo Form", "Echo Form+"] {
+            let mut e = bare_engine(&[card_id], vec![enemy("JawWorm", 40, 0)]);
+            e.state.energy = 3;
+            ensure_in_hand(&mut e, card_id);
+
+            assert!(play_self(&mut e, card_id));
+            assert_eq!(e.state.player.status(sid::ECHO_FORM), 1);
+            assert_eq!(e.state.energy, 0);
+        }
+
+        // With one EchoPower already installed, that prior stack does see the
+        // new Echo Form and replays it: existing 1 + original 1 + copy 1.
+        let mut stacked = bare_engine(&["Echo Form+"], vec![enemy("JawWorm", 40, 0)]);
+        stacked.state.player.set_status(sid::ECHO_FORM, 1);
+        stacked.state.energy = 3;
+        ensure_in_hand(&mut stacked, "Echo Form+");
+        assert!(play_self(&mut stacked, "Echo Form+"));
+        assert_eq!(stacked.state.player.status(sid::ECHO_FORM), 3);
     });
 
     defect_test!(electrodynamics_channels_lightning, {

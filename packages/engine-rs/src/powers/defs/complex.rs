@@ -447,20 +447,23 @@ fn hook_echo_form(
         None => return,
     };
 
-    let card_type = match event.card_type {
-        Some(card_type) => card_type,
-        None => return,
-    };
-    if card_type == crate::cards::CardType::Power {
-        return;
-    }
-
     let echo_count = player_power_amount(engine, owner, sid::ECHO_FORM);
-    if echo_count <= 0 || engine.state.cards_played_this_turn > echo_count {
+    let card = engine.card_registry.card_def_by_id(card_inst.def_id).clone();
+    // EchoPower.onUseCard accepts every non-purge card type, including Powers.
+    // Echo Form's own ApplyPowerAction is not installed until after its
+    // onUseCard window, so discount the stack added by the current card when
+    // deciding whether a previously absent/existing EchoPower should replay it.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/EchoPower.java
+    // Java: reference/extracted/methods/card/EchoForm.java
+    let active_echo_count = if matches!(card.id, "Echo Form" | "Echo Form+") {
+        echo_count - 1
+    } else {
+        echo_count
+    };
+    if active_echo_count <= 0 || engine.state.cards_played_this_turn > active_echo_count {
         return;
     }
 
-    let card = engine.card_registry.card_def_by_id(card_inst.def_id).clone();
     engine.execute_card_effects_with_enemy_on_use(&card, card_inst, event.target_idx);
 }
 
