@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T14:55:42.759602+00:00",
+ "updated": "2026-07-13T14:57:43.849472+00:00",
  "status_counts": {
-  "verified": 523,
-  "unverified": 144
+  "verified": 524,
+  "unverified": 143
  },
  "rows": [
   {
@@ -2912,8 +2912,8 @@
    "class": "Sentinel",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/Sentinel.java",
    "methods_ref": "reference/extracted/methods/card/Sentinel.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

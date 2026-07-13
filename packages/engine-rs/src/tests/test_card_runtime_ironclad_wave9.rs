@@ -136,3 +136,19 @@ fn ironclad_wave9_sentinel_exhaust_energy_trigger_fires_under_corruption() {
     assert_eq!(engine.state.energy, 4);
     assert_eq!(exhaust_prefix_count(&engine, "Sentinel"), 1);
 }
+
+#[test]
+fn sentinel_exhaust_energy_triggers_without_corruption() {
+    // Sentinel.triggerOnExhaust has no Corruption check: Second Wind exhausts
+    // both non-Attacks, so the base and upgraded copies grant 2 + 3 energy.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Sentinel.java
+    let mut engine = one_enemy_engine("JawWorm", 60);
+    engine.state.energy = 1;
+    engine.state.hand = make_deck(&["Second Wind+", "Sentinel", "Sentinel+", "Strike"]);
+
+    assert!(play_self(&mut engine, "Second Wind+"));
+
+    assert_eq!(engine.state.energy, 5);
+    assert_eq!(exhaust_prefix_count(&engine, "Sentinel"), 2);
+    assert_eq!(hand_prefix_count(&engine, "Strike"), 1);
+}

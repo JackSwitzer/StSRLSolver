@@ -294,12 +294,10 @@ pub fn hook_phantasmal_killer(engine: &mut CombatEngine, _ctx: &CardPlayContext)
     engine.state.player.add_status(sid::PHANTASMAL, 1);
 }
 
-/// Sentinel: gain energy when exhausted (only under Corruption).
+/// Sentinel.triggerOnExhaust gains energy regardless of which effect exhausted it.
+/// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Sentinel.java
 pub fn hook_energy_on_exhaust(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    if engine.state.player.status(sid::CORRUPTION) > 0 {
-        let amount = ctx.card.base_magic.max(2);
-        engine.state.energy += amount;
-    }
+    engine.state.energy += ctx.card.base_magic;
 }
 
 // =====================================================================
