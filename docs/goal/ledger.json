@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T14:41:25.114374+00:00",
+ "updated": "2026-07-13T14:44:55.153537+00:00",
  "status_counts": {
-  "verified": 519,
-  "unverified": 148
+  "verified": 520,
+  "unverified": 147
  },
  "rows": [
   {
@@ -2872,8 +2872,8 @@
    "class": "SecretWeapon",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/SecretWeapon.java",
    "methods_ref": "reference/extracted/methods/card/SecretWeapon.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

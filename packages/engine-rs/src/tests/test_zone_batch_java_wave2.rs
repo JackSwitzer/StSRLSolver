@@ -9,10 +9,11 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/cards/green/StormOfSteel.java
 // - decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Purity.java
 // - decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/SecretTechnique.java
+// - decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/SecretWeapon.java
 // - decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Violence.java
 
 use crate::actions::Action;
-use crate::engine::{ChoiceReason, CombatEngine, CombatPhase};
+use crate::engine::{ChoiceOption, ChoiceReason, CombatEngine, CombatPhase};
 use crate::status_ids::sid;
 use crate::tests::support::{
     combat_state_with, enemy_no_intent, force_player_turn, hand_count, make_deck, play_on_enemy,
@@ -261,6 +262,94 @@ fn upgraded_secret_technique_auto_moves_the_only_skill_without_exhausting() {
     assert_eq!(hand_names(&engine), vec!["Shrug It Off"]);
     assert_eq!(pile_names(&engine, &engine.state.discard_pile), vec!["Secret Technique+"]);
     assert!(engine.state.exhaust_pile.is_empty());
+}
+
+#[test]
+fn secret_weapon_auto_moves_the_only_attack_and_exhausts() {
+    let mut engine = engine_for(
+        &["Secret Weapon"],
+        &["Defend", "Strike", "Shrug It Off"],
+        &[],
+        3,
+    );
+
+    assert!(play_self(&mut engine, "Secret Weapon"));
+    // Java AttackFromDeckToHandAction moves a singleton directly instead of
+    // opening grid select.
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert!(engine.choice.is_none());
+    assert_eq!(hand_names(&engine), vec!["Strike"]);
+    assert_eq!(
+        pile_names(&engine, &engine.state.draw_pile),
+        vec!["Defend", "Shrug It Off"]
+    );
+    assert_eq!(
+        pile_names(&engine, &engine.state.exhaust_pile),
+        vec!["Secret Weapon"]
+    );
+}
+
+#[test]
+fn upgraded_secret_weapon_auto_moves_the_only_attack_without_exhausting() {
+    let mut engine = engine_for(
+        &["Secret Weapon+"],
+        &["Defend", "Strike", "Shrug It Off"],
+        &[],
+        3,
+    );
+
+    assert!(play_self(&mut engine, "Secret Weapon+"));
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert_eq!(hand_names(&engine), vec!["Strike"]);
+    assert_eq!(
+        pile_names(&engine, &engine.state.discard_pile),
+        vec!["Secret Weapon+"]
+    );
+    assert!(engine.state.exhaust_pile.is_empty());
+}
+
+#[test]
+fn secret_weapon_requires_an_attack_and_only_offers_attacks() {
+    let no_attack = engine_for(
+        &["Secret Weapon"],
+        &["Defend", "Shrug It Off"],
+        &[],
+        3,
+    );
+    let secret_idx = no_attack
+        .state
+        .hand
+        .iter()
+        .position(|card| no_attack.card_registry.card_name(card.def_id) == "Secret Weapon")
+        .expect("Secret Weapon should be in hand");
+    assert!(!no_attack.get_legal_actions().iter().any(|action| matches!(
+        action,
+        Action::PlayCard { card_idx, .. } if *card_idx == secret_idx
+    )));
+
+    let mut multiple = engine_for(
+        &["Secret Weapon"],
+        &["Strike", "Defend", "Bash", "Shrug It Off"],
+        &[],
+        3,
+    );
+    assert!(play_self(&mut multiple, "Secret Weapon"));
+    assert_eq!(multiple.phase, CombatPhase::AwaitingChoice);
+    let choice = multiple.choice.as_ref().expect("attack search choice");
+    assert_eq!(choice.reason, ChoiceReason::SearchDrawPile);
+    let mut offered: Vec<_> = choice
+        .options
+        .iter()
+        .map(|option| match option {
+            ChoiceOption::DrawCard(index) => multiple
+                .card_registry
+                .card_name(multiple.state.draw_pile[*index].def_id)
+                .to_string(),
+            _ => panic!("Secret Weapon should expose only draw-pile cards"),
+        })
+        .collect();
+    offered.sort();
+    assert_eq!(offered, vec!["Bash", "Strike"]);
 }
 
 #[test]

@@ -1535,11 +1535,15 @@ fn execute_choose_cards(
         return;
     }
 
-    // SkillFromDeckToHandAction skips grid selection when exactly one Skill is
-    // eligible and moves it directly into the hand (or discard if the hand is
-    // already full).
+    // The Skill/AttackFromDeckToHandAction pair skips grid selection when
+    // exactly one matching card is eligible and moves it directly into the hand
+    // (or discard if the hand is already full).
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/SkillFromDeckToHandAction.java
-    if matches!(ctx.card.id, "Secret Technique" | "Secret Technique+")
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/AttackFromDeckToHandAction.java
+    if matches!(
+        ctx.card.id,
+        "Secret Technique" | "Secret Technique+" | "Secret Weapon" | "Secret Weapon+"
+    )
         && source == Pile::Draw
         && action == ChoiceAction::MoveToHand
         && options.len() == 1

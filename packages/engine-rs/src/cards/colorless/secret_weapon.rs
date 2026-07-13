@@ -1,6 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/SecretWeapon.java
+    // AttackFromDeckToHandAction selects one Attack from the draw pile;
+    // upgrading removes Exhaust without changing the search.
     insert(cards, CardDef {
                 id: "Secret Weapon", name: "Secret Weapon", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,

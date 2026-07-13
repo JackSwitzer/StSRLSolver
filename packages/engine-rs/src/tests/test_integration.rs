@@ -2929,7 +2929,7 @@ mod effect_handler_tests {
     // PR5: Choice-based card effect tests
     // ====================================================================
 
-    #[test] fn secret_weapon_searches_attacks() {
+    #[test] fn secret_weapon_auto_moves_a_single_remaining_attack() {
         let mut e = make_engine_with_deck(make_deck(&[
             "Defend", "Defend", "Defend", "Defend", "Defend",
             "Strike", "Strike", "Strike",
@@ -2938,12 +2938,19 @@ mod effect_handler_tests {
         e.state.energy = 10;
         let sw = e.card_registry.make_card("Secret Weapon");
         e.state.hand.push(sw);
+        let attacks_before = e.state.hand.iter()
+            .filter(|card| e.card_registry.card_name(card.def_id) == "Strike")
+            .count();
+        assert_eq!(e.state.draw_pile.iter()
+            .filter(|card| e.card_registry.card_name(card.def_id) == "Strike")
+            .count(), 1);
         play_card(&mut e, "Secret Weapon", -1);
-        // Should be awaiting choice to pick an attack from draw pile
-        assert_eq!(e.phase, CombatPhase::AwaitingChoice, "Should be awaiting choice");
-        // Choose first option
-        e.execute_action(&Action::Choose(0));
-        assert_eq!(e.phase, CombatPhase::PlayerTurn, "Should return to player turn");
+        // AttackFromDeckToHandAction auto-moves a singleton without grid select.
+        // Java: actions/unique/AttackFromDeckToHandAction.java.
+        assert_eq!(e.phase, CombatPhase::PlayerTurn);
+        assert_eq!(e.state.hand.iter()
+            .filter(|card| e.card_registry.card_name(card.def_id) == "Strike")
+            .count(), attacks_before + 1);
     }
 
     #[test] fn hologram_returns_from_discard() {
