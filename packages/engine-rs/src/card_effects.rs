@@ -263,7 +263,13 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
                 && engine.state.player.status(sid::NEXT_ATTACK_FREE) > 0)
             || (card.card_type == CardType::Skill
                 && engine.state.player.status(sid::CORRUPTION) > 0);
-        if !x_is_free {
+        // MulticastAction only spends EnergyPanel.totalCount inside its
+        // `player.hasOrb()` branch. Playing Multi-Cast with no front orb is
+        // therefore a legal no-op that preserves all energy.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/MulticastAction.java
+        let multi_cast_without_orb = matches!(card_id, "Multi-Cast" | "Multi-Cast+")
+            && engine.state.orb_slots.occupied_count() == 0;
+        if !x_is_free && !multi_cast_without_orb {
             engine.state.energy = 0;
         }
         x + if engine.state.has_relic("Chemical X") || engine.state.has_relic("ChemicalX") {

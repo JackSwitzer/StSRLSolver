@@ -843,7 +843,12 @@ mod defect_card_java_parity_tests {
         ensure_in_hand(&mut e, "Multi-Cast");
         let hp = e.state.enemies[0].entity.hp;
         play_self(&mut e, "Multi-Cast");
-        assert_eq!(e.state.enemies[0].entity.hp, hp - 14); // X=3: Lightning evoke 8 + Frost block + Dark evoke 6
+        // MulticastAction repeats the same front Lightning X=3 times and
+        // removes only that orb on the final evoke.
+        assert_eq!(e.state.enemies[0].entity.hp, hp - 24);
+        assert_eq!(e.state.player.block, 0);
+        assert_eq!(e.state.orb_slots.occupied_count(), 2);
+        assert_eq!(e.state.orb_slots.front_orb_type(), OrbType::Frost);
     });
 
     defect_test!(reinforced_body_spends_x_for_block, {

@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Multi-Cast: X cost, evoke frontmost orb X times (upgrade: X+1)
+    // MulticastAction evokes the same front orb X times without removing it,
+    // then removes it on the final evoke; Chemical X adds 2 and upgrade adds 1.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/MulticastAction.java
     insert(cards, CardDef {
                 id: "Multi-Cast", name: "Multi-Cast", card_type: CardType::Skill,
                 target: CardTarget::None, cost: -1, base_damage: -1, base_block: -1,

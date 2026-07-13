@@ -4410,6 +4410,24 @@ impl CombatEngine {
         }
     }
 
+    /// Trigger the current front orb N times, removing it only on the final evoke.
+    pub fn multicast_front_orb_n(&mut self, n: usize) {
+        if n == 0 || self.state.orb_slots.occupied_count() == 0 {
+            return;
+        }
+        // MulticastAction queues `effect - 1` EvokeWithoutRemovingOrbAction
+        // instances followed by one EvokeOrbAction. A lethal earlier evoke
+        // clears the remaining queue, so the front orb is not removed then.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/MulticastAction.java
+        for _ in 0..n.saturating_sub(1) {
+            self.evoke_front_orb_without_removing();
+            if self.state.combat_over {
+                return;
+            }
+        }
+        self.evoke_front_orb();
+    }
+
     /// Evoke all orbs.
     pub fn evoke_all_orbs(&mut self) {
         let focus = self.state.player.focus();

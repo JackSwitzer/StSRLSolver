@@ -559,7 +559,11 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
         SimpleEffect::EvokeOrb(ref amount_src) => {
             let count = resolve_card_amount(engine, ctx, amount_src).max(0);
             if count > 0 {
-                engine.evoke_front_orb_n(count as usize);
+                if matches!(ctx.card.id, "Multi-Cast" | "Multi-Cast+") {
+                    engine.multicast_front_orb_n(count as usize);
+                } else {
+                    engine.evoke_front_orb_n(count as usize);
+                }
             }
         }
 

@@ -217,8 +217,44 @@ fn test_card_runtime_defect_wave3_fission_and_multicast_cover_orb_evoke_and_x_co
     let block_before = multi_cast.state.player.block;
     assert!(play_self(&mut multi_cast, "Multi-Cast+"));
     assert_eq!(multi_cast.state.energy, 0);
-    assert_eq!(multi_cast.state.enemies[0].entity.hp, hp_before - 14);
-    assert_eq!(multi_cast.state.player.block, block_before + 5);
+    // MulticastAction with X=2 and upgraded=true evokes the same front
+    // Lightning three times, then removes only that Lightning.
+    assert_eq!(multi_cast.state.enemies[0].entity.hp, hp_before - 24);
+    assert_eq!(multi_cast.state.player.block, block_before);
+    assert_eq!(multi_cast.state.orb_slots.occupied_count(), 2);
+    assert_eq!(multi_cast.state.orb_slots.front_orb_type(), OrbType::Frost);
+}
+
+#[test]
+fn multi_cast_preserves_energy_without_an_orb_and_chemical_x_repeats_front_orb() {
+    let mut no_orb = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 80, 80)],
+        3,
+    );
+    force_player_turn(&mut no_orb);
+    no_orb.init_defect_orbs(3);
+    no_orb.state.hand = make_deck(&["Multi-Cast"]);
+    assert!(play_self(&mut no_orb, "Multi-Cast"));
+    assert_eq!(no_orb.state.energy, 3);
+
+    let mut chemical = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 80, 80)],
+        0,
+    );
+    force_player_turn(&mut chemical);
+    chemical.init_defect_orbs(3);
+    chemical.channel_orb(OrbType::Frost);
+    chemical.channel_orb(OrbType::Lightning);
+    chemical.state.relics.push("Chemical X".to_string());
+    chemical.state.hand = make_deck(&["Multi-Cast"]);
+    assert!(play_self(&mut chemical, "Multi-Cast"));
+    // Chemical X makes effect=2 at zero energy: Frost evokes twice for ten
+    // block total, only Frost is removed, and Lightning becomes the front orb.
+    assert_eq!(chemical.state.player.block, 10);
+    assert_eq!(chemical.state.orb_slots.occupied_count(), 1);
+    assert_eq!(chemical.state.orb_slots.front_orb_type(), OrbType::Lightning);
 }
 
 #[test]
