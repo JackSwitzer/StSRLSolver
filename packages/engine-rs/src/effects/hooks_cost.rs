@@ -17,12 +17,6 @@ pub fn hook_reduce_cost_per_power(state: &CombatState, _card: &CardDef, _card_in
     (cost - power_count).max(0)
 }
 
-/// Eviscerate: reduce cost by cards discarded this turn.
-pub fn hook_cost_reduce_on_discard(state: &CombatState, _card: &CardDef, _card_inst: CardInstance, cost: i32) -> i32 {
-    let discarded = state.player.status(sid::DISCARDED_THIS_TURN);
-    (cost - discarded).max(0)
-}
-
 /// Masterful Stab: increase cost by total damage taken this combat.
 pub fn hook_cost_increase_on_hp_loss(state: &CombatState, _card: &CardDef, _card_inst: CardInstance, cost: i32) -> i32 {
     cost + state.total_damage_taken

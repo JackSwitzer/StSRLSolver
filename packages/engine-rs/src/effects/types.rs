@@ -33,8 +33,12 @@ pub enum CanPlayRule {
 pub enum CostModifierRule {
     ReduceOnHpLoss,
     ReducePerPower,
-    ReduceOnDiscard,
     IncreaseOnHpLoss,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum StatefulCostRule {
+    ReduceOnDiscard,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -103,6 +107,7 @@ pub enum WhileInHandRule {
 pub enum CardRuntimeTrigger {
     CanPlay(CanPlayRule),
     ModifyCost(CostModifierRule),
+    StatefulCost(StatefulCostRule),
     ModifyDamage(DamageModifierRule),
     OnDraw(OnDrawRule),
     OnDiscard(OnDiscardRule),

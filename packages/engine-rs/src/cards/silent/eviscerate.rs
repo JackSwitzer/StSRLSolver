@@ -1,17 +1,19 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Uncommon: Eviscerate ---- (cost 3, 7 dmg x3, -1 cost per discard; +1 dmg)
+    // Eviscerate.java queues three damage actions, reduces its current cost on
+    // each discard, and upgrades damage by two.
+    // Java: reference/extracted/methods/card/Eviscerate.java
     insert(cards, CardDef {
                 id: "Eviscerate", name: "Eviscerate", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 3, base_damage: 7, base_block: -1,
-                base_magic: 3, exhaust: false, enter_stance: None,
-                effect_data: &[E::ExtraHits(A::Magic)], complex_hook: None,
+                base_magic: -1, exhaust: false, enter_stance: None,
+                effect_data: &[E::ExtraHits(A::Fixed(3))], complex_hook: None,
             });
     insert(cards, CardDef {
                 id: "Eviscerate+", name: "Eviscerate+", card_type: CardType::Attack,
-                target: CardTarget::Enemy, cost: 3, base_damage: 8, base_block: -1,
-                base_magic: 3, exhaust: false, enter_stance: None,
-                effect_data: &[E::ExtraHits(A::Magic)], complex_hook: None,
+                target: CardTarget::Enemy, cost: 3, base_damage: 9, base_block: -1,
+                base_magic: -1, exhaust: false, enter_stance: None,
+                effect_data: &[E::ExtraHits(A::Fixed(3))], complex_hook: None,
             });
 }

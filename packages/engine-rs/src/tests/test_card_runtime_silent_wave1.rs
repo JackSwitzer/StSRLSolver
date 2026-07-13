@@ -2,6 +2,7 @@
 mod silent_wave1 {
     use crate::actions::Action;
     use crate::cards::global_registry;
+    use crate::engine::CombatEngine;
     use crate::effects::declarative::{AmountSource as A, Effect};
     use crate::status_ids::sid;
     use crate::tests::support::*;
@@ -39,9 +40,11 @@ mod silent_wave1 {
 
     #[test]
     fn silent_multi_hit_cards_export_declarative_extra_hits_and_play_correctly() {
+        // Eviscerate.java queues exactly three DamageActions and upgradeDamage(2).
+        // Java: reference/extracted/methods/card/Eviscerate.java
         let reg = global_registry();
         let eviscerate = reg.get("Eviscerate").expect("Eviscerate should exist");
-        assert_eq!(eviscerate.effect_data, &[Effect::ExtraHits(A::Magic)]);
+        assert_eq!(eviscerate.effect_data, &[Effect::ExtraHits(A::Fixed(3))]);
         let riddle = reg.get("Riddle with Holes").expect("Riddle with Holes should exist");
         assert_eq!(riddle.effect_data, &[Effect::ExtraHits(A::Magic)]);
 
@@ -50,6 +53,12 @@ mod silent_wave1 {
         let eviscerate_hp = eviscerate_engine.state.enemies[0].entity.hp;
         assert!(play_on_enemy(&mut eviscerate_engine, "Eviscerate", 0));
         assert_eq!(eviscerate_engine.state.enemies[0].entity.hp, eviscerate_hp - 21);
+
+        let mut upgraded_engine = engine_with(make_deck_n("Eviscerate+", 8), 100, 0);
+        ensure_in_hand(&mut upgraded_engine, "Eviscerate+");
+        let upgraded_hp = upgraded_engine.state.enemies[0].entity.hp;
+        assert!(play_on_enemy(&mut upgraded_engine, "Eviscerate+", 0));
+        assert_eq!(upgraded_engine.state.enemies[0].entity.hp, upgraded_hp - 27);
 
         let mut riddle_engine = engine_with(make_deck_n("Riddle with Holes", 8), 100, 0);
         ensure_in_hand(&mut riddle_engine, "Riddle with Holes");
@@ -60,22 +69,78 @@ mod silent_wave1 {
 
     #[test]
     fn silent_runtime_cost_scaling_uses_the_production_engine_path() {
-        let mut eviscerate_engine = engine_with(
-            make_deck(&["Strike", "Eviscerate"]),
-            40,
-            0,
+        // Eviscerate.triggerWhenDrawn sets costForTurn to card.cost minus
+        // totalDiscardedThisTurn. Each later incrementDiscard calls
+        // Eviscerate.didDiscard and removes one more cost.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Eviscerate.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+        let mut eviscerate_engine = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            1,
         );
-        eviscerate_engine.state.hand = make_deck(&["Eviscerate"]);
-        eviscerate_engine.state.draw_pile.clear();
+        force_player_turn(&mut eviscerate_engine);
+        eviscerate_engine.state.draw_pile = make_deck(&["Eviscerate"]);
         eviscerate_engine.state.discard_pile.clear();
-        eviscerate_engine.state.energy = 1;
         eviscerate_engine.state.player.add_status(sid::DISCARDED_THIS_TURN, 2);
+        eviscerate_engine.draw_cards(1);
+        assert_eq!(eviscerate_engine.state.hand[0].cost, 1);
         assert!(eviscerate_engine.get_legal_actions().contains(&Action::PlayCard {
             card_idx: 0,
             target_idx: 0,
         }));
         assert!(play_on_enemy(&mut eviscerate_engine, "Eviscerate", 0));
         assert_eq!(eviscerate_engine.state.energy, 0);
+
+        let mut discard_engine = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            2,
+        );
+        force_player_turn(&mut discard_engine);
+        discard_engine.state.hand = make_deck(&["Eviscerate"]);
+        discard_engine.state.discard_pile = make_deck(&["Defend"]);
+        discard_engine.on_card_discarded(discard_engine.state.discard_pile[0]);
+        assert_eq!(discard_engine.state.hand[0].cost, 2);
+
+        // triggerWhenDrawn runs before ConfusionPower.onCardDraw. Confusion
+        // therefore overwrites the discount from earlier discards; only later
+        // discards decrement the randomized cost.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ConfusionPower.java
+        let confusion_seed = (0u64..100)
+            .find(|seed| {
+                let mut rng = crate::seed::StsRandom::new(*seed);
+                rng.random(3) == 3
+            })
+            .expect("a seed whose first Confusion roll is three");
+        let mut confusion_engine = CombatEngine::new(
+            combat_state_with(
+                Vec::new(),
+                vec![enemy_no_intent("JawWorm", 40, 40)],
+                2,
+            ),
+            confusion_seed,
+        );
+        force_player_turn(&mut confusion_engine);
+        confusion_engine.state.draw_pile = make_deck(&["Eviscerate"]);
+        confusion_engine.state.discard_pile = make_deck(&["Defend"]);
+        confusion_engine.state.player.set_status(sid::DISCARDED_THIS_TURN, 2);
+        confusion_engine.state.player.set_status(sid::CONFUSION, 1);
+        confusion_engine.draw_cards(1);
+
+        assert_eq!(confusion_engine.state.hand[0].cost, 3);
+        assert!(!confusion_engine.get_legal_actions().contains(&Action::PlayCard {
+            card_idx: 0,
+            target_idx: 0,
+        }));
+
+        confusion_engine.on_card_discarded(confusion_engine.state.discard_pile[0]);
+        assert_eq!(confusion_engine.state.hand[0].cost, 2);
+        assert!(confusion_engine.get_legal_actions().contains(&Action::PlayCard {
+            card_idx: 0,
+            target_idx: 0,
+        }));
 
         let mut stab_engine = engine_with(
             make_deck(&["Masterful Stab"]),

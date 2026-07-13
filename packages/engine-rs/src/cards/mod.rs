@@ -24,7 +24,7 @@ use crate::effects::declarative::CardFilter;
 #[cfg(test)]
 use crate::effects::types::{
     CanPlayRule, CostModifierRule, DamageModifierRule, EndTurnHandRule, OnDiscardRule,
-    OnDrawRule, OnRetainRule, PostPlayRule, WhileInHandRule,
+    OnDrawRule, OnRetainRule, PostPlayRule, StatefulCostRule, WhileInHandRule,
 };
 
 mod prelude;
@@ -337,7 +337,7 @@ impl CardDef {
                 CardRuntimeTrigger::ModifyCost(CostModifierRule::ReducePerPower) => {
                     add_test_marker(&mut markers, "reduce_cost_per_power");
                 }
-                CardRuntimeTrigger::ModifyCost(CostModifierRule::ReduceOnDiscard) => {
+                CardRuntimeTrigger::StatefulCost(StatefulCostRule::ReduceOnDiscard) => {
                     add_test_marker(&mut markers, "cost_reduce_on_discard");
                 }
                 CardRuntimeTrigger::ModifyCost(CostModifierRule::IncreaseOnHpLoss) => {

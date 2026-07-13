@@ -4,7 +4,7 @@ use crate::effects::declarative::{
 use crate::effects::types::{
     CanPlayRule, CardBlockHint, CardEvokeHint, CardMetadata, CardPlayHints, CardRuntimeTraits,
     CardRuntimeTrigger, CostModifierRule, DamageModifierRule, EndTurnHandRule, OnDiscardRule,
-    OnDrawRule, OnExhaustRule, OnRetainRule, PostPlayRule, WhileInHandRule,
+    OnDrawRule, OnExhaustRule, OnRetainRule, PostPlayRule, StatefulCostRule, WhileInHandRule,
 };
 
 const EMPTY_TRIGGERS: &[CardRuntimeTrigger] = &[];
@@ -41,7 +41,7 @@ const BLOOD_FOR_BLOOD_TRIGGERS: &[CardRuntimeTrigger] =
 const FORCE_FIELD_TRIGGERS: &[CardRuntimeTrigger] =
     &[CardRuntimeTrigger::ModifyCost(CostModifierRule::ReducePerPower)];
 const EVISCERATE_TRIGGERS: &[CardRuntimeTrigger] =
-    &[CardRuntimeTrigger::ModifyCost(CostModifierRule::ReduceOnDiscard)];
+    &[CardRuntimeTrigger::StatefulCost(StatefulCostRule::ReduceOnDiscard)];
 const MASTERFUL_STAB_TRIGGERS: &[CardRuntimeTrigger] =
     &[CardRuntimeTrigger::ModifyCost(CostModifierRule::IncreaseOnHpLoss)];
 const TANTRUM_TRIGGERS: &[CardRuntimeTrigger] =

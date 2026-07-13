@@ -469,8 +469,8 @@ mod silent_card_java_parity_tests {
         "Escape Plan+", 0, -1, 5, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["block_if_skill"],
     );
     card_pair_test!(eviscerate,
-        "Eviscerate", 3, 7, -1, 3, CardType::Attack, CardTarget::Enemy, false, None, &["multi_hit", "cost_reduce_on_discard"],
-        "Eviscerate+", 3, 8, -1, 3, CardType::Attack, CardTarget::Enemy, false, None, &["multi_hit", "cost_reduce_on_discard"],
+        "Eviscerate", 3, 7, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["multi_hit", "cost_reduce_on_discard"],
+        "Eviscerate+", 3, 9, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["multi_hit", "cost_reduce_on_discard"],
     );
     card_pair_test!(expertise,
         "Expertise", 1, -1, -1, 6, CardType::Skill, CardTarget::None, false, None, &["draw_to_n"],

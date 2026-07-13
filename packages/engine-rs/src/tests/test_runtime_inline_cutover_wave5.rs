@@ -59,7 +59,12 @@ fn canonical_cost_helper_matches_runtime_scaling_rules() {
 
     engine.state.player.set_status(sid::DISCARDED_THIS_TURN, 2);
     let eviscerate = registry.get("Eviscerate").expect("Eviscerate");
-    let eviscerate_inst = registry.make_card("Eviscerate");
+    let mut eviscerate_inst = registry.make_card("Eviscerate");
+    crate::effects::card_runtime::initialize_stateful_cost_on_draw(
+        eviscerate,
+        &mut eviscerate_inst,
+        2,
+    );
     assert_eq!(engine.effective_cost_inst(eviscerate, eviscerate_inst), 1);
 
     engine.state.total_damage_taken = 3;

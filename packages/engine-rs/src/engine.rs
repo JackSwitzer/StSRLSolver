@@ -2643,6 +2643,12 @@ impl CombatEngine {
     /// Called when a card is manually discarded from hand (card effects, choices).
     /// NOT called for end-of-turn discard (matches real game behavior).
     pub fn on_card_discarded(&mut self, card: CardInstance) {
+        // incrementDiscard updates the counter and every Eviscerate before
+        // queued manual-discard hooks such as Reflex resolve.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+        self.state.player.add_status(sid::DISCARDED_THIS_TURN, 1);
+        effects::card_runtime::apply_stateful_cost_on_discard(self);
+
         let discard_effect = effects::card_runtime::apply_on_discard(self, card);
 
         if discard_effect.draw > 0 {
@@ -2652,9 +2658,6 @@ impl CombatEngine {
         if discard_effect.energy > 0 {
             self.state.energy += discard_effect.energy;
         }
-
-        // Track discard count this turn (for Sneaky Strike, Eviscerate)
-        self.state.player.add_status(sid::DISCARDED_THIS_TURN, 1);
 
         // Relic triggers via unified dispatch (Tough Bandages, Tingsha)
         {
@@ -3626,6 +3629,11 @@ impl CombatEngine {
 
             if let Some(mut drawn) = self.state.draw_pile.pop() {
                 let card_def = self.card_registry.card_def_by_id(drawn.def_id);
+                effects::card_runtime::initialize_stateful_cost_on_draw(
+                    card_def,
+                    &mut drawn,
+                    self.state.player.status(sid::DISCARDED_THIS_TURN),
+                );
                 // ConfusionPower.java::onCardDraw consumes cardRandomRng for
                 // every non-negative-cost card, permanently sets both cost
                 // and costForTurn to 0..3, and clears freeToPlayOnce.

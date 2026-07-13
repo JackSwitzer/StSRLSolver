@@ -4,7 +4,7 @@ use crate::engine::CombatEngine;
 use crate::effects::types::{
     CanPlayRule, CardPlayContext, CardRuntimeTrigger, CostModifierRule, DamageModifier,
     DamageModifierRule, OnDiscardEffect, OnDiscardRule, OnDrawRule, OnExhaustRule,
-    OnRetainRule, PostPlayDestination, PostPlayRule,
+    OnRetainRule, PostPlayDestination, PostPlayRule, StatefulCostRule,
 };
 use crate::status_ids::sid;
 
@@ -56,10 +56,6 @@ pub fn apply_cost_modifiers(engine: &CombatEngine, card: &CardDef, base_cost: i3
                         crate::powers::registry::active_player_power_count(&engine.state.player);
                     cost = (cost - power_count).max(0);
                 }
-                CostModifierRule::ReduceOnDiscard => {
-                    let discarded = engine.state.player.status(sid::DISCARDED_THIS_TURN);
-                    cost = (cost - discarded).max(0);
-                }
                 CostModifierRule::IncreaseOnHpLoss => {
                     cost += engine.state.total_damage_taken;
                 }
@@ -67,6 +63,59 @@ pub fn apply_cost_modifiers(engine: &CombatEngine, card: &CardDef, base_cost: i3
         }
     }
     cost
+}
+
+/// Eviscerate.triggerWhenDrawn initializes costForTurn from its combat cost
+/// and the discard count so far, before onCardDraw powers such as Confusion.
+/// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Eviscerate.java
+pub fn initialize_stateful_cost_on_draw(
+    card: &CardDef,
+    card_inst: &mut CardInstance,
+    discarded_this_turn: i32,
+) {
+    for trigger in card.runtime_triggers() {
+        match trigger {
+            CardRuntimeTrigger::StatefulCost(StatefulCostRule::ReduceOnDiscard) => {
+                let combat_cost = if card_inst.base_cost >= 0 {
+                    card_inst.base_cost as i32
+                } else {
+                    card.cost
+                };
+                card_inst.set_cost_for_turn((combat_cost - discarded_this_turn).max(0) as i8);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// AbstractPlayer.updateCardsOnDiscard calls Eviscerate.didDiscard for every
+/// copy in hand, draw, and discard piles after each manual discard.
+/// Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+/// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Eviscerate.java
+pub fn apply_stateful_cost_on_discard(engine: &mut CombatEngine) {
+    let registry = engine.card_registry;
+    for card_inst in engine
+        .state
+        .hand
+        .iter_mut()
+        .chain(engine.state.draw_pile.iter_mut())
+        .chain(engine.state.discard_pile.iter_mut())
+    {
+        let card = registry.card_def_by_id(card_inst.def_id);
+        if card.runtime_triggers().iter().any(|trigger| {
+            matches!(
+                trigger,
+                CardRuntimeTrigger::StatefulCost(StatefulCostRule::ReduceOnDiscard)
+            )
+        }) {
+            let current_cost = if card_inst.cost >= 0 {
+                card_inst.cost
+            } else {
+                card.cost as i8
+            };
+            card_inst.set_cost_for_turn((current_cost - 1).max(0));
+        }
+    }
 }
 
 pub fn resolve_damage_modifiers(

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T07:57:21.657291+00:00",
+ "updated": "2026-07-13T08:04:09.346508+00:00",
  "status_counts": {
-  "verified": 397,
-  "unverified": 270
+  "verified": 398,
+  "unverified": 269
  },
  "rows": [
   {
@@ -1362,8 +1362,8 @@
    "class": "Eviscerate",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Eviscerate.java",
    "methods_ref": "reference/extracted/methods/card/Eviscerate.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
