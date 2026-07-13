@@ -20,8 +20,8 @@ use crate::effects::runtime::EffectOwner;
 use crate::engine::{ChoiceReason, CombatPhase};
 use crate::status_ids::sid;
 use crate::tests::support::{
-    combat_state_with, enemy_no_intent, engine_with_state, engine_without_start, make_deck,
-    make_deck_n,
+    combat_state_with, end_turn, enemy_no_intent, engine_with_state, engine_without_start,
+    force_player_turn, make_deck, make_deck_n,
 };
 
 #[test]
@@ -142,6 +142,31 @@ fn runic_cube_draws_one_card_per_positive_hp_loss_event() {
     assert_eq!(engine.state.hand.len(), 2);
     engine.player_lose_hp(0);
     assert_eq!(engine.state.hand.len(), 2);
+}
+
+#[test]
+fn self_forming_clay_stacks_three_block_per_hp_loss_for_the_next_turn() {
+    // SelfFormingClay.java::wasHPLost applies three NextTurnBlockPower for
+    // every positive loss event. NextTurnBlockPower.java grants the stacked
+    // amount at turn start and then removes itself.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.relics = vec!["Self Forming Clay".to_string()];
+    engine.rebuild_effect_runtime();
+    engine.state.player.block = 20;
+
+    engine.player_lose_hp(1);
+    engine.player_lose_hp(12);
+    assert_eq!(engine.state.player.status(sid::NEXT_TURN_BLOCK), 6);
+
+    engine.state.skip_enemy_turn = true;
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.block, 6);
+    assert_eq!(engine.state.player.status(sid::NEXT_TURN_BLOCK), 0);
 }
 
 #[test]

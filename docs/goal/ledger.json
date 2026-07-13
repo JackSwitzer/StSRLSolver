@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T23:16:02.726456+00:00",
+ "updated": "2026-07-13T23:18:50.184048+00:00",
  "status_counts": {
-  "verified": 656,
-  "unverified": 11
+  "verified": 657,
+  "unverified": 10
  },
  "rows": [
   {
@@ -6182,8 +6182,8 @@
    "class": "SelfFormingClay",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/SelfFormingClay.java",
    "methods_ref": "reference/extracted/methods/relic/SelfFormingClay.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

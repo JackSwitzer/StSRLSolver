@@ -1702,6 +1702,14 @@ impl CombatEngine {
         // but applies to exactly one enemy round.
         self.state.skip_enemy_turn = false;
 
+        // NextTurnBlockPower.atStartOfTurn queues GainBlockAction followed by
+        // removal of the power. GameActionManager clears the previous turn's
+        // block before that queued gain resolves, so this block belongs to the
+        // new turn and the stacked power is consumed exactly once.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NextTurnBlockPower.java
+        let next_turn_block = powers::consume_next_turn_block(&mut self.state.player);
+        self.gain_block_player(next_turn_block);
+
         // LoseStrength/LoseDexterity at end of the previous turn.
         // Turn 1 has no "previous turn", so combat-start temporary strength
         // should survive into the opening player turn.
