@@ -182,27 +182,43 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
 
         let hits = enemy.move_hits();
         for _ in 0..hits {
-            // Buffer: negate the entire hit and decrement Buffer
-            let buffer = engine.state.player.status(sid::BUFFER);
-            if buffer > 0 {
-                engine.state.player.set_status(sid::BUFFER, buffer - 1);
-                continue;
-            }
-
-            let result = damage::calculate_incoming_damage(
+            // AbstractPlayer.damage applies Intangible and block before
+            // BufferPower.onAttackedToChangeDamage. Buffer therefore consumes
+            // a stack only when positive damage remains after block. Torii's
+            // onAttacked and Tungsten Rod's onLoseHpLast run afterward.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BufferPower.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Torii.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/TungstenRod.java
+            let result_before_buffer = damage::calculate_incoming_damage(
                 per_hit_base,
                 engine.state.player.block,
                 is_wrath,
                 player_vuln,
                 player_intangible,
-                has_torii,
-                has_tungsten,
+                false,
+                false,
                 has_odd_mushroom,
             );
 
-            engine.state.player.block = result.block_remaining;
-            if result.hp_loss > 0 {
-                engine.player_lose_hp(result.hp_loss);
+            engine.state.player.block = result_before_buffer.block_remaining;
+            let mut hp_loss = result_before_buffer.hp_loss;
+            if hp_loss > 0 {
+                let buffer = engine.state.player.status(sid::BUFFER);
+                if buffer > 0 {
+                    engine.state.player.set_status(sid::BUFFER, buffer - 1);
+                    continue;
+                }
+                if has_torii && (2..=5).contains(&hp_loss) {
+                    hp_loss = 1;
+                }
+                if has_tungsten {
+                    hp_loss = (hp_loss - 1).max(0);
+                }
+            }
+
+            if hp_loss > 0 {
+                engine.player_lose_hp(hp_loss);
                 if engine.state.combat_over {
                     return;
                 }

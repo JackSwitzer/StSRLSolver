@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T04:38:01.943757+00:00",
+ "updated": "2026-07-13T04:40:54.448287+00:00",
  "status_counts": {
-  "verified": 328,
-  "unverified": 339
+  "verified": 329,
+  "unverified": 338
  },
  "rows": [
   {
@@ -462,8 +462,8 @@
    "class": "Buffer",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Buffer.java",
    "methods_ref": "reference/extracted/methods/card/Buffer.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

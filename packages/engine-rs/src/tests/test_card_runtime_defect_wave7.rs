@@ -15,7 +15,7 @@ use crate::effects::types::{CardRuntimeTraits, CardBlockHint};
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
 use crate::tests::support::{
-    end_turn, enemy_no_intent, engine_with, engine_without_start, exhaust_prefix_count,
+    end_turn, enemy, enemy_no_intent, engine_with, engine_without_start, exhaust_prefix_count,
     force_player_turn, hand_count, make_deck, make_deck_n, play_self,
 };
 
@@ -172,4 +172,35 @@ fn defect_wave7_buffer_heatsinks_hello_world_and_loop_follow_engine_path() {
     assert_eq!(loop_card.state.player.status(sid::LOOP), 2);
     end_turn(&mut loop_card);
     assert_eq!(loop_card.state.enemies[0].entity.hp, 54);
+}
+
+#[test]
+fn buffer_stacks_and_only_consumes_after_block_leaves_positive_damage() {
+    // Buffer.java applies magicNumber stacks (1, upgraded to 2). In
+    // AbstractPlayer.damage, block is decremented before
+    // BufferPower.onAttackedToChangeDamage; Buffer queues one stack reduction
+    // only when that per-hit damageAmount is still positive.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Buffer.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BufferPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy("Dummy", 40, 40, 1, 5, 2)],
+        4,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Buffer", "Buffer+"]);
+
+    assert!(play_self(&mut engine, "Buffer"));
+    assert!(play_self(&mut engine, "Buffer+"));
+    assert_eq!(engine.state.player.status(sid::BUFFER), 3);
+    assert_eq!(engine.state.energy, 0);
+
+    engine.state.player.block = 5;
+    let hp_before = engine.state.player.hp;
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.hp, hp_before);
+    assert_eq!(engine.state.player.block, 0);
+    assert_eq!(engine.state.player.status(sid::BUFFER), 2);
 }
