@@ -1581,6 +1581,25 @@ fn execute_choose_cards(
         return;
     }
 
+    // Non-random PutOnDeckAction skips hand selection when the whole hand fits
+    // in its amount. It still calls getRandomCard(cardRandomRng) for each moved
+    // card, including the singleton case used by Thinking Ahead and Warcry.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/PutOnDeckAction.java
+    if source == Pile::Hand
+        && action == ChoiceAction::PutOnTopOfDraw
+        && requested_min == requested_max
+        && options.len() <= requested_max
+    {
+        for _ in 0..options.len() {
+            let index = engine
+                .card_random_rng
+                .random((engine.state.hand.len() - 1) as i32) as usize;
+            let card = engine.state.hand.remove(index);
+            engine.state.draw_pile.push(card);
+        }
+        return;
+    }
+
     // SetupAction directly moves the only card remaining after Setup leaves the
     // hand; hand selection opens only when at least two cards remain.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/SetupAction.java

@@ -79,6 +79,62 @@ fn the_bomb_keeps_independent_three_turn_countdowns_and_damage() {
 }
 
 #[test]
+fn thinking_ahead_draws_before_put_on_deck_and_auto_moves_a_singleton() {
+    // ThinkingAhead.java queues DrawCardAction(2) before PutOnDeckAction(1,
+    // false), and upgrade only removes Exhaust. PutOnDeckAction auto-moves a
+    // singleton through getRandomCard, consuming one cardRandomRng tick.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/ThinkingAhead.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/PutOnDeckAction.java
+    for (card_id, should_exhaust) in [("Thinking Ahead", true), ("Thinking Ahead+", false)] {
+        let mut singleton = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            0,
+        );
+        force_player_turn(&mut singleton);
+        singleton.state.hand = make_deck(&[card_id]);
+        singleton.state.draw_pile = make_deck(&["Strike"]);
+        let card_random_before = singleton.card_random_rng.counter;
+
+        assert!(play_self(&mut singleton, card_id));
+
+        assert_eq!(singleton.phase, crate::engine::CombatPhase::PlayerTurn);
+        assert!(singleton.choice.is_none());
+        assert!(singleton.state.hand.is_empty());
+        assert_eq!(singleton.state.draw_pile.len(), 1);
+        assert_eq!(
+            singleton
+                .card_registry
+                .card_name(singleton.state.draw_pile.last().unwrap().def_id),
+            "Strike"
+        );
+        assert_eq!(singleton.card_random_rng.counter, card_random_before + 1);
+        assert_eq!(exhaust_prefix_count(&singleton, "Thinking Ahead"), should_exhaust as usize);
+        assert_eq!(discard_prefix_count(&singleton, "Thinking Ahead"), (!should_exhaust) as usize);
+    }
+
+    let mut selection = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        0,
+    );
+    force_player_turn(&mut selection);
+    selection.state.hand = make_deck(&["Thinking Ahead"]);
+    selection.state.draw_pile = make_deck(&["Strike", "Defend"]);
+    let card_random_before = selection.card_random_rng.counter;
+
+    assert!(play_self(&mut selection, "Thinking Ahead"));
+
+    assert_eq!(selection.phase, crate::engine::CombatPhase::AwaitingChoice);
+    assert_eq!(selection.state.hand.len(), 2);
+    assert_eq!(selection.card_random_rng.counter, card_random_before);
+    selection.execute_action(&crate::actions::Action::Choose(0));
+    assert_eq!(selection.phase, crate::engine::CombatPhase::PlayerTurn);
+    assert_eq!(selection.state.hand.len(), 1);
+    assert_eq!(selection.state.draw_pile.len(), 1);
+}
+
+#[test]
 fn jax_source_loses_fixed_three_hp_then_gains_two_or_three_strength() {
     // JAX.java queues LoseHPAction(p, p, 3) before applying magicNumber
     // Strength (2, upgraded to 3). LoseHPAction uses HP_LOSS damage, so Buffer

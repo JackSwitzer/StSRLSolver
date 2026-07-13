@@ -1,6 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+    // ThinkingAhead.java draws two, then queues a mandatory PutOnDeckAction
+    // for one card. Upgrading only removes Exhaust.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/ThinkingAhead.java
     insert(cards, CardDef {
                 id: "Thinking Ahead", name: "Thinking Ahead", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,

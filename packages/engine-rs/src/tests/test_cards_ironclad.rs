@@ -1546,10 +1546,17 @@ mod ironclad_card_java_parity_tests {
 
     #[test]
     fn warcry_draws_and_exhausts_itself() {
+        // Warcry.java queues DrawCardAction before PutOnDeckAction(1, false).
+        // With one resulting hand card, PutOnDeckAction skips selection and
+        // getRandomCard consumes one cardRandomRng tick before moving it.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Warcry.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/PutOnDeckAction.java
         let mut e = engine_for(&["Warcry"], &["Strike"], &[], vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 3);
+        let card_random_before = e.card_random_rng.counter;
         assert!(play_self(&mut e, "Warcry"));
-        assert_eq!(e.phase, crate::engine::CombatPhase::AwaitingChoice);
-        e.execute_action(&Action::Choose(0));
+        assert_eq!(e.phase, crate::engine::CombatPhase::PlayerTurn);
+        assert!(e.choice.is_none());
+        assert_eq!(e.card_random_rng.counter, card_random_before + 1);
         assert_eq!(e.state.hand.len(), 0);
         assert_eq!(e.state.draw_pile.len(), 1);
         assert_eq!(exhaust_prefix_count(&e, "Warcry"), 1);
