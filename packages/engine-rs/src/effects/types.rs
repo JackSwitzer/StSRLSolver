@@ -173,6 +173,8 @@ pub struct CardPlayContext<'a> {
     pub last_bulk_count: i32,
     /// Types actually drawn by the most recent DrawCards effect in this play.
     pub last_drawn_card_types: Vec<CardType>,
+    /// Manual-discard hooks queued behind a later effect in the same Java action.
+    pub deferred_manual_discards: Vec<OnDiscardEffect>,
 }
 
 /// Damage modifier returned by modify_damage hooks.

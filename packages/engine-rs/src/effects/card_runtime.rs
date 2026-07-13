@@ -223,6 +223,7 @@ pub fn apply_on_exhaust(engine: &mut CombatEngine, card: &CardDef, card_inst: Ca
                 hand_size_at_play: engine.state.hand.len(),
                 last_bulk_count: 0,
                 last_drawn_card_types: Vec::new(),
+                deferred_manual_discards: Vec::new(),
             };
             match rule {
                 OnExhaustRule::GainEnergy => crate::effects::hooks_simple::hook_energy_on_exhaust(engine, &ctx),

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T15:44:48.301861+00:00",
+ "updated": "2026-07-13T15:50:31.448780+00:00",
  "status_counts": {
-  "verified": 541,
-  "unverified": 126
+  "verified": 542,
+  "unverified": 125
  },
  "rows": [
   {
@@ -3112,8 +3112,8 @@
    "class": "StormOfSteel",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/StormOfSteel.java",
    "methods_ref": "reference/extracted/methods/card/StormOfSteel.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

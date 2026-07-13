@@ -862,6 +862,7 @@ impl CombatEngine {
                 hand_size_at_play: deferred.hand_size_at_play,
                 last_bulk_count: 0,
                 last_drawn_card_types: Vec::new(),
+                deferred_manual_discards: Vec::new(),
             };
             crate::card_effects::execute_primary_attack(
                 self,
@@ -2281,6 +2282,7 @@ impl CombatEngine {
             hand_size_at_play: self.state.hand.len().saturating_sub(1),
             last_bulk_count: 0,
             last_drawn_card_types: Vec::new(),
+            deferred_manual_discards: Vec::new(),
         };
         crate::effects::interpreter::resolve_card_amount(self, &ctx, &min_picks).max(0)
     }
@@ -2938,14 +2940,29 @@ impl CombatEngine {
     /// Called when a card is manually discarded from hand (card effects, choices).
     /// NOT called for end-of-turn discard (matches real game behavior).
     pub fn on_card_discarded(&mut self, card: CardInstance) {
+        let effect = self.prepare_card_discarded(card);
+        self.resolve_card_discarded_effect(effect);
+    }
+
+    /// Apply synchronous discard bookkeeping and capture actions that Java
+    /// queues for later resolution.
+    pub(crate) fn prepare_card_discarded(
+        &mut self,
+        card: CardInstance,
+    ) -> crate::effects::types::OnDiscardEffect {
         // incrementDiscard updates the counter and every Eviscerate before
         // queued manual-discard hooks such as Reflex resolve.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
         self.state.player.add_status(sid::DISCARDED_THIS_TURN, 1);
         effects::card_runtime::apply_stateful_cost_on_discard(self);
 
-        let discard_effect = effects::card_runtime::apply_on_discard(self, card);
+        effects::card_runtime::apply_on_discard(self, card)
+    }
 
+    pub(crate) fn resolve_card_discarded_effect(
+        &mut self,
+        discard_effect: crate::effects::types::OnDiscardEffect,
+    ) {
         if discard_effect.draw > 0 {
             self.draw_cards(discard_effect.draw);
         }

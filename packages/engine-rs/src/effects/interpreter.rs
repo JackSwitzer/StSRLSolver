@@ -455,6 +455,21 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             if pile == Pile::Draw && count > 0 {
                 engine.shuffle_draw_pile();
             }
+            if matches!(ctx.card.id, "Storm of Steel" | "Storm of Steel+")
+                && pile == Pile::Hand
+            {
+                // BladeFuryAction puts MakeTempCardInHandAction ahead of the
+                // card/relic actions queued by DiscardAction. Resolve those
+                // hooks only after all Shivs have been created.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/BladeFuryAction.java
+                let deferred = std::mem::take(&mut ctx.deferred_manual_discards);
+                for effect in deferred {
+                    engine.resolve_card_discarded_effect(effect);
+                    if engine.state.combat_over {
+                        break;
+                    }
+                }
+            }
         }
 
         SimpleEffect::AddCardToRandomDrawSpot(name, ref amount_src) => {
@@ -1332,6 +1347,7 @@ pub fn execute_trigger_effects(
         hand_size_at_play: 0,
         last_bulk_count: 0,
         last_drawn_card_types: Vec::new(),
+        deferred_manual_discards: Vec::new(),
     };
 
     execute_effects(engine, &mut ctx, effects);
@@ -1974,7 +1990,12 @@ fn execute_for_each(
             for card in discarded {
                 engine.state.discard_pile.push(card);
                 if pile == Pile::Hand {
-                    engine.on_card_discarded(card);
+                    if matches!(ctx.card.id, "Storm of Steel" | "Storm of Steel+") {
+                        let effect = engine.prepare_card_discarded(card);
+                        ctx.deferred_manual_discards.push(effect);
+                    } else {
+                        engine.on_card_discarded(card);
+                    }
                 }
             }
         }
