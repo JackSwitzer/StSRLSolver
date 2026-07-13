@@ -981,6 +981,29 @@ mod silent_card_java_parity_tests {
     }
 
     #[test]
+    fn lethal_neutralize_damage_prevents_its_later_weak_action() {
+        // Neutralize.java queues DamageAction before ApplyPowerAction. The
+        // latter cancels when its target is dead; a second living enemy keeps
+        // combat active so this specifically exercises the target gate.
+        let mut engine = engine_without_start(
+            Vec::new(),
+            vec![
+                enemy_no_intent("JawWorm", 3, 3),
+                enemy_no_intent("Cultist", 40, 40),
+            ],
+            3,
+        );
+        force_player_turn(&mut engine);
+        engine.state.hand = make_deck(&["Neutralize"]);
+
+        assert!(play_on_enemy(&mut engine, "Neutralize", 0));
+        assert!(engine.state.enemies[0].entity.is_dead());
+        assert_eq!(engine.state.enemies[0].entity.status(sid::WEAKENED), 0);
+        assert_eq!(engine.state.enemies[1].entity.hp, 40);
+        assert!(!engine.state.combat_over);
+    }
+
+    #[test]
     fn backflip_blocks_and_draws() {
         let mut engine = engine_with(make_deck_n("Backflip", 8), 40, 0);
         ensure_in_hand(&mut engine, "Backflip");

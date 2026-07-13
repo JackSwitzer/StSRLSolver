@@ -858,8 +858,15 @@ fn apply_status(
         }
         Target::SelectedEnemy => {
             let idx = ctx.target_idx;
-            if idx >= 0 && (idx as usize) < engine.state.enemies.len() {
+            if idx >= 0
+                && (idx as usize) < engine.state.enemies.len()
+                && engine.state.enemies[idx as usize].is_targetable()
+            {
                 let i = idx as usize;
+                // ApplyPowerAction immediately cancels for a dead or escaped
+                // target. This matters for damage-then-debuff cards whose hit
+                // kills the selected monster, such as Neutralize.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ApplyPowerAction.java
                 if is_debuff(status, amount) {
                     engine.apply_player_debuff_to_enemy(i, status, amount);
                 } else {

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T11:44:47.891974+00:00",
+ "updated": "2026-07-13T11:47:49.551762+00:00",
  "status_counts": {
-  "verified": 472,
-  "unverified": 195
+  "verified": 473,
+  "unverified": 194
  },
  "rows": [
   {
@@ -2272,8 +2272,8 @@
    "class": "Neutralize",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Neutralize.java",
    "methods_ref": "reference/extracted/methods/card/Neutralize.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

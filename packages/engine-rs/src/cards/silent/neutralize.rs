@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Basic: Neutralize ---- (cost 0, 3 dmg, 1 weak; +1/+1)
+    // Neutralize.java queues one NORMAL damage hit followed by Weak: base is
+    // zero cost, 3 damage and 1 Weak; upgrade adds 1 to damage and Weak.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Neutralize.java
     insert(cards, CardDef {
                 id: "Neutralize", name: "Neutralize", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 0, base_damage: 3, base_block: -1,
