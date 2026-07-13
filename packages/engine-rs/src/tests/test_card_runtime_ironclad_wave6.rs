@@ -175,6 +175,20 @@ fn ironclad_wave6_cleave_and_bludgeon_follow_the_attack_preamble() {
 }
 
 #[test]
+fn cleave_plus_deals_one_upgraded_hit_to_every_enemy() {
+    // Cleave.use queues one DamageAllEnemiesAction using its multiDamage
+    // matrix. Base damage is 8 and upgradeDamage(3) changes every entry to 11.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Cleave.java.
+    let mut engine = two_enemy_engine(("JawWorm", 40), ("Cultist", 35));
+    engine.state.hand = make_deck(&["Cleave+"]);
+
+    assert!(play_on_enemy(&mut engine, "Cleave+", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp, 29);
+    assert_eq!(engine.state.enemies[1].entity.hp, 24);
+    assert_eq!(engine.state.energy, 2);
+}
+
+#[test]
 fn bludgeon_variants_spend_three_energy_for_one_source_sized_hit() {
     // Source: Bludgeon.java queues one DamageAction for 32 damage at cost 3;
     // upgradeDamage(10) changes only the hit to 42.
