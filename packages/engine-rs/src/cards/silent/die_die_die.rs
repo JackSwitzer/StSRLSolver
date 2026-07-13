@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // ---- Silent Rare: Die Die Die ---- (cost 1, 13 AoE dmg, exhaust; +4 dmg)
+    // Source: reference/extracted/methods/card/DieDieDie.java deals 13 damage
+    // to all enemies for 1 energy and exhausts; upgrading adds 4 damage only.
     insert(cards, CardDef {
         id: "Die Die Die", name: "Die Die Die", card_type: CardType::Attack,
         target: CardTarget::AllEnemy, cost: 1, base_damage: 13, base_block: -1,

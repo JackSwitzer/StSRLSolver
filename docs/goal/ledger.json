@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T07:08:10.204888+00:00",
+ "updated": "2026-07-13T07:09:18.322233+00:00",
  "status_counts": {
-  "verified": 376,
-  "unverified": 291
+  "verified": 377,
+  "unverified": 290
  },
  "rows": [
   {
@@ -1082,8 +1082,8 @@
    "class": "DieDieDie",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/DieDieDie.java",
    "methods_ref": "reference/extracted/methods/card/DieDieDie.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

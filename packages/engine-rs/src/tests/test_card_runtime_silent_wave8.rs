@@ -138,6 +138,8 @@ fn silent_wave8_block_and_aoe_cards_follow_java_oracle_on_engine_path() {
     assert_eq!(engine.state.enemies[0].entity.hp, 17);
 
     ensure_in_hand(&mut engine, "Die Die Die");
+    // DieDieDie.java queues one DamageAllEnemiesAction at 13 damage (17 after
+    // upgradeDamage(4)); both variants cost 1 and exhaust after use.
     assert!(play_on_enemy(&mut engine, "Die Die Die", 0));
     assert_eq!(engine.state.enemies[0].entity.hp, 4);
     assert_eq!(engine.state.enemies[1].entity.hp, 27);
