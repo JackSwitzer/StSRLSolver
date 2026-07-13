@@ -885,8 +885,14 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::BLOCK_AMT, 3);
         }
         "Reptomancer" => {
-            // First turn: Spawn daggers
+            // Source: reference/extracted/methods/monster/Reptomancer.java.
             enemy.set_move(move_ids::REPTO_SPAWN, 0, 0, 0);
+            enemy.intent = Intent::Unknown;
+            enemy.entity.set_status(sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(sid::STARTING_DMG, 13);
+            enemy.entity.set_status(sid::STR_AMT, 30);
+            enemy.entity.set_status(sid::BLOCK_AMT, 1);
+            enemy.entity.set_status(sid::COUNT, 0);
         }
         "SnakeDagger" | "Snake Dagger" => {
             // Source: reference/extracted/methods/monster/SnakeDagger.java.
@@ -1097,7 +1103,7 @@ fn select_move(
         "Transient" => act3::roll_transient(enemy, num),
         "GiantHead" | "Giant Head" => act3::roll_giant_head(enemy, num),
         "Nemesis" => act3::roll_nemesis(enemy, num, ai_rng),
-        "Reptomancer" => act3::roll_reptomancer(enemy, num),
+        "Reptomancer" => act3::roll_reptomancer(enemy, num, ai_rng),
         "SnakeDagger" | "Snake Dagger" => act3::roll_snake_dagger(enemy, num),
         "AwakenedOne" | "Awakened One" => act3::roll_awakened_one(enemy, num),
         "Donu" => act3::roll_donu(enemy, num),
@@ -1742,15 +1748,24 @@ mod tests {
 
     #[test]
     fn test_reptomancer_elite() {
+        // Source: reference/extracted/methods/monster/Reptomancer.java.
         let mut enemy = create_enemy("Reptomancer", 185, 185);
         assert_eq!(enemy.move_id, move_ids::REPTO_SPAWN);
+        assert!(matches!(enemy.intent, crate::combat_types::Intent::Unknown));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 99, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(enemy.move_id, move_ids::REPTO_SPAWN);
+
+        roll_next_move_with_num_and_rng(
+            &mut enemy, 0, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::REPTO_SNAKE_STRIKE);
         assert_eq!(enemy.move_damage(), 13);
         assert_eq!(enemy.move_hits(), 2);
+        assert_eq!(enemy.effect(crate::combat_types::mfx::WEAK), Some(1));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num_and_rng(
+            &mut enemy, 66, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::REPTO_BIG_BITE);
         assert_eq!(enemy.move_damage(), 30);
     }

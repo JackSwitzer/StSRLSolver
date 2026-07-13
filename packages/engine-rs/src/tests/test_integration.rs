@@ -2766,17 +2766,29 @@ mod effect_handler_tests {
 
     #[test]
     fn reptomancer_spawns_snake_daggers() {
+        // Sources: MonsterHelper.java (canonical encounter group) and
+        // reference/extracted/methods/monster/Reptomancer.java (`takeTurn`).
         let deck = make_deck_n("Defend", 20);
         let repto = crate::enemies::create_enemy("Reptomancer", 185, 185);
-        let state = CombatState::new(80, 80, vec![repto], deck, 3);
+        let mut left = crate::enemies::create_enemy("SnakeDagger", 22, 22);
+        let mut right = crate::enemies::create_enemy("SnakeDagger", 22, 22);
+        left.is_minion = true;
+        right.is_minion = true;
+        let state = CombatState::new(80, 80, vec![left, repto, right], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
 
-        assert_eq!(e.state.enemies.len(), 1);
+        assert_eq!(e.state.enemies.len(), 3);
+        assert_eq!(e.ai_rng.counter, 3,
+            "each member of the opening group consumes one init roll");
         e.execute_action(&Action::EndTurn);
-        assert_eq!(e.state.enemies.len(), 3,
-            "Reptomancer should spawn 2 SnakeDaggers");
-        assert_eq!(e.state.enemies[1].id, "SnakeDagger");
+        assert_eq!(e.state.enemies.len(), 4,
+            "baseline Reptomancer fills one of four dagger slots");
+        assert_eq!(e.state.enemies[3].id, "SnakeDagger");
+        assert!(e.state.enemies[3].is_minion);
+        assert_eq!(e.state.discard_pile.iter().filter(|card|
+            e.card_registry.card_name(card.def_id) == "Wound").count(), 2,
+            "newly spawned dagger waits until the next monster turn queue");
     }
 
     #[test]

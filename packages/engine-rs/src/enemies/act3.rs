@@ -342,16 +342,59 @@ pub(super) fn roll_nemesis(
     }
 }
 
-pub(super) fn roll_reptomancer(enemy: &mut EnemyCombatState, _num: i32) {
-    // Spawn -> Snake Strike (13x2 + Weak) -> Big Bite (30) -> cycle
-    if last_move(enemy, move_ids::REPTO_SPAWN) {
-        enemy.set_move(move_ids::REPTO_SNAKE_STRIKE, 13, 2, 0);
+pub(super) fn roll_reptomancer(
+    enemy: &mut EnemyCombatState,
+    num: i32,
+    ai_rng: &mut crate::seed::StsRandom,
+) {
+    // Source: reference/extracted/methods/monster/Reptomancer.java (`getMove`).
+    let strike_damage = enemy.entity.status(sid::STARTING_DMG).max(13);
+    let bite_damage = enemy.entity.status(sid::STR_AMT).max(30);
+    let strike = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::REPTO_SNAKE_STRIKE, strike_damage, 2, 0);
         enemy.add_effect(mfx::WEAK, 1);
-    } else if last_move(enemy, move_ids::REPTO_SNAKE_STRIKE) {
-        enemy.set_move(move_ids::REPTO_BIG_BITE, 30, 1, 0);
-    } else {
-        // After Big Bite: Spawn more daggers if slots open
+        enemy.intent = Intent::AttackDebuff {
+            damage: strike_damage as i16,
+            hits: 2,
+            effects: fx::WEAK,
+        };
+    };
+    let spawn = |enemy: &mut EnemyCombatState| {
         enemy.set_move(move_ids::REPTO_SPAWN, 0, 0, 0);
+        enemy.intent = Intent::Unknown;
+    };
+
+    if enemy.entity.status(sid::FIRST_MOVE) > 0 {
+        enemy.entity.set_status(sid::FIRST_MOVE, 0);
+        spawn(enemy);
+        return;
+    }
+
+    let mut roll = num;
+    loop {
+        if roll < 33 {
+            if !last_move(enemy, move_ids::REPTO_SNAKE_STRIKE) {
+                strike(enemy);
+                return;
+            }
+            roll = ai_rng.random_range(33, 99);
+        } else if roll < 66 {
+            if !last_two_moves(enemy, move_ids::REPTO_SPAWN) {
+                if enemy.entity.status(sid::COUNT) <= 3 {
+                    spawn(enemy);
+                } else {
+                    strike(enemy);
+                }
+            } else {
+                strike(enemy);
+            }
+            return;
+        } else if !last_move(enemy, move_ids::REPTO_BIG_BITE) {
+            enemy.set_move(move_ids::REPTO_BIG_BITE, bite_damage, 1, 0);
+            return;
+        } else {
+            roll = ai_rng.random(65);
+        }
     }
 }
 

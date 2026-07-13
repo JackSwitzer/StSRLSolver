@@ -1709,6 +1709,14 @@ impl RunEngine {
                     }
                     expanded.push("GremlinLeader".to_string());
                 }
+                "Reptomancer" => {
+                    // Source: decompiled/java-src/com/megacrit/cardcrawl/
+                    // helpers/MonsterHelper.java encounter case: left dagger,
+                    // Reptomancer, right dagger.
+                    expanded.push("SnakeDagger".to_string());
+                    expanded.push("Reptomancer".to_string());
+                    expanded.push("SnakeDagger".to_string());
+                }
                 _ => expanded.push(id.clone()),
             }
         }
@@ -1727,6 +1735,15 @@ impl RunEngine {
                 "GremlinFat" | "GremlinThief" | "GremlinWarrior"
                     | "GremlinWizard" | "GremlinTsundere"))
             {
+                enemy.is_minion = true;
+            }
+        }
+
+        if enemy_states.iter().any(|enemy| enemy.id == "Reptomancer") {
+            // Source: reference/extracted/methods/monster/Reptomancer.java
+            // (`usePreBattleAction`) gives MinionPower to every other monster
+            // in its encounter.
+            for enemy in enemy_states.iter_mut().filter(|enemy| enemy.id != "Reptomancer") {
                 enemy.is_minion = true;
             }
         }
@@ -2038,6 +2055,20 @@ impl RunEngine {
                 if self.run_state.ascension >= 2 { 16 } else { 15 });
             enemy.entity.set_status(crate::status_ids::sid::GENERIC_STRENGTH_UP,
                 if self.run_state.ascension >= 17 { 5 } else { 3 });
+        }
+
+        // Source: reference/extracted/methods/monster/Reptomancer.java.
+        let repto_others = enemy_states.iter().filter(|enemy| enemy.id != "Reptomancer"
+            && enemy.is_alive()).count() as i32;
+        for enemy in enemy_states.iter_mut().filter(|enemy| enemy.id == "Reptomancer") {
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
+                if self.run_state.ascension >= 3 { 16 } else { 13 });
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
+                if self.run_state.ascension >= 3 { 34 } else { 30 });
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if self.run_state.ascension >= 18 { 2 } else { 1 });
+            enemy.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(crate::status_ids::sid::COUNT, repto_others);
         }
 
         // Source: reference/extracted/methods/monster/BanditLeader.java.
@@ -2853,7 +2884,11 @@ impl RunEngine {
                 (hp, hp)
             }
             "Reptomancer" => {
-                let hp = if a20 { 210 } else { 190 };
+                // Source: Reptomancer.java: inclusive 180..190, or 190..200
+                // at ascension 8. The constructor's earlier roll is a
+                // run-stream detail; semantic HP uses the final setHp range.
+                let base = if self.run_state.ascension >= 8 { 190 } else { 180 };
+                let hp = base + self.rng.gen_range(0..=10);
                 (hp, hp)
             }
             "SnakeDagger" | "Snake Dagger" => {
@@ -9275,33 +9310,125 @@ mod tests {
         combat.state.player.hp = 500;
         combat.state.player.max_hp = 500;
         combat.state.discard_pile.clear();
+        assert_eq!(combat.state.enemies.iter().map(|enemy| enemy.id.as_str())
+            .collect::<Vec<_>>(), ["SnakeDagger", "Reptomancer", "SnakeDagger"]);
+        assert!(combat.state.enemies[0].is_minion);
+        assert!(combat.state.enemies[2].is_minion);
+        // Keep only the left dagger active so this SnakeDagger test isolates
+        // its queued grouped RollMoveAction from Reptomancer's random AI.
+        combat.state.enemies[1].move_id = -1;
+        combat.state.enemies[2].move_id = -1;
         let ai_before = combat.ai_rng.counter;
 
         crate::combat_hooks::do_enemy_turns(combat);
         assert_eq!(combat.state.enemies.len(), 3);
-        assert_eq!(combat.ai_rng.counter, ai_before + 3,
-            "two spawned dagger init rolls precede Reptomancer's next roll");
-        for dagger in &combat.state.enemies[1..] {
-            assert_eq!(dagger.id, "SnakeDagger");
-            assert!(dagger.is_minion);
-            assert!((20..=25).contains(&dagger.entity.hp));
-            assert_eq!(dagger.move_id, crate::enemies::move_ids::SD_WOUND);
-            assert_eq!(dagger.entity.status(crate::status_ids::sid::FIRST_MOVE), 0);
-        }
+        assert_eq!(combat.ai_rng.counter, ai_before + 1);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::SD_EXPLODE);
+        assert_eq!(combat.state.discard_pile.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) == "Wound").count(), 1);
 
         crate::combat_hooks::do_enemy_turns(combat);
-        assert_eq!(combat.ai_rng.counter, ai_before + 6);
-        for dagger in &combat.state.enemies[1..] {
-            assert_eq!(dagger.move_id, crate::enemies::move_ids::SD_EXPLODE);
+        assert_eq!(combat.state.player.hp, 466);
+        assert_eq!(combat.state.enemies[0].entity.hp, 0);
+        assert_eq!(combat.ai_rng.counter, ai_before + 2,
+            "with Reptomancer alive, the dead dagger's queued roll still executes");
+    }
+
+    #[test]
+    fn reptomancer_group_stats_spawns_capacity_and_death_match_java() {
+        // Sources: reference/extracted/methods/monster/Reptomancer.java and
+        // decompiled/java-src/com/megacrit/cardcrawl/helpers/MonsterHelper.java.
+        // The canonical encounter starts with two initialized minion daggers;
+        // A18 summons two per action, otherwise one, into four tracked slots.
+        for (ascension, hp_range, strike, bite, per_spawn) in [
+            (0, 180..=190, 13, 30, 1),
+            (3, 180..=190, 16, 34, 1),
+            (8, 190..=200, 16, 34, 1),
+            (18, 190..=200, 16, 34, 2),
+        ] {
+            let mut hp_values = std::collections::BTreeSet::new();
+            for seed in 1..=256 {
+                let mut run = RunEngine::new(seed, ascension);
+                run.enter_specific_combat(vec!["Reptomancer".to_string()]);
+                let combat = run.combat_engine.as_ref().unwrap();
+                assert_eq!(combat.state.enemies.iter().map(|enemy| enemy.id.as_str())
+                    .collect::<Vec<_>>(),
+                    ["SnakeDagger", "Reptomancer", "SnakeDagger"]);
+                let repto = &combat.state.enemies[1];
+                hp_values.insert(repto.entity.hp);
+                assert_eq!(repto.entity.status(crate::status_ids::sid::STARTING_DMG),
+                    strike);
+                assert_eq!(repto.entity.status(crate::status_ids::sid::STR_AMT), bite);
+                assert_eq!(repto.entity.status(crate::status_ids::sid::BLOCK_AMT),
+                    per_spawn);
+                assert_eq!(repto.entity.status(crate::status_ids::sid::COUNT), 2);
+                assert_eq!(repto.entity.status(crate::status_ids::sid::FIRST_MOVE), 0);
+                assert_eq!(repto.move_id, crate::enemies::move_ids::REPTO_SPAWN);
+                assert!(matches!(repto.intent, crate::combat_types::Intent::Unknown));
+                assert!(combat.state.enemies[0].is_minion);
+                assert!(combat.state.enemies[2].is_minion);
+                assert_eq!(combat.ai_rng.counter, 3);
+            }
+            assert_eq!(hp_values, hp_range.collect());
         }
+
+        let mut baseline = RunEngine::new(42, 0);
+        baseline.enter_specific_combat(vec!["Reptomancer".to_string()]);
+        let combat = baseline.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+        combat.state.discard_pile.clear();
+        let ai_before = combat.ai_rng.counter;
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies.len(), 4);
+        assert_eq!(combat.ai_rng.counter, ai_before + 4,
+            "two original daggers, one spawned dagger, and Reptomancer each roll");
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::SD_EXPLODE);
+        assert_eq!(combat.state.enemies[2].move_id,
+            crate::enemies::move_ids::SD_EXPLODE);
+        assert_eq!(combat.state.enemies[3].move_id,
+            crate::enemies::move_ids::SD_WOUND);
+        assert!(combat.state.enemies[3].is_minion);
         assert_eq!(combat.state.discard_pile.iter().filter(|card|
             combat.card_registry.card_name(card.def_id) == "Wound").count(), 2);
 
+        let mut a18 = RunEngine::new(42, 18);
+        a18.enter_specific_combat(vec!["Reptomancer".to_string()]);
+        let combat = a18.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+        let ai_before = combat.ai_rng.counter;
         crate::combat_hooks::do_enemy_turns(combat);
-        assert_eq!(combat.state.player.hp, 376);
-        assert!(combat.state.enemies[1..].iter().all(|dagger| dagger.entity.hp == 0));
-        assert_eq!(combat.ai_rng.counter, ai_before + 9,
-            "with Reptomancer alive, each dead dagger's queued roll still executes");
+        assert_eq!(combat.state.enemies.len(), 5);
+        assert_eq!(combat.ai_rng.counter, ai_before + 5,
+            "A18 initializes two spawned daggers before Reptomancer rolls");
+        assert!(combat.state.enemies[3..].iter().all(|enemy|
+            enemy.id == "SnakeDagger" && enemy.is_minion));
+
+        // All four tracked slots are occupied, so another explicit summon
+        // creates nothing even though takeTurn still queues a normal roll.
+        for (idx, enemy) in combat.state.enemies.iter_mut().enumerate() {
+            if idx != 1 {
+                enemy.move_id = -1;
+            }
+        }
+        combat.state.enemies[1].set_move(
+            crate::enemies::move_ids::REPTO_SPAWN, 0, 0, 0);
+        let ai_before = combat.ai_rng.counter;
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies.len(), 5);
+        assert_eq!(combat.ai_rng.counter, ai_before + 1);
+
+        // Source: full Reptomancer.java `die`: every surviving group member
+        // receives HideHealthBarAction followed by SuicideAction.
+        let repto_hp = combat.state.enemies[1].entity.hp;
+        combat.deal_damage_to_enemy(1, repto_hp);
+        assert!(combat.state.enemies.iter().all(|enemy| enemy.entity.hp == 0));
+        assert!(combat.state.enemies.iter().all(|enemy| !enemy.is_escaping));
+        assert!(combat.check_combat_end());
+        assert!(combat.state.player_won);
     }
 
     #[test]

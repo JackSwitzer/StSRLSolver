@@ -887,7 +887,16 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 }
             }
             ("Reptomancer", x) if x == move_ids::REPTO_SPAWN => {
-                for _ in 0..2 {
+                // Source: reference/extracted/methods/monster/Reptomancer.java
+                // (`takeTurn`) fills up to four tracked dagger slots, one at
+                // baseline and two at ascension 18.
+                let alive_daggers = engine.state.enemies.iter().filter(|enemy|
+                    matches!(enemy.id.as_str(), "SnakeDagger" | "Snake Dagger")
+                        && enemy.is_alive()).count();
+                let per_spawn = engine.state.enemies[enemy_idx]
+                    .entity.status(sid::BLOCK_AMT).max(1) as usize;
+                let spawn_count = (4usize.saturating_sub(alive_daggers)).min(per_spawn);
+                for _ in 0..spawn_count {
                     // SpawnMonsterAction.init consumes one aiRng num before
                     // SnakeDagger.getMove selects its forced first move.
                     // HP uses an in-range semantic value until run-level RNG
@@ -1173,6 +1182,14 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             // Source: reference/extracted/methods/monster/GremlinLeader.java
             // (`numAliveGremlins` in the full source); despite its name, it
             // counts every other living monster in the encounter.
+            let alive_count = engine.state.enemies.iter().enumerate()
+                .filter(|(idx, enemy)| *idx != enemy_idx && enemy.is_alive())
+                .count() as i32;
+            engine.state.enemies[enemy_idx].entity.set_status(sid::COUNT, alive_count);
+        } else if engine.state.enemies[enemy_idx].id == "Reptomancer" {
+            // Source: decompiled/java-src/com/megacrit/cardcrawl/monsters/
+            // beyond/Reptomancer.java (`canSpawn`) counts every other
+            // non-dying monster, not only daggers.
             let alive_count = engine.state.enemies.iter().enumerate()
                 .filter(|(idx, enemy)| *idx != enemy_idx && enemy.is_alive())
                 .count() as i32;

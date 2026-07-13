@@ -385,7 +385,8 @@ impl CombatEngine {
                 | "SnakeDagger" | "Snake Dagger" | "Darkling" | "Deca" | "Donu"
                 | "Exploder" | "GiantHead" | "Giant Head"
                 | "GremlinLeader" | "Gremlin Leader" | "Healer" | "Mystic"
-                | "Maw" | "Nemesis" | "OrbWalker" | "Orb Walker")) {
+                | "Maw" | "Nemesis" | "OrbWalker" | "Orb Walker"
+                | "Reptomancer")) {
             if enemy.id == "Centurion" {
                 enemy.entity.set_status(sid::COUNT, living_enemy_count);
             }
@@ -3657,6 +3658,20 @@ impl CombatEngine {
                     // Escaped monsters are terminal in the compact state.
                     enemy.entity.hp = 0;
                 }
+            }
+        }
+
+        if self.state.enemies[enemy_idx].id == "Reptomancer" {
+            // Source: decompiled/java-src/com/megacrit/cardcrawl/monsters/
+            // beyond/Reptomancer.java (`die`): every surviving monster is
+            // killed by SuicideAction.
+            let victims: Vec<usize> = self.state.enemies.iter().enumerate()
+                .filter(|(idx, enemy)| *idx != enemy_idx && enemy.is_alive())
+                .map(|(idx, _)| idx)
+                .collect();
+            for idx in victims {
+                self.state.enemies[idx].entity.hp = 0;
+                self.finalize_enemy_death(idx);
             }
         }
 

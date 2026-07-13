@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T20:08:08.063037+00:00",
+ "updated": "2026-07-13T20:16:45.011837+00:00",
  "status_counts": {
-  "verified": 606,
-  "unverified": 61
+  "verified": 607,
+  "unverified": 60
  },
  "rows": [
   {
@@ -4152,8 +4152,8 @@
    "class": "Reptomancer",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/beyond/Reptomancer.java",
    "methods_ref": "reference/extracted/methods/monster/Reptomancer.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

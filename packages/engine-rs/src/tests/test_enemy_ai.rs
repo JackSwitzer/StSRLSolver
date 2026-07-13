@@ -766,6 +766,11 @@ mod enemy_ai_java_parity_tests {
 
         let e = make("Reptomancer", 190);
         expect_move(&e, move_ids::REPTO_SPAWN, 0, 0, 0, &[]);
+        assert!(matches!(e.intent, crate::combat_types::Intent::Unknown));
+        expect_status(&e, sid::FIRST_MOVE, 1);
+        expect_status(&e, sid::STARTING_DMG, 13);
+        expect_status(&e, sid::STR_AMT, 30);
+        expect_status(&e, sid::BLOCK_AMT, 1);
 
         let e = make("SnakeDagger", 20);
         expect_move(&e, move_ids::SD_WOUND, 9, 1, 0, &[(mfx::WOUND, 1)]);
@@ -927,13 +932,51 @@ mod enemy_ai_java_parity_tests {
         expect_move(&middle, move_ids::NEM_BURN, 0, 0, 0, &[(mfx::BURN, 3)]);
         assert_eq!(false_rng.counter, 1);
 
+        // Source: reference/extracted/methods/monster/Reptomancer.java. Its
+        // opener ignores `num`; later low/high repeats recursively consume one
+        // additional aiRng draw, while the middle window checks canSpawn and
+        // prevents a third consecutive summon.
         let mut e = make("Reptomancer", 190);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::REPTO_SNAKE_STRIKE, 13, 2, 0, &[(mfx::WEAK, 1)]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::REPTO_BIG_BITE, 30, 1, 0, &[]);
-        roll_times(&mut e, 1);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 99, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::REPTO_SPAWN, 0, 0, 0, &[]);
+        expect_status(&e, sid::FIRST_MOVE, 0);
+        roll_with_num(&mut e, 0);
+        expect_move(&e, move_ids::REPTO_SNAKE_STRIKE, 13, 2, 0, &[(mfx::WEAK, 1)]);
+
+        let middle_seed = (1..10_000).find(|&seed| {
+            (33..66).contains(
+                &crate::seed::StsRandom::new(seed).random_range(33, 99))
+        }).unwrap();
+        let mut middle_rng = crate::seed::StsRandom::new(middle_seed);
+        e.entity.set_status(sid::COUNT, 2);
+        roll_next_move_with_num_and_rng(&mut e, 0, &mut middle_rng);
+        expect_move(&e, move_ids::REPTO_SPAWN, 0, 0, 0, &[]);
+        assert_eq!(middle_rng.counter, 1,
+            "repeated low Snake Strike rerolls with aiRng.random(33, 99)");
+
+        e.move_id = move_ids::REPTO_SPAWN;
+        e.move_history = vec![move_ids::REPTO_SPAWN];
+        roll_with_num(&mut e, 33);
+        expect_move(&e, move_ids::REPTO_SNAKE_STRIKE, 13, 2, 0, &[(mfx::WEAK, 1)]);
+
+        e.move_id = move_ids::REPTO_BIG_BITE;
+        e.move_history.clear();
+        e.entity.set_status(sid::COUNT, 4);
+        roll_with_num(&mut e, 33);
+        expect_move(&e, move_ids::REPTO_SNAKE_STRIKE, 13, 2, 0, &[(mfx::WEAK, 1)]);
+
+        e.move_id = move_ids::REPTO_BIG_BITE;
+        e.move_history.clear();
+        e.entity.set_status(sid::COUNT, 2);
+        let low_seed = (1..10_000).find(|&seed| {
+            crate::seed::StsRandom::new(seed).random(65) < 33
+        }).unwrap();
+        let mut low_rng = crate::seed::StsRandom::new(low_seed);
+        roll_next_move_with_num_and_rng(&mut e, 99, &mut low_rng);
+        expect_move(&e, move_ids::REPTO_SNAKE_STRIKE, 13, 2, 0, &[(mfx::WEAK, 1)]);
+        assert_eq!(low_rng.counter, 1,
+            "repeated Big Bite rerolls with aiRng.random(65)");
 
         let mut e = make("SnakeDagger", 20);
         crate::enemies::roll_initial_move(
