@@ -390,7 +390,8 @@ impl CombatEngine {
                 | "Maw" | "Nemesis" | "OrbWalker" | "Orb Walker"
                 | "Reptomancer" | "Repulsor" | "Serpent" | "SnakePlant" | "Snecko"
                 | "SphericGuardian" | "Spheric Guardian" | "Spiker"
-                | "SpireGrowth" | "Spire Growth" | "SpireShield" | "Spire Shield")) {
+                | "SpireGrowth" | "Spire Growth" | "SpireShield" | "Spire Shield"
+                | "SpireSpear" | "Spire Spear")) {
             if enemy.id == "Centurion" {
                 enemy.entity.set_status(sid::COUNT, living_enemy_count);
             }

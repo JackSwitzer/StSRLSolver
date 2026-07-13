@@ -665,8 +665,30 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         }
     }
     if let Some(amt) = get_fx(&effects, mfx::BURN) {
+        let spear_draw_burns = matches!(engine.state.enemies[enemy_idx].id.as_str(),
+            "SpireSpear" | "Spire Spear")
+            && engine.state.enemies[enemy_idx].move_id
+                == enemies::move_ids::SPEAR_BURN_STRIKE
+            && engine.state.enemies[enemy_idx]
+                .entity.status(sid::HIGH_ASCENSION_AI) > 0;
         for _ in 0..amt {
-            engine.state.discard_pile.push(engine.card_registry.make_card("Burn"));
+            let burn = engine.card_registry.make_card("Burn");
+            if spear_draw_burns {
+                // Source: reference/extracted/methods/monster/SpireSpear.java
+                // (`takeTurn`, BURN_STRIKE). A18 uses randomSpot=true for two
+                // Burns in the draw pile; lower ascensions use discard.
+                if engine.state.draw_pile.is_empty() {
+                    engine.state.draw_pile.push(burn);
+                } else {
+                    let idx = engine.card_random_rng.random_range(
+                        0,
+                        (engine.state.draw_pile.len() - 1) as i32,
+                    ) as usize;
+                    engine.state.draw_pile.insert(idx, burn);
+                }
+            } else {
+                engine.state.discard_pile.push(burn);
+            }
         }
     }
     if let Some(amt) = get_fx(&effects, mfx::BURN_DRAW_DISCARD) {

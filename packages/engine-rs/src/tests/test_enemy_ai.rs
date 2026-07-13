@@ -1199,6 +1199,8 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::SPEAR_BURN_STRIKE, 5, 2, 0, &[(mfx::BURN, 2)]);
         expect_status(&e, sid::MOVE_COUNT, 0);
         expect_status(&e, sid::SKEWER_COUNT, 3);
+        expect_status(&e, sid::STARTING_DMG, 5);
+        expect_status(&e, sid::ARTIFACT, 1);
     }
 
     #[test]
@@ -1231,12 +1233,25 @@ mod enemy_ai_java_parity_tests {
         assert_eq!(rng.counter, 1);
 
         let mut e = make("SpireSpear", 200);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SPEAR_PIERCER, 0, 0, 0, &[(mfx::STRENGTH, 2)]);
-        roll_times(&mut e, 1);
+        let mut rng = crate::seed::StsRandom::new(true_seed);
+        roll_initial_move_with_num_and_rng(&mut e, 0, &mut rng);
+        expect_move(&e, move_ids::SPEAR_BURN_STRIKE, 5, 2, 0, &[(mfx::BURN, 2)]);
+        assert_eq!(rng.counter, 0);
+        roll_next_move_with_num_and_rng(&mut e, 0, &mut rng);
         expect_move(&e, move_ids::SPEAR_SKEWER, 10, 3, 0, &[]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::SPEAR_PIERCER, 0, 0, 0, &[(mfx::STRENGTH, 2)]);
+        assert_eq!(rng.counter, 0);
+        roll_next_move_with_num_and_rng(&mut e, 0, &mut rng);
+        expect_move(&e, move_ids::SPEAR_PIERCER, 0, 0, 0,
+            &[(mfx::STRENGTH, 2), (mfx::STRENGTH_ALL_ALLIES, 2)]);
+        assert_eq!(rng.counter, 1);
+
+        let mut burn_branch = make("SpireSpear", 200);
+        burn_branch.entity.set_status(sid::MOVE_COUNT, 2);
+        let mut rng = crate::seed::StsRandom::new(false_seed);
+        roll_initial_move_with_num_and_rng(&mut burn_branch, 99, &mut rng);
+        expect_move(&burn_branch, move_ids::SPEAR_BURN_STRIKE, 5, 2, 0,
+            &[(mfx::BURN, 2)]);
+        assert_eq!(rng.counter, 1);
     }
 
     #[test]
@@ -1262,8 +1277,8 @@ mod enemy_ai_java_parity_tests {
             assert!(!combat.state.enemies[1].back_attack);
             assert!(matches!(shield.move_id,
                 move_ids::SHIELD_BASH | move_ids::SHIELD_FORTIFY));
-            assert_eq!(combat.ai_rng.counter, 2,
-                "rollMove integer plus slot-zero randomBoolean");
+            assert_eq!(combat.ai_rng.counter, 3,
+                "Shield consumes integer+boolean; Spear consumes one integer");
         }
 
         // Fortify queues GainBlockAction(30) for every monster, including self.
@@ -1343,6 +1358,68 @@ mod enemy_ai_java_parity_tests {
         assert!(combat.state.enemies[1].back_attack);
         assert!(combat.instant_kill_enemy(0));
         assert!(!combat.state.enemies[1].back_attack);
+    }
+
+    #[test]
+    fn spire_spear_stats_piercer_and_burn_destination_match_java() {
+        // Source: reference/extracted/methods/monster/SpireSpear.java.
+        for (ascension, hp, burn_damage, skewer_hits, artifact, high_ai) in [
+            (0, 160, 5, 3, 1, 0),
+            (3, 160, 6, 4, 1, 0),
+            (8, 180, 6, 4, 1, 0),
+            (18, 180, 6, 4, 2, 1),
+        ] {
+            let mut run = run_engine(52, ascension);
+            run.debug_enter_specific_combat(&["SpireShield", "SpireSpear"]);
+            let combat = run.get_combat_engine().expect("Shield and Spear combat");
+            let spear = &combat.state.enemies[1];
+            assert_eq!((spear.entity.hp, spear.entity.max_hp), (hp, hp));
+            assert_eq!(spear.entity.status(sid::STARTING_DMG), burn_damage);
+            assert_eq!(spear.entity.status(sid::SKEWER_COUNT), skewer_hits);
+            assert_eq!(spear.entity.status(sid::ARTIFACT), artifact);
+            assert_eq!(spear.entity.status(sid::HIGH_ASCENSION_AI), high_ai);
+            assert_eq!(spear.move_id, move_ids::SPEAR_BURN_STRIKE);
+            assert_eq!(spear.move_damage(), burn_damage);
+            assert_eq!(spear.move_hits(), 2);
+        }
+
+        // Piercer applies StrengthPower(2) to every living monster, including
+        // the Spear itself.
+        let mut piercer = run_engine(53, 0);
+        piercer.debug_enter_specific_combat(&["SpireShield", "SpireSpear"]);
+        let combat = piercer.debug_combat_engine_mut();
+        combat.state.enemies[0].move_id = -1;
+        combat.state.enemies[1].set_move(move_ids::SPEAR_PIERCER, 0, 0, 0);
+        combat.state.enemies[1].add_effect(mfx::STRENGTH, 2);
+        combat.state.enemies[1].add_effect(mfx::STRENGTH_ALL_ALLIES, 2);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].entity.strength(), 2);
+        assert_eq!(combat.state.enemies[1].entity.strength(), 2);
+
+        for (ascension, expected_draw, expected_discard) in [
+            (0, 0, 2),
+            (18, 2, 0),
+        ] {
+            let mut run = run_engine(54, ascension);
+            run.debug_enter_specific_combat(&["SpireShield", "SpireSpear"]);
+            let combat = run.debug_combat_engine_mut();
+            combat.state.enemies[0].entity.hp = 0;
+            let damage = if ascension >= 3 { 6 } else { 5 };
+            combat.state.enemies[1].set_move(
+                move_ids::SPEAR_BURN_STRIKE, damage, 2, 0);
+            combat.state.enemies[1].intent = Intent::AttackDebuff {
+                damage: damage as i16, hits: 2, effects: 0,
+            };
+            combat.state.enemies[1].add_effect(mfx::BURN, 2);
+            let random_before = combat.card_random_rng.counter;
+            crate::combat_hooks::do_enemy_turns(combat);
+            let burn_name = |card: &&crate::combat_types::CardInstance|
+                combat.card_registry.card_name(card.def_id) == "Burn";
+            assert_eq!(combat.state.draw_pile.iter().filter(burn_name).count(), expected_draw);
+            assert_eq!(combat.state.discard_pile.iter().filter(burn_name).count(), expected_discard);
+            assert_eq!(combat.card_random_rng.counter - random_before,
+                if ascension >= 18 { 2 } else { 0 });
+        }
     }
 
     #[test]

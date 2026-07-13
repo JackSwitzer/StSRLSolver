@@ -62,35 +62,48 @@ pub(super) fn roll_spire_shield(
     enemy.entity.set_status(sid::MOVE_COUNT, mc + 1);
 }
 
-pub(super) fn roll_spire_spear(enemy: &mut EnemyCombatState) {
-    // Java: moveCount % 3, post-incremented.
-    // A3+: burnStrikeDmg=6, skewerCount=4. Else 5, 3. Skewer always 10 per hit.
-    // Burn Strike: A18 adds burns to draw pile, else discard.
+pub(super) fn roll_spire_spear(
+    enemy: &mut EnemyCombatState,
+    ai_rng: &mut StsRandom,
+) {
+    // Source: reference/extracted/methods/monster/SpireSpear.java (`getMove`).
+    // Only slot two consumes a conditional randomBoolean in addition to the
+    // AbstractMonster.rollMove integer.
     let mc = enemy.entity.status(sid::MOVE_COUNT);
+    let burn_damage = enemy.entity.status(sid::STARTING_DMG).max(5);
     let skewer_count = enemy.entity.status(sid::SKEWER_COUNT).max(3);
 
     match mc % 3 {
         0 => {
-            // Burn Strike or Piercer
             if !last_move(enemy, move_ids::SPEAR_BURN_STRIKE) {
-                enemy.set_move(move_ids::SPEAR_BURN_STRIKE, 5, 2, 0);
+                enemy.set_move(move_ids::SPEAR_BURN_STRIKE, burn_damage, 2, 0);
+                enemy.intent = Intent::AttackDebuff {
+                    damage: burn_damage as i16,
+                    hits: 2,
+                    effects: 0,
+                };
                 enemy.add_effect(mfx::BURN, 2);
             } else {
                 enemy.set_move(move_ids::SPEAR_PIERCER, 0, 0, 0);
                 enemy.add_effect(mfx::STRENGTH, 2);
+                enemy.add_effect(mfx::STRENGTH_ALL_ALLIES, 2);
             }
         }
         1 => {
-            // Skewer: 10 x skewerCount
             enemy.set_move(move_ids::SPEAR_SKEWER, 10, skewer_count, 0);
         }
         _ => {
-            // 50/50 Piercer or Burn Strike
-            if !last_move(enemy, move_ids::SPEAR_PIERCER) {
+            if ai_rng.random_boolean() {
                 enemy.set_move(move_ids::SPEAR_PIERCER, 0, 0, 0);
                 enemy.add_effect(mfx::STRENGTH, 2);
+                enemy.add_effect(mfx::STRENGTH_ALL_ALLIES, 2);
             } else {
-                enemy.set_move(move_ids::SPEAR_BURN_STRIKE, 5, 2, 0);
+                enemy.set_move(move_ids::SPEAR_BURN_STRIKE, burn_damage, 2, 0);
+                enemy.intent = Intent::AttackDebuff {
+                    damage: burn_damage as i16,
+                    hits: 2,
+                    effects: 0,
+                };
                 enemy.add_effect(mfx::BURN, 2);
             }
         }

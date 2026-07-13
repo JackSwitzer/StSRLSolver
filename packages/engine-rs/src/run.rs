@@ -2044,6 +2044,22 @@ impl RunEngine {
             enemy.entity.set_status(crate::status_ids::sid::MOVE_COUNT, 0);
             enemy.back_attack = true;
         }
+        // Source: reference/extracted/methods/monster/SpireSpear.java
+        // (constructor and `usePreBattleAction`). Burn Strike and Skewer change
+        // at A3; Artifact and Burn destination change independently at A18.
+        for enemy in enemy_states.iter_mut().filter(|e| matches!(e.id.as_str(),
+            "SpireSpear" | "Spire Spear"))
+        {
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
+                if self.run_state.ascension >= 3 { 6 } else { 5 });
+            enemy.entity.set_status(crate::status_ids::sid::SKEWER_COUNT,
+                if self.run_state.ascension >= 3 { 4 } else { 3 });
+            enemy.entity.set_status(crate::status_ids::sid::ARTIFACT,
+                if self.run_state.ascension >= 18 { 2 } else { 1 });
+            enemy.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI,
+                if self.run_state.ascension >= 18 { 1 } else { 0 });
+            enemy.entity.set_status(crate::status_ids::sid::MOVE_COUNT, 0);
+        }
         if enemy_states.iter().any(|enemy| matches!(enemy.id.as_str(),
             "SpireShield" | "Spire Shield"))
         {
@@ -3128,9 +3144,9 @@ impl RunEngine {
                 (hp, hp)
             }
             "SpireSpear" | "Spire Spear" => {
-                // Retain the draft Spear table until monster/SpireSpear is
-                // verified on the next ledger row.
-                let hp = if a20 { 220 } else { 200 };
+                // Source: reference/extracted/methods/monster/SpireSpear.java:
+                // fixed 160 HP, raised to fixed 180 at ascension 8.
+                let hp = if self.run_state.ascension >= 8 { 180 } else { 160 };
                 (hp, hp)
             }
             "CorruptHeart" => {

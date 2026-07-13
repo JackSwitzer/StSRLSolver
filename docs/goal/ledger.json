@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T21:09:53.889755+00:00",
+ "updated": "2026-07-13T21:14:09.867698+00:00",
  "status_counts": {
-  "verified": 616,
-  "unverified": 51
+  "verified": 617,
+  "unverified": 50
  },
  "rows": [
   {
@@ -4322,8 +4322,8 @@
    "class": "SpireSpear",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/ending/SpireSpear.java",
    "methods_ref": "reference/extracted/methods/monster/SpireSpear.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

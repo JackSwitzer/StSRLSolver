@@ -1001,11 +1001,21 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "SpireSpear" | "Spire Spear" => {
-            // 3-move cycle. First turn: Burn Strike (5x2 + Burns)
+            // Source: reference/extracted/methods/monster/SpireSpear.java.
+            // A0 constructor and pre-battle defaults; the run spawn site owns
+            // the independent A3/A8/A18 thresholds.
             enemy.set_move(move_ids::SPEAR_BURN_STRIKE, 5, 2, 0);
+            enemy.intent = crate::combat_types::Intent::AttackDebuff {
+                damage: 5,
+                hits: 2,
+                effects: 0,
+            };
             enemy.add_effect(mfx::BURN, 2);
             enemy.entity.set_status(sid::MOVE_COUNT, 0);
             enemy.entity.set_status(sid::SKEWER_COUNT, 3);
+            enemy.entity.set_status(sid::STARTING_DMG, 5);
+            enemy.entity.set_status(sid::ARTIFACT, 1);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "CorruptHeart" | "Corrupt Heart" => {
             // Source: reference/extracted/methods/monster/CorruptHeart.java.
@@ -1168,7 +1178,7 @@ fn select_move(
         "TimeEater" | "Time Eater" => act3::roll_time_eater(enemy, num),
         // Act 4
         "SpireShield" | "Spire Shield" => act4::roll_spire_shield(enemy, ai_rng),
-        "SpireSpear" | "Spire Spear" => act4::roll_spire_spear(enemy),
+        "SpireSpear" | "Spire Spear" => act4::roll_spire_spear(enemy, ai_rng),
         "CorruptHeart" | "Corrupt Heart" => act4::roll_corrupt_heart(enemy, num, ai_rng),
         _ => {
             if enemy.move_damage() > 0 {
@@ -1914,16 +1924,26 @@ mod tests {
         assert_eq!(enemy.move_damage(), 5);
         assert_eq!(enemy.move_hits(), 2);
         assert_eq!(enemy.entity.status(sid::SKEWER_COUNT), 3);
+        assert_eq!(enemy.entity.status(sid::ARTIFACT), 1);
 
-        // mc=0 -> 0%3=0: Piercer (since last was BurnStrike; anti-repeat)
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::SPEAR_PIERCER);
+        // Source: reference/extracted/methods/monster/SpireSpear.java. The
+        // empty-history opener is Burn Strike, then Skewer, then a boolean.
+        let true_seed = (1..10_000).find(|&seed|
+            crate::seed::StsRandom::new(seed).random_boolean()).unwrap();
+        let mut rng = crate::seed::StsRandom::new(true_seed);
+        roll_initial_move_with_num_and_rng(&mut enemy, 0, &mut rng);
+        assert_eq!(enemy.move_id, move_ids::SPEAR_BURN_STRIKE);
 
-        // mc=1 -> 1%3=1: Skewer
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num_and_rng(&mut enemy, 0, &mut rng);
         assert_eq!(enemy.move_id, move_ids::SPEAR_SKEWER);
         assert_eq!(enemy.move_damage(), 10);
         assert_eq!(enemy.move_hits(), 3);
+
+        roll_next_move_with_num_and_rng(&mut enemy, 0, &mut rng);
+        assert_eq!(enemy.move_id, move_ids::SPEAR_PIERCER);
+        assert_eq!(enemy.effect(mfx::STRENGTH), Some(2));
+        assert_eq!(enemy.effect(mfx::STRENGTH_ALL_ALLIES), Some(2));
+        assert_eq!(rng.counter, 1);
     }
 
     #[test]
