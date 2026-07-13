@@ -59,7 +59,7 @@ fn ironclad_wave13_registry_exports_promote_feed_and_reaper_to_typed_primary_sur
         &[
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::Conditional(
-                Cond::EnemyKilled,
+                Cond::EnemyKilledNonMinion,
                 &[E::Simple(SE::ModifyMaxHp(A::Magic))],
                 &[],
             ),

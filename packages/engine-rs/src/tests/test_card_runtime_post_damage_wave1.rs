@@ -31,7 +31,7 @@ fn test_card_runtime_post_damage_wave1_registry_documents_the_typed_post_damage_
         &[
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::Conditional(
-                Cond::EnemyKilled,
+                Cond::EnemyKilledNonMinion,
                 &[E::Simple(SE::ModifyMaxHp(A::Magic))],
                 &[],
             ),
@@ -45,7 +45,7 @@ fn test_card_runtime_post_damage_wave1_registry_documents_the_typed_post_damage_
         &[
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::Conditional(
-                Cond::EnemyKilled,
+                Cond::EnemyKilledNonMinion,
                 &[E::Simple(SE::ModifyMaxHp(A::Magic))],
                 &[],
             ),
@@ -108,6 +108,8 @@ fn test_card_runtime_post_damage_wave1_wallop_gain_block_uses_unblocked_damage()
 
 #[test]
 fn test_card_runtime_post_damage_wave1_feed_gains_max_hp_only_on_kill() {
+    // FeedAction excludes half-dead targets and enemies with MinionPower.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/FeedAction.java
     let mut engine = engine_without_start(
         Vec::new(),
         vec![enemy_no_intent("JawWorm", 10, 10)],
@@ -122,6 +124,17 @@ fn test_card_runtime_post_damage_wave1_feed_gains_max_hp_only_on_kill() {
     assert!(engine.state.enemies[0].entity.is_dead());
     assert_eq!(engine.state.player.max_hp, max_hp_before + 3);
     assert_eq!(engine.state.player.hp, hp_before + 3);
+
+    let mut minion = enemy_no_intent("TorchHead", 10, 10);
+    minion.is_minion = true;
+    let mut minion_engine = engine_without_start(Vec::new(), vec![minion], 3);
+    force_player_turn(&mut minion_engine);
+    minion_engine.state.hand = make_deck(&["Feed"]);
+    let minion_max_hp = minion_engine.state.player.max_hp;
+
+    assert!(play_on_enemy(&mut minion_engine, "Feed", 0));
+    assert!(minion_engine.state.enemies[0].entity.is_dead());
+    assert_eq!(minion_engine.state.player.max_hp, minion_max_hp);
 }
 
 #[test]

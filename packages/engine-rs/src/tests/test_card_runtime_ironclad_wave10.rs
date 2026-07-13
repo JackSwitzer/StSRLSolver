@@ -125,7 +125,7 @@ fn ironclad_wave10_feed_and_reaper_follow_the_typed_attack_surface() {
         &[
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::Conditional(
-                Cond::EnemyKilled,
+                Cond::EnemyKilledNonMinion,
                 &[E::Simple(SE::ModifyMaxHp(A::Magic))],
                 &[],
             ),

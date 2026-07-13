@@ -92,7 +92,7 @@ fn tiny_primitive_wave2_registry_exports_show_the_typed_primary_surfaces() {
         &[
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::Conditional(
-                Cond::EnemyKilled,
+                Cond::EnemyKilledNonMinion,
                 &[E::Simple(SE::ModifyMaxHp(A::Magic))],
                 &[],
             ),

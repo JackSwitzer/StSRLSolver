@@ -715,19 +715,6 @@ pub fn hook_damage_random_hits(engine: &mut CombatEngine, ctx: &CardPlayContext)
 }
 
 // =========================================================================
-// Feed: gain max HP on kill
-// =========================================================================
-
-/// Feed: if an enemy was killed during the damage loop, increase max HP and heal.
-pub fn hook_feed(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    if ctx.enemy_killed {
-        let amount = ctx.card.base_magic.max(1);
-        engine.state.player.max_hp += amount;
-        engine.state.player.hp = (engine.state.player.hp + amount).min(engine.state.player.max_hp);
-    }
-}
-
-// =========================================================================
 // Reaper: heal for unblocked damage
 // =========================================================================
 
