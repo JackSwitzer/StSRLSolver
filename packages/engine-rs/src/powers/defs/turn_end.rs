@@ -104,27 +104,42 @@ pub static DEF_COMBUST: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Omega — TurnEnd: deal 50 damage to all enemies
+// Omega — TurnEnd: deal source-less THORNS damage to all living enemies.
 // ===========================================================================
-
-static OMEGA_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::DealDamage(
-    Target::AllEnemies,
-    AmountSource::StatusValue(sid::OMEGA),
-))];
 
 static OMEGA_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::TurnEnd,
     condition: TriggerCondition::Always,
-    effects: &OMEGA_EFFECTS,
+    effects: &[],
     counter: None,
 }];
+
+fn hook_omega(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    if event.kind != Trigger::TurnEnd {
+        return;
+    }
+
+    // OmegaPower creates a pure damage matrix and resolves it as source-less
+    // THORNS damage. It therefore uses block/Intangible/Buffer/Invincible, but
+    // skips NORMAL-only Slow, Flight, Curl Up, Malleable, and offensive mods.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/OmegaPower.java
+    let damage = engine.state.player.status(sid::OMEGA);
+    for target in engine.state.living_enemy_indices() {
+        engine.deal_thorns_damage_to_enemy(target, damage);
+    }
+}
 
 pub static DEF_OMEGA: EntityDef = EntityDef {
     id: "omega",
     name: "Omega",
     kind: EntityKind::Power,
     triggers: &OMEGA_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_omega),
     status_guard: Some(sid::OMEGA),
 };
 

@@ -4,7 +4,11 @@ pub fn register_temp(cards: &mut HashMap<&'static str, CardDef>) {
         // Beta: registered in watcher/beta.rs (with effect_data for AddCard Omega)
         // Insight: registered in watcher/insight.rs (with effect_data for DrawCards)
 
-        // Omega: 3 cost, power, deal 50 dmg to all enemies at end of each turn
+        // Omega.java installs 50 OmegaPower for 3 energy; upgrade adds 10
+        // magic only. OmegaPower deals source-less THORNS damage to all living
+        // enemies at the end of every player turn.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Omega.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/OmegaPower.java
         insert(cards, CardDef {
             id: "Omega", name: "Omega", card_type: CardType::Power,
             target: CardTarget::SelfTarget, cost: 3, base_damage: -1, base_block: -1,

@@ -3,7 +3,8 @@ use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect a
 use crate::status_ids::sid;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Omega (from Beta chain): cost 3, power, deal 50 dmg at end of turn
+    // Omega.java installs 50 OmegaPower for 3 energy; upgrade adds 10 magic.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Omega.java
     insert(cards, CardDef {
                 id: "Omega", name: "Omega", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 3, base_damage: -1, base_block: -1,

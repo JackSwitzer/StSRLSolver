@@ -97,6 +97,38 @@ fn temp_wave1_omega_installs_runtime_status_and_deals_turn_end_damage() {
 }
 
 #[test]
+fn omega_stacks_and_deals_source_less_thorns_damage_to_every_enemy() {
+    // Omega.java stacks 50 (60 upgraded). OmegaPower.java uses a pure damage
+    // matrix with DamageType.THORNS, so block and Intangible apply while
+    // NORMAL-only Slow, Flight, Curl Up, and Malleable do not.
+    let mut grounded = enemy_no_intent("JawWorm", 200, 200);
+    grounded.entity.block = 10;
+    grounded.entity.set_status(sid::SLOW, 5);
+    grounded.entity.set_status(sid::FLIGHT, 3);
+    grounded.entity.set_status(sid::CURL_UP, 12);
+    grounded.entity.set_status(sid::MALLEABLE, 3);
+    let mut intangible = enemy_no_intent("Cultist", 200, 200);
+    intangible.entity.set_status(sid::INTANGIBLE, 1);
+
+    let mut engine = engine_without_start(Vec::new(), vec![grounded, intangible], 10);
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Omega", "Omega+"]);
+
+    assert!(play_self(&mut engine, "Omega"));
+    assert!(play_self(&mut engine, "Omega+"));
+    assert_eq!(engine.state.player.status(sid::OMEGA), 110);
+
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 100);
+    assert_eq!(engine.state.enemies[0].entity.block, 0);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::FLIGHT), 3);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::CURL_UP), 12);
+    assert_eq!(engine.state.enemies[0].entity.status(sid::MALLEABLE), 3);
+    assert_eq!(engine.state.enemies[1].entity.hp, 199);
+}
+
+#[test]
 fn temp_wave1_expunger_exports_typed_x_count_surface() {
     let registry = global_registry();
     let expunger = registry.get("Expunger").expect("Expunger should exist");
