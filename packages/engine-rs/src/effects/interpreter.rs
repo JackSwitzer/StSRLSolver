@@ -527,6 +527,9 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         // -- Fission --
         SimpleEffect::ResolveFission { evoke } => {
+            // FissionAction snapshots filledOrbCount, removes/evokes all orbs,
+            // then gains that much energy before drawing that many cards.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/FissionAction.java
             let orb_count = engine.state.orb_slots.occupied_count() as i32;
             if evoke {
                 engine.evoke_all_orbs();

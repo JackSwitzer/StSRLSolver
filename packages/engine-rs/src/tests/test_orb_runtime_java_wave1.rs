@@ -99,6 +99,11 @@ fn orb_wave1_chaos_and_barrage_follow_java_orb_count_behavior() {
 
 #[test]
 fn orb_wave1_fission_variants_match_remove_vs_evoke_behavior() {
+    // FissionAction snapshots three filled orbs, queues removal/evocation
+    // first, then three energy and three draws. Fission.java also exhausts in
+    // both variants, and upgrading changes no card stat.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Fission.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/FissionAction.java
     let mut fission = engine_without_start(
         Vec::new(),
         vec![enemy_no_intent("JawWorm", 80, 80)],
@@ -114,7 +119,14 @@ fn orb_wave1_fission_variants_match_remove_vs_evoke_behavior() {
     assert!(play_self(&mut fission, "Fission"));
     assert_eq!(fission.state.orb_slots.occupied_count(), 0);
     assert_eq!(fission.state.energy, 6);
-    assert_eq!(fission.state.hand.len(), 3);
+    assert_eq!(hand_names(&fission), vec!["Dualcast", "Zap", "Defend"]);
+    assert_eq!(fission.state.exhaust_pile.len(), 1);
+    assert_eq!(
+        fission
+            .card_registry
+            .card_name(fission.state.exhaust_pile[0].def_id),
+        "Fission"
+    );
 
     let mut fission_plus = engine_without_start(
         Vec::new(),
@@ -133,7 +145,14 @@ fn orb_wave1_fission_variants_match_remove_vs_evoke_behavior() {
     assert!(play_self(&mut fission_plus, "Fission+"));
     assert_eq!(fission_plus.state.orb_slots.occupied_count(), 0);
     assert_eq!(fission_plus.state.energy, 6);
-    assert_eq!(fission_plus.state.hand.len(), 3);
+    assert_eq!(hand_names(&fission_plus), vec!["Dualcast", "Zap", "Defend"]);
+    assert_eq!(fission_plus.state.exhaust_pile.len(), 1);
+    assert_eq!(
+        fission_plus
+            .card_registry
+            .card_name(fission_plus.state.exhaust_pile[0].def_id),
+        "Fission+"
+    );
     assert_eq!(fission_plus.state.enemies[0].entity.hp, hp_before - 14);
     assert_eq!(fission_plus.state.player.block, block_before + 5);
 }
