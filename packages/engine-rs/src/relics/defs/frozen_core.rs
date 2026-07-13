@@ -1,4 +1,4 @@
-//! Frozen Core: At late end of turn, if any orb slot is empty, channel 1 Frost.
+//! Frozen Core: At player end of turn, if any orb slot is empty, channel 1 Frost.
 //!
 //! complex_hook needed because it inspects the live orb slots and channels
 //! through the engine.
@@ -21,8 +21,10 @@ fn hook(
 }
 
 static TRIGGERS: [TriggeredEffect; 1] = [
+    // FrozenCore.java::onPlayerEndTurn runs before GameActionManager queues
+    // TriggerEndOfTurnOrbsAction, so the new Frost immediately gains Block.
     TriggeredEffect {
-        trigger: Trigger::TurnEndPostOrbs,
+        trigger: Trigger::TurnEnd,
         condition: TriggerCondition::Always,
         effects: &[],
         counter: None,

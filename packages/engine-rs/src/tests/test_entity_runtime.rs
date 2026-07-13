@@ -914,8 +914,15 @@ fn the_specimen_transfers_poison_on_engine_death_path() {
 }
 
 #[test]
-fn frozen_core_uses_late_turn_hook_without_immediate_passive_block() {
-    let mut state = combat_state_with(make_deck(&["Strike"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+fn frozen_core_channels_before_end_of_turn_orb_passives() {
+    // Source: reference/extracted/methods/relic/FrozenCore.java and
+    // GameActionManager.java::callEndOfTurnActions. onPlayerEndTurn channels
+    // Frost before TriggerEndOfTurnOrbsAction, so the new Frost grants 2 Block.
+    let mut state = combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy("JawWorm", 40, 40, 1, 5, 1)],
+        3,
+    );
     state.relics.push("FrozenCore".to_string());
 
     let mut engine = engine_with_state(state);
@@ -925,12 +932,15 @@ fn frozen_core_uses_late_turn_hook_without_immediate_passive_block() {
     end_turn(&mut engine);
 
     let events = engine.take_event_log();
+    // The immediate Frost passive absorbs 2 of the enemy's 5 damage, then
+    // that Block is cleared at the following turn start.
+    assert_eq!(engine.state.player.hp, 77);
     assert_eq!(engine.state.player.block, 0);
     assert_eq!(engine.state.orb_slots.occupied_count(), 1);
     assert_eq!(engine.state.orb_slots.slots[0].orb_type, OrbType::Frost);
     assert!(events
         .iter()
-        .any(|record| record.event == Trigger::TurnEndPostOrbs && record.def_id == Some("FrozenCore")));
+        .any(|record| record.event == Trigger::TurnEnd && record.def_id == Some("FrozenCore")));
 }
 
 #[test]

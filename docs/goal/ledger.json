@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T22:38:54.140776+00:00",
+ "updated": "2026-07-13T22:42:22.909734+00:00",
  "status_counts": {
-  "verified": 642,
-  "unverified": 25
+  "verified": 643,
+  "unverified": 24
  },
  "rows": [
   {
@@ -5372,8 +5372,8 @@
    "class": "FrozenCore",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/FrozenCore.java",
    "methods_ref": "reference/extracted/methods/relic/FrozenCore.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
