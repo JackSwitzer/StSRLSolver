@@ -44,13 +44,6 @@ pub fn hook_draw_to_n(engine: &mut CombatEngine, ctx: &CardPlayContext) {
     }
 }
 
-/// FTL: draw if few cards played this turn.
-pub fn hook_draw_if_few_cards_played(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    if engine.state.cards_played_this_turn < 3 {
-        engine.draw_cards(ctx.card.base_magic);
-    }
-}
-
 /// Calculated Gamble: discard hand, draw same count.
 pub fn hook_calculated_gamble(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     let hand_count = engine.state.hand.len() as i32;

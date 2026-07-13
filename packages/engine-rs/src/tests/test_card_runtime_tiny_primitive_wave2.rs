@@ -42,12 +42,12 @@ fn tiny_primitive_wave2_registry_exports_show_the_typed_primary_surfaces() {
     assert_eq!(
         ftl.effect_data,
         &[
-            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::Conditional(
-                Cond::CardsPlayedThisTurnLessThan(3),
-                &[E::Simple(SE::DrawCards(A::Magic))],
+                Cond::CardsPlayedThisTurnLessThan(4),
+                &[E::Simple(SE::DrawCards(A::Fixed(1)))],
                 &[],
             ),
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
         ]
     );
     assert!(ftl.complex_hook.is_none());
@@ -129,7 +129,7 @@ fn tiny_primitive_wave2_ftl_bane_feed_and_all_out_attack_follow_the_typed_runtim
     ftl_draws.state.draw_pile = make_deck(&["Strike", "Defend", "Zap", "Dualcast"]);
     assert!(play_on_enemy(&mut ftl_draws, "FTL+", 0));
     assert_eq!(ftl_draws.state.enemies[0].entity.hp, 34);
-    assert_eq!(ftl_draws.state.hand.len(), 4);
+    assert_eq!(ftl_draws.state.hand.len(), 1);
 
     let mut ftl_gated = single_enemy_engine(40, 3);
     ftl_gated.state.cards_played_this_turn = 3;

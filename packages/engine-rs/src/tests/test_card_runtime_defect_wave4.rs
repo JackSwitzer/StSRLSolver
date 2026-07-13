@@ -65,12 +65,12 @@ fn test_card_runtime_defect_wave4_registry_exports_cover_runtime_progress() {
     assert_eq!(
         ftl.effect_data,
         &[
-            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::Conditional(
-                Cond::CardsPlayedThisTurnLessThan(3),
-                &[E::Simple(SE::DrawCards(A::Magic))],
+                Cond::CardsPlayedThisTurnLessThan(4),
+                &[E::Simple(SE::DrawCards(A::Fixed(1)))],
                 &[],
             ),
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
         ]
     );
     assert!(ftl.complex_hook.is_none());
@@ -202,7 +202,7 @@ fn test_card_runtime_defect_wave4_ftl_draw_gate_and_claw_scaling_follow_engine_r
     ftl_draws.state.hand = make_deck(&["FTL+"]);
     ftl_draws.state.draw_pile = make_deck(&["Strike", "Defend", "Zap", "Dualcast"]);
     assert!(play_on_enemy(&mut ftl_draws, "FTL+", 0));
-    assert_eq!(ftl_draws.state.hand.len(), 4);
+    assert_eq!(ftl_draws.state.hand.len(), 1);
 
     let mut ftl_gated = engine_without_start(
         Vec::new(),

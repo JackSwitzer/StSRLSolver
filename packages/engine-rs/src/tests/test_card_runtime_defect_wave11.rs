@@ -32,12 +32,12 @@ fn defect_wave11_registry_exports_promote_ftl_steam_and_streamline_to_typed_prim
     assert_eq!(
         ftl.effect_data,
         &[
-            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::Conditional(
-                Cond::CardsPlayedThisTurnLessThan(3),
-                &[E::Simple(SE::DrawCards(A::Magic))],
+                Cond::CardsPlayedThisTurnLessThan(4),
+                &[E::Simple(SE::DrawCards(A::Fixed(1)))],
                 &[],
             ),
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
         ]
     );
     assert!(ftl.complex_hook.is_none());
@@ -88,13 +88,23 @@ fn defect_wave11_registry_exports_promote_ftl_steam_and_streamline_to_typed_prim
 
 #[test]
 fn defect_wave11_ftl_draws_under_threshold_and_stops_at_threshold() {
+    // FTLAction checks cardsPlayedThisTurn.size() - 1 against magicNumber and
+    // queues exactly one DrawCardAction before its DamageAction.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/FTLAction.java
     let mut draws = one_enemy_engine(40, 3);
     draws.state.hand = make_deck(&["FTL+"]);
     draws.state.draw_pile = make_deck(&["Strike", "Defend", "Zap", "Dualcast"]);
 
     assert!(play_on_enemy(&mut draws, "FTL+", 0));
-    assert_eq!(draws.state.hand.len(), 4);
+    assert_eq!(draws.state.hand.len(), 1);
     assert_eq!(draws.state.enemies[0].entity.hp, 34);
+
+    let mut boundary_draws = one_enemy_engine(40, 3);
+    boundary_draws.state.cards_played_this_turn = 2;
+    boundary_draws.state.hand = make_deck(&["FTL"]);
+    boundary_draws.state.draw_pile = make_deck(&["Strike", "Defend"]);
+    assert!(play_on_enemy(&mut boundary_draws, "FTL", 0));
+    assert_eq!(boundary_draws.state.hand.len(), 1);
 
     let mut gated = one_enemy_engine(40, 3);
     gated.state.cards_played_this_turn = 3;
