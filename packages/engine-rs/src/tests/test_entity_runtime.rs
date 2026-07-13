@@ -39,6 +39,31 @@ fn enemy_runtime_handlers_mutate_enemy_owner_only() {
 }
 
 #[test]
+fn red_circlet_has_no_gameplay_hooks() {
+    // Source: reference/extracted/methods/relic/RedCirclet.java and the full
+    // RedCirclet.java class. It only defines metadata/description/makeCopy and
+    // overrides no combat or run hooks.
+    let mut engine = engine_without_start(
+        make_deck(&["Strike", "Defend"]),
+        vec![enemy_no_intent("TrainingDummy", 40, 40)],
+        3,
+    );
+    engine.state.relics.push("Red Circlet".to_string());
+    engine.clear_event_log();
+
+    engine.start_combat();
+
+    assert_eq!(engine.state.max_energy, 3);
+    assert_eq!(engine.state.energy, 3);
+    assert_eq!(engine.state.player.strength(), 0);
+    assert_eq!(engine.state.player.block, 0);
+    assert!(engine
+        .take_event_log()
+        .iter()
+        .all(|record| record.def_id != Some("Red Circlet")));
+}
+
+#[test]
 fn persisted_relic_counters_reload_into_new_combat_runtime() {
     let mut state = combat_state_with(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("Nunchaku".to_string());
