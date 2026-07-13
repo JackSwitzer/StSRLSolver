@@ -70,7 +70,7 @@ fn relic_wave16_runtime_mutagenic_strength_and_ninja_scroll_stay_authoritative()
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
-    engine.state.relics = vec!["MutagenicStrength".to_string(), "NinjaScroll".to_string()];
+    engine.state.relics = vec!["MutagenicStrength".to_string(), "Ninja Scroll".to_string()];
 
     engine.start_combat();
 

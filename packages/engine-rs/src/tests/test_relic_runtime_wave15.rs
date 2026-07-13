@@ -75,8 +75,10 @@ fn relic_wave15_holy_water_adds_three_miracles_and_spills_only_overflow() {
 
 #[test]
 fn relic_wave15_ninja_scroll_fills_hand_then_spills_overflow_to_discard() {
+    // Source: reference/extracted/methods/relic/NinjaScroll.java
+    // MakeTempCardInHandAction creates three Shivs and sends hand overflow to discard.
     let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
-    engine.state.relics.push("NinjaScroll".to_string());
+    engine.state.relics.push("Ninja Scroll".to_string());
     engine.state.hand = make_deck_n("Strike", 9);
 
     fire_combat_start(&mut engine);

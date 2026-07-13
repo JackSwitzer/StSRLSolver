@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T22:50:57.144581+00:00",
+ "updated": "2026-07-13T22:52:54.458029+00:00",
  "status_counts": {
-  "verified": 646,
-  "unverified": 21
+  "verified": 647,
+  "unverified": 20
  },
  "rows": [
   {
@@ -5792,8 +5792,8 @@
    "class": "NinjaScroll",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/NinjaScroll.java",
    "methods_ref": "reference/extracted/methods/relic/NinjaScroll.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
