@@ -174,3 +174,35 @@ fn defect_wave6_self_repair_machine_learning_and_static_discharge_install_runtim
     assert_eq!(static_discharge.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
     assert_eq!(static_discharge.state.orb_slots.slots[1].orb_type, OrbType::Lightning);
 }
+
+#[test]
+fn machine_learning_source_stacks_one_draw_and_upgrade_is_innate_only() {
+    // MachineLearning.java constructs DrawPower with magicNumber 1. Its upgrade
+    // sets only isInnate, so both versions add one persistent hand-size stack.
+    let registry = global_registry();
+    let base = registry.get("Machine Learning").expect("Machine Learning");
+    let plus = registry.get("Machine Learning+").expect("Machine Learning+");
+    assert_eq!(base.cost, 1);
+    assert_eq!(plus.cost, 1);
+    assert_eq!(base.base_magic, 1);
+    assert_eq!(plus.base_magic, 1);
+    assert!(!base.runtime_traits().innate);
+    assert!(plus.runtime_traits().innate);
+
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 30, 30)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Machine Learning", "Machine Learning+"]);
+    engine.state.draw_pile = make_deck(&[
+        "Strike", "Defend", "Zap", "Dualcast", "Strike", "Defend", "Zap",
+    ]);
+
+    assert!(play_self(&mut engine, "Machine Learning"));
+    assert!(play_self(&mut engine, "Machine Learning+"));
+    assert_eq!(engine.state.player.status(sid::DRAW), 2);
+    end_turn(&mut engine);
+    assert_eq!(engine.state.hand.len(), 7);
+}
