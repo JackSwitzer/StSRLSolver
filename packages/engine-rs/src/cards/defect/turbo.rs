@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Turbo: 0 cost, gain 2 energy, add Void to discard
+        // Turbo.java queues GainEnergyAction(2) before creating one base Void
+        // in discard; upgradeMagicNumber(1) changes only the energy gain.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Turbo.java
     insert(cards, CardDef {
                 id: "Turbo", name: "Turbo", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,

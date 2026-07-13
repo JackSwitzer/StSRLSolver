@@ -344,6 +344,31 @@ mod defect_card_java_parity_tests {
         assert_eq!(discard_prefix_count(&upgraded, "Burn"), 1);
     });
 
+    defect_test!(turbo_variants_gain_energy_then_add_base_void_to_discard, {
+        // Turbo.java queues GainEnergyAction(magicNumber) before
+        // MakeTempCardInDiscardAction(new VoidCard(), 1). UseCardAction moves
+        // Turbo afterward, so Void precedes the played card in discard.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Turbo.java
+        for (card_id, expected_energy) in [("Turbo", 2), ("Turbo+", 3)] {
+            let mut engine = bare_engine(&[], vec![enemy_no_intent("JawWorm", 40, 40)]);
+            engine.state.hand = make_deck(&[card_id]);
+            engine.state.draw_pile.clear();
+            engine.state.discard_pile.clear();
+            engine.state.energy = 0;
+
+            assert!(play_self(&mut engine, card_id));
+
+            assert_eq!(engine.state.energy, expected_energy, "{card_id}");
+            let discard_names: Vec<_> = engine
+                .state
+                .discard_pile
+                .iter()
+                .map(|card| engine.card_registry.card_name(card.def_id))
+                .collect();
+            assert_eq!(discard_names, vec!["Void", card_id], "{card_id}");
+        }
+    });
+
     defect_test!(registry_rare_powers_and_finishers, {
         let cases = [
             StatCase { id: "Reinforced Body", cost: -1, damage: -1, block: 7, magic: -1, card_type: CardType::Skill, exhaust: false },
