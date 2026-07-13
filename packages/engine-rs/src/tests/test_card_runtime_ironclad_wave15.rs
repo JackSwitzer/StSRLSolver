@@ -148,3 +148,32 @@ fn ironclad_wave15_headbutt_moves_a_discard_card_to_the_top_of_draw() {
     assert!(discard_names.contains(&"Headbutt"));
     assert!(!discard_names.contains(&"Strike"));
 }
+
+#[test]
+fn headbutt_plus_auto_moves_a_singleton_and_skips_retrieval_after_a_final_kill() {
+    // Headbutt upgrades damage by 3 (9 -> 12). DiscardPileToTopOfDeckAction
+    // auto-moves a singleton, but returns immediately when battle is ending.
+    // Java: reference/extracted/methods/card/Headbutt.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DiscardPileToTopOfDeckAction.java
+    let mut singleton = engine_for(&["Headbutt+"], &["Shrug It Off"], &["Defend"], 3);
+    let hp_before = singleton.state.enemies[0].entity.hp;
+
+    assert!(play_on_enemy(&mut singleton, "Headbutt+", 0));
+    assert_eq!(singleton.state.enemies[0].entity.hp, hp_before - 12);
+    assert_eq!(singleton.phase, crate::engine::CombatPhase::PlayerTurn);
+    assert!(singleton.choice.is_none());
+    assert_eq!(
+        singleton.card_registry.card_name(singleton.state.draw_pile.last().expect("top draw").def_id),
+        "Defend"
+    );
+
+    let mut lethal = engine_for(&["Headbutt+"], &[], &["Strike", "Defend"], 3);
+    lethal.state.enemies[0].entity.hp = 12;
+    lethal.state.enemies[0].entity.max_hp = 12;
+
+    assert!(play_on_enemy(&mut lethal, "Headbutt+", 0));
+    assert!(lethal.state.enemies[0].entity.is_dead());
+    assert!(lethal.choice.is_none());
+    assert!(lethal.state.draw_pile.is_empty());
+    assert_eq!(lethal.state.discard_pile.len(), 3);
+}

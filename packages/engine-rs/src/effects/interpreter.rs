@@ -1303,6 +1303,13 @@ fn execute_choose_cards(
     max_picks_src: AmountSource,
     post_choice_draw_src: AmountSource,
 ) {
+    // DamageAction clears queued post-combat actions after a lethal final hit.
+    // Card-manipulation actions such as Headbutt therefore never open after
+    // the room has entered its battle-ending state.
+    if engine.state.is_victory() {
+        return;
+    }
+
     let pile = get_pile(engine, source);
     let post_choice_draw = if post_choice_draw_src == AmountSource::Fixed(0) {
         0
@@ -1390,6 +1397,21 @@ fn execute_choose_cards(
     {
         if let ChoiceOption::HandCard(index) = options[0] {
             engine.card_registry.upgrade_card(&mut engine.state.hand[index]);
+        }
+        return;
+    }
+
+    // DiscardPileToTopOfDeckAction moves a singleton discard pile directly;
+    // grid selection is used only when more than one card is available.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DiscardPileToTopOfDeckAction.java
+    if matches!(ctx.card.id, "Headbutt" | "Headbutt+")
+        && source == Pile::Discard
+        && action == ChoiceAction::PutOnTopOfDraw
+        && options.len() == 1
+    {
+        if let ChoiceOption::DiscardCard(index) = options[0] {
+            let card = engine.state.discard_pile.remove(index);
+            engine.state.draw_pile.push(card);
         }
         return;
     }
