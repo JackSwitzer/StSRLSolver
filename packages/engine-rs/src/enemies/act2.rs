@@ -8,23 +8,45 @@ use crate::status_ids::sid;
 // Act 2 Basic Enemies
 // =========================================================================
 
-pub(super) fn roll_chosen(enemy: &mut EnemyCombatState, _num: i32) {
-    let used_hex = enemy.move_history.iter().any(|&m| m == move_ids::CHOSEN_HEX);
+pub(super) fn roll_chosen(enemy: &mut EnemyCombatState, num: i32) {
+    let zap_damage = enemy.entity.status(sid::STARTING_DMG).max(18);
+    let debilitate_damage = enemy.entity.status(sid::STR_AMT).max(10);
+    let poke_damage = enemy.entity.status(sid::SLAP_DMG).max(5);
+    let high_ai = enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0;
 
-    // After first turn (Poke): use Hex
-    if !used_hex {
+    let poke = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::CHOSEN_POKE, poke_damage, 2, 0);
+    };
+
+    // Source: reference/extracted/methods/monster/Chosen.java (`getMove`).
+    if !high_ai && enemy.entity.status(sid::FIRST_TURN) > 0 {
+        enemy.entity.set_status(sid::FIRST_TURN, 0);
+        poke(enemy);
+        return;
+    }
+
+    if enemy.entity.status(sid::FIRST_MOVE) == 0 {
+        enemy.entity.set_status(sid::FIRST_MOVE, 1);
         enemy.set_move(move_ids::CHOSEN_HEX, 0, 0, 0);
         enemy.add_effect(mfx::HEX, 1);
         return;
     }
-    // After Hex: alternate Debilitate/Drain and Zap/Poke
-    if last_move(enemy, move_ids::CHOSEN_DEBILITATE) || last_move(enemy, move_ids::CHOSEN_DRAIN) {
-        // Attack turn: Zap (18) or Poke (5x2)
-        enemy.set_move(move_ids::CHOSEN_ZAP, 18, 1, 0);
+
+    if !last_move(enemy, move_ids::CHOSEN_DEBILITATE)
+        && !last_move(enemy, move_ids::CHOSEN_DRAIN)
+    {
+        if num < 50 {
+            enemy.set_move(move_ids::CHOSEN_DEBILITATE, debilitate_damage, 1, 0);
+            enemy.add_effect(mfx::VULNERABLE, 2);
+        } else {
+            enemy.set_move(move_ids::CHOSEN_DRAIN, 0, 0, 0);
+            enemy.add_effect(mfx::WEAK, 3);
+            enemy.add_effect(mfx::STRENGTH, 3);
+        }
+    } else if num < 40 {
+        enemy.set_move(move_ids::CHOSEN_ZAP, zap_damage, 1, 0);
     } else {
-        // Debuff turn: Debilitate (10 + Vuln 2) or Drain (Weak 3, +3 Str)
-        enemy.set_move(move_ids::CHOSEN_DEBILITATE, 10, 1, 0);
-        enemy.add_effect(mfx::VULNERABLE, 2);
+        poke(enemy);
     }
 }
 

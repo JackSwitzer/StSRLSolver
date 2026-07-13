@@ -1875,6 +1875,21 @@ impl RunEngine {
             enemy.entity.set_status(crate::status_ids::sid::THRESHOLD_REACHED, 0);
         }
 
+        // Source: reference/extracted/methods/monster/Chosen.java.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "Chosen") {
+            let high_damage = self.run_state.ascension >= 2;
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
+                if high_damage { 21 } else { 18 });
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
+                if high_damage { 12 } else { 10 });
+            enemy.entity.set_status(crate::status_ids::sid::SLAP_DMG,
+                if high_damage { 6 } else { 5 });
+            enemy.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI,
+                if self.run_state.ascension >= 17 { 1 } else { 0 });
+            enemy.entity.set_status(crate::status_ids::sid::FIRST_TURN, 1);
+            enemy.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 0);
+        }
+
         // Source: reference/extracted/methods/monster/BanditLeader.java.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "BanditLeader") {
             let (cross_slash, agonizing_slash) = if self.run_state.ascension >= 2 {
@@ -2512,7 +2527,10 @@ impl RunEngine {
                 (hp, hp)
             }
             "Chosen" => {
-                let hp = if a20 { 99 } else { 95 };
+                // Source: Chosen.java constructor: inclusive setHp(95,99),
+                // or setHp(98,103) at ascension 7+.
+                let (base, width) = if a20 { (98, 5) } else { (95, 4) };
+                let hp = base + self.rng.gen_range(0..=width);
                 (hp, hp)
             }
             "ShelledParasite" => {
@@ -8395,6 +8413,95 @@ mod tests {
         assert_eq!(combat.state.enemies[0].entity.status(
             crate::status_ids::sid::METALLICIZE), 5);
         assert_eq!(combat.state.enemies[0].entity.block, 20);
+    }
+
+    #[test]
+    fn chosen_stats_a17_opener_rng_table_and_move_effects_match_java() {
+        // Source: reference/extracted/methods/monster/Chosen.java.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("Chosen").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("Chosen").0);
+        }
+        assert_eq!(low_hp, (95..=99).collect());
+        assert_eq!(high_hp, (98..=103).collect());
+
+        for (ascension, zap, debilitate, poke, opener) in [
+            (0, 18, 10, 5, crate::enemies::move_ids::CHOSEN_POKE),
+            (2, 21, 12, 6, crate::enemies::move_ids::CHOSEN_POKE),
+            (7, 21, 12, 6, crate::enemies::move_ids::CHOSEN_POKE),
+            (17, 21, 12, 6, crate::enemies::move_ids::CHOSEN_HEX),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["Chosen".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG), zap);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), debilitate);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::SLAP_DMG), poke);
+            assert_eq!(enemy.move_id, opener);
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        let mut normal = crate::enemies::create_enemy("Chosen", 95, 95);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut normal, 99, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(normal.move_id, crate::enemies::move_ids::CHOSEN_POKE);
+        crate::enemies::roll_next_move_with_num(&mut normal, 99);
+        assert_eq!(normal.move_id, crate::enemies::move_ids::CHOSEN_HEX);
+        crate::enemies::roll_next_move_with_num(&mut normal, 49);
+        assert_eq!(normal.move_id, crate::enemies::move_ids::CHOSEN_DEBILITATE);
+        assert_eq!(normal.effect(crate::combat_types::mfx::VULNERABLE), Some(2));
+        crate::enemies::roll_next_move_with_num(&mut normal, 39);
+        assert_eq!(normal.move_id, crate::enemies::move_ids::CHOSEN_ZAP);
+
+        let mut drain = crate::enemies::create_enemy("Chosen", 95, 95);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut drain, 99, &mut crate::seed::StsRandom::new(0));
+        crate::enemies::roll_next_move_with_num(&mut drain, 99);
+        crate::enemies::roll_next_move_with_num(&mut drain, 50);
+        assert_eq!(drain.move_id, crate::enemies::move_ids::CHOSEN_DRAIN);
+        assert_eq!(drain.effect(crate::combat_types::mfx::WEAK), Some(3));
+        assert_eq!(drain.effect(crate::combat_types::mfx::STRENGTH), Some(3));
+        crate::enemies::roll_next_move_with_num(&mut drain, 40);
+        assert_eq!(drain.move_id, crate::enemies::move_ids::CHOSEN_POKE);
+
+        let mut high_ai = crate::enemies::create_enemy("Chosen", 98, 98);
+        high_ai.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI, 1);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut high_ai, 0, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(high_ai.move_id, crate::enemies::move_ids::CHOSEN_HEX);
+        crate::enemies::roll_next_move_with_num(&mut high_ai, 50);
+        assert_eq!(high_ai.move_id, crate::enemies::move_ids::CHOSEN_DRAIN);
+
+        // takeTurn effects: Hex applies Hex 1; Drain applies Weak 3 and gives
+        // Chosen Strength 3; Debilitate attacks then applies Vulnerable 2.
+        let mut run = RunEngine::new(42, 0);
+        run.enter_specific_combat(vec!["Chosen".to_string()]);
+        let combat = run.combat_engine.as_mut().unwrap();
+        combat.state.enemies[0].set_move(
+            crate::enemies::move_ids::CHOSEN_HEX, 0, 0, 0);
+        combat.state.enemies[0].add_effect(crate::combat_types::mfx::HEX, 1);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::HEX), 1);
+
+        combat.state.enemies[0].set_move(
+            crate::enemies::move_ids::CHOSEN_DRAIN, 0, 0, 0);
+        combat.state.enemies[0].add_effect(crate::combat_types::mfx::WEAK, 3);
+        combat.state.enemies[0].add_effect(crate::combat_types::mfx::STRENGTH, 3);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::WEAKENED), 3);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::STRENGTH), 3);
+
+        combat.state.enemies[0].set_move(
+            crate::enemies::move_ids::CHOSEN_DEBILITATE, 10, 1, 0);
+        combat.state.enemies[0].add_effect(crate::combat_types::mfx::VULNERABLE, 2);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::VULNERABLE), 2);
     }
 
     #[test]

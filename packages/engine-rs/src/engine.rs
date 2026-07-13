@@ -380,7 +380,7 @@ impl CombatEngine {
                 | "BookOfStabbing" | "Book of Stabbing"
                 | "BronzeAutomaton" | "Bronze Automaton"
                 | "BronzeOrb" | "Bronze Orb" | "Byrd" | "Centurion"
-                | "Champ" | "TheChamp")) {
+                | "Champ" | "TheChamp" | "Chosen")) {
             if enemy.id == "Centurion" {
                 enemy.entity.set_status(sid::COUNT, living_enemy_count);
             }

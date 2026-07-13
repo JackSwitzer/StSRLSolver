@@ -602,8 +602,15 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         // Act 2 — The City
         // =================================================================
         "Chosen" => {
-            // First turn: Poke (5 dmg x2)
+            // Source: reference/extracted/methods/monster/Chosen.java.
+            // The opening is rolled during combat initialization.
             enemy.set_move(move_ids::CHOSEN_POKE, 5, 2, 0);
+            enemy.entity.set_status(sid::FIRST_TURN, 1);
+            enemy.entity.set_status(sid::FIRST_MOVE, 0);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 18);
+            enemy.entity.set_status(sid::STR_AMT, 10);
+            enemy.entity.set_status(sid::SLAP_DMG, 5);
         }
         "Mugger" => {
             // First turn: Mug (10 damage, steals gold)
@@ -1399,22 +1406,25 @@ mod tests {
 
     #[test]
     fn test_chosen_pattern() {
+        // Source: reference/extracted/methods/monster/Chosen.java.
         let mut enemy = create_enemy("Chosen", 97, 97);
         assert_eq!(enemy.move_id, move_ids::CHOSEN_POKE);
         assert_eq!(enemy.move_damage(), 5);
         assert_eq!(enemy.move_hits(), 2);
 
-        // After Poke: Hex
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 99, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(enemy.move_id, move_ids::CHOSEN_POKE);
+
+        // After Poke: Hex.
+        roll_next_move_with_num(&mut enemy, 99);
         assert_eq!(enemy.move_id, move_ids::CHOSEN_HEX);
         assert_eq!(enemy.effect(mfx::HEX), Some(1));
 
-        // After Hex: Debilitate or Drain
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 0);
         assert_eq!(enemy.move_id, move_ids::CHOSEN_DEBILITATE);
 
-        // After debuff: attack
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 0);
         assert_eq!(enemy.move_id, move_ids::CHOSEN_ZAP);
         assert_eq!(enemy.move_damage(), 18);
     }

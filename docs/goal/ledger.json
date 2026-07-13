@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T18:36:43.832629+00:00",
+ "updated": "2026-07-13T18:40:14.603714+00:00",
  "status_counts": {
-  "verified": 592,
-  "unverified": 75
+  "verified": 593,
+  "unverified": 74
  },
  "rows": [
   {
@@ -3852,8 +3852,8 @@
    "class": "Chosen",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/city/Chosen.java",
    "methods_ref": "reference/extracted/methods/monster/Chosen.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

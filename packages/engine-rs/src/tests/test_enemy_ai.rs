@@ -459,11 +459,14 @@ mod enemy_ai_java_parity_tests {
     #[test]
     fn act2_patterns_match_java() {
         let mut e = make("Chosen", 95);
-        roll_times(&mut e, 1);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 99, &mut crate::seed::StsRandom::new(0));
+        expect_move(&e, move_ids::CHOSEN_POKE, 5, 2, 0, &[]);
+        roll_with_num(&mut e, 99);
         expect_move(&e, move_ids::CHOSEN_HEX, 0, 0, 0, &[(mfx::HEX, 1)]);
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 0);
         expect_move(&e, move_ids::CHOSEN_DEBILITATE, 10, 1, 0, &[(mfx::VULNERABLE, 2)]);
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 0);
         expect_move(&e, move_ids::CHOSEN_ZAP, 18, 1, 0, &[]);
 
         let mut e = make("Mugger", 48);
