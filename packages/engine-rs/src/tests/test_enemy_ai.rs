@@ -731,6 +731,7 @@ mod enemy_ai_java_parity_tests {
 
         let e = make("SnakeDagger", 20);
         expect_move(&e, move_ids::SD_WOUND, 9, 1, 0, &[(mfx::WOUND, 1)]);
+        expect_status(&e, sid::FIRST_MOVE, 1);
     }
 
     #[test]
@@ -868,6 +869,8 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::REPTO_SPAWN, 0, 0, 0, &[]);
 
         let mut e = make("SnakeDagger", 20);
+        crate::enemies::roll_initial_move(
+            &mut e, &mut crate::seed::StsRandom::new(0));
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SD_EXPLODE, 25, 1, 0, &[]);
     }

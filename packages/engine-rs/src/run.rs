@@ -2632,6 +2632,11 @@ impl RunEngine {
                 let hp = if a20 { 210 } else { 190 };
                 (hp, hp)
             }
+            "SnakeDagger" | "Snake Dagger" => {
+                // Source: reference/extracted/methods/monster/SnakeDagger.java.
+                let hp = 20 + self.rng.gen_range(0..=5);
+                (hp, hp)
+            }
             "Transient" => {
                 let hp = if a20 { 1000 } else { 999 };
                 (hp, hp)
@@ -8624,6 +8629,78 @@ mod tests {
                 _ => {}
             }
         }
+    }
+
+    #[test]
+    fn snake_dagger_hp_init_wound_suicide_and_spawn_rng_match_java() {
+        // Source: reference/extracted/methods/monster/SnakeDagger.java.
+        let mut hp_values = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut run = RunEngine::new(seed, 0);
+            hp_values.insert(run.roll_enemy_hp("SnakeDagger").0);
+        }
+        assert_eq!(hp_values, (20..=25).collect());
+
+        let mut solo = RunEngine::new(42, 0);
+        solo.enter_specific_combat(vec!["SnakeDagger".to_string()]);
+        let combat = solo.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+        combat.state.discard_pile.clear();
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::SD_WOUND);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::FIRST_MOVE), 0);
+        assert_eq!(combat.ai_rng.counter, 1);
+
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(combat.state.player.hp, 491);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::SD_EXPLODE);
+        assert_eq!(combat.ai_rng.counter, 2);
+        assert_eq!(combat.state.discard_pile.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) == "Wound").count(), 1);
+
+        combat.execute_action(&crate::actions::Action::EndTurn);
+        assert_eq!(combat.state.player.hp, 466);
+        assert_eq!(combat.state.enemies[0].entity.hp, 0);
+        assert!(combat.state.combat_over && combat.state.player_won);
+        assert_eq!(combat.ai_rng.counter, 2,
+            "solo LoseHPAction clears the queued RollMoveAction");
+
+        let mut group = RunEngine::new(42, 0);
+        group.enter_specific_combat(vec!["Reptomancer".to_string()]);
+        let combat = group.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+        combat.state.discard_pile.clear();
+        let ai_before = combat.ai_rng.counter;
+
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies.len(), 3);
+        assert_eq!(combat.ai_rng.counter, ai_before + 3,
+            "two spawned dagger init rolls precede Reptomancer's next roll");
+        for dagger in &combat.state.enemies[1..] {
+            assert_eq!(dagger.id, "SnakeDagger");
+            assert!(dagger.is_minion);
+            assert!((20..=25).contains(&dagger.entity.hp));
+            assert_eq!(dagger.move_id, crate::enemies::move_ids::SD_WOUND);
+            assert_eq!(dagger.entity.status(crate::status_ids::sid::FIRST_MOVE), 0);
+        }
+
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.ai_rng.counter, ai_before + 6);
+        for dagger in &combat.state.enemies[1..] {
+            assert_eq!(dagger.move_id, crate::enemies::move_ids::SD_EXPLODE);
+        }
+        assert_eq!(combat.state.discard_pile.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) == "Wound").count(), 2);
+
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.hp, 376);
+        assert!(combat.state.enemies[1..].iter().all(|dagger| dagger.entity.hp == 0));
+        assert_eq!(combat.ai_rng.counter, ai_before + 9,
+            "with Reptomancer alive, each dead dagger's queued roll still executes");
     }
 
     #[test]

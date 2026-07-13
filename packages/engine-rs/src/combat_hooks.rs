@@ -783,8 +783,15 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             }
             ("Reptomancer", x) if x == move_ids::REPTO_SPAWN => {
                 for _ in 0..2 {
+                    // SpawnMonsterAction.init consumes one aiRng num before
+                    // SnakeDagger.getMove selects its forced first move.
+                    // HP uses an in-range semantic value until run-level RNG
+                    // streams are split.
+                    // Java: reference/extracted/methods/monster/SnakeDagger.java
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/SpawnMonsterAction.java
                     let mut minion = enemies::create_enemy("SnakeDagger", 22, 22);
                     minion.is_minion = true;
+                    enemies::roll_initial_move(&mut minion, &mut engine.ai_rng);
                     engine.add_spawned_enemy(minion);
                 }
             }
@@ -834,6 +841,24 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     }
 
     if large_slime_split {
+        return;
+    }
+
+    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
+        "SnakeDagger" | "Snake Dagger")
+        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::SD_EXPLODE
+    {
+        // Source: reference/extracted/methods/monster/SnakeDagger.java
+        // (`takeTurn`, case 2). LoseHPAction kills the dagger after its attack.
+        // Its queued RollMoveAction survives only while another monster keeps
+        // combat alive; LoseHPAction clears post-combat actions otherwise.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/LoseHPAction.java
+        engine.state.enemies[enemy_idx].entity.hp = 0;
+        engine.finalize_enemy_death(enemy_idx);
+        if engine.state.enemies.iter().any(|enemy| enemy.is_alive()) {
+            enemies::roll_next_move(
+                &mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
+        }
         return;
     }
 

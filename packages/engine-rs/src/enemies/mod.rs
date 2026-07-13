@@ -847,9 +847,10 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::REPTO_SPAWN, 0, 0, 0);
         }
         "SnakeDagger" | "Snake Dagger" => {
-            // First turn: Wound (9 damage + add Wound to discard)
+            // Source: reference/extracted/methods/monster/SnakeDagger.java.
             enemy.set_move(move_ids::SD_WOUND, 9, 1, 0);
             enemy.add_effect(mfx::WOUND, 1);
+            enemy.entity.set_status(sid::FIRST_MOVE, 1);
         }
         "AwakenedOne" | "Awakened One" => {
             // Ascension-dependent pre-battle values are patched at the run
@@ -1803,7 +1804,12 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::SD_WOUND);
         assert_eq!(enemy.move_damage(), 9);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        let mut rng = crate::seed::StsRandom::new(0);
+        roll_initial_move(&mut enemy, &mut rng);
+        assert_eq!(enemy.move_id, move_ids::SD_WOUND);
+        assert_eq!(enemy.entity.status(sid::FIRST_MOVE), 0);
+
+        roll_next_move(&mut enemy, &mut rng);
         assert_eq!(enemy.move_id, move_ids::SD_EXPLODE);
         assert_eq!(enemy.move_damage(), 25);
     }

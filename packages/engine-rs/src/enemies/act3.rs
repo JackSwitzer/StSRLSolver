@@ -273,12 +273,14 @@ pub(super) fn roll_reptomancer(enemy: &mut EnemyCombatState, _num: i32) {
 }
 
 pub(super) fn roll_snake_dagger(enemy: &mut EnemyCombatState, _num: i32) {
-    // Wound (9 + Wound card) -> Explode (25 dmg, dies)
-    if last_move(enemy, move_ids::SD_WOUND) {
-        enemy.set_move(move_ids::SD_EXPLODE, 25, 1, 0);
-    } else {
+    // Source: reference/extracted/methods/monster/SnakeDagger.java (`getMove`).
+    // Its initialized first move is always Wound; every later roll is Explode.
+    if enemy.entity.status(sid::FIRST_MOVE) > 0 {
+        enemy.entity.set_status(sid::FIRST_MOVE, 0);
         enemy.set_move(move_ids::SD_WOUND, 9, 1, 0);
         enemy.add_effect(mfx::WOUND, 1);
+    } else {
+        enemy.set_move(move_ids::SD_EXPLODE, 25, 1, 0);
     }
 }
 
