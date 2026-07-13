@@ -1590,6 +1590,20 @@ fn execute_choose_cards(
         return;
     }
 
+    // RecycleAction directly resolves the only remaining hand card. It opens
+    // hand selection only when two or more cards remain after Recycle itself
+    // has left the hand.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/RecycleAction.java
+    if action == ChoiceAction::ExhaustAndGainEnergy
+        && source == Pile::Hand
+        && options.len() == 1
+    {
+        if let ChoiceOption::HandCard(index) = options[0] {
+            engine.recycle_hand_card(index);
+        }
+        return;
+    }
+
     // DualWieldAction skips the hand-select screen when exactly one Attack or
     // Power is eligible and immediately creates its copies.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DualWieldAction.java

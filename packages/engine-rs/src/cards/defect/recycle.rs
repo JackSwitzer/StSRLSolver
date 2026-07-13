@@ -1,6 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+    // Source: reference/extracted/methods/card/Recycle.java delegates to
+    // RecycleAction; upgrade changes only the base cost from one to zero.
     insert(cards, CardDef {
                 id: "Recycle", name: "Recycle", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,

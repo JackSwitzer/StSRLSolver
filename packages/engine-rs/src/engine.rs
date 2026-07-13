@@ -1427,23 +1427,36 @@ impl CombatEngine {
     }
 
     fn resolve_recycle(&mut self, ctx: ChoiceContext) {
-        // Recycle: exhaust selected card, gain its cost as energy
         if let Some(&sel) = ctx.selected.first() {
             if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
-                if idx < self.state.hand.len() {
-                    let card = self.state.hand.remove(idx);
-                    // cost == -1 means "use CardDef base cost"
-                    let effective_cost = if card.cost >= 0 {
-                        card.cost as i32
-                    } else {
-                        self.card_registry.card_def_by_id(card.def_id).cost.max(0)
-                    };
-                    self.state.energy += effective_cost;
-                    self.state.exhaust_pile.push(card);
-                    self.trigger_card_on_exhaust(card);
-                }
+                self.recycle_hand_card(idx);
             }
         }
+    }
+
+    pub(crate) fn recycle_hand_card(&mut self, idx: usize) {
+        if idx >= self.state.hand.len() {
+            return;
+        }
+        let card = self.state.hand.remove(idx);
+        let def = self.card_registry.card_def_by_id(card.def_id);
+        let cost_for_turn = if card.cost >= 0 {
+            card.cost as i32
+        } else {
+            def.cost
+        };
+        // RecycleAction grants current EnergyPanel energy for an X-cost card;
+        // ordinary cards grant positive costForTurn and zero/negative costs
+        // grant nothing. Capture and grant before exhaust hooks resolve.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/RecycleAction.java
+        let energy_gain = if cost_for_turn == -1 {
+            self.state.energy
+        } else {
+            cost_for_turn.max(0)
+        };
+        self.state.energy += energy_gain;
+        self.state.exhaust_pile.push(card);
+        self.trigger_card_on_exhaust(card);
     }
 
     fn resolve_setup(&mut self, ctx: ChoiceContext) {

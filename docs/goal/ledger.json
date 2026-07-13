@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T13:38:44.207432+00:00",
+ "updated": "2026-07-13T13:43:08.722289+00:00",
  "status_counts": {
-  "verified": 503,
-  "unverified": 164
+  "verified": 504,
+  "unverified": 163
  },
  "rows": [
   {
@@ -2672,8 +2672,8 @@
    "class": "Recycle",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Recycle.java",
    "methods_ref": "reference/extracted/methods/card/Recycle.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
