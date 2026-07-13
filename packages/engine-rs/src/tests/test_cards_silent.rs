@@ -545,6 +545,34 @@ mod silent_card_java_parity_tests {
         "Infinite Blades", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["infinite_blades"],
         "Infinite Blades+", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["infinite_blades", "innate"],
     );
+
+    #[test]
+    fn infinite_blades_upgrade_is_innate_only_and_stacks_shivs_at_turn_start() {
+        // InfiniteBlades.java upgrades only isInnate and applies one power stack.
+        // InfiniteBladesPower.java::stackPower adds amounts; atStartOfTurn makes
+        // exactly that many base Shivs before the ordinary turn draw.
+        let mut engine = engine_with_enemies(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            3,
+        );
+        engine.state.hand = make_deck(&["Infinite Blades", "Infinite Blades+"]);
+        engine.state.draw_pile = make_deck(&[
+            "Defend", "Defend", "Defend", "Defend", "Defend",
+        ]);
+
+        assert!(play_self(&mut engine, "Infinite Blades"));
+        assert!(play_self(&mut engine, "Infinite Blades+"));
+        assert_eq!(engine.state.energy, 1);
+        assert_eq!(engine.state.player.status(sid::INFINITE_BLADES), 2);
+        assert!(engine.state.discard_pile.is_empty());
+
+        engine.execute_action(&Action::EndTurn);
+
+        assert_eq!(hand_count(&engine, "Shiv"), 2);
+        assert_eq!(hand_count(&engine, "Defend"), 5);
+        assert_eq!(engine.state.player.status(sid::INFINITE_BLADES), 2);
+    }
     card_pair_test!(leg_sweep,
         "Leg Sweep", 2, -1, 11, 2, CardType::Skill, CardTarget::Enemy, false, None, &["weak"],
         "Leg Sweep+", 2, -1, 14, 3, CardType::Skill, CardTarget::Enemy, false, None, &["weak"],

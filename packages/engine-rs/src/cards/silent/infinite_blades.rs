@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Uncommon: Infinite Blades ---- (cost 1, power, add Shiv to hand at turn start; upgrade: cost 0)  [Note: ID is actually "Infinite Blades" not "InfiniteBlades"]
+    // InfiniteBlades.java applies one stack of InfiniteBladesPower; its upgrade
+    // keeps cost 1 and only sets isInnate. InfiniteBladesPower.java creates one
+    // Shiv per stacked amount in atStartOfTurn.
     insert(cards, CardDef {
                 id: "Infinite Blades", name: "Infinite Blades", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,

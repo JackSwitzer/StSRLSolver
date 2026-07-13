@@ -187,6 +187,9 @@ pub static DEF_BERSERK: EntityDef = EntityDef {
 // Infinite Blades — TurnStart: add Shiv(s) to hand
 // ===========================================================================
 
+// Source: powers/InfiniteBladesPower.java::atStartOfTurn creates `amount`
+// unupgraded Shivs, and stackPower adds each new card's one stack.
+
 static INFINITE_BLADES_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddCard(
     "Shiv",
     Pile::Hand,
