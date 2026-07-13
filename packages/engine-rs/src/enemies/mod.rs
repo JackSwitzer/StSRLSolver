@@ -871,13 +871,17 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::EXPLOSIVE, 3);
         }
         "WrithingMass" | "Writhing Mass" => {
-            // First turn: random attack. Use Multi Hit as default.
-            // Reactive power: changes intent when hit. Malleable power: gains block when hit.
-            // A2: 38/9/16/12, else 32/7/15/10
-            // For MCTS deterministic: use Multi Hit as first move
+            // Base factory represents A0; RunEngine applies ascension stats.
+            // AbstractMonster.init replaces this placeholder with a random
+            // first intent from WrithingMass.getMove.
             enemy.set_move(move_ids::WM_MULTI_HIT, 7, 3, 0);
             enemy.entity.set_status(sid::REACTIVE, 1);
-            enemy.entity.set_status(sid::MALLEABLE, 1);
+            enemy.entity.set_status(sid::MALLEABLE, 3);
+            enemy.entity.set_status(sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(sid::STARTING_DMG, 32);
+            enemy.entity.set_status(sid::STR_AMT, 7);
+            enemy.entity.set_status(sid::BLOCK_AMT, 15);
+            enemy.entity.set_status(sid::HEAD_SLAM_DMG, 10);
             enemy.entity.set_status(sid::USED_MEGA_DEBUFF, 0);
         }
         "Serpent" | "SpireGrowth" | "Spire Growth" => {
@@ -1168,7 +1172,9 @@ fn select_move(
         "Spiker" => act3::roll_spiker(enemy, num),
         "Repulsor" => act3::roll_repulsor(enemy, num),
         "Exploder" => act3::roll_exploder(enemy, num),
-        "WrithingMass" | "Writhing Mass" => act3::roll_writhing_mass(enemy, num),
+        "WrithingMass" | "Writhing Mass" => {
+            act3::roll_writhing_mass(enemy, num, ai_rng)
+        }
         "Serpent" | "SpireGrowth" | "Spire Growth" => {
             act3::roll_spire_growth(enemy, num)
         }

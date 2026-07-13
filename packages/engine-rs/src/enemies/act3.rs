@@ -131,62 +131,102 @@ pub(super) fn roll_exploder(enemy: &mut EnemyCombatState, _num: i32) {
     }
 }
 
-pub(super) fn roll_writhing_mass(enemy: &mut EnemyCombatState, _num: i32) {
-    // Cycle: Multi -> Block -> Debuff -> BigHit -> MegaDebuff(once) -> Multi -> ...
-    if last_move(enemy, move_ids::WM_MULTI_HIT) {
-        enemy.set_move(move_ids::WM_ATTACK_BLOCK, 15, 1, 15);
-    } else if last_move(enemy, move_ids::WM_ATTACK_BLOCK) {
-        enemy.set_move(move_ids::WM_ATTACK_DEBUFF, 10, 1, 0);
+pub(super) fn roll_writhing_mass(
+    enemy: &mut EnemyCombatState,
+    num: i32,
+    ai_rng: &mut StsRandom,
+) {
+    // Source: reference/extracted/methods/monster/WrithingMass.java (`getMove`).
+    let big = enemy.entity.status(sid::STARTING_DMG).max(32);
+    let multi = enemy.entity.status(sid::STR_AMT).max(7);
+    let attack_block = enemy.entity.status(sid::BLOCK_AMT).max(15);
+    let attack_debuff = enemy.entity.status(sid::HEAD_SLAM_DMG).max(10);
+
+    let set_big = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::WM_BIG_HIT, big, 1, 0);
+    };
+    let set_multi = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::WM_MULTI_HIT, multi, 3, 0);
+    };
+    let set_attack_block = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::WM_ATTACK_BLOCK, attack_block, 1, attack_block);
+    };
+    let set_attack_debuff = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::WM_ATTACK_DEBUFF, attack_debuff, 1, 0);
+        enemy.intent = crate::combat_types::Intent::AttackDebuff {
+            damage: attack_debuff as i16,
+            hits: 1,
+            effects: 0,
+        };
         enemy.add_effect(mfx::WEAK, 2);
         enemy.add_effect(mfx::VULNERABLE, 2);
-    } else if last_move(enemy, move_ids::WM_ATTACK_DEBUFF) {
-        enemy.set_move(move_ids::WM_BIG_HIT, 32, 1, 0);
-    } else if last_move(enemy, move_ids::WM_BIG_HIT) {
-        // Use MegaDebuff once after first cycle, then skip
-        if enemy.entity.status(sid::USED_MEGA_DEBUFF) == 0 {
-            enemy.set_move(move_ids::WM_MEGA_DEBUFF, 0, 0, 0);
-            enemy.add_effect(mfx::PAINFUL_STABS, 1); // Adds Parasite curse
-            enemy.entity.set_status(sid::USED_MEGA_DEBUFF, 1);
+    };
+
+    if enemy.entity.status(sid::FIRST_MOVE) > 0 {
+        enemy.entity.set_status(sid::FIRST_MOVE, 0);
+        if num < 33 {
+            set_multi(enemy);
+        } else if num < 66 {
+            set_attack_block(enemy);
         } else {
-            enemy.set_move(move_ids::WM_MULTI_HIT, 7, 3, 0);
+            set_attack_debuff(enemy);
         }
-    } else if last_move(enemy, move_ids::WM_MEGA_DEBUFF) {
-        enemy.set_move(move_ids::WM_MULTI_HIT, 7, 3, 0);
+        return;
+    }
+
+    if num < 10 {
+        if !last_move(enemy, move_ids::WM_BIG_HIT) {
+            set_big(enemy);
+        } else {
+            let reroll = ai_rng.random_range(10, 99);
+            roll_writhing_mass(enemy, reroll, ai_rng);
+        }
+    } else if num < 20 {
+        if enemy.entity.status(sid::USED_MEGA_DEBUFF) == 0
+            && !last_move(enemy, move_ids::WM_MEGA_DEBUFF)
+        {
+            enemy.set_move(move_ids::WM_MEGA_DEBUFF, 0, 0, 0);
+            enemy.intent = crate::combat_types::Intent::Debuff { effects: 0 };
+        } else if ai_rng.random_float() < 0.1 {
+            set_big(enemy);
+        } else {
+            let reroll = ai_rng.random_range(20, 99);
+            roll_writhing_mass(enemy, reroll, ai_rng);
+        }
+    } else if num < 40 {
+        if !last_move(enemy, move_ids::WM_ATTACK_DEBUFF) {
+            set_attack_debuff(enemy);
+        } else if ai_rng.random_float() < 0.4 {
+            let reroll = ai_rng.random(19);
+            roll_writhing_mass(enemy, reroll, ai_rng);
+        } else {
+            let reroll = ai_rng.random_range(40, 99);
+            roll_writhing_mass(enemy, reroll, ai_rng);
+        }
+    } else if num < 70 {
+        if !last_move(enemy, move_ids::WM_MULTI_HIT) {
+            set_multi(enemy);
+        } else if ai_rng.random_float() < 0.3 {
+            set_attack_block(enemy);
+        } else {
+            let reroll = ai_rng.random(39);
+            roll_writhing_mass(enemy, reroll, ai_rng);
+        }
+    } else if !last_move(enemy, move_ids::WM_ATTACK_BLOCK) {
+        set_attack_block(enemy);
     } else {
-        enemy.set_move(move_ids::WM_BIG_HIT, 32, 1, 0);
+        let reroll = ai_rng.random(69);
+        roll_writhing_mass(enemy, reroll, ai_rng);
     }
 }
 
-/// WrithingMass: Reactive power triggers re-roll when hit. Call this when WM takes damage.
-pub fn writhing_mass_reactive_reroll(enemy: &mut EnemyCombatState) {
-    // Java: getMove() is called again with a new random number when hit.
-    // For MCTS: advance to a different move than current.
-    let current = enemy.move_id;
-    // Pick the next move in cycle that isn't the current one
-    let next = match current {
-        x if x == move_ids::WM_BIG_HIT => move_ids::WM_MULTI_HIT,
-        x if x == move_ids::WM_MULTI_HIT => move_ids::WM_ATTACK_BLOCK,
-        x if x == move_ids::WM_ATTACK_BLOCK => move_ids::WM_ATTACK_DEBUFF,
-        x if x == move_ids::WM_ATTACK_DEBUFF => move_ids::WM_BIG_HIT,
-        _ => move_ids::WM_MULTI_HIT,
-    };
-    enemy.move_effects.clear();
-    match next {
-        x if x == move_ids::WM_BIG_HIT => {
-            enemy.set_move(move_ids::WM_BIG_HIT, 32, 1, 0);
-        }
-        x if x == move_ids::WM_MULTI_HIT => {
-            enemy.set_move(move_ids::WM_MULTI_HIT, 7, 3, 0);
-        }
-        x if x == move_ids::WM_ATTACK_BLOCK => {
-            enemy.set_move(move_ids::WM_ATTACK_BLOCK, 15, 1, 15);
-        }
-        _ => {
-            enemy.set_move(move_ids::WM_ATTACK_DEBUFF, 10, 1, 0);
-            enemy.add_effect(mfx::WEAK, 2);
-            enemy.add_effect(mfx::VULNERABLE, 2);
-        }
-    }
+/// ReactivePower queues RollMoveAction without recording the unexecuted intent.
+pub fn writhing_mass_reactive_reroll(
+    enemy: &mut EnemyCombatState,
+    ai_rng: &mut StsRandom,
+) {
+    let num = ai_rng.random(99);
+    roll_writhing_mass(enemy, num, ai_rng);
 }
 
 pub(super) fn roll_spire_growth(enemy: &mut EnemyCombatState, num: i32) {

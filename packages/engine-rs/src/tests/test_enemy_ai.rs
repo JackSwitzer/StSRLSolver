@@ -869,7 +869,8 @@ mod enemy_ai_java_parity_tests {
         let e = make("WrithingMass", 160);
         expect_move(&e, move_ids::WM_MULTI_HIT, 7, 3, 0, &[]);
         expect_status(&e, sid::REACTIVE, 1);
-        expect_status(&e, sid::MALLEABLE, 1);
+        expect_status(&e, sid::MALLEABLE, 3);
+        expect_status(&e, sid::FIRST_MOVE, 1);
 
         let e = make("Serpent", 170);
         expect_move(&e, move_ids::SG_QUICK_TACKLE, 16, 1, 0, &[]);
@@ -913,6 +914,134 @@ mod enemy_ai_java_parity_tests {
         let e = make("SnakeDagger", 20);
         expect_move(&e, move_ids::SD_WOUND, 9, 1, 0, &[(mfx::WOUND, 1)]);
         expect_status(&e, sid::FIRST_MOVE, 1);
+    }
+
+    #[test]
+    fn writhing_mass_stats_ai_reactive_and_implant_match_java() {
+        // Sources: reference/extracted/methods/monster/WrithingMass.java plus
+        // decompiled ReactivePower.java and MalleablePower.java.
+        for (ascension, hp, big, multi, attack_block, attack_debuff) in [
+            (0, 160, 32, 7, 15, 10),
+            (2, 160, 38, 9, 16, 12),
+            (7, 175, 38, 9, 16, 12),
+        ] {
+            let mut run = RunEngine::new(200 + ascension as u64, ascension);
+            run.debug_enter_specific_combat(&["WrithingMass"]);
+            let combat = run.get_combat_engine().expect("Writhing Mass combat");
+            let mass = &combat.state.enemies[0];
+            assert_eq!((mass.entity.hp, mass.entity.max_hp), (hp, hp));
+            expect_status(mass, sid::STARTING_DMG, big);
+            expect_status(mass, sid::STR_AMT, multi);
+            expect_status(mass, sid::BLOCK_AMT, attack_block);
+            expect_status(mass, sid::HEAD_SLAM_DMG, attack_debuff);
+            expect_status(mass, sid::REACTIVE, 1);
+            expect_status(mass, sid::MALLEABLE, 3);
+            expect_status(mass, sid::FIRST_MOVE, 0);
+            assert_eq!(combat.ai_rng.counter, 1);
+            assert!(matches!(mass.move_id,
+                move_ids::WM_MULTI_HIT | move_ids::WM_ATTACK_BLOCK
+                    | move_ids::WM_ATTACK_DEBUFF));
+        }
+
+        for (num, move_id, damage, hits, block, effects) in [
+            (0, move_ids::WM_MULTI_HIT, 7, 3, 0, &[][..]),
+            (32, move_ids::WM_MULTI_HIT, 7, 3, 0, &[][..]),
+            (33, move_ids::WM_ATTACK_BLOCK, 15, 1, 15, &[][..]),
+            (65, move_ids::WM_ATTACK_BLOCK, 15, 1, 15, &[][..]),
+            (66, move_ids::WM_ATTACK_DEBUFF, 10, 1, 0,
+                &[(mfx::WEAK, 2), (mfx::VULNERABLE, 2)][..]),
+        ] {
+            let mut mass = make("WrithingMass", 160);
+            roll_initial_move_with_num_and_rng(
+                &mut mass, num, &mut crate::seed::StsRandom::new(0));
+            expect_move(&mass, move_id, damage, hits, block, effects);
+        }
+
+        let mut mass = make("WrithingMass", 160);
+        mass.entity.set_status(sid::FIRST_MOVE, 0);
+        for (last, num, move_id) in [
+            (move_ids::WM_ATTACK_BLOCK, 0, move_ids::WM_BIG_HIT),
+            (move_ids::WM_ATTACK_BLOCK, 10, move_ids::WM_MEGA_DEBUFF),
+            (move_ids::WM_ATTACK_BLOCK, 20, move_ids::WM_ATTACK_DEBUFF),
+            (move_ids::WM_ATTACK_BLOCK, 40, move_ids::WM_MULTI_HIT),
+            (move_ids::WM_MULTI_HIT, 70, move_ids::WM_ATTACK_BLOCK),
+        ] {
+            mass.move_id = last;
+            mass.move_history.clear();
+            roll_next_move_with_num_and_rng(
+                &mut mass, num, &mut crate::seed::StsRandom::new(0));
+            assert_eq!(mass.move_id, move_id, "num={num}");
+        }
+        assert_eq!(mass.entity.status(sid::USED_MEGA_DEBUFF), 0,
+            "Implant marks used only when takeTurn executes it");
+
+        for (last, num, expected_ticks) in [
+            (move_ids::WM_BIG_HIT, 0, 2),
+            (move_ids::WM_MEGA_DEBUFF, 10, 1),
+            (move_ids::WM_ATTACK_DEBUFF, 20, 2),
+            (move_ids::WM_MULTI_HIT, 40, 1),
+            (move_ids::WM_ATTACK_BLOCK, 70, 1),
+        ] {
+            let mut repeated = make("WrithingMass", 160);
+            repeated.entity.set_status(sid::FIRST_MOVE, 0);
+            repeated.entity.set_status(sid::USED_MEGA_DEBUFF, 1);
+            repeated.move_id = last;
+            repeated.move_history.clear();
+            let mut rng = crate::seed::StsRandom::new(0);
+            roll_next_move_with_num_and_rng(&mut repeated, num, &mut rng);
+            assert_eq!(rng.counter, expected_ticks, "last={last}, num={num}");
+        }
+
+        let mut reactive = RunEngine::new(220, 0);
+        reactive.debug_enter_specific_combat(&["WrithingMass"]);
+        let combat = reactive.debug_combat_engine_mut();
+        combat.state.player.max_hp = 9_999;
+        combat.state.player.hp = 9_999;
+        let hp_before = combat.state.enemies[0].entity.hp;
+        let ai_before = combat.ai_rng.counter;
+        combat.deal_damage_to_enemy(0, 1);
+        assert_eq!(combat.state.enemies[0].entity.hp, hp_before - 1);
+        assert_eq!(combat.state.enemies[0].entity.block, 3);
+        assert_eq!(combat.state.enemies[0].entity.status(sid::MALLEABLE), 4);
+        assert!(combat.ai_rng.counter > ai_before,
+            "Reactive queues one RollMoveAction, including any source rerolls");
+        let ai_after_normal = combat.ai_rng.counter;
+        combat.deal_thorns_damage_to_enemy(0, 1);
+        assert_eq!(combat.ai_rng.counter, ai_after_normal);
+        assert_eq!(combat.state.enemies[0].entity.status(sid::MALLEABLE), 4);
+        assert_eq!(combat.enemy_lose_hp_from_damage(0, 1), 1);
+        assert_eq!(combat.ai_rng.counter, ai_after_normal);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].entity.status(sid::MALLEABLE), 3);
+
+        let mut implant = RunEngine::new(221, 0);
+        implant.debug_enter_specific_combat(&["WrithingMass"]);
+        let combat = implant.debug_combat_engine_mut();
+        let deck_before = combat.state.master_deck.len();
+        combat.state.enemies[0].set_move(move_ids::WM_MEGA_DEBUFF, 0, 0, 0);
+        combat.state.enemies[0].intent = Intent::Debuff { effects: 0 };
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].entity.status(sid::USED_MEGA_DEBUFF), 1);
+        assert_eq!(combat.state.master_deck.len(), deck_before + 1);
+        assert_eq!(combat.card_registry.card_name(
+            combat.state.master_deck.last().unwrap().def_id), "Parasite");
+        assert!(combat.state.discard_pile.iter().all(|card|
+            combat.card_registry.card_name(card.def_id) != "Wound"));
+
+        let mut debuff = RunEngine::new(222, 2);
+        debuff.debug_enter_specific_combat(&["WrithingMass"]);
+        let combat = debuff.debug_combat_engine_mut();
+        combat.state.player.set_status(sid::ARTIFACT, 1);
+        combat.state.enemies[0].set_move(move_ids::WM_ATTACK_DEBUFF, 12, 1, 0);
+        combat.state.enemies[0].intent = Intent::AttackDebuff {
+            damage: 12, hits: 1, effects: 0,
+        };
+        combat.state.enemies[0].add_effect(mfx::WEAK, 2);
+        combat.state.enemies[0].add_effect(mfx::VULNERABLE, 2);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.status(sid::ARTIFACT), 0);
+        assert_eq!(combat.state.player.status(sid::WEAKENED), 0);
+        assert_eq!(combat.state.player.status(sid::VULNERABLE), 2);
     }
 
     #[test]
@@ -1059,14 +1188,12 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::EXPLODER_EXPLODE, 0, 0, 0, &[]);
 
         let mut e = make("WrithingMass", 160);
-        roll_times(&mut e, 1);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 33, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::WM_ATTACK_BLOCK, 15, 1, 15, &[]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::WM_ATTACK_DEBUFF, 10, 1, 0, &[(mfx::WEAK, 2), (mfx::VULNERABLE, 2)]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::WM_BIG_HIT, 32, 1, 0, &[]);
-        writhing_mass_reactive_reroll(&mut e);
-        assert_ne!(e.move_id, move_ids::WM_BIG_HIT);
+        roll_with_num(&mut e, 20);
+        expect_move(&e, move_ids::WM_ATTACK_DEBUFF, 10, 1, 0,
+            &[(mfx::WEAK, 2), (mfx::VULNERABLE, 2)]);
 
         // Source: reference/extracted/methods/monster/SpireGrowth.java. COUNT
         // mirrors player.hasPower("Constricted") for this context-free AI.

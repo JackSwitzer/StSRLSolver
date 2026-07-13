@@ -176,6 +176,10 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
             if engine.state.enemies[i].id == "SnakePlant" {
                 let base = engine.state.enemies[i].entity.status(sid::BLOCK_AMT).max(3);
                 engine.state.enemies[i].entity.set_status(sid::MALLEABLE, base);
+            } else if matches!(engine.state.enemies[i].id.as_str(),
+                "WrithingMass" | "Writhing Mass")
+            {
+                engine.state.enemies[i].entity.set_status(sid::MALLEABLE, 3);
             }
         }
     }
@@ -537,6 +541,18 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         } else {
             engine.state.enemies[enemy_idx].entity.block += move_blk;
         }
+    }
+
+    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
+        "WrithingMass" | "Writhing Mass")
+        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::WM_MEGA_DEBUFF
+    {
+        // Source: reference/extracted/methods/monster/WrithingMass.java
+        // (`takeTurn`, case 4). Implant permanently adds Parasite to the
+        // master deck; it does not install Painful Stabs or add a combat Wound.
+        engine.state.enemies[enemy_idx]
+            .entity.set_status(sid::USED_MEGA_DEBUFF, 1);
+        engine.state.master_deck.push(engine.card_registry.make_card("Parasite"));
     }
 
     // Apply move effects

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T21:37:53.108427+00:00",
+ "updated": "2026-07-13T21:45:14.263116+00:00",
  "status_counts": {
-  "verified": 621,
-  "unverified": 46
+  "verified": 622,
+  "unverified": 45
  },
  "rows": [
   {
@@ -4382,8 +4382,8 @@
    "class": "WrithingMass",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/beyond/WrithingMass.java",
    "methods_ref": "reference/extracted/methods/monster/WrithingMass.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

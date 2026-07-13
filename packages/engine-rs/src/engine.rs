@@ -393,7 +393,7 @@ impl CombatEngine {
                 | "SphericGuardian" | "Spheric Guardian" | "Spiker"
                 | "SpireGrowth" | "Spire Growth" | "SpireShield" | "Spire Shield"
                 | "SpireSpear" | "Spire Spear" | "TimeEater" | "Time Eater"
-                | "Transient")) {
+                | "Transient" | "WrithingMass" | "Writhing Mass")) {
             if enemy.id == "Centurion" {
                 enemy.entity.set_status(sid::COUNT, living_enemy_count);
             }
@@ -3645,6 +3645,18 @@ impl CombatEngine {
                 self.state.enemies[enemy_idx]
                     .entity
                     .add_status(sid::MALLEABLE, 1);
+            }
+
+            // Source: decompiled ReactivePower.java. Only sourced, positive,
+            // nonlethal NORMAL damage queues RollMoveAction; THORNS and HP_LOSS
+            // use other damage paths and never reach this hook.
+            if enemy_alive
+                && self.state.enemies[enemy_idx].entity.status(sid::REACTIVE) > 0
+            {
+                crate::enemies::writhing_mass_reactive_reroll(
+                    &mut self.state.enemies[enemy_idx],
+                    &mut self.ai_rng,
+                );
             }
 
             self.apply_shifting_after_hit(enemy_idx, hp_damage);

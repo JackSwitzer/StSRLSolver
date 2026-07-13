@@ -2238,6 +2238,26 @@ impl RunEngine {
             enemy.entity.set_status(crate::status_ids::sid::COUNT, 0);
         }
 
+        // Source: reference/extracted/methods/monster/WrithingMass.java.
+        // Damage changes at A2; HP changes separately at A7 below.
+        for enemy in enemy_states.iter_mut().filter(|enemy| matches!(enemy.id.as_str(),
+            "WrithingMass" | "Writhing Mass"))
+        {
+            let high = self.run_state.ascension >= 2;
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
+                if high { 38 } else { 32 });
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
+                if high { 9 } else { 7 });
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if high { 16 } else { 15 });
+            enemy.entity.set_status(crate::status_ids::sid::HEAD_SLAM_DMG,
+                if high { 12 } else { 10 });
+            enemy.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(crate::status_ids::sid::USED_MEGA_DEBUFF, 0);
+            enemy.entity.set_status(crate::status_ids::sid::REACTIVE, 1);
+            enemy.entity.set_status(crate::status_ids::sid::MALLEABLE, 3);
+        }
+
         // Source: reference/extracted/methods/monster/SpireGrowth.java. The
         // Java class uses canonical ID `Serpent`; damage changes at A2,
         // Constricted at A17, and HP is patched separately below at A7.
@@ -3142,7 +3162,8 @@ impl RunEngine {
                 (hp, hp)
             }
             "WrithingMass" => {
-                let hp = if a20 { 175 } else { 160 };
+                // Source: WrithingMass.java uses fixed 160, raised at A7.
+                let hp = if self.run_state.ascension >= 7 { 175 } else { 160 };
                 (hp, hp)
             }
             "GiantHead" => {
