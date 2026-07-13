@@ -103,7 +103,8 @@ pub static DEF_DEMON_FORM: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Noxious Fumes — TurnStart: poison all enemies
+// Noxious Fumes — poison all living enemies after the normal turn draw.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NoxiousFumesPower.java
 // ===========================================================================
 
 static NOXIOUS_FUMES_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddStatus(
@@ -113,7 +114,7 @@ static NOXIOUS_FUMES_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddSta
 ))];
 
 static NOXIOUS_FUMES_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnStart,
+    trigger: Trigger::TurnStartPostDraw,
     condition: TriggerCondition::Always,
     effects: &NOXIOUS_FUMES_EFFECTS,
     counter: None,
@@ -665,7 +666,7 @@ mod tests {
     #[test]
     fn test_all_simple_turn_start_defs_have_correct_trigger() {
         let defs = [
-            &DEF_ENERGIZED, &DEF_NOXIOUS_FUMES,
+            &DEF_ENERGIZED,
             &DEF_BERSERK, &DEF_INFINITE_BLADES, &DEF_BATTLE_HYMN,
             &DEF_WRAITH_FORM, &DEF_DEVA_FORM,
             &DEF_HELLO_WORLD, &DEF_MAGNETISM,
@@ -676,11 +677,13 @@ mod tests {
             assert!(!def.triggers.is_empty());
             assert_eq!(def.triggers[0].trigger, Trigger::TurnStart);
         }
-        // BrutalityPower overrides atStartOfTurnPostDraw, not atStartOfTurn.
+        // These powers override atStartOfTurnPostDraw, not atStartOfTurn.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BrutalityPower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NoxiousFumesPower.java
         assert_eq!(DEF_BRUTALITY.triggers[0].trigger, Trigger::TurnStartPostDraw);
         assert_eq!(DEF_DEMON_FORM.triggers[0].trigger, Trigger::TurnStartPostDraw);
         assert_eq!(DEF_DEVOTION.triggers[0].trigger, Trigger::TurnStartPostDraw);
+        assert_eq!(DEF_NOXIOUS_FUMES.triggers[0].trigger, Trigger::TurnStartPostDraw);
     }
 
     #[test]
