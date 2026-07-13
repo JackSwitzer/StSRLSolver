@@ -136,6 +136,10 @@ fn second_wind_exhausts_all_non_attacks_and_triggers_exhaust_hooks_per_card() {
 
 #[test]
 fn fiend_fire_exhausts_the_hand_and_fires_exhaust_triggers_for_each_card() {
+    // FiendFireAction queues one random ExhaustAction per remaining hand card;
+    // ExhaustAction.getRandomCard consumes cardRandomRng even at random(0).
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/FiendFireAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ExhaustAction.java
     let mut engine = engine_for(
         &["Fiend Fire", "Strike", "Defend"],
         &["Bash", "Shrug It Off"],
@@ -144,11 +148,25 @@ fn fiend_fire_exhausts_the_hand_and_fires_exhaust_triggers_for_each_card() {
     );
     engine.state.player.set_status(sid::DARK_EMBRACE, 1);
     let hp_before = engine.state.enemies[0].entity.hp;
+    let rng_before = engine.card_random_rng.counter;
+    let mut oracle = engine.card_random_rng.copy();
+    let mut candidates = vec!["Strike", "Defend"];
+    let mut expected_exhaust_order = Vec::new();
+    while !candidates.is_empty() {
+        let index = oracle.random((candidates.len() - 1) as i32) as usize;
+        expected_exhaust_order.push(candidates.remove(index));
+    }
 
     assert!(play_on_enemy(&mut engine, "Fiend Fire", 0));
 
+    assert_eq!(engine.card_random_rng.counter - rng_before, 2);
     assert_eq!(engine.state.enemies[0].entity.hp, hp_before - 14);
     assert_eq!(engine.state.exhaust_pile.len(), 3);
+    let actual_exhaust_order: Vec<_> = engine.state.exhaust_pile[..2]
+        .iter()
+        .map(|card| engine.card_registry.card_name(card.def_id))
+        .collect();
+    assert_eq!(actual_exhaust_order, expected_exhaust_order);
     assert_eq!(engine.state.hand.len(), 2);
     assert!(hand_names(&engine).contains(&"Bash".to_string()));
     assert!(hand_names(&engine).contains(&"Shrug It Off".to_string()));

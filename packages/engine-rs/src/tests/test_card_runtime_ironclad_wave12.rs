@@ -109,7 +109,7 @@ fn ironclad_wave12_registry_exports_promote_the_typed_surface_where_supported() 
             E::ForEachInPile {
                 pile: P::Hand,
                 filter: CardFilter::All,
-                action: BulkAction::Exhaust,
+                action: BulkAction::ExhaustRandom,
             },
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::ExtraHits(A::HandSizeAtPlay),
@@ -205,7 +205,7 @@ fn ironclad_wave12_fiend_fire_uses_the_typed_exhaust_then_damage_surface() {
             E::ForEachInPile {
                 pile: P::Hand,
                 filter: CardFilter::All,
-                action: BulkAction::Exhaust,
+                action: BulkAction::ExhaustRandom,
             },
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::ExtraHits(A::HandSizeAtPlay),

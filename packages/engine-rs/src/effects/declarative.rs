@@ -170,6 +170,8 @@ pub enum ChoiceAction {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BulkAction {
     Exhaust,
+    /// Exhaust every match in cardRandomRng order, consuming one tick per card.
+    ExhaustRandom,
     Discard,
     Upgrade,
     /// Set the current turn cost for matching cards without changing the permanent baseline.

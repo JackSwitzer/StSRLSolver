@@ -124,7 +124,7 @@ fn ironclad_wave13_fiend_fire_uses_the_typed_exhaust_then_damage_surface() {
             E::ForEachInPile {
                 pile: crate::effects::declarative::Pile::Hand,
                 filter: crate::effects::declarative::CardFilter::All,
-                action: BulkAction::Exhaust,
+                action: BulkAction::ExhaustRandom,
             },
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::ExtraHits(A::HandSizeAtPlay),

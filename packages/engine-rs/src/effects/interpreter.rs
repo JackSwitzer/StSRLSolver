@@ -1625,6 +1625,34 @@ fn execute_for_each(
             }
         }
 
+        BulkAction::ExhaustRandom => {
+            // FiendFireAction queues one random ExhaustAction per card. Each
+            // getRandomCard call consumes cardRandomRng, including the final
+            // random(0) call with one card remaining.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/FiendFireAction.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ExhaustAction.java
+            let pile_ref = get_pile_mut(engine, pile);
+            let mut candidates = Vec::with_capacity(matching.len());
+            for &index in matching.iter().rev() {
+                candidates.push(pile_ref.remove(index));
+            }
+            candidates.reverse();
+
+            let mut exhausted = Vec::with_capacity(candidates.len());
+            while !candidates.is_empty() {
+                let index = engine
+                    .card_random_rng
+                    .random((candidates.len() - 1) as i32) as usize;
+                exhausted.push(candidates.remove(index));
+            }
+
+            let exhausted_cards = exhausted.clone();
+            engine.state.exhaust_pile.extend(exhausted);
+            for card in exhausted_cards {
+                engine.trigger_card_on_exhaust(card);
+            }
+        }
+
         BulkAction::Discard => {
             let pile_ref = get_pile_mut(engine, pile);
             let mut discarded = Vec::new();
