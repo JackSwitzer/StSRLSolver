@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T13:57:35.314748+00:00",
+ "updated": "2026-07-13T14:00:53.552697+00:00",
  "status_counts": {
-  "verified": 509,
-  "unverified": 158
+  "verified": 510,
+  "unverified": 157
  },
  "rows": [
   {
@@ -2732,8 +2732,8 @@
    "class": "RiddleWithHoles",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/RiddleWithHoles.java",
    "methods_ref": "reference/extracted/methods/card/RiddleWithHoles.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

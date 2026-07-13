@@ -618,8 +618,8 @@ mod silent_card_java_parity_tests {
         "Reflex+", -2, -1, -1, 3, CardType::Skill, CardTarget::None, false, None, &["unplayable", "draw_on_discard"],
     );
     card_pair_test!(riddle_with_holes,
-        "Riddle with Holes", 2, 3, -1, 5, CardType::Attack, CardTarget::Enemy, false, None, &["multi_hit"],
-        "Riddle with Holes+", 2, 4, -1, 5, CardType::Attack, CardTarget::Enemy, false, None, &["multi_hit"],
+        "Riddle With Holes", 2, 3, -1, 5, CardType::Attack, CardTarget::Enemy, false, None, &["multi_hit"],
+        "Riddle With Holes+", 2, 4, -1, 5, CardType::Attack, CardTarget::Enemy, false, None, &["multi_hit"],
     );
     card_pair_test!(setup,
         "Setup", 1, -1, -1, -1, CardType::Skill, CardTarget::None, false, None, &["setup"],
@@ -1113,11 +1113,16 @@ mod silent_card_java_parity_tests {
 
     #[test]
     fn riddle_with_holes_hits_five_times() {
-        let mut engine = engine_with(make_deck_n("Riddle with Holes", 8), 100, 0);
-        ensure_in_hand(&mut engine, "Riddle with Holes");
+        // RiddleWithHoles.java queues exactly five DamageActions using the
+        // card's already Strength-modified damage. Base 3 plus 2 Strength is
+        // therefore five hits of 5, and the canonical ID capitalizes "With".
+        // Java: reference/extracted/methods/card/RiddleWithHoles.java
+        let mut engine = engine_with(make_deck_n("Riddle With Holes", 8), 100, 0);
+        engine.state.player.set_status(sid::STRENGTH, 2);
+        ensure_in_hand(&mut engine, "Riddle With Holes");
         let hp = engine.state.enemies[0].entity.hp;
-        assert!(play_on_enemy(&mut engine, "Riddle with Holes", 0));
-        assert_eq!(engine.state.enemies[0].entity.hp, hp - 15);
+        assert!(play_on_enemy(&mut engine, "Riddle With Holes", 0));
+        assert_eq!(engine.state.enemies[0].entity.hp, hp - 25);
     }
 
     #[test]

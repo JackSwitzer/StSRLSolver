@@ -45,7 +45,8 @@ mod silent_wave1 {
         let reg = global_registry();
         let eviscerate = reg.get("Eviscerate").expect("Eviscerate should exist");
         assert_eq!(eviscerate.effect_data, &[Effect::ExtraHits(A::Fixed(3))]);
-        let riddle = reg.get("Riddle with Holes").expect("Riddle with Holes should exist");
+        // RiddleWithHoles.java declares canonical ID "Riddle With Holes".
+        let riddle = reg.get("Riddle With Holes").expect("Riddle With Holes should exist");
         assert_eq!(riddle.effect_data, &[Effect::ExtraHits(A::Magic)]);
 
         let mut eviscerate_engine = engine_with(make_deck_n("Eviscerate", 8), 100, 0);
@@ -60,10 +61,10 @@ mod silent_wave1 {
         assert!(play_on_enemy(&mut upgraded_engine, "Eviscerate+", 0));
         assert_eq!(upgraded_engine.state.enemies[0].entity.hp, upgraded_hp - 27);
 
-        let mut riddle_engine = engine_with(make_deck_n("Riddle with Holes", 8), 100, 0);
-        ensure_in_hand(&mut riddle_engine, "Riddle with Holes");
+        let mut riddle_engine = engine_with(make_deck_n("Riddle With Holes", 8), 100, 0);
+        ensure_in_hand(&mut riddle_engine, "Riddle With Holes");
         let riddle_hp = riddle_engine.state.enemies[0].entity.hp;
-        assert!(play_on_enemy(&mut riddle_engine, "Riddle with Holes", 0));
+        assert!(play_on_enemy(&mut riddle_engine, "Riddle With Holes", 0));
         assert_eq!(riddle_engine.state.enemies[0].entity.hp, riddle_hp - 15);
     }
 

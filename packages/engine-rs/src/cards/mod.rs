@@ -2041,7 +2041,7 @@ mod tests {
             "Escape Plan", "Eviscerate", "Expertise", "Finisher", "Flechettes",
             "Footwork", "Heel Hook", "Infinite Blades", "Leg Sweep",
             "Masterful Stab", "Noxious Fumes", "Predator", "Reflex",
-            "Riddle with Holes", "Setup", "Skewer", "Tactician", "Terror",
+            "Riddle With Holes", "Setup", "Skewer", "Tactician", "Terror",
             "Well-Laid Plans",
             // Rare
             "A Thousand Cuts", "Adrenaline", "After Image", "Alchemize",
