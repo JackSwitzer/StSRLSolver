@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T15:59:49.268102+00:00",
+ "updated": "2026-07-13T16:01:32.885290+00:00",
  "status_counts": {
-  "verified": 546,
-  "unverified": 121
+  "verified": 547,
+  "unverified": 120
  },
  "rows": [
   {
@@ -3182,8 +3182,8 @@
    "class": "SuckerPunch",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/SuckerPunch.java",
    "methods_ref": "reference/extracted/methods/card/SuckerPunch.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

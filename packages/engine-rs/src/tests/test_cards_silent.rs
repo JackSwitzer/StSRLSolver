@@ -1139,11 +1139,29 @@ mod silent_card_java_parity_tests {
     }
 
     #[test]
-    fn sucker_punch_applies_weak() {
-        let mut engine = engine_with(make_deck_n("Sucker Punch", 8), 40, 0);
-        ensure_in_hand(&mut engine, "Sucker Punch");
-        assert!(play_on_enemy(&mut engine, "Sucker Punch", 0));
-        assert_eq!(engine.state.enemies[0].entity.status(sid::WEAKENED), 1);
+    fn sucker_punch_deals_damage_before_applying_weak() {
+        // SuckerPunch.use queues DamageAction before ApplyPowerAction at 7/1,
+        // upgraded to 9/2. DamageAction clears the queued Weak when that hit
+        // ends combat.
+        // Java: reference/extracted/methods/card/SuckerPunch.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DamageAction.java
+        let mut base = engine_with(make_deck_n("Sucker Punch", 8), 40, 0);
+        ensure_in_hand(&mut base, "Sucker Punch");
+        assert!(play_on_enemy(&mut base, "Sucker Punch", 0));
+        assert_eq!(base.state.enemies[0].entity.hp, 33);
+        assert_eq!(base.state.enemies[0].entity.status(sid::WEAKENED), 1);
+
+        let mut upgraded = engine_with(make_deck_n("Sucker Punch+", 8), 40, 0);
+        ensure_in_hand(&mut upgraded, "Sucker Punch+");
+        assert!(play_on_enemy(&mut upgraded, "Sucker Punch+", 0));
+        assert_eq!(upgraded.state.enemies[0].entity.hp, 31);
+        assert_eq!(upgraded.state.enemies[0].entity.status(sid::WEAKENED), 2);
+
+        let mut lethal = engine_with(make_deck_n("Sucker Punch", 8), 7, 0);
+        ensure_in_hand(&mut lethal, "Sucker Punch");
+        assert!(play_on_enemy(&mut lethal, "Sucker Punch", 0));
+        assert_eq!(lethal.state.enemies[0].entity.hp, 0);
+        assert_eq!(lethal.state.enemies[0].entity.status(sid::WEAKENED), 0);
     }
 
     #[test]
