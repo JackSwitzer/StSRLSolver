@@ -831,11 +831,17 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::SG_QUICK_TACKLE, 16, 1, 0);
         }
         "Maw" => {
-            // First turn: Roar (debuff: Weak + Frail)
+            // Source: reference/extracted/methods/monster/Maw.java. The
+            // opening getMove increments constructor turnCount 1 to 2; the
+            // run-time initial roll performs that transition and consumes RNG.
             enemy.set_move(move_ids::MAW_ROAR, 0, 0, 0);
             enemy.add_effect(mfx::WEAK, 3);
             enemy.add_effect(mfx::FRAIL, 3);
             enemy.entity.set_status(sid::TURN_COUNT, 1);
+            enemy.entity.set_status(sid::STARTING_DMG, 25);
+            enemy.entity.set_status(sid::STR_AMT, 3);
+            enemy.entity.set_status(sid::BLOCK_AMT, 3);
+            enemy.entity.set_status(sid::FIRST_MOVE, 0);
         }
         "Transient" => {
             // Escalating damage. A2: starts at 40, else 30. +10 each turn.

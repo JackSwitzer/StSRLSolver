@@ -725,6 +725,9 @@ mod enemy_ai_java_parity_tests {
         let e = make("Maw", 300);
         expect_move(&e, move_ids::MAW_ROAR, 0, 0, 0, &[(mfx::WEAK, 3), (mfx::FRAIL, 3)]);
         expect_status(&e, sid::TURN_COUNT, 1);
+        expect_status(&e, sid::STARTING_DMG, 25);
+        expect_status(&e, sid::STR_AMT, 3);
+        expect_status(&e, sid::BLOCK_AMT, 3);
 
         let e = make("Transient", 999);
         expect_move(&e, move_ids::TRANSIENT_ATTACK, 30, 1, 0, &[]);
@@ -820,11 +823,19 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::SG_QUICK_TACKLE, 16, 1, 0, &[]);
 
         let mut e = make("Maw", 300);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::MAW_SLAM, 25, 1, 0, &[]);
-        roll_times(&mut e, 1);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut e, 99, &mut crate::seed::StsRandom::new(0));
+        expect_move(&e, move_ids::MAW_ROAR, 0, 0, 0, &[(mfx::WEAK, 3), (mfx::FRAIL, 3)]);
+        expect_status(&e, sid::TURN_COUNT, 2);
+
+        // Source: Maw.java getMove chooses Nom below 50 immediately after
+        // Roar; Nom/Slam repetition and Drool are not a fixed cycle.
+        e.entity.set_status(sid::FIRST_MOVE, 1);
+        crate::enemies::roll_next_move_with_num(&mut e, 49);
+        expect_move(&e, move_ids::MAW_NOM, 5, 1, 0, &[]);
+        crate::enemies::roll_next_move_with_num(&mut e, 99);
         expect_move(&e, move_ids::MAW_DROOL, 0, 0, 0, &[(mfx::STRENGTH, 3)]);
-        roll_times(&mut e, 1);
+        crate::enemies::roll_next_move_with_num(&mut e, 49);
         expect_move(&e, move_ids::MAW_NOM, 5, 2, 0, &[]);
 
         let mut e = make("Transient", 999);

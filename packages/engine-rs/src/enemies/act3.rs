@@ -188,24 +188,31 @@ pub(super) fn roll_spire_growth(enemy: &mut EnemyCombatState, _num: i32) {
     }
 }
 
-pub(super) fn roll_maw(enemy: &mut EnemyCombatState, _num: i32) {
+pub(super) fn roll_maw(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/Maw.java (`getMove`).
+    // Java increments turnCount on every selection, including the opening
+    // roll that always chooses Roar while `roared` is false.
     let turn_count = enemy.entity.status(sid::TURN_COUNT) + 1;
     enemy.entity.set_status(sid::TURN_COUNT, turn_count);
+    let slam_damage = enemy.entity.status(sid::STARTING_DMG).max(25);
+    let strength = enemy.entity.status(sid::STR_AMT).max(3) as i16;
+    let terrify = enemy.entity.status(sid::BLOCK_AMT).max(3) as i16;
 
-    // Roar (first turn), then cycle: NomNom / Slam / Drool(Str)
-    if last_move(enemy, move_ids::MAW_SLAM) || last_move(enemy, move_ids::MAW_NOM) {
+    // FIRST_MOVE mirrors the constructor's `roared` boolean: zero until the
+    // Roar intent executes, then one for the rest of combat.
+    if enemy.entity.status(sid::FIRST_MOVE) == 0 {
+        enemy.set_move(move_ids::MAW_ROAR, 0, 0, 0);
+        enemy.add_effect(mfx::WEAK, terrify);
+        enemy.add_effect(mfx::FRAIL, terrify);
+    } else if num < 50 && !last_move(enemy, move_ids::MAW_NOM) {
+        enemy.set_move(move_ids::MAW_NOM, 5, (turn_count / 2).max(1), 0);
+    } else if last_move(enemy, move_ids::MAW_SLAM)
+        || last_move(enemy, move_ids::MAW_NOM)
+    {
         enemy.set_move(move_ids::MAW_DROOL, 0, 0, 0);
-        enemy.add_effect(mfx::STRENGTH, 3);
-    } else if last_move(enemy, move_ids::MAW_DROOL) || last_move(enemy, move_ids::MAW_ROAR) {
-        // NomNom: 5 x (turnCount/2) or Slam: 25
-        let nom_hits = turn_count / 2;
-        if nom_hits >= 2 {
-            enemy.set_move(move_ids::MAW_NOM, 5, nom_hits, 0);
-        } else {
-            enemy.set_move(move_ids::MAW_SLAM, 25, 1, 0);
-        }
+        enemy.add_effect(mfx::STRENGTH, strength);
     } else {
-        enemy.set_move(move_ids::MAW_SLAM, 25, 1, 0);
+        enemy.set_move(move_ids::MAW_SLAM, slam_damage, 1, 0);
     }
 }
 

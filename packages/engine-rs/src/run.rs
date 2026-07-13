@@ -2003,6 +2003,19 @@ impl RunEngine {
             enemy.entity.set_status(crate::status_ids::sid::SLOW, 1);
         }
 
+        // Source: reference/extracted/methods/monster/Maw.java. Maw has fixed
+        // 300 HP; only Slam changes at A2, while Drool and Roar change at A17.
+        for enemy in enemy_states.iter_mut().filter(|enemy| enemy.id == "Maw") {
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
+                if self.run_state.ascension >= 2 { 30 } else { 25 });
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
+                if self.run_state.ascension >= 17 { 5 } else { 3 });
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if self.run_state.ascension >= 17 { 5 } else { 3 });
+            enemy.entity.set_status(crate::status_ids::sid::TURN_COUNT, 1);
+            enemy.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 0);
+        }
+
         // Source: reference/extracted/methods/monster/BanditLeader.java.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "BanditLeader") {
             let (cross_slash, agonizing_slash) = if self.run_state.ascension >= 2 {
@@ -2795,8 +2808,9 @@ impl RunEngine {
                 (hp, hp)
             }
             "Maw" => {
-                let hp = if a20 { 310 } else { 300 };
-                (hp, hp)
+                // Source: reference/extracted/methods/monster/Maw.java: the
+                // constructor passes fixed 300 HP at every ascension.
+                (300, 300)
             }
             "SpireGrowth" => {
                 let hp = if a20 { 190 } else { 170 };
@@ -8583,6 +8597,87 @@ mod tests {
         crate::combat_hooks::do_enemy_turns(combat);
         assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::STRENGTH), 4);
         assert_eq!(combat.state.enemies[1].entity.status(crate::status_ids::sid::STRENGTH), 4);
+    }
+
+    #[test]
+    fn maw_stats_rng_branches_turn_count_and_effects_match_java() {
+        // Source: reference/extracted/methods/monster/Maw.java (`constructor`,
+        // `getMove`, and `takeTurn`). HP is fixed even at high ascension.
+        for ascension in [0, 2, 7, 17, 20] {
+            let mut run = RunEngine::new(42, ascension);
+            assert_eq!(run.roll_enemy_hp("Maw"), (300, 300));
+        }
+
+        for (ascension, slam, strength, terrify) in [
+            (0, 25, 3, 3),
+            (2, 30, 3, 3),
+            (17, 30, 5, 5),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["Maw".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            let maw = &combat.state.enemies[0];
+            assert_eq!((maw.entity.hp, maw.entity.max_hp), (300, 300));
+            assert_eq!(maw.move_id, crate::enemies::move_ids::MAW_ROAR);
+            assert_eq!(maw.entity.status(crate::status_ids::sid::TURN_COUNT), 2);
+            assert_eq!(maw.entity.status(crate::status_ids::sid::STARTING_DMG), slam);
+            assert_eq!(maw.entity.status(crate::status_ids::sid::STR_AMT), strength);
+            assert_eq!(maw.entity.status(crate::status_ids::sid::BLOCK_AMT), terrify);
+            assert_eq!(maw.effect(crate::combat_types::mfx::WEAK), Some(terrify as i16));
+            assert_eq!(maw.effect(crate::combat_types::mfx::FRAIL), Some(terrify as i16));
+            assert_eq!(combat.ai_rng.counter, 1,
+                "AbstractMonster.init opening roll consumes one aiRng value");
+        }
+
+        let mut after_roar = crate::enemies::create_enemy("Maw", 300, 300);
+        after_roar.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 1);
+        after_roar.entity.set_status(crate::status_ids::sid::TURN_COUNT, 2);
+        crate::enemies::roll_next_move_with_num(&mut after_roar, 49);
+        assert_eq!(after_roar.move_id, crate::enemies::move_ids::MAW_NOM);
+        assert_eq!((after_roar.move_damage(), after_roar.move_hits()), (5, 1));
+        assert_eq!(after_roar.entity.status(crate::status_ids::sid::TURN_COUNT), 3);
+
+        let mut high_after_roar = crate::enemies::create_enemy("Maw", 300, 300);
+        high_after_roar.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 1);
+        high_after_roar.entity.set_status(crate::status_ids::sid::TURN_COUNT, 2);
+        high_after_roar.entity.set_status(crate::status_ids::sid::STARTING_DMG, 30);
+        crate::enemies::roll_next_move_with_num(&mut high_after_roar, 50);
+        assert_eq!(high_after_roar.move_id, crate::enemies::move_ids::MAW_SLAM);
+        assert_eq!(high_after_roar.move_damage(), 30);
+
+        let mut slam_low = crate::enemies::create_enemy("Maw", 300, 300);
+        slam_low.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 1);
+        slam_low.entity.set_status(crate::status_ids::sid::TURN_COUNT, 3);
+        slam_low.set_move(crate::enemies::move_ids::MAW_SLAM, 25, 1, 0);
+        crate::enemies::roll_next_move_with_num(&mut slam_low, 49);
+        assert_eq!(slam_low.move_id, crate::enemies::move_ids::MAW_NOM);
+        assert_eq!((slam_low.move_damage(), slam_low.move_hits()), (5, 2));
+
+        let mut slam_high = crate::enemies::create_enemy("Maw", 300, 300);
+        slam_high.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 1);
+        slam_high.entity.set_status(crate::status_ids::sid::TURN_COUNT, 3);
+        slam_high.set_move(crate::enemies::move_ids::MAW_SLAM, 25, 1, 0);
+        crate::enemies::roll_next_move_with_num(&mut slam_high, 50);
+        assert_eq!(slam_high.move_id, crate::enemies::move_ids::MAW_DROOL);
+        assert_eq!(slam_high.effect(crate::combat_types::mfx::STRENGTH), Some(3));
+
+        let mut a17_run = RunEngine::new(42, 17);
+        a17_run.enter_specific_combat(vec!["Maw".to_string()]);
+        let combat = a17_run.combat_engine.as_mut().unwrap();
+        let ai_before = combat.ai_rng.counter;
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::WEAKENED), 5);
+        assert_eq!(combat.state.player.status(crate::status_ids::sid::FRAIL), 5);
+        assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::FIRST_MOVE), 1);
+        assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::TURN_COUNT), 3);
+        assert_eq!(combat.ai_rng.counter, ai_before + 1);
+
+        combat.state.enemies[0].set_move(crate::enemies::move_ids::MAW_DROOL, 0, 0, 0);
+        combat.state.enemies[0].move_effects.clear();
+        combat.state.enemies[0].add_effect(crate::combat_types::mfx::STRENGTH, 5);
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::STRENGTH), 5);
+        assert_eq!(combat.ai_rng.counter, ai_before + 2);
     }
 
     #[test]

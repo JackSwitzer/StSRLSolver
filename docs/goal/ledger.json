@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T19:40:02.420346+00:00",
+ "updated": "2026-07-13T19:45:24.154729+00:00",
  "status_counts": {
-  "verified": 602,
-  "unverified": 65
+  "verified": 603,
+  "unverified": 64
  },
  "rows": [
   {
@@ -4112,8 +4112,8 @@
    "class": "Maw",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/beyond/Maw.java",
    "methods_ref": "reference/extracted/methods/monster/Maw.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -228,6 +228,14 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             .add_status(sid::TURN_COUNT, 1);
     }
 
+    if engine.state.enemies[enemy_idx].id == "Maw"
+        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::MAW_ROAR
+    {
+        // Source: reference/extracted/methods/monster/Maw.java (`takeTurn`,
+        // case ROAR). `roared` changes before the queued RollMoveAction.
+        engine.state.enemies[enemy_idx].entity.set_status(sid::FIRST_MOVE, 1);
+    }
+
     if matches!(engine.state.enemies[enemy_idx].id.as_str(),
         "GremlinLeader" | "Gremlin Leader")
         && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::GL_ENCOURAGE
