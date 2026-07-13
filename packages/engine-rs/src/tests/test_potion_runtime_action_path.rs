@@ -381,7 +381,10 @@ fn entropic_brew_rolls_but_sozu_blocks_every_obtain_action() {
 }
 
 #[test]
-fn elixir_uses_runtime_action_path_and_exhausts_hand() {
+fn elixir_uses_any_number_zero_allowed_exhaust_selection() {
+    // Source: reference/extracted/methods/potion/Elixir.java and
+    // decompiled ExhaustAction.java. The three booleans are
+    // isRandom=false, anyNumber=true, canPickZero=true.
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike", "Defend", "Bash"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -394,13 +397,33 @@ fn elixir_uses_runtime_action_path_and_exhausts_hand() {
 
     use_potion(&mut engine, 0, -1);
 
-    assert!(engine.state.hand.is_empty());
-    assert_eq!(engine.state.exhaust_pile.len(), 3);
+    assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+    let choice = engine.choice.as_ref().expect("Elixir exhaust selection");
+    assert_eq!(choice.reason, ChoiceReason::ExhaustFromHand);
+    assert_eq!((choice.min_picks, choice.max_picks), (0, 3));
+    assert_eq!(engine.state.hand.len(), 3);
     assert!(engine.state.potions[0].is_empty());
     assert!(engine.event_log.iter().any(|record| {
         record.event == crate::effects::trigger::Trigger::ManualActivation
             && record.def_id == Some("Elixir")
     }));
+
+    engine.execute_action(&Action::Choose(0));
+    engine.execute_action(&Action::Choose(2));
+    engine.execute_action(&Action::ConfirmSelection);
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert_eq!(engine.state.hand.len(), 1);
+    assert_eq!(engine.state.exhaust_pile.len(), 2);
+
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "Elixir".to_string();
+    use_potion(&mut engine, 0, -1);
+    let choice = engine.choice.as_ref().expect("Bark Elixir selection");
+    assert_eq!((choice.min_picks, choice.max_picks), (0, 1),
+        "potency is zero and Sacred Bark does not change the selection");
+    engine.execute_action(&Action::ConfirmSelection);
+    assert_eq!(engine.state.hand.len(), 1);
+    assert_eq!(engine.state.exhaust_pile.len(), 2);
 }
 
 #[test]

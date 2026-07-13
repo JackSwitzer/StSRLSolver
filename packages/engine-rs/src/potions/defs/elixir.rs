@@ -8,14 +8,26 @@ static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     counter: None,
 }];
 
-/// Elixir: exhaust entire hand. Irreducible -- needs engine access.
+/// Elixir: choose any number of cards in hand to exhaust, including zero.
 fn elixir_hook(
     engine: &mut CombatEngine,
     _owner: crate::effects::runtime::EffectOwner,
     _event: &crate::effects::runtime::GameEvent,
     _state: &mut crate::effects::runtime::EffectState,
 ) {
-    engine.state.exhaust_pile.extend(engine.state.hand.drain(..));
+    // Source: reference/extracted/methods/potion/Elixir.java. Its
+    // ExhaustAction(false, true, true) is non-random, any-number, and permits
+    // confirming zero cards; amount 99 only supplies the upper bound.
+    let options: Vec<crate::engine::ChoiceOption> = (0..engine.state.hand.len())
+        .map(crate::engine::ChoiceOption::HandCard)
+        .collect();
+    let max_picks = options.len();
+    engine.begin_choice(
+        crate::engine::ChoiceReason::ExhaustFromHand,
+        options,
+        0,
+        max_picks,
+    );
 }
 
 pub static DEF: EntityDef = EntityDef {

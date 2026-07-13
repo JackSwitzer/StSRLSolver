@@ -106,6 +106,11 @@ fn test_potion_runtime_wave3_generated_cards_and_upgrade_behaviors() {
     engine.state.hand = make_deck(&["Strike", "Defend", "Bash"]);
     equip_potion(&mut engine, 0, "Elixir");
     use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.phase, crate::engine::CombatPhase::AwaitingChoice);
+    engine.execute_action(&Action::Choose(0));
+    engine.execute_action(&Action::Choose(1));
+    engine.execute_action(&Action::Choose(2));
+    engine.execute_action(&Action::ConfirmSelection);
     assert!(engine.state.hand.is_empty());
     assert_eq!(engine.state.exhaust_pile.len(), 3);
 }

@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T21:51:34.895891+00:00",
+ "updated": "2026-07-13T21:55:08.164435+00:00",
  "status_counts": {
-  "verified": 624,
-  "unverified": 43
+  "verified": 625,
+  "unverified": 42
  },
  "rows": [
   {
@@ -4522,8 +4522,8 @@
    "class": "Elixir",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/Elixir.java",
    "methods_ref": "reference/extracted/methods/potion/Elixir.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

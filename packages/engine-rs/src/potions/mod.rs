@@ -483,8 +483,8 @@ pub(crate) fn apply_potion_scaled(
         }
 
         "Elixir" | "ElixirPotion" => {
-            // Exhaust all cards in hand
-            state.exhaust_pile.extend(state.hand.drain(..));
+            // The production owner-aware path opens Elixir's any-number hand
+            // selection. This state-only test helper cannot represent choices.
             true
         }
 
