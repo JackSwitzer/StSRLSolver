@@ -302,5 +302,5 @@ fn ironclad_wave6_perfected_strike_registry_stays_honest_while_engine_path_keeps
     engine.state.discard_pile = make_deck(&["Strike"]);
 
     assert!(play_on_enemy(&mut engine, "Perfected Strike", 0));
-    assert_eq!(engine.state.enemies[0].entity.hp, 66);
+    assert_eq!(engine.state.enemies[0].entity.hp, 64);
 }

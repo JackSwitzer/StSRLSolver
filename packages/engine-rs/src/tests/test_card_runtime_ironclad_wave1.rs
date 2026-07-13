@@ -154,7 +154,7 @@ mod ironclad_wave1_card_runtime_tests {
         );
         let hp_before = perfected_strike.state.enemies[0].entity.hp;
         assert!(play_on_enemy(&mut perfected_strike, "Perfected Strike", 0));
-        assert_eq!(perfected_strike.state.enemies[0].entity.hp, hp_before - 12);
+        assert_eq!(perfected_strike.state.enemies[0].entity.hp, hp_before - 14);
 
         let mut ghostly_armor = engine_for(&["Ghostly Armor"], &[], &[], 40, 3);
         let block_before = ghostly_armor.state.player.block;

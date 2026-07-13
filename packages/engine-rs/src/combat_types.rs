@@ -29,6 +29,8 @@ impl CardInstance {
     pub const FLAG_INNATE: u8    = 0x10;
     pub const FLAG_PURGE: u8     = 0x20;
     pub const FLAG_EXHAUST_ON_USE: u8 = 0x40;
+    /// Transient: card is being autoplayed from outside the hand/normal piles.
+    pub const FLAG_AUTOPLAY: u8 = 0x80;
 
     pub fn new(def_id: u16) -> Self {
         Self { def_id, cost: -1, base_cost: -1, misc: -1, flags: 0 }

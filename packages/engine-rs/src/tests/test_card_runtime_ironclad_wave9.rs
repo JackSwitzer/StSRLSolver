@@ -64,7 +64,25 @@ fn ironclad_wave9_heavy_blade_and_perfected_strike_keep_java_damage_hooks_on_typ
     perfected_strike.state.draw_pile = make_deck(&["Strike", "Strike"]);
     perfected_strike.state.discard_pile = make_deck(&["Strike"]);
     assert!(play_on_enemy(&mut perfected_strike, "Perfected Strike", 0));
-    assert_eq!(perfected_strike.state.enemies[0].entity.hp, 66);
+    assert_eq!(perfected_strike.state.enemies[0].entity.hp, 64);
+}
+
+#[test]
+fn perfected_strike_counts_tagged_live_piles_including_self_but_not_exhaust() {
+    // PerfectedStrike.countCards scans hand, draw, and discard for STRIKE tags.
+    // calculateCardDamage runs while the ordinary played copy is still in hand,
+    // and the exhaust pile is never scanned. Upgraded magic is three.
+    let mut engine = one_enemy_engine("JawWorm", 100);
+    engine.state.hand = make_deck(&["Perfected Strike+", "Pommel Strike", "Defend"]);
+    engine.state.draw_pile = make_deck(&["Wild Strike", "Sneaky Strike", "Meteor Strike"]);
+    engine.state.discard_pile = make_deck(&["WindmillStrike", "Swift Strike"]);
+    engine.state.exhaust_pile = make_deck(&["Strike", "Perfected Strike"]);
+
+    assert!(play_on_enemy(&mut engine, "Perfected Strike+", 0));
+
+    // Seven live-pile Strike tags: the played card, Pommel, Wild, Sneaky,
+    // Meteor, Windmill, and Swift. Damage = 6 + 7 * 3 = 27.
+    assert_eq!(engine.state.enemies[0].entity.hp, 73);
 }
 
 #[test]

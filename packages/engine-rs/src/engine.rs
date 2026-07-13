@@ -1160,7 +1160,9 @@ impl CombatEngine {
                 if idx < self.state.draw_pile.len() {
                     let mut card = self.state.draw_pile.remove(idx);
                     card.cost = 0;
-                    card.flags |= CardInstance::FLAG_FREE | CardInstance::FLAG_EXHAUST_ON_USE;
+                    card.flags |= CardInstance::FLAG_FREE
+                        | CardInstance::FLAG_EXHAUST_ON_USE
+                        | CardInstance::FLAG_AUTOPLAY;
                     let mut purge_copy = card;
                     purge_copy.flags |= CardInstance::FLAG_PURGE;
                     let parent_depth = self.runtime_play_stack.len();
@@ -2623,11 +2625,11 @@ impl CombatEngine {
                 if card.cost == -1 {
                     self.runtime_x_energy_override = Some(self.runtime_last_x_energy_on_use);
                 }
-                self.execute_card_effects_with_enemy_on_use(
-                    &card,
-                    card_inst.set_free(true),
-                    target_idx,
-                );
+                let mut replay_card = card_inst.set_free(true);
+                // Necronomicon.makeSameInstanceOf produces a purge-on-use
+                // autoplay copy in limbo, outside PerfectedStrike.countCards.
+                replay_card.flags |= CardInstance::FLAG_PURGE | CardInstance::FLAG_AUTOPLAY;
+                self.execute_card_effects_with_enemy_on_use(&card, replay_card, target_idx);
             }
         }
 
@@ -2655,7 +2657,7 @@ impl CombatEngine {
         // UseCardAction clears the one-use exhaust flag after choosing the
         // destination, including when Havoc or Omniscience supplied it.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
-        post_play_card.flags &= !CardInstance::FLAG_EXHAUST_ON_USE;
+        post_play_card.flags &= !(CardInstance::FLAG_EXHAUST_ON_USE | CardInstance::FLAG_AUTOPLAY);
 
         if card_inst.flags & CardInstance::FLAG_PURGE != 0 || card.card_type == CardType::Power {
             // purgeOnUse copies disappear after their effects. Power cards are
@@ -4050,7 +4052,7 @@ impl CombatEngine {
         }
 
         let mut card = self.state.draw_pile.pop().expect("non-empty after shuffle");
-        card.flags |= CardInstance::FLAG_FREE;
+        card.flags |= CardInstance::FLAG_FREE | CardInstance::FLAG_AUTOPLAY;
         if exhausts {
             card.flags |= CardInstance::FLAG_EXHAUST_ON_USE;
         }

@@ -33,15 +33,25 @@ pub fn hook_damage_plus_mantra(engine: &CombatEngine, _card: &CardDef, _card_ins
     }
 }
 
-/// Perfected Strike: +N damage per Strike card in all piles.
-pub fn hook_perfected_strike(engine: &CombatEngine, card: &CardDef, _card_inst: CardInstance) -> DamageModifier {
+/// Perfected Strike: +N damage per Strike card in hand, draw, and discard.
+pub fn hook_perfected_strike(engine: &CombatEngine, card: &CardDef, card_inst: CardInstance) -> DamageModifier {
     let per_strike = card.base_magic.max(1);
-    let strike_count = engine.state.hand.iter()
+    let mut strike_count = engine.state.hand.iter()
         .chain(engine.state.draw_pile.iter())
         .chain(engine.state.discard_pile.iter())
-        .chain(engine.state.exhaust_pile.iter())
         .filter(|c| engine.card_registry.is_strike(c.def_id))
         .count() as i32;
+
+    // Java calculates ordinary hand plays before AbstractPlayer removes the
+    // played card, so Perfected Strike counts itself. Autoplayed copies live in
+    // limbo and are not part of countCards(), matching the transient flag.
+    // Exhaust is intentionally excluded by PerfectedStrike.countCards().
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/PerfectedStrike.java
+    if card_inst.flags & CardInstance::FLAG_AUTOPLAY == 0
+        && engine.card_registry.is_strike(card_inst.def_id)
+    {
+        strike_count += 1;
+    }
     DamageModifier {
         base_damage_bonus: per_strike * strike_count,
         ..DamageModifier::default()
