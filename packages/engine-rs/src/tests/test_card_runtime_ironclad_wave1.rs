@@ -91,14 +91,17 @@ mod ironclad_wave1_card_runtime_tests {
         let true_grit_plus = card("True Grit+");
         assert_eq!(
             true_grit_plus.effect_data,
-            &[Effect::ChooseCards {
-                source: Pile::Hand,
-                filter: crate::effects::declarative::CardFilter::All,
-                action: ChoiceAction::Exhaust,
-                min_picks: AmountSource::Fixed(1),
-                max_picks: AmountSource::Fixed(1),
-                post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
-            }],
+            &[
+                Effect::Simple(SimpleEffect::GainBlock(AmountSource::Block)),
+                Effect::ChooseCards {
+                    source: Pile::Hand,
+                    filter: crate::effects::declarative::CardFilter::All,
+                    action: ChoiceAction::Exhaust,
+                    min_picks: AmountSource::Fixed(1),
+                    max_picks: AmountSource::Fixed(1),
+                    post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
+                },
+            ],
         );
 
         let mut engine = engine_for(&["True Grit", "Strike"], &[], &[], 40, 3);

@@ -323,7 +323,16 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
 
         SimpleEffect::ExhaustRandomCardFromHand => {
             if !engine.state.hand.is_empty() {
-                let idx = engine.rng_gen_range(0..engine.state.hand.len());
+                // ExhaustAction auto-exhausts a singleton without RNG. Its
+                // random branch uses cardRandomRng only when more cards remain.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ExhaustAction.java
+                let idx = if engine.state.hand.len() == 1 {
+                    0
+                } else {
+                    engine
+                        .card_random_rng
+                        .random((engine.state.hand.len() - 1) as i32) as usize
+                };
                 let exhausted = engine.state.hand.remove(idx);
                 engine.state.exhaust_pile.push(exhausted);
                 engine.trigger_card_on_exhaust(exhausted);

@@ -807,7 +807,13 @@ impl EffectRuntime {
             }
             SimpleEffect::ExhaustRandomCardFromHand => {
                 if !engine.state.hand.is_empty() {
-                    let idx = engine.rng_gen_range(0..engine.state.hand.len());
+                    let idx = if engine.state.hand.len() == 1 {
+                        0
+                    } else {
+                        engine
+                            .card_random_rng
+                            .random((engine.state.hand.len() - 1) as i32) as usize
+                    };
                     let exhausted = engine.state.hand.remove(idx);
                     engine.state.exhaust_pile.push(exhausted);
                     engine.trigger_on_exhaust();

@@ -79,14 +79,17 @@ mod ironclad_wave3_card_runtime_tests {
         let true_grit_plus = card("True Grit+");
         assert_eq!(
             true_grit_plus.effect_data,
-            &[Effect::ChooseCards {
-                source: Pile::Hand,
-                filter: CardFilter::All,
-                action: ChoiceAction::Exhaust,
-                min_picks: A::Fixed(1),
-                max_picks: A::Fixed(1),
-                post_choice_draw: A::Fixed(0),
-            }]
+            &[
+                Effect::Simple(SE::GainBlock(A::Block)),
+                Effect::ChooseCards {
+                    source: Pile::Hand,
+                    filter: CardFilter::All,
+                    action: ChoiceAction::Exhaust,
+                    min_picks: A::Fixed(1),
+                    max_picks: A::Fixed(1),
+                    post_choice_draw: A::Fixed(0),
+                },
+            ]
         );
 
         let clash = card("Clash");
@@ -222,14 +225,17 @@ mod ironclad_wave3_card_runtime_tests {
         let true_grit_plus = card("True Grit+");
         assert_eq!(
             true_grit_plus.effect_data,
-            &[Effect::ChooseCards {
-                source: Pile::Hand,
-                filter: CardFilter::All,
-                action: ChoiceAction::Exhaust,
-                min_picks: A::Fixed(1),
-                max_picks: A::Fixed(1),
-                post_choice_draw: A::Fixed(0),
-            }]
+            &[
+                Effect::Simple(SE::GainBlock(A::Block)),
+                Effect::ChooseCards {
+                    source: Pile::Hand,
+                    filter: CardFilter::All,
+                    action: ChoiceAction::Exhaust,
+                    min_picks: A::Fixed(1),
+                    max_picks: A::Fixed(1),
+                    post_choice_draw: A::Fixed(0),
+                },
+            ]
         );
 
         let mut plus_engine = engine_without_start(
@@ -268,6 +274,70 @@ mod ironclad_wave3_card_runtime_tests {
             vec![selected_name.as_str()],
         );
         assert_ne!(plus_engine.phase, CombatPhase::AwaitingChoice);
+    }
+
+    #[test]
+    fn true_grit_variants_gain_block_before_java_exhaust_paths_and_rng() {
+        // TrueGrit.java queues GainBlockAction first. Base then uses random
+        // ExhaustAction(1), which consumes cardRandomRng when multiple cards
+        // remain but auto-exhausts a singleton without RNG. The upgrade gains
+        // 9 Block and uses a non-random one-card selection instead.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/TrueGrit.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ExhaustAction.java
+        let mut base = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            1,
+        );
+        force_player_turn(&mut base);
+        base.state.hand = make_deck(&["True Grit", "Strike", "Defend"]);
+        let mut oracle = base.card_random_rng.clone();
+        let expected = ["Strike", "Defend"][oracle.random(1) as usize];
+        let generic_before = base.rng.counter;
+
+        assert!(play_self(&mut base, "True Grit"));
+
+        assert_eq!(base.state.energy, 0);
+        assert_eq!(base.state.player.block, 7);
+        assert_eq!(
+            base.card_registry
+                .card_name(base.state.exhaust_pile.last().expect("randomly exhausted card").def_id),
+            expected
+        );
+        assert_eq!(base.card_random_rng.counter, oracle.counter);
+        assert_eq!(base.rng.counter, generic_before);
+
+        let mut singleton = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            1,
+        );
+        force_player_turn(&mut singleton);
+        singleton.state.hand = make_deck(&["True Grit", "Strike"]);
+        let card_random_before = singleton.card_random_rng.counter;
+
+        assert!(play_self(&mut singleton, "True Grit"));
+        assert_eq!(singleton.state.player.block, 7);
+        assert_eq!(exhaust_prefix_count(&singleton, "Strike"), 1);
+        assert_eq!(singleton.card_random_rng.counter, card_random_before);
+
+        let mut upgraded = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            1,
+        );
+        force_player_turn(&mut upgraded);
+        upgraded.state.hand = make_deck(&["True Grit+", "Strike", "Defend"]);
+        let card_random_before = upgraded.card_random_rng.counter;
+
+        assert!(play_self(&mut upgraded, "True Grit+"));
+        assert_eq!(upgraded.state.energy, 0);
+        assert_eq!(upgraded.state.player.block, 9);
+        assert_eq!(upgraded.phase, CombatPhase::AwaitingChoice);
+        upgraded.execute_action(&Action::Choose(1));
+        assert_eq!(upgraded.phase, CombatPhase::PlayerTurn);
+        assert_eq!(exhaust_prefix_count(&upgraded, "Defend"), 1);
+        assert_eq!(upgraded.card_random_rng.counter, card_random_before);
     }
 
     #[test]
