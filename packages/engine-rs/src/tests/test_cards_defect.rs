@@ -560,13 +560,24 @@ mod defect_card_java_parity_tests {
         assert_eq!(e.state.energy, 6);
     });
 
-    defect_test!(glacier_gains_block_and_channels_frost, {
-        let mut e = filled_engine(&["Glacier"], 40, 0);
-        e.init_defect_orbs(3);
-        ensure_in_hand(&mut e, "Glacier");
-        play_self(&mut e, "Glacier");
-        assert_eq!(e.state.player.block, 7);
-        assert_eq!(e.state.orb_slots.slots[0].orb_type, OrbType::Frost);
+    defect_test!(glacier_gains_exact_block_and_channels_exactly_two_frost, {
+        // Glacier.java queues GainBlockAction(block), then loops magicNumber=2
+        // ChannelAction(Frost). upgrade() only adds 3 block.
+        // Java: reference/extracted/methods/card/Glacier.java
+        for (card_id, expected_block) in [("Glacier", 7), ("Glacier+", 10)] {
+            let mut e = bare_engine(&[], vec![enemy("JawWorm", 40, 0)]);
+            e.init_defect_orbs(3);
+            e.state.hand = make_deck(&[card_id]);
+            e.state.energy = 3;
+
+            assert!(play_self(&mut e, card_id));
+            assert_eq!(e.state.energy, 1);
+            assert_eq!(e.state.player.block, expected_block);
+            assert_eq!(e.state.orb_slots.occupied_count(), 2);
+            assert_eq!(e.state.orb_slots.slots[0].orb_type, OrbType::Frost);
+            assert_eq!(e.state.orb_slots.slots[1].orb_type, OrbType::Frost);
+            assert_eq!(e.state.orb_slots.slots[2].orb_type, OrbType::Empty);
+        }
     });
 
     defect_test!(hyperbeam_loses_focus, {
