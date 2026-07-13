@@ -768,6 +768,15 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         return;
     }
 
+    if engine.state.enemies[enemy_idx].id == "BanditLeader" {
+        // Every post-Mock intent is installed by SetMoveAction in takeTurn;
+        // BanditLeader never queues RollMoveAction after combat initialization.
+        // Java: reference/extracted/methods/monster/BanditLeader.java
+        enemies::act2::advance_bandit_leader_after_turn(
+            &mut engine.state.enemies[enemy_idx]);
+        return;
+    }
+
     // These Java takeTurn methods set their next move directly and do not queue
     // RollMoveAction.
     if engine.state.enemies[enemy_idx].id == "AcidSlime_S" {

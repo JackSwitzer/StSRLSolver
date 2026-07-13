@@ -1817,6 +1817,20 @@ impl RunEngine {
             enemy.set_move(crate::enemies::move_ids::POINTY_STAB, damage, 2, 0);
         }
 
+        // Source: reference/extracted/methods/monster/BanditLeader.java.
+        for enemy in enemy_states.iter_mut().filter(|e| e.id == "BanditLeader") {
+            let (cross_slash, agonizing_slash) = if self.run_state.ascension >= 2 {
+                (17, 12)
+            } else {
+                (15, 10)
+            };
+            let weak = if self.run_state.ascension >= 17 { 3 } else { 2 };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, cross_slash);
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT, agonizing_slash);
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT, weak);
+            enemy.set_move(crate::enemies::move_ids::BANDIT_MOCK, 0, 0, 0);
+        }
+
         // Source: reference/extracted/methods/monster/AcidSlime_S.java.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "AcidSlime_S") {
             let damage = if self.run_state.ascension >= 2 { 4 } else { 3 };
@@ -2340,6 +2354,11 @@ impl RunEngine {
             }
             "BanditChild" | "BanditPointy" | "Pointy" => {
                 let hp = if a20 { 34 } else { 30 };
+                (hp, hp)
+            }
+            "BanditLeader" => {
+                let base = if a20 { 37 } else { 35 };
+                let hp = base + self.rng.gen_range(0..=4);
                 (hp, hp)
             }
             "GremlinNob" => {
@@ -7700,6 +7719,68 @@ mod tests {
             combat.execute_action(&crate::actions::Action::EndTurn);
             assert_eq!(combat.state.player.hp, hp_before - damage * 4);
             assert_eq!(combat.ai_rng.counter, 1);
+        }
+    }
+
+    #[test]
+    fn bandit_leader_stats_direct_pattern_and_a17_repeat_match_java() {
+        // Source: reference/extracted/methods/monster/BanditLeader.java.
+        // HP is 35..39 (37..41 at A7); Cross/Agonizing Slash are 15/10
+        // (17/12 at A2), and Weak is two (three at A17). Only getMove's Mock
+        // opener rolls; takeTurn directly installs every later intent. A17
+        // permits a second consecutive Cross Slash, but never a third.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=256 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("BanditLeader").0);
+            let mut high = RunEngine::new(seed, 7);
+            high_hp.insert(high.roll_enemy_hp("BanditLeader").0);
+        }
+        assert_eq!(low_hp, (35..=39).collect());
+        assert_eq!(high_hp, (37..=41).collect());
+
+        for (ascension, cross, agonize, weak, after_first_cross) in [
+            (0, 15, 10, 2, crate::enemies::move_ids::BANDIT_AGONIZE),
+            (2, 17, 12, 2, crate::enemies::move_ids::BANDIT_AGONIZE),
+            (17, 17, 12, 3, crate::enemies::move_ids::BANDIT_CROSS_SLASH),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["BanditLeader".to_string()]);
+            let combat = run.combat_engine.as_mut().unwrap();
+            assert_eq!(combat.ai_rng.counter, 1);
+            assert_eq!(combat.state.enemies[0].move_id,
+                crate::enemies::move_ids::BANDIT_MOCK);
+
+            let hp_before = combat.state.player.hp;
+            combat.execute_action(&crate::actions::Action::EndTurn);
+            assert_eq!(combat.state.player.hp, hp_before);
+            assert_eq!(combat.state.enemies[0].move_id,
+                crate::enemies::move_ids::BANDIT_AGONIZE);
+            assert_eq!(combat.state.enemies[0].move_damage(), agonize);
+            assert_eq!(combat.state.enemies[0].effect(crate::combat_types::mfx::WEAK),
+                Some(weak as i16));
+            assert_eq!(combat.ai_rng.counter, 1);
+
+            combat.execute_action(&crate::actions::Action::EndTurn);
+            assert_eq!(combat.state.player.hp, hp_before - agonize);
+            assert_eq!(combat.state.enemies[0].move_id,
+                crate::enemies::move_ids::BANDIT_CROSS_SLASH);
+            assert_eq!(combat.state.enemies[0].move_damage(), cross);
+            assert_eq!(combat.ai_rng.counter, 1);
+
+            combat.execute_action(&crate::actions::Action::EndTurn);
+            assert_eq!(combat.state.player.hp, hp_before - agonize - cross);
+            assert_eq!(combat.state.enemies[0].move_id, after_first_cross);
+            assert_eq!(combat.ai_rng.counter, 1);
+
+            if ascension >= 17 {
+                combat.execute_action(&crate::actions::Action::EndTurn);
+                assert_eq!(combat.state.player.hp, hp_before - agonize - cross * 2);
+                assert_eq!(combat.state.enemies[0].move_id,
+                    crate::enemies::move_ids::BANDIT_AGONIZE);
+                assert_eq!(combat.ai_rng.counter, 1);
+            }
         }
     }
 

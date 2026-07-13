@@ -574,12 +574,12 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::BEAR_LUNGE, 9, 1, 9, &[]);
 
         let mut e = make("BanditLeader", 50);
-        roll_times(&mut e, 1);
+        act2::advance_bandit_leader_after_turn(&mut e);
         expect_move(&e, move_ids::BANDIT_AGONIZE, 10, 1, 0, &[(mfx::WEAK, 2)]);
-        roll_times(&mut e, 1);
+        act2::advance_bandit_leader_after_turn(&mut e);
         expect_move(&e, move_ids::BANDIT_CROSS_SLASH, 15, 1, 0, &[]);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::BANDIT_MOCK, 0, 0, 0, &[]);
+        act2::advance_bandit_leader_after_turn(&mut e);
+        expect_move(&e, move_ids::BANDIT_AGONIZE, 10, 1, 0, &[(mfx::WEAK, 2)]);
 
         let mut e = make("BanditChild", 30);
         act2::advance_bandit_pointy_after_turn(&mut e);

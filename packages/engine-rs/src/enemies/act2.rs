@@ -245,14 +245,43 @@ pub(crate) fn advance_bandit_pointy_after_turn(enemy: &mut EnemyCombatState) {
 }
 
 pub(super) fn roll_bandit_leader(enemy: &mut EnemyCombatState, _num: i32) {
-    // Mock -> Agonizing Slash (10 + Weak 2) -> Cross Slash (15) -> cycle
-    if last_move(enemy, move_ids::BANDIT_MOCK) {
-        enemy.set_move(move_ids::BANDIT_AGONIZE, 10, 1, 0);
-        enemy.add_effect(mfx::WEAK, 2);
-    } else if last_move(enemy, move_ids::BANDIT_AGONIZE) {
-        enemy.set_move(move_ids::BANDIT_CROSS_SLASH, 15, 1, 0);
-    } else {
-        enemy.set_move(move_ids::BANDIT_MOCK, 0, 0, 0);
+    // BanditLeader.getMove always selects the one-time Mock opener. All later
+    // intents are installed by takeTurn through SetMoveAction.
+    // Java: reference/extracted/methods/monster/BanditLeader.java
+    enemy.set_move(move_ids::BANDIT_MOCK, 0, 0, 0);
+}
+
+pub(crate) fn advance_bandit_leader_after_turn(enemy: &mut EnemyCombatState) {
+    // Mock -> Agonizing Slash -> Cross Slash. Below A17, Cross returns to
+    // Agonizing Slash; at A17, it repeats once unless the last two were Cross.
+    // SetMoveAction does not consume aiRng.
+    // Java: reference/extracted/methods/monster/BanditLeader.java
+    let completed_move = enemy.move_id;
+    enemy.move_history.push(completed_move);
+    enemy.move_effects.clear();
+    match completed_move {
+        move_ids::BANDIT_MOCK | move_ids::BANDIT_CROSS_SLASH
+            if completed_move == move_ids::BANDIT_MOCK
+                || enemy.entity.status(sid::BLOCK_AMT) < 3
+                || last_two_moves(enemy, move_ids::BANDIT_CROSS_SLASH) =>
+        {
+            enemy.set_move(
+                move_ids::BANDIT_AGONIZE,
+                enemy.entity.status(sid::STR_AMT),
+                1,
+                0,
+            );
+            enemy.add_effect(
+                mfx::WEAK,
+                enemy.entity.status(sid::BLOCK_AMT) as i16,
+            );
+        }
+        _ => enemy.set_move(
+            move_ids::BANDIT_CROSS_SLASH,
+            enemy.entity.status(sid::STARTING_DMG),
+            1,
+            0,
+        ),
     }
 }
 
