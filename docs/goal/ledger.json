@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T05:03:22.569890+00:00",
+ "updated": "2026-07-13T05:06:13.578379+00:00",
  "status_counts": {
-  "verified": 334,
-  "unverified": 333
+  "verified": 335,
+  "unverified": 332
  },
  "rows": [
   {
@@ -522,8 +522,8 @@
    "class": "Caltrops",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Caltrops.java",
    "methods_ref": "reference/extracted/methods/card/Caltrops.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

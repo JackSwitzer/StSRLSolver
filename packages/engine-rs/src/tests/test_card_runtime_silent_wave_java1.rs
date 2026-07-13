@@ -9,9 +9,10 @@
 
 use crate::actions::Action;
 use crate::engine::{ChoiceReason, CombatEngine, CombatPhase};
+use crate::status_ids::sid;
 use crate::tests::support::{
-    combat_state_with, enemy_no_intent, force_player_turn, hand_count, make_deck, play_self,
-    TEST_SEED,
+    combat_state_with, end_turn, enemy, enemy_no_intent, force_player_turn, hand_count, make_deck,
+    play_self, TEST_SEED,
 };
 
 fn engine_for(
@@ -105,6 +106,34 @@ fn calculated_gamble_plus_only_removes_exhaust_and_draws_the_same_count() {
         .discard_pile
         .iter()
         .any(|card| engine.card_registry.card_name(card.def_id) == "Calculated Gamble+"));
+}
+
+#[test]
+fn caltrops_stacks_and_retaliates_after_buffer_with_thorns_damage_rules() {
+    // Caltrops.java applies ThornsPower for magicNumber 3 (5 upgraded).
+    // AbstractPlayer.damage calls BufferPower.onAttackedToChangeDamage before
+    // ThornsPower.onAttacked, so Buffer can zero the hit without suppressing
+    // retaliation. IntangiblePower caps the queued THORNS DamageAction at one.
+    let mut engine = engine_for(
+        &["Caltrops", "Caltrops+"],
+        &[],
+        vec![enemy("JawWorm", 20, 20, 1, 7, 1)],
+        2,
+    );
+
+    assert!(play_self(&mut engine, "Caltrops"));
+    assert!(play_self(&mut engine, "Caltrops+"));
+    assert_eq!(engine.state.player.status(sid::THORNS), 8);
+    assert_eq!(engine.state.energy, 0);
+
+    engine.state.player.set_status(sid::BUFFER, 1);
+    engine.state.enemies[0].entity.set_status(sid::INTANGIBLE, 1);
+    let player_hp = engine.state.player.hp;
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.hp, player_hp);
+    assert_eq!(engine.state.player.status(sid::BUFFER), 0);
+    assert_eq!(engine.state.enemies[0].entity.hp, 19);
 }
 
 #[test]

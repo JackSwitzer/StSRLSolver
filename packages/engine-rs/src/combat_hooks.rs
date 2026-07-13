@@ -207,13 +207,14 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 let buffer = engine.state.player.status(sid::BUFFER);
                 if buffer > 0 {
                     engine.state.player.set_status(sid::BUFFER, buffer - 1);
-                    continue;
-                }
-                if has_torii && (2..=5).contains(&hp_loss) {
-                    hp_loss = 1;
-                }
-                if has_tungsten {
-                    hp_loss = (hp_loss - 1).max(0);
+                    hp_loss = 0;
+                } else {
+                    if has_torii && (2..=5).contains(&hp_loss) {
+                        hp_loss = 1;
+                    }
+                    if has_tungsten {
+                        hp_loss = (hp_loss - 1).max(0);
+                    }
                 }
             }
 
@@ -276,32 +277,18 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 return;
             }
 
-            // Thorns: deal Thorns damage back per hit (Java: ThornsPower.onAttacked)
+            // BufferPower.onAttackedToChangeDamage can reduce the hit to zero,
+            // but ThornsPower.onAttacked runs afterward and still retaliates.
+            // Java: AbstractPlayer.damage and ThornsPower.onAttacked.
             let thorns = engine.state.player.status(sid::THORNS);
             if thorns > 0 && engine.state.enemies[enemy_idx].is_alive() {
-                let e = &mut engine.state.enemies[enemy_idx];
-                let blocked_t = e.entity.block.min(thorns);
-                let hp_dmg_t = thorns - blocked_t;
-                e.entity.block -= blocked_t;
-                e.entity.hp -= hp_dmg_t;
-                engine.state.total_damage_dealt += hp_dmg_t;
-                if hp_dmg_t > 0 {
-                    engine.record_enemy_hp_damage(enemy_idx, hp_dmg_t);
-                }
+                engine.deal_thorns_damage_to_enemy(enemy_idx, thorns);
             }
 
             // Flame Barrier: deal FlameBarrier damage back per hit (Java: FlameBarrierPower.onAttacked)
             let flame_barrier = engine.state.player.status(sid::FLAME_BARRIER);
             if flame_barrier > 0 && engine.state.enemies[enemy_idx].is_alive() {
-                let e = &mut engine.state.enemies[enemy_idx];
-                let blocked_f = e.entity.block.min(flame_barrier);
-                let hp_dmg_f = flame_barrier - blocked_f;
-                e.entity.block -= blocked_f;
-                e.entity.hp -= hp_dmg_f;
-                engine.state.total_damage_dealt += hp_dmg_f;
-                if hp_dmg_f > 0 {
-                    engine.record_enemy_hp_damage(enemy_idx, hp_dmg_f);
-                }
+                engine.deal_thorns_damage_to_enemy(enemy_idx, flame_barrier);
             }
         }
     }
