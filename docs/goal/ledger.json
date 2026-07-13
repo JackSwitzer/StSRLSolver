@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T05:53:46.388673+00:00",
+ "updated": "2026-07-13T05:55:15.090183+00:00",
  "status_counts": {
-  "verified": 347,
-  "unverified": 320
+  "verified": 348,
+  "unverified": 319
  },
  "rows": [
   {
@@ -672,8 +672,8 @@
    "class": "ColdSnap",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ColdSnap.java",
    "methods_ref": "reference/extracted/methods/card/ColdSnap.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

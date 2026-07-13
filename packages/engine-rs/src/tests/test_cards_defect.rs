@@ -352,6 +352,8 @@ mod defect_card_java_parity_tests {
     });
 
     defect_test!(cold_snap_channels_frost, {
+        // Source: ColdSnap.java sets damage 6 and magic 1, queues damage before
+        // ChannelAction(Frost), and upgrades only damage by 3.
         let mut e = filled_engine(&["Cold Snap"], 40, 0);
         e.init_defect_orbs(1);
         ensure_in_hand(&mut e, "Cold Snap");
@@ -359,6 +361,23 @@ mod defect_card_java_parity_tests {
         play_on_enemy(&mut e, "Cold Snap", 0);
         assert_eq!(e.state.enemies[0].entity.hp, hp - 6);
         assert_eq!(e.state.orb_slots.slots[0].orb_type, OrbType::Frost);
+
+        let mut upgraded = filled_engine(&["Cold Snap+"], 40, 0);
+        upgraded.init_defect_orbs(2);
+        ensure_in_hand(&mut upgraded, "Cold Snap+");
+        let hp = upgraded.state.enemies[0].entity.hp;
+        play_on_enemy(&mut upgraded, "Cold Snap+", 0);
+        assert_eq!(upgraded.state.enemies[0].entity.hp, hp - 9);
+        assert_eq!(
+            upgraded
+                .state
+                .orb_slots
+                .slots
+                .iter()
+                .filter(|slot| slot.orb_type == OrbType::Frost)
+                .count(),
+            1
+        );
     });
 
     defect_test!(compile_driver_draws_per_unique_orb, {
