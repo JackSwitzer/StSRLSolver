@@ -2014,6 +2014,15 @@ impl CombatEngine {
             crate::effects::trigger::Trigger::RoundEnd,
         ));
 
+        // Panic Button constructs NoBlockPower with isSourceMonster=false, so
+        // atEndOfRound immediately reduces its two-turn amount. It therefore
+        // blocks gains for the rest of this turn and the next player turn.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NoBlockPower.java
+        let no_block = self.state.player.status(sid::NO_BLOCK);
+        if no_block > 0 {
+            self.state.player.set_status(sid::NO_BLOCK, no_block - 1);
+        }
+
         // Check combat end
         if !self.check_combat_end() {
             self.start_player_turn();
@@ -2837,7 +2846,11 @@ impl CombatEngine {
     /// Centralized player block gain. Fires Juggernaut and Wave of the Hand reactions.
     /// Callers pass the FINAL computed amount (dexterity/frail already applied).
     pub fn gain_block_player(&mut self, amount: i32) {
-        if amount <= 0 {
+        // NoBlockPower.modifyBlockLast returns zero for every block source.
+        // Panic Button's own GainBlockAction resolves before the power is
+        // applied, so that initial block still lands.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NoBlockPower.java
+        if amount <= 0 || self.state.player.status(sid::NO_BLOCK) > 0 {
             return;
         }
         self.state.player.block += amount;

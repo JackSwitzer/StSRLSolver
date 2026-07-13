@@ -822,6 +822,10 @@ fn is_debuff(status: StatusId, amount: i32) -> bool {
         // CorpseExplosionPower.java declares PowerType.DEBUFF, so Artifact blocks it.
         || status == sid::CORPSE_EXPLOSION
         || status == sid::NO_DRAW
+        // NoBlockPower declares DEBUFF, so Artifact consumes a charge and
+        // blocks Panic Button's restriction after its block action resolves.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NoBlockPower.java
+        || status == sid::NO_BLOCK
         || status == sid::BIASED_COG_FOCUS_LOSS
         // LoseStrengthPower is explicitly PowerType.DEBUFF, so Artifact can
         // make Flex's Strength gain permanent.

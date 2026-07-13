@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T12:15:38.620018+00:00",
+ "updated": "2026-07-13T12:19:45.984725+00:00",
  "status_counts": {
-  "verified": 482,
-  "unverified": 185
+  "verified": 483,
+  "unverified": 184
  },
  "rows": [
   {
@@ -2392,8 +2392,8 @@
    "class": "PanicButton",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/PanicButton.java",
    "methods_ref": "reference/extracted/methods/card/PanicButton.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -14,6 +14,8 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Mayhem.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Panache.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Panacea.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/PanicButton.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/NoBlockPower.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/SadisticNature.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/SwiftStrike.java
 
@@ -95,6 +97,55 @@ fn panacea_base_and_upgrade_stack_three_artifact_for_free_and_exhaust() {
     assert_eq!(engine.state.energy, 0);
     assert_eq!(engine.state.player.status(sid::ARTIFACT), 3);
     assert_eq!(exhaust_prefix_count(&engine, "Panacea"), 2);
+}
+
+#[test]
+fn panic_button_blocks_future_block_for_two_rounds_unless_artifact_stops_it() {
+    // PanicButton.java queues block 30 before NoBlockPower(2), costs zero, and
+    // exhausts; upgrade changes only block to 40. NoBlockPower is a DEBUFF,
+    // returns zero from modifyBlockLast, and reduces at each round end.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 80, 80)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["PanicButton", "Defend"]);
+
+    assert!(play_self(&mut engine, "PanicButton"));
+    assert_eq!(engine.state.player.block, 30);
+    assert_eq!(engine.state.player.status(sid::NO_BLOCK), 2);
+    assert_eq!(exhaust_prefix_count(&engine, "PanicButton"), 1);
+    assert!(play_self(&mut engine, "Defend"));
+    assert_eq!(engine.state.player.block, 30);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.status(sid::NO_BLOCK), 1);
+    ensure_in_hand(&mut engine, "Defend");
+    assert!(play_self(&mut engine, "Defend"));
+    assert_eq!(engine.state.player.block, 0);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.status(sid::NO_BLOCK), 0);
+    ensure_in_hand(&mut engine, "Defend");
+    assert!(play_self(&mut engine, "Defend"));
+    assert_eq!(engine.state.player.block, 5);
+
+    let mut artifact = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 80, 80)],
+        3,
+    );
+    force_player_turn(&mut artifact);
+    artifact.state.player.set_status(sid::ARTIFACT, 1);
+    artifact.state.hand = make_deck(&["PanicButton+", "Defend"]);
+
+    assert!(play_self(&mut artifact, "PanicButton+"));
+    assert_eq!(artifact.state.player.block, 40);
+    assert_eq!(artifact.state.player.status(sid::ARTIFACT), 0);
+    assert_eq!(artifact.state.player.status(sid::NO_BLOCK), 0);
+    assert!(play_self(&mut artifact, "Defend"));
+    assert_eq!(artifact.state.player.block, 45);
 }
 
 #[test]
