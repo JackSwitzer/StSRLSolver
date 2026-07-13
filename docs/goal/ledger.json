@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T16:10:09.837660+00:00",
+ "updated": "2026-07-13T16:12:14.754134+00:00",
  "status_counts": {
-  "verified": 551,
-  "unverified": 116
+  "verified": 552,
+  "unverified": 115
  },
  "rows": [
   {
@@ -3242,8 +3242,8 @@
    "class": "SwordBoomerang",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/SwordBoomerang.java",
    "methods_ref": "reference/extracted/methods/card/SwordBoomerang.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

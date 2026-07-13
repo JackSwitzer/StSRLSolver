@@ -1480,6 +1480,44 @@ mod ironclad_card_java_parity_tests {
     }
 
     #[test]
+    fn sword_boomerang_consumes_one_card_random_roll_per_source_hit() {
+        // SwordBoomerang.use queues three separate random-enemy attacks and
+        // upgrades only the hit count to four. Each AttackDamageRandomEnemyAction
+        // selects through cardRandomRng, including repeat selections.
+        // Java: reference/extracted/methods/card/SwordBoomerang.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/AttackDamageRandomEnemyAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/MonsterGroup.java
+        for (card_id, hits) in [("Sword Boomerang", 3), ("Sword Boomerang+", 4)] {
+            let mut engine = engine_for(
+                &[],
+                &[],
+                &[],
+                vec![
+                    enemy_no_intent("JawWorm", 100, 100),
+                    enemy_no_intent("Cultist", 100, 100),
+                ],
+                1,
+            );
+            engine.state.hand = make_deck(&[card_id]);
+            let mut oracle = engine.card_random_rng.clone();
+            let mut expected_hits = [0; 2];
+            for _ in 0..hits {
+                expected_hits[oracle.random_range(0, 1) as usize] += 1;
+            }
+            let general_before = engine.rng.counter;
+
+            assert!(play_self(&mut engine, card_id));
+
+            for (enemy, hit_count) in engine.state.enemies.iter().zip(expected_hits) {
+                assert_eq!(enemy.entity.hp, 100 - hit_count * 3, "{card_id}");
+            }
+            assert_eq!(engine.card_random_rng.counter, oracle.counter, "{card_id}");
+            assert_eq!(engine.rng.counter, general_before, "{card_id}");
+            assert_eq!(engine.state.energy, 0, "{card_id}");
+        }
+    }
+
+    #[test]
     fn thunderclap_applies_vulnerable_all() {
         let mut e = engine_for(
             &["Thunderclap"],
