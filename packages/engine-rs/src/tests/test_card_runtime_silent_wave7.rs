@@ -242,6 +242,8 @@ fn blur_does_not_decrement_during_vaults_skipped_enemy_round() {
 
 #[test]
 fn silent_wave7_prepared_uses_draw_then_discard_choice_on_engine_path() {
+    // Prepared.java queues DrawCardAction before DiscardAction and upgrades
+    // magicNumber from one to two.
     let mut engine = one_enemy_engine("JawWorm", 50, 0);
     engine.state.draw_pile = make_deck(&["Strike", "Defend", "Neutralize"]);
     engine.state.hand = make_deck(&["Prepared+", "Survivor"]);
@@ -270,4 +272,23 @@ fn silent_wave7_prepared_uses_draw_then_discard_choice_on_engine_path() {
     assert_eq!(engine.state.player.status(sid::DISCARDED_THIS_TURN), 2);
     assert_eq!(engine.state.hand.len(), 1);
     assert_eq!(engine.state.discard_pile.len(), 3);
+}
+
+#[test]
+fn prepared_auto_discards_the_whole_short_hand_without_a_choice() {
+    // DiscardAction.java lines 46-59 discard the entire hand directly when
+    // hand.size() <= amount and trigger manual-discard bookkeeping per card.
+    let mut engine = one_enemy_engine("JawWorm", 50, 0);
+    engine.state.draw_pile.clear();
+    engine.state.discard_pile.clear();
+    engine.state.hand = make_deck(&["Prepared+", "Survivor"]);
+
+    assert!(play_self(&mut engine, "Prepared+"));
+
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert!(engine.choice.is_none());
+    assert!(engine.state.hand.is_empty());
+    assert_eq!(engine.state.player.status(sid::DISCARDED_THIS_TURN), 1);
+    assert_eq!(discard_prefix_count(&engine, "Survivor"), 1);
+    assert_eq!(discard_prefix_count(&engine, "Prepared"), 1);
 }

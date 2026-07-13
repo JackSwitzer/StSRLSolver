@@ -1498,6 +1498,39 @@ fn execute_choose_cards(
         requested_min
     };
 
+    // A fixed-count DiscardAction automatically discards the whole hand when
+    // hand.size() <= amount, firing each card's manual-discard hooks. It opens
+    // hand selection only when more cards remain than the requested amount.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DiscardAction.java
+    if action == ChoiceAction::Discard
+        && source == Pile::Hand
+        && filter == CardFilter::All
+        && requested_min == requested_max
+        && options.len() <= requested_max
+    {
+        let mut indices: Vec<usize> = options
+            .iter()
+            .filter_map(|option| match option {
+                ChoiceOption::HandCard(index) => Some(*index),
+                _ => None,
+            })
+            .collect();
+        indices.sort_unstable_by(|left, right| right.cmp(left));
+        let mut discarded_cards = Vec::with_capacity(indices.len());
+        for index in indices {
+            let card = engine.state.hand.remove(index);
+            engine.state.discard_pile.push(card);
+            discarded_cards.push(card);
+        }
+        for card in discarded_cards {
+            engine.on_card_discarded(card);
+        }
+        if post_choice_draw > 0 {
+            engine.draw_cards(post_choice_draw);
+        }
+        return;
+    }
+
     // Non-random, fixed-count ExhaustAction automatically exhausts the whole
     // hand when hand.size() <= amount instead of opening the selection screen.
     // This covers Burning Pact/True Grit with a singleton remaining hand while
