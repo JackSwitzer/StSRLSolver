@@ -2979,8 +2979,8 @@ impl CombatEngine {
         }
     }
 
-    /// Centralized player HP loss (bypasses block). Checks fairy revive, fires on_hp_loss relics,
-    /// and triggers Rupture.
+    /// Centralized player-owned HP loss (bypasses block). Checks fairy revive,
+    /// fires on_hp_loss relics, and triggers Rupture when positive HP is lost.
     pub(crate) fn player_lose_hp_from_damage(&mut self, amount: i32) {
         if amount <= 0 {
             return;
@@ -3004,10 +3004,14 @@ impl CombatEngine {
         let tungsten = self.state.has_relic("Tungsten Rod")
             || self.state.has_relic("TungstenRod");
         let hp_loss = damage::apply_hp_loss(after_intangible, false, tungsten);
-        self.player_lose_hp(hp_loss);
+        self.player_lose_hp_with_owner(hp_loss, true);
     }
 
     pub fn player_lose_hp(&mut self, amount: i32) {
+        self.player_lose_hp_with_owner(amount, false);
+    }
+
+    fn player_lose_hp_with_owner(&mut self, amount: i32, owner_is_player: bool) {
         if amount <= 0 {
             return;
         }
@@ -3034,10 +3038,15 @@ impl CombatEngine {
             ));
         }
 
-        // Rupture: gain Strength when losing HP
-        let rupture = self.state.player.status(sid::RUPTURE);
-        if rupture > 0 {
-            self.state.player.add_status(sid::STRENGTH, rupture);
+        // RupturePower.wasHPLost requires positive HP loss whose DamageInfo
+        // owner is the player. Enemy attacks and enemy-owned THORNS damage still
+        // fire the general HP-loss hooks above, but do not grant Strength.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RupturePower.java
+        if owner_is_player {
+            let rupture = self.state.player.status(sid::RUPTURE);
+            if rupture > 0 {
+                self.state.player.add_status(sid::STRENGTH, rupture);
+            }
         }
 
         let rcd = self.state.player.status(sid::RUNIC_CUBE_DRAW);
@@ -3550,6 +3559,14 @@ impl CombatEngine {
     }
 
     pub(crate) fn deal_thorns_damage_to_player(&mut self, damage: i32) {
+        self.deal_thorns_damage_to_player_with_owner(damage, false);
+    }
+
+    pub(crate) fn deal_self_thorns_damage_to_player(&mut self, damage: i32) {
+        self.deal_thorns_damage_to_player_with_owner(damage, true);
+    }
+
+    fn deal_thorns_damage_to_player_with_owner(&mut self, damage: i32, owner_is_player: bool) {
         // DamageInfo.THORNS still passes through final-receive powers, block,
         // Buffer, and Tungsten Rod. Torii and reactive Thorns/Flame Barrier
         // explicitly exclude THORNS damage.
@@ -3575,7 +3592,7 @@ impl CombatEngine {
             hp_damage -= 1;
         }
         if hp_damage > 0 {
-            self.player_lose_hp(hp_damage);
+            self.player_lose_hp_with_owner(hp_damage, owner_is_player);
         }
     }
 

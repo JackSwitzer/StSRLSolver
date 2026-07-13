@@ -48,7 +48,9 @@ pub fn process_end_turn_hand_cards(engine: &mut CombatEngine) -> bool {
                         // Burn/Decay queue DamageAction with THORNS damage.
                         // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/status/Burn.java
                         // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Decay.java
-                        engine.deal_thorns_damage_to_player(raw);
+                        // Burn/Decay construct player-owned THORNS DamageInfo,
+                        // so positive HP loss satisfies RupturePower's owner check.
+                        engine.deal_self_thorns_damage_to_player(raw);
                     }
                     EndTurnHandRule::Regret => {
                         // Regret.triggerOnEndOfTurnForPlayingCard stores the

@@ -102,7 +102,7 @@ pub fn hook_next_turn_energy(engine: &mut CombatEngine, ctx: &CardPlayContext) {
 
 /// Bloodletting: lose HP, gain 2 energy.
 pub fn hook_lose_hp_gain_energy(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    engine.player_lose_hp(ctx.card.base_magic);
+    engine.player_lose_hp_from_damage(ctx.card.base_magic);
     engine.state.energy += 2;
 }
 
@@ -229,12 +229,12 @@ pub fn hook_offering(engine: &mut CombatEngine, ctx: &CardPlayContext) {
 
 /// Lose HP (Hemokinesis).
 pub fn hook_lose_hp(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    engine.player_lose_hp(ctx.card.base_magic);
+    engine.player_lose_hp_from_damage(ctx.card.base_magic);
 }
 
 /// J.A.X.: lose HP, gain equal Strength.
 pub fn hook_lose_hp_gain_str(engine: &mut CombatEngine, ctx: &CardPlayContext) {
-    engine.player_lose_hp(ctx.card.base_magic);
+    engine.player_lose_hp_from_damage(ctx.card.base_magic);
     engine.state.player.add_status(sid::STRENGTH, ctx.card.base_magic);
 }
 

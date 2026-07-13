@@ -736,6 +736,45 @@ mod ironclad_card_java_parity_tests {
         }));
     }
     card_pair_test!(rupture, "Rupture", "Rupture+", 1, -1, -1, 1, 1, -1, -1, 2, CardType::Power, CardTarget::SelfTarget, false);
+
+    #[test]
+    fn rupture_triggers_only_for_positive_hp_loss_owned_by_the_player() {
+        // Rupture.java applies magic 1 (2 upgraded) as RupturePower. Its
+        // wasHPLost hook requires both positive HP loss and DamageInfo.owner ==
+        // player: Bloodletting's LoseHPAction(p, p, 3) qualifies, while an
+        // enemy's ordinary DamageAction does not.
+        // Java: reference/extracted/methods/card/Rupture.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RupturePower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Bloodletting.java
+        let mut self_owned = engine_for(
+            &["Rupture+", "Bloodletting"],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            1,
+        );
+        let hp_before = self_owned.state.player.hp;
+
+        assert!(play_self(&mut self_owned, "Rupture+"));
+        assert!(play_self(&mut self_owned, "Bloodletting"));
+        assert_eq!(self_owned.state.player.hp, hp_before - 3);
+        assert_eq!(self_owned.state.player.status(sid::STRENGTH), 2);
+
+        let mut enemy_owned = engine_for(
+            &["Rupture+"],
+            &[],
+            &[],
+            vec![enemy("Cultist", 40, 40, 1, 5, 1)],
+            1,
+        );
+        let hp_before = enemy_owned.state.player.hp;
+
+        assert!(play_self(&mut enemy_owned, "Rupture+"));
+        end_turn(&mut enemy_owned);
+        assert_eq!(enemy_owned.state.player.hp, hp_before - 5);
+        assert_eq!(enemy_owned.state.player.status(sid::STRENGTH), 0);
+    }
+
     card_pair_test!(searing_blow, "Searing Blow", "Searing Blow+", 2, 12, -1, -1, 2, 16, -1, -1, CardType::Attack, CardTarget::Enemy, false);
     card_pair_test!(second_wind, "Second Wind", "Second Wind+", 1, -1, 5, -1, 1, -1, 7, -1, CardType::Skill, CardTarget::SelfTarget, false);
     card_pair_test!(seeing_red, "Seeing Red", "Seeing Red+", 1, -1, -1, 2, 0, -1, -1, 2, CardType::Skill, CardTarget::None, true);

@@ -231,7 +231,7 @@ pub(crate) fn execute_primary_attack(
         }
         crate::effects::declarative::Target::Player | crate::effects::declarative::Target::SelfEntity => {
             for _ in 0..hits {
-                engine.player_lose_hp(effective_base_damage);
+                engine.player_lose_hp_from_damage(effective_base_damage);
             }
         }
     }
