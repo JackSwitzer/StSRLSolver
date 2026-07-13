@@ -497,7 +497,7 @@ fn collect_test_markers_from_effects(effects: &[Effect], markers: &mut Vec<&'sta
                             add_test_marker(markers, "discard");
                             add_test_marker(markers, "discard_gain_energy");
                         }
-                        ChoiceAction::PutOnTopAtCostZero | ChoiceAction::PutOnBottomAtCostZero => {
+                        ChoiceAction::PutOnTopAtCostZero | ChoiceAction::PutOnBottomFreeIfCostly => {
                             add_test_marker(markers, "setup");
                         }
                         ChoiceAction::StoreCardForNextTurnCopies => {

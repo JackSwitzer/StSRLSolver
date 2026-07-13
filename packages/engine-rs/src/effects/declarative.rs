@@ -160,8 +160,9 @@ pub enum ChoiceAction {
     StoreCardForNextTurnCopies,
     /// Put selected card(s) on top of draw pile at cost 0.
     PutOnTopAtCostZero,
-    /// Put selected card(s) on bottom of draw pile at cost 0.
-    PutOnBottomAtCostZero,
+    /// Put selected card(s) on the bottom of the draw pile, making cards with
+    /// a positive permanent cost free for their next play.
+    PutOnBottomFreeIfCostly,
     /// Exhaust selected card and gain its cost as energy.
     ExhaustAndGainEnergy,
 }

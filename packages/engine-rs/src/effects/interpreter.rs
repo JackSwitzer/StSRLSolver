@@ -1374,6 +1374,20 @@ fn execute_choose_cards(
         return;
     }
 
+    // Base Forethought skips hand selection when exactly one card remains.
+    // Forethought+ still opens the any-number screen and permits choosing zero.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ForethoughtAction.java
+    if ctx.card.id == "Forethought"
+        && source == Pile::Hand
+        && action == ChoiceAction::PutOnBottomFreeIfCostly
+        && options.len() == 1
+    {
+        if let ChoiceOption::HandCard(index) = options[0] {
+            engine.move_forethought_cards_to_bottom(&[index]);
+        }
+        return;
+    }
+
     if ctx.card.id == "Armaments"
         && source == Pile::Hand
         && action == ChoiceAction::Upgrade
@@ -1593,7 +1607,7 @@ fn choice_reason_for_action(action: ChoiceAction, source: Pile) -> ChoiceReason 
         ChoiceAction::CopyToHand => ChoiceReason::DualWield,
         ChoiceAction::StoreCardForNextTurnCopies => ChoiceReason::DualWield,
         ChoiceAction::PutOnTopAtCostZero => ChoiceReason::SetupPick,
-        ChoiceAction::PutOnBottomAtCostZero => ChoiceReason::ForethoughtPick,
+        ChoiceAction::PutOnBottomFreeIfCostly => ChoiceReason::ForethoughtPick,
         ChoiceAction::ExhaustAndGainEnergy => ChoiceReason::RecycleCard,
     }
 }

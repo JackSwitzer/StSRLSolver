@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T09:03:57.425109+00:00",
+ "updated": "2026-07-13T09:10:26.241683+00:00",
  "status_counts": {
-  "verified": 417,
-  "unverified": 250
+  "verified": 418,
+  "unverified": 249
  },
  "rows": [
   {
@@ -1622,8 +1622,8 @@
    "class": "Forethought",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Forethought.java",
    "methods_ref": "reference/extracted/methods/card/Forethought.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

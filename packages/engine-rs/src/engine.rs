@@ -1256,9 +1256,7 @@ impl CombatEngine {
     }
 
     fn resolve_forethought(&mut self, ctx: ChoiceContext) {
-        // Forethought: put selected card(s) on bottom of draw pile at 0 cost
-        // Convention: last = top (pop draws), index 0 = bottom
-        let mut indices: Vec<usize> = ctx
+        let indices: Vec<usize> = ctx
             .selected
             .iter()
             .filter_map(|&i| {
@@ -1269,13 +1267,43 @@ impl CombatEngine {
                 }
             })
             .collect();
-        indices.sort_unstable_by(|a, b| b.cmp(a));
-        for idx in indices {
-            if idx < self.state.hand.len() {
-                let mut card = self.state.hand.remove(idx);
-                card.cost = 0;
-                self.state.draw_pile.insert(0, card); // bottom of draw pile
+        self.move_forethought_cards_to_bottom(&indices);
+    }
+
+    pub(crate) fn move_forethought_cards_to_bottom(&mut self, indices: &[usize]) {
+        // HandCardSelectScreen.addToTop preserves click order, and each
+        // moveToBottomOfDeck inserts at index zero. Capture the selected cards
+        // before removing them so that both selection order and duplicate card
+        // definitions are preserved.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ForethoughtAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
+        let selected: Vec<CardInstance> = indices
+            .iter()
+            .filter_map(|&index| self.state.hand.get(index).copied())
+            .collect();
+        let mut removal_indices: Vec<usize> = indices
+            .iter()
+            .copied()
+            .filter(|&index| index < self.state.hand.len())
+            .collect();
+        removal_indices.sort_unstable_by(|left, right| right.cmp(left));
+        removal_indices.dedup();
+        for index in removal_indices {
+            self.state.hand.remove(index);
+        }
+
+        for mut card in selected {
+            let def = self.card_registry.card_def_by_id(card.def_id);
+            let permanent_cost = if card.base_cost >= 0 {
+                card.base_cost
+            } else {
+                def.cost as i8
+            };
+            if permanent_cost > 0 {
+                card.flags |= CardInstance::FLAG_FREE;
             }
+            // Convention: last = top (pop draws), index 0 = bottom.
+            self.state.draw_pile.insert(0, card);
         }
     }
 
@@ -2511,12 +2539,17 @@ impl CombatEngine {
             // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
             && self.card_random_rng.random_boolean();
 
+        // UseCardAction clears freeToPlayOnce before moving the card to its
+        // post-play pile, so Forethought's flag applies to exactly one play.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
+        let post_play_card = card_inst.set_free(false);
+
         if card_inst.flags & CardInstance::FLAG_PURGE != 0 || card.card_type == CardType::Power {
             // purgeOnUse copies disappear after their effects. Power cards are
             // consumed by the normal power-play path regardless of exhaust.
         } else if exhausts_on_use && !spoon_saved {
-            self.state.exhaust_pile.push(card_inst);
-            self.trigger_card_on_exhaust(card_inst);
+            self.state.exhaust_pile.push(post_play_card);
+            self.trigger_card_on_exhaust(post_play_card);
         } else if post_play_dest == crate::effects::types::PostPlayDestination::ShuffleIntoDraw {
             // Tantrum's UseCardAction calls hand.moveToDeck(card, true), which
             // delegates to CardGroup.addToRandomSpot and cardRandomRng. It does
@@ -2524,16 +2557,16 @@ impl CombatEngine {
             // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
             // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
             if self.state.draw_pile.is_empty() {
-                self.state.draw_pile.push(card_inst);
+                self.state.draw_pile.push(post_play_card);
             } else {
                 let idx = self
                     .card_random_rng
                     .random_range(0, (self.state.draw_pile.len() - 1) as i32)
                     as usize;
-                self.state.draw_pile.insert(idx, card_inst);
+                self.state.draw_pile.insert(idx, post_play_card);
             }
         } else {
-            self.state.discard_pile.push(card_inst);
+            self.state.discard_pile.push(post_play_card);
         }
 
         self.finish_runtime_play_context();
