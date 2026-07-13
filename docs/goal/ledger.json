@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T21:58:12.033805+00:00",
+ "updated": "2026-07-13T22:00:15.729824+00:00",
  "status_counts": {
-  "verified": 626,
-  "unverified": 41
+  "verified": 627,
+  "unverified": 40
  },
  "rows": [
   {
@@ -4612,8 +4612,8 @@
    "class": "FocusPotion",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/potions/FocusPotion.java",
    "methods_ref": "reference/extracted/methods/potion/FocusPotion.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

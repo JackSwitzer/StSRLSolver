@@ -92,6 +92,28 @@ fn blood_potion_heals_twenty_percent_at_every_ascension_and_bark_doubles_it() {
 }
 
 #[test]
+fn focus_potion_grants_two_focus_and_bark_doubles_it() {
+    // Source: reference/extracted/methods/potion/FocusPotion.java. getPotency
+    // always returns two; AbstractPotion.getPotency doubles it for Sacred Bark.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.potions[0] = "FocusPotion".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::FOCUS), 2);
+    assert!(engine.state.potions[0].is_empty());
+
+    engine.state.player.set_status(sid::FOCUS, 0);
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "Focus Potion".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::FOCUS), 4);
+    assert!(engine.state.potions[0].is_empty());
+}
+
+#[test]
 fn generation_potions_use_engine_action_path_and_consume_slot() {
     // Java oracle:
     // - decompiled/java-src/com/megacrit/cardcrawl/potions/AttackPotion.java

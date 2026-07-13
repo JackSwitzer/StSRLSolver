@@ -173,7 +173,8 @@ fn potion_potency(potion_id: &str) -> Option<(i32, i32)> {
         "Strength Potion" | "StrengthPotion" => Some((2, 2)),
         // DexterityPotion.java getPotency ignores ascension and always returns 2.
         "Dexterity Potion" | "DexterityPotion" => Some((2, 2)),
-        "Focus Potion" | "FocusPotion" => Some((2, 1)),
+        // FocusPotion.java getPotency ignores ascension and always returns 2.
+        "Focus Potion" | "FocusPotion" => Some((2, 2)),
         // SteroidPotion.java getPotency ignores ascension and always returns 5.
         "SteroidPotion" | "Flex Potion" => Some((5, 5)),
         // SpeedPotion.java getPotency ignores ascension and always returns 5.
@@ -715,10 +716,16 @@ mod tests {
     }
 
     #[test]
-    fn test_focus_potion() {
+    fn test_focus_potion_stays_at_two_on_a11_and_bark_doubles_it() {
+        // Source: reference/extracted/methods/potion/FocusPotion.java.
         let mut state = make_test_state();
-        apply_potion(&mut state, "Focus Potion", -1);
+        apply_potion_scaled(&mut state, "Focus Potion", -1, 11);
         assert_eq!(state.player.status(sid::FOCUS), 2);
+
+        state.player.set_status(sid::FOCUS, 0);
+        state.relics.push("SacredBark".to_string());
+        apply_potion_scaled(&mut state, "Focus Potion", -1, 20);
+        assert_eq!(state.player.status(sid::FOCUS), 4);
     }
 
     #[test]
