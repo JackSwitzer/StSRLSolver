@@ -74,6 +74,36 @@ fn support_wave1_registry_keeps_shared_support_cards_typed_runtime_metadata() {
 }
 
 #[test]
+fn curse_of_the_bell_is_unplayable_unupgradable_non_ethereal_and_unremovable() {
+    // CurseOfTheBell.java constructs a cost -2 Curse with empty use/upgrade
+    // and no Ethereal flag. CardGroup.getPurgeableCards explicitly excludes
+    // CurseOfTheBell from removal pools.
+    let registry = global_registry();
+    let card = registry.get("CurseOfTheBell").expect("Curse of the Bell");
+    assert_eq!(card.cost, -2);
+    assert!(card.runtime_traits().unplayable);
+    assert!(card.runtime_traits().unremovable);
+    assert!(!card.runtime_traits().ethereal);
+    assert!(registry.get("CurseOfTheBell+").is_none());
+
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["CurseOfTheBell"]);
+    assert!(!engine.get_legal_actions().iter().any(|action| {
+        matches!(action, Action::PlayCard { card_idx: 0, .. })
+    }));
+
+    end_turn(&mut engine);
+
+    assert_eq!(hand_count(&engine, "CurseOfTheBell"), 1);
+    assert_eq!(exhaust_prefix_count(&engine, "CurseOfTheBell"), 0);
+}
+
+#[test]
 fn support_wave1_end_turn_curse_and_status_hooks_fire_on_the_runtime_path() {
     let mut engine = engine_without_start(
         Vec::new(),

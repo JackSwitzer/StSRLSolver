@@ -44,7 +44,8 @@ pub fn register_curses(cards: &mut HashMap<&'static str, CardDef>) {
             base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[], complex_hook: None,
         });
-        // CurseOfTheBell: unplayable, cannot be removed
+        // Source: cards/curses/CurseOfTheBell.java sets cost -2 with empty use
+        // and upgrade methods. CardGroup.getPurgeableCards excludes its ID.
         insert(cards, CardDef {
             id: "CurseOfTheBell", name: "Curse of the Bell", card_type: CardType::Curse,
             target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,
