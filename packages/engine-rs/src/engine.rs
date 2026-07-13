@@ -3382,6 +3382,10 @@ impl CombatEngine {
                 replay_window: self.runtime_replay_window,
             });
         }
+        // ChampionsBelt.onTrigger is called by ApplyPowerAction only after
+        // player-sourced Vulnerable survives Artifact, then applies one Weak.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ApplyPowerAction.java
+        // Java: reference/extracted/methods/relic/ChampionsBelt.java
         if applied && status == sid::VULNERABLE && self.state.has_relic("Champion Belt") {
             let extra_applied =
                 powers::apply_debuff(&mut self.state.enemies[enemy_idx].entity, sid::WEAKENED, 1);

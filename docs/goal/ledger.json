@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T22:21:52.667574+00:00",
+ "updated": "2026-07-13T22:24:14.878839+00:00",
  "status_counts": {
-  "verified": 636,
-  "unverified": 31
+  "verified": 637,
+  "unverified": 30
  },
  "rows": [
   {
@@ -5102,8 +5102,8 @@
    "class": "ChampionsBelt",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/ChampionsBelt.java",
    "methods_ref": "reference/extracted/methods/relic/ChampionsBelt.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

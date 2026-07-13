@@ -704,6 +704,8 @@ fn snecko_skull_buffs_player_applied_poison_on_engine_path() {
 
 #[test]
 fn champion_belt_adds_weak_when_player_applies_vulnerable() {
+    // Source: reference/extracted/methods/relic/ChampionsBelt.java and
+    // decompiled/java-src/com/megacrit/cardcrawl/actions/common/ApplyPowerAction.java.
     let mut state = combat_state_with(make_deck(&["Bash"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("Champion Belt".to_string());
 
@@ -715,6 +717,21 @@ fn champion_belt_adds_weak_when_player_applies_vulnerable() {
 
     assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 2);
     assert_eq!(engine.state.enemies[0].entity.status(sid::WEAKENED), 1);
+
+    // ApplyPowerAction explicitly suppresses Champion Belt while Artifact is
+    // present; Artifact consumes itself blocking Vulnerable and no Weak queues.
+    let mut artifact_state =
+        combat_state_with(make_deck(&["Bash"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    artifact_state.relics.push("Champion Belt".to_string());
+    artifact_state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+    let mut artifact_engine = engine_with_state(artifact_state);
+    artifact_engine.state.hand = make_deck(&["Bash"]);
+    artifact_engine.state.draw_pile.clear();
+
+    assert!(play_on_enemy(&mut artifact_engine, "Bash", 0));
+    assert_eq!(artifact_engine.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+    assert_eq!(artifact_engine.state.enemies[0].entity.status(sid::VULNERABLE), 0);
+    assert_eq!(artifact_engine.state.enemies[0].entity.status(sid::WEAKENED), 0);
 }
 
 #[test]
