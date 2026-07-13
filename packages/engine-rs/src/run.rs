@@ -3385,6 +3385,10 @@ impl RunEngine {
 
     fn apply_master_deck_removal_hook(&mut self, card_id: &str) {
         if card_id == "Parasite" {
+            // Parasite.onRemoveFromMasterDeck calls decreaseMaxHealth(3),
+            // which floors max HP at one and clamps current HP to the new max.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Parasite.java
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/core/AbstractCreature.java
             self.run_state.max_hp = (self.run_state.max_hp - 3).max(1);
             self.run_state.current_hp = self.run_state.current_hp.min(self.run_state.max_hp);
         } else if card_id == "Necronomicurse" {

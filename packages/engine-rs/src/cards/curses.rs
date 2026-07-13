@@ -95,7 +95,9 @@ pub fn register_curses(cards: &mut HashMap<&'static str, CardDef>) {
             base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[], complex_hook: None,
         });
-        // Parasite: unplayable, lose 3 max HP if removed
+        // Parasite.java constructs an unplayable, unupgradable, non-Ethereal
+        // Curse. onRemoveFromMasterDeck decreases max HP by exactly three.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Parasite.java
         insert(cards, CardDef {
             id: "Parasite", name: "Parasite", card_type: CardType::Curse,
             target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,

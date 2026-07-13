@@ -178,6 +178,9 @@ mod run_java_parity_tests {
 
     #[test]
     fn shop_remove_parasite_reduces_max_hp_and_clamps_current_hp() {
+        // Parasite.java::onRemoveFromMasterDeck calls decreaseMaxHealth(3).
+        // AbstractCreature.decreaseMaxHealth floors max HP at one and clamps
+        // current HP down when it exceeds the new maximum.
         let mut engine = RunEngine::new(42, 0);
         resolve_opening_neow(&mut engine);
         engine.run_state.gold = 999;

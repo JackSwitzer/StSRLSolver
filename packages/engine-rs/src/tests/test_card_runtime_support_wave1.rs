@@ -179,6 +179,37 @@ fn injury_is_unplayable_unupgradable_non_ethereal_and_inert() {
 }
 
 #[test]
+fn parasite_is_unplayable_unupgradable_non_ethereal_and_inert_in_combat() {
+    // Parasite.java constructs a cost -2 Curse with target NONE, empty use and
+    // upgrade methods, and no Ethereal flag. Its only effect is the separate
+    // onRemoveFromMasterDeck max-HP hook.
+    let registry = global_registry();
+    let parasite = registry.get("Parasite").expect("Parasite is registered");
+    assert_eq!(parasite.cost, -2);
+    assert!(parasite.runtime_traits().unplayable);
+    assert!(!parasite.runtime_traits().ethereal);
+    assert!(registry.get("Parasite+").is_none());
+
+    let mut engine = engine_without_start(
+        make_deck(&["Defend", "Defend", "Defend", "Defend", "Defend"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Parasite"]);
+    assert!(!engine.get_legal_actions().iter().any(|action| {
+        matches!(action, Action::PlayCard { .. })
+    }));
+
+    let hp_before = engine.state.player.hp;
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.hp, hp_before);
+    assert_eq!(discard_prefix_count(&engine, "Parasite"), 1);
+    assert_eq!(exhaust_prefix_count(&engine, "Parasite"), 0);
+}
+
+#[test]
 fn normality_blocks_every_card_from_the_fourth_play_only_while_in_hand() {
     // Normality.java::canPlay checks cardsPlayedThisTurn.size() >= 3. Because
     // AbstractCard.hasEnoughEnergy polls canPlay on every card in hand, one
