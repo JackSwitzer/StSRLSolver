@@ -1374,6 +1374,7 @@ fn choice_reason_name(reason: ChoiceReason) -> &'static str {
         ChoiceReason::ForethoughtPick => "forethought_pick",
         ChoiceReason::RecycleCard => "recycle_card",
         ChoiceReason::DiscardForEffect => "discard_for_effect",
+        ChoiceReason::RetainFromHand => "retain_from_hand",
         ChoiceReason::SetupPick => "setup_pick",
         ChoiceReason::PlayCardFreeFromDraw => "play_card_free_from_draw",
     }

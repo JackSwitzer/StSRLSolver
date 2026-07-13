@@ -882,6 +882,10 @@ fn choice_reason_index(reason: &crate::engine::ChoiceReason) -> Option<usize> {
         crate::engine::ChoiceReason::ForethoughtPick => 14,
         crate::engine::ChoiceReason::RecycleCard => 15,
         crate::engine::ChoiceReason::DiscardForEffect => 16,
+        // Preserve the fixed 19-slot combat observation contract by sharing
+        // the existing hand-card-movement bucket. Decision/training contexts
+        // still expose the exact `retain_from_hand` reason string.
+        crate::engine::ChoiceReason::RetainFromHand => 3,
         crate::engine::ChoiceReason::SetupPick => 17,
         crate::engine::ChoiceReason::PlayCardFreeFromDraw => 18,
     };

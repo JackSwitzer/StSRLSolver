@@ -802,9 +802,117 @@ mod silent_card_java_parity_tests {
         "Terror+", 0, -1, -1, 99, CardType::Skill, CardTarget::Enemy, true, None, &["vulnerable"],
     );
     card_pair_test!(well_laid_plans,
-        "Well-Laid Plans", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["well_laid_plans"],
-        "Well-Laid Plans+", 1, -1, -1, 2, CardType::Power, CardTarget::SelfTarget, false, None, &["well_laid_plans"],
+        "Well Laid Plans", 1, -1, -1, 1, CardType::Power, CardTarget::None, false, None, &["well_laid_plans"],
+        "Well Laid Plans+", 1, -1, -1, 2, CardType::Power, CardTarget::None, false, None, &["well_laid_plans"],
     );
+
+    #[test]
+    fn well_laid_plans_variants_offer_optional_non_ethereal_retention() {
+        // WellLaidPlans.java applies RetainCardPower(1), upgraded to two.
+        // RetainCardPower skips itself under Runic Pyramid or Equilibrium;
+        // RetainCardsAction allows zero-to-amount picks and refuses to mark a
+        // selected Ethereal card retained.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/WellLaidPlans.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RetainCardPower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/RetainCardsAction.java
+        let mut base = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 100, 100)],
+            1,
+        );
+        force_player_turn(&mut base);
+        base.state.hand = make_deck(&["Well Laid Plans", "Strike"]);
+        base.state.draw_pile = make_deck_n("Defend", 5);
+
+        assert!(play_self(&mut base, "Well Laid Plans"));
+        assert_eq!(base.state.player.status(sid::RETAIN_CARDS), 1);
+        end_turn(&mut base);
+        assert_eq!(base.phase, crate::engine::CombatPhase::AwaitingChoice);
+        let choice = base.choice.as_ref().expect("Retain Cards choice");
+        assert_eq!(choice.reason, crate::engine::ChoiceReason::RetainFromHand);
+        assert_eq!(choice.min_picks, 0);
+        assert_eq!(choice.max_picks, 1);
+        assert!(base.get_legal_actions().contains(&Action::ConfirmSelection));
+
+        base.execute_action(&Action::ConfirmSelection);
+        assert_eq!(base.phase, crate::engine::CombatPhase::PlayerTurn);
+        assert_eq!(discard_prefix_count(&base, "Strike"), 1);
+
+        let mut upgraded = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 100, 100)],
+            1,
+        );
+        force_player_turn(&mut upgraded);
+        upgraded.state.hand = make_deck(&[
+            "Well Laid Plans+",
+            "Strike",
+            "Defend",
+            "Void",
+        ]);
+        upgraded.state.draw_pile = make_deck_n("Bash", 5);
+
+        assert!(play_self(&mut upgraded, "Well Laid Plans+"));
+        assert_eq!(upgraded.state.player.status(sid::RETAIN_CARDS), 2);
+        end_turn(&mut upgraded);
+        let choice = upgraded.choice.as_ref().expect("upgraded Retain Cards choice");
+        assert_eq!(choice.max_picks, 2);
+        let strike_option = choice
+            .options
+            .iter()
+            .position(|option| matches!(
+                option,
+                crate::engine::ChoiceOption::HandCard(index)
+                    if upgraded.card_registry.card_name(upgraded.state.hand[*index].def_id) == "Strike"
+            ))
+            .expect("Strike retain option");
+        let void_option = choice
+            .options
+            .iter()
+            .position(|option| matches!(
+                option,
+                crate::engine::ChoiceOption::HandCard(index)
+                    if upgraded.card_registry.card_name(upgraded.state.hand[*index].def_id) == "Void"
+            ))
+            .expect("Void retain option");
+        upgraded.execute_action(&Action::Choose(strike_option));
+        upgraded.execute_action(&Action::Choose(void_option));
+        upgraded.execute_action(&Action::ConfirmSelection);
+
+        assert_eq!(upgraded.phase, crate::engine::CombatPhase::PlayerTurn);
+        assert_eq!(hand_count(&upgraded, "Strike"), 1);
+        assert_eq!(discard_prefix_count(&upgraded, "Defend"), 1);
+        assert_eq!(exhaust_prefix_count(&upgraded, "Void"), 1);
+
+        let mut suppressed = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 100, 100)],
+            0,
+        );
+        force_player_turn(&mut suppressed);
+        suppressed.state.player.set_status(sid::RETAIN_CARDS, 2);
+        suppressed.state.player.set_status(sid::EQUILIBRIUM, 1);
+        suppressed.state.hand = make_deck(&["Strike", "Defend"]);
+        end_turn(&mut suppressed);
+        assert_eq!(suppressed.phase, crate::engine::CombatPhase::PlayerTurn);
+        assert!(suppressed.choice.is_none());
+        assert_eq!(hand_count(&suppressed, "Strike"), 1);
+        assert_eq!(hand_count(&suppressed, "Defend"), 1);
+
+        let mut pyramid = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 100, 100)],
+            0,
+        );
+        force_player_turn(&mut pyramid);
+        pyramid.state.player.set_status(sid::RETAIN_CARDS, 1);
+        pyramid.state.relics.push("Runic Pyramid".to_string());
+        pyramid.state.hand = make_deck(&["Strike"]);
+        end_turn(&mut pyramid);
+        assert_eq!(pyramid.phase, crate::engine::CombatPhase::PlayerTurn);
+        assert!(pyramid.choice.is_none());
+        assert_eq!(hand_count(&pyramid, "Strike"), 1);
+    }
     card_pair_test!(a_thousand_cuts,
         "A Thousand Cuts", 2, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["thousand_cuts"],
         "A Thousand Cuts+", 2, -1, -1, 2, CardType::Power, CardTarget::SelfTarget, false, None, &["thousand_cuts"],

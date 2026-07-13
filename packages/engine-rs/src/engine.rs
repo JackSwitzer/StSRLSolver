@@ -60,6 +60,7 @@ pub enum ChoiceReason {
     ForethoughtPick,
     RecycleCard,
     DiscardForEffect,
+    RetainFromHand,
     SetupPick,
     PlayCardFreeFromDraw,
 }
@@ -445,7 +446,9 @@ impl CombatEngine {
                         actions.push(Action::Choose(i));
                     }
                 }
-                if ctx.max_picks != 1 && ctx.selected.len() >= ctx.min_picks {
+                if (ctx.max_picks != 1 || ctx.min_picks == 0)
+                    && ctx.selected.len() >= ctx.min_picks
+                {
                     actions.push(Action::ConfirmSelection);
                 }
                 return actions;
@@ -724,6 +727,7 @@ impl CombatEngine {
                 ChoiceReason::ForethoughtPick => self.resolve_forethought(ctx),
                 ChoiceReason::RecycleCard => self.resolve_recycle(ctx),
                 ChoiceReason::DiscardForEffect => self.resolve_discard_for_effect(ctx),
+                ChoiceReason::RetainFromHand => self.resolve_retain_from_hand(ctx),
                 ChoiceReason::SetupPick => self.resolve_setup(ctx),
                 ChoiceReason::PlayCardFreeFromDraw => self.resolve_play_card_free_from_draw(ctx),
             },
@@ -941,6 +945,26 @@ impl CombatEngine {
                     let card = self.state.hand.remove(idx);
                     self.state.draw_pile.push(card); // last = top
                 }
+            }
+        }
+    }
+
+    fn resolve_retain_from_hand(&mut self, ctx: ChoiceContext) {
+        for option_idx in ctx.selected {
+            let Some(ChoiceOption::HandCard(hand_idx)) = ctx.options.get(option_idx)
+            else {
+                continue;
+            };
+            let hand_idx = *hand_idx;
+            if hand_idx >= self.state.hand.len() {
+                continue;
+            }
+            let card = self.card_registry.card_def_by_id(self.state.hand[hand_idx].def_id);
+            // RetainCardsAction permits selecting Ethereal cards but does not
+            // set their retain flag, so they still exhaust later this turn.
+            // Java: actions/unique/RetainCardsAction.java.
+            if !card.runtime_traits().ethereal {
+                self.state.hand[hand_idx].set_retained(true);
             }
         }
     }
@@ -1923,6 +1947,33 @@ impl CombatEngine {
             if self.phase == CombatPhase::AwaitingChoice {
                 self.pending_end_turn_resume = true;
                 return;
+            }
+
+            // RetainCardPower queues an optional up-to-amount hand selection
+            // unless Runic Pyramid or Equilibrium already retains the hand.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RetainCardPower.java
+            // and actions/unique/RetainCardsAction.java.
+            let retain_amount = self.state.player.status(sid::RETAIN_CARDS).max(0) as usize;
+            let pyramid = self.state.has_relic("Runic Pyramid")
+                || self.state.has_relic("RunicPyramid");
+            if retain_amount > 0
+                && !self.state.hand.is_empty()
+                && !pyramid
+                && self.state.player.status(sid::EQUILIBRIUM) == 0
+            {
+                let options = (0..self.state.hand.len())
+                    .map(ChoiceOption::HandCard)
+                    .collect();
+                self.begin_choice(
+                    ChoiceReason::RetainFromHand,
+                    options,
+                    0,
+                    retain_amount.min(self.state.hand.len()),
+                );
+                if self.phase == CombatPhase::AwaitingChoice {
+                    self.pending_end_turn_resume = true;
+                    return;
+                }
             }
         }
 

@@ -522,6 +522,7 @@ fn combat_choice_reason_name(reason: &crate::engine::ChoiceReason) -> &'static s
         crate::engine::ChoiceReason::ForethoughtPick => "forethought_pick",
         crate::engine::ChoiceReason::RecycleCard => "recycle_card",
         crate::engine::ChoiceReason::DiscardForEffect => "discard_for_effect",
+        crate::engine::ChoiceReason::RetainFromHand => "retain_from_hand",
         crate::engine::ChoiceReason::SetupPick => "setup_pick",
         crate::engine::ChoiceReason::PlayCardFreeFromDraw => "play_card_free_from_draw",
     }

@@ -2109,7 +2109,7 @@ mod tests {
             "Footwork", "Heel Hook", "Infinite Blades", "Leg Sweep",
             "Masterful Stab", "Noxious Fumes", "Predator", "Reflex",
             "Riddle With Holes", "Setup", "Skewer", "Tactician", "Terror",
-            "Well-Laid Plans",
+            "Well Laid Plans",
             // Rare
             "A Thousand Cuts", "Adrenaline", "After Image", "Alchemize",
             "Bullet Time", "Burst", "Corpse Explosion", "Die Die Die",
