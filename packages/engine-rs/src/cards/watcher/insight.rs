@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Insight (from Evaluate / Study): cost 0, draw 2, retain, exhaust
+    // Insight.java: zero-cost self-retaining exhaust Skill draws magicNumber 2;
+    // upgradeMagicNumber(1) is its only upgrade change.
     insert(cards, CardDef {
                 id: "Insight", name: "Insight", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,

@@ -2722,4 +2722,36 @@ mod watcher_card_java_parity_tests {
         assert_eq!(engine.state.player.status(sid::WRATH_NEXT_TURN), 0);
         assert_eq!(engine.state.player.status(sid::SIMMERING_FURY), 0);
     }
+
+    #[test]
+    fn insight_source_retains_then_draws_two_or_three_and_exhausts() {
+        // Insight.java sets cost 0, selfRetain, exhaust, and magicNumber 2;
+        // upgradeMagicNumber(1) changes only the draw amount.
+        for (card_id, draw) in [("Insight", 2), ("Insight+", 3)] {
+            let card = reg().get(card_id).expect("Insight variant registered");
+            assert_eq!(card.cost, 0);
+            assert_eq!(card.base_magic, draw);
+            assert!(card.exhaust);
+            assert!(card.runtime_traits().retain);
+
+            let mut engine = one_enemy_engine("JawWorm", 40, 0);
+            engine.state.hand = make_deck(&[card_id]);
+            engine.state.draw_pile = make_deck_n("Defend", 5);
+            assert!(play_self(&mut engine, card_id));
+
+            assert_eq!(engine.state.energy, 3);
+            assert_eq!(hand_count(&engine, "Defend"), draw as usize);
+            assert_eq!(engine.state.draw_pile.len(), 5 - draw as usize);
+            assert_eq!(exhaust_prefix_count(&engine, "Insight"), 1);
+        }
+
+        let mut retained = one_enemy_engine("JawWorm", 40, 0);
+        retained.state.hand = make_deck(&["Insight"]);
+        retained.state.draw_pile = make_deck_n("Strike", 5);
+        end_turn(&mut retained);
+
+        assert_eq!(hand_count(&retained, "Insight"), 1);
+        assert_eq!(hand_count(&retained, "Strike"), 5);
+        assert_eq!(exhaust_prefix_count(&retained, "Insight"), 0);
+    }
 }
