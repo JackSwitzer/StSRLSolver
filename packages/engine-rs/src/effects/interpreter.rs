@@ -2157,31 +2157,48 @@ fn execute_draw_random_cards_from_pile_to_hand(
         return;
     }
 
-    let mut picked = Vec::new();
-    let mut eligible: Vec<usize> = get_pile(engine, pile)
+    // DrawPileToHandAction first copies every eligible card into a temporary
+    // CardGroup via addToRandomSpot: the first card costs no RNG and every
+    // later card consumes cardRandomRng, including random(0). Before each card
+    // is moved, that temporary group is shuffled from one
+    // shuffleRng.randomLong(). Full-hand selections go to discard but still
+    // consume both streams exactly as usual.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/DrawPileToHandAction.java
+    // and cards/CardGroup.java::addToRandomSpot/shuffle.
+    let source_indices: Vec<usize> = get_pile(engine, pile)
         .iter()
         .enumerate()
         .filter(|(_, card)| matches_filter(engine, card, filter))
         .map(|(idx, _)| idx)
         .collect();
+    let mut eligible = Vec::with_capacity(source_indices.len());
+    for source_idx in source_indices {
+        if eligible.is_empty() {
+            eligible.push(source_idx);
+        } else {
+            let insert_idx = engine
+                .card_random_rng
+                .random((eligible.len() - 1) as i32) as usize;
+            eligible.insert(insert_idx, source_idx);
+        }
+    }
 
+    let mut removed_source_indices = Vec::new();
     for _ in 0..count {
         if eligible.is_empty() {
             break;
         }
-        let choice_idx = engine.rng_gen_range(0..eligible.len());
-        let idx = eligible.remove(choice_idx);
-        let source = get_pile_mut(engine, pile);
-        if idx < source.len() {
-            picked.push(source.remove(idx));
-            eligible = eligible
-                .into_iter()
-                .map(|n| if n > idx { n - 1 } else { n })
-                .collect();
-        }
-    }
+        let shuffle_seed = engine.rng.random_long();
+        crate::seed::java_util_shuffle(&mut eligible, shuffle_seed);
+        let original_idx = eligible.remove(0);
+        let shifted_by = removed_source_indices
+            .iter()
+            .filter(|&&removed_idx| removed_idx < original_idx)
+            .count();
+        let current_idx = original_idx - shifted_by;
+        let card = get_pile_mut(engine, pile).remove(current_idx);
+        removed_source_indices.push(original_idx);
 
-    for card in picked {
         if engine.state.hand.len() < 10 {
             engine.state.hand.push(card);
         } else {
