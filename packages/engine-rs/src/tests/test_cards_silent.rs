@@ -1122,6 +1122,38 @@ mod silent_card_java_parity_tests {
         "Tools of the Trade", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["tools_of_the_trade"],
         "Tools of the Trade+", 0, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["tools_of_the_trade"],
     );
+
+    #[test]
+    fn tools_of_the_trade_variants_install_one_draw_then_discard_power() {
+        // ToolsOfTheTrade.java applies exactly one ToolsOfTheTradePower; upgrade
+        // only changes cost 1 -> 0. The power triggers post-draw, then queues
+        // DrawCardAction(amount) before DiscardAction(amount, false).
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/ToolsOfTheTrade.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ToolsOfTheTradePower.java
+        for (card_id, starting_energy) in [("Tools of the Trade", 1), ("Tools of the Trade+", 0)] {
+            let mut engine = engine_without_start(
+                Vec::new(),
+                vec![enemy_no_intent("JawWorm", 40, 40)],
+                starting_energy,
+            );
+            force_player_turn(&mut engine);
+            engine.state.hand = make_deck(&[card_id]);
+            engine.state.draw_pile = make_deck(&[
+                "Strike", "Defend", "Bash", "Survivor", "Neutralize", "Prepared",
+            ]);
+
+            assert!(play_self(&mut engine, card_id));
+            assert_eq!(engine.state.energy, 0, "{card_id}");
+            assert_eq!(engine.state.player.status(sid::TOOLS_OF_THE_TRADE), 1, "{card_id}");
+
+            end_turn(&mut engine);
+            assert_eq!(engine.phase, crate::engine::CombatPhase::AwaitingChoice, "{card_id}");
+            assert_eq!(engine.state.hand.len(), 6, "{card_id}");
+            let choice = engine.choice.as_ref().expect("Tools should require one discard");
+            assert_eq!(choice.min_picks, 1);
+            assert_eq!(choice.max_picks, 1);
+        }
+    }
     card_pair_test!(unload,
         "Unload", 1, 14, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["discard_non_attacks"],
         "Unload+", 1, 18, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["discard_non_attacks"],

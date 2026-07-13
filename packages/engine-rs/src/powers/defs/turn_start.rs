@@ -655,9 +655,7 @@ pub static DEF_MAYHEM: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Tools of the Trade — TurnStartPostDraw: draw N, then choose one discard
-// Preserve current engine behavior exactly: it draws `N` cards but still
-// opens a single-card discard choice rather than `N` discards.
+// Tools of the Trade — TurnStartPostDraw: draw N, then discard N
 // ===========================================================================
 
 static TOOLS_OF_THE_TRADE_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
@@ -683,10 +681,27 @@ fn hook_tools_of_the_trade(
         return;
     }
 
+    let discard_count = (tott as usize).min(engine.state.hand.len());
+    if engine.state.hand.len() <= discard_count {
+        // DiscardAction auto-discards the whole hand from the top when its
+        // size is at most amount and fires manual-discard hooks for every card.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DiscardAction.java
+        while let Some(card) = engine.state.hand.pop() {
+            engine.state.discard_pile.push(card);
+            engine.on_card_discarded(card);
+        }
+        return;
+    }
+
     let options: Vec<ChoiceOption> = (0..engine.state.hand.len())
         .map(ChoiceOption::HandCard)
         .collect();
-    engine.begin_choice(ChoiceReason::DiscardFromHand, options, 1, 1);
+    engine.begin_choice(
+        ChoiceReason::DiscardFromHand,
+        options,
+        discard_count,
+        discard_count,
+    );
 }
 
 pub static DEF_TOOLS_OF_THE_TRADE: EntityDef = EntityDef {
