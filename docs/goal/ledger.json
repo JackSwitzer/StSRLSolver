@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T11:30:54.844228+00:00",
+ "updated": "2026-07-13T11:34:50.318618+00:00",
  "status_counts": {
-  "verified": 468,
-  "unverified": 199
+  "verified": 469,
+  "unverified": 198
  },
  "rows": [
   {
@@ -2232,8 +2232,8 @@
    "class": "MindBlast",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/MindBlast.java",
    "methods_ref": "reference/extracted/methods/card/MindBlast.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
