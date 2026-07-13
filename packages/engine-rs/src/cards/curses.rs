@@ -15,10 +15,13 @@ pub fn register_curses(cards: &mut HashMap<&'static str, CardDef>) {
             base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[], complex_hook: None,
         });
+        // Doubt.java is an unplayable Curse with no magic number. Its queued
+        // end-turn auto-play applies a literal 1 Weak.
+        // Java: reference/extracted/methods/card/Doubt.java
         insert(cards, CardDef {
             id: "Doubt", name: "Doubt", card_type: CardType::Curse,
             target: CardTarget::None, cost: -2, base_damage: -1, base_block: -1,
-            base_magic: 1, exhaust: false, enter_stance: None,
+            base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[], complex_hook: None,
         });
         insert(cards, CardDef {

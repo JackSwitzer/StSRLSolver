@@ -149,6 +149,30 @@ fn decay_has_no_magic_stat_and_deals_two_thorns_damage_at_end_of_turn() {
 }
 
 #[test]
+fn doubt_has_no_magic_stat_and_applies_one_weak_at_end_of_turn() {
+    // Doubt.java assigns no magic number. Its end-turn queue auto-plays the
+    // card with dontTriggerOnUseCard set, and use() applies a literal 1 Weak.
+    // Java: reference/extracted/methods/card/Doubt.java
+    let registry = global_registry();
+    let doubt = registry.get("Doubt").expect("Doubt");
+    assert_eq!(doubt.cost, -2);
+    assert_eq!(doubt.base_magic, -1);
+    assert!(doubt.runtime_traits().unplayable);
+    assert!(registry.get("Doubt+").is_none());
+
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Doubt"]);
+
+    assert!(!crate::status_effects::process_end_turn_hand_cards(&mut engine));
+    assert_eq!(engine.state.player.status(crate::status_ids::sid::WEAKENED), 1);
+}
+
+#[test]
 fn burn_variants_use_thorns_block_then_buffer_order_at_end_of_turn() {
     // Burn.use queues self-targeted DamageAction with DamageType.THORNS for
     // magicNumber 2 (4 upgraded). AbstractPlayer.damage applies Intangible,

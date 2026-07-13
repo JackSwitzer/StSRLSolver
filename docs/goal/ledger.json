@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T07:26:51.145499+00:00",
+ "updated": "2026-07-13T07:28:28.879058+00:00",
  "status_counts": {
-  "verified": 385,
-  "unverified": 282
+  "verified": 386,
+  "unverified": 281
  },
  "rows": [
   {
@@ -1182,8 +1182,8 @@
    "class": "Doubt",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Doubt.java",
    "methods_ref": "reference/extracted/methods/card/Doubt.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
