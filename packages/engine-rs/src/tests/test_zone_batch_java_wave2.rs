@@ -12,7 +12,7 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Violence.java
 
 use crate::actions::Action;
-use crate::engine::{ChoiceOption, ChoiceReason, CombatEngine, CombatPhase};
+use crate::engine::{ChoiceReason, CombatEngine, CombatPhase};
 use crate::status_ids::sid;
 use crate::tests::support::{
     combat_state_with, enemy_no_intent, force_player_turn, hand_count, make_deck, play_on_enemy,
@@ -38,6 +38,12 @@ fn hand_names(engine: &CombatEngine) -> Vec<String> {
         .state
         .hand
         .iter()
+        .map(|card| engine.card_registry.card_name(card.def_id).to_string())
+        .collect()
+}
+
+fn pile_names(engine: &CombatEngine, pile: &[crate::combat_types::CardInstance]) -> Vec<String> {
+    pile.iter()
         .map(|card| engine.card_registry.card_name(card.def_id).to_string())
         .collect()
 }
@@ -223,7 +229,7 @@ fn purity_uses_zero_to_many_exhaust_selection_up_to_its_cap() {
 }
 
 #[test]
-fn secret_technique_opens_a_skill_only_draw_pile_search_choice() {
+fn secret_technique_auto_moves_the_only_skill_and_exhausts() {
     let mut engine = engine_for(
         &["Secret Technique"],
         &["Strike", "Shrug It Off", "Bash"],
@@ -232,16 +238,29 @@ fn secret_technique_opens_a_skill_only_draw_pile_search_choice() {
     );
 
     assert!(play_self(&mut engine, "Secret Technique"));
-    assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
-    let choice = engine.choice.as_ref().expect("secret technique choice");
-    assert_eq!(choice.reason, ChoiceReason::SearchDrawPile);
-    assert_eq!(choice.options.len(), 1);
+    // Java SkillFromDeckToHandAction moves a singleton directly instead of
+    // opening grid select.
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert!(engine.choice.is_none());
+    assert_eq!(hand_names(&engine), vec!["Shrug It Off"]);
+    assert_eq!(pile_names(&engine, &engine.state.draw_pile), vec!["Strike", "Bash"]);
+    assert_eq!(pile_names(&engine, &engine.state.exhaust_pile), vec!["Secret Technique"]);
+}
 
-    let name = match choice.options[0] {
-        ChoiceOption::DrawCard(idx) => engine.card_registry.card_name(engine.state.draw_pile[idx].def_id).to_string(),
-        _ => panic!("secret technique should expose draw-pile card options"),
-    };
-    assert_eq!(name, "Shrug It Off");
+#[test]
+fn upgraded_secret_technique_auto_moves_the_only_skill_without_exhausting() {
+    let mut engine = engine_for(
+        &["Secret Technique+"],
+        &["Strike", "Shrug It Off", "Bash"],
+        &[],
+        3,
+    );
+
+    assert!(play_self(&mut engine, "Secret Technique+"));
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert_eq!(hand_names(&engine), vec!["Shrug It Off"]);
+    assert_eq!(pile_names(&engine, &engine.state.discard_pile), vec!["Secret Technique+"]);
+    assert!(engine.state.exhaust_pile.is_empty());
 }
 
 #[test]

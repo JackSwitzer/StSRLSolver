@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // Secret Technique: 0 cost, choose a Skill from draw pile, put it in hand
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/SecretTechnique.java
+    // SkillFromDeckToHandAction selects one Skill from the draw pile; upgrading
+    // removes Exhaust without changing the search.
     insert(cards, CardDef {
         id: "Secret Technique", name: "Secret Technique", card_type: CardType::Skill,
         target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,

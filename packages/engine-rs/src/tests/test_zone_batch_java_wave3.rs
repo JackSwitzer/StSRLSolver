@@ -138,10 +138,10 @@ fn secret_technique_now_uses_declarative_skill_search() {
 }
 
 #[test]
-fn secret_technique_still_opens_a_skill_only_draw_pile_search_choice() {
+fn secret_technique_opens_a_skill_only_choice_when_multiple_skills_are_eligible() {
     let mut engine = engine_for(
         &["Secret Technique"],
-        &["Strike", "Shrug It Off", "Bash"],
+        &["Strike", "Shrug It Off", "Defend", "Bash"],
         &[],
         3,
     );
@@ -150,7 +150,7 @@ fn secret_technique_still_opens_a_skill_only_draw_pile_search_choice() {
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
     let choice = engine.choice.as_ref().expect("secret technique choice");
     assert_eq!(choice.reason, ChoiceReason::SearchDrawPile);
-    assert_eq!(choice.options.len(), 1);
+    assert_eq!(choice.options.len(), 2);
 }
 
 #[test]

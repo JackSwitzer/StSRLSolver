@@ -1535,6 +1535,26 @@ fn execute_choose_cards(
         return;
     }
 
+    // SkillFromDeckToHandAction skips grid selection when exactly one Skill is
+    // eligible and moves it directly into the hand (or discard if the hand is
+    // already full).
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/SkillFromDeckToHandAction.java
+    if matches!(ctx.card.id, "Secret Technique" | "Secret Technique+")
+        && source == Pile::Draw
+        && action == ChoiceAction::MoveToHand
+        && options.len() == 1
+    {
+        if let ChoiceOption::DrawCard(index) = options[0] {
+            let card = engine.state.draw_pile.remove(index);
+            if engine.state.hand.len() >= 10 {
+                engine.state.discard_pile.push(card);
+            } else {
+                engine.state.hand.push(card);
+            }
+        }
+        return;
+    }
+
     // MeditateAction is mandatory. When the whole discard pile fits, Java
     // moves it without opening grid select.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/MeditateAction.java
