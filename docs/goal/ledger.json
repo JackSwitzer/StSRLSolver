@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T07:28:28.879058+00:00",
+ "updated": "2026-07-13T07:30:07.206145+00:00",
  "status_counts": {
-  "verified": 386,
-  "unverified": 281
+  "verified": 387,
+  "unverified": 280
  },
  "rows": [
   {
@@ -1192,8 +1192,8 @@
    "class": "DramaticEntrance",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/DramaticEntrance.java",
    "methods_ref": "reference/extracted/methods/card/DramaticEntrance.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

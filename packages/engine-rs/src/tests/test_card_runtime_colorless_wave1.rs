@@ -113,6 +113,31 @@ fn colorless_wave1_attack_and_block_cards_follow_java_oracle_on_engine_path() {
 }
 
 #[test]
+fn dramatic_entrance_deals_one_free_aoe_hit_and_exhausts() {
+    // DramaticEntrance.java deals multiDamage 8 to all enemies for 0 energy,
+    // exhausts, and upgradeDamage(4) is the only numerical upgrade.
+    // Java: reference/extracted/methods/card/DramaticEntrance.java
+    for (card_id, expected_hp) in [("Dramatic Entrance", 32), ("Dramatic Entrance+", 28)] {
+        let mut engine = engine_without_start(
+            Vec::new(),
+            vec![
+                enemy_no_intent("JawWorm", 40, 40),
+                enemy_no_intent("Cultist", 40, 40),
+            ],
+            0,
+        );
+        force_player_turn(&mut engine);
+        engine.state.hand = make_deck(&[card_id]);
+
+        assert!(play_self(&mut engine, card_id));
+        assert_eq!(engine.state.enemies[0].entity.hp, expected_hp);
+        assert_eq!(engine.state.enemies[1].entity.hp, expected_hp);
+        assert_eq!(engine.state.energy, 0);
+        assert_eq!(exhaust_prefix_count(&engine, "Dramatic Entrance"), 1);
+    }
+}
+
+#[test]
 fn bandage_up_heals_four_or_six_for_free_then_exhausts() {
     // Source: BandageUp.java queues HealAction for magicNumber 4, costs 0,
     // Exhausts, and upgradeMagicNumber(2) raises the heal to 6.
