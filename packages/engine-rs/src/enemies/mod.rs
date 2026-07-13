@@ -665,8 +665,14 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::BOOK_STAB, 6, 1, 0);
         }
         "GremlinLeader" | "Gremlin Leader" => {
-            // First turn: Rally (summon gremlins)
+            // Source: reference/extracted/methods/monster/GremlinLeader.java.
+            // The encounter spawn site patches ascension and alive-gremlin
+            // state before the opening roll.
             enemy.set_move(move_ids::GL_RALLY, 0, 0, 0);
+            enemy.entity.set_status(sid::STR_AMT, 3);
+            enemy.entity.set_status(sid::BLOCK_AMT, 6);
+            enemy.entity.set_status(sid::COUNT, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 0);
         }
         "Taskmaster" => {
             // Always Scouring Whip (7 damage + Wounds)
@@ -1038,7 +1044,9 @@ fn select_move(
         "Centurion" => act2::roll_centurion(enemy, num),
         "Mystic" | "Healer" => act2::roll_mystic(enemy, num),
         "BookOfStabbing" | "Book of Stabbing" => act2::roll_book_of_stabbing(enemy, num),
-        "GremlinLeader" | "Gremlin Leader" => act2::roll_gremlin_leader(enemy, num),
+        "GremlinLeader" | "Gremlin Leader" => {
+            act2::roll_gremlin_leader(enemy, num, ai_rng)
+        }
         "Taskmaster" => act2::roll_taskmaster(enemy, num),
         "SphericGuardian" | "Spheric Guardian" => act2::roll_spheric_guardian(enemy),
         "Snecko" => act2::roll_snecko(enemy, num),

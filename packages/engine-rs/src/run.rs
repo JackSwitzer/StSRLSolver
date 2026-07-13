@@ -1686,13 +1686,32 @@ impl RunEngine {
     }
 
     fn enter_specific_combat(&mut self, encounter: Vec<String>) {
-        // Expand composite encounters (DonuAndDeca → two enemies)
-        let expanded: Vec<String> = encounter.iter().flat_map(|id| {
+        // Expand composite encounters. MonsterHelper constructs Gremlin Leader
+        // with two independent weighted miscRng gremlins before the Leader.
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/helpers/MonsterHelper.java.
+        let mut expanded = Vec::new();
+        for id in &encounter {
             match id.as_str() {
-                "DonuAndDeca" => vec!["Donu".to_string(), "Deca".to_string()],
-                _ => vec![id.clone()],
+                "DonuAndDeca" => {
+                    expanded.push("Donu".to_string());
+                    expanded.push("Deca".to_string());
+                }
+                "GremlinLeader" | "Gremlin Leader" => {
+                    const GREMLIN_POOL: [&str; 8] = [
+                        "GremlinWarrior", "GremlinWarrior",
+                        "GremlinThief", "GremlinThief",
+                        "GremlinFat", "GremlinFat",
+                        "GremlinTsundere", "GremlinWizard",
+                    ];
+                    for _ in 0..2 {
+                        let index = self.rng.gen_range(0..GREMLIN_POOL.len());
+                        expanded.push(GREMLIN_POOL[index].to_string());
+                    }
+                    expanded.push("GremlinLeader".to_string());
+                }
+                _ => expanded.push(id.clone()),
             }
-        }).collect();
+        }
 
         // Create enemies
         let mut enemy_states: Vec<EnemyCombatState> = expanded
@@ -1702,6 +1721,15 @@ impl RunEngine {
                 enemies::create_enemy(id, hp, max_hp)
             })
             .collect();
+
+        if enemy_states.iter().any(|enemy| enemy.id == "GremlinLeader") {
+            for enemy in enemy_states.iter_mut().filter(|enemy| matches!(enemy.id.as_str(),
+                "GremlinFat" | "GremlinThief" | "GremlinWarrior"
+                    | "GremlinWizard" | "GremlinTsundere"))
+            {
+                enemy.is_minion = true;
+            }
+        }
 
         // AwakenedOne.usePreBattleAction applies independent ascension
         // thresholds: +2 Strength at A4, 320 HP at A9 (rolled above), and
@@ -2150,6 +2178,22 @@ impl RunEngine {
                 0, 0, 0);
             enemy.add_effect(crate::combat_types::mfx::BLOCK_RANDOM_OTHER,
                 block as i16);
+        }
+
+        // Source: reference/extracted/methods/monster/GremlinLeader.java.
+        // STARTING_DMG is an internal marker carrying ascension for later
+        // SummonGremlinAction construction; the Leader's Stab is always 6x3.
+        let alive_gremlins = enemy_states.iter().filter(|enemy| enemy.is_minion
+            && enemy.is_alive()).count() as i32;
+        for enemy in enemy_states.iter_mut().filter(|enemy| enemy.id == "GremlinLeader") {
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
+                if self.run_state.ascension >= 18 { 5 }
+                else if self.run_state.ascension >= 3 { 4 } else { 3 });
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT,
+                if self.run_state.ascension >= 18 { 10 } else { 6 });
+            enemy.entity.set_status(crate::status_ids::sid::COUNT, alive_gremlins);
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
+                self.run_state.ascension);
         }
 
         // Source: reference/extracted/methods/monster/GremlinNob.java.
@@ -2638,7 +2682,14 @@ impl RunEngine {
                 (hp, hp)
             }
             "GremlinLeader" => {
-                let hp = if a20 { 162 } else { 140 };
+                // Source: reference/extracted/methods/monster/GremlinLeader.java:
+                // inclusive 140..148, or 145..155 at ascension 8.
+                let (base, width) = if self.run_state.ascension >= 8 {
+                    (145, 10)
+                } else {
+                    (140, 8)
+                };
+                let hp = base + self.rng.gen_range(0..=width);
                 (hp, hp)
             }
             "BookOfStabbing" => {
@@ -9539,6 +9590,116 @@ mod tests {
         refund.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
         assert!((109..=119).contains(&refund.run_state.gold),
             "death returns 15 stolen gold before the normal 10..=20 reward");
+    }
+
+    #[test]
+    fn gremlin_leader_encounter_ai_summons_encourage_and_death_match_java() {
+        // Sources: reference/extracted/methods/monster/GremlinLeader.java,
+        // decompiled/java-src/com/megacrit/cardcrawl/helpers/MonsterHelper.java,
+        // and decompiled/java-src/com/megacrit/cardcrawl/actions/unique/
+        // SummonGremlinAction.java.
+        let mut low_hp = std::collections::HashSet::new();
+        let mut high_hp = std::collections::HashSet::new();
+        for seed in 1..=512 {
+            let mut low = RunEngine::new(seed, 0);
+            low_hp.insert(low.roll_enemy_hp("GremlinLeader").0);
+            let mut high = RunEngine::new(seed, 8);
+            high_hp.insert(high.roll_enemy_hp("GremlinLeader").0);
+        }
+        assert_eq!(low_hp, (140..=148).collect());
+        assert_eq!(high_hp, (145..=155).collect());
+
+        for (ascension, hp_range, strength, block) in [
+            (0, 140..=148, 3, 6),
+            (3, 140..=148, 4, 6),
+            (8, 145..=155, 4, 6),
+            (18, 145..=155, 5, 10),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["GremlinLeader".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            assert_eq!(combat.state.enemies.len(), 3);
+            assert!(combat.state.enemies[..2].iter().all(|enemy| enemy.is_minion));
+            assert!(combat.state.enemies[..2].iter().all(|enemy| matches!(enemy.id.as_str(),
+                "GremlinWarrior" | "GremlinThief" | "GremlinFat"
+                    | "GremlinTsundere" | "GremlinWizard")));
+            let leader = &combat.state.enemies[2];
+            assert_eq!(leader.id, "GremlinLeader");
+            assert!(hp_range.contains(&leader.entity.hp));
+            assert_eq!(leader.entity.status(crate::status_ids::sid::STR_AMT), strength);
+            assert_eq!(leader.entity.status(crate::status_ids::sid::BLOCK_AMT), block);
+            assert_eq!(leader.entity.status(crate::status_ids::sid::COUNT), 2);
+            assert_eq!(leader.entity.status(crate::status_ids::sid::STARTING_DMG), ascension);
+            assert!(matches!(leader.move_id,
+                crate::enemies::move_ids::GL_ENCOURAGE
+                    | crate::enemies::move_ids::GL_STAB));
+            assert_eq!(combat.ai_rng.counter, 3,
+                "two gremlins and the Leader each consume one opening roll");
+        }
+
+        // With one ally and a repeated Rally, the low branch recursively draws
+        // 50..99 and consumes exactly one additional aiRng tick.
+        let mut recursive = crate::enemies::create_enemy("GremlinLeader", 140, 140);
+        recursive.entity.set_status(crate::status_ids::sid::COUNT, 1);
+        let mut ai_rng = crate::seed::StsRandom::new(9);
+        crate::enemies::roll_next_move_with_num_and_rng(&mut recursive, 0, &mut ai_rng);
+        assert!(matches!(recursive.move_id,
+            crate::enemies::move_ids::GL_ENCOURAGE
+                | crate::enemies::move_ids::GL_STAB));
+        assert_eq!(ai_rng.counter, 1);
+
+        let mut encourage = RunEngine::new(42, 18);
+        encourage.enter_specific_combat(vec!["GremlinLeader".to_string()]);
+        let combat = encourage.combat_engine.as_mut().unwrap();
+        for minion in &mut combat.state.enemies[..2] {
+            minion.move_id = -1;
+        }
+        let leader = &mut combat.state.enemies[2];
+        leader.move_history.clear();
+        leader.set_move(crate::enemies::move_ids::GL_STAB, 6, 3, 0);
+        leader.entity.set_status(crate::status_ids::sid::COUNT, 2);
+        crate::enemies::roll_next_move_with_num(leader, 0);
+        assert_eq!(leader.move_id, crate::enemies::move_ids::GL_ENCOURAGE);
+        let ai_before = combat.ai_rng.counter;
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies[2].entity.status(crate::status_ids::sid::STRENGTH), 5);
+        assert_eq!(combat.state.enemies[2].entity.block, 0,
+            "Encourage never gives the Leader block");
+        for minion in &combat.state.enemies[..2] {
+            assert_eq!(minion.entity.status(crate::status_ids::sid::STRENGTH), 5);
+            assert_eq!(minion.entity.block, 10);
+        }
+        assert_eq!(combat.ai_rng.counter, ai_before + 2,
+            "Encourage quote and queued RollMove each consume one tick");
+
+        let mut rally = RunEngine::new(42, 18);
+        rally.enter_specific_combat(vec!["GremlinLeader".to_string()]);
+        let combat = rally.combat_engine.as_mut().unwrap();
+        for minion in &mut combat.state.enemies[..2] {
+            minion.entity.hp = 0;
+        }
+        combat.state.enemies[2].set_move(crate::enemies::move_ids::GL_RALLY, 0, 0, 0);
+        combat.state.enemies[2].move_effects.clear();
+        let ai_before = combat.ai_rng.counter;
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies.len(), 5);
+        let summons = &combat.state.enemies[3..];
+        assert!(summons.iter().all(|enemy| enemy.is_minion && enemy.is_alive()));
+        assert!(summons.iter().all(|enemy| matches!(enemy.id.as_str(),
+            "GremlinWarrior" | "GremlinThief" | "GremlinFat"
+                | "GremlinTsundere" | "GremlinWizard")));
+        assert_eq!(combat.state.enemies[2].entity.status(crate::status_ids::sid::COUNT), 2);
+        assert_eq!(combat.ai_rng.counter, ai_before + 5,
+            "two weighted type rolls, two init rolls, then Leader RollMove");
+
+        let mut death = RunEngine::new(42, 0);
+        death.enter_specific_combat(vec!["GremlinLeader".to_string()]);
+        let combat = death.combat_engine.as_mut().unwrap();
+        combat.deal_damage_to_enemy(2, 999);
+        assert_eq!(combat.state.enemies[2].entity.hp, 0);
+        assert!(combat.state.enemies[..2].iter().all(|enemy|
+            enemy.is_escaping && enemy.entity.hp == 0));
+        assert!(combat.state.is_victory());
     }
 
     #[test]

@@ -232,16 +232,59 @@ pub(super) fn roll_book_of_stabbing(enemy: &mut EnemyCombatState, num: i32) {
     }
 }
 
-pub(super) fn roll_gremlin_leader(enemy: &mut EnemyCombatState, _num: i32) {
-    // Rally (summon), Encourage (block + Str to all allies), Stab (6x3)
-    if last_move(enemy, move_ids::GL_RALLY) {
-        enemy.set_move(move_ids::GL_ENCOURAGE, 0, 0, 6);
-        enemy.add_effect(mfx::STRENGTH_ALL_ALLIES, 3);
-        enemy.add_effect(mfx::BLOCK_ALL_ALLIES, 6);
-    } else if last_move(enemy, move_ids::GL_ENCOURAGE) {
-        enemy.set_move(move_ids::GL_STAB, 6, 3, 0);
-    } else {
+pub(super) fn roll_gremlin_leader(
+    enemy: &mut EnemyCombatState,
+    num: i32,
+    ai_rng: &mut crate::seed::StsRandom,
+) {
+    // Source: reference/extracted/methods/monster/GremlinLeader.java
+    // (`getMove`). COUNT mirrors numAliveGremlins for this selection.
+    let alive = enemy.entity.status(sid::COUNT);
+    let strength = enemy.entity.status(sid::STR_AMT).max(3) as i16;
+    let block = enemy.entity.status(sid::BLOCK_AMT).max(6) as i16;
+    let rally = |enemy: &mut EnemyCombatState| {
         enemy.set_move(move_ids::GL_RALLY, 0, 0, 0);
+    };
+    let encourage = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::GL_ENCOURAGE, 0, 0, 0);
+        enemy.add_effect(mfx::STRENGTH, strength);
+        enemy.add_effect(mfx::STRENGTH_ALL_ALLIES, strength);
+        enemy.add_effect(mfx::BLOCK_ALL_ALLIES, block);
+    };
+    let stab = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::GL_STAB, 6, 3, 0);
+    };
+
+    if alive == 0 {
+        if num < 75 {
+            if !last_move(enemy, move_ids::GL_RALLY) { rally(enemy); } else { stab(enemy); }
+        } else if !last_move(enemy, move_ids::GL_STAB) {
+            stab(enemy);
+        } else {
+            rally(enemy);
+        }
+    } else if alive == 1 {
+        if num < 50 {
+            if !last_move(enemy, move_ids::GL_RALLY) {
+                rally(enemy);
+            } else {
+                let retry = ai_rng.random_range(50, 99);
+                roll_gremlin_leader(enemy, retry, ai_rng);
+            }
+        } else if num < 80 {
+            if !last_move(enemy, move_ids::GL_ENCOURAGE) { encourage(enemy); } else { stab(enemy); }
+        } else if !last_move(enemy, move_ids::GL_STAB) {
+            stab(enemy);
+        } else {
+            let retry = ai_rng.random_range(0, 80);
+            roll_gremlin_leader(enemy, retry, ai_rng);
+        }
+    } else if num < 66 {
+        if !last_move(enemy, move_ids::GL_ENCOURAGE) { encourage(enemy); } else { stab(enemy); }
+    } else if !last_move(enemy, move_ids::GL_STAB) {
+        stab(enemy);
+    } else {
+        encourage(enemy);
     }
 }
 

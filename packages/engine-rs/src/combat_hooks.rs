@@ -228,6 +228,15 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             .add_status(sid::TURN_COUNT, 1);
     }
 
+    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
+        "GremlinLeader" | "Gremlin Leader")
+        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::GL_ENCOURAGE
+    {
+        // Source: reference/extracted/methods/monster/GremlinLeader.java
+        // (`getEncourageQuote` is visible in the full source).
+        engine.ai_rng.random_range(0, 2);
+    }
+
     if engine.state.enemies[enemy_idx].id == "TheGuardian"
         && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::GUARD_TWIN_SLAM
     {
@@ -861,13 +870,72 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 }
             }
             ("GremlinLeader" | "Gremlin Leader", x) if x == move_ids::GL_RALLY => {
-                // Deterministic MCTS: fixed gremlin types
-                let mut warrior = enemies::create_enemy("GremlinWarrior", 20, 20);
-                warrior.is_minion = true;
-                engine.add_spawned_enemy(warrior);
-                let mut thief = enemies::create_enemy("GremlinThief", 28, 28);
-                thief.is_minion = true;
-                engine.add_spawned_enemy(thief);
+                // Sources: reference/extracted/methods/monster/GremlinLeader.java
+                // and decompiled/java-src/com/megacrit/cardcrawl/actions/unique/
+                // SummonGremlinAction.java.
+                // Each of the two queued actions fills one of three slots,
+                // draws from the weighted pool, then init consumes an AI roll.
+                let alive_others = engine.state.enemies.iter().enumerate()
+                    .filter(|(idx, enemy)| *idx != enemy_idx && enemy.is_alive())
+                    .count();
+                let spawn_count = (3usize.saturating_sub(alive_others)).min(2);
+                let ascension = engine.state.enemies[enemy_idx]
+                    .entity.status(sid::STARTING_DMG);
+                for _ in 0..spawn_count {
+                    let gremlin_id = match engine.ai_rng.random_range(0, 7) {
+                        0 | 1 => "GremlinWarrior",
+                        2 | 3 => "GremlinThief",
+                        4 | 5 => "GremlinFat",
+                        6 => "GremlinTsundere",
+                        _ => "GremlinWizard",
+                    };
+                    // Monster HP uses a separate run-level stream in Java;
+                    // choose the lower source-valid endpoint semantically.
+                    let high_hp = ascension >= 7;
+                    let hp = match gremlin_id {
+                        "GremlinFat" => if high_hp { 14 } else { 13 },
+                        "GremlinThief" => if high_hp { 11 } else { 10 },
+                        "GremlinWarrior" => if high_hp { 21 } else { 20 },
+                        "GremlinWizard" => if high_hp { 22 } else { 21 },
+                        _ => if high_hp { 13 } else { 12 },
+                    };
+                    let mut minion = enemies::create_enemy(gremlin_id, hp, hp);
+                    minion.is_minion = true;
+                    match gremlin_id {
+                        "GremlinFat" => {
+                            let damage = if ascension >= 2 { 5 } else { 4 };
+                            minion.entity.set_status(sid::STARTING_DMG, damage);
+                            minion.entity.set_status(sid::BLOCK_AMT,
+                                if ascension >= 17 { 17 } else { 0 });
+                        }
+                        "GremlinThief" => {
+                            minion.entity.set_status(sid::STARTING_DMG,
+                                if ascension >= 2 { 10 } else { 9 });
+                        }
+                        "GremlinWarrior" => {
+                            minion.entity.set_status(sid::STARTING_DMG,
+                                if ascension >= 2 { 5 } else { 4 });
+                            minion.entity.set_status(sid::ANGRY,
+                                if ascension >= 17 { 2 } else { 1 });
+                        }
+                        "GremlinWizard" => {
+                            minion.entity.set_status(sid::STARTING_DMG,
+                                if ascension >= 2 { 30 } else { 25 });
+                            minion.entity.set_status(sid::COUNT, 1);
+                            minion.entity.set_status(sid::BLOCK_AMT,
+                                if ascension >= 17 { 17 } else { 0 });
+                        }
+                        _ => {
+                            minion.entity.set_status(sid::STARTING_DMG,
+                                if ascension >= 2 { 8 } else { 6 });
+                            minion.entity.set_status(sid::BLOCK_AMT,
+                                if ascension >= 17 { 11 }
+                                else if ascension >= 7 { 8 } else { 7 });
+                        }
+                    }
+                    enemies::roll_initial_move(&mut minion, &mut engine.ai_rng);
+                    engine.add_spawned_enemy(minion);
+                }
             }
             ("AcidSlime_L", x) if x == move_ids::AS_SPLIT => {
                 // AcidSlime_L.takeTurn spawns two AcidSlime_M at current HP.
@@ -1054,6 +1122,16 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             // Java: reference/extracted/methods/monster/Centurion.java.
             let alive_count = engine.state.enemies.iter()
                 .filter(|enemy| enemy.is_alive()).count() as i32;
+            engine.state.enemies[enemy_idx].entity.set_status(sid::COUNT, alive_count);
+        } else if matches!(engine.state.enemies[enemy_idx].id.as_str(),
+            "GremlinLeader" | "Gremlin Leader")
+        {
+            // Source: reference/extracted/methods/monster/GremlinLeader.java
+            // (`numAliveGremlins` in the full source); despite its name, it
+            // counts every other living monster in the encounter.
+            let alive_count = engine.state.enemies.iter().enumerate()
+                .filter(|(idx, enemy)| *idx != enemy_idx && enemy.is_alive())
+                .count() as i32;
             engine.state.enemies[enemy_idx].entity.set_status(sid::COUNT, alive_count);
         }
         enemies::roll_next_move(&mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);

@@ -427,6 +427,9 @@ mod enemy_ai_java_parity_tests {
 
         let e = make("GremlinLeader", 140);
         expect_move(&e, move_ids::GL_RALLY, 0, 0, 0, &[]);
+        expect_status(&e, sid::STR_AMT, 3);
+        expect_status(&e, sid::BLOCK_AMT, 6);
+        expect_status(&e, sid::COUNT, 0);
 
         let e = make("Taskmaster", 60);
         expect_move(&e, move_ids::TASK_SCOURING_WHIP, 7, 1, 0, &[(mfx::WOUND, 1)]);
@@ -567,12 +570,19 @@ mod enemy_ai_java_parity_tests {
         expect_status(&a18, sid::STAB_COUNT, 4);
 
         let mut e = make("GremlinLeader", 140);
-        roll_times(&mut e, 1);
-        expect_move(&e, move_ids::GL_ENCOURAGE, 0, 0, 6, &[(mfx::STRENGTH_ALL_ALLIES, 3), (mfx::BLOCK_ALL_ALLIES, 6)]);
-        roll_times(&mut e, 1);
+        e.entity.set_status(sid::COUNT, 0);
+        roll_with_num(&mut e, 0);
         expect_move(&e, move_ids::GL_STAB, 6, 3, 0, &[]);
-        roll_times(&mut e, 1);
+        roll_with_num(&mut e, 0);
         expect_move(&e, move_ids::GL_RALLY, 0, 0, 0, &[]);
+
+        e.entity.set_status(sid::COUNT, 2);
+        roll_with_num(&mut e, 0);
+        expect_move(&e, move_ids::GL_ENCOURAGE, 0, 0, 0,
+            &[(mfx::STRENGTH, 3), (mfx::STRENGTH_ALL_ALLIES, 3),
+                (mfx::BLOCK_ALL_ALLIES, 6)]);
+        roll_with_num(&mut e, 0);
+        expect_move(&e, move_ids::GL_STAB, 6, 3, 0, &[]);
 
         let mut e = make("Taskmaster", 60);
         roll_times(&mut e, 1);
@@ -1012,8 +1022,13 @@ mod enemy_ai_java_parity_tests {
 
         let act2_elite = enter_forced_combat(2, 20, RoomType::Elite, 0);
         let combat = act2_elite.get_combat_engine().expect("combat engine");
-        assert_eq!(combat.state.enemies[0].id, "GremlinLeader");
-        assert_eq!(combat.state.enemies[0].entity.hp, 162);
+        // Sources: MonsterHelper.java and GremlinLeader.java construct two
+        // random gremlins followed by a 145..=155 HP Leader at A8+.
+        assert_eq!(combat.state.enemies.len(), 3);
+        assert!(combat.state.enemies[..2].iter().all(|enemy| enemy.is_minion));
+        let leader = combat.state.enemies.iter()
+            .find(|enemy| enemy.id == "GremlinLeader").expect("Gremlin Leader");
+        assert!((145..=155).contains(&leader.entity.hp));
 
         let act3_weak = enter_forced_combat(3, 0, RoomType::Monster, 0);
         let combat = act3_weak.get_combat_engine().expect("combat engine");

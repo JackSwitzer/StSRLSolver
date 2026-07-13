@@ -383,7 +383,8 @@ impl CombatEngine {
                 | "Champ" | "TheChamp" | "Chosen"
                 | "CorruptHeart" | "Corrupt Heart"
                 | "SnakeDagger" | "Snake Dagger" | "Darkling" | "Deca" | "Donu"
-                | "Exploder" | "GiantHead" | "Giant Head")) {
+                | "Exploder" | "GiantHead" | "Giant Head"
+                | "GremlinLeader" | "Gremlin Leader")) {
             if enemy.id == "Centurion" {
                 enemy.entity.set_status(sid::COUNT, living_enemy_count);
             }
@@ -3612,6 +3613,20 @@ impl CombatEngine {
     pub(crate) fn finalize_enemy_death(&mut self, enemy_idx: usize) {
         if enemy_idx >= self.state.enemies.len() {
             return;
+        }
+
+        if matches!(self.state.enemies[enemy_idx].id.as_str(),
+            "GremlinLeader" | "Gremlin Leader")
+        {
+            // Source: reference/extracted/methods/monster/GremlinLeader.java
+            // (`die`): every surviving monster receives EscapeAction.
+            for (idx, enemy) in self.state.enemies.iter_mut().enumerate() {
+                if idx != enemy_idx && enemy.is_alive() {
+                    enemy.is_escaping = true;
+                    // Escaped monsters are terminal in the compact state.
+                    enemy.entity.hp = 0;
+                }
+            }
         }
 
         // StasisPower.onDeath returns its held card to hand, or to discard at
