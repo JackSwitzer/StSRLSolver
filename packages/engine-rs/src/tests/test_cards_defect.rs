@@ -290,6 +290,31 @@ mod defect_card_java_parity_tests {
         for case in cases { assert_stats(case); }
     });
 
+    defect_test!(steam_power_draws_before_adding_one_base_burn_to_discard, {
+        // Overclock.java (ID "Steam Power") queues DrawCardAction for
+        // magicNumber 2 (3 upgraded), then MakeTempCardInDiscardAction for one
+        // unupgraded Burn. UseCardAction moves Overclock itself afterward.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Overclock.java
+        let mut base = bare_engine(&[], vec![enemy_no_intent("JawWorm", 40, 40)]);
+        base.state.hand = make_deck(&["Steam Power"]);
+        base.state.draw_pile = make_deck(&["Strike", "Defend", "Zap"]);
+        let energy = base.state.energy;
+        assert!(play_self(&mut base, "Steam Power"));
+        assert_eq!(base.state.energy, energy);
+        assert_eq!(base.state.hand.len(), 2);
+        assert_eq!(base.state.draw_pile.len(), 1);
+        assert_eq!(base.state.discard_pile.len(), 2);
+        assert_eq!(base.card_registry.card_name(base.state.discard_pile[0].def_id), "Burn");
+        assert_eq!(base.card_registry.card_name(base.state.discard_pile[1].def_id), "Steam Power");
+
+        let mut upgraded = bare_engine(&[], vec![enemy_no_intent("JawWorm", 40, 40)]);
+        upgraded.state.hand = make_deck(&["Steam Power+"]);
+        upgraded.state.draw_pile = make_deck(&["Strike", "Defend", "Zap"]);
+        assert!(play_self(&mut upgraded, "Steam Power+"));
+        assert_eq!(upgraded.state.hand.len(), 3);
+        assert_eq!(discard_prefix_count(&upgraded, "Burn"), 1);
+    });
+
     defect_test!(registry_rare_powers_and_finishers, {
         let cases = [
             StatCase { id: "Reinforced Body", cost: -1, damage: -1, block: 7, magic: -1, card_type: CardType::Skill, exhaust: false },
