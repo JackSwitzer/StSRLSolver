@@ -204,6 +204,39 @@ mod silent_card_java_parity_tests {
         "Deadly Poison", 1, -1, -1, 5, CardType::Skill, CardTarget::Enemy, false, None, &["poison"],
         "Deadly Poison+", 1, -1, -1, 7, CardType::Skill, CardTarget::Enemy, false, None, &["poison"],
     );
+
+    #[test]
+    fn deadly_poison_applies_source_amounts_and_is_blocked_by_artifact() {
+        // DeadlyPoison.java queues PoisonPower for magicNumber 5; its upgrade
+        // adds 2. PoisonPower is a debuff, so Artifact consumes one stack and
+        // prevents the application.
+        for (card_id, expected_poison) in [("Deadly Poison", 5), ("Deadly Poison+", 7)] {
+            let mut engine = engine_without_start(
+                Vec::new(),
+                vec![enemy_no_intent("JawWorm", 40, 40)],
+                1,
+            );
+            force_player_turn(&mut engine);
+            engine.state.hand = make_deck(&[card_id]);
+
+            assert!(play_on_enemy(&mut engine, card_id, 0));
+            assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), expected_poison);
+            assert_eq!(engine.state.energy, 0);
+        }
+
+        let mut blocked = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            1,
+        );
+        force_player_turn(&mut blocked);
+        blocked.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+        blocked.state.hand = make_deck(&["Deadly Poison+"]);
+
+        assert!(play_on_enemy(&mut blocked, "Deadly Poison+", 0));
+        assert_eq!(blocked.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+        assert_eq!(blocked.state.enemies[0].entity.status(sid::POISON), 0);
+    }
     card_pair_test!(deflect,
         "Deflect", 0, -1, 4, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &[],
         "Deflect+", 0, -1, 7, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &[],

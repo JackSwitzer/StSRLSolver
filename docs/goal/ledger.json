@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T06:53:29.661021+00:00",
+ "updated": "2026-07-13T06:55:00.094610+00:00",
  "status_counts": {
-  "verified": 367,
-  "unverified": 300
+  "verified": 368,
+  "unverified": 299
  },
  "rows": [
   {
@@ -942,8 +942,8 @@
    "class": "DeadlyPoison",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/DeadlyPoison.java",
    "methods_ref": "reference/extracted/methods/card/DeadlyPoison.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
