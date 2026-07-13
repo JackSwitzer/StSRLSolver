@@ -57,9 +57,10 @@ fn pick_random_living_enemy(engine: &mut CombatEngine) -> Option<usize> {
 }
 
 fn extra_hits_allow_zero(card_id: &str) -> bool {
-    // SkewerAction only queues hits when its final energy effect is positive;
-    // zero energy without Chemical X must therefore deal no damage.
+    // SkewerAction and WhirlwindAction only queue hits when their final energy
+    // effect is positive; zero energy without Chemical X deals no damage.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/SkewerAction.java
+    // and actions/unique/WhirlwindAction.java.
     matches!(
         card_id,
         "Barrage"
@@ -74,6 +75,8 @@ fn extra_hits_allow_zero(card_id: &str) -> bool {
             | "Skewer+"
             | "Thunder Strike"
             | "Thunder Strike+"
+            | "Whirlwind"
+            | "Whirlwind+"
     )
 }
 
@@ -437,6 +440,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
             }
             CardTarget::AllEnemy => {
                 let living = engine.state.living_enemy_indices();
+                let mut damage_by_enemy = Vec::with_capacity(living.len());
                 for enemy_idx in living {
                     let enemy_vuln = engine.state.enemies[enemy_idx].entity.is_vulnerable();
                     let enemy_intangible = engine.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) > 0;
@@ -455,12 +459,22 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
                         false, // flight
                         enemy_intangible,
                     );
-                    for _ in 0..hits {
+                    damage_by_enemy.push((enemy_idx, dmg));
+                }
+                // WhirlwindAction and Dagger Spray queue one complete
+                // DamageAllEnemiesAction per hit. Resolve each whole AoE before
+                // starting the next rather than grouping all hits by target.
+                // Java: actions/unique/WhirlwindAction.java and
+                // cards/green/DaggerSpray.java.
+                for _ in 0..hits {
+                    for &(enemy_idx, dmg) in &damage_by_enemy {
+                        if engine.state.enemies[enemy_idx].entity.is_dead() {
+                            continue;
+                        }
                         let hp_dmg = engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
                         total_unblocked_damage += hp_dmg;
                         if engine.state.enemies[enemy_idx].entity.is_dead() {
                             enemy_killed = true;
-                            break;
                         }
                     }
                 }

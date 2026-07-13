@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T17:19:01.328114+00:00",
+ "updated": "2026-07-13T17:23:14.070604+00:00",
  "status_counts": {
-  "verified": 575,
-  "unverified": 92
+  "verified": 576,
+  "unverified": 91
  },
  "rows": [
   {
@@ -3592,8 +3592,8 @@
    "class": "Whirlwind",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/Whirlwind.java",
    "methods_ref": "reference/extracted/methods/card/Whirlwind.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
