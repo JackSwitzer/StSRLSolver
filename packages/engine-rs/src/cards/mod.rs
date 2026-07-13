@@ -1469,6 +1469,13 @@ impl CardRegistry {
         if name.ends_with('+') {
             card.flags |= CardInstance::FLAG_UPGRADED;
         }
+        if matches!(name, "Searing Blow" | "Searing Blow+") {
+            // SearingBlow(int upgrades) retains its exact timesUpgraded. The
+            // static `+` definition represents level one; later levels keep
+            // that definition and store the counter on the card instance.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/SearingBlow.java
+            card.misc = i16::from(name == "Searing Blow+");
+        }
         card
     }
 
@@ -1489,10 +1496,48 @@ impl CardRegistry {
         self.strike_flags.get(id as usize).copied().unwrap_or(false)
     }
 
+    /// Whether Java's `canUpgrade()` permits one more upgrade.
+    pub fn can_upgrade_card(&self, card: &CardInstance) -> bool {
+        if card.def_id == u16::MAX {
+            return false;
+        }
+        let name = self.card_name(card.def_id);
+        if matches!(name, "Searing Blow" | "Searing Blow+") {
+            // SearingBlow.canUpgrade() always returns true.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/SearingBlow.java
+            return true;
+        }
+        !card.is_upgraded() && self.get(&format!("{name}+")).is_some()
+    }
+
+    /// Whether a persistent string-backed deck entry permits one more upgrade.
+    pub fn can_upgrade_name(&self, name: &str) -> bool {
+        if matches!(name, "Searing Blow" | "Searing Blow+") {
+            return true;
+        }
+        !name.ends_with('+') && self.get(&format!("{name}+")).is_some()
+    }
+
     /// Upgrade a card in-place: change def_id to the upgraded version and set FLAG_UPGRADED.
     pub fn upgrade_card(&self, card: &mut CardInstance) {
-        if card.flags & CardInstance::FLAG_UPGRADED != 0 { return; }
         let name = self.card_name(card.def_id);
+        if matches!(name, "Searing Blow" | "Searing Blow+") {
+            let current = if card.misc >= 0 {
+                card.misc
+            } else if name == "Searing Blow+" || card.is_upgraded() {
+                1
+            } else {
+                0
+            };
+            card.misc = current.saturating_add(1);
+            if let Some(&id) = self.name_to_id.get("Searing Blow+") {
+                card.def_id = id;
+                card.flags |= CardInstance::FLAG_UPGRADED;
+                card.base_cost = self.id_to_def[id as usize].cost as i8;
+            }
+            return;
+        }
+        if card.flags & CardInstance::FLAG_UPGRADED != 0 { return; }
         let upgraded = format!("{}+", name);
         if let Some(&id) = self.name_to_id.get(upgraded.as_str()) {
             card.def_id = id;

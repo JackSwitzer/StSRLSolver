@@ -1307,9 +1307,7 @@ impl EffectRuntime {
                 current_cost == 0 || card.is_free()
             }
             crate::effects::declarative::CardFilter::Upgradeable => {
-                let def = engine.card_registry.card_def_by_id(card.def_id);
-                !card.is_upgraded()
-                    && engine.card_registry.get(&format!("{}+", def.id)).is_some()
+                engine.card_registry.can_upgrade_card(card)
             }
         }
     }

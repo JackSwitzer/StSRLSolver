@@ -776,6 +776,37 @@ mod ironclad_card_java_parity_tests {
     }
 
     card_pair_test!(searing_blow, "Searing Blow", "Searing Blow+", 2, 12, -1, -1, 2, 16, -1, -1, CardType::Attack, CardTarget::Enemy, false);
+
+    #[test]
+    fn searing_blow_repeated_upgrades_preserve_counter_and_damage_curve() {
+        // SearingBlow.upgrade adds 4 + the previous timesUpgraded, increments
+        // that counter, and canUpgrade always returns true. Three upgrades from
+        // 12 therefore produce 16, then 21, then 27 damage.
+        // Java: reference/extracted/methods/card/SearingBlow.java
+        let registry = reg();
+        let mut searing = registry.make_card("Searing Blow");
+        assert_eq!(searing.misc, 0);
+        for expected_level in 1..=3 {
+            assert!(registry.can_upgrade_card(&searing));
+            registry.upgrade_card(&mut searing);
+            assert_eq!(searing.misc, expected_level);
+            assert_eq!(registry.card_name(searing.def_id), "Searing Blow+");
+        }
+        assert!(registry.can_upgrade_card(&searing));
+
+        let mut engine = engine_for(
+            &[],
+            &[],
+            &[],
+            vec![enemy_no_intent("JawWorm", 50, 50)],
+            2,
+        );
+        engine.state.hand.push(searing);
+
+        assert!(play_on_enemy(&mut engine, "Searing Blow+", 0));
+        assert_eq!(engine.state.enemies[0].entity.hp, 23);
+    }
+
     card_pair_test!(second_wind, "Second Wind", "Second Wind+", 1, -1, 5, -1, 1, -1, 7, -1, CardType::Skill, CardTarget::SelfTarget, false);
     card_pair_test!(seeing_red, "Seeing Red", "Seeing Red+", 1, -1, -1, 2, 0, -1, -1, 2, CardType::Skill, CardTarget::None, true);
     card_pair_test!(sentinel, "Sentinel", "Sentinel+", 1, -1, 5, 2, 1, -1, 8, 3, CardType::Skill, CardTarget::SelfTarget, false);

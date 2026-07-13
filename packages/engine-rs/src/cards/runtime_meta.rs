@@ -203,7 +203,7 @@ pub fn runtime_triggers_for_card(id: &str) -> &'static [CardRuntimeTrigger] {
         "RitualDagger" | "Ritual Dagger" | "RitualDagger+" | "Ritual Dagger+" => {
             RITUAL_DAGGER_TRIGGERS
         }
-        "Searing Blow" => SEARING_BLOW_TRIGGERS,
+        "Searing Blow" | "Searing Blow+" => SEARING_BLOW_TRIGGERS,
         "Claw" | "Claw+" | "Gash" | "Gash+" => CLAW_TRIGGERS,
         "Mind Blast" | "Mind Blast+" => MIND_BLAST_TRIGGERS,
         "Brilliance" | "Brilliance+" => BRILLIANCE_TRIGGERS,

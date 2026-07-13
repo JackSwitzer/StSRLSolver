@@ -1,7 +1,10 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Ironclad Uncommon: Searing Blow ---- (cost 2, 12 dmg, can upgrade infinitely; +4+N per upgrade)
+        // SearingBlow.java costs 2 and starts at 12 damage. canUpgrade() always
+        // returns true; upgrade n adds 4 + the previous timesUpgraded, producing
+        // 12, 16, 21, 27, ... damage while preserving the exact counter.
+        // Java: reference/extracted/methods/card/SearingBlow.java
     insert(cards, CardDef {
                 id: "Searing Blow", name: "Searing Blow", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 2, base_damage: 12, base_block: -1,

@@ -2217,8 +2217,7 @@ impl CombatEngine {
                 cost == 0 || card.is_free()
             }
             CardFilter::Upgradeable => {
-                !card.is_upgraded()
-                    && self.card_registry.get(&format!("{}+", def.id)).is_some()
+                self.card_registry.can_upgrade_card(card)
             }
         }
     }
@@ -4394,12 +4393,7 @@ impl CombatEngine {
             .master_deck
             .iter()
             .enumerate()
-            .filter_map(|(idx, card)| {
-                let id = self.card_registry.card_name(card.def_id);
-                (!card.is_upgraded()
-                    && self.card_registry.get(&format!("{id}+")).is_some())
-                .then_some(idx)
-            })
+            .filter_map(|(idx, card)| self.card_registry.can_upgrade_card(card).then_some(idx))
             .collect();
         if eligible.is_empty() {
             return None;

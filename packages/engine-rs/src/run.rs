@@ -497,12 +497,24 @@ fn obtain_master_deck_card_state(run_state: &mut RunState, card_id: String) {
         run_state.relic_flags.counters[crate::relic_flags::counter::OMAMORI_USES] -= 1;
         return;
     }
+    // MoltenEgg2 calls canUpgrade on the obtained card. An already-upgraded
+    // Searing Blow therefore advances one more level because its canUpgrade()
+    // is always true; the string ID remains the static `+` definition while
+    // CardInstance.misc preserves the exact counter.
+    // Java: MoltenEgg2.java and cards/red/SearingBlow.java.
+    let extra_searing_upgrade = card_id == "Searing Blow+"
+        && run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::MOLTEN_EGG);
     let card_id = upgrade_obtained_card_for_eggs(run_state, &card_id);
     run_state.reconcile_deck_card_states();
     run_state.deck.push(card_id.clone());
-    run_state
-        .deck_card_states
-        .push(crate::cards::global_registry().make_card(&card_id));
+    let registry = crate::cards::global_registry();
+    let mut card_state = registry.make_card(&card_id);
+    if extra_searing_upgrade {
+        registry.upgrade_card(&mut card_state);
+    }
+    run_state.deck_card_states.push(card_state);
     // DarkstonePeriapt.java calls increaseMaxHp(6, true) after an obtained
     // curse. AbstractCreature.java increases max HP, then heals through the
     // ordinary relic-modified healing path.
@@ -622,6 +634,24 @@ impl RunState {
         }
 
         self.deck_card_states = reconciled;
+    }
+
+    fn upgrade_deck_card(&mut self, index: usize) -> Option<(String, String)> {
+        if index >= self.deck.len() {
+            return None;
+        }
+        self.reconcile_deck_card_states();
+        let registry = crate::cards::global_registry();
+        if !registry.can_upgrade_card(&self.deck_card_states[index]) {
+            return None;
+        }
+        let original = self.deck[index].clone();
+        registry.upgrade_card(&mut self.deck_card_states[index]);
+        let upgraded = registry
+            .card_name(self.deck_card_states[index].def_id)
+            .to_string();
+        self.deck[index] = upgraded.clone();
+        Some((original, upgraded))
     }
 
     fn combat_deck_instances(&mut self) -> Vec<crate::combat_types::CardInstance> {
@@ -895,17 +925,7 @@ impl RunEngine {
             .deck
             .iter()
             .enumerate()
-            .filter_map(|(idx, card_id)| {
-                if card_id.ends_with('+') {
-                    return None;
-                }
-                let upgraded = format!("{card_id}+");
-                if registry.get(&upgraded).is_some() {
-                    Some(idx)
-                } else {
-                    None
-                }
-            })
+            .filter_map(|(idx, card_id)| registry.can_upgrade_name(card_id).then_some(idx))
             .collect();
 
         for _ in 0..count {
@@ -914,7 +934,7 @@ impl RunEngine {
             }
             let pick = self.rng.gen_range(0..eligible.len());
             let deck_idx = eligible.swap_remove(pick);
-            self.run_state.deck[deck_idx] = format!("{}+", self.run_state.deck[deck_idx]);
+            self.run_state.upgrade_deck_card(deck_idx);
         }
     }
 
@@ -1039,7 +1059,11 @@ impl RunEngine {
                             .deck
                             .iter()
                             .enumerate()
-                            .filter_map(|(i, card)| (!card.ends_with('+')).then_some(i))
+                            .filter_map(|(i, card)| {
+                                crate::cards::global_registry()
+                                    .can_upgrade_name(card)
+                                    .then_some(i)
+                            })
                             .collect()
                     },
                     removable_cards: self.peace_pipe_removable_indices(),
@@ -1132,7 +1156,11 @@ impl RunEngine {
                         .deck
                         .iter()
                         .enumerate()
-                        .filter_map(|(i, card)| (!card.ends_with('+')).then_some(i))
+                        .filter_map(|(i, card)| {
+                            crate::cards::global_registry()
+                                .can_upgrade_name(card)
+                                .then_some(i)
+                        })
                         .collect()
                 },
                 removable_cards: self.peace_pipe_removable_indices(),
@@ -1294,7 +1322,7 @@ impl RunEngine {
         // SmithOption class while leaving Rest and other options available.
         if !self.run_state.relic_flags.has(crate::relic_flags::flag::FUSION_HAMMER) {
             for (i, card) in self.run_state.deck.iter().enumerate() {
-                if !card.ends_with('+') {
+                if crate::cards::global_registry().can_upgrade_name(card) {
                     actions.push(RunAction::CampfireUpgrade(i));
                 }
             }
@@ -4337,11 +4365,8 @@ impl RunEngine {
             .iter()
             .enumerate()
             .filter_map(|(idx, card_id)| {
-                if card_id.ends_with('+') {
-                    return None;
-                }
                 let def = registry.get(card_id)?;
-                if def.card_type == card_type && registry.get(&format!("{card_id}+")).is_some() {
+                if def.card_type == card_type && registry.can_upgrade_name(card_id) {
                     Some(idx)
                 } else {
                     None
@@ -4355,9 +4380,9 @@ impl RunEngine {
             }
             let pick = self.rng.gen_range(0..eligible.len());
             let deck_idx = eligible.swap_remove(pick);
-            let original = self.run_state.deck[deck_idx].clone();
-            let upgraded = format!("{original}+");
-            self.run_state.deck[deck_idx] = upgraded.clone();
+            let Some((original, upgraded)) = self.run_state.upgrade_deck_card(deck_idx) else {
+                continue;
+            };
             // Whetstone.java calls bottledCardUpgradeCheck after each ATTACK
             // upgrade. RunEngine stores the bottle by card ID, so keep a
             // uniquely represented bottled attack synchronized.
@@ -4383,11 +4408,7 @@ impl RunEngine {
             .iter()
             .enumerate()
             .filter_map(|(idx, card_id)| {
-                if card_id.ends_with('+') || registry.get(&format!("{card_id}+")).is_none() {
-                    None
-                } else {
-                    Some(idx)
-                }
+                registry.can_upgrade_name(card_id).then_some(idx)
             })
             .collect();
         if eligible.is_empty() {
@@ -4398,9 +4419,9 @@ impl RunEngine {
         // upgrades the first result. RunEngine's shared run stream preserves
         // the semantic random choice until run-level streams are split.
         let deck_idx = eligible[self.rng.gen_range(0..eligible.len())];
-        let original = self.run_state.deck[deck_idx].clone();
-        let upgraded = format!("{original}+");
-        self.run_state.deck[deck_idx] = upgraded.clone();
+        let Some((original, upgraded)) = self.run_state.upgrade_deck_card(deck_idx) else {
+            return;
+        };
         if self.run_state.bottled_flame_card.as_deref() == Some(original.as_str()) {
             self.run_state.bottled_flame_card = Some(upgraded.clone());
         }
@@ -5069,13 +5090,7 @@ impl RunEngine {
                 }
             }
             RunAction::CampfireUpgrade(idx) => {
-                if *idx < self.run_state.deck.len() {
-                    let card = &self.run_state.deck[*idx];
-                    if !card.ends_with('+') {
-                        let upgraded = format!("{}+", card);
-                        self.run_state.deck[*idx] = upgraded;
-                    }
-                }
+                self.run_state.upgrade_deck_card(*idx);
             }
             RunAction::CampfireToke => {
                 self.build_peace_pipe_selection_screen();
@@ -6501,11 +6516,23 @@ impl RunEngine {
                 }
             }
             EventDeckMutation::UpgradeCard { count } => {
-                for _ in 0..*count {
-                    if let Some(card) = self.run_state.deck.iter_mut().find(|card| !card.ends_with('+'))
-                    {
-                        *card = format!("{card}+");
-                    }
+                // Upgrade-all effects snapshot the deck and upgrade each card at
+                // most once. Searing Blow remains upgradeable afterward, but the
+                // same action must not repeatedly select that one copy.
+                let indices: Vec<_> = self
+                    .run_state
+                    .deck
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, card)| {
+                        crate::cards::global_registry()
+                            .can_upgrade_name(card)
+                            .then_some(index)
+                    })
+                    .take(*count)
+                    .collect();
+                for index in indices {
+                    self.run_state.upgrade_deck_card(index);
                 }
             }
         }
@@ -8885,6 +8912,44 @@ mod tests {
 
         engine.step(&RunAction::CampfireUpgrade(1));
         assert_eq!(engine.run_state.deck[1], "Eruption+");
+    }
+
+    #[test]
+    fn searing_blow_remains_campfire_upgradeable_and_persists_exact_level() {
+        // SearingBlow.canUpgrade always returns true; each call increments
+        // timesUpgraded even though the canonical card ID remains Searing Blow.
+        // Java: reference/extracted/methods/card/SearingBlow.java
+        let mut engine = RunEngine::new(42, 0);
+        engine.run_state.deck = vec!["Searing Blow+".to_string()];
+
+        for expected_level in [2, 3] {
+            engine.phase = RunPhase::Campfire;
+            assert!(engine
+                .get_legal_actions()
+                .contains(&RunAction::CampfireUpgrade(0)));
+            engine.step(&RunAction::CampfireUpgrade(0));
+            assert_eq!(engine.run_state.deck[0], "Searing Blow+");
+            assert_eq!(engine.run_state.deck_card_states[0].misc, expected_level);
+        }
+
+        engine.debug_enter_specific_combat(&["JawWorm"]);
+        assert_eq!(
+            engine
+                .get_combat_engine()
+                .expect("combat active")
+                .state
+                .master_deck[0]
+                .misc,
+            3,
+        );
+
+        let mut obtained = RunState::new(0);
+        obtained.deck.clear();
+        obtained.deck_card_states.clear();
+        obtained.relics.push("Molten Egg 2".to_string());
+        obtained.relic_flags.rebuild(&obtained.relics);
+        obtain_master_deck_card_state(&mut obtained, "Searing Blow+".to_string());
+        assert_eq!(obtained.deck_card_states[0].misc, 2);
     }
 
     #[test]

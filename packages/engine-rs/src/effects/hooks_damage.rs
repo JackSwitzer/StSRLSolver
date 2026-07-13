@@ -97,11 +97,21 @@ pub fn hook_ritual_dagger(_engine: &CombatEngine, card: &CardDef, card_inst: Car
     }
 }
 
-/// Searing Blow: +4 bonus when upgraded (simplified for MCTS).
-pub fn hook_searing_blow(_engine: &CombatEngine, _card: &CardDef, card_inst: CardInstance) -> DamageModifier {
-    let bonus = if card_inst.flags & 0x04 != 0 { 4 } else { 0 };
+/// Searing Blow's nth upgrade adds `4 + previous timesUpgraded` damage.
+pub fn hook_searing_blow(_engine: &CombatEngine, card: &CardDef, card_inst: CardInstance) -> DamageModifier {
+    // Starting from 12, n upgrades total 12 + 4n + n(n-1)/2. The instance misc
+    // stores n; named `Searing Blow+` cards without explicit state mean n=1.
+    // Java: reference/extracted/methods/card/SearingBlow.java
+    let upgrades = if card_inst.misc >= 0 {
+        i32::from(card_inst.misc)
+    } else if card.id == "Searing Blow+" || card_inst.is_upgraded() {
+        1
+    } else {
+        0
+    };
+    let current_damage = 12 + 4 * upgrades + upgrades * (upgrades - 1) / 2;
     DamageModifier {
-        base_damage_bonus: bonus,
+        base_damage_bonus: current_damage - card.base_damage,
         ..DamageModifier::default()
     }
 }

@@ -115,7 +115,7 @@ pub fn hook_lesson_learned(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     // The caller must only invoke this when enemy_killed is true.
     let mut upgraded = false;
     for c in engine.state.draw_pile.iter_mut() {
-        if !c.is_upgraded() {
+        if engine.card_registry.can_upgrade_card(c) {
             let name = engine.card_registry.card_name(c.def_id);
             if !name.starts_with("Strike") && !name.starts_with("Defend") {
                 engine.card_registry.upgrade_card(c);
@@ -126,7 +126,7 @@ pub fn hook_lesson_learned(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     }
     if !upgraded {
         for c in engine.state.discard_pile.iter_mut() {
-            if !c.is_upgraded() {
+            if engine.card_registry.can_upgrade_card(c) {
                 let name = engine.card_registry.card_name(c.def_id);
                 if !name.starts_with("Strike") && !name.starts_with("Defend") {
                     engine.card_registry.upgrade_card(c);
@@ -305,7 +305,7 @@ pub fn hook_exhume(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
 pub fn hook_upgrade_one_card(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     let upgradeable: Vec<usize> = engine.state.hand.iter()
         .enumerate()
-        .filter(|(_, c)| !c.is_upgraded())
+        .filter(|(_, c)| engine.card_registry.can_upgrade_card(c))
         .map(|(i, _)| i)
         .collect();
     if !upgradeable.is_empty() {
@@ -502,7 +502,7 @@ pub fn hook_enlightenment(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
 /// Apotheosis: upgrade all cards in hand.
 pub fn hook_upgrade_all_cards(engine: &mut CombatEngine, _ctx: &CardPlayContext) {
     for hand_card in &mut engine.state.hand {
-        if !hand_card.is_upgraded() {
+        if engine.card_registry.can_upgrade_card(hand_card) {
             engine.card_registry.upgrade_card(hand_card);
         }
     }

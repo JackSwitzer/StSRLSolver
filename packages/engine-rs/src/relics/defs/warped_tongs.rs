@@ -50,9 +50,8 @@ fn hook(
         .enumerate()
         .filter_map(|(index, card)| {
             let def = engine.card_registry.card_def_by_id(card.def_id);
-            (!card.is_upgraded()
-                && def.card_type != crate::cards::CardType::Status
-                && engine.card_registry.get(&format!("{}+", def.id)).is_some())
+            (def.card_type != crate::cards::CardType::Status
+                && engine.card_registry.can_upgrade_card(card))
             .then_some(index)
         })
         .collect::<Vec<_>>();
