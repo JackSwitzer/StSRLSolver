@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T06:22:05.836366+00:00",
+ "updated": "2026-07-13T06:25:25.381439+00:00",
  "status_counts": {
-  "verified": 355,
-  "unverified": 312
+  "verified": 356,
+  "unverified": 311
  },
  "rows": [
   {
@@ -792,8 +792,8 @@
    "class": "CorpseExplosion",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/CorpseExplosion.java",
    "methods_ref": "reference/extracted/methods/card/CorpseExplosion.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

@@ -3080,16 +3080,18 @@ impl CombatEngine {
             &ctx,
         ));
 
-        // Corpse Explosion: deal damage equal to enemy max HP to all other enemies.
+        // CorpseExplosionPower.onDeath queues source-less THORNS damage equal
+        // to owner.maxHealth * amount. THORNS bypasses NORMAL-only reactions.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/CorpseExplosionPower.java
         let ce = self.state.enemies[enemy_idx]
             .entity
             .status(sid::CORPSE_EXPLOSION);
         if ce > 0 {
-            let max_hp = self.state.enemies[enemy_idx].entity.max_hp;
+            let damage = self.state.enemies[enemy_idx].entity.max_hp * ce;
             let living = self.state.living_enemy_indices();
             for other_idx in living {
                 if other_idx != enemy_idx {
-                    self.deal_damage_to_enemy(other_idx, max_hp);
+                    self.deal_thorns_damage_to_enemy(other_idx, damage);
                 }
             }
         }

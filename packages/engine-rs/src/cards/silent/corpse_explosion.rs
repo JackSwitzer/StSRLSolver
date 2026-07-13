@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Rare: Corpse Explosion ---- (cost 2, 6 poison, on death deal dmg = max HP to all; +3 poison)
+    // Source: reference/extracted/methods/card/CorpseExplosion.java applies 6
+    // Poison, then one CorpseExplosionPower; the upgrade adds only 3 Poison.
     insert(cards, CardDef {
                 id: "Corpse Explosion", name: "Corpse Explosion", card_type: CardType::Skill,
                 target: CardTarget::Enemy, cost: 2, base_damage: -1, base_block: -1,

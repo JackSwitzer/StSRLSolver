@@ -592,6 +592,59 @@ mod silent_card_java_parity_tests {
         "Corpse Explosion", 2, -1, -1, 6, CardType::Skill, CardTarget::Enemy, false, None, &["corpse_explosion"],
         "Corpse Explosion+", 2, -1, -1, 9, CardType::Skill, CardTarget::Enemy, false, None, &["corpse_explosion"],
     );
+
+    #[test]
+    fn corpse_explosion_variants_stack_poison_and_thorns_death_damage() {
+        // Sources: CorpseExplosion.java applies 6/9 Poison followed by one
+        // CorpseExplosionPower. CorpseExplosionPower.java stacks amount and on
+        // death deals maxHealth * amount as source-less THORNS damage to all.
+        let mut engine = engine_without_start(
+            Vec::new(),
+            vec![
+                enemy_no_intent("JawWorm", 50, 50),
+                enemy_no_intent("JawWorm", 120, 120),
+            ],
+            4,
+        );
+        force_player_turn(&mut engine);
+        engine.state.enemies[1].entity.set_status(sid::MALLEABLE, 3);
+        engine.state.hand = make_deck(&["Corpse Explosion", "Corpse Explosion+"]);
+
+        assert!(play_on_enemy(&mut engine, "Corpse Explosion", 0));
+        assert!(play_on_enemy(&mut engine, "Corpse Explosion+", 0));
+        assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 15);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::CORPSE_EXPLOSION), 2);
+
+        engine.state.enemies[0].entity.hp = 1;
+        engine.deal_damage_to_enemy(0, 1);
+
+        assert!(engine.state.enemies[0].entity.is_dead());
+        assert_eq!(engine.state.enemies[1].entity.hp, 20);
+        assert_eq!(engine.state.enemies[1].entity.block, 0);
+        assert_eq!(engine.state.enemies[1].entity.status(sid::MALLEABLE), 3);
+    }
+
+    #[test]
+    fn corpse_explosion_poison_then_power_each_consume_artifact() {
+        // CorpseExplosion.java queues two ApplyPowerActions in order. Both
+        // PoisonPower and CorpseExplosionPower are DEBUFF powers, so two
+        // Artifact charges block both applications.
+        let mut engine = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            2,
+        );
+        force_player_turn(&mut engine);
+        engine.state.enemies[0].entity.set_status(sid::ARTIFACT, 2);
+        engine.state.hand = make_deck(&["Corpse Explosion+"]);
+
+        assert!(play_on_enemy(&mut engine, "Corpse Explosion+", 0));
+
+        assert_eq!(engine.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 0);
+        assert_eq!(engine.state.enemies[0].entity.status(sid::CORPSE_EXPLOSION), 0);
+    }
+
     card_pair_test!(die_die_die,
         "Die Die Die", 1, 13, -1, -1, CardType::Attack, CardTarget::AllEnemy, true, None, &[],
         "Die Die Die+", 1, 17, -1, -1, CardType::Attack, CardTarget::AllEnemy, true, None, &[],
