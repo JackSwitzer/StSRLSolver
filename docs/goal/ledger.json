@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T15:16:36.465561+00:00",
+ "updated": "2026-07-13T15:19:02.858398+00:00",
  "status_counts": {
-  "verified": 530,
-  "unverified": 137
+  "verified": 531,
+  "unverified": 136
  },
  "rows": [
   {
@@ -2992,8 +2992,8 @@
    "class": "Skewer",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Skewer.java",
    "methods_ref": "reference/extracted/methods/card/Skewer.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

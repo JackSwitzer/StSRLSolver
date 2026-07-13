@@ -57,6 +57,9 @@ fn pick_random_living_enemy(engine: &mut CombatEngine) -> Option<usize> {
 }
 
 fn extra_hits_allow_zero(card_id: &str) -> bool {
+    // SkewerAction only queues hits when its final energy effect is positive;
+    // zero energy without Chemical X must therefore deal no damage.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/SkewerAction.java
     matches!(
         card_id,
         "Barrage"
@@ -67,6 +70,8 @@ fn extra_hits_allow_zero(card_id: &str) -> bool {
             | "Finisher+"
             | "Flechettes"
             | "Flechettes+"
+            | "Skewer"
+            | "Skewer+"
             | "Thunder Strike"
             | "Thunder Strike+"
     )

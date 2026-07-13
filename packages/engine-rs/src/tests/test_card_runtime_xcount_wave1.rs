@@ -4,6 +4,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ReinforcedBody.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Tempest.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Skewer.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/SkewerAction.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/ConjureBlade.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Expunger.java
 
@@ -63,6 +64,32 @@ fn xcount_wave1_skewer_uses_declared_x_hits_and_consumes_all_energy() {
 
     assert_eq!(engine.state.energy, 0);
     assert_eq!(engine.state.enemies[0].entity.hp, 50);
+}
+
+#[test]
+fn skewer_zero_chemical_x_and_free_play_follow_skewer_action() {
+    // SkewerAction starts from energyOnUse, adds exactly two for Chemical X,
+    // queues no DamageAction when the result is zero, and spends current
+    // energy only when freeToPlayOnce is false.
+    let mut zero = one_enemy_engine(80, 0);
+    zero.state.hand = make_deck(&["Skewer"]);
+    assert!(play_on_enemy(&mut zero, "Skewer", 0));
+    assert_eq!(zero.state.enemies[0].entity.hp, 80);
+    assert_eq!(zero.state.energy, 0);
+
+    let mut chemical = one_enemy_engine(80, 0);
+    chemical.state.relics.push("Chemical X".to_string());
+    chemical.state.hand = make_deck(&["Skewer"]);
+    assert!(play_on_enemy(&mut chemical, "Skewer", 0));
+    assert_eq!(chemical.state.enemies[0].entity.hp, 66);
+    assert_eq!(chemical.state.energy, 0);
+
+    let mut free = one_enemy_engine(80, 2);
+    free.state.relics.push("Chemical X".to_string());
+    free.state.hand = vec![free.card_registry.make_card("Skewer").set_free(true)];
+    assert!(play_on_enemy(&mut free, "Skewer", 0));
+    assert_eq!(free.state.enemies[0].entity.hp, 52);
+    assert_eq!(free.state.energy, 2);
 }
 
 #[test]
