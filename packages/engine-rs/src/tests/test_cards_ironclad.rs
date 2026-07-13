@@ -396,6 +396,42 @@ mod ironclad_card_java_parity_tests {
     card_pair_test!(dual_wield, "Dual Wield", "Dual Wield+", 1, -1, -1, 1, 1, -1, -1, 2, CardType::Skill, CardTarget::None, false);
     card_pair_test!(entrench, "Entrench", "Entrench+", 2, -1, -1, -1, 1, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, false);
     card_pair_test!(evolve, "Evolve", "Evolve+", 1, -1, -1, 1, 1, -1, -1, 2, CardType::Power, CardTarget::SelfTarget, false);
+
+    #[test]
+    fn evolve_draws_its_power_amount_after_each_status_draw() {
+        // EvolvePower.onCardDraw checks for CardType.STATUS and queues a
+        // DrawCardAction for its stacked amount. Evolve+ installs amount two.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/EvolvePower.java
+        let mut upgraded = engine_for(
+            &["Evolve+"],
+            &["Defend", "Strike", "Wound"],
+            &[],
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            1,
+        );
+        assert!(play_self(&mut upgraded, "Evolve+"));
+        assert_eq!(upgraded.state.player.status(sid::EVOLVE), 2);
+
+        upgraded.draw_cards(1);
+        assert_eq!(upgraded.state.hand.len(), 3);
+        assert!(upgraded.state.draw_pile.is_empty());
+
+        let mut non_status = engine_for(
+            &["Evolve"],
+            &["Wound", "Strike"],
+            &[],
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            1,
+        );
+        assert!(play_self(&mut non_status, "Evolve"));
+        non_status.draw_cards(1);
+        assert_eq!(non_status.state.hand.len(), 1);
+        assert_eq!(non_status.state.draw_pile.len(), 1);
+        assert_eq!(
+            non_status.card_registry.card_name(non_status.state.hand[0].def_id),
+            "Strike"
+        );
+    }
     card_pair_test!(feel_no_pain, "Feel No Pain", "Feel No Pain+", 1, -1, -1, 3, 1, -1, -1, 4, CardType::Power, CardTarget::SelfTarget, false);
     card_pair_test!(fire_breathing, "Fire Breathing", "Fire Breathing+", 1, -1, -1, 6, 1, -1, -1, 10, CardType::Power, CardTarget::SelfTarget, false);
     card_pair_test!(flame_barrier, "Flame Barrier", "Flame Barrier+", 2, -1, 12, 4, 2, -1, 16, 6, CardType::Skill, CardTarget::SelfTarget, false);
