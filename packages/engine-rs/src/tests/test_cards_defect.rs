@@ -155,6 +155,35 @@ mod defect_card_java_parity_tests {
         assert_eq!(upgraded.state.discard_pile.len(), 6);
     });
 
+    defect_test!(sweeping_beam_damages_all_enemies_before_its_single_draw, {
+        // SweepingBeam.use queues 6 all-enemy damage before DrawCardAction(1);
+        // the upgrade raises only damage to 9. DamageAllEnemiesAction clears
+        // the queued draw when every monster dies.
+        // Java: reference/extracted/methods/card/SweepingBeam.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DamageAllEnemiesAction.java
+        let mut surviving = bare_engine(
+            &[],
+            vec![enemy("JawWorm", 20, 0), enemy("Cultist", 30, 0)],
+        );
+        surviving.state.hand = make_deck(&["Sweeping Beam"]);
+        surviving.state.draw_pile = make_deck(&["Strike"]);
+        assert!(play_self(&mut surviving, "Sweeping Beam"));
+        assert_eq!(surviving.state.enemies[0].entity.hp, 14);
+        assert_eq!(surviving.state.enemies[1].entity.hp, 24);
+        assert_eq!(hand_count(&surviving, "Strike"), 1);
+
+        let mut lethal = bare_engine(
+            &[],
+            vec![enemy("JawWorm", 9, 0), enemy("Cultist", 9, 0)],
+        );
+        lethal.state.hand = make_deck(&["Sweeping Beam+"]);
+        lethal.state.draw_pile = make_deck(&["Strike"]);
+        assert!(play_self(&mut lethal, "Sweeping Beam+"));
+        assert!(lethal.state.enemies.iter().all(|enemy| enemy.entity.hp == 0));
+        assert_eq!(lethal.state.draw_pile.len(), 1);
+        assert!(lethal.state.hand.is_empty());
+    });
+
     defect_test!(hologram_matches_block_exhaust_and_discard_retrieval_edges, {
         // Hologram.java grants 3 Block, exhausts, then runs the mandatory
         // BetterDiscardPileToHandAction(1). That action is a no-op on an empty
