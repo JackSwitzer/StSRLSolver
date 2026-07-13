@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T07:00:39.753397+00:00",
+ "updated": "2026-07-13T07:03:06.142158+00:00",
  "status_counts": {
-  "verified": 370,
-  "unverified": 297
+  "verified": 373,
+  "unverified": 294
  },
  "rows": [
   {
@@ -982,8 +982,8 @@
    "class": "Defend_Blue",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Defend_Blue.java",
    "methods_ref": "reference/extracted/methods/card/Defend_Blue.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -992,8 +992,8 @@
    "class": "Defend_Green",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Defend_Green.java",
    "methods_ref": "reference/extracted/methods/card/Defend_Green.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -1012,8 +1012,8 @@
    "class": "Defend_Red",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/Defend_Red.java",
    "methods_ref": "reference/extracted/methods/card/Defend_Red.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

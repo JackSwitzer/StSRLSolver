@@ -1,17 +1,10 @@
-//! Universal starter basics: `Strike` and `Defend`.
+//! Shared starter basics plus canonical per-class aliases.
 //!
 //! Java ships 4 class-specific copies (`Strike_R`/`Strike_G`/`Strike_B`/
 //! `Strike_P`, same for `Defend`) that are byte-identical except for the
-//! `id` string and the class-color suffix. We're Watcher-only for the
-//! foreseeable training horizon, so we collapse to a single pair here and
-//! use substring-based class affinity (`is_strike(name)`, `is_defend(name)`
-//! helpers) where the engine still needs to distinguish "basic starter"
-//! from "anything named Strike" (Perfected Strike, Windmill Strike, etc).
-//!
-//! When we need multi-class training, we'll add a `CharacterClass` enum +
-//! `CardDef.class: Option<CharacterClass>` and can re-split if the cost of
-//! the single-ID approach becomes visible. Until then: one Strike, one
-//! Defend.
+//! `id` string and class color. The generic `Strike`/`Defend` pair remains
+//! for existing Watcher run state, while canonical Defend IDs are registered
+//! so source/trace-facing paths can preserve the real card identity.
 
 use crate::cards::prelude::*;
 
@@ -99,4 +92,53 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
             complex_hook: None,
         },
     );
+
+    // Defend_Blue.java, Defend_Green.java, Defend_Red.java, and
+    // Defend_Watcher.java all use cost 1, base Block 5, and upgradeBlock(3)
+    // outside the game's debug-only 50-Block branch.
+    // Java: reference/extracted/methods/card/Defend_Blue.java
+    // Java: reference/extracted/methods/card/Defend_Green.java
+    // Java: reference/extracted/methods/card/Defend_Red.java
+    // Java: reference/extracted/methods/card/Defend_Watcher.java
+    for (base_id, upgraded_id) in [
+        ("Defend_B", "Defend_B+"),
+        ("Defend_G", "Defend_G+"),
+        ("Defend_R", "Defend_R+"),
+        ("Defend_P", "Defend_P+"),
+    ] {
+        insert(
+            cards,
+            CardDef {
+                id: base_id,
+                name: "Defend",
+                card_type: CardType::Skill,
+                target: CardTarget::SelfTarget,
+                cost: 1,
+                base_damage: -1,
+                base_block: 5,
+                base_magic: -1,
+                exhaust: false,
+                enter_stance: None,
+                effect_data: &[E::Simple(SE::GainBlock(A::Block))],
+                complex_hook: None,
+            },
+        );
+        insert(
+            cards,
+            CardDef {
+                id: upgraded_id,
+                name: "Defend+",
+                card_type: CardType::Skill,
+                target: CardTarget::SelfTarget,
+                cost: 1,
+                base_damage: -1,
+                base_block: 8,
+                base_magic: -1,
+                exhaust: false,
+                enter_stance: None,
+                effect_data: &[E::Simple(SE::GainBlock(A::Block))],
+                complex_hook: None,
+            },
+        );
+    }
 }

@@ -82,6 +82,35 @@ fn defect_wave8_basic_attack_and_block_cards_follow_engine_path() {
 }
 
 #[test]
+fn canonical_red_green_and_blue_defends_share_source_block_values() {
+    // Defend_Blue.java, Defend_Green.java, and Defend_Red.java each construct
+    // a one-cost starter Skill with 5 Block; upgradeBlock(3) makes 8. Their
+    // non-debug use methods queue GainBlockAction(this.block).
+    let registry = global_registry();
+    for (base_id, upgraded_id) in [
+        ("Defend_B", "Defend_B+"),
+        ("Defend_G", "Defend_G+"),
+        ("Defend_R", "Defend_R+"),
+    ] {
+        let base = registry.get(base_id).unwrap_or_else(|| panic!("missing {base_id}"));
+        let upgraded = registry
+            .get(upgraded_id)
+            .unwrap_or_else(|| panic!("missing {upgraded_id}"));
+        assert_eq!(base.cost, 1);
+        assert_eq!(base.base_block, 5);
+        assert_eq!(upgraded.cost, 1);
+        assert_eq!(upgraded.base_block, 8);
+
+        let mut engine = one_enemy_engine(40, 2);
+        engine.state.hand = make_deck(&[base_id, upgraded_id]);
+        assert!(play_self(&mut engine, base_id));
+        assert_eq!(engine.state.player.block, 5);
+        assert!(play_self(&mut engine, upgraded_id));
+        assert_eq!(engine.state.player.block, 13);
+    }
+}
+
+#[test]
 fn defect_wave8_storm_force_field_and_rebound_follow_engine_path() {
     let mut storm = one_enemy_engine(40, 10);
     storm.init_defect_orbs(1);
