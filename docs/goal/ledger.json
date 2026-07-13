@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T12:41:45.261136+00:00",
+ "updated": "2026-07-13T12:44:15.667302+00:00",
  "status_counts": {
-  "verified": 489,
-  "unverified": 178
+  "verified": 490,
+  "unverified": 177
  },
  "rows": [
   {
@@ -2482,8 +2482,8 @@
    "class": "PowerThrough",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/red/PowerThrough.java",
    "methods_ref": "reference/extracted/methods/card/PowerThrough.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

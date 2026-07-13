@@ -180,6 +180,55 @@ mod ironclad_wave2_card_runtime_tests {
     }
 
     #[test]
+    fn power_through_plus_spills_only_the_overflow_wound_and_gains_twenty_block() {
+        // PowerThrough.java makes exactly two Wounds in hand before its
+        // GainBlockAction, and upgradeBlock(5) changes 15 Block to 20. With
+        // nine cards left in hand after playing it, MakeTempCardInHandAction
+        // places one Wound in hand and sends the overflow copy to discard.
+        let mut engine = engine_for(
+            &[
+                "Power Through+",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+            ],
+            &[],
+            &[],
+            50,
+            3,
+        );
+
+        assert!(play_self(&mut engine, "Power Through+"));
+
+        assert_eq!(engine.state.player.block, 20);
+        assert_eq!(engine.state.energy, 2);
+        assert_eq!(
+            engine
+                .state
+                .hand
+                .iter()
+                .filter(|card| engine.card_registry.card_name(card.def_id) == "Wound")
+                .count(),
+            1
+        );
+        assert_eq!(
+            engine
+                .state
+                .discard_pile
+                .iter()
+                .filter(|card| engine.card_registry.card_name(card.def_id) == "Wound")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
     fn headbutt_pommel_strike_and_thunderclap_cover_choice_draw_and_vulnerable_paths() {
         let mut headbutt_engine = engine_for(
             &["Headbutt"],
