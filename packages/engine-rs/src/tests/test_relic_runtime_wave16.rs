@@ -7,9 +7,10 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/relics/PureWater.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/relics/BagOfPreparation.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/relics/RingOfTheSnake.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/relics/RingOfTheSerpent.java
 
 use crate::status_ids::sid;
-use crate::tests::support::{enemy_no_intent, engine_without_start, make_deck_n};
+use crate::tests::support::{end_turn, enemy_no_intent, engine_without_start, make_deck_n};
 
 #[test]
 fn relic_wave16_start_combat_buffs_and_temp_cards_match_canonical_runtime() {
@@ -61,6 +62,25 @@ fn relic_wave16_opening_draw_relics_match_canonical_runtime() {
     ring.state.relics.push("Ring of the Snake".to_string());
     ring.start_combat();
     assert_eq!(ring.state.hand.len(), 7);
+}
+
+#[test]
+fn ring_of_the_serpent_draws_six_cards_on_every_turn() {
+    // Source: reference/extracted/methods/relic/RingOfTheSerpent.java
+    // onEquip increments masterHandSize once; atTurnStart only flashes.
+    let mut engine = engine_without_start(
+        make_deck_n("Strike", 20),
+        vec![enemy_no_intent("TrainingDummy", 40, 40)],
+        3,
+    );
+    engine.state.relics.push("Ring of the Serpent".to_string());
+
+    engine.start_combat();
+    assert_eq!(engine.state.hand.len(), 6);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.turn, 2);
+    assert_eq!(engine.state.hand.len(), 6);
 }
 
 #[test]
