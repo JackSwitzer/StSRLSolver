@@ -4,6 +4,7 @@ mod defect_card_java_parity_tests {
     // /tmp/sts-decompiled/com/megacrit/cardcrawl/cards/blue/*.java
 
     use crate::cards::{CardRegistry, CardType};
+    use crate::combat_types::Intent;
     use crate::status_ids::sid;
     use crate::engine::{CombatEngine, CombatPhase};
     use crate::actions::Action;
@@ -578,6 +579,44 @@ mod defect_card_java_parity_tests {
             assert_eq!(e.state.orb_slots.slots[1].orb_type, OrbType::Frost);
             assert_eq!(e.state.orb_slots.slots[2].orb_type, OrbType::Empty);
         }
+    });
+
+    defect_test!(go_for_the_eyes_weakens_exactly_the_four_attacking_intent_variants, {
+        // ForTheEyesAction checks getIntentBaseDmg() >= 0. Java assigns a
+        // non-negative base damage to ATTACK, ATTACK_DEFEND, ATTACK_BUFF, and
+        // ATTACK_DEBUFF, while non-attacking intents keep -1.
+        // Java: reference/extracted/methods/card/GoForTheEyes.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ForTheEyesAction.java
+        let attacking = [
+            Intent::Attack { damage: 6, hits: 1, effects: 0 },
+            Intent::AttackBlock { damage: 6, hits: 1, block: 5, effects: 0 },
+            Intent::AttackBuff { damage: 6, hits: 1, effects: 0 },
+            Intent::AttackDebuff { damage: 6, hits: 1, effects: 0 },
+        ];
+        for intent in attacking {
+            let mut e = bare_engine(&[], vec![enemy("JawWorm", 40, 0)]);
+            e.state.enemies[0].intent = intent;
+            e.state.hand = make_deck(&["Go for the Eyes+"]);
+
+            assert!(play_on_enemy(&mut e, "Go for the Eyes+", 0));
+            assert_eq!(e.state.enemies[0].entity.hp, 36);
+            assert_eq!(e.state.enemies[0].entity.status(sid::WEAKENED), 2);
+        }
+
+        let mut non_attacking = bare_engine(&[], vec![enemy("JawWorm", 40, 0)]);
+        non_attacking.state.enemies[0].intent = Intent::Buff { effects: 0 };
+        non_attacking.state.hand = make_deck(&["Go for the Eyes"]);
+        assert!(play_on_enemy(&mut non_attacking, "Go for the Eyes", 0));
+        assert_eq!(non_attacking.state.enemies[0].entity.hp, 37);
+        assert_eq!(non_attacking.state.enemies[0].entity.status(sid::WEAKENED), 0);
+
+        let mut artifact = bare_engine(&[], vec![enemy("JawWorm", 40, 0)]);
+        artifact.state.enemies[0].intent = Intent::Attack { damage: 6, hits: 1, effects: 0 };
+        artifact.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+        artifact.state.hand = make_deck(&["Go for the Eyes"]);
+        assert!(play_on_enemy(&mut artifact, "Go for the Eyes", 0));
+        assert_eq!(artifact.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+        assert_eq!(artifact.state.enemies[0].entity.status(sid::WEAKENED), 0);
     });
 
     defect_test!(hyperbeam_loses_focus, {

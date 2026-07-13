@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Go for the Eyes: 0 cost, 3 dmg, apply Weak if attacking
+        // ForTheEyesAction applies Weak only when getIntentBaseDmg() >= 0,
+        // covering all four attacking intent variants.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ForTheEyesAction.java
     insert(cards, CardDef {
                 id: "Go for the Eyes", name: "Go for the Eyes", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 0, base_damage: 3, base_block: -1,
