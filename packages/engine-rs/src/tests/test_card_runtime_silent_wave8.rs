@@ -110,6 +110,8 @@ fn silent_wave8_single_target_typed_attacks_follow_java_oracle_on_engine_path() 
 
 #[test]
 fn silent_wave8_block_and_aoe_cards_follow_java_oracle_on_engine_path() {
+    // Dash.java queues GainBlockAction before DamageAction at 10 each, and
+    // upgradeDamage(3) plus upgradeBlock(3) raises both values to 13.
     let mut engine = engine_without_start(
         Vec::new(),
         vec![enemy_no_intent("JawWorm", 40, 40), enemy_no_intent("Cultist", 40, 40)],

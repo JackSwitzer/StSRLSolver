@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T06:50:00.161392+00:00",
+ "updated": "2026-07-13T06:51:18.484944+00:00",
  "status_counts": {
-  "verified": 365,
-  "unverified": 302
+  "verified": 366,
+  "unverified": 301
  },
  "rows": [
   {
@@ -922,8 +922,8 @@
    "class": "Dash",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Dash.java",
    "methods_ref": "reference/extracted/methods/card/Dash.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

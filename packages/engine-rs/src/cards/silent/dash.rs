@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // ---- Silent Uncommon: Dash ---- (cost 2, 10 dmg + 10 block; +3/+3)
+    // Source: reference/extracted/methods/card/Dash.java queues 10 Block before
+    // 10 damage; upgrading adds 3 to both values and does not change cost.
     insert(cards, CardDef {
         id: "Dash", name: "Dash", card_type: CardType::Attack,
         target: CardTarget::Enemy, cost: 2, base_damage: 10, base_block: 10,
