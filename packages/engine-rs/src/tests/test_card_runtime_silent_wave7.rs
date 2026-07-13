@@ -88,6 +88,23 @@ fn silent_wave7_adrenaline_blur_and_footwork_run_on_engine_path() {
 }
 
 #[test]
+fn footwork_variants_stack_two_and_three_permanent_dexterity() {
+    // Footwork.java applies DexterityPower(this.magicNumber), initialized to
+    // two and upgraded by one. Playing both variants therefore leaves five
+    // Dexterity, which raises Defend's five Block to ten.
+    // Java: reference/extracted/methods/card/Footwork.java
+    let mut engine = one_enemy_engine("JawWorm", 50, 0);
+    engine.state.hand = make_deck(&["Footwork", "Footwork+", "Defend"]);
+
+    assert!(play_self(&mut engine, "Footwork"));
+    assert_eq!(engine.state.player.status(sid::DEXTERITY), 2);
+    assert!(play_self(&mut engine, "Footwork+"));
+    assert_eq!(engine.state.player.status(sid::DEXTERITY), 5);
+    assert!(play_self(&mut engine, "Defend"));
+    assert_eq!(engine.state.player.block, 10);
+}
+
+#[test]
 fn blur_does_not_decrement_during_vaults_skipped_enemy_round() {
     // Sources: Blur.java installs one BlurPower; GameActionManager.java skips
     // monsters.applyEndOfTurnPowers() under Vault but still checks Blur before

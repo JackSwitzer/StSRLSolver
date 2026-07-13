@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T08:54:10.946619+00:00",
+ "updated": "2026-07-13T08:55:41.180808+00:00",
  "status_counts": {
-  "verified": 415,
-  "unverified": 252
+  "verified": 416,
+  "unverified": 251
  },
  "rows": [
   {
@@ -1592,8 +1592,8 @@
    "class": "Footwork",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Footwork.java",
    "methods_ref": "reference/extracted/methods/card/Footwork.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
