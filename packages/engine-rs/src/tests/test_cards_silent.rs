@@ -1305,6 +1305,31 @@ mod silent_card_java_parity_tests {
     }
 
     #[test]
+    fn terror_stacks_99_vulnerable_and_upgrade_only_removes_energy_cost() {
+        // Terror.java queues ApplyPowerAction(VulnerablePower(..., 99), 99),
+        // exhausts, and upgradeBaseCost(0) without changing the power amount.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Terror.java
+        let mut base = engine_with(make_deck_n("Terror", 8), 40, 0);
+        base.state.energy = 1;
+        base.state.enemies[0].entity.set_status(sid::VULNERABLE, 2);
+        ensure_in_hand(&mut base, "Terror");
+
+        assert!(play_on_enemy(&mut base, "Terror", 0));
+        assert_eq!(base.state.energy, 0);
+        assert_eq!(base.state.enemies[0].entity.status(sid::VULNERABLE), 101);
+        assert_eq!(exhaust_prefix_count(&base, "Terror"), 1);
+
+        let mut upgraded = engine_with(make_deck_n("Terror+", 8), 40, 0);
+        upgraded.state.energy = 0;
+        ensure_in_hand(&mut upgraded, "Terror+");
+
+        assert!(play_on_enemy(&mut upgraded, "Terror+", 0));
+        assert_eq!(upgraded.state.energy, 0);
+        assert_eq!(upgraded.state.enemies[0].entity.status(sid::VULNERABLE), 99);
+        assert_eq!(exhaust_prefix_count(&upgraded, "Terror"), 1);
+    }
+
+    #[test]
     fn skewer_spends_all_energy() {
         let mut engine = engine_with(make_deck_n("Skewer", 8), 100, 0);
         ensure_in_hand(&mut engine, "Skewer");

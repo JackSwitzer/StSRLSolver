@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T16:17:36.879808+00:00",
+ "updated": "2026-07-13T16:19:22.211121+00:00",
  "status_counts": {
-  "verified": 554,
-  "unverified": 113
+  "verified": 555,
+  "unverified": 112
  },
  "rows": [
   {
@@ -3292,8 +3292,8 @@
    "class": "Terror",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/Terror.java",
    "methods_ref": "reference/extracted/methods/card/Terror.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
