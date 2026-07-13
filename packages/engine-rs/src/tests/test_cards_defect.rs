@@ -489,13 +489,25 @@ mod defect_card_java_parity_tests {
         assert_eq!(e.state.energy, 0);
     });
 
-    defect_test!(double_energy_doubles_current_energy, {
-        let mut e = filled_engine(&["Double Energy"], 40, 0);
-        ensure_in_hand(&mut e, "Double Energy");
-        e.state.energy = 4;
-        play_self(&mut e, "Double Energy");
-        assert_eq!(e.state.energy, 6);
-        assert!(e.state.exhaust_pile.iter().any(|c| e.card_registry.card_name(c.def_id) == "Double Energy"));
+    defect_test!(double_energy_doubles_energy_remaining_after_its_cost, {
+        // DoubleEnergy.java costs 1 (0 upgraded) and exhausts. Its action gains
+        // EnergyPanel.totalCount, which is the energy left after card payment.
+        // Java: reference/extracted/methods/card/DoubleEnergy.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/DoubleEnergyAction.java
+        for (card_id, starting_energy, expected_energy) in [
+            ("Double Energy", 4, 6),
+            ("Double Energy+", 4, 8),
+        ] {
+            let mut e = filled_engine(&[card_id], 40, 0);
+            ensure_in_hand(&mut e, card_id);
+            e.state.energy = starting_energy;
+
+            assert!(play_self(&mut e, card_id));
+            assert_eq!(e.state.energy, expected_energy);
+            assert!(e.state.exhaust_pile.iter().any(|c| {
+                e.card_registry.card_name(c.def_id) == card_id
+            }));
+        }
     });
 
     defect_test!(fusion_channels_plasma, {
