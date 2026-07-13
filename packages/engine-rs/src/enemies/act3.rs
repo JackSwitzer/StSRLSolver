@@ -398,15 +398,15 @@ pub fn awakened_one_rebirth(enemy: &mut EnemyCombatState) {
 }
 
 pub(super) fn roll_donu(enemy: &mut EnemyCombatState, _num: i32) {
-    // Java: isAttacking flag toggles. Donu starts with isAttacking=false.
-    // Circle -> isAttacking=true -> Beam -> isAttacking=false -> repeat.
-    // beamDmg: A4+ = 12, else 10. Artifact: A19 = 3, else 2.
+    // Source: reference/extracted/methods/monster/Donu.java (`getMove` and
+    // `takeTurn`). Donu starts with Circle and alternates after execution.
     if last_move(enemy, move_ids::DONU_CIRCLE) {
         let bd = { let v = enemy.entity.status(sid::BEAM_DMG); if v > 0 { v } else { 10 } };
         enemy.set_move(move_ids::DONU_BEAM, bd, 2, 0);
     } else {
         enemy.set_move(move_ids::DONU_CIRCLE, 0, 0, 0);
         enemy.add_effect(mfx::STRENGTH, 3);
+        enemy.add_effect(mfx::STRENGTH_ALL_ALLIES, 3);
     }
 }
 

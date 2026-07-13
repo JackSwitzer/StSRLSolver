@@ -1940,6 +1940,18 @@ impl RunEngine {
             enemy.add_effect(crate::combat_types::mfx::DAZE, 2);
         }
 
+        // Source: reference/extracted/methods/monster/Donu.java. Damage changes
+        // at A4, HP at A9, and pre-battle Artifact at A19.
+        for enemy in enemy_states.iter_mut().filter(|enemy| enemy.id == "Donu") {
+            let beam = if self.run_state.ascension >= 4 { 12 } else { 10 };
+            enemy.entity.set_status(crate::status_ids::sid::BEAM_DMG, beam);
+            enemy.entity.set_status(crate::status_ids::sid::ARTIFACT,
+                if self.run_state.ascension >= 19 { 3 } else { 2 });
+            enemy.set_move(crate::enemies::move_ids::DONU_CIRCLE, 0, 0, 0);
+            enemy.add_effect(crate::combat_types::mfx::STRENGTH, 3);
+            enemy.add_effect(crate::combat_types::mfx::STRENGTH_ALL_ALLIES, 3);
+        }
+
         // Source: reference/extracted/methods/monster/BanditLeader.java.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "BanditLeader") {
             let (cross_slash, agonizing_slash) = if self.run_state.ascension >= 2 {
@@ -8965,6 +8977,68 @@ mod tests {
             crate::status_ids::sid::PLATED_ARMOR), 6);
         assert_eq!(combat.state.enemies[0].entity.block, 21);
         assert_eq!(combat.state.enemies[1].entity.block, 22);
+    }
+
+    #[test]
+    fn donu_thresholds_cycle_and_team_strength_match_java() {
+        // Source: reference/extracted/methods/monster/Donu.java.
+        for (ascension, hp, beam, artifact) in [
+            (0, 250, 10, 2),
+            (4, 250, 12, 2),
+            (9, 265, 12, 2),
+            (19, 265, 12, 3),
+        ] {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["Donu".to_string()]);
+            let combat = run.combat_engine.as_ref().unwrap();
+            let donu = &combat.state.enemies[0];
+            assert_eq!((donu.entity.hp, donu.entity.max_hp), (hp, hp));
+            assert_eq!(donu.entity.status(crate::status_ids::sid::BEAM_DMG), beam);
+            assert_eq!(donu.entity.status(crate::status_ids::sid::ARTIFACT), artifact);
+            assert_eq!(donu.move_id, crate::enemies::move_ids::DONU_CIRCLE);
+            assert_eq!(donu.effect(crate::combat_types::mfx::STRENGTH), Some(3));
+            assert_eq!(donu.effect(crate::combat_types::mfx::STRENGTH_ALL_ALLIES), Some(3));
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+
+        let mut run = RunEngine::new(42, 0);
+        run.enter_specific_combat(vec!["DonuAndDeca".to_string()]);
+        let combat = run.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+        combat.state.discard_pile.clear();
+        assert_eq!(combat.ai_rng.counter, 2,
+            "Donu and Deca each consume one initialization roll");
+
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.hp, 474,
+            "Donu's Circle Strength modifies Deca's later Beam in group order");
+        for enemy in &combat.state.enemies {
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STRENGTH), 3);
+        }
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::DONU_BEAM);
+        assert_eq!(combat.state.enemies[1].move_id,
+            crate::enemies::move_ids::DECA_SQUARE);
+        assert_eq!(combat.ai_rng.counter, 4);
+
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.hp, 448);
+        assert!(combat.state.enemies.iter().all(|enemy| enemy.entity.block == 16));
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::DONU_CIRCLE);
+        assert_eq!(combat.state.enemies[1].move_id,
+            crate::enemies::move_ids::DECA_BEAM);
+        assert_eq!(combat.ai_rng.counter, 6);
+
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.state.player.hp, 416);
+        for enemy in &combat.state.enemies {
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STRENGTH), 6);
+        }
+        assert_eq!(combat.state.discard_pile.iter().filter(|card|
+            combat.card_registry.card_name(card.def_id) == "Dazed").count(), 4);
+        assert_eq!(combat.ai_rng.counter, 8);
     }
 
     #[test]

@@ -496,15 +496,14 @@ mod boss_java_parity_tests {
     }
 
     #[test]
-    fn donu_a2_and_a19_scaling_matches_java_expectations() {
-        let mut enemy = create_enemy("Donu", 265, 265);
+    fn donu_constructor_defaults_do_not_infer_ascension_from_hp() {
+        // Source: reference/extracted/methods/monster/Donu.java. create_enemy
+        // has no ascension input; run.rs tests the independent thresholds.
+        let enemy = create_enemy("Donu", 265, 265);
         assert_eq!(enemy.entity.hp, 265);
         assert_eq!(enemy.entity.max_hp, 265);
-        assert_eq!(enemy.entity.status(sid::ARTIFACT), 3);
-
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::DONU_BEAM);
-        assert_eq!(enemy.move_damage(), 12);
+        assert_eq!(enemy.entity.status(sid::ARTIFACT), 2);
+        assert_eq!(enemy.entity.status(sid::BEAM_DMG), 10);
     }
 
     #[test]

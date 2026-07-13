@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T19:07:50.654994+00:00",
+ "updated": "2026-07-13T19:10:29.966579+00:00",
  "status_counts": {
-  "verified": 597,
-  "unverified": 70
+  "verified": 598,
+  "unverified": 69
  },
  "rows": [
   {
@@ -3912,8 +3912,8 @@
    "class": "Donu",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/monsters/beyond/Donu.java",
    "methods_ref": "reference/extracted/methods/monster/Donu.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

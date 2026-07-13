@@ -872,10 +872,13 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::REGENERATION, 10);
         }
         "Donu" => {
+            // Source: reference/extracted/methods/monster/Donu.java. These are
+            // A0 defaults; A4/A9/A19 are independent run-site thresholds.
             enemy.set_move(move_ids::DONU_CIRCLE, 0, 0, 0);
             enemy.add_effect(mfx::STRENGTH, 3);
-            if hp >= 265 { enemy.entity.set_status(sid::ARTIFACT, 3); enemy.entity.set_status(sid::BEAM_DMG, 12); }
-            else { enemy.entity.set_status(sid::ARTIFACT, 2); enemy.entity.set_status(sid::BEAM_DMG, 10); }
+            enemy.add_effect(mfx::STRENGTH_ALL_ALLIES, 3);
+            enemy.entity.set_status(sid::ARTIFACT, 2);
+            enemy.entity.set_status(sid::BEAM_DMG, 10);
         }
         "Deca" => {
             // Source: reference/extracted/methods/monster/Deca.java. These are
