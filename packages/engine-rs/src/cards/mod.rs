@@ -1173,7 +1173,7 @@ fn collect_simple_x_cost_amounts(effect: &SimpleEffect, amounts: &mut Vec<Amount
         | SimpleEffect::ShuffleDiscardIntoDraw
         | SimpleEffect::ExhaustRandomCardFromHand
         | SimpleEffect::CopyThisCardTo(_)
-        | SimpleEffect::GainBlockIfLastHandCardType(_, _)
+        | SimpleEffect::GainBlockIfLastDrawnCardType(_, _)
         | SimpleEffect::DrawToHandSize(_)
         | SimpleEffect::TriggerMarks
         | SimpleEffect::DoubleEnergy

@@ -252,7 +252,7 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                 return;
             }
             let count = resolve_card_amount(engine, ctx, amount_src);
-            engine.draw_cards(count);
+            ctx.last_drawn_card_types = engine.draw_cards(count);
         }
 
         SimpleEffect::DrawCardsThenDiscardDrawnNonZeroCost(ref amount_src) => {
@@ -371,16 +371,13 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             } * multiplier;
             engine.gain_block_player(block);
         }
-        SimpleEffect::GainBlockIfLastHandCardType(card_type, ref amount_src) => {
-            if let Some(last_card) = engine.state.hand.last() {
-                let last_type = engine.card_registry.card_def_by_id(last_card.def_id).card_type;
-                if last_type == card_type {
-                    let base = resolve_card_amount(engine, ctx, amount_src);
-                    let dex = engine.state.player.dexterity();
-                    let frail = engine.state.player.is_frail();
-                    let block = damage::calculate_block(base, dex, frail);
-                    engine.gain_block_player(block);
-                }
+        SimpleEffect::GainBlockIfLastDrawnCardType(card_type, ref amount_src) => {
+            if ctx.last_drawn_card_types.contains(&card_type) {
+                let base = resolve_card_amount(engine, ctx, amount_src);
+                let dex = engine.state.player.dexterity();
+                let frail = engine.state.player.is_frail();
+                let block = damage::calculate_block(base, dex, frail);
+                engine.gain_block_player(block);
             }
         }
 
@@ -1202,6 +1199,7 @@ pub fn execute_trigger_effects(
         enemy_killed: false,
         hand_size_at_play: 0,
         last_bulk_count: 0,
+        last_drawn_card_types: Vec::new(),
     };
 
     execute_effects(engine, &mut ctx, effects);

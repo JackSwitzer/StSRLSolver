@@ -910,21 +910,9 @@ impl EffectRuntime {
                     }
                 }
             }
-            SimpleEffect::GainBlockIfLastHandCardType(card_type, amount_src) => {
-                if let Some(last_card) = engine.state.hand.last() {
-                    let last_type = engine.card_registry.card_def_by_id(last_card.def_id).card_type;
-                    if last_type == card_type {
-                        let base = self.resolve_amount(engine, instance_idx, owner, amount_src);
-                        if base <= 0 {
-                            return;
-                        }
-                        let dex = engine.state.player.dexterity();
-                        let frail = engine.state.player.is_frail();
-                        let block = crate::damage::calculate_block(base, dex, frail);
-                        engine.gain_block_player(block);
-                    }
-                }
-            }
+            // Card-only follow-up state is carried by CardPlayContext in the
+            // declarative interpreter; entity runtime effects do not own it.
+            SimpleEffect::GainBlockIfLastDrawnCardType(_, _) => {}
             SimpleEffect::ModifyHp(amount_src) => {
                 let amount = self.resolve_amount(engine, instance_idx, owner, amount_src);
                 if amount > 0 {

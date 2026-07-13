@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T07:51:23.457842+00:00",
+ "updated": "2026-07-13T07:57:21.657291+00:00",
  "status_counts": {
-  "verified": 396,
-  "unverified": 271
+  "verified": 397,
+  "unverified": 270
  },
  "rows": [
   {
@@ -1332,8 +1332,8 @@
    "class": "EscapePlan",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/EscapePlan.java",
    "methods_ref": "reference/extracted/methods/card/EscapePlan.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

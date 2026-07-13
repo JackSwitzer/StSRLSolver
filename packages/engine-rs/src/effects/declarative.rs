@@ -304,8 +304,8 @@ pub enum SimpleEffect {
     DoubleEnergy,
     /// Gain block. Routes through engine.gain_block_player() (handles dex/frail + onGainBlock).
     GainBlock(AmountSource),
-    /// Gain block if the last card in hand is of the given type.
-    GainBlockIfLastHandCardType(CardType, AmountSource),
+    /// Gain block if the preceding draw effect actually drew the given type.
+    GainBlockIfLastDrawnCardType(CardType, AmountSource),
     /// Modify HP. Positive = heal, negative = lose HP.
     ModifyHp(AmountSource),
     /// Gain mantra. Routes through engine.gain_mantra() (handles Divinity at 10).

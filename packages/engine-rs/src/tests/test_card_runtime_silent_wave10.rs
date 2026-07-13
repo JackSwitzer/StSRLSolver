@@ -58,7 +58,7 @@ fn silent_wave10_registry_exports_show_typed_primary_surfaces() {
         escape_plan.effect_data,
         &[
             E::Simple(SE::DrawCards(A::Fixed(1))),
-            E::Simple(SE::GainBlockIfLastHandCardType(CardType::Skill, A::Block)),
+            E::Simple(SE::GainBlockIfLastDrawnCardType(CardType::Skill, A::Block)),
         ]
     );
     assert!(escape_plan.complex_hook.is_none());

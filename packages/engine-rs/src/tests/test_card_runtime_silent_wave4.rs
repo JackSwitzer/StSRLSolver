@@ -114,7 +114,7 @@ mod silent_wave4 {
             escape_plan.effect_data,
             &[
                 E::Simple(SE::DrawCards(A::Fixed(1))),
-                E::Simple(SE::GainBlockIfLastHandCardType(CardType::Skill, A::Block)),
+                E::Simple(SE::GainBlockIfLastDrawnCardType(CardType::Skill, A::Block)),
             ]
         );
         assert!(escape_plan.complex_hook.is_none());
@@ -290,6 +290,9 @@ mod silent_wave4 {
 
     #[test]
     fn silent_wave4_escape_plan_only_grants_block_when_the_drawn_card_is_a_skill() {
+        // EscapePlanAction.java inspects DrawCardAction.drawnCards, not the
+        // current end of the hand.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/EscapePlanAction.java
         let mut skill_draw = engine_for(
             &["Escape Plan"],
             &["Defend"],
@@ -309,5 +312,25 @@ mod silent_wave4 {
         );
         assert!(play_self(&mut attack_draw, "Escape Plan"));
         assert_eq!(attack_draw.state.player.block, 0);
+
+        // Echo Form replays Escape Plan after the first copy fills the hand.
+        // The replay draws nothing, so its cleared drawnCards list grants no
+        // second Block even though the last hand card is the drawn Defend.
+        let mut full_replay = engine_for(
+            &[
+                "Escape Plan", "Strike", "Strike", "Strike", "Strike",
+                "Strike", "Strike", "Strike", "Strike", "Strike",
+            ],
+            &["Defend"],
+            vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
+            3,
+        );
+        full_replay.state.player.set_status(sid::ECHO_FORM, 1);
+        full_replay.rebuild_effect_runtime();
+
+        assert!(play_self(&mut full_replay, "Escape Plan"));
+        assert_eq!(full_replay.state.player.block, 3);
+        assert_eq!(full_replay.state.hand.len(), 10);
+        assert!(full_replay.state.draw_pile.is_empty());
     }
 }

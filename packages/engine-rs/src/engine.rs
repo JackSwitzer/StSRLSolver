@@ -827,6 +827,7 @@ impl CombatEngine {
                 enemy_killed: false,
                 hand_size_at_play: deferred.hand_size_at_play,
                 last_bulk_count: 0,
+                last_drawn_card_types: Vec::new(),
             };
             crate::card_effects::execute_primary_attack(
                 self,
@@ -2042,6 +2043,7 @@ impl CombatEngine {
             enemy_killed: false,
             hand_size_at_play: self.state.hand.len().saturating_sub(1),
             last_bulk_count: 0,
+            last_drawn_card_types: Vec::new(),
         };
         crate::effects::interpreter::resolve_card_amount(self, &ctx, &min_picks).max(0)
     }
@@ -3592,10 +3594,10 @@ impl CombatEngine {
     // Draw / Shuffle
     // =======================================================================
 
-    pub fn draw_cards(&mut self, count: i32) {
+    pub fn draw_cards(&mut self, count: i32) -> Vec<CardType> {
         // NoDraw: skip draw entirely
         if self.state.player.status(sid::NO_DRAW) > 0 {
-            return;
+            return Vec::new();
         }
 
         // DrawReduction: reduce draw count
@@ -3604,6 +3606,7 @@ impl CombatEngine {
 
         let mut extra_draws = 0i32;
         let mut shuffles = 0;
+        let mut drawn_card_types = Vec::new();
 
         for _ in 0..actual_count {
             if self.state.hand.len() >= 10 {
@@ -3635,6 +3638,7 @@ impl CombatEngine {
 
                 // Extract card info for power triggers
                 let card_type = card_def.card_type;
+                drawn_card_types.push(card_type);
 
                 // Evolve: draw extra cards when drawing a Status
                 let evolve = self.state.player.status(sid::EVOLVE);
@@ -3684,6 +3688,8 @@ impl CombatEngine {
                 self.draw_cards(extra_draws);
             }
         }
+
+        drawn_card_types
     }
 
     /// Shuffle the draw pile (pub(crate) for card_effects).

@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::combat_types::CardInstance;
-use crate::cards::CardDef;
+use crate::cards::{CardDef, CardType};
 use crate::engine::CombatEngine;
 
 pub type ComplexCardHook = fn(&mut CombatEngine, &CardPlayContext);
@@ -165,6 +165,8 @@ pub struct CardPlayContext<'a> {
     pub hand_size_at_play: usize,
     /// Count recorded by the most recent bulk pile operation in this card play.
     pub last_bulk_count: i32,
+    /// Types actually drawn by the most recent DrawCards effect in this play.
+    pub last_drawn_card_types: Vec<CardType>,
 }
 
 /// Damage modifier returned by modify_damage hooks.
