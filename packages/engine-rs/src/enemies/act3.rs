@@ -8,21 +8,61 @@ use crate::status_ids::sid;
 // Act 3 Basic Enemies
 // =========================================================================
 
-pub(super) fn roll_darkling(enemy: &mut EnemyCombatState, _num: i32) {
-    // Chomp (8x2), Harden (12 block + Reanimated), Nip (8).
-    // If dead: Reincarnate (revive at 50% HP).
-    if enemy.entity.hp <= 0 {
+pub(super) fn roll_darkling(
+    enemy: &mut EnemyCombatState,
+    num: i32,
+    ai_rng: &mut crate::seed::StsRandom,
+) {
+    // Source: reference/extracted/methods/monster/Darkling.java (`getMove`).
+    if enemy.entity.status(sid::REBIRTH_PENDING) > 0 {
         enemy.set_move(move_ids::DARK_REINCARNATE, 0, 0, 0);
         return;
     }
-    if last_two_moves(enemy, move_ids::DARK_NIP) {
-        enemy.set_move(move_ids::DARK_CHOMP, 8, 2, 0);
-    } else if last_move(enemy, move_ids::DARK_CHOMP) {
+
+    let chomp = enemy.entity.status(sid::STARTING_DMG).max(8);
+    let nip = enemy.entity.status(sid::STR_AMT).max(7);
+    let harden = |enemy: &mut EnemyCombatState| {
         enemy.set_move(move_ids::DARK_HARDEN, 0, 0, 12);
-    } else if last_move(enemy, move_ids::DARK_HARDEN) {
-        enemy.set_move(move_ids::DARK_NIP, 8, 1, 0);
-    } else {
-        enemy.set_move(move_ids::DARK_NIP, 8, 1, 0);
+        if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
+            enemy.add_effect(mfx::STRENGTH, 2);
+        }
+    };
+
+    if enemy.entity.status(sid::FIRST_MOVE) > 0 {
+        enemy.entity.set_status(sid::FIRST_MOVE, 0);
+        if num < 50 {
+            harden(enemy);
+        } else {
+            enemy.set_move(move_ids::DARK_NIP, nip, 1, 0);
+        }
+        return;
+    }
+
+    let mut roll = num;
+    loop {
+        if roll < 40 {
+            if !last_move(enemy, move_ids::DARK_CHOMP)
+                && enemy.entity.status(sid::COUNT) % 2 == 0
+            {
+                enemy.set_move(move_ids::DARK_CHOMP, chomp, 2, 0);
+                return;
+            }
+            // Odd-position Darklings and repeat Chomps recurse only into the
+            // 40..=99 portion of the table.
+            roll = ai_rng.random_range(40, 99);
+        } else if roll < 70 {
+            if !last_move(enemy, move_ids::DARK_HARDEN) {
+                harden(enemy);
+            } else {
+                enemy.set_move(move_ids::DARK_NIP, nip, 1, 0);
+            }
+            return;
+        } else if !last_two_moves(enemy, move_ids::DARK_NIP) {
+            enemy.set_move(move_ids::DARK_NIP, nip, 1, 0);
+            return;
+        } else {
+            roll = ai_rng.random(99);
+        }
     }
 }
 

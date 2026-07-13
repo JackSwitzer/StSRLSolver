@@ -1909,6 +1909,24 @@ impl RunEngine {
             enemy.entity.set_status(crate::status_ids::sid::IS_FIRST_MOVE, 1);
         }
 
+        // Source: reference/extracted/methods/monster/Darkling.java.
+        // HP is rolled separately; Nip has its own inclusive monsterHpRng
+        // roll, and Chomp/Harden change at independent ascension thresholds.
+        for (index, enemy) in enemy_states.iter_mut().enumerate()
+            .filter(|(_, enemy)| enemy.id == "Darkling")
+        {
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
+                if self.run_state.ascension >= 2 { 9 } else { 8 });
+            let nip_base = if self.run_state.ascension >= 2 { 9 } else { 7 };
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
+                nip_base + self.rng.gen_range(0..=4));
+            enemy.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI,
+                if self.run_state.ascension >= 17 { 1 } else { 0 });
+            enemy.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(crate::status_ids::sid::COUNT, index as i32);
+            enemy.entity.set_status(crate::status_ids::sid::REGROW, 1);
+        }
+
         // Source: reference/extracted/methods/monster/BanditLeader.java.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "BanditLeader") {
             let (cross_slash, agonizing_slash) = if self.run_state.ascension >= 2 {
@@ -2605,7 +2623,9 @@ impl RunEngine {
             }
             // Act 3 enemies
             "Darkling" => {
-                let hp = if a20 { 55 } else { 48 };
+                // Source: Darkling.java uses inclusive 48..56 / 50..59 rolls.
+                let (base, width) = if a20 { (50, 9) } else { (48, 8) };
+                let hp = base + self.rng.gen_range(0..=width);
                 (hp, hp)
             }
             "OrbWalker" => {
@@ -8701,6 +8721,148 @@ mod tests {
         assert!(combat.state.enemies[1..].iter().all(|dagger| dagger.entity.hp == 0));
         assert_eq!(combat.ai_rng.counter, ai_before + 9,
             "with Reptomancer alive, each dead dagger's queued roll still executes");
+    }
+
+    #[test]
+    fn darkling_stats_recursive_ai_and_half_dead_revival_match_java() {
+        // Source: reference/extracted/methods/monster/Darkling.java.
+        for (ascension, hp_range, chomp, nip_range, high_ai) in [
+            (0, 48..=56, 8, 7..=11, 0),
+            (2, 48..=56, 9, 9..=13, 0),
+            (7, 50..=59, 9, 9..=13, 0),
+            (17, 50..=59, 9, 9..=13, 1),
+        ] {
+            let mut hp_values = std::collections::HashSet::new();
+            let mut nip_values = std::collections::HashSet::new();
+            for seed in 1..=256 {
+                let mut run = RunEngine::new(seed, ascension);
+                run.enter_specific_combat(vec!["Darkling".to_string()]);
+                let combat = run.combat_engine.as_ref().unwrap();
+                let enemy = &combat.state.enemies[0];
+                hp_values.insert(enemy.entity.hp);
+                nip_values.insert(enemy.entity.status(crate::status_ids::sid::STR_AMT));
+                assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG), chomp);
+                assert_eq!(enemy.entity.status(crate::status_ids::sid::HIGH_ASCENSION_AI),
+                    high_ai);
+                assert_eq!(enemy.entity.status(crate::status_ids::sid::REGROW), 1);
+                assert_eq!(combat.ai_rng.counter, 1);
+            }
+            assert_eq!(hp_values, hp_range.collect());
+            assert_eq!(nip_values, nip_range.collect());
+        }
+
+        let mut low = crate::enemies::create_enemy("Darkling", 48, 48);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut low, 49, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(low.move_id, crate::enemies::move_ids::DARK_HARDEN);
+        assert_eq!(low.move_block(), 12);
+        assert_eq!(low.effect(crate::combat_types::mfx::STRENGTH), None);
+
+        let mut high = crate::enemies::create_enemy("Darkling", 50, 50);
+        high.entity.set_status(crate::status_ids::sid::STARTING_DMG, 9);
+        high.entity.set_status(crate::status_ids::sid::STR_AMT, 13);
+        high.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI, 1);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut high, 49, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(high.move_id, crate::enemies::move_ids::DARK_HARDEN);
+        assert_eq!(high.effect(crate::combat_types::mfx::STRENGTH), Some(2));
+
+        let mut even = crate::enemies::create_enemy("Darkling", 48, 48);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut even, 50, &mut crate::seed::StsRandom::new(0));
+        let mut no_reroll = crate::seed::StsRandom::new(7);
+        crate::enemies::roll_next_move_with_num_and_rng(&mut even, 0, &mut no_reroll);
+        assert_eq!(even.move_id, crate::enemies::move_ids::DARK_CHOMP);
+        assert_eq!((even.move_damage(), even.move_hits()), (8, 2));
+        assert_eq!(no_reroll.counter, 0);
+
+        let seed_for_range = |low: i32, high: i32| (1..10_000).find(|&seed| {
+            let mut rng = crate::seed::StsRandom::new(seed);
+            (low..=high).contains(&rng.random_range(40, 99))
+        }).unwrap();
+        let mut odd = crate::enemies::create_enemy("Darkling", 48, 48);
+        odd.entity.set_status(crate::status_ids::sid::COUNT, 1);
+        crate::enemies::roll_initial_move_with_num_and_rng(
+            &mut odd, 50, &mut crate::seed::StsRandom::new(0));
+        let mut reroll = crate::seed::StsRandom::new(seed_for_range(40, 69));
+        crate::enemies::roll_next_move_with_num_and_rng(&mut odd, 0, &mut reroll);
+        assert_eq!(odd.move_id, crate::enemies::move_ids::DARK_HARDEN);
+        assert_eq!(reroll.counter, 1,
+            "odd group index recursively rerolls num 0 into 40..=99");
+
+        let seed_for_full = (1..10_000).find(|&seed| {
+            let mut rng = crate::seed::StsRandom::new(seed);
+            (40..=69).contains(&rng.random(99))
+        }).unwrap();
+        let mut repeated_nip = crate::enemies::create_enemy("Darkling", 48, 48);
+        repeated_nip.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 0);
+        repeated_nip.move_id = crate::enemies::move_ids::DARK_NIP;
+        repeated_nip.move_history = vec![crate::enemies::move_ids::DARK_NIP];
+        let mut full_reroll = crate::seed::StsRandom::new(seed_for_full);
+        crate::enemies::roll_next_move_with_num_and_rng(
+            &mut repeated_nip, 99, &mut full_reroll);
+        assert_eq!(repeated_nip.move_id, crate::enemies::move_ids::DARK_HARDEN);
+        assert_eq!(full_reroll.counter, 1,
+            "two Nips recursively reroll through the full 0..=99 table");
+
+        let mut revive = RunEngine::new(42, 17);
+        revive.run_state.relics.push("Philosopher's Stone".to_string());
+        revive.enter_specific_combat(vec![
+            "Darkling".to_string(), "Darkling".to_string(), "Darkling".to_string()]);
+        let combat = revive.combat_engine.as_mut().unwrap();
+        combat.state.player.hp = 500;
+        combat.state.player.max_hp = 500;
+        let stored_chomp = combat.state.enemies[0]
+            .entity.status(crate::status_ids::sid::STARTING_DMG);
+        combat.state.enemies[0].entity.set_status(crate::status_ids::sid::STRENGTH, 5);
+        combat.state.enemies[0].entity.set_status(crate::status_ids::sid::POISON, 3);
+        combat.state.enemies[0].entity.set_status(crate::status_ids::sid::ARTIFACT, 2);
+        combat.deal_damage_to_enemy(0, 999);
+        assert_eq!(combat.state.enemies[0].entity.hp, 0);
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::REBIRTH_PENDING), 1);
+        assert_eq!(combat.state.enemies[0].move_id,
+            crate::enemies::move_ids::DARK_WAIT);
+        assert!(!combat.state.enemies[0].is_targetable());
+        for status in [crate::status_ids::sid::STRENGTH,
+            crate::status_ids::sid::POISON, crate::status_ids::sid::ARTIFACT,
+            crate::status_ids::sid::REGROW]
+        {
+            assert_eq!(combat.state.enemies[0].entity.status(status), 0);
+        }
+        assert_eq!(combat.state.enemies[0].entity.status(
+            crate::status_ids::sid::STARTING_DMG), stored_chomp);
+
+        combat.deal_damage_to_enemy(1, 999);
+        combat.state.enemies[2].is_escaping = true;
+        let ai_before_wait = combat.ai_rng.counter;
+        crate::combat_hooks::do_enemy_turns(combat);
+        assert_eq!(combat.ai_rng.counter, ai_before_wait + 2);
+        for darkling in &combat.state.enemies[..2] {
+            assert_eq!(darkling.entity.hp, 0);
+            assert_eq!(darkling.move_id, crate::enemies::move_ids::DARK_REINCARNATE);
+        }
+
+        crate::combat_hooks::do_enemy_turns(combat);
+        for darkling in &combat.state.enemies[..2] {
+            assert_eq!(darkling.entity.hp, darkling.entity.max_hp / 2);
+            assert_eq!(darkling.entity.status(crate::status_ids::sid::REBIRTH_PENDING), 0);
+            assert_eq!(darkling.entity.status(crate::status_ids::sid::REGROW), 1);
+            assert_eq!(darkling.entity.status(crate::status_ids::sid::STRENGTH), 1,
+                "PhilosopherStone.onSpawnMonster fires after revival");
+        }
+
+        let mut finish = RunEngine::new(99, 0);
+        finish.enter_specific_combat(vec![
+            "Darkling".to_string(), "Darkling".to_string(), "Darkling".to_string()]);
+        let combat = finish.combat_engine.as_mut().unwrap();
+        for idx in 0..3 {
+            combat.deal_damage_to_enemy(idx, 999);
+        }
+        assert!(combat.state.enemies.iter().all(|enemy|
+            enemy.entity.hp == 0
+                && enemy.entity.status(crate::status_ids::sid::REBIRTH_PENDING) == 0));
+        assert!(combat.state.is_victory());
     }
 
     #[test]

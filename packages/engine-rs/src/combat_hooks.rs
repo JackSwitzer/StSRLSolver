@@ -158,14 +158,40 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
 fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     // Awakened One rebirth: if pending, execute the rebirth this turn instead of normal move
     if engine.state.enemies[enemy_idx].entity.status(sid::REBIRTH_PENDING) > 0 {
-        engine.state.enemies[enemy_idx].entity.set_status(sid::REBIRTH_PENDING, 0);
-        enemies::awakened_one_rebirth(&mut engine.state.enemies[enemy_idx]);
-        // Rebirth's takeTurn still ends with RollMoveAction. The phase-two
-        // first-turn branch ignores the rolled value but consumes one aiRng
-        // tick before setting Dark Echo.
-        // Java: reference/extracted/methods/monster/AwakenedOne.java
-        enemies::roll_initial_move(&mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
-        return;
+        if matches!(engine.state.enemies[enemy_idx].id.as_str(),
+            "AwakenedOne" | "Awakened One")
+        {
+            engine.state.enemies[enemy_idx].entity.set_status(sid::REBIRTH_PENDING, 0);
+            enemies::awakened_one_rebirth(&mut engine.state.enemies[enemy_idx]);
+            // Rebirth's takeTurn still ends with RollMoveAction. The phase-two
+            // first-turn branch ignores the rolled value but consumes one aiRng
+            // tick before setting Dark Echo.
+            // Java: reference/extracted/methods/monster/AwakenedOne.java
+            enemies::roll_initial_move(&mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
+            return;
+        }
+
+        if engine.state.enemies[enemy_idx].id == "Darkling"
+            && engine.state.enemies[enemy_idx].move_id
+                == enemies::move_ids::DARK_REINCARNATE
+        {
+            // Source: reference/extracted/methods/monster/Darkling.java
+            // (`takeTurn`, case 5). Heal from zero to half max HP, leave the
+            // half-dead state, reinstall Regrow, fire onSpawnMonster relics,
+            // then consume the queued RollMoveAction.
+            let heal = engine.state.enemies[enemy_idx].entity.max_hp / 2;
+            engine.state.enemies[enemy_idx].entity.hp = heal;
+            engine.state.enemies[enemy_idx].entity.set_status(sid::REBIRTH_PENDING, 0);
+            engine.state.enemies[enemy_idx].entity.set_status(sid::REGROW, 1);
+            if engine.state.has_relic("Philosopher's Stone")
+                || engine.state.has_relic("PhilosopherStone")
+            {
+                engine.state.enemies[enemy_idx].entity.add_status(sid::STRENGTH, 1);
+            }
+            enemies::roll_next_move(
+                &mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
+            return;
+        }
     }
 
     if engine.state.enemies[enemy_idx].move_id == -1 {
@@ -1072,6 +1098,65 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
                     }
                 }
                 enemy.set_move(enemies::move_ids::AO_REBIRTH, 0, 0, 0);
+            }
+        }
+        "Darkling" => {
+            if engine.state.enemies[enemy_idx].entity.hp <= 0
+                && engine.state.enemies[enemy_idx]
+                    .entity.status(sid::REBIRTH_PENDING) == 0
+            {
+                // Source: reference/extracted/methods/monster/Darkling.java
+                // (`damage`). A lethal hit fires ordinary death hooks, clears
+                // every power, then either waits half-dead or ends the fight
+                // when every Darkling is half-dead.
+                let all_darklings_half_dead = engine.state.enemies.iter()
+                    .enumerate()
+                    .filter(|(_, enemy)| enemy.id == "Darkling")
+                    .all(|(idx, enemy)| idx == enemy_idx
+                        || enemy.entity.status(sid::REBIRTH_PENDING) > 0
+                        || enemy.entity.hp <= 0);
+
+                if all_darklings_half_dead {
+                    // Previously half-dead Darklings are basically dead for
+                    // relic death predicates while the final hooks resolve.
+                    for enemy in engine.state.enemies.iter_mut()
+                        .filter(|enemy| enemy.id == "Darkling")
+                    {
+                        enemy.entity.set_status(sid::REBIRTH_PENDING, 0);
+                    }
+                }
+
+                engine.finalize_enemy_death(enemy_idx);
+
+                let stored = [
+                    (sid::STARTING_DMG,
+                        engine.state.enemies[enemy_idx].entity.status(sid::STARTING_DMG)),
+                    (sid::STR_AMT,
+                        engine.state.enemies[enemy_idx].entity.status(sid::STR_AMT)),
+                    (sid::HIGH_ASCENSION_AI,
+                        engine.state.enemies[enemy_idx].entity.status(sid::HIGH_ASCENSION_AI)),
+                    (sid::FIRST_MOVE,
+                        engine.state.enemies[enemy_idx].entity.status(sid::FIRST_MOVE)),
+                    (sid::COUNT,
+                        engine.state.enemies[enemy_idx].entity.status(sid::COUNT)),
+                ];
+                engine.state.enemies[enemy_idx].entity.statuses.fill(0);
+                for (status, value) in stored {
+                    engine.state.enemies[enemy_idx].entity.set_status(status, value);
+                }
+
+                if all_darklings_half_dead {
+                    // Darkling.damage calls die() on the entire monster group.
+                    for enemy in &mut engine.state.enemies {
+                        enemy.entity.hp = 0;
+                        enemy.entity.set_status(sid::REBIRTH_PENDING, 0);
+                    }
+                } else {
+                    let enemy = &mut engine.state.enemies[enemy_idx];
+                    enemy.entity.hp = 0;
+                    enemy.entity.set_status(sid::REBIRTH_PENDING, 1);
+                    enemy.set_move(enemies::move_ids::DARK_WAIT, 0, 0, 0);
+                }
             }
         }
         _ => {}

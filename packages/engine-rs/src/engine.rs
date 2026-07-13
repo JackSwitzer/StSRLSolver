@@ -382,7 +382,7 @@ impl CombatEngine {
                 | "BronzeOrb" | "Bronze Orb" | "Byrd" | "Centurion"
                 | "Champ" | "TheChamp" | "Chosen"
                 | "CorruptHeart" | "Corrupt Heart"
-                | "SnakeDagger" | "Snake Dagger")) {
+                | "SnakeDagger" | "Snake Dagger" | "Darkling")) {
             if enemy.id == "Centurion" {
                 enemy.entity.set_status(sid::COUNT, living_enemy_count);
             }
@@ -3443,11 +3443,12 @@ impl CombatEngine {
 
         // Awakened One's damage override intercepts its first death and starts
         // the rebirth sequence even for InstantKillAction.
-        let awakened_phase_one = matches!(
+        let special_rebirth_death = (matches!(
             self.state.enemies[enemy_idx].id.as_str(),
             "AwakenedOne" | "Awakened One"
-        ) && self.state.enemies[enemy_idx].entity.status(sid::PHASE) == 1;
-        if awakened_phase_one {
+        ) && self.state.enemies[enemy_idx].entity.status(sid::PHASE) == 1)
+            || self.state.enemies[enemy_idx].id == "Darkling";
+        if special_rebirth_death {
             combat_hooks::on_enemy_damaged(self, enemy_idx, hp_before);
         } else {
             self.finalize_enemy_death(enemy_idx);
@@ -3571,6 +3572,14 @@ impl CombatEngine {
         }
 
         combat_hooks::on_enemy_damaged(self, enemy_idx, hp_damage);
+        // Darkling.damage owns both its half-death hooks and the final
+        // all-Darklings death transition, so do not finalize it a second time.
+        // Source: reference/extracted/methods/monster/Darkling.java.
+        if self.state.enemies[enemy_idx].id == "Darkling"
+            && self.state.enemies[enemy_idx].entity.hp <= 0
+        {
+            return;
+        }
         if self.state.enemies[enemy_idx].entity.hp <= 0
             && self.state.enemies[enemy_idx]
                 .entity

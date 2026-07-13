@@ -675,6 +675,8 @@ mod enemy_ai_java_parity_tests {
             x if x == move_ids::DARK_HARDEN => expect_move(&e, move_ids::DARK_HARDEN, 0, 0, 12, &[]),
             _ => expect_move(&e, move_ids::DARK_NIP, 8, 1, 0, &[]),
         }
+        expect_status(&e, sid::FIRST_MOVE, 1);
+        expect_status(&e, sid::REGROW, 1);
 
         let e = make("OrbWalker", 90);
         expect_one_of(&e, &[move_ids::OW_LASER, move_ids::OW_CLAW]);
@@ -743,6 +745,7 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         assert_ne!(e.move_id, first_move, "Darkling should not immediately repeat its opening move");
         e.entity.hp = 0;
+        e.entity.set_status(sid::REBIRTH_PENDING, 1);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::DARK_REINCARNATE, 0, 0, 0, &[]);
 
@@ -957,7 +960,9 @@ mod enemy_ai_java_parity_tests {
         let act3_weak = enter_forced_combat(3, 0, RoomType::Monster, 0);
         let combat = act3_weak.get_combat_engine().expect("combat engine");
         assert_eq!(combat.state.enemies[0].id, "Darkling");
-        assert_eq!(combat.state.enemies[0].entity.hp, 48);
+        // Source: reference/extracted/methods/monster/Darkling.java uses an
+        // inclusive 48..=56 constructor HP roll below ascension 7.
+        assert!((48..=56).contains(&combat.state.enemies[0].entity.hp));
 
         let act3_strong = enter_forced_combat(3, 20, RoomType::Monster, 3);
         let combat = act3_strong.get_combat_engine().expect("combat engine");

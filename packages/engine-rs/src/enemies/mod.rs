@@ -310,6 +310,7 @@ pub mod move_ids {
     pub const DARK_CHOMP: i32 = 1;
     pub const DARK_HARDEN: i32 = 2;
     pub const DARK_NIP: i32 = 3;
+    pub const DARK_WAIT: i32 = 4;
     pub const DARK_REINCARNATE: i32 = 5;
 
     // Orb Walker
@@ -769,8 +770,16 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         // Act 3 — Beyond
         // =================================================================
         "Darkling" => {
-            // First turn: Nip (8 damage, variable)
+            // Source: reference/extracted/methods/monster/Darkling.java.
+            // Ascension and randomized constructor values are patched at the
+            // run spawn site; this is the A0 factory baseline.
             enemy.set_move(move_ids::DARK_NIP, 8, 1, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 8);
+            enemy.entity.set_status(sid::STR_AMT, 8);
+            enemy.entity.set_status(sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
+            enemy.entity.set_status(sid::COUNT, 0);
+            enemy.entity.set_status(sid::REGROW, 1);
         }
         "OrbWalker" | "Orb Walker" => {
             // First turn: Laser (10 damage + burn)
@@ -1037,7 +1046,7 @@ fn select_move(
         "Champ" | "TheChamp" => act2::roll_champ(enemy, num),
         "TheCollector" | "Collector" => act2::roll_collector(enemy, num),
         // Act 3
-        "Darkling" => act3::roll_darkling(enemy, num),
+        "Darkling" => act3::roll_darkling(enemy, num, ai_rng),
         "OrbWalker" | "Orb Walker" => act3::roll_orb_walker(enemy, num),
         "Spiker" => act3::roll_spiker(enemy, num),
         "Repulsor" => act3::roll_repulsor(enemy, num),
