@@ -2859,6 +2859,8 @@ impl CombatEngine {
         self.state.player.hp -= amount;
         self.state.total_damage_taken += amount;
 
+        self.update_cards_on_damage();
+
         // AbstractPlayer.damagedThisCombat increments once per positive damage
         // event, regardless of HP amount; BloodForBlood.tookDamage() reduces
         // cost once per event. The legacy status name stores that event count.
@@ -2892,6 +2894,51 @@ impl CombatEngine {
         if self.state.player.hp <= 0 {
             self.check_fairy_revive();
         }
+    }
+
+    fn update_cards_on_damage(&mut self) {
+        // AbstractPlayer.updateCardsOnDamage invokes tookDamage once on every
+        // card currently in hand, discard, and draw (not exhaust), independent
+        // of the damage amount. MasterfulStab.tookDamage calls updateCost(1),
+        // which raises both permanent and turn cost while preserving their delta.
+        // Java: characters/AbstractPlayer.java, cards/green/MasterfulStab.java,
+        // and cards/AbstractCard.java::updateCost.
+        let registry = self.card_registry;
+        let update_pile = |pile: &mut Vec<CardInstance>| {
+            for card in pile {
+                let def = registry.card_def_by_id(card.def_id);
+                let increases_on_damage = def.runtime_triggers().iter().any(|trigger| {
+                    matches!(
+                        trigger,
+                        crate::effects::types::CardRuntimeTrigger::ModifyCost(
+                            crate::effects::types::CostModifierRule::IncreaseOnHpLoss
+                        )
+                    )
+                });
+                if !increases_on_damage {
+                    continue;
+                }
+
+                let permanent_cost = if card.base_cost >= 0 {
+                    card.base_cost
+                } else {
+                    def.cost as i8
+                };
+                let cost_for_turn = if card.cost >= 0 {
+                    card.cost
+                } else {
+                    permanent_cost
+                };
+                let difference = permanent_cost - cost_for_turn;
+                let new_permanent = permanent_cost.saturating_add(1).max(0);
+                card.base_cost = new_permanent;
+                card.cost = new_permanent.saturating_sub(difference).max(0);
+            }
+        };
+
+        update_pile(&mut self.state.hand);
+        update_pile(&mut self.state.discard_pile);
+        update_pile(&mut self.state.draw_pile);
     }
 
     /// Centralized healing: delegates to CombatState::heal_player.

@@ -150,8 +150,8 @@ mod silent_wave1 {
         stab_engine.state.hand = make_deck(&["Masterful Stab"]);
         stab_engine.state.draw_pile.clear();
         stab_engine.state.discard_pile.clear();
-        stab_engine.state.energy = 6;
-        stab_engine.state.total_damage_taken = 7;
+        stab_engine.state.energy = 0;
+        stab_engine.player_lose_hp(7);
         assert!(
             !stab_engine
                 .get_legal_actions()
@@ -160,7 +160,7 @@ mod silent_wave1 {
             "Masterful Stab should be illegal when runtime cost exceeds available energy"
         );
 
-        stab_engine.state.energy = 7;
+        stab_engine.state.energy = 1;
         assert!(stab_engine.get_legal_actions().iter().any(|action| {
             matches!(action, Action::PlayCard { .. })
         }));

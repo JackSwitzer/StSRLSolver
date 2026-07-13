@@ -67,7 +67,9 @@ pub fn apply_cost_modifiers(
                     cost = (cost - reductions).max(0);
                 }
                 CostModifierRule::IncreaseOnHpLoss => {
-                    cost += engine.state.total_damage_taken;
+                    // MasterfulStab.tookDamage physically updates each existing
+                    // combat-pile instance once per event. player_lose_hp performs
+                    // that mutation, preserving temporary-vs-permanent cost deltas.
                 }
             }
         }

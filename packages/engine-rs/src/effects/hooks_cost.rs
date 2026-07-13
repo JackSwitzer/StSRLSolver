@@ -16,8 +16,3 @@ pub fn hook_reduce_cost_per_power(state: &CombatState, _card: &CardDef, card_ins
     let baseline = card_inst.misc.max(0) as i32;
     (cost - (state.power_cards_played_this_combat - baseline).max(0)).max(0)
 }
-
-/// Masterful Stab: increase cost by total damage taken this combat.
-pub fn hook_cost_increase_on_hp_loss(state: &CombatState, _card: &CardDef, _card_inst: CardInstance, cost: i32) -> i32 {
-    cost + state.total_damage_taken
-}

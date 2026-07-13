@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T11:15:39.058060+00:00",
+ "updated": "2026-07-13T11:20:07.505018+00:00",
  "status_counts": {
-  "verified": 462,
-  "unverified": 205
+  "verified": 463,
+  "unverified": 204
  },
  "rows": [
   {
@@ -2152,8 +2152,8 @@
    "class": "MasterfulStab",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/cards/green/MasterfulStab.java",
    "methods_ref": "reference/extracted/methods/card/MasterfulStab.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {

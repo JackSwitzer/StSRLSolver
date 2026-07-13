@@ -75,6 +75,37 @@ fn silent_wave9_primary_typed_damage_cards_follow_engine_path() {
 }
 
 #[test]
+fn masterful_stab_source_updates_existing_piles_once_per_damage_event() {
+    // MasterfulStab.tookDamage calls updateCost(1), and
+    // AbstractPlayer.updateCardsOnDamage calls it once per positive event on
+    // cards in hand, discard, and draw. Seven HP in one event is still +1.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Masterful Stab"]);
+    engine.state.discard_pile = make_deck(&["Masterful Stab+"]);
+    engine.state.draw_pile = make_deck(&["Masterful Stab"]);
+
+    engine.player_lose_hp(7);
+    assert_eq!(engine.state.hand[0].cost, 1);
+    assert_eq!(engine.state.discard_pile[0].cost, 1);
+    assert_eq!(engine.state.draw_pile[0].cost, 1);
+
+    engine.player_lose_hp(2);
+    assert_eq!(engine.state.hand[0].cost, 2);
+    assert_eq!(engine.state.discard_pile[0].cost, 2);
+    assert_eq!(engine.state.draw_pile[0].cost, 2);
+
+    // A card created after those callbacks starts at the constructor's cost 0.
+    engine.state.hand.push(engine.card_registry.make_card("Masterful Stab"));
+    assert_eq!(engine.state.hand[1].cost, -1);
+    assert_eq!(engine.state.hand[1].base_cost, 0);
+}
+
+#[test]
 fn grand_finale_requires_an_empty_draw_pile_and_upgrade_deals_sixty_to_all() {
     // Java: reference/extracted/methods/card/GrandFinale.java
     // canUse rejects any non-empty draw pile; baseDamage is 50 and upgradeDamage(10).

@@ -261,7 +261,13 @@ mod silent_wave3 {
         )));
 
         engine.player_lose_hp(2);
+        assert_eq!(engine.state.hand[card_idx].cost, 1);
         assert!(!engine.get_legal_actions().iter().any(|action| matches!(
+            action,
+            Action::PlayCard { card_idx: idx, .. } if *idx == card_idx
+        )));
+        engine.state.energy = 1;
+        assert!(engine.get_legal_actions().iter().any(|action| matches!(
             action,
             Action::PlayCard { card_idx: idx, .. } if *idx == card_idx
         )));
