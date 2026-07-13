@@ -5,6 +5,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Bite.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Blind.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/DarkShackles.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/DeepBreath.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/DramaticEntrance.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/GoodInstincts.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Magnetism.java
@@ -247,6 +248,59 @@ fn dark_shackles_temporarily_removes_strength_unless_artifact_blocks_it() {
         0
     );
     assert_eq!(exhaust_prefix_count(&blocked, "Dark Shackles"), 1);
+}
+
+#[test]
+fn deep_breath_only_shuffles_a_nonempty_discard_and_consumes_two_shuffle_ticks() {
+    // DeepBreath.java skips both shuffle actions when discard is empty, then
+    // draws 1. With cards in discard it queues EmptyDeckShuffleAction followed
+    // by ShuffleAction, consuming one shuffleRng randomLong each, then draws 2
+    // when upgraded.
+    let mut empty = engine_without_start(
+        make_deck(&["Strike", "Defend"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        0,
+    );
+    force_player_turn(&mut empty);
+    empty.state.hand = make_deck(&["Deep Breath"]);
+    empty.clear_event_log();
+    let empty_rng_before = empty.rng.counter;
+
+    assert!(play_self(&mut empty, "Deep Breath"));
+    assert_eq!(empty.rng.counter, empty_rng_before);
+    assert_eq!(hand_count(&empty, "Defend"), 1);
+    assert_eq!(
+        empty
+            .event_log
+            .iter()
+            .filter(|record| record.event == crate::effects::trigger::Trigger::OnShuffle)
+            .count(),
+        0
+    );
+
+    let mut shuffled = engine_without_start(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        0,
+    );
+    force_player_turn(&mut shuffled);
+    shuffled.state.hand = make_deck(&["Deep Breath+"]);
+    shuffled.state.discard_pile = make_deck(&["Defend", "Bash"]);
+    shuffled.clear_event_log();
+    let shuffled_rng_before = shuffled.rng.counter;
+
+    assert!(play_self(&mut shuffled, "Deep Breath+"));
+    assert_eq!(shuffled.rng.counter, shuffled_rng_before + 2);
+    assert_eq!(shuffled.state.hand.len(), 2);
+    assert_eq!(shuffled.state.draw_pile.len(), 1);
+    assert_eq!(
+        shuffled
+            .event_log
+            .iter()
+            .filter(|record| record.event == crate::effects::trigger::Trigger::OnShuffle)
+            .count(),
+        1
+    );
 }
 
 #[test]
