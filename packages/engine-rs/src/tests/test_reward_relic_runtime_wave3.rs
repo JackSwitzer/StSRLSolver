@@ -3,8 +3,49 @@ use crate::decision::{
     DecisionAction, RewardChoice, RewardItem, RewardItemKind, RewardItemState, RewardScreen,
     RewardScreenSource,
 };
+use crate::gameplay::global_registry as gameplay_registry;
 use crate::map::RoomType;
 use crate::run::{RunAction, RunEngine, RunPhase, ShopState};
+
+fn assert_unregistered_java_test_relic(id: &str) {
+    assert!(crate::relics::defs::relic_def_by_id(id).is_none());
+    assert!(gameplay_registry().relic(id).is_none());
+}
+
+#[test]
+fn test_1_is_an_unregistered_java_test_relic() {
+    // Test1.java defines behavior, but RelicLibrary.java::initialize never
+    // registers Test1 through any add/addColor path, so it is unobtainable.
+    assert_unregistered_java_test_relic("Test 1");
+}
+
+#[test]
+fn test_3_is_an_unregistered_java_test_relic() {
+    // Test3.java exists, but RelicLibrary.java::initialize never registers
+    // Test3 through any add/addColor path, so its empty onEquip is unreachable.
+    assert_unregistered_java_test_relic("Test 3");
+}
+
+#[test]
+fn test_4_is_an_unregistered_java_test_relic() {
+    // Test4.java exists, but RelicLibrary.java::initialize never registers
+    // Test4 through any add/addColor path, so its empty battle hook is unreachable.
+    assert_unregistered_java_test_relic("Test 4");
+}
+
+#[test]
+fn test_5_is_an_unregistered_java_test_relic() {
+    // Test5.java defines an upgrade-on-equip experiment, but RelicLibrary.java
+    // never registers Test5 through any add/addColor path, so it is unobtainable.
+    assert_unregistered_java_test_relic("Test 5");
+}
+
+#[test]
+fn test_6_is_an_unregistered_java_test_relic() {
+    // Test6.java defines a gold-scaled block experiment, but RelicLibrary.java
+    // never registers Test6 through any add/addColor path, so it is unobtainable.
+    assert_unregistered_java_test_relic("Test 6");
+}
 
 fn single_relic_reward_screen(label: &str) -> RewardScreen {
     RewardScreen {

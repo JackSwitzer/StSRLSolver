@@ -1,9 +1,9 @@
 {
  "v": 1,
- "updated": "2026-07-13T23:24:23.952301+00:00",
+ "updated": "2026-07-13T23:26:50.263769+00:00",
  "status_counts": {
-  "verified": 659,
-  "unverified": 8
+  "verified": 664,
+  "unverified": 3
  },
  "rows": [
   {
@@ -6372,8 +6372,8 @@
    "class": "Test1",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Test1.java",
    "methods_ref": "reference/extracted/methods/relic/Test1.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -6382,8 +6382,8 @@
    "class": "Test3",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Test3.java",
    "methods_ref": "reference/extracted/methods/relic/Test3.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -6392,8 +6392,8 @@
    "class": "Test4",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Test4.java",
    "methods_ref": "reference/extracted/methods/relic/Test4.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -6402,8 +6402,8 @@
    "class": "Test5",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Test5.java",
    "methods_ref": "reference/extracted/methods/relic/Test5.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
@@ -6412,8 +6412,8 @@
    "class": "Test6",
    "java_ref": "decompiled/java-src/com/megacrit/cardcrawl/relics/Test6.java",
    "methods_ref": "reference/extracted/methods/relic/Test6.java",
-   "status": "unverified",
-   "verified_by": null,
+   "status": "verified",
+   "verified_by": "codex/verify-sweep",
    "dev": null
   },
   {
