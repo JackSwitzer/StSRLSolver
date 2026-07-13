@@ -442,7 +442,7 @@ mod enemy_ai_java_parity_tests {
         let e = make("BanditLeader", 50);
         expect_move(&e, move_ids::BANDIT_MOCK, 0, 0, 0, &[]);
 
-        let e = make("BanditPointy", 35);
+        let e = make("BanditChild", 30);
         expect_move(&e, move_ids::POINTY_STAB, 5, 2, 0, &[]);
 
         let e = make("BronzeAutomaton", 300);
@@ -581,8 +581,8 @@ mod enemy_ai_java_parity_tests {
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::BANDIT_MOCK, 0, 0, 0, &[]);
 
-        let mut e = make("BanditPointy", 35);
-        roll_times(&mut e, 1);
+        let mut e = make("BanditChild", 30);
+        act2::advance_bandit_pointy_after_turn(&mut e);
         expect_move(&e, move_ids::POINTY_STAB, 5, 2, 0, &[]);
 
         let mut e = make("BronzeAutomaton", 300);

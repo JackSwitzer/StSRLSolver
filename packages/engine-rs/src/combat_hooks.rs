@@ -757,6 +757,17 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         return;
     }
 
+    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
+        "BanditChild" | "BanditPointy" | "Pointy")
+    {
+        // BanditPointy.takeTurn repeats POINTY_SPECIAL with SetMoveAction;
+        // the canonical game ID is BanditChild and no aiRng is consumed.
+        // Java: reference/extracted/methods/monster/BanditPointy.java
+        enemies::act2::advance_bandit_pointy_after_turn(
+            &mut engine.state.enemies[enemy_idx]);
+        return;
+    }
+
     // These Java takeTurn methods set their next move directly and do not queue
     // RollMoveAction.
     if engine.state.enemies[enemy_idx].id == "AcidSlime_S" {

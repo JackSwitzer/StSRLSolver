@@ -669,8 +669,11 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // First turn: Mock (buff minions)
             enemy.set_move(move_ids::BANDIT_MOCK, 0, 0, 0);
         }
-        "BanditPointy" | "Pointy" => {
-            // Always: stab 5x2
+        "BanditChild" | "BanditPointy" | "Pointy" => {
+            // The Java class is BanditPointy, but its canonical game ID is
+            // BanditChild. A2 damage is patched at the RunEngine spawn site.
+            // Java: reference/extracted/methods/monster/BanditPointy.java
+            enemy.entity.set_status(sid::STARTING_DMG, 5);
             enemy.set_move(move_ids::POINTY_STAB, 5, 2, 0);
         }
         "BronzeAutomaton" | "Bronze Automaton" => {
@@ -993,7 +996,9 @@ fn select_move(
         "Snecko" => act2::roll_snecko(enemy, num),
         "BanditBear" | "Bear" => act2::roll_bear(enemy, num),
         "BanditLeader" => act2::roll_bandit_leader(enemy, num),
-        "BanditPointy" | "Pointy" => { /* Always stab 5x2 */ }
+        "BanditChild" | "BanditPointy" | "Pointy" => {
+            act2::roll_bandit_pointy(enemy, num)
+        }
         "BronzeAutomaton" | "Bronze Automaton" => act2::roll_bronze_automaton(enemy, num),
         "BronzeOrb" | "Bronze Orb" => act2::roll_bronze_orb(enemy, num),
         "TorchHead" | "Torch Head" => { /* Always Tackle 7 */ }
@@ -1775,7 +1780,7 @@ mod tests {
             "Chosen", "Mugger", "Byrd", "ShelledParasite", "SnakePlant",
             "Centurion", "Mystic", "BookOfStabbing", "GremlinLeader",
             "Taskmaster", "SphericGuardian", "Snecko",
-            "BanditBear", "BanditLeader", "BanditPointy",
+            "BanditBear", "BanditLeader", "BanditChild",
             "BronzeAutomaton", "BronzeOrb", "TorchHead",
             "Champ", "TheCollector",
             // Act 3
@@ -1819,7 +1824,7 @@ mod tests {
             "Chosen", "Mugger", "Byrd", "ShelledParasite", "SnakePlant",
             "Centurion", "Mystic", "BookOfStabbing", "GremlinLeader",
             "Taskmaster", "SphericGuardian", "Snecko",
-            "BanditBear", "BanditLeader", "BanditPointy",
+            "BanditBear", "BanditLeader", "BanditChild",
             "BronzeAutomaton", "BronzeOrb", "TorchHead",
             "Champ", "TheCollector",
             "Darkling", "OrbWalker", "Spiker", "Repulsor", "Exploder",

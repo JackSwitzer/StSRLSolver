@@ -220,6 +220,30 @@ pub(crate) fn advance_bear_after_turn(enemy: &mut EnemyCombatState) {
     }
 }
 
+pub(super) fn roll_bandit_pointy(enemy: &mut EnemyCombatState, _num: i32) {
+    // BanditPointy.getMove always selects its two-hit attack.
+    // Java: reference/extracted/methods/monster/BanditPointy.java
+    enemy.set_move(
+        move_ids::POINTY_STAB,
+        enemy.entity.status(sid::STARTING_DMG),
+        2,
+        0,
+    );
+}
+
+pub(crate) fn advance_bandit_pointy_after_turn(enemy: &mut EnemyCombatState) {
+    // takeTurn repeats the same intent with SetMoveAction, not RollMoveAction.
+    // Java: reference/extracted/methods/monster/BanditPointy.java
+    enemy.move_history.push(enemy.move_id);
+    enemy.move_effects.clear();
+    enemy.set_move(
+        move_ids::POINTY_STAB,
+        enemy.entity.status(sid::STARTING_DMG),
+        2,
+        0,
+    );
+}
+
 pub(super) fn roll_bandit_leader(enemy: &mut EnemyCombatState, _num: i32) {
     // Mock -> Agonizing Slash (10 + Weak 2) -> Cross Slash (15) -> cycle
     if last_move(enemy, move_ids::BANDIT_MOCK) {

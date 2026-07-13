@@ -1809,6 +1809,14 @@ impl RunEngine {
             enemy.add_effect(crate::combat_types::mfx::DEX_DOWN, dexterity_down as i16);
         }
 
+        // Source: reference/extracted/methods/monster/BanditPointy.java.
+        for enemy in enemy_states.iter_mut().filter(|e| matches!(e.id.as_str(),
+            "BanditChild" | "BanditPointy" | "Pointy")) {
+            let damage = if self.run_state.ascension >= 2 { 6 } else { 5 };
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, damage);
+            enemy.set_move(crate::enemies::move_ids::POINTY_STAB, damage, 2, 0);
+        }
+
         // Source: reference/extracted/methods/monster/AcidSlime_S.java.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "AcidSlime_S") {
             let damage = if self.run_state.ascension >= 2 { 4 } else { 3 };
@@ -2328,6 +2336,10 @@ impl RunEngine {
             "BanditBear" | "Bear" => {
                 let base = if a20 { 40 } else { 38 };
                 let hp = base + self.rng.gen_range(0..=4);
+                (hp, hp)
+            }
+            "BanditChild" | "BanditPointy" | "Pointy" => {
+                let hp = if a20 { 34 } else { 30 };
                 (hp, hp)
             }
             "GremlinNob" => {
@@ -7656,6 +7668,37 @@ mod tests {
             assert_eq!(combat.state.player.hp, hp_before - lunge - maul);
             assert_eq!(combat.state.enemies[0].move_id,
                 crate::enemies::move_ids::BEAR_LUNGE);
+            assert_eq!(combat.ai_rng.counter, 1);
+        }
+    }
+
+    #[test]
+    fn bandit_child_canonical_id_stats_and_direct_repeat_match_java() {
+        // Source: reference/extracted/methods/monster/BanditPointy.java.
+        // BanditChild is the canonical ID. The constructor sets 30 HP (34 at
+        // A7) and a 5x2 attack (6x2 at A2). getMove consumes the opening tick;
+        // takeTurn repeats the attack with SetMoveAction and consumes no RNG.
+        for (ascension, hp, damage) in [(0, 30, 5), (2, 30, 6), (7, 34, 6)] {
+            let mut run = RunEngine::new(42, ascension);
+            run.enter_specific_combat(vec!["BanditChild".to_string()]);
+            let combat = run.combat_engine.as_mut().unwrap();
+            let enemy = &combat.state.enemies[0];
+            assert_eq!(enemy.id, "BanditChild");
+            assert_eq!(enemy.entity.hp, hp);
+            assert_eq!(enemy.move_id, crate::enemies::move_ids::POINTY_STAB);
+            assert_eq!(enemy.move_damage(), damage);
+            assert_eq!(enemy.move_hits(), 2);
+            assert_eq!(combat.ai_rng.counter, 1);
+
+            let hp_before = combat.state.player.hp;
+            combat.execute_action(&crate::actions::Action::EndTurn);
+            assert_eq!(combat.state.player.hp, hp_before - damage * 2);
+            assert_eq!(combat.state.enemies[0].move_id,
+                crate::enemies::move_ids::POINTY_STAB);
+            assert_eq!(combat.ai_rng.counter, 1);
+
+            combat.execute_action(&crate::actions::Action::EndTurn);
+            assert_eq!(combat.state.player.hp, hp_before - damage * 4);
             assert_eq!(combat.ai_rng.counter, 1);
         }
     }
