@@ -112,6 +112,31 @@ fn temp_wave1_safety_through_violence_and_shiv_follow_engine_path() {
 }
 
 #[test]
+fn through_violence_variants_self_retain_then_deal_damage_and_exhaust_for_free() {
+    // ThroughViolence.java sets cost 0, baseDamage 20, selfRetain and exhaust;
+    // upgradeDamage(10) changes only damage to 30.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/ThroughViolence.java
+    for (card_id, expected_damage) in [("ThroughViolence", 20), ("ThroughViolence+", 30)] {
+        let mut engine = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 60, 60)],
+            0,
+        );
+        force_player_turn(&mut engine);
+        engine.state.hand = make_deck(&[card_id]);
+
+        end_turn(&mut engine);
+        assert_eq!(hand_count(&engine, card_id), 1, "{card_id}");
+        assert_eq!(discard_prefix_count(&engine, "ThroughViolence"), 0);
+
+        assert!(play_on_enemy(&mut engine, card_id, 0));
+        assert_eq!(engine.state.energy, 0);
+        assert_eq!(engine.state.enemies[0].entity.hp, 60 - expected_damage);
+        assert_eq!(exhaust_prefix_count(&engine, "ThroughViolence"), 1);
+    }
+}
+
+#[test]
 fn shiv_variants_use_accuracy_damage_for_free_then_exhaust() {
     // Shiv.java constructs a 0-cost 4-damage Attack, exhausts it on use, and
     // upgrades only by 2 damage. Its constructor and AccuracyPower's existing-

@@ -68,7 +68,9 @@ pub fn register_temp(cards: &mut HashMap<&'static str, CardDef>) {
                 E::Simple(SE::GainBlock(A::Block)),
             ], complex_hook: None,
         });
-        // Through Violence: 0 cost, 20 dmg, retain, exhaust
+        // ThroughViolence.java is a zero-cost, self-retaining, exhausting
+        // Attack for 20 damage; upgradeDamage(10) is its only upgrade change.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/ThroughViolence.java
         insert(cards, CardDef {
             id: "ThroughViolence", name: "Through Violence", card_type: CardType::Attack,
             target: CardTarget::Enemy, cost: 0, base_damage: 20, base_block: -1,
