@@ -1,6 +1,5 @@
 use super::{
-    EventDef, EventEffect, EventProgram, EventProgramOp, EventReward, TypedEventDef,
-    TypedEventOption,
+    EventEffect, EventProgram, EventProgramOp, EventReward, TypedEventDef, TypedEventOption,
 };
 
 fn supported(text: &str, ops: Vec<EventProgramOp>, effect: EventEffect) -> TypedEventOption {
@@ -344,12 +343,4 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
             ],
         ),
     ]
-}
-
-#[allow(dead_code)]
-pub fn shrine_events() -> Vec<EventDef> {
-    typed_shrine_events()
-        .into_iter()
-        .map(|event| event.summary_event())
-        .collect()
 }

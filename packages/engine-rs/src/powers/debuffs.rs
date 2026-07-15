@@ -112,86 +112,14 @@ pub fn tick_poison(entity: &mut EntityState) -> i32 {
     damage
 }
 
-// ---------------------------------------------------------------------------
-// End-of-turn triggers
-// ---------------------------------------------------------------------------
-
-/// Remove temporary Strength (LoseStrength) at end of turn.
-
-pub fn apply_lose_strength(entity: &mut EntityState) {
-    let lose_str = entity.status(sid::LOSE_STRENGTH);
-    if lose_str > 0 {
-        entity.add_status(sid::STRENGTH, -lose_str);
-        entity.set_status(sid::LOSE_STRENGTH, 0);
-    }
-}
-
-/// Apply LoseDexterity at start of turn (undo temporary Dexterity gains).
-
-pub fn apply_lose_dexterity(entity: &mut EntityState) {
-    let lose_dex = entity.status(sid::LOSE_DEXTERITY);
-    if lose_dex > 0 {
-        entity.add_status(sid::DEXTERITY, -lose_dex);
-        entity.set_status(sid::LOSE_DEXTERITY, 0);
-    }
-}
-
-/// Wraith Form: lose N Dexterity per stack each turn.
-
-pub fn apply_wraith_form(entity: &mut EntityState) {
-    let wraith = entity.status(sid::WRAITH_FORM);
-    if wraith > 0 {
-        entity.add_status(sid::DEXTERITY, -wraith);
-    }
-}
-
-/// Modify incoming damage based on Slow and Intangible.
-
-pub fn modify_damage_receive(entity: &EntityState, damage: f64) -> f64 {
-    let mut d = damage;
-
-    // Slow: +10% per stack
-    let slow_amount = (entity.status(sid::SLOW) - 1).max(0);
-    if slow_amount > 0 {
-        d *= 1.0 + (slow_amount as f64 * 0.1);
-    }
-
-    // Intangible: cap at 1
-    if entity.status(sid::INTANGIBLE) > 0 && d > 1.0 {
-        d = 1.0;
-    }
-
-    d
-}
-
-/// Decrement Fading by 1. Returns true if entity should die (fading reached 0).
-
-pub fn decrement_fading(entity: &mut EntityState) -> bool {
-    let fading = entity.status(sid::FADING);
-    if fading > 0 {
-        let new_val = fading - 1;
-        entity.set_status(sid::FADING, new_val);
-        if new_val <= 0 {
-            return true;
-        }
-    }
-    false
-}
-
 /// Decrement Blur at end of turn.
-
+#[cfg(test)]
 pub fn decrement_blur(entity: &mut EntityState) {
     decrement_status(entity, sid::BLUR);
 }
 
-/// Decrement Intangible at end of turn.
-
-pub fn decrement_intangible(entity: &mut EntityState) {
-    decrement_status(entity, sid::INTANGIBLE);
-}
-
 /// Decrement Lock-On at end of round.
-
+#[cfg(test)]
 pub fn decrement_lock_on(entity: &mut EntityState) {
     decrement_status(entity, sid::LOCK_ON);
 }
@@ -220,43 +148,9 @@ pub fn apply_debuff(entity: &mut EntityState, status: StatusId, amount: i32) -> 
     true
 }
 
-/// Apply a debuff with Sadistic Nature check. Returns damage to deal from Sadistic.
-
-pub fn apply_debuff_with_sadistic(
-    target: &mut EntityState,
-    status: StatusId,
-    amount: i32,
-    source_sadistic: i32,
-) -> (bool, i32) {
-    let applied = apply_debuff(target, status, amount);
-    if applied && source_sadistic > 0 {
-        (true, source_sadistic)
-    } else {
-        (applied, 0)
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Invincible damage cap
 // ---------------------------------------------------------------------------
-
-/// Invincible: cap total damage this turn. Returns capped damage.
-/// The `Invincible` status value tracks remaining damage allowed this turn.
-/// Call `reset_invincible` at start of each turn to restore the cap.
-
-pub fn apply_invincible_cap(entity: &mut EntityState, incoming_damage: i32) -> i32 {
-    let inv = entity.status(sid::INVINCIBLE);
-    if inv > 0 {
-        if incoming_damage > inv {
-            entity.set_status(sid::INVINCIBLE, 0);
-            return inv;
-        } else {
-            entity.set_status(sid::INVINCIBLE, inv - incoming_damage);
-            return incoming_damage;
-        }
-    }
-    incoming_damage
-}
 
 /// Invincible: per-turn cap using a separate damage-taken tracker.
 /// Leaves the INVINCIBLE cap itself unchanged so it persists across turns.
@@ -291,23 +185,4 @@ pub fn slow_damage_multiplier(entity: &EntityState) -> f64 {
     // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/SlowPower.java.
     let amount = (entity.status(sid::SLOW) - 1).max(0);
     1.0 + (amount as f64 * 0.10)
-}
-
-// ---------------------------------------------------------------------------
-// ModeShift (Guardian)
-// ---------------------------------------------------------------------------
-
-/// ModeShift: track damage. Returns true if threshold reached.
-
-pub fn apply_mode_shift_damage(entity: &mut EntityState, damage: i32) -> bool {
-    let ms = entity.status(sid::MODE_SHIFT);
-    if ms > 0 {
-        let new_val = ms - damage;
-        if new_val <= 0 {
-            entity.set_status(sid::MODE_SHIFT, 0);
-            return true;
-        }
-        entity.set_status(sid::MODE_SHIFT, new_val);
-    }
-    false
 }

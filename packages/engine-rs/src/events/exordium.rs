@@ -1,6 +1,5 @@
 use super::{
-    EventDef, EventEffect, EventProgram, EventProgramOp, EventReward, TypedEventDef,
-    TypedEventOption,
+    EventEffect, EventProgram, EventProgramOp, EventReward, TypedEventDef, TypedEventOption,
 };
 
 fn supported(text: impl Into<String>, ops: Vec<EventProgramOp>, effect: EventEffect) -> TypedEventOption {
@@ -350,12 +349,4 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
             ],
         ),
     ]
-}
-
-#[allow(dead_code)]
-pub fn act1_events() -> Vec<EventDef> {
-    typed_act1_events()
-        .into_iter()
-        .map(|event| event.summary_event())
-        .collect()
 }
