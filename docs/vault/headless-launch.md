@@ -1,110 +1,44 @@
-# Headless ModTheSpire Launch Guide
+# Human TraceLab launch reference
 
-## The Problem
+Despite this filename, the proven macOS TraceLab path is not headless. It
+launches a game window with java.awt.headless=false. This procedure is for a
+human minting session only; agents must never launch the game.
 
-The Steam Workshop ModTheSpire (v3.6.3) is from December 2018 and lacks:
-- `--mods` flag for specifying mods via CLI
-- `--skip-launcher` flag (present but non-functional)
+## Supported entry point
 
-This means mods can only be loaded via the GUI launcher popup.
+From the repository root, a human uses:
 
-## The Solution
+    scripts/trace_java.sh <script.json> <out.jsonl>
 
-Build ModTheSpire v3.30.3 from the GitHub master branch, which has full CLI support.
+or, when the existing TraceLab JAR is known current:
 
-### Build Steps
+    scripts/trace_java.sh <script.json> <out.jsonl> --no-build
 
-1. **Clone the repo:**
-```bash
-cd /Users/jackswitzer/Desktop/SlayTheSpireRL
-git clone --depth 1 https://github.com/kiooeht/ModTheSpire.git mts-source
-```
+The script is the authority for current paths and flags. It builds
+packages/harness-java, installs TraceLab.jar into the local game mods
+directory, launches ModTheSpire with BaseMod and TraceLab, waits for exit, and
+checks that a nonempty JSONL file was written.
 
-2. **Copy game JAR for dependency:**
-```bash
-mkdir -p lib
-cp "/Users/jackswitzer/Library/Application Support/Steam/steamapps/common/SlayTheSpire/SlayTheSpire.app/Contents/Resources/desktop-1.0.jar" lib/
-```
+## Current requirements
 
-3. **Get JDK 8 (required for sun.* internal classes):**
-```bash
-# Download x64 JDK 8 for macOS (works with Rosetta)
-curl -sL "https://api.adoptium.net/v3/binary/latest/8/ga/mac/x64/jdk/hotspot/normal/eclipse" -o /tmp/jdk8.tar.gz
-mkdir -p jdk8
-tar -xzf /tmp/jdk8.tar.gz -C jdk8 --strip-components=2
-```
+- a local Slay the Spire macOS installation at the path checked by the script;
+- ModTheSpire and BaseMod installed for that game copy;
+- Maven and the Java runtime configured by scripts/trace_java.sh;
+- a TraceLab action script under data/traces/scripts/ or another explicit path;
+- a human present to observe and stop a failed run.
 
-4. **Build:**
-```bash
-cd mts-source
-JAVA_HOME=/Users/jackswitzer/Desktop/SlayTheSpireRL/jdk8/Home /opt/homebrew/bin/mvn clean package -DskipTests
-```
+The current launch keeps java.awt.headless=false. Do not add
+--close-when-finished to the Java command: the proven path relies on JVM
+properties reaching the game process.
 
-5. **Install:**
-```bash
-cp _ModTheSpire/ModTheSpire.jar "/Users/jackswitzer/Library/Application Support/Steam/steamapps/common/SlayTheSpire/SlayTheSpire.app/Contents/Resources/ModTheSpire.jar"
-```
+## Offline work
 
-## Usage
+No game launch is needed to compare a committed golden:
 
-### Launch with mods (no GUI):
-```bash
-cd "/Users/jackswitzer/Library/Application Support/Steam/steamapps/common/SlayTheSpire/SlayTheSpire.app/Contents/Resources"
-./jre/bin/java -Xmx1G -jar ModTheSpire.jar --mods basemod,stslib,evtracker --skip-intro
-```
+    scripts/trace_diff.sh data/traces/scripts/<script>.json
 
-### Available CLI flags (v3.30.3):
-- `--mods MOD_ID1,MOD_ID2,...` - Load specific mods by ID (auto-skips launcher)
-- `--skip-launcher` - Skip the mod selection GUI
-- `--skip-intro` - Skip the game intro sequence
-- `--profile PROFILE_NAME` - Load a saved mod profile
-- `--debug` - Enable debug mode
-- `--close-when-finished` - Close MTS when game exits
-- `--allow-beta` - Allow beta mods
+Generated logs and Rust replay output go under logs/traces/. Java goldens under
+data/traces/java/ are protected and are minted only by the human workflow.
 
-### Mod IDs (from ModTheSpire.json in each JAR):
-- BaseMod.jar → `basemod`
-- StSLib.jar → `stslib`
-- EVTracker.jar → `evtracker`
-
-## Key Files
-
-| File | Purpose |
-|------|---------|
-| `ModTheSpire.jar` | The launcher (v3.30.3 required for CLI) |
-| `mods/*.jar` | Installed mods |
-| `~/Library/Preferences/ModTheSpire/mod_lists.json` | Saved mod profiles |
-
-## Verification
-
-Check mods are loading:
-```bash
-# Look for "Mod list:" section in output
-grep -A5 "Mod list:" game_stdout.log
-
-# Expected:
-# Mod list:
-#  - basemod (5.56.0)
-#  - stslib (2.12.0)
-#  - evtracker (1.0.0)
-```
-
-## Troubleshooting
-
-**"Unknown option: --mods"**
-- The installed ModTheSpire is old (v3.6.3). Build from source.
-
-**Rosetta errors**
-- Harmless warnings on Apple Silicon. Game still runs.
-
-**No mods loading**
-- Check mod IDs match exactly (case-sensitive)
-- Verify mods are in `mods/` directory
-- Check ModTheSpire version: look for "ModTheSpire (3.30.3)" in output
-
-## macOS 26.1 addendum (2026-07-06, TraceLab bring-up)
-
-- MTS CLI launches (`--mods ...`) now die **silently** at "Launching application..." unless you pass `-Djava.awt.headless=false`. MTS's CLI path leaves AWT headless, and macOS 26.1 refuses LWJGL2 window/GL-context creation without headful AWT. Vanilla `desktop-1.0.jar` is unaffected.
-- Do **not** combine `--close-when-finished` with `-D` flags: MTS spawns a child JVM that does not inherit them (the headless fix silently vanishes). TraceLab calls `Gdx.app.exit()` itself, so the flag is unnecessary.
-- `--package` is broken in MTS 3.30.3 (ZipException in `PackageJar` on native libs). `--out-jar` produces an overlay jar that *does* boot on the main thread, but lacks MTS runtime-generated classes (`patches/HandleCrash`) and `Loader` static state, so BaseMod dies in `create()` — dead end unless you replicate Loader init.
-- Canonical working invocation: `scripts/trace_java.sh` (repo).
+For implementation details, read packages/harness-java/README.md and the
+current scripts rather than copying old launch commands from git history.
