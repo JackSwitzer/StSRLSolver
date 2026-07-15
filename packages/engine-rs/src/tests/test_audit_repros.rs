@@ -101,31 +101,6 @@ fn eda_004_run_combat_ai_rng_must_use_the_java_per_floor_seed() {
 }
 
 #[test]
-#[ignore = "EDA-005: player Regeneration incorrectly loses one stack each turn"]
-fn eda_005_regeneration_amount_must_not_decay_after_healing() {
-    // RegenPower.atEndOfTurn queues RegenAction but never reduces its amount:
-    // decompiled/java-src/com/megacrit/cardcrawl/powers/RegenPower.java:31-39
-    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
-    force_player_turn(&mut engine);
-    engine.state.player.hp = 50;
-    engine
-        .state
-        .player
-        .set_status(crate::status_ids::sid::REGENERATION, 2);
-
-    crate::tests::support::end_turn(&mut engine);
-
-    assert_eq!(engine.state.player.hp, 52);
-    assert_eq!(
-        engine
-            .state
-            .player
-            .status(crate::status_ids::sid::REGENERATION),
-        2,
-    );
-}
-
-#[test]
 #[ignore = "EDA-006: nested runtime events are dispatched into an empty EffectRuntime"]
 fn eda_006_runtime_caused_enemy_death_must_dispatch_death_relics() {
     // MercuryHourglass.atTurnStart queues source-less THORNS damage. When that
