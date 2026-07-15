@@ -6,10 +6,9 @@ Outputs (all under reference/extracted/, gitignored like decompiled/):
   methods/<kind>/<Id>.java                                 -- verbatim logic bodies
   methods/index.json, _manifest.json
 
-Optionally (--ledger PATH) seeds/refreshes the committed verification ledger:
-every content item gets a row with status "unverified"; existing statuses are
-preserved on re-run (merge by id). The ledger is the /goal loop driver — see
-docs/goal/GOAL.md.
+Optionally (--ledger PATH) seeds or refreshes the committed verification ledger:
+new content items get status "unverified" while the completed statuses of the
+existing 667 rows are preserved by ID. See docs/goal/GOAL.md.
 
 Run via scripts/extract.sh (uv). Stdlib only; regex heuristics tuned to CFR
 0.152 output — parse failures are recorded, never fatal.
