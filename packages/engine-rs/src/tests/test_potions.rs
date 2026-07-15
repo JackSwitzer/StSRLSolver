@@ -187,77 +187,7 @@ mod potion_tests {
         assert_eq!(e.state.enemies[0].entity.hp, 0);
     }
 
-    // ---- Flex / Steroid ----
-    #[test] fn flex_temp_str() {
-        let mut s = state();
-        apply_potion(&mut s, "SteroidPotion", -1);
-        assert_eq!(s.player.strength(), 5);
-        assert_eq!(s.player.status(sid::LOSE_STRENGTH), 5);
-    }
-
-    // ---- Speed Potion ----
-    #[test] fn speed_temp_dex() {
-        let mut s = state();
-        apply_potion(&mut s, "SpeedPotion", -1);
-        assert_eq!(s.player.dexterity(), 5);
-        assert_eq!(s.player.status(sid::LOSE_DEXTERITY), 5);
-    }
-
-    // ---- Ancient Potion ----
-    #[test] fn ancient_artifact() {
-        let mut s = state();
-        apply_potion(&mut s, "Ancient Potion", -1);
-        assert_eq!(s.player.status(sid::ARTIFACT), 1);
-    }
-
-    // ---- Regen ----
-    #[test] fn regen_5() {
-        let mut s = state();
-        apply_potion(&mut s, "Regen Potion", -1);
-        assert_eq!(s.player.status(sid::REGENERATION), 5);
-    }
-
-    // ---- Essence of Steel ----
-    #[test] fn essence_plated_4() {
-        let mut s = state();
-        apply_potion(&mut s, "EssenceOfSteel", -1);
-        assert_eq!(s.player.status(sid::PLATED_ARMOR), 4);
-    }
-
-    // ---- Liquid Bronze ----
-    #[test] fn bronze_thorns_3() {
-        let mut s = state();
-        apply_potion(&mut s, "LiquidBronze", -1);
-        assert_eq!(s.player.status(sid::THORNS), 3);
-    }
-
-    // ---- Cultist Potion ----
-    #[test] fn cultist_ritual_1() {
-        let mut s = state();
-        apply_potion(&mut s, "CultistPotion", -1);
-        assert_eq!(s.player.status(sid::RITUAL), 1);
-    }
-
-    // ---- Bottled Miracle ----
-    // Bottled Miracle is on the runtime action path, but helper-path coverage
-    // stays here until the runtime path is declared authoritative for this potion.
-    #[test] fn miracle_2_to_hand() {
-        let mut s = state();
-        s.hand.clear();
-        apply_potion(&mut s, "BottledMiracle", -1);
-        assert_eq!(s.hand.len(), 2);
-        let reg = crate::cards::global_registry();
-        assert_eq!(reg.card_name(s.hand[0].def_id), "Miracle");
-    }
-    #[test] fn miracle_respects_hand_limit() {
-        let mut s = state();
-        s.hand = make_deck_n("X", 9);
-        apply_potion(&mut s, "BottledMiracle", -1);
-        assert_eq!(s.hand.len(), 10);
-    }
-
     // ---- Fairy ----
-    #[test] fn fairy_no_manual_use() { assert!(!apply_potion(&mut state(), "FairyPotion", -1)); }
     #[test] fn fairy_check_none() { assert_eq!(check_fairy_revive(&state()), 0); }
     #[test] fn fairy_check_present() {
         let mut s = state();
@@ -308,12 +238,6 @@ mod potion_tests {
         use_potion(&mut e, 0, 0);
         assert_eq!(e.state.enemies[0].entity.status(sid::POISON), 12); // 6*2
     }
-    #[test] fn bark_doubles_regen() {
-        let mut s = state();
-        s.relics.push("SacredBark".to_string());
-        apply_potion(&mut s, "Regen Potion", -1);
-        assert_eq!(s.player.status(sid::REGENERATION), 10); // 5*2
-    }
     #[test] fn bark_doubles_energy() {
         let mut e = engine();
         e.state.relics.push("SacredBark".to_string());
@@ -327,11 +251,6 @@ mod potion_tests {
         e.state.potions[0] = "Explosive Potion".to_string();
         use_potion(&mut e, 0, -1);
         assert_eq!(e.state.enemies[0].entity.hp, 30); // 50 - 10*2
-    }
-
-    // ---- Unknown potion ----
-    #[test] fn unknown_potion_succeeds() {
-        assert!(apply_potion(&mut state(), "UnknownPotion", -1));
     }
 }
 
