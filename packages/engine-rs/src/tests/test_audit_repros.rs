@@ -101,6 +101,29 @@ fn eda_004_run_combat_ai_rng_must_use_the_java_per_floor_seed() {
 }
 
 #[test]
+#[ignore = "EDA-005: run encounters rotate hard-coded pools instead of Java's seeded weighted queue"]
+fn eda_005_first_weak_encounter_must_follow_monster_rng() {
+    // Exordium.generateWeakEnemies normalizes four equal weights, then
+    // populateMonsterList rolls monsterRng seeded with Settings.seed. Seed 4's
+    // first RandomXS128 float is 0.45369965, selecting Jaw Worm from the stable
+    // [Cultist, Jaw Worm, 2 Louse, Small Slimes] order.
+    // decompiled/java-src/com/megacrit/cardcrawl/dungeons/Exordium.java:118-125
+    // decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:390,1054-1084
+    // decompiled/java-src/com/megacrit/cardcrawl/monsters/MonsterInfo.java:27-47
+    let mut run = crate::run::RunEngine::new(4, 0);
+    assert!(
+        run.step_with_result(&crate::run::RunAction::ChooseNeowOption(0))
+            .action_accepted
+    );
+    assert!(
+        run.step_with_result(&crate::run::RunAction::ChoosePath(0))
+            .action_accepted
+    );
+
+    assert_eq!(run.debug_current_enemy_ids(), vec!["JawWorm".to_string()]);
+}
+
+#[test]
 #[ignore = "EDA-006: nested runtime events are dispatched into an empty EffectRuntime"]
 fn eda_006_runtime_caused_enemy_death_must_dispatch_death_relics() {
     // MercuryHourglass.atTurnStart queues source-less THORNS damage. When that
