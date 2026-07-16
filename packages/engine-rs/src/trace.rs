@@ -299,6 +299,20 @@ impl ActionScript {
     }
 }
 
+/// Parse a script seed using the same precedence as TraceLab.
+///
+/// Decimal strings are Java `long` values; display-form seeds fall back to
+/// `SeedHelper.getLong`. The signed parse matters for seeds with the high bit
+/// set because Java stores dungeon seeds in a signed `long`.
+///
+/// Source: packages/harness-java/src/main/java/tracelab/TraceLabMod.java
+pub fn parse_script_seed(raw: &str) -> u64 {
+    raw.trim()
+        .parse::<i64>()
+        .map(|seed| seed as u64)
+        .unwrap_or_else(|_| crate::seed::seed_from_string(raw.trim()))
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ScriptStopCondition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -885,7 +899,7 @@ pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
 /// script's stop condition or run completion. Errors (unsupported action,
 /// illegal action) mirror `bin/trace_replay.rs`'s behavior.
 pub fn replay_script(script: &ActionScript) -> Result<Vec<TraceRecord>, String> {
-    let seed = crate::seed::seed_from_string(&script.seed);
+    let seed = parse_script_seed(&script.seed);
     let mut engine = crate::run::RunEngine::new(seed, script.ascension);
     let mut records = Vec::with_capacity(script.actions.len());
 
@@ -931,7 +945,7 @@ pub fn header_for_script(script: &ActionScript) -> TraceHeader {
         v: 1,
         kind: "header".to_string(),
         seed: script.seed.clone(),
-        seed_long: crate::seed::seed_from_string(&script.seed) as i64,
+        seed_long: parse_script_seed(&script.seed) as i64,
         character: script.character.clone(),
         ascension: script.ascension,
         game_version: "rust-sim".to_string(),
