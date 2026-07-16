@@ -10,7 +10,7 @@ use crate::status_ids::sid;
 
 use super::support::{
     combat_state_with, enemy, enemy_no_intent, end_turn, engine_with_state, engine_without_start,
-    make_deck, play_on_enemy, play_self, resolve_opening_neow,
+    force_player_turn, make_deck, play_on_enemy, play_self, resolve_opening_neow,
 };
 
 #[test]
@@ -444,6 +444,37 @@ fn mercury_hourglass_uses_thorns_damage_ignoring_boot_slow_and_flight() {
     assert_eq!(engine.state.enemies[0].entity.hp, 37);
     assert_eq!(engine.state.enemies[1].entity.hp, 37);
     assert_eq!(engine.state.enemies[1].entity.status(sid::FLIGHT), 3);
+}
+
+#[test]
+fn mercury_hourglass_nested_kill_dispatches_gremlin_horn_on_the_same_runtime_frame() {
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![
+            enemy_no_intent("JawWorm", 3, 3),
+            enemy_no_intent("Cultist", 30, 30),
+        ],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.relics = vec!["Mercury Hourglass".to_string(), "Gremlin Horn".to_string()];
+    engine.state.draw_pile = make_deck(&["Strike"]);
+    engine.state.hand.clear();
+    engine.rebuild_effect_runtime();
+    engine.clear_event_log();
+
+    engine.emit_event(GameEvent::empty(Trigger::TurnStart));
+
+    let events = engine.take_event_log();
+    assert!(engine.state.enemies[0].entity.is_dead());
+    assert_eq!(engine.state.energy, 4);
+    assert_eq!(engine.state.hand.len(), 1);
+    assert!(events
+        .iter()
+        .any(|record| record.event == Trigger::TurnStart && record.def_id == Some("Mercury Hourglass")));
+    assert!(events
+        .iter()
+        .any(|record| record.event == Trigger::OnEnemyDeath && record.def_id == Some("Gremlin Horn")));
 }
 
 #[test]

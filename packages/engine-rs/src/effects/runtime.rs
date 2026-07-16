@@ -410,6 +410,7 @@ impl EffectRuntime {
                 continue;
             }
             self.execute_instance(engine, idx, &event);
+            self.drain_nested_events(engine);
             // Java marks combat complete before AbstractPlayer.onVictory()
             // iterates relics, blights, and powers, but still runs the full
             // victory handler snapshot in order.
@@ -434,6 +435,7 @@ impl EffectRuntime {
                 continue;
             }
             self.execute_instance_hook_only(engine, idx, &event);
+            self.drain_nested_events(engine);
             if engine.state.combat_over {
                 break;
             }
@@ -540,11 +542,24 @@ impl EffectRuntime {
                 continue;
             }
             self.execute_instance_hook_only(engine, idx, &event);
+            self.drain_nested_events(engine);
             if engine.state.combat_over {
                 break;
             }
         }
         self.persisted_states = self.export_persisted_states();
+    }
+
+    fn drain_nested_events(&mut self, engine: &mut CombatEngine) {
+        loop {
+            let pending = engine.take_pending_runtime_events();
+            if pending.is_empty() {
+                break;
+            }
+            for event in pending {
+                self.emit(engine, event);
+            }
+        }
     }
 
     fn alloc_instance_id(&mut self) -> u32 {

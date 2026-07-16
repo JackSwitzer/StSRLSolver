@@ -123,7 +123,6 @@ fn eda_005_first_weak_encounter_must_follow_monster_rng() {
 }
 
 #[test]
-#[ignore = "EDA-006: nested runtime events are dispatched into an empty EffectRuntime"]
 fn eda_006_runtime_caused_enemy_death_must_dispatch_death_relics() {
     // MercuryHourglass.atTurnStart queues source-less THORNS damage. When that
     // kills a non-final enemy, AbstractMonster.die synchronously calls every

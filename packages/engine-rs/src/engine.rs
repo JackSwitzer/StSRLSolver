@@ -161,6 +161,11 @@ pub struct CombatEngine {
     /// parent card whose action queue owns them.
     pub(crate) omniscience_autoplay: Vec<(CardInstance, usize)>,
     pub event_log: Vec<crate::effects::runtime::GameEventRecord>,
+    /// Nested runtime-triggered events are queued onto the active dispatch
+    /// frame so reentrant death/victory/card-play chains keep the current
+    /// runtime instance set instead of seeing a temporary empty runtime.
+    pub(crate) pending_runtime_events: Vec<crate::effects::runtime::GameEvent>,
+    pub(crate) runtime_dispatch_active: bool,
     pub runtime_played_card: Option<CardInstance>,
     pub(crate) runtime_play_target_idx: Option<i32>,
     pub(crate) runtime_play_stack: Vec<(CardInstance, i32, bool)>,
@@ -207,6 +212,8 @@ impl CombatEngine {
             nightmare_pending_copies: Vec::new(),
             omniscience_autoplay: Vec::new(),
             event_log: Vec::new(),
+            pending_runtime_events: Vec::new(),
+            runtime_dispatch_active: false,
             runtime_played_card: None,
             runtime_play_target_idx: None,
             runtime_play_stack: Vec::new(),
@@ -256,14 +263,16 @@ impl CombatEngine {
     }
 
     pub fn emit_event(&mut self, event: crate::effects::runtime::GameEvent) {
-        let mut runtime = std::mem::take(&mut self.effect_runtime);
         let mut event = event;
         if event.card_inst.is_none() {
             event.card_inst = self.runtime_played_card;
         }
         event.replay_window = self.runtime_replay_window;
-        runtime.emit(self, event);
-        self.effect_runtime = runtime;
+        if self.runtime_dispatch_active {
+            self.pending_runtime_events.push(event);
+            return;
+        }
+        self.with_effect_runtime(|runtime, engine| runtime.emit(engine, event));
     }
 
     pub fn take_event_log(&mut self) -> Vec<crate::effects::runtime::GameEventRecord> {
@@ -272,6 +281,24 @@ impl CombatEngine {
 
     pub fn clear_event_log(&mut self) {
         self.event_log.clear();
+    }
+
+    pub(crate) fn take_pending_runtime_events(
+        &mut self,
+    ) -> Vec<crate::effects::runtime::GameEvent> {
+        std::mem::take(&mut self.pending_runtime_events)
+    }
+
+    fn with_effect_runtime<T>(
+        &mut self,
+        f: impl FnOnce(&mut crate::effects::runtime::EffectRuntime, &mut CombatEngine) -> T,
+    ) -> T {
+        let mut runtime = std::mem::take(&mut self.effect_runtime);
+        self.runtime_dispatch_active = true;
+        let result = f(&mut runtime, self);
+        self.runtime_dispatch_active = false;
+        self.effect_runtime = runtime;
+        result
     }
 
     fn begin_runtime_play_context(&mut self, card_inst: CardInstance, target_idx: i32) {
@@ -559,6 +586,8 @@ impl CombatEngine {
             nightmare_pending_copies: self.nightmare_pending_copies.clone(),
             omniscience_autoplay: self.omniscience_autoplay.clone(),
             event_log: self.event_log.clone(),
+            pending_runtime_events: self.pending_runtime_events.clone(),
+            runtime_dispatch_active: self.runtime_dispatch_active,
             runtime_played_card: self.runtime_played_card,
             runtime_play_target_idx: self.runtime_play_target_idx,
             runtime_play_stack: self.runtime_play_stack.clone(),
@@ -2861,9 +2890,9 @@ impl CombatEngine {
 
         {
             self.runtime_replay_window = true;
-            let mut runtime = std::mem::take(&mut self.effect_runtime);
-            runtime.emit_replay_window(self, card.card_type, target_idx, card_inst);
-            self.effect_runtime = runtime;
+            self.with_effect_runtime(|runtime, engine| {
+                runtime.emit_replay_window(engine, card.card_type, target_idx, card_inst);
+            });
         }
         self.runtime_replay_window = false;
 
