@@ -762,6 +762,9 @@ pub struct RunEngine {
     pub phase: RunPhase,
     pub seed: u64,
     rng: crate::seed::StsRandom,
+    monster_hp_rng: crate::seed::StsRandom,
+    potion_rng: crate::seed::StsRandom,
+    combat_misc_rng: crate::seed::StsRandom,
 
     // Active combat (when in Combat phase)
     combat_engine: Option<CombatEngine>,
@@ -844,6 +847,9 @@ impl RunEngine {
             phase: RunPhase::Neow,
             seed,
             rng,
+            monster_hp_rng: crate::seed::StsRandom::new(seed),
+            potion_rng: crate::seed::StsRandom::new(seed),
+            combat_misc_rng: crate::seed::StsRandom::new(seed),
             combat_engine: None,
             reward_screen: None,
             suspended_reward_screen: None,
@@ -1688,6 +1694,13 @@ impl RunEngine {
     }
 
     fn enter_specific_combat(&mut self, encounter: Vec<String>) {
+        // AbstractDungeon.nextRoomTransition resets these room-scoped streams
+        // from Settings.seed + floorNum. potionRng intentionally is not reset.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:1737-1741
+        let floor_seed = self.seed.wrapping_add(self.run_state.floor as u64);
+        self.monster_hp_rng = crate::seed::StsRandom::new(floor_seed);
+        self.combat_misc_rng = crate::seed::StsRandom::new(floor_seed);
+
         // Expand composite encounters. MonsterHelper constructs Gremlin Leader
         // with two independent weighted miscRng gremlins before the Leader.
         // Source: decompiled/java-src/com/megacrit/cardcrawl/helpers/MonsterHelper.java.
@@ -1706,7 +1719,10 @@ impl RunEngine {
                         "GremlinTsundere", "GremlinWizard",
                     ];
                     for _ in 0..2 {
-                        let index = self.rng.gen_range(0..GREMLIN_POOL.len());
+                        let index = self
+                            .combat_misc_rng
+                            .random((GREMLIN_POOL.len() - 1) as i32)
+                            as usize;
                         expanded.push(GREMLIN_POOL[index].to_string());
                     }
                     expanded.push("GremlinLeader".to_string());
@@ -1729,7 +1745,8 @@ impl RunEngine {
                         "Spiker", "Spiker",
                     ];
                     for _ in 0..count {
-                        let index = self.rng.gen_range(0..pool.len());
+                        let index = self.combat_misc_rng.random((pool.len() - 1) as i32)
+                            as usize;
                         expanded.push(pool.remove(index).to_string());
                     }
                 }
@@ -1814,7 +1831,7 @@ impl RunEngine {
         for enemy in enemy_states.iter_mut().filter(|e| matches!(e.id.as_str(),
             "FuzzyLouseNormal" | "RedLouse" | "FuzzyLouseDefensive" | "GreenLouse")) {
             let bite_base = if self.run_state.ascension >= 2 { 6 } else { 5 };
-            let bite_damage = bite_base + self.rng.gen_range(0..=2);
+            let bite_damage = bite_base + self.monster_hp_rng.random(2);
             let (curl_base, curl_width) = if self.run_state.ascension >= 17 {
                 (9, 3)
             } else if self.run_state.ascension >= 7 {
@@ -1822,7 +1839,7 @@ impl RunEngine {
             } else {
                 (3, 4)
             };
-            let curl_up = curl_base + self.rng.gen_range(0..=curl_width);
+            let curl_up = curl_base + self.monster_hp_rng.random(curl_width);
             enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, bite_damage);
             enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
                 if self.run_state.ascension >= 17 { 4 } else { 3 });
@@ -2104,7 +2121,7 @@ impl RunEngine {
                 if self.run_state.ascension >= 2 { 9 } else { 8 });
             let nip_base = if self.run_state.ascension >= 2 { 9 } else { 7 };
             enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
-                nip_base + self.rng.gen_range(0..=4));
+                nip_base + self.monster_hp_rng.random(4));
             enemy.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI,
                 if self.run_state.ascension >= 17 { 1 } else { 0 });
             enemy.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 1);
@@ -2806,13 +2823,13 @@ impl RunEngine {
         combat_state.relic_counters = self.run_state.relic_flags.counters;
         combat_state.run_gold = self.run_state.gold;
 
-        let combat_seed = self.seed.wrapping_add(self.run_state.floor as u64 * 1000);
-        // Java reseeds cardRandomRng to seed + floorNum on each floor.
-        let card_random_seed = self.seed.wrapping_add(self.run_state.floor as u64);
-        let mut engine = CombatEngine::new_with_card_random_seed(
+        let mut engine = CombatEngine::new_with_rng_streams(
             combat_state,
-            combat_seed,
-            card_random_seed,
+            crate::seed::StsRandom::new(floor_seed),
+            crate::seed::StsRandom::new(floor_seed),
+            self.potion_rng.clone(),
+            self.combat_misc_rng.clone(),
+            crate::seed::StsRandom::new(floor_seed),
         );
         engine.load_persisted_effects(self.run_state.persisted_effect_states.clone());
         engine.start_combat();
@@ -2829,7 +2846,7 @@ impl RunEngine {
                 // Source: reference/extracted/methods/monster/JawWorm.java:
                 // setHp(40,44), or setHp(42,46) at ascension 7+ (inclusive).
                 let base = if a20 { 42 } else { 40 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "Cultist" => {
@@ -2837,108 +2854,108 @@ impl RunEngine {
                 // setHp(48, 54) below — a uniform inclusive roll, not a fixed
                 // value (AbstractMonster.setHp -> monsterHpRng.random(min, max)).
                 let base = if a20 { 50 } else { 48 };
-                let hp = base + self.rng.gen_range(0..=6);
+                let hp = base + self.monster_hp_rng.random(6);
                 (hp, hp)
             }
             "FuzzyLouseNormal" | "RedLouse" => {
                 let base = if a20 { 11 } else { 10 };
-                let hp = base + self.rng.gen_range(0..=5);
+                let hp = base + self.monster_hp_rng.random(5);
                 (hp, hp)
             }
             "FuzzyLouseDefensive" | "GreenLouse" => {
                 let base = if a20 { 12 } else { 11 };
-                let hp = base + self.rng.gen_range(0..=6);
+                let hp = base + self.monster_hp_rng.random(6);
                 (hp, hp)
             }
             "AcidSlime_S" => {
                 let base = if a20 { 9 } else { 8 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "AcidSlime_M" => {
                 let base = if a20 { 29 } else { 28 };
                 let width = if a20 { 5 } else { 4 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "AcidSlime_L" => {
                 let base = if a20 { 68 } else { 65 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "SpikeSlime_S" => {
                 let base = if a20 { 11 } else { 10 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "SpikeSlime_M" => {
                 let base = if a20 { 29 } else { 28 };
                 let width = if a20 { 5 } else { 4 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "SpikeSlime_L" => {
                 let base = if a20 { 67 } else { 64 };
-                let hp = base + self.rng.gen_range(0..=6);
+                let hp = base + self.monster_hp_rng.random(6);
                 (hp, hp)
             }
             "Looter" => {
                 let base = if a20 { 46 } else { 44 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "Mugger" => {
                 // Source: reference/extracted/methods/monster/Mugger.java:
                 // inclusive 48..52, or 50..54 at ascension 7.
                 let base = if a20 { 50 } else { 48 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "GremlinFat" => {
                 let base = if a20 { 14 } else { 13 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "GremlinThief" => {
                 let base = if a20 { 11 } else { 10 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "GremlinWarrior" => {
                 let base = if a20 { 21 } else { 20 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "GremlinWizard" => {
                 let base = if a20 { 22 } else { 21 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "GremlinTsundere" => {
                 let (base, width) = if a20 { (13, 4) } else { (12, 3) };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "FungiBeast" => {
                 // Source: reference/extracted/methods/monster/FungiBeast.java:
                 // setHp(22,28), or setHp(24,28) at ascension 7+ (inclusive).
                 let base = if a20 { 24 } else { 22 };
-                let hp = base + self.rng.gen_range(0..=(28 - base));
+                let hp = base + self.monster_hp_rng.random(28 - base);
                 (hp, hp)
             }
             "BlueSlaver" | "SlaverBlue" => {
                 let base = if a20 { 48 } else { 46 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "RedSlaver" | "SlaverRed" => {
                 let base = if a20 { 48 } else { 46 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "BanditBear" | "Bear" => {
                 let base = if a20 { 40 } else { 38 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "BanditChild" | "BanditPointy" | "Pointy" => {
@@ -2947,7 +2964,7 @@ impl RunEngine {
             }
             "BanditLeader" => {
                 let base = if a20 { 37 } else { 35 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "GremlinNob" => {
@@ -2956,7 +2973,7 @@ impl RunEngine {
                 } else {
                     (82, 4)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "Lagavulin" => {
@@ -2965,7 +2982,7 @@ impl RunEngine {
                 } else {
                     (109, 2)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "Sentry" => {
@@ -2974,7 +2991,7 @@ impl RunEngine {
                 } else {
                     (38, 4)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "TheGuardian" => {
@@ -2995,7 +3012,7 @@ impl RunEngine {
             }
             "Apology Slime" | "ApologySlime" => {
                 // Source: ApologySlime.java constructor: monsterHpRng.random(8, 12).
-                let hp = self.rng.gen_range(8..=12);
+                let hp = self.monster_hp_rng.random_range(8, 12);
                 (hp, hp)
             }
             // Act 2 enemies
@@ -3003,14 +3020,14 @@ impl RunEngine {
                 // Source: reference/extracted/methods/monster/Byrd.java:
                 // setHp(25,31), or setHp(26,33) at ascension 7+.
                 let (base, width) = if a20 { (26, 7) } else { (25, 6) };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "Chosen" => {
                 // Source: Chosen.java constructor: inclusive setHp(95,99),
                 // or setHp(98,103) at ascension 7+.
                 let (base, width) = if a20 { (98, 5) } else { (95, 4) };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "Shelled Parasite" | "ShelledParasite" => {
@@ -3021,28 +3038,28 @@ impl RunEngine {
                 } else {
                     (68, 4)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "SnakePlant" => {
                 // Source: reference/extracted/methods/monster/SnakePlant.java:
                 // inclusive 75..79, or 78..82 at ascension 7+.
                 let base = if a20 { 78 } else { 75 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "Centurion" => {
                 // Source: reference/extracted/methods/monster/Centurion.java:
                 // setHp(76,80), or setHp(78,83) at ascension 7+.
                 let (base, width) = if a20 { (78, 5) } else { (76, 4) };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "Healer" | "Mystic" => {
                 // Source: reference/extracted/methods/monster/Healer.java:
                 // inclusive 48..56, or 50..58 at ascension 7.
                 let base = if self.run_state.ascension >= 7 { 50 } else { 48 };
-                let hp = base + self.rng.gen_range(0..=8);
+                let hp = base + self.monster_hp_rng.random(8);
                 (hp, hp)
             }
             "GremlinLeader" => {
@@ -3053,12 +3070,12 @@ impl RunEngine {
                 } else {
                     (140, 8)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "BookOfStabbing" => {
                 let base = if self.run_state.ascension >= 8 { 168 } else { 160 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "SlaverBoss" | "TaskMaster" | "Taskmaster" => {
@@ -3068,7 +3085,7 @@ impl RunEngine {
                 } else {
                     (54, 6)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "Snecko" => {
@@ -3079,7 +3096,7 @@ impl RunEngine {
                 } else {
                     (114, 6)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "SphericGuardian" | "Spheric Guardian" => {
@@ -3093,7 +3110,7 @@ impl RunEngine {
             }
             "BronzeOrb" | "Bronze Orb" => {
                 let base = if self.run_state.ascension >= 9 { 54 } else { 52 };
-                let hp = base + self.rng.gen_range(0..=6);
+                let hp = base + self.monster_hp_rng.random(6);
                 (hp, hp)
             }
             "TorchHead" | "Torch Head" => {
@@ -3104,7 +3121,7 @@ impl RunEngine {
                 } else {
                     (38, 2)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "TheCollector" => {
@@ -3123,7 +3140,7 @@ impl RunEngine {
             "Darkling" => {
                 // Source: Darkling.java uses inclusive 48..56 / 50..59 rolls.
                 let (base, width) = if a20 { (50, 9) } else { (48, 8) };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "OrbWalker" | "Orb Walker" => {
@@ -3134,7 +3151,7 @@ impl RunEngine {
                 } else {
                     (90, 6)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "Repulsor" => {
@@ -3145,7 +3162,7 @@ impl RunEngine {
                 } else {
                     (29, 6)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "Spiker" => {
@@ -3156,14 +3173,14 @@ impl RunEngine {
                 } else {
                     (42, 14)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "Exploder" => {
                 // Source: reference/extracted/methods/monster/Exploder.java.
                 // A7 changes fixed 30 HP to an inclusive 30..35 roll.
                 let hp = if self.run_state.ascension >= 7 {
-                    30 + self.rng.gen_range(0..=5)
+                    30 + self.monster_hp_rng.random(5)
                 } else {
                     30
                 };
@@ -3191,12 +3208,12 @@ impl RunEngine {
                 // at ascension 8. The constructor's earlier roll is a
                 // run-stream detail; semantic HP uses the final setHp range.
                 let base = if self.run_state.ascension >= 8 { 190 } else { 180 };
-                let hp = base + self.rng.gen_range(0..=10);
+                let hp = base + self.monster_hp_rng.random(10);
                 (hp, hp)
             }
             "SnakeDagger" | "Snake Dagger" => {
                 // Source: reference/extracted/methods/monster/SnakeDagger.java.
-                let hp = 20 + self.rng.gen_range(0..=5);
+                let hp = 20 + self.monster_hp_rng.random(5);
                 (hp, hp)
             }
             "Transient" => {
@@ -3282,6 +3299,10 @@ impl RunEngine {
         engine.clear_event_log();
         let hp_before = engine.state.player.hp;
         engine.execute_action(&combat_action);
+        // potionRng is dungeon-owned in Java and is not reset by room
+        // transitions, so keep the run copy synchronized with combat use.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:397,422,1737-1741
+        self.potion_rng = engine.potion_rng.clone();
         self.run_state.gold = engine.state.run_gold;
 
         let mut reward = 0.0;
@@ -7648,8 +7669,8 @@ impl RunEngine {
     /// Used by `bin/trace_replay.rs` (U05) to populate `trace::PostState::rng`.
     ///
     /// While in combat, delegates to `CombatEngine::rng_counters` (which
-    /// tracks `card`/`ai` distinctly); outside combat, only the run-level
-    /// catch-all `rng` counter is available and is reported as `card`
+    /// tracks `card`/`ai` distinctly); outside combat, the run-level
+    /// catch-all and persistent potion streams remain available
     /// (today's engine does not yet separate map/shop/event/relic/etc.
     /// streams — see `docs/vault/rng-system-analysis.md` for the full
     /// 13-stream target this will grow into).
@@ -7659,6 +7680,7 @@ impl RunEngine {
         }
         let mut counters = HashMap::new();
         counters.insert("card".to_string(), self.rng.counter as u64);
+        counters.insert("potion".to_string(), self.potion_rng.counter as u64);
         counters
     }
 

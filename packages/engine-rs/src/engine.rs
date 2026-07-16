@@ -192,20 +192,38 @@ impl CombatEngine {
         seed: u64,
         card_random_seed: u64,
     ) -> Self {
+        Self::new_with_rng_streams(
+            state,
+            crate::seed::StsRandom::new(seed),
+            crate::seed::StsRandom::new(card_random_seed),
+            crate::seed::StsRandom::new(card_random_seed),
+            crate::seed::StsRandom::new(card_random_seed),
+            // Standalone combat fixtures have no dungeon floor from which to
+            // derive Java's aiRng. Preserve their established independent
+            // deterministic stream; RunEngine injects the real floor stream.
+            crate::seed::StsRandom::new(seed.wrapping_add(0xA1A1_A1A1)),
+        )
+    }
+
+    pub(crate) fn new_with_rng_streams(
+        state: CombatState,
+        shuffle_rng: crate::seed::StsRandom,
+        card_random_rng: crate::seed::StsRandom,
+        potion_rng: crate::seed::StsRandom,
+        misc_rng: crate::seed::StsRandom,
+        ai_rng: crate::seed::StsRandom,
+    ) -> Self {
         let mut effect_runtime = crate::effects::runtime::EffectRuntime::default();
         effect_runtime.rebuild_from_state(&state);
         Self {
             state,
             phase: CombatPhase::NotStarted,
             card_registry: crate::cards::global_registry(),
-            rng: crate::seed::StsRandom::new(seed),
-            card_random_rng: crate::seed::StsRandom::new(card_random_seed),
-            potion_rng: crate::seed::StsRandom::new(card_random_seed),
-            misc_rng: crate::seed::StsRandom::new(card_random_seed),
-            // ai_rng seeded distinctly so it is not perturbed by re-seeds of `rng`
-            // when callers replay a snapshot. Mirrors Java's separate dungeon-level
-            // `aiRng` distinct from `cardRandomRng`/`shuffleRng`.
-            ai_rng: crate::seed::StsRandom::new(seed.wrapping_add(0xA1A1_A1A1)),
+            rng: shuffle_rng,
+            card_random_rng,
+            potion_rng,
+            misc_rng,
+            ai_rng,
             choice: None,
             effect_runtime,
             nightmare_pending_copies: Vec::new(),

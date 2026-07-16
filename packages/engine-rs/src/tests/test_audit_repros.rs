@@ -79,7 +79,6 @@ fn eda_003_catalyst_poison_must_preserve_java_int_range() {
 }
 
 #[test]
-#[ignore = "EDA-004: per-combat aiRng is not seeded with Settings.seed + floorNum"]
 fn eda_004_run_combat_ai_rng_must_use_the_java_per_floor_seed() {
     // AbstractDungeon.nextRoomTransition recreates aiRng from seed + floor:
     // decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:1737-1741
@@ -97,6 +96,80 @@ fn eda_004_run_combat_ai_rng_must_use_the_java_per_floor_seed() {
     }
 
     assert_eq!(actual.random(99), expected.random(99));
+}
+
+#[test]
+fn eda_004_room_reset_streams_and_persistent_potion_rng_follow_java() {
+    // AbstractDungeon.nextRoomTransition resets monsterHpRng, aiRng,
+    // shuffleRng, cardRandomRng, and miscRng from seed + floor, but leaves
+    // dungeon-owned potionRng untouched.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:397,422,1737-1741
+    let seed = 42_u64;
+    let floor = 7_i32;
+    let floor_seed = seed + floor as u64;
+    let mut run = crate::run::RunEngine::new(seed, 0);
+    run.run_state.floor = floor;
+    run.run_state.potions = vec![
+        "EntropicBrew".to_string(),
+        "SmokeBomb".to_string(),
+        String::new(),
+    ];
+    run.debug_enter_specific_combat(&["JawWorm"]);
+
+    let combat = run.debug_combat_engine_mut();
+    let mut expected_hp = crate::seed::StsRandom::new(floor_seed);
+    assert_eq!(
+        combat.state.enemies[0].entity.max_hp,
+        expected_hp.random_range(40, 44),
+    );
+
+    let mut expected_shuffle = crate::seed::StsRandom::new(floor_seed);
+    expected_shuffle.random_long();
+    assert_eq!(combat.rng.state_tuple(), expected_shuffle.state_tuple());
+
+    let mut expected_ai = crate::seed::StsRandom::new(floor_seed);
+    for _ in 0..combat.ai_rng.counter {
+        expected_ai.random(99);
+    }
+    assert_eq!(combat.ai_rng.state_tuple(), expected_ai.state_tuple());
+    assert_eq!(
+        combat.card_random_rng.state_tuple(),
+        crate::seed::StsRandom::new(floor_seed).state_tuple(),
+    );
+    assert_eq!(
+        combat.misc_rng.state_tuple(),
+        crate::seed::StsRandom::new(floor_seed).state_tuple(),
+    );
+    assert_eq!(
+        combat.potion_rng.state_tuple(),
+        crate::seed::StsRandom::new(seed).state_tuple(),
+    );
+
+    let result = run.step_with_result(&crate::run::RunAction::CombatAction(
+        crate::actions::Action::UsePotion {
+            potion_idx: 0,
+            target_idx: -1,
+        },
+    ));
+    assert!(result.action_accepted);
+    let potion_counter = run.rng_counters()["potion"];
+    assert!(potion_counter > 0);
+
+    let result = run.step_with_result(&crate::run::RunAction::CombatAction(
+        crate::actions::Action::UsePotion {
+            potion_idx: 1,
+            target_idx: -1,
+        },
+    ));
+    assert!(result.action_accepted);
+    assert_eq!(run.current_phase(), crate::run::RunPhase::MapChoice);
+
+    run.run_state.floor += 1;
+    run.debug_enter_specific_combat(&["JawWorm"]);
+    assert_eq!(
+        run.debug_combat_engine_mut().potion_rng.counter as u64,
+        potion_counter,
+    );
 }
 
 #[test]
