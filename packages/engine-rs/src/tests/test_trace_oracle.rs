@@ -20,6 +20,41 @@ use std::fs;
 
 use crate::trace::{diff_records, ActionScript, DivergenceStatus, ScriptStopCondition, TraceAction};
 
+#[test]
+fn run_trace_exposes_every_java_rng_counter_before_and_during_combat() {
+    // Sources:
+    // - decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+    // - decompiled/java-src/com/megacrit/cardcrawl/dungeons/Exordium.java
+    // Seed 4's first Exordium encounter is a single Jaw Worm, so entering
+    // combat does not consume miscRng while expanding a composite encounter.
+    let mut run = crate::run::RunEngine::new(4, 0);
+    let expected_keys: std::collections::BTreeSet<&str> =
+        crate::trace::CANONICAL_RNG_KEYS.iter().copied().collect();
+
+    let before = run.rng_counters();
+    assert_eq!(
+        before.keys().map(String::as_str).collect::<std::collections::BTreeSet<_>>(),
+        expected_keys
+    );
+    assert_eq!(before["relic"], 5);
+    assert_eq!(before["misc"], 1);
+    assert!(before["monster"] > 0);
+    assert!(before["map"] > 0);
+
+    run.step(&crate::run::RunAction::ChooseNeowOption(0));
+    run.step(&crate::run::RunAction::ChoosePath(0));
+    let combat = run.rng_counters();
+    assert_eq!(
+        combat.keys().map(String::as_str).collect::<std::collections::BTreeSet<_>>(),
+        expected_keys
+    );
+    assert_eq!(combat["relic"], 5);
+    assert_eq!(combat["misc"], 0);
+    assert_eq!(combat["monsterHp"], 1);
+    assert_eq!(combat["shuffle"], 1);
+    assert_eq!(combat["cardRandom"], 0);
+}
+
 /// The tiny scripted sequence used by both tests below: resolve Neow, take
 /// the first map path into floor 1 combat (vs a lone Cultist for seed 0),
 /// play the first Defend in Java-shuffled opening-hand order, then end the turn.

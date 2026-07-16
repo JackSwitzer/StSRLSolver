@@ -21,7 +21,7 @@ use crate::enemies;
 use crate::engine::CombatEngine;
 use crate::gameplay::registry::global_registry as gameplay_registry;
 use crate::gameplay::types::GameplayDomain;
-use crate::map::{generate_map, DungeonMap, RoomType};
+use crate::map::{generate_map_with_rng, DungeonMap, RoomType};
 use crate::state::{CombatState, EnemyCombatState};
 
 static NOTE_FOR_YOURSELF_CARD: OnceLock<Mutex<String>> = OnceLock::new();
@@ -865,9 +865,17 @@ pub struct RunEngine {
     pub seed: u64,
     rng: crate::seed::StsRandom,
     monster_rng: crate::seed::StsRandom,
+    event_rng: crate::seed::StsRandom,
+    relic_rng: crate::seed::StsRandom,
+    treasure_rng: crate::seed::StsRandom,
+    merchant_rng: crate::seed::StsRandom,
     monster_hp_rng: crate::seed::StsRandom,
+    ai_rng: crate::seed::StsRandom,
+    shuffle_rng: crate::seed::StsRandom,
+    card_random_rng: crate::seed::StsRandom,
     potion_rng: crate::seed::StsRandom,
     combat_misc_rng: crate::seed::StsRandom,
+    map_rng: crate::seed::StsRandom,
 
     // Active combat (when in Combat phase)
     combat_engine: Option<CombatEngine>,
@@ -938,8 +946,22 @@ impl RunEngine {
 
     /// Create a new run engine with given seed and ascension level.
     pub fn new(seed: u64, ascension: i32) -> Self {
-        let map = generate_map(seed, ascension);
+        // Exordium seeds mapRng with Settings.seed + actNum.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/Exordium.java:56
+        let (map, map_rng) = generate_map_with_rng(seed.wrapping_add(1), ascension);
         let rng = crate::seed::StsRandom::new(seed.wrapping_add(1));
+        let mut relic_rng = crate::seed::StsRandom::new(seed);
+        // AbstractDungeon.initializeRelicList shuffles five tier pools through
+        // five relicRng.randomLong calls before Neow is resolved.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:1227-1231
+        for _ in 0..5 {
+            relic_rng.random_long();
+        }
+        let mut combat_misc_rng = crate::seed::StsRandom::new(seed);
+        // Initial dungeon music selection consumes one miscRng draw. This is
+        // reset on the first room transition, but remains visible after Neow.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/audio/MainMusic.java:61-83
+        combat_misc_rng.random(1);
 
         let mut engine = Self {
             run_state: RunState::new(ascension),
@@ -948,9 +970,17 @@ impl RunEngine {
             seed,
             rng,
             monster_rng: crate::seed::StsRandom::new(seed),
+            event_rng: crate::seed::StsRandom::new(seed),
+            relic_rng,
+            treasure_rng: crate::seed::StsRandom::new(seed),
+            merchant_rng: crate::seed::StsRandom::new(seed),
             monster_hp_rng: crate::seed::StsRandom::new(seed),
+            ai_rng: crate::seed::StsRandom::new(seed),
+            shuffle_rng: crate::seed::StsRandom::new(seed),
+            card_random_rng: crate::seed::StsRandom::new(seed),
             potion_rng: crate::seed::StsRandom::new(seed),
-            combat_misc_rng: crate::seed::StsRandom::new(seed),
+            combat_misc_rng,
+            map_rng,
             combat_engine: None,
             reward_screen: None,
             suspended_reward_screen: None,
@@ -1952,6 +1982,9 @@ impl RunEngine {
         // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:1737-1741
         let floor_seed = self.seed.wrapping_add(self.run_state.floor as u64);
         self.monster_hp_rng = crate::seed::StsRandom::new(floor_seed);
+        self.ai_rng = crate::seed::StsRandom::new(floor_seed);
+        self.shuffle_rng = crate::seed::StsRandom::new(floor_seed);
+        self.card_random_rng = crate::seed::StsRandom::new(floor_seed);
         self.combat_misc_rng = crate::seed::StsRandom::new(floor_seed);
 
         // Expand composite encounters. MonsterHelper constructs Gremlin Leader
@@ -3201,11 +3234,11 @@ impl RunEngine {
 
         let mut engine = CombatEngine::new_with_rng_streams(
             combat_state,
-            crate::seed::StsRandom::new(floor_seed),
-            crate::seed::StsRandom::new(floor_seed),
+            self.shuffle_rng.clone(),
+            self.card_random_rng.clone(),
             self.potion_rng.clone(),
             self.combat_misc_rng.clone(),
-            crate::seed::StsRandom::new(floor_seed),
+            self.ai_rng.clone(),
         );
         engine.load_persisted_effects(self.run_state.persisted_effect_states.clone());
         engine.start_combat();
@@ -3679,6 +3712,10 @@ impl RunEngine {
         // transitions, so keep the run copy synchronized with combat use.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:397,422,1737-1741
         self.potion_rng = engine.potion_rng.clone();
+        self.ai_rng = engine.ai_rng.clone();
+        self.shuffle_rng = engine.rng.clone();
+        self.card_random_rng = engine.card_random_rng.clone();
+        self.combat_misc_rng = engine.misc_rng.clone();
         self.run_state.gold = engine.state.run_gold;
 
         let mut reward = 0.0;
@@ -8044,19 +8081,40 @@ impl RunEngine {
     /// vault's canonical short names (`docs/vault/rng-system-analysis.md`).
     /// Used by `bin/trace_replay.rs` (U05) to populate `trace::PostState::rng`.
     ///
-    /// While in combat, delegates to `CombatEngine::rng_counters` (which
-    /// tracks `card`/`ai` distinctly); outside combat, the run-level
-    /// catch-all and persistent potion streams remain available
-    /// (today's engine does not yet separate map/shop/event/relic/etc.
-    /// streams — see `docs/vault/rng-system-analysis.md` for the full
-    /// 13-stream target this will grow into).
+    /// Java owns seven persistent dungeon streams, five streams reset from
+    /// `seed + floor`, and one act-local map stream. Report all thirteen at
+    /// every action so a missing stream can never hide a parity divergence.
+    ///
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:388-401,1737-1741
     pub fn rng_counters(&self) -> HashMap<String, u64> {
-        if let Some(combat) = &self.combat_engine {
-            return combat.rng_counters().into_iter().collect();
-        }
-        let mut counters = HashMap::new();
+        let mut counters = HashMap::with_capacity(13);
         counters.insert("card".to_string(), self.rng.counter as u64);
+        counters.insert("monster".to_string(), self.monster_rng.counter as u64);
+        counters.insert("event".to_string(), self.event_rng.counter as u64);
+        counters.insert("relic".to_string(), self.relic_rng.counter as u64);
+        counters.insert("treasure".to_string(), self.treasure_rng.counter as u64);
         counters.insert("potion".to_string(), self.potion_rng.counter as u64);
+        counters.insert("merchant".to_string(), self.merchant_rng.counter as u64);
+        counters.insert("monsterHp".to_string(), self.monster_hp_rng.counter as u64);
+        counters.insert("ai".to_string(), self.ai_rng.counter as u64);
+        counters.insert("shuffle".to_string(), self.shuffle_rng.counter as u64);
+        counters.insert(
+            "cardRandom".to_string(),
+            self.card_random_rng.counter as u64,
+        );
+        counters.insert("misc".to_string(), self.combat_misc_rng.counter as u64);
+        counters.insert("map".to_string(), self.map_rng.counter as u64);
+
+        if let Some(combat) = &self.combat_engine {
+            counters.insert("potion".to_string(), combat.potion_rng.counter as u64);
+            counters.insert("ai".to_string(), combat.ai_rng.counter as u64);
+            counters.insert("shuffle".to_string(), combat.rng.counter as u64);
+            counters.insert(
+                "cardRandom".to_string(),
+                combat.card_random_rng.counter as u64,
+            );
+            counters.insert("misc".to_string(), combat.misc_rng.counter as u64);
+        }
         counters
     }
 

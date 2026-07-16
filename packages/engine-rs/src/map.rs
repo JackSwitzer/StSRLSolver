@@ -154,6 +154,14 @@ impl DungeonMap {
 /// Room type distribution matches Exordium at A20:
 ///   shop=5%, rest=12%, treasure=0%, elite=8%*1.6 (A1+), event=22%
 pub fn generate_map(seed: u64, ascension: i32) -> DungeonMap {
+    generate_map_with_rng(seed, ascension).0
+}
+
+/// Generate a map and return the consumed map RNG state for trace accounting.
+pub(crate) fn generate_map_with_rng(
+    seed: u64,
+    ascension: i32,
+) -> (DungeonMap, crate::seed::StsRandom) {
     let mut rng = MapRng::new(seed);
 
     let height = 15;
@@ -178,7 +186,7 @@ pub fn generate_map(seed: u64, ascension: i32) -> DungeonMap {
     // Step 4: Assign room types
     assign_room_types(&mut map, ascension, &mut rng);
 
-    map
+    (map, rng.into_inner())
 }
 
 /// Simple RNG wrapper matching Java's Random.random(range) behavior.
@@ -198,7 +206,10 @@ impl MapRng {
         if min >= max {
             return min;
         }
-        self.rng.gen_range(min..=max)
+        // MapGenerator.randRange calls Random.random(max - min) + min, so
+        // path-generation draws advance the public mapRng counter.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/map/MapGenerator.java
+        self.rng.random(max - min) + min
     }
 
     /// Shuffle a slice in place.
@@ -209,6 +220,10 @@ impl MapRng {
             let j = self.rng.gen_range(0..=i);
             slice.swap(i, j);
         }
+    }
+
+    fn into_inner(self) -> crate::seed::StsRandom {
+        self.rng
     }
 }
 
