@@ -14,6 +14,7 @@
 
 
 pub(crate) mod support;
+mod test_audit_repros;
 mod test_cards;
 mod test_cards_defect;
 mod test_cards_ironclad;

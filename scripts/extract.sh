@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Regenerate reference/extracted/ (data tables + method index) from the
-# decompiled Java, and refresh the committed verification ledger.
+# decompiled Java, and merge-refresh the committed verification ledger without
+# changing existing row statuses.
 set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"

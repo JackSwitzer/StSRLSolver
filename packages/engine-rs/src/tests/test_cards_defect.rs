@@ -11,7 +11,7 @@ mod defect_card_java_parity_tests {
     use crate::effects::interpreter::generated_card_pool;
     use crate::actions::Action;
     use crate::orbs::OrbType;
-    use crate::powers::{process_end_of_round, process_end_of_turn, process_start_of_turn};
+    use crate::powers::process_end_of_round;
     use crate::state::EnemyCombatState;
     use crate::tests::support::*;
 
@@ -1441,36 +1441,6 @@ mod defect_card_java_parity_tests {
         assert_eq!(e.phase, CombatPhase::AwaitingChoice);
         e.execute_action(&Action::Choose(0)); // pick first card
         assert!(!e.state.hand.is_empty());
-    });
-
-    defect_test!(process_start_of_turn_handles_power_helpers, {
-        let mut entity = crate::state::EntityState::new(50, 50);
-        entity.set_status(sid::ENERGIZED, 2);
-        entity.set_status(sid::DRAW_CARD, 1);
-        entity.set_status(sid::NEXT_TURN_BLOCK, 4);
-        entity.set_status(sid::BATTLE_HYMN, 3);
-        entity.set_status(sid::DEVOTION, 2);
-        entity.set_status(sid::DRAW, 1);
-        let result = process_start_of_turn(&mut entity);
-        assert_eq!(result.extra_energy, 2);
-        assert_eq!(result.draw_card_next_turn, 1);
-        assert_eq!(result.block_from_next_turn, 4);
-        assert_eq!(result.battle_hymn_smites, 3);
-        assert_eq!(result.devotion_mantra, 2);
-        assert_eq!(result.extra_draw, 1);
-    });
-
-    defect_test!(process_end_of_turn_handles_power_helpers, {
-        let mut entity = crate::state::EntityState::new(50, 50);
-        entity.set_status(sid::METALLICIZE, 4);
-        entity.set_status(sid::PLATED_ARMOR, 3);
-        entity.set_status(sid::OMEGA, 5);
-        entity.set_status(sid::LIKE_WATER, 2);
-        let result = process_end_of_turn(&mut entity, true);
-        assert_eq!(result.metallicize_block, 4);
-        assert_eq!(result.plated_armor_block, 3);
-        assert_eq!(result.omega_damage, 5);
-        assert_eq!(result.like_water_block, 2);
     });
 
     defect_test!(equilibrium_blocks_and_stacked_power_retains_for_each_round, {

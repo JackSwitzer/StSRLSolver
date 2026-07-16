@@ -487,23 +487,6 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
     shrines::typed_shrine_events()
 }
 
-
-/// Get event list for the given act.
-pub fn events_for_act(act: i32) -> Vec<EventDef> {
-    typed_events_for_act(act)
-        .into_iter()
-        .map(|event| event.summary_event())
-        .collect()
-}
-
-/// Get shrine events (shared across all acts in Java).
-pub fn shrine_events() -> Vec<EventDef> {
-    typed_shrine_events()
-        .into_iter()
-        .map(|event| event.summary_event())
-        .collect()
-}
-
 #[cfg(test)]
 #[path = "../tests/test_event_runtime_wave4.rs"]
 mod test_event_runtime_wave4;

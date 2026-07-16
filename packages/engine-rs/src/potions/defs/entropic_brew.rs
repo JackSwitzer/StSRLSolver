@@ -48,6 +48,7 @@ const WATCHER_POTION_POOL: &[(&str, u8)] = &[
     ("EntropicBrew", 2),
 ];
 
+#[cfg(test)]
 pub(crate) fn is_watcher_limited_potion(id: &str) -> bool {
     id != "FruitJuice" && WATCHER_POTION_POOL.iter().any(|(candidate, _)| *candidate == id)
 }

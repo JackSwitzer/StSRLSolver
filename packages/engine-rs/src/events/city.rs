@@ -1,6 +1,5 @@
 use super::{
-    EventDef, EventEffect, EventProgram, EventProgramOp, EventReward, TypedEventDef,
-    TypedEventOption,
+    EventEffect, EventProgram, EventProgramOp, EventReward, TypedEventDef, TypedEventOption,
 };
 
 #[cfg(test)]
@@ -349,12 +348,4 @@ pub fn typed_act2_events() -> Vec<TypedEventDef> {
             ],
         ),
     ]
-}
-
-#[allow(dead_code)]
-pub fn act2_events() -> Vec<EventDef> {
-    typed_act2_events()
-        .into_iter()
-        .map(|event| event.summary_event())
-        .collect()
 }

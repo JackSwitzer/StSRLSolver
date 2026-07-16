@@ -1,62 +1,112 @@
 # AGENTS.md — Read This First
 
-Clean-room **Rust simulator of Slay the Spire** (`packages/engine-rs`) for RL training, verified against the real game. Active mission: **Watcher full-run parity**.
+Clean-room **Rust simulator of Slay the Spire** (`packages/engine-rs`) for RL
+training, checked against the decompiled game. The source-verification sweep for
+the ledger's 667 cards, monsters, relics, and potions is complete. That content
+milestone does not imply full-run or systems parity; use the current scoped task
+and `docs/goal/` to determine the active mission.
 
 ## The contract (binding)
 
-1. **Ground truth is the decompiled game**, nothing else. `decompiled/java-src/com/megacrit/cardcrawl/` (local-only, gitignored; regenerate with `scripts/decompile_java.sh`). Agent-ready distillation: `reference/extracted/` — data tables + per-item verbatim logic at `reference/extracted/methods/<kind>/<Class>.java` (regenerate with `scripts/extract.sh`).
-2. **The existing engine is an unverified draft.** It is ~mostly right, but nothing counts as done until checked against source. **Existing tests are NOT gospel** — some assert wrong values copied from misread source (proven: `test_ai_rng_parity.rs` vs JawWorm `getMove`, see `docs/goal/FINDINGS.md` F1). You may rewrite any test **if and only if** you cite the decompiled file/lines that contradict it. Never delete coverage without a source-derived replacement.
-3. **The loop is the ledger.** `docs/goal/ledger.json` — one row per content item (667: cards, monsters, relics, potions), all starting `unverified`. Work = pick rows, verify, flip. Done = no `unverified` rows on the Watcher-reachable set (plus `docs/goal/GOAL.md` Definition of Done).
+1. **Ground truth is the decompiled game**, nothing else.
+   `decompiled/java-src/com/megacrit/cardcrawl/` is local-only and gitignored;
+   regenerate it with `scripts/decompile_java.sh`. Agent-ready extracts live in
+   `reference/extracted/`, including per-item logic under
+   `reference/extracted/methods/` (regenerate with `scripts/extract.sh`).
+2. **Verification remains source-derived.** Existing Rust and tests are evidence,
+   not ground truth. If a test contradicts Java, replace it with a source-cited
+   test; never remove coverage without a source-derived replacement.
+3. **The ledger records the completed content sweep.**
+   `docs/goal/ledger.json` contains 667 verified rows (370 cards, 68 monsters,
+   186 relics, and 43 potions). It does not cover every run-level system, event,
+   map rule, Neow path, power interaction, or observation/training boundary.
+4. **System gaps are tracked separately.** Read
+   `docs/work_units/audit-reports/engine-deep-audit.md` and
+   `docs/work_units/sim-completion-map.md` when present; known baseline gaps stay
+   in `docs/goal/FINDINGS.md`.
 
-## The verification loop (what "/goal" means)
+## Source-derived correction workflow
 
-For the next `unverified` row (prefer: Watcher cards → Act 1 monsters → Watcher-reachable relics/potions → the rest):
+This is the completed sweep's existing contract for a row that is reopened or
+newly extracted. It does not redefine what `/goal` should select next; the
+post-sweep replacement prompt in EDA-035 requires human approval.
 
-1. Read the item's logic at its `methods_ref` (and the full source file if needed).
-2. Compare the Rust implementation (grep `packages/engine-rs/src/` for the item id).
-3. Confirm or fix the Rust — cite the Java file in a comment. Match RNG consumption exactly (every `aiRng.randomBoolean(p)` etc. consumes a counter tick; the trace oracle diffs counters).
-4. Replace/extend the item's test with a **source-derived** one (expected values re-derived from the Java you just read, not from existing tests or engine output).
-5. Run `./scripts/test_engine_rs.sh test --lib` (must stay green) and, when a relevant golden exists, `./scripts/trace_diff.sh data/traces/scripts/<script>.json`.
-6. Flip the ledger row with the helper (never hand-edit the JSON): `scripts/ledger.sh flip <row-id> <branch>`, or after 2 failed real attempts `scripts/ledger.sh quarantine <row-id> <branch> DEV-NNN` + register entry per `docs/goal/GOAL.md` Edge-Case Policy. `scripts/ledger.sh status` shows counts + next rows.
-7. Commit (`verify(<kind>/<Id>): <what changed>`), batch related items per commit sensibly. Repeat.
+When evidence reopens a verified content row or exposes a system-level parity
+gap:
 
-## Practical notes (read once — saves real tokens)
+1. Read the relevant extracted method and the full Java source when needed.
+2. Compare the Rust implementation and all tests that mention the behavior.
+3. Match values, ordering, and RNG consumption exactly. Every Java RNG draw
+   matters to the trace counters.
+4. Add or replace a source-derived test. Cite the Java file in the test or the
+   implementation comment.
+5. Run `./scripts/test_engine_rs.sh test --lib`. When a committed golden covers
+   the behavior, also run `scripts/trace_diff.sh <script.json>`.
+6. Update the appropriate findings/register document. Use `scripts/ledger.sh`
+   only when a ledger row's state actually changes; never hand-edit the JSON.
+7. Commit a focused change using the repository's conventional commit style.
 
-- **Ledger ids are Java class names or ID strings** (`relic/Pure Water` → class `PureWater`); the engine sometimes checks both spaced and unspaced forms (`"Violet Lotus" || "VioletLotus"`) — grep both.
-- **An item's existing tests are scattered** across several files (wave files, `test_enemies.rs`, `test_cards_*.rs`); grep broadly for the id before writing a new test, and extend/replace in place.
-- **Base-class ground truth** lives at `reference/extracted/methods/base/` (e.g. `AbstractMonster.java` `rollMove` = the one-aiRng-tick-per-turn contract). Check it before reasoning about RNG consumption.
-- **RNG fidelity by layer**: in-combat streams (`ai`, `shuffle`, `cardRandom`…) must match Java tick-for-tick. Run-level generation (`RunEngine`) currently uses one shared stream, unlike Java's split streams — run-level tick-count parity is **not yet achievable**; verify run-level behavior semantically and do NOT quarantine rows over run-level tick counts (stream-splitting is a queued infra unit).
-- **Ascension-dependent stats**: `create_enemy(id, hp, max_hp)` takes no ascension — patch at the spawn site in `run.rs::enter_specific_combat` (precedent: Sentry stagger, Cultist ritual). Do not re-plumb `create_enemy`.
-- **The trace oracle is dormant until goldens land**: one smoke golden exists; `trace_diff.sh` only applies to rows a committed golden exercises. Smart source-derived tests are the per-row oracle — don't burn attempts on the trace step elsewhere.
-- Exemplar commits to imitate: PR #157 (`verify(card/Eruption)`, `verify(monster/Cultist)`, `verify(relic/Pure Water)`).
+## Practical notes
 
-**Escalation, never workaround**: if source reading is ambiguous and you need real-game evidence, write the desired action script to `data/traces/requests/<name>.json` and continue with other rows — a human mints goldens (`scripts/trace_java.sh` launches the actual game; agents never do).
+- Ledger IDs are Java class names or game ID strings. The engine sometimes
+  accepts both spaced and unspaced relic IDs, so search for both forms.
+- Tests are distributed across many files. Search broadly before adding new
+  coverage, and extend the closest source-derived test when practical.
+- Base-class behavior lives under `reference/extracted/methods/base/`; consult it
+  before reasoning about shared mechanics or RNG.
+- In-combat RNG streams must match Java tick-for-tick. Run-level generation still
+  has known stream-model gaps; do not hide those differences behind content-row
+  assertions.
+- `create_enemy(id, hp, max_hp)` does not take ascension. Ascension-specific spawn
+  adjustments belong at the run combat-entry site unless a scoped design change
+  explicitly replaces that architecture.
+- The committed trace corpus is currently small. Source-derived unit tests remain
+  necessary where no golden exercises a behavior.
+
+If source reading is ambiguous and real-game evidence is required, add the
+desired action script under `data/traces/requests/` and continue with other work.
+A human runs `scripts/trace_java.sh`; agents never launch the game.
 
 ## Verify commands
 
 ```bash
-./scripts/test_engine_rs.sh test --lib          # green, count only goes up (2255+ as of 2026-07-10)
-scripts/trace_diff.sh data/traces/scripts/<s>.json   # offline parity oracle (needs committed golden)
-scripts/ledger.sh status                        # loop state
-uv run pytest tests/training -q                 # only if you touched anything near training (don't)
+./scripts/test_engine_rs.sh test --lib          # 2,883 pass + 11 ignored audit repros (2026-07-15)
+scripts/trace_diff.sh data/traces/scripts/<s>.json
+scripts/ledger.sh status                        # 667 verified, 0 unverified
+uv run pytest tests/training -q                 # only for authorized training changes
 ```
 
-## Hard rules (violations = bounced work)
+## Hard rules
 
-- Never modify: `data/traces/java/` (goldens), `decompiled/`, `packages/training/`, `logs/`, `runs/`. Never `rm -rf` — archive to `archive/`.
-- Never launch the game (`ModTheSpire`, `trace_java.sh`, `play.sh`).
-- Ledger discipline: never flip to `verified` without a source citation + test; never mask a trace diff without a `DEV-` register entry.
-- Tooling: bash in `scripts/` + `jq`; Rust in `packages/engine-rs`; Python via `uv`, JS via `bun`. No new Python infra files, no docs beyond goal/register files.
-- Branches `codex/verify-<slug>` (or `claude/`), PR to `main`, conventional commits. Never commit to `main`.
+- Never modify `data/traces/java/`, `decompiled/`, `packages/training/`, `logs/`,
+  or `runs/` during engine parity work. Never use `rm -rf`; archive uncertain
+  material under `archive/`.
+- Never launch the game (`ModTheSpire`, `trace_java.sh`, or `play.sh`).
+- Never mark content verified without source evidence and a source-derived test;
+  never mask a trace diff without a registered `DEV-` exception.
+- Use bash plus `jq` for scripts, Rust for `packages/engine-rs`, Python through
+  `uv`, and JavaScript through `bun`. Do not add Python infrastructure as a
+  shortcut for engine work.
+- Use `codex/` (or `claude/`) branches, open PRs to `main`, and never commit
+  directly to `main`.
+- Preserve unrelated worktree changes and obey any narrower restrictions in the
+  active task.
 
 ## Context map
 
-`docs/goal/GOAL.md` (end state, invariants, quarantine policy) · `docs/goal/FINDINGS.md` (known gaps F1-F7 — good first targets) · `docs/goal/BENCHMARKS.md` (B0-B5 ladder; B0 done) · `docs/goal/TOOLING.md` (trace schema/oracle contracts) · `docs/goal/UNITS.md` (infra work queue) · `docs/vault/` (mechanics notes: RNG streams, seeds, launch procedures).
+- `docs/goal/GOAL.md` — target invariants and definition of done
+- `docs/goal/FINDINGS.md` — established system-level gaps
+- `docs/goal/BENCHMARKS.md` — benchmark ladder
+- `docs/goal/TOOLING.md` — trace schema and oracle contracts
+- `docs/goal/UNITS.md` — canonical infrastructure queue
+- `docs/work_units/audit-reports/engine-deep-audit.md` — ranked post-sweep audit register
+- `docs/work_units/sim-completion-map.md` — remaining-layer gap map
+- `docs/vault/` — mechanics notes, seed work, and human launch procedures
 
-## Running the loop (human setup)
+## Local reference setup
 
 ```bash
-git worktree add ../SlayTheSpireRL-goal -b codex/verify-sweep origin/main
-cd ../SlayTheSpireRL-goal && scripts/extract.sh   # materialize reference/extracted locally
-codex   # then: /goal
+scripts/decompile_java.sh   # only when local decompiled sources are absent/stale
+scripts/extract.sh
+./scripts/test_engine_rs.sh test --lib
 ```
