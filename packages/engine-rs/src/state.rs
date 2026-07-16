@@ -289,7 +289,7 @@ pub struct CombatState {
     pub max_energy: i32,
     pub stance: Stance,
 
-    // Card piles (compact CardInstance, 4 bytes each)
+    // Card piles (compact Copy-friendly CardInstance values)
     pub hand: Vec<CardInstance>,
     pub draw_pile: Vec<CardInstance>,
     pub discard_pile: Vec<CardInstance>,

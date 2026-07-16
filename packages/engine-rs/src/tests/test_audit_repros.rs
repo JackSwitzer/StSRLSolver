@@ -27,7 +27,6 @@ fn eda_001_all_victory_relics_must_run_after_combat_is_marked_over() {
 }
 
 #[test]
-#[ignore = "EDA-002: CardInstance.misc truncates Java int damage state to i16"]
 fn eda_002_rampage_growth_must_preserve_java_int_range() {
     // ModifyDamageAction increments AbstractCard.baseDamage as an int:
     // decompiled/java-src/com/megacrit/cardcrawl/actions/common/ModifyDamageAction.java:21-29
@@ -47,7 +46,27 @@ fn eda_002_rampage_growth_must_preserve_java_int_range() {
         .discard_pile
         .last()
         .expect("played Rampage should land in discard");
-    assert_eq!(i32::from(played.misc), 32_770);
+    assert_eq!(played.misc, 32_770);
+}
+
+#[test]
+fn eda_002_card_misc_round_trips_the_training_snapshot_at_java_int_width() {
+    // AbstractCard.misc and CardSave.misc are Java ints. The structured
+    // training snapshot must preserve the same width when a combat is cloned.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/AbstractCard.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardSave.java
+    let mut engine = engine_without_start(
+        make_deck(&["Rampage"]),
+        vec![enemy_no_intent("JawWorm", 100_000, 100_000)],
+        3,
+    );
+    engine.state.draw_pile[0].misc = 100_000;
+
+    let snapshot = crate::training_contract::combat_snapshot_from_combat(&engine);
+    let restored = crate::training_contract::combat_engine_from_snapshot(&snapshot);
+
+    assert_eq!(snapshot.draw_pile[0].misc, 100_000);
+    assert_eq!(restored.state.draw_pile[0].misc, 100_000);
 }
 
 #[test]

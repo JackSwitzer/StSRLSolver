@@ -949,7 +949,7 @@ fn build_card_token(
         target: format!("{:?}", def.target),
         cost_for_turn: card.cost.max(-1) as i32,
         base_cost: card.base_cost.max(-1) as i32,
-        misc: card.misc as i32,
+        misc: card.misc,
         upgraded: card.is_upgraded(),
         free_to_play: card.is_free(),
         retained: card.is_retained(),
@@ -969,7 +969,7 @@ fn build_card_snapshot(
         card_id: def.id.to_string(),
         cost_for_turn: card.cost.max(-1) as i32,
         base_cost: card.base_cost.max(-1) as i32,
-        misc: card.misc as i32,
+        misc: card.misc,
         upgraded: card.is_upgraded(),
         free_to_play: card.is_free(),
         retained: card.is_retained(),
@@ -987,7 +987,7 @@ fn restore_card_snapshots(
             let mut restored = registry.make_card(&card.card_id);
             restored.cost = card.cost_for_turn as i8;
             restored.base_cost = card.base_cost as i8;
-            restored.misc = card.misc as i16;
+            restored.misc = card.misc;
             restored.set_retained(card.retained);
             if card.upgraded {
                 restored.flags |= crate::combat_types::CardInstance::FLAG_UPGRADED;

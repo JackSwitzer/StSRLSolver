@@ -17,7 +17,7 @@ pub struct CardInstance {
     pub base_cost: i8,
     /// Card-specific mutable numeric state. -1 = uninitialized / use def value.
     /// Signed decrementing state reserves -1 and encodes negative N as N - 1.
-    pub misc: i16,
+    pub misc: i32,
     /// Bit flags.
     pub flags: u8,
 }
@@ -38,17 +38,17 @@ impl CardInstance {
     }
     pub fn with_cost(mut self, cost: i8) -> Self { self.cost = cost; self }
     pub fn upgraded(mut self) -> Self { self.flags |= Self::FLAG_UPGRADED; self }
-    pub fn with_misc(mut self, misc: i16) -> Self { self.misc = misc; self }
+    pub fn with_misc(mut self, misc: i32) -> Self { self.misc = misc; self }
     pub fn decrementing_misc_or(&self, default: i32) -> i32 {
         match self.misc {
             -1 => default,
-            value if value < -1 => value as i32 + 1,
-            value => value as i32,
+            value if value < -1 => value + 1,
+            value => value,
         }
     }
     pub fn set_decrementing_misc(&mut self, value: i32) {
         let encoded = if value < 0 { value.saturating_sub(1) } else { value };
-        self.misc = encoded.clamp(i16::MIN as i32, i16::MAX as i32) as i16;
+        self.misc = encoded;
     }
     pub fn set_free(mut self, v: bool) -> Self {
         if v { self.flags |= Self::FLAG_FREE } else { self.flags &= !Self::FLAG_FREE }
@@ -202,8 +202,11 @@ mod tests {
     }
 
     #[test]
-    fn card_instance_is_4_bytes() {
-        assert_eq!(std::mem::size_of::<CardInstance>(), 8);
+    fn card_instance_stays_within_the_i32_misc_clone_budget() {
+        // EDA-002 requires Java-width misc state. The transparent Copy type is
+        // 12 bytes with ordinary Rust alignment; combat benchmarks guard the
+        // actual MCTS cloning cost.
+        assert_eq!(std::mem::size_of::<CardInstance>(), 12);
     }
 
     #[test]

@@ -868,7 +868,7 @@ impl EffectRuntime {
                     let current = if is_steam {
                         card.decrementing_misc_or(def.base_block.max(0))
                     } else if card.misc >= 0 {
-                        card.misc as i32
+                        card.misc
                     } else {
                         engine.card_registry
                             .card_def_by_id(card.def_id)
@@ -883,12 +883,12 @@ impl EffectRuntime {
                     if is_steam {
                         card.set_decrementing_misc(next);
                     } else {
-                        card.misc = next as i16;
+                        card.misc = next;
                     }
                     engine.runtime_played_card = Some(card);
                     let card_id = engine.card_registry.card_def_by_id(def_id).id;
                     if matches!(card_id, "Genetic Algorithm" | "Genetic Algorithm+") {
-                        engine.sync_genetic_algorithm_master_deck(before, next as i16);
+                        engine.sync_genetic_algorithm_master_deck(before, next);
                     }
                 }
             }
@@ -896,11 +896,11 @@ impl EffectRuntime {
                 let delta = self.resolve_amount(engine, instance_idx, owner, amount_src);
                 if let Some(mut card) = engine.runtime_played_card {
                     let current = if card.misc >= 0 {
-                        card.misc as i32
+                        card.misc
                     } else {
                         engine.card_registry.card_def_by_id(card.def_id).base_damage
                     };
-                    let next = (current + delta).max(0) as i16;
+                    let next = current.wrapping_add(delta).max(0);
                     card.misc = next;
                     engine.runtime_played_card = Some(card);
                 }
@@ -1018,7 +1018,7 @@ impl EffectRuntime {
             }
             SimpleEffect::AddCardWithMisc(card_name, pile, amount_src, misc_src) => {
                 let count = self.resolve_amount(engine, instance_idx, owner, amount_src).max(0);
-                let misc = self.resolve_amount(engine, instance_idx, owner, misc_src).max(0) as i16;
+                let misc = self.resolve_amount(engine, instance_idx, owner, misc_src).max(0);
                 if pile == Pile::Hand {
                     for _ in 0..count {
                         let mut card = engine.temp_card(card_name);

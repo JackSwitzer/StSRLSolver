@@ -1430,11 +1430,11 @@ impl CombatEngine {
                 return;
             }
             let current = if card.misc >= 0 {
-                card.misc as i32
+                card.misc
             } else {
                 def.base_damage
             };
-            card.misc = (current + amount).max(0).min(i16::MAX as i32) as i16;
+            card.misc = current.wrapping_add(amount).max(0);
         };
 
         if let Some(card) = self.runtime_played_card.as_mut() {
@@ -1454,7 +1454,7 @@ impl CombatEngine {
     pub(crate) fn sync_genetic_algorithm_master_deck(
         &mut self,
         before: CardInstance,
-        next_block: i16,
+        next_block: i32,
     ) {
         // IncreaseMiscAction updates both the combat instance and the matching
         // UUID in AbstractDungeon.player.masterDeck. CardInstance has no UUID,
@@ -1465,7 +1465,7 @@ impl CombatEngine {
         let previous_block = if before.misc >= 0 {
             before.misc
         } else {
-            def.base_block.max(0) as i16
+            def.base_block.max(0)
         };
         if let Some(card) = self.state.master_deck.iter_mut().find(|card| {
             if card.def_id != before.def_id {
@@ -1474,7 +1474,7 @@ impl CombatEngine {
             let current = if card.misc >= 0 {
                 card.misc
             } else {
-                def.base_block.max(0) as i16
+                def.base_block.max(0)
             };
             current == previous_block
         }) {
@@ -1485,7 +1485,7 @@ impl CombatEngine {
     pub(crate) fn sync_ritual_dagger_master_deck(
         &mut self,
         before: CardInstance,
-        next_damage: i16,
+        next_damage: i32,
     ) {
         // RitualDaggerAction matches the played card's UUID in masterDeck and
         // raises that persistent card's misc/baseDamage. CardInstance has no
@@ -1498,7 +1498,7 @@ impl CombatEngine {
         let previous_damage = if before.misc >= 0 {
             before.misc
         } else {
-            def.base_damage.max(0) as i16
+            def.base_damage.max(0)
         };
         if let Some(card) = self.state.master_deck.iter_mut().find(|card| {
             if card.def_id != before.def_id {
@@ -1507,7 +1507,7 @@ impl CombatEngine {
             let current = if card.misc >= 0 {
                 card.misc
             } else {
-                def.base_damage.max(0) as i16
+                def.base_damage.max(0)
             };
             current == previous_damage
         }) {
@@ -4570,7 +4570,7 @@ impl CombatEngine {
                         drawn.misc = self
                             .state
                             .power_cards_played_this_combat
-                            .min(i16::MAX as i32) as i16;
+                            .max(0);
                     }
                     drawn.flags &= !CardInstance::FLAG_FREE;
                 }
