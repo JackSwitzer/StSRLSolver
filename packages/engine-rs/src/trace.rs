@@ -781,6 +781,17 @@ pub fn build_trace_record(engine: &crate::run::RunEngine, idx: u64, action: Trac
     }
 }
 
+fn trace_potion_id(potion_id: &str) -> String {
+    // Java keeps vacant inventory entries as PotionSlot instances whose
+    // stable POTION_ID is "Potion Slot"; traces must preserve those entries.
+    // Source: decompiled/java-src/com/megacrit/cardcrawl/potions/PotionSlot.java
+    if potion_id.is_empty() {
+        "Potion Slot".to_string()
+    } else {
+        potion_id.to_string()
+    }
+}
+
 /// Snapshot the engine's current state into a [`PostState`].
 ///
 /// Outside combat there is no `CombatState` to report player/enemy detail
@@ -809,7 +820,12 @@ pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
                 .iter()
                 .map(|id| RelicPostState { id: id.clone(), counter: -1 })
                 .collect(),
-            potions: engine.run_state.potions.clone(),
+            potions: engine
+                .run_state
+                .potions
+                .iter()
+                .map(|potion| trace_potion_id(potion))
+                .collect(),
             rng,
         };
     };
@@ -889,7 +905,11 @@ pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
             exhaust: state.exhaust_pile.iter().map(card_name).collect(),
         },
         relics: state.relics.iter().map(|id| RelicPostState { id: id.clone(), counter: -1 }).collect(),
-        potions: state.potions.iter().filter(|p| !p.is_empty()).cloned().collect(),
+        potions: state
+            .potions
+            .iter()
+            .map(|potion| trace_potion_id(potion))
+            .collect(),
         rng,
     }
 }

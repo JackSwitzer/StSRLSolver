@@ -55,6 +55,34 @@ fn run_trace_exposes_every_java_rng_counter_before_and_during_combat() {
     assert_eq!(combat["cardRandom"], 0);
 }
 
+#[test]
+fn trace_preserves_java_potion_slot_placeholders_outside_and_during_combat() {
+    // PotionSlot.POTION_ID is "Potion Slot", and AbstractPlayer keeps one
+    // PotionSlot object for every vacant inventory position.
+    // Sources:
+    // - decompiled/java-src/com/megacrit/cardcrawl/potions/PotionSlot.java
+    // - decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+    let mut run = crate::run::RunEngine::new(4, 0);
+    run.run_state.potions = vec![
+        "DexterityPotion".to_string(),
+        String::new(),
+        "FirePotion".to_string(),
+    ];
+
+    let outside = crate::trace::build_post_state(&run);
+    assert_eq!(
+        outside.potions,
+        ["DexterityPotion", "Potion Slot", "FirePotion"]
+    );
+
+    run.debug_enter_specific_combat(&["JawWorm"]);
+    let during = crate::trace::build_post_state(&run);
+    assert_eq!(
+        during.potions,
+        ["DexterityPotion", "Potion Slot", "FirePotion"]
+    );
+}
+
 /// The tiny scripted sequence used by both tests below: resolve Neow, take
 /// the first map path into floor 1 combat (vs a lone Cultist for seed 0),
 /// play the first Defend in Java-shuffled opening-hand order, then end the turn.
