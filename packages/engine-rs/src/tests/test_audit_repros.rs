@@ -227,7 +227,6 @@ fn eda_004_room_reset_streams_and_persistent_potion_rng_follow_java() {
 }
 
 #[test]
-#[ignore = "EDA-005: run encounters rotate hard-coded pools instead of Java's seeded weighted queue"]
 fn eda_005_first_weak_encounter_must_follow_monster_rng() {
     // Exordium.generateWeakEnemies normalizes four equal weights, then
     // populateMonsterList rolls monsterRng seeded with Settings.seed. Seed 4's

@@ -10,8 +10,7 @@ mod enemy_ai_java_parity_tests {
     use crate::combat_types::{mfx, Intent};
     use crate::status_ids::sid;
     use crate::enemies::move_ids;
-    use crate::map::{DungeonMap, MapNode, RoomType};
-    use crate::run::{RunAction, RunEngine, RunPhase};
+    use crate::run::RunEngine;
     use crate::state::EnemyCombatState;
     use crate::tests::support::run_engine;
     use crate::tests::support::TEST_SEED;
@@ -72,39 +71,10 @@ mod enemy_ai_java_parity_tests {
         );
     }
 
-    fn forced_map(room_type: RoomType) -> DungeonMap {
-        DungeonMap {
-            rows: vec![vec![MapNode {
-                x: 0,
-                y: 0,
-                room_type,
-                has_edges: true,
-                edges: Vec::new(),
-                parents: Vec::new(),
-                has_emerald_key: false,
-            }]],
-            height: 1,
-            width: 1,
-        }
-    }
-
-    fn forced_run_engine(act: i32, ascension: i32, room_type: RoomType, floor_before: i32) -> RunEngine {
+    fn enter_specific_combat(act: i32, ascension: i32, enemies: &[&str]) -> RunEngine {
         let mut engine = run_engine(TEST_SEED, ascension);
-        engine.map = forced_map(room_type);
         engine.run_state.act = act;
-        engine.run_state.floor = floor_before;
-        engine.run_state.map_x = -1;
-        engine.run_state.map_y = -1;
-        engine.phase = RunPhase::MapChoice;
-        engine
-    }
-
-    fn enter_forced_combat(act: i32, ascension: i32, room_type: RoomType, floor_before: i32) -> RunEngine {
-        let mut engine = forced_run_engine(act, ascension, room_type, floor_before);
-        let (reward, done) = engine.step(&RunAction::ChoosePath(0));
-        assert!(!done, "forced combat entry should not end the run");
-        assert!(reward >= 0.0);
-        assert_eq!(engine.current_phase(), RunPhase::Combat);
+        engine.debug_enter_specific_combat(enemies);
         engine
     }
 
@@ -1656,44 +1626,44 @@ mod enemy_ai_java_parity_tests {
         // below ascension 7, setHp(50, 56) at 7+ — a uniform roll, not a fixed
         // value. The old assertions (hp == 48 / == 50) baked in the pre-fix
         // fixed-HP behavior.
-        let act1_weak = enter_forced_combat(1, 0, RoomType::Monster, 0);
+        let act1_weak = enter_specific_combat(1, 0, &["Cultist"]);
         let combat = act1_weak.get_combat_engine().expect("combat engine");
         assert_eq!(combat.state.enemies[0].id, "Cultist");
         assert!((48..=54).contains(&combat.state.enemies[0].entity.hp));
 
-        let act1_weak_a20 = enter_forced_combat(1, 20, RoomType::Monster, 0);
+        let act1_weak_a20 = enter_specific_combat(1, 20, &["Cultist"]);
         let combat = act1_weak_a20.get_combat_engine().expect("combat engine");
         assert_eq!(combat.state.enemies[0].id, "Cultist");
         assert!((50..=56).contains(&combat.state.enemies[0].entity.hp));
         // Cultist.java: ritualAmount = asc >= 2 ? 4 : 3, +1 applied at asc >= 17.
         assert_eq!(combat.state.enemies[0].effect(mfx::RITUAL), Some(5));
 
-        let act1_strong = enter_forced_combat(1, 0, RoomType::Monster, 3);
+        let act1_strong = enter_specific_combat(1, 0, &["BlueSlaver"]);
         let combat = act1_strong.get_combat_engine().expect("combat engine");
         assert_eq!(combat.state.enemies[0].id, "BlueSlaver");
         // SlaverBlue.java uses inclusive setHp(46, 50), not a fixed 46.
         assert!((46..=50).contains(&combat.state.enemies[0].entity.hp));
 
-        let act1_elite = enter_forced_combat(1, 20, RoomType::Elite, 0);
+        let act1_elite = enter_specific_combat(1, 20, &["GremlinNob"]);
         let combat = act1_elite.get_combat_engine().expect("combat engine");
         assert_eq!(combat.state.enemies[0].id, "GremlinNob");
         // Source: reference/extracted/methods/monster/GremlinNob.java:
         // ascension 8+ uses inclusive setHp(85, 90), not fixed 110 HP.
         assert!((85..=90).contains(&combat.state.enemies[0].entity.hp));
 
-        let act2_weak = enter_forced_combat(2, 0, RoomType::Monster, 0);
+        let act2_weak = enter_specific_combat(2, 0, &["Byrd"]);
         let combat = act2_weak.get_combat_engine().expect("combat engine");
         assert_eq!(combat.state.enemies[0].id, "Byrd");
         // Source: reference/extracted/methods/monster/Byrd.java:
         // the constructor uses inclusive setHp(25, 31), not fixed 25 HP.
         assert!((25..=31).contains(&combat.state.enemies[0].entity.hp));
 
-        let act2_strong = enter_forced_combat(2, 20, RoomType::Monster, 3);
+        let act2_strong = enter_specific_combat(2, 20, &["SnakePlant"]);
         let combat = act2_strong.get_combat_engine().expect("combat engine");
         assert_eq!(combat.state.enemies[0].id, "SnakePlant");
         assert!((78..=82).contains(&combat.state.enemies[0].entity.hp));
 
-        let act2_elite = enter_forced_combat(2, 20, RoomType::Elite, 0);
+        let act2_elite = enter_specific_combat(2, 20, &["GremlinLeader"]);
         let combat = act2_elite.get_combat_engine().expect("combat engine");
         // Sources: MonsterHelper.java and GremlinLeader.java construct two
         // random gremlins followed by a 145..=155 HP Leader at A8+.
@@ -1703,24 +1673,24 @@ mod enemy_ai_java_parity_tests {
             .find(|enemy| enemy.id == "GremlinLeader").expect("Gremlin Leader");
         assert!((145..=155).contains(&leader.entity.hp));
 
-        let act3_weak = enter_forced_combat(3, 0, RoomType::Monster, 0);
+        let act3_weak = enter_specific_combat(3, 0, &["Darkling"]);
         let combat = act3_weak.get_combat_engine().expect("combat engine");
         assert_eq!(combat.state.enemies[0].id, "Darkling");
         // Source: reference/extracted/methods/monster/Darkling.java uses an
         // inclusive 48..=56 constructor HP roll below ascension 7.
         assert!((48..=56).contains(&combat.state.enemies[0].entity.hp));
 
-        let act3_strong = enter_forced_combat(3, 20, RoomType::Monster, 3);
+        let act3_strong = enter_specific_combat(3, 20, &["WrithingMass"]);
         let combat = act3_strong.get_combat_engine().expect("combat engine");
         assert_eq!(combat.state.enemies[0].id, "WrithingMass");
         assert_eq!(combat.state.enemies[0].entity.hp, 175);
 
-        let act3_elite = enter_forced_combat(3, 20, RoomType::Elite, 0);
+        let act3_elite = enter_specific_combat(3, 20, &["GiantHead"]);
         let combat = act3_elite.get_combat_engine().expect("combat engine");
         assert_eq!(combat.state.enemies[0].id, "GiantHead");
         assert_eq!(combat.state.enemies[0].entity.hp, 520);
 
-        let act4_elite = enter_forced_combat(4, 20, RoomType::Elite, 0);
+        let act4_elite = enter_specific_combat(4, 20, &["SpireShield", "SpireSpear"]);
         let combat = act4_elite.get_combat_engine().expect("combat engine");
         assert_eq!(combat.state.enemies[0].id, "SpireShield");
         // Source: reference/extracted/methods/monster/SpireShield.java: fixed

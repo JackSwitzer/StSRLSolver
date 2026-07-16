@@ -6,7 +6,7 @@
 
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Mutex, OnceLock};
 
 use crate::decision::{
@@ -213,30 +213,35 @@ const RANDOM_OBTAINABLE_CURSES: &[&str] = &[
 ];
 
 // ---------------------------------------------------------------------------
-// Act 1 encounter pools (simplified)
+// Seeded encounter queues
 // ---------------------------------------------------------------------------
 
-const ACT1_WEAK_ENCOUNTERS: &[&[&str]] = &[
-    &["Cultist"],
-    &["JawWorm"],
-    &["FuzzyLouseNormal", "FuzzyLouseDefensive"],
-    &["AcidSlime_S", "SpikeSlime_M"],
+type WeightedEncounter = (&'static str, f32);
+
+const ACT1_WEAK_ENCOUNTERS: &[WeightedEncounter] = &[
+    ("Cultist", 2.0),
+    ("Jaw Worm", 2.0),
+    ("2 Louse", 2.0),
+    ("Small Slimes", 2.0),
 ];
 
-const ACT1_STRONG_ENCOUNTERS: &[&[&str]] = &[
-    &["BlueSlaver"],
-    &["RedSlaver"],
-    &["FuzzyLouseNormal", "FuzzyLouseDefensive", "FuzzyLouseNormal"],
-    &["FungiBeast", "FungiBeast"],
-    &["AcidSlime_L"],
-    &["SpikeSlime_L"],
-    &["AcidSlime_M", "SpikeSlime_M"],
+const ACT1_STRONG_ENCOUNTERS: &[WeightedEncounter] = &[
+    ("Blue Slaver", 2.0),
+    ("Gremlin Gang", 1.0),
+    ("Looter", 2.0),
+    ("Large Slime", 2.0),
+    ("Lots of Slimes", 1.0),
+    ("Exordium Thugs", 1.5),
+    ("Exordium Wildlife", 1.5),
+    ("Red Slaver", 1.0),
+    ("3 Louse", 2.0),
+    ("2 Fungi Beasts", 2.0),
 ];
 
-const ACT1_ELITE_ENCOUNTERS: &[&[&str]] = &[
-    &["GremlinNob"],
-    &["Lagavulin"],
-    &["Sentry", "Sentry", "Sentry"],
+const ACT1_ELITE_ENCOUNTERS: &[WeightedEncounter] = &[
+    ("Gremlin Nob", 1.0),
+    ("Lagavulin", 1.0),
+    ("3 Sentries", 1.0),
 ];
 
 const ACT1_BOSSES: &[&str] = &["TheGuardian", "Hexaghost", "SlimeBoss"];
@@ -245,61 +250,158 @@ const ACT1_BOSSES: &[&str] = &["TheGuardian", "Hexaghost", "SlimeBoss"];
 // Act 2 encounter pools
 // ---------------------------------------------------------------------------
 
-const ACT2_WEAK_ENCOUNTERS: &[&[&str]] = &[
-    &["Byrd", "Byrd"],
-    &["Chosen"],
-    &["Shelled Parasite"],
-    &["Cultist", "Chosen"],
+const ACT2_WEAK_ENCOUNTERS: &[WeightedEncounter] = &[
+    ("Spheric Guardian", 2.0),
+    ("Chosen", 2.0),
+    ("Shell Parasite", 2.0),
+    ("3 Byrds", 2.0),
+    ("2 Thieves", 2.0),
 ];
 
-const ACT2_STRONG_ENCOUNTERS: &[&[&str]] = &[
-    &["SnakePlant"],
-    &["Centurion", "Healer"],
-    &["Cultist", "Cultist", "Cultist"],
-    &["Byrd", "Byrd", "Byrd"],
-    &["Chosen", "Cultist"],
-    &["Shelled Parasite", "FungiBeast"],
+const ACT2_STRONG_ENCOUNTERS: &[WeightedEncounter] = &[
+    ("Chosen and Byrds", 2.0),
+    ("Sentry and Sphere", 2.0),
+    ("Snake Plant", 6.0),
+    ("Snecko", 4.0),
+    ("Centurion and Healer", 6.0),
+    ("Cultist and Chosen", 3.0),
+    ("3 Cultists", 3.0),
+    ("Shelled Parasite and Fungi", 3.0),
 ];
 
-const ACT2_ELITE_ENCOUNTERS: &[&[&str]] = &[
-    &["GremlinLeader"],
-    &["BookOfStabbing"],
-    &["SlaverBlue", "SlaverBoss", "SlaverRed"],
+const ACT2_ELITE_ENCOUNTERS: &[WeightedEncounter] = &[
+    ("Gremlin Leader", 1.0),
+    ("Slavers", 1.0),
+    ("Book of Stabbing", 1.0),
 ];
+
+const ACT2_BOSSES: &[&str] = &["BronzeAutomaton", "TheCollector", "TheChamp"];
 
 // ---------------------------------------------------------------------------
 // Act 3 encounter pools
 // ---------------------------------------------------------------------------
 
-const ACT3_WEAK_ENCOUNTERS: &[&[&str]] = &[
-    &["Darkling", "Darkling", "Darkling"],
-    &["Orb Walker"],
-    &["3 Shapes"],
+const ACT3_WEAK_ENCOUNTERS: &[WeightedEncounter] = &[
+    ("3 Darklings", 2.0),
+    ("Orb Walker", 2.0),
+    ("3 Shapes", 2.0),
 ];
 
-const ACT3_STRONG_ENCOUNTERS: &[&[&str]] = &[
-    &["WrithingMass"],
-    &["GiantHead"],
-    &["Nemesis"],
-    &["Reptomancer"],
-    &["Transient"],
-    &["Maw"],
-    &["Serpent"],
+const ACT3_STRONG_ENCOUNTERS: &[WeightedEncounter] = &[
+    ("Spire Growth", 1.0),
+    ("Transient", 1.0),
+    ("4 Shapes", 1.0),
+    ("Maw", 1.0),
+    ("Sphere and 2 Shapes", 1.0),
+    ("Jaw Worm Horde", 1.0),
+    ("3 Darklings", 1.0),
+    ("Writhing Mass", 1.0),
 ];
 
-const ACT3_ELITE_ENCOUNTERS: &[&[&str]] = &[
-    &["GiantHead"],
-    &["Nemesis"],
-    &["Reptomancer"],
+const ACT3_ELITE_ENCOUNTERS: &[WeightedEncounter] = &[
+    ("Giant Head", 2.0),
+    ("Nemesis", 2.0),
+    ("Reptomancer", 2.0),
 ];
+
+const ACT3_BOSSES: &[&str] = &["AwakenedOne", "TimeEater", "DonuAndDeca"];
 
 // ---------------------------------------------------------------------------
 // Act 4 encounters
 // ---------------------------------------------------------------------------
 
-const ACT4_ELITE_ENCOUNTERS: &[&[&str]] = &[
-    &["SpireShield", "SpireSpear"],
-];
+const ACT4_ELITE_ENCOUNTER: &str = "Shield and Spear";
+
+fn encounter_pools_for_act(
+    act: i32,
+) -> (
+    &'static [WeightedEncounter],
+    usize,
+    &'static [WeightedEncounter],
+    &'static [WeightedEncounter],
+) {
+    match act {
+        2 => (
+            ACT2_WEAK_ENCOUNTERS,
+            2,
+            ACT2_STRONG_ENCOUNTERS,
+            ACT2_ELITE_ENCOUNTERS,
+        ),
+        3 => (
+            ACT3_WEAK_ENCOUNTERS,
+            2,
+            ACT3_STRONG_ENCOUNTERS,
+            ACT3_ELITE_ENCOUNTERS,
+        ),
+        _ => (
+            ACT1_WEAK_ENCOUNTERS,
+            3,
+            ACT1_STRONG_ENCOUNTERS,
+            ACT1_ELITE_ENCOUNTERS,
+        ),
+    }
+}
+
+fn roll_weighted_encounter(
+    encounters: &[WeightedEncounter],
+    rng: &mut crate::seed::StsRandom,
+) -> &'static str {
+    // MonsterInfo.normalizeWeights stable-sorts by weight before accumulating
+    // normalized f32 weights. Equal-weight entries retain declaration order.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/MonsterInfo.java
+    let mut sorted = encounters.to_vec();
+    sorted.sort_by(|left, right| left.1.total_cmp(&right.1));
+    let total = sorted.iter().fold(0.0_f32, |sum, entry| sum + entry.1);
+    let roll = rng.random_float();
+    let mut current = 0.0_f32;
+    for (name, weight) in sorted {
+        current += weight / total;
+        if roll < current {
+            return name;
+        }
+    }
+    "ERROR"
+}
+
+fn populate_encounter_queue(
+    queue: &mut VecDeque<String>,
+    encounters: &[WeightedEncounter],
+    count: usize,
+    elites: bool,
+    rng: &mut crate::seed::StsRandom,
+) {
+    for _ in 0..count {
+        loop {
+            let candidate = roll_weighted_encounter(encounters, rng);
+            let repeats_last = queue.back().is_some_and(|last| last == candidate);
+            let repeats_two_back = !elites
+                && queue.len() > 1
+                && queue
+                    .get(queue.len() - 2)
+                    .is_some_and(|previous| previous == candidate);
+            if !repeats_last && !repeats_two_back {
+                queue.push_back(candidate.to_string());
+                break;
+            }
+        }
+    }
+}
+
+fn first_strong_exclusions(act: i32, previous: &str) -> &'static [&'static str] {
+    match (act, previous) {
+        (1, "Looter") => &["Exordium Thugs"],
+        (1, "Blue Slaver") => &["Red Slaver", "Exordium Thugs"],
+        (1, "2 Louse") => &["3 Louse"],
+        (1, "Small Slimes") => &["Large Slime", "Lots of Slimes"],
+        (2, "Spheric Guardian") => &["Sentry and Sphere"],
+        (2, "3 Byrds") => &["Chosen and Byrds"],
+        (2, "Chosen") => &["Chosen and Byrds", "Cultist and Chosen"],
+        (3, "3 Darklings") => &["3 Darklings"],
+        (3, "Orb Walker") => &["Orb Walker"],
+        (3, "3 Shapes") => &["4 Shapes"],
+        _ => &[],
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Event definitions
@@ -762,6 +864,7 @@ pub struct RunEngine {
     pub phase: RunPhase,
     pub seed: u64,
     rng: crate::seed::StsRandom,
+    monster_rng: crate::seed::StsRandom,
     monster_hp_rng: crate::seed::StsRandom,
     potion_rng: crate::seed::StsRandom,
     combat_misc_rng: crate::seed::StsRandom,
@@ -800,10 +903,11 @@ pub struct RunEngine {
     // Boss for this act
     boss_id: String,
 
-    // Encounter counters
-    weak_encounter_idx: usize,
-    strong_encounter_idx: usize,
-    elite_encounter_idx: usize,
+    // Java generates seeded encounter-key queues once per act, then consumes
+    // them from the front as rooms are entered.
+    encounter_queue_act: i32,
+    monster_encounter_queue: VecDeque<String>,
+    elite_encounter_queue: VecDeque<String>,
 
     // Reward tracking
     pub total_reward: f32,
@@ -835,11 +939,7 @@ impl RunEngine {
     /// Create a new run engine with given seed and ascension level.
     pub fn new(seed: u64, ascension: i32) -> Self {
         let map = generate_map(seed, ascension);
-        let mut rng = crate::seed::StsRandom::new(seed.wrapping_add(1));
-
-        // Pick boss
-        let boss_idx = rng.gen_range(0..ACT1_BOSSES.len());
-        let boss_id = ACT1_BOSSES[boss_idx].to_string();
+        let rng = crate::seed::StsRandom::new(seed.wrapping_add(1));
 
         let mut engine = Self {
             run_state: RunState::new(ascension),
@@ -847,6 +947,7 @@ impl RunEngine {
             phase: RunPhase::Neow,
             seed,
             rng,
+            monster_rng: crate::seed::StsRandom::new(seed),
             monster_hp_rng: crate::seed::StsRandom::new(seed),
             potion_rng: crate::seed::StsRandom::new(seed),
             combat_misc_rng: crate::seed::StsRandom::new(seed),
@@ -867,14 +968,16 @@ impl RunEngine {
             scrap_ooze_state: None,
             forced_event_rolls: Vec::new(),
             current_shop: None,
-            boss_id,
-            weak_encounter_idx: 0,
-            strong_encounter_idx: 0,
-            elite_encounter_idx: 0,
+            boss_id: String::new(),
+            encounter_queue_act: 0,
+            monster_encounter_queue: VecDeque::new(),
+            elite_encounter_queue: VecDeque::new(),
             total_reward: 0.0,
             last_combat_events: Vec::new(),
             neow_options: Vec::new(),
         };
+        engine.generate_encounter_queues(1);
+        engine.boss_id = engine.roll_boss_for_act(1);
         engine.neow_options = engine.build_neow_options();
         engine.refresh_decision_stack();
         engine
@@ -1659,38 +1762,188 @@ impl RunEngine {
     // Combat
     // =======================================================================
 
+    fn generate_encounter_queues(&mut self, act: i32) {
+        self.encounter_queue_act = act;
+        self.monster_encounter_queue.clear();
+        self.elite_encounter_queue.clear();
+
+        if act == 4 {
+            self.monster_encounter_queue
+                .extend(std::iter::repeat_n(ACT4_ELITE_ENCOUNTER.to_string(), 3));
+            self.elite_encounter_queue
+                .extend(std::iter::repeat_n(ACT4_ELITE_ENCOUNTER.to_string(), 3));
+            return;
+        }
+
+        let (weak, weak_count, strong, elites) = encounter_pools_for_act(act);
+        populate_encounter_queue(
+            &mut self.monster_encounter_queue,
+            weak,
+            weak_count,
+            false,
+            &mut self.monster_rng,
+        );
+
+        let previous = self
+            .monster_encounter_queue
+            .back()
+            .cloned()
+            .unwrap_or_default();
+        let exclusions = first_strong_exclusions(act, &previous);
+        loop {
+            let candidate = roll_weighted_encounter(strong, &mut self.monster_rng);
+            if !exclusions.contains(&candidate) {
+                self.monster_encounter_queue
+                    .push_back(candidate.to_string());
+                break;
+            }
+        }
+
+        populate_encounter_queue(
+            &mut self.monster_encounter_queue,
+            strong,
+            12,
+            false,
+            &mut self.monster_rng,
+        );
+        populate_encounter_queue(
+            &mut self.elite_encounter_queue,
+            elites,
+            10,
+            true,
+            &mut self.monster_rng,
+        );
+    }
+
+    fn roll_boss_for_act(&mut self, act: i32) -> String {
+        if act == 4 {
+            return "CorruptHeart".to_string();
+        }
+        // The simulator exposes the full unlocked content catalog, so use
+        // Java's all-bosses-seen branch: shuffle all three with one
+        // monsterRng.randomLong(), then take the first.
+        let mut bosses = match act {
+            2 => ACT2_BOSSES.to_vec(),
+            3 => ACT3_BOSSES.to_vec(),
+            _ => ACT1_BOSSES.to_vec(),
+        };
+        let shuffle_seed = self.monster_rng.random_long();
+        crate::seed::java_util_shuffle(&mut bosses, shuffle_seed);
+        bosses[0].to_string()
+    }
+
+    fn ensure_encounter_queues_for_act(&mut self, act: i32) {
+        if self.encounter_queue_act != act {
+            self.generate_encounter_queues(act);
+            self.boss_id = self.roll_boss_for_act(act);
+        }
+    }
+
     fn enter_combat(&mut self, is_elite: bool, is_boss: bool) {
         let act = self.run_state.act;
         let encounter = if is_boss {
             vec![self.boss_id.clone()]
         } else if is_elite {
-            let pool = match act {
-                2 => ACT2_ELITE_ENCOUNTERS,
-                3 => ACT3_ELITE_ENCOUNTERS,
-                4 => ACT4_ELITE_ENCOUNTERS,
-                _ => ACT1_ELITE_ENCOUNTERS,
-            };
-            let idx = self.elite_encounter_idx % pool.len();
-            self.elite_encounter_idx += 1;
-            pool[idx].iter().map(|s| s.to_string()).collect()
+            self.ensure_encounter_queues_for_act(act);
+            if self.elite_encounter_queue.is_empty() {
+                if act == 4 {
+                    self.elite_encounter_queue
+                        .push_back(ACT4_ELITE_ENCOUNTER.to_string());
+                } else {
+                    let (_, _, _, elites) = encounter_pools_for_act(act);
+                    populate_encounter_queue(
+                        &mut self.elite_encounter_queue,
+                        elites,
+                        10,
+                        true,
+                        &mut self.monster_rng,
+                    );
+                }
+            }
+            vec![self
+                .elite_encounter_queue
+                .pop_front()
+                .expect("elite encounter queue was refilled")]
         } else {
-            // Weak encounters for early floors in the act, strong otherwise
-            let act_floor = self.run_state.floor % 17; // relative floor within act
-            let is_weak = act_floor <= 3;
-            let pool = match (act, is_weak) {
-                (2, true) => ACT2_WEAK_ENCOUNTERS,
-                (2, false) => ACT2_STRONG_ENCOUNTERS,
-                (3, true) => ACT3_WEAK_ENCOUNTERS,
-                (3, false) => ACT3_STRONG_ENCOUNTERS,
-                (_, true) => ACT1_WEAK_ENCOUNTERS,
-                (_, false) => ACT1_STRONG_ENCOUNTERS,
-            };
-            let counter = if is_weak { &mut self.weak_encounter_idx } else { &mut self.strong_encounter_idx };
-            let idx = *counter % pool.len();
-            *counter += 1;
-            pool[idx].iter().map(|s| s.to_string()).collect()
+            self.ensure_encounter_queues_for_act(act);
+            if self.monster_encounter_queue.is_empty() {
+                if act == 4 {
+                    self.monster_encounter_queue
+                        .push_back(ACT4_ELITE_ENCOUNTER.to_string());
+                } else {
+                    let (_, _, strong, _) = encounter_pools_for_act(act);
+                    populate_encounter_queue(
+                        &mut self.monster_encounter_queue,
+                        strong,
+                        12,
+                        false,
+                        &mut self.monster_rng,
+                    );
+                }
+            }
+            vec![self
+                .monster_encounter_queue
+                .pop_front()
+                .expect("monster encounter queue was refilled")]
         };
         self.enter_specific_combat(encounter);
+    }
+
+    fn random_louse_id(&mut self) -> String {
+        if self.combat_misc_rng.random_boolean() {
+            "FuzzyLouseNormal".to_string()
+        } else {
+            "FuzzyLouseDefensive".to_string()
+        }
+    }
+
+    fn random_slaver_id(&mut self) -> String {
+        if self.combat_misc_rng.random_boolean() {
+            "RedSlaver".to_string()
+        } else {
+            "BlueSlaver".to_string()
+        }
+    }
+
+    fn random_ancient_shape_id(&mut self) -> String {
+        match self.combat_misc_rng.random(2) {
+            0 => "Spiker".to_string(),
+            1 => "Repulsor".to_string(),
+            _ => "Exploder".to_string(),
+        }
+    }
+
+    fn random_weak_wildlife_id(&mut self) -> String {
+        // MonsterHelper constructs the louse candidate before rolling among
+        // louse / Spike Slime M / Acid Slime M, so the louse boolean is
+        // consumed even when another candidate wins.
+        let candidates = [
+            self.random_louse_id(),
+            "SpikeSlime_M".to_string(),
+            "AcidSlime_M".to_string(),
+        ];
+        let index = self.combat_misc_rng.random(2) as usize;
+        candidates[index].clone()
+    }
+
+    fn random_strong_humanoid_id(&mut self) -> String {
+        // As with the Java helper, constructing the slaver candidate consumes
+        // its color boolean before the outer three-way selection.
+        let candidates = [
+            "Cultist".to_string(),
+            self.random_slaver_id(),
+            "Looter".to_string(),
+        ];
+        let index = self.combat_misc_rng.random(2) as usize;
+        candidates[index].clone()
+    }
+
+    fn random_strong_wildlife_id(&mut self) -> String {
+        if self.combat_misc_rng.random_boolean() {
+            "JawWorm".to_string()
+        } else {
+            "FungiBeast".to_string()
+        }
     }
 
     fn enter_specific_combat(&mut self, encounter: Vec<String>) {
@@ -1707,6 +1960,129 @@ impl RunEngine {
         let mut expanded = Vec::new();
         for id in &encounter {
             match id.as_str() {
+                "Jaw Worm" => expanded.push("JawWorm".to_string()),
+                "2 Louse" | "3 Louse" => {
+                    let count = if id == "2 Louse" { 2 } else { 3 };
+                    for _ in 0..count {
+                        expanded.push(self.random_louse_id());
+                    }
+                }
+                "Small Slimes" => {
+                    if self.combat_misc_rng.random_boolean() {
+                        expanded.push("SpikeSlime_S".to_string());
+                        expanded.push("AcidSlime_M".to_string());
+                    } else {
+                        expanded.push("AcidSlime_S".to_string());
+                        expanded.push("SpikeSlime_M".to_string());
+                    }
+                }
+                "Blue Slaver" => expanded.push("BlueSlaver".to_string()),
+                "Red Slaver" => expanded.push("RedSlaver".to_string()),
+                "Gremlin Gang" => {
+                    let mut pool = vec![
+                        "GremlinWarrior", "GremlinWarrior",
+                        "GremlinThief", "GremlinThief",
+                        "GremlinFat", "GremlinFat",
+                        "GremlinTsundere", "GremlinWizard",
+                    ];
+                    for _ in 0..4 {
+                        let index = self.combat_misc_rng.random((pool.len() - 1) as i32)
+                            as usize;
+                        expanded.push(pool.remove(index).to_string());
+                    }
+                }
+                "Large Slime" => {
+                    expanded.push(if self.combat_misc_rng.random_boolean() {
+                        "AcidSlime_L".to_string()
+                    } else {
+                        "SpikeSlime_L".to_string()
+                    });
+                }
+                "Lots of Slimes" => {
+                    let mut pool = vec![
+                        "SpikeSlime_S", "SpikeSlime_S", "SpikeSlime_S",
+                        "AcidSlime_S", "AcidSlime_S",
+                    ];
+                    while !pool.is_empty() {
+                        let index = self.combat_misc_rng.random((pool.len() - 1) as i32)
+                            as usize;
+                        expanded.push(pool.remove(index).to_string());
+                    }
+                }
+                "Exordium Thugs" => {
+                    expanded.push(self.random_weak_wildlife_id());
+                    expanded.push(self.random_strong_humanoid_id());
+                }
+                "Exordium Wildlife" => {
+                    expanded.push(self.random_strong_wildlife_id());
+                    expanded.push(self.random_weak_wildlife_id());
+                }
+                "2 Fungi Beasts" => {
+                    expanded.push("FungiBeast".to_string());
+                    expanded.push("FungiBeast".to_string());
+                }
+                "Gremlin Nob" => expanded.push("GremlinNob".to_string()),
+                "3 Sentries" => {
+                    expanded.extend(std::iter::repeat_n("Sentry".to_string(), 3));
+                }
+                "Spheric Guardian" => expanded.push("SphericGuardian".to_string()),
+                "Shell Parasite" => expanded.push("Shelled Parasite".to_string()),
+                "3 Byrds" => {
+                    expanded.extend(std::iter::repeat_n("Byrd".to_string(), 3));
+                }
+                "2 Thieves" => {
+                    expanded.push("Looter".to_string());
+                    expanded.push("Mugger".to_string());
+                }
+                "Chosen and Byrds" => {
+                    expanded.push("Byrd".to_string());
+                    expanded.push("Chosen".to_string());
+                }
+                "Sentry and Sphere" => {
+                    expanded.push("Sentry".to_string());
+                    expanded.push("SphericGuardian".to_string());
+                }
+                "Snake Plant" => expanded.push("SnakePlant".to_string()),
+                "Centurion and Healer" => {
+                    expanded.push("Centurion".to_string());
+                    expanded.push("Healer".to_string());
+                }
+                "Cultist and Chosen" => {
+                    expanded.push("Cultist".to_string());
+                    expanded.push("Chosen".to_string());
+                }
+                "3 Cultists" => {
+                    expanded.extend(std::iter::repeat_n("Cultist".to_string(), 3));
+                }
+                "Shelled Parasite and Fungi" => {
+                    expanded.push("Shelled Parasite".to_string());
+                    expanded.push("FungiBeast".to_string());
+                }
+                "Slavers" => {
+                    expanded.push("BlueSlaver".to_string());
+                    expanded.push("SlaverBoss".to_string());
+                    expanded.push("RedSlaver".to_string());
+                }
+                "Book of Stabbing" => expanded.push("BookOfStabbing".to_string()),
+                "3 Darklings" => {
+                    expanded.extend(std::iter::repeat_n("Darkling".to_string(), 3));
+                }
+                "Orb Walker" => expanded.push("Orb Walker".to_string()),
+                "Spire Growth" => expanded.push("Serpent".to_string()),
+                "Sphere and 2 Shapes" => {
+                    expanded.push(self.random_ancient_shape_id());
+                    expanded.push(self.random_ancient_shape_id());
+                    expanded.push("SphericGuardian".to_string());
+                }
+                "Jaw Worm Horde" => {
+                    expanded.extend(std::iter::repeat_n("JawWorm".to_string(), 3));
+                }
+                "Writhing Mass" => expanded.push("WrithingMass".to_string()),
+                "Giant Head" => expanded.push("GiantHead".to_string()),
+                "Shield and Spear" => {
+                    expanded.push("SpireShield".to_string());
+                    expanded.push("SpireSpear".to_string());
+                }
                 "DonuAndDeca" => {
                     expanded.push("Donu".to_string());
                     expanded.push("Deca".to_string());
@@ -8140,6 +8516,149 @@ mod tests {
         assert_eq!(engine.phase, RunPhase::Neow);
         assert_eq!(engine.current_choice_count(), 4);
         assert!(!engine.is_done());
+    }
+
+    #[test]
+    fn encounter_queues_match_java_lengths_and_repeat_rejection_rules() {
+        // Each act generates its weak prefix, one exclusion-filtered first
+        // strong encounter, twelve more strong encounters, and ten elites.
+        // Hallways reject the previous two keys; elites reject the previous
+        // key. Java: AbstractDungeon.java:1047-1084 and each act's
+        // generateMonsters implementation.
+        let mut engine = RunEngine::new(0, 0);
+        for act in 1..=3 {
+            for seed in 0..64 {
+                engine.monster_rng = crate::seed::StsRandom::new(seed);
+                engine.generate_encounter_queues(act);
+
+                let expected_monsters = if act == 1 { 16 } else { 15 };
+                assert_eq!(engine.monster_encounter_queue.len(), expected_monsters);
+                assert_eq!(engine.elite_encounter_queue.len(), 10);
+
+                let weak_count = if act == 1 { 3 } else { 2 };
+                let monsters = engine.monster_encounter_queue.iter().collect::<Vec<_>>();
+                for index in 1..monsters.len() {
+                    if index == weak_count {
+                        // populateFirstStrongEnemy uses only the act-specific
+                        // exclusion list, not populateMonsterList's generic
+                        // previous/two-back rejection.
+                        continue;
+                    }
+                    assert_ne!(monsters[index], monsters[index - 1]);
+                    if index > 1 {
+                        assert_ne!(monsters[index], monsters[index - 2]);
+                    }
+                }
+
+                let elites = engine.elite_encounter_queue.iter().collect::<Vec<_>>();
+                for index in 1..elites.len() {
+                    assert_ne!(elites[index], elites[index - 1]);
+                }
+
+                let previous = monsters[weak_count - 1];
+                let first_strong = monsters[weak_count];
+                assert!(
+                    !first_strong_exclusions(act, previous).contains(&first_strong.as_str()),
+                    "act {act} seed {seed}: {first_strong} followed excluded {previous}",
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn canonical_encounter_keys_expand_through_monster_helper_shapes() {
+        // MonsterHelper keeps encounter selection separate from concrete group
+        // construction. These cases guard the previously incomplete Act 2
+        // weak group and the fixed Act 4 elite group.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/MonsterHelper.java
+        let mut engine = RunEngine::new(11, 0);
+        engine.enter_specific_combat(vec!["3 Byrds".to_string()]);
+        assert_eq!(
+            engine.debug_current_enemy_ids(),
+            vec!["Byrd".to_string(), "Byrd".to_string(), "Byrd".to_string()],
+        );
+
+        engine.enter_specific_combat(vec!["Shield and Spear".to_string()]);
+        assert_eq!(
+            engine.debug_current_enemy_ids(),
+            vec!["SpireShield".to_string(), "SpireSpear".to_string()],
+        );
+    }
+
+    #[test]
+    fn every_seeded_encounter_key_builds_its_java_group_size() {
+        // Source: each act's generateWeak/Strong/Elites methods plus
+        // MonsterHelper.getEncounter.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/Exordium.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/TheCity.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/TheBeyond.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/MonsterHelper.java
+        let encounter_sizes = [
+            ("Cultist", 1),
+            ("Jaw Worm", 1),
+            ("2 Louse", 2),
+            ("Small Slimes", 2),
+            ("Blue Slaver", 1),
+            ("Gremlin Gang", 4),
+            ("Looter", 1),
+            ("Large Slime", 1),
+            ("Lots of Slimes", 5),
+            ("Exordium Thugs", 2),
+            ("Exordium Wildlife", 2),
+            ("Red Slaver", 1),
+            ("3 Louse", 3),
+            ("2 Fungi Beasts", 2),
+            ("Gremlin Nob", 1),
+            ("Lagavulin", 1),
+            ("3 Sentries", 3),
+            ("Spheric Guardian", 1),
+            ("Chosen", 1),
+            ("Shell Parasite", 1),
+            ("3 Byrds", 3),
+            ("2 Thieves", 2),
+            ("Chosen and Byrds", 2),
+            ("Sentry and Sphere", 2),
+            ("Snake Plant", 1),
+            ("Snecko", 1),
+            ("Centurion and Healer", 2),
+            ("Cultist and Chosen", 2),
+            ("3 Cultists", 3),
+            ("Shelled Parasite and Fungi", 2),
+            ("Gremlin Leader", 3),
+            ("Slavers", 3),
+            ("Book of Stabbing", 1),
+            ("3 Darklings", 3),
+            ("Orb Walker", 1),
+            ("3 Shapes", 3),
+            ("Spire Growth", 1),
+            ("Transient", 1),
+            ("4 Shapes", 4),
+            ("Maw", 1),
+            ("Sphere and 2 Shapes", 3),
+            ("Jaw Worm Horde", 3),
+            ("Writhing Mass", 1),
+            ("Giant Head", 1),
+            ("Nemesis", 1),
+            ("Reptomancer", 3),
+            ("Shield and Spear", 2),
+        ];
+
+        let mut engine = RunEngine::new(19, 20);
+        for (encounter, expected_size) in encounter_sizes {
+            engine.enter_specific_combat(vec![encounter.to_string()]);
+            let combat = engine
+                .get_combat_engine()
+                .unwrap_or_else(|| panic!("{encounter} did not enter combat"));
+            assert_eq!(
+                combat.state.enemies.len(),
+                expected_size,
+                "{encounter} group size",
+            );
+            assert!(
+                combat.state.enemies.iter().all(|enemy| enemy.entity.hp > 0),
+                "{encounter} contained an invalid enemy",
+            );
+        }
     }
 
     #[test]
