@@ -1920,7 +1920,13 @@ fn default_persistence_for(def_id: &str) -> PersistenceScope {
     match def_id {
         // PenNib.java stores progress in AbstractRelic.counter, including the
         // armed value 9 that atBattleStart turns into PenNibPower.
-        "Pen Nib" | "Nunchaku" | "InkBottle" | "Happy Flower" | "Incense Burner" | "Sundial" => PersistenceScope::Run,
+        "Pen Nib"
+        | "Nunchaku"
+        | "InkBottle"
+        | "Happy Flower"
+        | "Incense Burner"
+        | "Sundial"
+        | "Inserter" => PersistenceScope::Run,
         _ => PersistenceScope::Combat,
     }
 }

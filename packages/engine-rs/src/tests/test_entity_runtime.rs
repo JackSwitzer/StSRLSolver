@@ -95,6 +95,46 @@ fn persisted_relic_counters_reload_into_new_combat_runtime() {
 }
 
 #[test]
+fn inserter_counter_persists_across_combats() {
+    // Inserter stores its two-turn progress in AbstractRelic.counter and does
+    // not reset that counter at battle start.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Inserter.java:16-38
+    let mut first_engine =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    first_engine.state.relics = vec!["Inserter".to_string()];
+    first_engine.init_defect_orbs(3);
+    first_engine.rebuild_effect_runtime();
+    first_engine.emit_event(GameEvent::empty(Trigger::TurnStart));
+
+    assert_eq!(
+        first_engine.hidden_effect_value(
+            "Inserter",
+            EffectOwner::PlayerRelic { slot: 0 },
+            0,
+        ),
+        1
+    );
+
+    let persisted = first_engine.export_persisted_effects();
+    let mut next_engine =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    next_engine.state.relics = vec!["Inserter".to_string()];
+    next_engine.init_defect_orbs(3);
+    next_engine.load_persisted_effects(persisted);
+    next_engine.emit_event(GameEvent::empty(Trigger::TurnStart));
+
+    assert_eq!(next_engine.state.orb_slots.get_slot_count(), 4);
+    assert_eq!(
+        next_engine.hidden_effect_value(
+            "Inserter",
+            EffectOwner::PlayerRelic { slot: 0 },
+            0,
+        ),
+        0
+    );
+}
+
+#[test]
 fn potion_use_flows_through_owner_aware_runtime() {
     let mut state = combat_state_with(make_deck(&["Strike"]), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics.push("Toy Ornithopter".to_string());
