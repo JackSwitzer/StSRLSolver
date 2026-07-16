@@ -162,6 +162,14 @@ pub(crate) fn generate_map_with_rng(
     seed: u64,
     ascension: i32,
 ) -> (DungeonMap, crate::seed::StsRandom) {
+    generate_map_with_rng_for_run(seed, ascension, true)
+}
+
+pub(crate) fn generate_map_with_rng_for_run(
+    seed: u64,
+    ascension: i32,
+    place_emerald_elite: bool,
+) -> (DungeonMap, crate::seed::StsRandom) {
     let mut rng = MapRng::new(seed);
 
     let height = 15;
@@ -189,7 +197,9 @@ pub(crate) fn generate_map_with_rng(
     // Step 5: The standard run starts with Act 4 available and no Emerald
     // Key, so AbstractDungeon.setEmeraldElite consumes one counted mapRng
     // draw and marks exactly one elite node.
-    set_emerald_elite(&mut map, &mut rng);
+    if place_emerald_elite {
+        set_emerald_elite(&mut map, &mut rng);
+    }
 
     (map, rng.into_inner())
 }

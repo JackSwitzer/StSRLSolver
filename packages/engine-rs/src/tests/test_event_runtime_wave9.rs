@@ -13,7 +13,8 @@ fn typed_event(act: i32, name: &str) -> crate::events::TypedEventDef {
 
 #[test]
 fn secret_portal_transitions_into_boss_combat() {
-    let mut engine = RunEngine::new(73, 20);
+    let mut engine = RunEngine::new(73, 0);
+    engine.run_state.act = 3;
     let secret_portal = typed_event(3, "Secret Portal");
     assert!(matches!(
         secret_portal.options[0].status,
@@ -24,17 +25,18 @@ fn secret_portal_transitions_into_boss_combat() {
     let step = engine.step_with_result(&RunAction::EventChoice(0));
     assert!(step.action_accepted);
     assert_eq!(engine.current_phase(), RunPhase::Combat);
+    assert_eq!(engine.run_state.floor, 50);
     assert!(engine.get_combat_engine().is_some());
 
     engine.debug_force_current_combat_outcome(true);
     let reward = engine.debug_resolve_current_combat_outcome();
     assert!(reward > 0.0);
-    let screen = engine
-        .current_reward_screen()
-        .expect("boss reward screen should open after Secret Portal boss combat");
-    assert_eq!(screen.source, RewardScreenSource::BossCombat);
-    assert_eq!(screen.items.len(), 1);
-    assert_eq!(screen.items[0].kind, RewardItemKind::Relic);
+    assert_eq!(engine.current_phase(), RunPhase::Event);
+    assert_eq!(
+        engine.debug_current_event().as_ref().map(|event| event.name.as_str()),
+        Some("Spire Heart")
+    );
+    assert!(engine.current_reward_screen().is_none());
 }
 
 #[test]

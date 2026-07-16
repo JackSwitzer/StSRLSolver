@@ -3610,6 +3610,9 @@ fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
     assert!(offered);
 
     let mut engine = RunEngine::new(77, 0);
+    engine.run_state.floor = 16;
+    engine.run_state.map_x = 0;
+    engine.run_state.map_y = 14;
     engine.run_state.deck.push("Wallop".to_string());
     engine.run_state.deck.push("ThirdEye".to_string());
     engine.run_state.deck.push("Devotion".to_string());
@@ -3670,7 +3673,10 @@ fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
         }
     }
     assert_eq!(engine.run_state.relics.len(), 5);
-    assert!(engine.run_state.run_over);
+    assert_eq!(engine.run_state.act, 2);
+    assert_eq!(engine.run_state.floor, 17);
+    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+    assert!(!engine.run_state.run_over);
 }
 
 #[test]
@@ -5256,6 +5262,9 @@ fn white_beast_statue_is_reachable_from_uncommon_watcher_relic_rewards() {
 #[test]
 fn choosing_sacred_bark_uses_only_real_reward_choice_actions() {
     let mut engine = RunEngine::new(123, 20);
+    engine.run_state.floor = 16;
+    engine.run_state.map_x = 0;
+    engine.run_state.map_y = 14;
     engine.debug_set_reward_screen(relic_choice_reward_screen(&[
         "BlackStar",
         "SacredBark",
@@ -5273,7 +5282,10 @@ fn choosing_sacred_bark_uses_only_real_reward_choice_actions() {
     });
     assert!(choose.action_accepted);
     assert!(engine.run_state.relic_flags.has(crate::relic_flags::flag::SACRED_BARK));
-    assert_eq!(engine.current_phase(), RunPhase::GameOver);
+    assert_eq!(engine.run_state.act, 2);
+    assert_eq!(engine.run_state.floor, 17);
+    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+    assert!(!engine.run_state.run_over);
 }
 
 #[test]

@@ -21,7 +21,9 @@ use crate::enemies;
 use crate::engine::CombatEngine;
 use crate::gameplay::registry::global_registry as gameplay_registry;
 use crate::gameplay::types::GameplayDomain;
-use crate::map::{generate_map_with_rng, DungeonMap, RoomType};
+use crate::map::{
+    generate_map_with_rng, generate_map_with_rng_for_run, DungeonMap, RoomType,
+};
 use crate::state::{CombatState, EnemyCombatState};
 
 // ---------------------------------------------------------------------------
@@ -973,6 +975,8 @@ pub struct RunEngine {
 
     // Boss for this act
     boss_id: String,
+    pending_act_three_boss_id: Option<String>,
+    active_combat_is_boss: bool,
 
     // Java generates seeded encounter-key queues once per act, then consumes
     // them from the front as rooms are entered.
@@ -1076,6 +1080,8 @@ impl RunEngine {
             forced_event_rolls: Vec::new(),
             current_shop: None,
             boss_id: String::new(),
+            pending_act_three_boss_id: None,
+            active_combat_is_boss: false,
             encounter_queue_act: 0,
             monster_encounter_queue: VecDeque::new(),
             elite_encounter_queue: VecDeque::new(),
@@ -1084,7 +1090,7 @@ impl RunEngine {
             neow_options: Vec::new(),
         };
         engine.generate_encounter_queues(1);
-        engine.boss_id = engine.roll_boss_for_act(1);
+        engine.roll_boss_sequence_for_act(1);
         engine.neow_options = engine.build_neow_options();
         engine.refresh_decision_stack();
         engine
@@ -1120,6 +1126,96 @@ impl RunEngine {
     fn store_note_for_yourself_card(&mut self, card_id: String) {
         self.profile_updates
             .push(ProfileUpdate::StoreNoteForYourselfCard { card_id });
+    }
+
+    fn boss_floor_for_act(act: i32) -> i32 {
+        act * 17 - 1
+    }
+
+    fn is_boss_room_resolution(&self, room_type: RoomType) -> bool {
+        self.active_combat_is_boss
+            || room_type == RoomType::Boss
+            || self.run_state.floor == Self::boss_floor_for_act(self.run_state.act)
+    }
+
+    fn map_seed_for_act(&self, act: i32) -> u64 {
+        match act {
+            2 => self.seed.wrapping_add((act as u64) * 100),
+            3 => self.seed.wrapping_add((act as u64) * 200),
+            _ => self.seed.wrapping_add(act as u64),
+        }
+    }
+
+    fn advance_card_rng_for_act_transition(&mut self) {
+        let target = match self.rng.counter {
+            1..=249 => 250,
+            251..=499 => 500,
+            501..=749 => 750,
+            _ => return,
+        };
+        while self.rng.counter < target {
+            self.rng.random_boolean();
+        }
+    }
+
+    fn transition_to_next_act(&mut self) {
+        let next_act = self.run_state.act + 1;
+        debug_assert!(matches!(next_act, 2 | 3));
+
+        // TreasureRoomBoss occupies the floor after the boss, then
+        // dungeonTransitionSetup increments the act and heals the player.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/buttons/ProceedButton.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:2552-2584
+        self.run_state.floor += 1;
+        self.advance_card_rng_for_act_transition();
+        self.run_state.act = next_act;
+        self.run_state.map_x = -1;
+        self.run_state.map_y = -1;
+        self.run_state.event_monster_chance = default_event_monster_chance();
+        self.run_state.event_shop_chance = default_event_shop_chance();
+        self.run_state.event_treasure_chance = default_event_treasure_chance();
+
+        let heal_amount = if self.run_state.ascension >= 5 {
+            (((self.run_state.max_hp - self.run_state.current_hp) as f32) * 0.75).round() as i32
+        } else {
+            self.run_state.max_hp
+        };
+        self.heal_run_player(heal_amount);
+
+        let map_seed = self.map_seed_for_act(next_act);
+        let (map, map_rng) = generate_map_with_rng_for_run(
+            map_seed,
+            self.run_state.ascension,
+            !self.run_state.has_emerald_key,
+        );
+        self.map = map;
+        self.map_rng = map_rng;
+        self.generate_encounter_queues(next_act);
+        self.roll_boss_sequence_for_act(next_act);
+
+        self.current_event = None;
+        self.pending_event_combat = None;
+        self.match_and_keep_state = None;
+        self.scrap_ooze_state = None;
+        self.current_shop = None;
+        self.reward_screen = None;
+        self.suspended_reward_screen = None;
+        self.combat_engine = None;
+        self.active_combat_is_boss = false;
+        self.phase = RunPhase::MapChoice;
+    }
+
+    fn enter_spire_heart_event(&mut self) {
+        let event = typed_events_for_act(3)
+            .into_iter()
+            .find(|event| event.name == "Spire Heart")
+            .expect("typed Spire Heart event must exist");
+        self.current_event = Some(event);
+        self.pending_event_combat = None;
+        self.reward_screen = None;
+        self.combat_engine = None;
+        self.active_combat_is_boss = false;
+        self.phase = RunPhase::Event;
     }
 
     fn build_neow_options(&mut self) -> Vec<NeowChoiceOption> {
@@ -2384,9 +2480,11 @@ impl RunEngine {
         );
     }
 
-    fn roll_boss_for_act(&mut self, act: i32) -> String {
+    fn roll_boss_sequence_for_act(&mut self, act: i32) {
         if act == 4 {
-            return "CorruptHeart".to_string();
+            self.boss_id = "CorruptHeart".to_string();
+            self.pending_act_three_boss_id = None;
+            return;
         }
         // The simulator exposes the full unlocked content catalog, so use
         // Java's all-bosses-seen branch: shuffle all three with one
@@ -2398,13 +2496,15 @@ impl RunEngine {
         };
         let shuffle_seed = self.monster_rng.random_long();
         crate::seed::java_util_shuffle(&mut bosses, shuffle_seed);
-        bosses[0].to_string()
+        self.boss_id = bosses[0].to_string();
+        self.pending_act_three_boss_id =
+            (act == 3 && self.run_state.ascension >= 20).then(|| bosses[1].to_string());
     }
 
     fn ensure_encounter_queues_for_act(&mut self, act: i32) {
         if self.encounter_queue_act != act {
             self.generate_encounter_queues(act);
-            self.boss_id = self.roll_boss_for_act(act);
+            self.roll_boss_sequence_for_act(act);
         }
     }
 
@@ -2455,7 +2555,7 @@ impl RunEngine {
                 .pop_front()
                 .expect("monster encounter queue was refilled")]
         };
-        self.enter_specific_combat(encounter);
+        self.enter_specific_combat_with_kind(encounter, is_boss);
     }
 
     fn random_louse_id(&mut self) -> String {
@@ -2516,6 +2616,15 @@ impl RunEngine {
     }
 
     fn enter_specific_combat(&mut self, encounter: Vec<String>) {
+        self.enter_specific_combat_with_kind(encounter, false);
+    }
+
+    fn enter_specific_boss_combat(&mut self, encounter: Vec<String>) {
+        self.enter_specific_combat_with_kind(encounter, true);
+    }
+
+    fn enter_specific_combat_with_kind(&mut self, encounter: Vec<String>, is_boss: bool) {
+        self.active_combat_is_boss = is_boss;
         // AbstractDungeon.nextRoomTransition resets these room-scoped streams
         // from Settings.seed + floorNum. potionRng intentionally is not reset.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:1737-1741
@@ -4372,8 +4481,9 @@ impl RunEngine {
                     } else if start_boss_combat {
                         self.current_event = None;
                         self.pending_event_combat = None;
-                        self.run_state.floor = 16;
-                        self.enter_specific_combat(vec![self.boss_id.clone()]);
+                        self.run_state.floor =
+                            Self::boss_floor_for_act(self.run_state.act);
+                        self.enter_specific_boss_combat(vec![self.boss_id.clone()]);
                     } else if start_final_act {
                         self.current_event = None;
                         self.pending_event_combat = None;
@@ -4393,10 +4503,38 @@ impl RunEngine {
                 } else {
                     RoomType::Monster
                 };
-                let is_boss = self.run_state.floor >= 16 || room_type == RoomType::Boss;
+                let is_boss = self.is_boss_room_resolution(room_type);
                 let is_final_heart = self.run_state.act == 4
                     && combat_enemy_ids.len() == 1
                     && combat_enemy_ids[0] == "CorruptHeart";
+
+                if is_boss && self.run_state.act == 3 {
+                    if let Some(second_boss) = self.pending_act_three_boss_id.take() {
+                        // At A20, ProceedButton routes directly into the second
+                        // shuffled Act 3 boss while bossList still has two
+                        // entries. The first boss's reward screen is skipped.
+                        // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/buttons/ProceedButton.java:100-105,210-219
+                        self.run_state.bosses_killed += 1;
+                        reward += 5.0;
+                        self.run_state.floor += 1;
+                        self.boss_id = second_boss.clone();
+                        self.combat_engine = None;
+                        self.enter_specific_boss_combat(vec![second_boss]);
+                        self.refresh_decision_stack();
+                        return reward;
+                    }
+
+                    // The final Act 3 boss also transitions directly to
+                    // VictoryRoom/SpireHeart, so none of its generated combat
+                    // rewards are exposed or claimed.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/buttons/ProceedButton.java:100-113
+                    self.run_state.bosses_killed += 1;
+                    reward += 5.0;
+                    self.run_state.floor += 1;
+                    self.enter_spire_heart_event();
+                    self.refresh_decision_stack();
+                    return reward;
+                }
 
                 // AbstractRoom.java creates exactly one gold reward band per
                 // ordinary, elite, or boss room. RewardItem.java then applies
@@ -4764,11 +4902,7 @@ impl RunEngine {
         }
 
         let mut screen = RewardScreen {
-            source: if self.run_state.floor >= 16 {
-                RewardScreenSource::BossCombat
-            } else {
-                RewardScreenSource::Combat
-            },
+            source: RewardScreenSource::Combat,
             ordered: true,
             active_item: None,
             items,
@@ -4938,9 +5072,12 @@ impl RunEngine {
             self.reward_screen = None;
 
             if source == RewardScreenSource::BossCombat {
-                self.run_state.run_won = true;
-                self.run_state.run_over = true;
-                self.phase = RunPhase::GameOver;
+                if self.run_state.act < 3 {
+                    self.transition_to_next_act();
+                } else {
+                    self.run_state.floor += 1;
+                    self.enter_spire_heart_event();
+                }
                 self.refresh_decision_stack();
                 return 0.0;
             }
@@ -6838,6 +6975,7 @@ impl RunEngine {
         self.pending_event_combat = None;
         self.reward_screen = None;
         self.combat_engine = None;
+        self.active_combat_is_boss = false;
         self.run_state.run_won = true;
         self.run_state.run_over = true;
         self.phase = RunPhase::GameOver;
@@ -7976,8 +8114,8 @@ impl RunEngine {
         if start_boss_combat {
             self.current_event = None;
             self.pending_event_combat = None;
-            self.run_state.floor = 16;
-            self.enter_specific_combat(vec![self.boss_id.clone()]);
+            self.run_state.floor = Self::boss_floor_for_act(self.run_state.act);
+            self.enter_specific_boss_combat(vec![self.boss_id.clone()]);
             self.refresh_decision_stack();
             return 0.0;
         }
