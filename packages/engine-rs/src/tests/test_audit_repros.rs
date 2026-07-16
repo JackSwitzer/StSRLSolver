@@ -162,7 +162,6 @@ fn eda_006_runtime_caused_enemy_death_must_dispatch_death_relics() {
 }
 
 #[test]
-#[ignore = "EDA-007: Devotion >= 10 creates Mantra remainder when no MantraPower exists"]
 fn eda_007_large_devotion_without_mantra_enters_divinity_without_remainder() {
     // DevotionPower special-cases a missing MantraPower: at amount >= 10 it
     // queues only ChangeStanceAction and never constructs MantraPower. Thus a

@@ -1966,6 +1966,28 @@ mod watcher_card_java_parity_tests {
         assert_eq!(engine.state.stance, Stance::Divinity);
         assert_eq!(engine.state.mantra, 0);
     }
+
+    #[test]
+    fn devotion_source_large_stack_skips_remainder_only_when_mantra_is_absent() {
+        let mut absent = one_enemy_engine("JawWorm", 50, 0);
+        absent.state.player.set_status(sid::DEVOTION, 12);
+        absent.rebuild_effect_runtime();
+        absent.state.draw_pile = make_deck(&["Strike"; 5]);
+        end_turn(&mut absent);
+
+        assert_eq!(absent.state.stance, Stance::Divinity);
+        assert_eq!(absent.state.mantra, 0);
+
+        let mut existing = one_enemy_engine("JawWorm", 50, 0);
+        existing.state.player.set_status(sid::DEVOTION, 12);
+        existing.state.mantra = 3;
+        existing.rebuild_effect_runtime();
+        existing.state.draw_pile = make_deck(&["Strike"; 5]);
+        end_turn(&mut existing);
+
+        assert_eq!(existing.state.stance, Stance::Divinity);
+        assert_eq!(existing.state.mantra, 5);
+    }
     watcher_test!(
         deva_form_java_parity,
         base = ("DevaForm", "Deva Form", 3, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, ["ethereal"]),

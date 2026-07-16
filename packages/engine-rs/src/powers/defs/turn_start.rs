@@ -296,27 +296,38 @@ pub static DEF_BATTLE_HYMN: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Devotion — TurnStartPostDraw: gain mantra equal to stacks
+// Devotion — TurnStartPostDraw: gain mantra equal to stacks, except Java
+// enters Divinity directly when no MantraPower exists and amount >= 10.
 // Java: powers/watcher/DevotionPower.java atStartOfTurnPostDraw().
 // ===========================================================================
-
-static DEVOTION_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::GainMantra(
-    AmountSource::StatusValue(sid::DEVOTION),
-))];
 
 static DEVOTION_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::TurnStartPostDraw,
     condition: TriggerCondition::Always,
-    effects: &DEVOTION_EFFECTS,
+    effects: &EMPTY_EFFECTS,
     counter: None,
 }];
+
+fn hook_devotion(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    _event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    let amount = engine.state.player.status(sid::DEVOTION);
+    if engine.state.mantra == 0 && amount >= 10 {
+        engine.change_stance(Stance::Divinity);
+    } else {
+        engine.gain_mantra(amount);
+    }
+}
 
 pub static DEF_DEVOTION: EntityDef = EntityDef {
     id: "devotion",
     name: "Devotion",
     kind: EntityKind::Power,
     triggers: &DEVOTION_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_devotion),
     status_guard: Some(sid::DEVOTION),
 };
 
