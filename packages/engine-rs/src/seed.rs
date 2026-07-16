@@ -41,13 +41,11 @@ impl StsRandom {
     /// Matches libGDX: `new RandomXS128(seed)` which calls
     /// `setState(murmurHash3(seed), murmurHash3(seed0))`.
     pub fn new(seed: u64) -> Self {
-        let mut s0 = murmur_hash3(seed);
+        // RandomXS128 substitutes Long.MIN_VALUE before hashing a zero seed.
+        // Source: com.badlogic.gdx.math.RandomXS128 in desktop-1.0.jar.
+        let seed = if seed == 0 { i64::MIN as u64 } else { seed };
+        let s0 = murmur_hash3(seed);
         let s1 = murmur_hash3(s0);
-        // Guard: murmur_hash3(0)==0, making both seeds 0 -- an absorbing state
-        // for xorshift128+. Use fallback to avoid degenerate all-zero output.
-        if s0 == 0 && s1 == 0 {
-            s0 = 1;
-        }
         Self {
             seed0: s0,
             seed1: s1,
@@ -104,26 +102,19 @@ impl StsRandom {
         self.seed1.wrapping_add(s0)
     }
 
-    /// Generate the next i32 in [0, bound) — matches java.util.Random.nextInt(int)
-    /// with rejection sampling to eliminate modulo bias.
+    /// Generate the next i32 in [0, bound), matching RandomXS128.nextInt(int).
     pub fn next_int(&mut self, bound: i32) -> i32 {
         debug_assert!(bound > 0, "bound must be positive");
         let bound = bound as u64;
 
-        // Power-of-2 bounds have no modulo bias
-        if bound & (bound - 1) == 0 {
-            let bits = (self.next_long() >> 33) as u64;
-            return (bits & (bound - 1)) as i32;
-        }
-
-        // Rejection sampling: reject values where modular reduction is biased.
-        // Mirrors java.util.Random.nextInt(int bound) logic.
+        // libGDX delegates nextInt(n) to nextLong(n), using all 63 positive
+        // bits and retrying only when the signed addition overflows.
+        // Source: com.badlogic.gdx.math.RandomXS128 in desktop-1.0.jar.
         loop {
-            let bits = (self.next_long() >> 33) as u64;
-            let val = bits % bound;
-            // Reject if bits - val + (bound - 1) would overflow 31-bit range
-            if bits.wrapping_sub(val).wrapping_add(bound - 1) < (1u64 << 31) {
-                return val as i32;
+            let bits = self.next_long() >> 1;
+            let value = bits % bound;
+            if bits.wrapping_sub(value).wrapping_add(bound - 1) as i64 >= 0 {
+                return value as i32;
             }
         }
     }
@@ -428,6 +419,33 @@ mod tests {
     }
 
     #[test]
+    fn random_xs128_bounded_ints_match_shipped_java_class() {
+        // Oracle generated directly from the shipped desktop-1.0.jar
+        // com.badlogic.gdx.math.RandomXS128 class.
+        let cases = [
+            (0, [72, 60, 52, 92, 31, 68, 42, 24]),
+            (1, [55, 5, 88, 32, 21, 19, 63, 84]),
+            (4, [19, 33, 83, 6, 31, 43, 57, 53]),
+            (42, [24, 41, 71, 88, 61, 27, 25, 23]),
+            (57_554_006_466, [56, 22, 0, 1, 20, 77, 89, 72]),
+        ];
+
+        for (seed, expected) in cases {
+            let mut rng = StsRandom::new(seed);
+            let actual = std::array::from_fn(|_| rng.next_int(100));
+            assert_eq!(actual, expected, "seed {seed}");
+        }
+    }
+
+    #[test]
+    fn random_xs128_zero_seed_long_sequence_matches_shipped_java_class() {
+        let mut rng = StsRandom::new(0);
+        assert_eq!(rng.next_long() as i64, 2_940_871_956_904_845_945);
+        assert_eq!(rng.next_long() as i64, -1_645_442_809_927_433_695);
+        assert_eq!(rng.next_long() as i64, -890_117_169_686_220_111);
+    }
+
+    #[test]
     fn next_int_rejection_sampling_uniformity() {
         // Test that next_int with non-power-of-2 bound is reasonably uniform
         let mut rng = StsRandom::new(42);
@@ -460,7 +478,7 @@ mod tests {
     }
 
     #[test]
-    fn next_int_power_of_2_fast_path() {
+    fn next_int_power_of_two_bound() {
         let mut rng = StsRandom::new(42);
         for _ in 0..1000 {
             let val = rng.next_int(8); // power of 2

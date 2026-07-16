@@ -36,10 +36,10 @@ fn shared_primitive_wave1_registry_exports_cover_alchemize_and_reaper() {
 #[test]
 fn shared_primitive_wave1_alchemize_obtains_a_random_potion_and_exhausts() {
     // Alchemize.java calls returnRandomPotion(true) before constructing its
-    // ObtainPotionAction. With potionRng seed 2, Java's rarity roll is 72
-    // (uncommon), the mandatory first limited draw is discarded, and the next
-    // draw is Liquid Bronze: exactly three potionRng calls. Sozu is checked by
-    // the later action and therefore cannot prevent those RNG calls.
+    // ObtainPotionAction. With potionRng seed 2, shipped RandomXS128's rarity
+    // roll is 9 (common), the mandatory first limited draw is discarded, and
+    // the next draw is Dexterity Potion: exactly three potionRng calls. Sozu is
+    // checked by the later action and therefore cannot prevent those RNG calls.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Alchemize.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/PotionHelper.java
@@ -56,7 +56,7 @@ fn shared_primitive_wave1_alchemize_obtains_a_random_potion_and_exhausts() {
 
         assert!(play_self(&mut engine, card_id));
         assert_eq!(engine.state.energy, 0, "{card_id}");
-        assert_eq!(engine.state.potions[0], "LiquidBronze", "{card_id}");
+        assert_eq!(engine.state.potions[0], "DexterityPotion", "{card_id}");
         assert_eq!(engine.potion_rng.counter, 3, "{card_id}");
         assert_eq!(crate::tests::support::exhaust_prefix_count(&engine, "Alchemize"), 1);
     }

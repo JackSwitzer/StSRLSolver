@@ -946,8 +946,8 @@ mod enemy_ai_java_parity_tests {
             "Implant marks used only when takeTurn executes it");
 
         for (last, num, expected_ticks) in [
-            (move_ids::WM_BIG_HIT, 0, 2),
-            (move_ids::WM_MEGA_DEBUFF, 10, 1),
+            (move_ids::WM_BIG_HIT, 0, 1),
+            (move_ids::WM_MEGA_DEBUFF, 10, 2),
             (move_ids::WM_ATTACK_DEBUFF, 20, 2),
             (move_ids::WM_MULTI_HIT, 40, 1),
             (move_ids::WM_ATTACK_BLOCK, 70, 1),

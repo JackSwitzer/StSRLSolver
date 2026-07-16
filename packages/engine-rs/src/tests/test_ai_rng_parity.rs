@@ -122,32 +122,32 @@ mod ai_rng_parity_tests {
 
     #[test]
     fn multi_enemy_intent_sequence_depends_on_roll_order() {
-        // 3 JawWorms sharing one ai_rng. Rolling A then B then C consumes
+        // 3 Orb Walkers sharing one ai_rng. Rolling A then B then C consumes
         // different values than rolling C then B then A.
-        let seed = 7;
+        // Shipped RandomXS128 seed 2 yields 9, 45, 62, producing a
+        // non-palindromic Claw/Laser result.
+        let seed = 2;
 
         let mut rng_a = StsRandom::new(seed);
-        let mut a1 = create_enemy("JawWorm", 44, 44);
-        let mut a2 = create_enemy("JawWorm", 44, 44);
-        let mut a3 = create_enemy("JawWorm", 44, 44);
+        let mut a1 = create_enemy("OrbWalker", 93, 93);
+        let mut a2 = create_enemy("OrbWalker", 93, 93);
+        let mut a3 = create_enemy("OrbWalker", 93, 93);
         roll_next_move(&mut a1, &mut rng_a);
         roll_next_move(&mut a2, &mut rng_a);
         roll_next_move(&mut a3, &mut rng_a);
 
         let mut rng_b = StsRandom::new(seed);
-        let mut b1 = create_enemy("JawWorm", 44, 44);
-        let mut b2 = create_enemy("JawWorm", 44, 44);
-        let mut b3 = create_enemy("JawWorm", 44, 44);
+        let mut b1 = create_enemy("OrbWalker", 93, 93);
+        let mut b2 = create_enemy("OrbWalker", 93, 93);
+        let mut b3 = create_enemy("OrbWalker", 93, 93);
         // Reverse order of consumption.
         roll_next_move(&mut b3, &mut rng_b);
         roll_next_move(&mut b2, &mut rng_b);
         roll_next_move(&mut b1, &mut rng_b);
 
         // Same enemy receives a different num depending on stream position.
-        // It is technically possible (though improbable) that two random draws
-        // happen to land in the same JawWorm branch; if this assertion ever
-        // becomes flaky we need a sharper variance test, but for seed=7 the
-        // intent sequences differ.
+        // The source-derived seed above makes this deterministic rather than
+        // relying on an incidental probabilistic difference.
         let intents_forward = (a1.move_id, a2.move_id, a3.move_id);
         let intents_reversed = (b1.move_id, b2.move_id, b3.move_id);
         assert_ne!(

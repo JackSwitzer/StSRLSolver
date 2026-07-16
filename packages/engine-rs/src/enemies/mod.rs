@@ -2001,11 +2001,18 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::DARK_NIP);
         assert_eq!(enemy.move_damage(), 8);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        // After two Nips: Chomp
+        let mut rng = crate::seed::StsRandom::new(0);
+        // Java's first getMove call consumes the firstMove flag. Use an
+        // explicit Nip opener before exercising the normal move table.
+        roll_initial_move_with_num_and_rng(&mut enemy, 72, &mut rng);
+        roll_next_move_with_num_and_rng(&mut enemy, 0, &mut rng);
         assert_eq!(enemy.move_id, move_ids::DARK_CHOMP);
         assert_eq!(enemy.move_hits(), 2);
+
+        // Java rejects a repeated Chomp and rerolls only within 40..=99.
+        roll_next_move_with_num_and_rng(&mut enemy, 0, &mut rng);
+        assert_ne!(enemy.move_id, move_ids::DARK_CHOMP);
+        assert_eq!(rng.counter, 1);
     }
 
     #[test]
@@ -2032,7 +2039,12 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::OW_LASER);
         assert_eq!(enemy.move_damage(), 10);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        let mut rng = crate::seed::StsRandom::new(0);
+        roll_next_move_with_num_and_rng(&mut enemy, 72, &mut rng);
+        assert_eq!(enemy.move_id, move_ids::OW_LASER);
+
+        // Java allows two Lasers, then forces Claw instead of a third.
+        roll_next_move_with_num_and_rng(&mut enemy, 72, &mut rng);
         assert_eq!(enemy.move_id, move_ids::OW_CLAW);
         assert_eq!(enemy.move_damage(), 15);
     }
