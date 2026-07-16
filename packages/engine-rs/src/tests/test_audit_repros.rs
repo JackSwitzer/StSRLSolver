@@ -10,7 +10,6 @@ use crate::tests::support::{
 };
 
 #[test]
-#[ignore = "EDA-001: CombatVictory dispatch stops after its first handler"]
 fn eda_001_all_victory_relics_must_run_after_combat_is_marked_over() {
     // AbstractPlayer.onVictory iterates every relic without an early exit:
     // decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java:1949-1960

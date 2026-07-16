@@ -410,7 +410,11 @@ impl EffectRuntime {
                 continue;
             }
             self.execute_instance(engine, idx, &event);
-            if engine.state.combat_over {
+            // Java marks combat complete before AbstractPlayer.onVictory()
+            // iterates relics, blights, and powers, but still runs the full
+            // victory handler snapshot in order.
+            // Source: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java:1949-1960
+            if engine.state.combat_over && event.kind != Trigger::CombatVictory {
                 break;
             }
         }
