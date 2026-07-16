@@ -355,6 +355,87 @@ fn eda_011_final_enemy_spore_cloud_death_must_not_apply_vulnerable() {
 }
 
 #[test]
+fn eda_012_combat_card_group_shuffle_matches_java_order_and_one_outer_tick() {
+    // CardGroup.shuffle consumes exactly one shuffleRng.randomLong even for
+    // empty/singleton groups, then delegates the actual permutation to a new
+    // java.util.Random seeded from that value.
+    // decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java:550-555
+    let cases: &[&[&str]] = &[
+        &[],
+        &["Strike"],
+        &["Strike", "Defend"],
+        &["Strike", "Defend", "Bash", "Inflame", "Anger", "Flex"],
+    ];
+
+    for &card_ids in cases {
+        let mut engine =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+        engine.rng = crate::seed::StsRandom::new(73);
+        engine.state.draw_pile = make_deck(card_ids);
+
+        let mut expected = engine.state.draw_pile.clone();
+        let mut expected_rng = crate::seed::StsRandom::new(73);
+        let java_seed = expected_rng.random_long();
+        crate::seed::java_util_shuffle(&mut expected, java_seed);
+
+        engine.shuffle_draw_pile();
+
+        assert_eq!(engine.state.draw_pile, expected, "case: {card_ids:?}");
+        assert_eq!(engine.rng.counter, 1, "case: {card_ids:?}");
+    }
+}
+
+#[test]
+fn eda_012_opening_draw_and_empty_deck_reshuffle_share_the_java_contract() {
+    // Combat start calls CardGroup.shuffle before drawing, and
+    // EmptyDeckShuffleAction shuffles the discard group before moving it into
+    // draw. Both paths must use the same one-tick Java permutation.
+    // decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java:550-555
+    // decompiled/java-src/com/megacrit/cardcrawl/actions/common/EmptyDeckShuffleAction.java:38-43
+    let card_ids = ["Strike", "Defend", "Bash", "Inflame", "Anger", "Flex"];
+    let cards = make_deck(&card_ids);
+
+    let mut expected_opening = cards.clone();
+    let mut expected_opening_rng = crate::seed::StsRandom::new(91);
+    let opening_seed = expected_opening_rng.random_long();
+    crate::seed::java_util_shuffle(&mut expected_opening, opening_seed);
+    let expected_opening_hand = (0..5)
+        .map(|_| expected_opening.pop().expect("six-card opening deck"))
+        .collect::<Vec<_>>();
+
+    let state = combat_state_with(
+        cards.clone(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    let mut opening = crate::engine::CombatEngine::new(state, 91);
+    opening.start_combat();
+    assert_eq!(opening.state.hand, expected_opening_hand);
+    assert_eq!(opening.state.draw_pile, expected_opening);
+    assert_eq!(opening.rng.counter, 1);
+
+    let mut expected_reshuffle = cards.clone();
+    let mut expected_reshuffle_rng = crate::seed::StsRandom::new(91);
+    let reshuffle_seed = expected_reshuffle_rng.random_long();
+    crate::seed::java_util_shuffle(&mut expected_reshuffle, reshuffle_seed);
+    let expected_reshuffle_hand = (0..3)
+        .map(|_| expected_reshuffle.pop().expect("six-card discard pile"))
+        .collect::<Vec<_>>();
+
+    let mut reshuffle =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    force_player_turn(&mut reshuffle);
+    reshuffle.rng = crate::seed::StsRandom::new(91);
+    reshuffle.state.hand.clear();
+    reshuffle.state.draw_pile.clear();
+    reshuffle.state.discard_pile = cards;
+    reshuffle.draw_cards(3);
+    assert_eq!(reshuffle.state.hand, expected_reshuffle_hand);
+    assert_eq!(reshuffle.state.draw_pile, expected_reshuffle);
+    assert_eq!(reshuffle.rng.counter, 1);
+}
+
+#[test]
 fn eda_013_player_poison_must_tick_after_enemy_turn_at_owner_turn_start() {
     // GameActionManager runs monster turns before player atStartOfTurn powers.
     // PoisonPower then queues PoisonLoseHpAction at the poisoned owner's turn

@@ -2192,8 +2192,7 @@ fn execute_draw_random_cards_from_pile_to_hand(
         if eligible.is_empty() {
             break;
         }
-        let shuffle_seed = engine.rng.random_long();
-        crate::seed::java_util_shuffle(&mut eligible, shuffle_seed);
+        crate::seed::card_group_shuffle(&mut eligible, &mut engine.rng);
         let original_idx = eligible.remove(0);
         let shifted_by = removed_source_indices
             .iter()

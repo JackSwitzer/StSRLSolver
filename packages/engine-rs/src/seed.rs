@@ -248,6 +248,15 @@ pub(crate) fn java_util_shuffle<T>(values: &mut [T], random_seed: u64) {
     }
 }
 
+/// Match `CardGroup.shuffle(Random)`: consume one outer stream tick, then use
+/// that value to seed the independent `java.util.Random` permutation.
+///
+/// Source: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java:550-555
+pub(crate) fn card_group_shuffle<T>(values: &mut [T], rng: &mut StsRandom) {
+    let random_seed = rng.random_long();
+    java_util_shuffle(values, random_seed);
+}
+
 // ===========================================================================
 // SeedHelper — base-34 string <-> u64 conversion
 // ===========================================================================

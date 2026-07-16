@@ -7,7 +7,6 @@
 
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use rand::seq::SliceRandom;
 
 use crate::actions::{Action, PyAction};
 use crate::cards::{CardDef, CardRegistry, CardTarget, CardType};
@@ -438,7 +437,7 @@ impl CombatEngine {
         }
 
         // Shuffle draw pile
-        self.state.draw_pile.shuffle(&mut self.rng);
+        crate::seed::card_group_shuffle(&mut self.state.draw_pile, &mut self.rng);
 
         // Innate: move cards with "innate" tag to top of draw pile
         // Draw pile convention: index 0 = bottom, last = top
@@ -4527,7 +4526,7 @@ impl CombatEngine {
                     break; // No cards left anywhere
                 }
                 let mut shuffled = std::mem::take(&mut self.state.discard_pile);
-                shuffled.shuffle(&mut self.rng);
+                crate::seed::card_group_shuffle(&mut shuffled, &mut self.rng);
                 self.state.draw_pile = shuffled;
                 shuffles += 1;
             }
@@ -4619,7 +4618,7 @@ impl CombatEngine {
 
     /// Shuffle the draw pile (pub(crate) for card_effects).
     pub(crate) fn shuffle_draw_pile(&mut self) {
-        self.state.draw_pile.shuffle(&mut self.rng);
+        crate::seed::card_group_shuffle(&mut self.state.draw_pile, &mut self.rng);
     }
 
     /// Execute Reboot's ShuffleAllAction, explicit ShuffleAction, and draw.
@@ -4641,8 +4640,7 @@ impl CombatEngine {
     fn continue_shuffle_all_and_draw(&mut self, draw_count: i32) {
         // ShuffleAllAction always shuffles the discard group, even when empty.
         // CardGroup.shuffle consumes exactly one shuffleRng.randomLong().
-        let discard_seed = self.rng.random_long();
-        crate::seed::java_util_shuffle(&mut self.state.discard_pile, discard_seed);
+        crate::seed::card_group_shuffle(&mut self.state.discard_pile, &mut self.rng);
 
         // PutOnDeckAction selects each remaining hand card with one inclusive
         // cardRandomRng.random(size - 1), including the singleton case, then
@@ -4666,8 +4664,7 @@ impl CombatEngine {
         // Java: reference/extracted/methods/card/Reboot.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/PutOnDeckAction.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ShuffleAction.java
-        let draw_seed = self.rng.random_long();
-        crate::seed::java_util_shuffle(&mut self.state.draw_pile, draw_seed);
+        crate::seed::card_group_shuffle(&mut self.state.draw_pile, &mut self.rng);
         self.draw_cards(draw_count.max(0));
     }
 

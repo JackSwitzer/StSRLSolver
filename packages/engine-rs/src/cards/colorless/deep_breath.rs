@@ -1,35 +1,5 @@
 use crate::cards::prelude::*;
 
-fn java_next_int(seed: &mut u64, bound: usize) -> usize {
-    const MULTIPLIER: u64 = 0x5DEECE66D;
-    const ADDEND: u64 = 0xB;
-    const MASK: u64 = (1_u64 << 48) - 1;
-    let mut next = |bits: u32| {
-        *seed = seed.wrapping_mul(MULTIPLIER).wrapping_add(ADDEND) & MASK;
-        (*seed >> (48 - bits)) as u32
-    };
-    if bound.is_power_of_two() {
-        return ((bound as u64 * next(31) as u64) >> 31) as usize;
-    }
-    loop {
-        let bits = next(31) as usize;
-        let value = bits % bound;
-        if bits - value + (bound - 1) < (1_usize << 31) {
-            return value;
-        }
-    }
-}
-
-fn java_shuffle<T>(values: &mut [T], random_seed: u64) {
-    const MULTIPLIER: u64 = 0x5DEECE66D;
-    const MASK: u64 = (1_u64 << 48) - 1;
-    let mut seed = (random_seed ^ MULTIPLIER) & MASK;
-    for len in (2..=values.len()).rev() {
-        let other = java_next_int(&mut seed, len);
-        values.swap(len - 1, other);
-    }
-}
-
 fn shuffle_discard_twice_then_draw(
     engine: &mut crate::engine::CombatEngine,
     ctx: &crate::effects::types::CardPlayContext,
@@ -46,15 +16,13 @@ fn shuffle_discard_twice_then_draw(
             crate::effects::trigger::Trigger::OnShuffle,
         ));
 
-        let discard_seed = engine.rng.random_long();
-        java_shuffle(&mut engine.state.discard_pile, discard_seed);
+        crate::seed::card_group_shuffle(&mut engine.state.discard_pile, &mut engine.rng);
         engine
             .state
             .draw_pile
             .append(&mut engine.state.discard_pile);
 
-        let draw_seed = engine.rng.random_long();
-        java_shuffle(&mut engine.state.draw_pile, draw_seed);
+        crate::seed::card_group_shuffle(&mut engine.state.draw_pile, &mut engine.rng);
     }
     engine.draw_cards(ctx.card.base_magic);
 }

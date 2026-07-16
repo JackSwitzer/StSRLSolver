@@ -1293,10 +1293,12 @@ fn warped_tongs_rummage_grants_the_fixed_relic_and_upgrades_only_eligible_cards(
     // AccursedBlacksmith.java's Rummage branch always obtains Pain and the
     // SPECIAL WarpedTongs relic. WarpedTongs queues UpgradeRandomCardAction,
     // which excludes upgraded and Status cards and consumes one
-    // shuffleRng.randomLong only when an eligible card exists.
+    // shuffleRng.randomLong only when an eligible card exists. Combat start
+    // consumes the preceding tick through CardGroup.shuffle.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/events/shrines/AccursedBlacksmith.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/WarpedTongs.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/UpgradeRandomCardAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
     let event = crate::events::typed_shrine_events().into_iter()
         .find(|event| event.name == "Accursed Blacksmith")
         .expect("Accursed Blacksmith event");
@@ -1325,7 +1327,11 @@ fn warped_tongs_rummage_grants_the_fixed_relic_and_upgrades_only_eligible_cards(
     assert!(hand_names.contains(&"Burn"));
     assert!(hand_names.contains(&"Strike+"));
     assert!(hand_names.contains(&"Defend+"));
-    assert_eq!(combat.rng_counters()["card"], 1);
+    assert_eq!(
+        combat.rng_counters()["card"],
+        2,
+        "opening CardGroup shuffle plus Warped Tongs eligible-card shuffle"
+    );
 
     combat.state.hand = crate::tests::support::make_deck(&["Burn", "Strike+"]);
     let shuffle_before = combat.rng_counters()["card"];

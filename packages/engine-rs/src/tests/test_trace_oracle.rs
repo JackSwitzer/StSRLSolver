@@ -22,7 +22,7 @@ use crate::trace::{diff_records, ActionScript, DivergenceStatus, ScriptStopCondi
 
 /// The tiny scripted sequence used by both tests below: resolve Neow, take
 /// the first map path into floor 1 combat (vs a lone Cultist for seed 0),
-/// play the Defend card on ourselves, then end the turn.
+/// play the first Defend in Java-shuffled opening-hand order, then end the turn.
 fn tiny_fixture_script() -> ActionScript {
     ActionScript {
         v: 1,
@@ -33,7 +33,7 @@ fn tiny_fixture_script() -> ActionScript {
         actions: vec![
             TraceAction::Neow { choice: 0 },
             TraceAction::Path { choice: 0 },
-            TraceAction::PlayCard { hand_idx: 2, target: -1, card_id: Some("Defend_P".to_string()) },
+            TraceAction::PlayCard { hand_idx: 1, target: -1, card_id: Some("Defend".to_string()) },
             TraceAction::EndTurn,
         ],
     }
@@ -61,15 +61,15 @@ fn synthetic_self_diff_matches() {
 fn doctored_hp_and_rng_are_reported_as_first_divergence() {
     let script = tiny_fixture_script();
     let rust_records = crate::trace::replay_script(&script).expect("fixture script must replay cleanly");
-    assert!(rust_records.len() >= 2, "fixture must have at least 2 records to doctor the 2nd one");
+    assert!(rust_records.len() >= 3, "fixture must have a play-card record to doctor");
 
-    // Doctor the "java" side at record index 1 (after PLAY_CARD): bump the
+    // Doctor the "java" side at record index 2 (after PLAY_CARD): bump the
     // player's hp by 1 (an impossible value given the real replay) and the
     // `ai` rng counter by 1. hp is checked first among player fields but
     // rng counters are checked first overall (T3): the report's
     // first_divergence must land on the rng path, not hp.
     let mut java_records = rust_records.clone();
-    let doctored = &mut java_records[1];
+    let doctored = &mut java_records[2];
     let original_hp = doctored.post.player.hp;
     doctored.post.player.hp = original_hp + 1;
     let original_ai = *doctored.post.rng.get("ai").expect("ai counter must be tracked");
@@ -78,10 +78,13 @@ fn doctored_hp_and_rng_are_reported_as_first_divergence() {
     let report = diff_records("synthetic-fixture-doctored", &script.seed, &java_records, &rust_records, &[]);
 
     assert_eq!(report.status, DivergenceStatus::Diverged);
-    assert_eq!(report.matched_actions, 1, "record 0 (after NEOW) is undoctored and must still match");
+    assert_eq!(
+        report.matched_actions, 2,
+        "NEOW and PATH records are undoctored and must still match"
+    );
 
     let first = report.first_divergence.expect("must report a first_divergence");
-    assert_eq!(first.idx, 1);
+    assert_eq!(first.idx, 2);
     // RNG counters are diffed first in canonical order, so the `ai` counter
     // diff must be the reported path, not `post.player.hp` (also diffed,
     // but demoted to `secondary` since it's the same divergent record).
