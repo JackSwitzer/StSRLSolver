@@ -7,7 +7,7 @@
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
-use std::sync::{Mutex, OnceLock};
+use std::sync::OnceLock;
 
 use crate::decision::{
     build_combat_context, build_shop_context, CampfireDecisionContext, CombatContext,
@@ -23,25 +23,6 @@ use crate::gameplay::registry::global_registry as gameplay_registry;
 use crate::gameplay::types::GameplayDomain;
 use crate::map::{generate_map_with_rng, DungeonMap, RoomType};
 use crate::state::{CombatState, EnemyCombatState};
-
-static NOTE_FOR_YOURSELF_CARD: OnceLock<Mutex<String>> = OnceLock::new();
-
-fn note_for_yourself_slot() -> &'static Mutex<String> {
-    NOTE_FOR_YOURSELF_CARD.get_or_init(|| Mutex::new("IronWave".to_string()))
-}
-
-fn current_note_for_yourself_card() -> String {
-    note_for_yourself_slot()
-        .lock()
-        .expect("note-for-yourself mutex poisoned")
-        .clone()
-}
-
-fn set_note_for_yourself_card(card_id: String) {
-    *note_for_yourself_slot()
-        .lock()
-        .expect("note-for-yourself mutex poisoned") = card_id;
-}
 
 // ---------------------------------------------------------------------------
 // Run-level action (distinct from combat Action)
@@ -431,6 +412,44 @@ pub struct ShopState {
     pub remove_price: i32,
     /// Whether the player has already used their one card removal this shop visit
     pub removal_used: bool,
+}
+
+// ---------------------------------------------------------------------------
+// Profile input and cross-run outputs
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProfileSnapshot {
+    pub note_for_yourself_card: String,
+}
+
+impl Default for ProfileSnapshot {
+    fn default() -> Self {
+        Self {
+            note_for_yourself_card: "IronWave".to_string(),
+        }
+    }
+}
+
+impl ProfileSnapshot {
+    pub fn with_note_for_yourself_card(card_id: impl Into<String>) -> Self {
+        Self {
+            note_for_yourself_card: card_id.into(),
+        }
+    }
+
+    pub fn apply_update(&mut self, update: &ProfileUpdate) {
+        match update {
+            ProfileUpdate::StoreNoteForYourselfCard { card_id } => {
+                self.note_for_yourself_card = card_id.clone();
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProfileUpdate {
+    StoreNoteForYourselfCard { card_id: String },
 }
 
 // ---------------------------------------------------------------------------
@@ -902,6 +921,8 @@ pub struct RunEngine {
     pub map: DungeonMap,
     pub phase: RunPhase,
     pub seed: u64,
+    profile: ProfileSnapshot,
+    profile_updates: Vec<ProfileUpdate>,
     rng: crate::seed::StsRandom,
     neow_rng: crate::seed::StsRandom,
     monster_rng: crate::seed::StsRandom,
@@ -988,6 +1009,15 @@ impl RunEngine {
 
     /// Create a new run engine with given seed and ascension level.
     pub fn new(seed: u64, ascension: i32) -> Self {
+        Self::new_with_profile(seed, ascension, ProfileSnapshot::default())
+    }
+
+    /// Create a run from immutable save/profile inputs.
+    pub fn new_with_profile(
+        seed: u64,
+        ascension: i32,
+        profile: ProfileSnapshot,
+    ) -> Self {
         // Exordium seeds mapRng with Settings.seed + actNum.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/Exordium.java:56
         let (map, map_rng) = generate_map_with_rng(seed.wrapping_add(1), ascension);
@@ -1010,6 +1040,8 @@ impl RunEngine {
             map,
             phase: RunPhase::Neow,
             seed,
+            profile,
+            profile_updates: Vec::new(),
             rng,
             neow_rng: crate::seed::StsRandom::new(seed),
             monster_rng: crate::seed::StsRandom::new(seed),
@@ -1061,7 +1093,33 @@ impl RunEngine {
     /// Reset the engine to a fresh run with a new seed.
     pub fn reset(&mut self, seed: u64) {
         let ascension = self.run_state.ascension;
-        *self = Self::new(seed, ascension);
+        let profile = self.profile.clone();
+        *self = Self::new_with_profile(seed, ascension, profile);
+    }
+
+    /// Immutable inputs supplied when this simulation root was created.
+    pub fn profile_snapshot(&self) -> &ProfileSnapshot {
+        &self.profile
+    }
+
+    /// Explicit cross-run writes produced by this simulation.
+    pub fn profile_updates(&self) -> &[ProfileUpdate] {
+        &self.profile_updates
+    }
+
+    fn current_note_for_yourself_card(&self) -> &str {
+        self.profile_updates
+            .iter()
+            .rev()
+            .find_map(|update| match update {
+                ProfileUpdate::StoreNoteForYourselfCard { card_id } => Some(card_id.as_str()),
+            })
+            .unwrap_or(&self.profile.note_for_yourself_card)
+    }
+
+    fn store_note_for_yourself_card(&mut self, card_id: String) {
+        self.profile_updates
+            .push(ProfileUpdate::StoreNoteForYourselfCard { card_id });
     }
 
     fn build_neow_options(&mut self) -> Vec<NeowChoiceOption> {
@@ -5113,7 +5171,7 @@ impl RunEngine {
             }
             "deck_selection_note_for_yourself" => {
                 self.remove_master_deck_card(*deck_index);
-                set_note_for_yourself_card(card_id.clone());
+                self.store_note_for_yourself_card(card_id.clone());
                 true
             }
             "deck_selection_empty_cage" => {
@@ -8001,7 +8059,8 @@ impl RunEngine {
                     })
                     .collect::<Vec<_>>();
                 if label == "deck_selection_note_for_yourself" {
-                    let reward_card = self.upgrade_reward_card_if_needed(&current_note_for_yourself_card());
+                    let reward_card =
+                        self.upgrade_reward_card_if_needed(self.current_note_for_yourself_card());
                     choices.push(RewardChoice::Card {
                         index: choices.len(),
                         card_id: reward_card,
@@ -8397,7 +8456,8 @@ impl RunEngine {
                 }
             }
             EventReward::StoredNoteCard => {
-                let card_id = self.upgrade_reward_card_if_needed(&current_note_for_yourself_card());
+                let card_id =
+                    self.upgrade_reward_card_if_needed(self.current_note_for_yourself_card());
                 reward_items.push(RewardItem {
                     index: reward_items.len(),
                     kind: RewardItemKind::CardChoice,
@@ -8843,21 +8903,6 @@ impl RunEngine {
     #[cfg(test)]
     pub(crate) fn debug_current_event(&self) -> Option<TypedEventDef> {
         self.current_event.clone()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn debug_current_note_for_yourself_card(&self) -> String {
-        current_note_for_yourself_card()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn debug_set_note_for_yourself_card(&mut self, card_id: &str) {
-        set_note_for_yourself_card(card_id.to_string());
-    }
-
-    #[cfg(test)]
-    pub(crate) fn debug_reset_note_for_yourself_card(&mut self) {
-        set_note_for_yourself_card("IronWave".to_string());
     }
 
     #[cfg(test)]
