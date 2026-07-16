@@ -214,7 +214,6 @@ fn eda_008_necronomicon_replay_must_repeat_card_counters_and_use_hooks() {
 }
 
 #[test]
-#[ignore = "EDA-009: enemy Ritual grants Strength before its first Dark Strike"]
 fn eda_009_cultist_ritual_must_buff_after_the_second_round_attack() {
     // RitualPower.skipFirst is cleared at the end of the Incantation round.
     // The first Dark Strike therefore deals its unbuffed six damage, and only

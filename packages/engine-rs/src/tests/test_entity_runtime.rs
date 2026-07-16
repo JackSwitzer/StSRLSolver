@@ -478,6 +478,30 @@ fn mercury_hourglass_nested_kill_dispatches_gremlin_horn_on_the_same_runtime_fra
 }
 
 #[test]
+fn enemy_ritual_tracks_skip_first_per_owner_before_round_end_strength() {
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![
+            enemy_no_intent("JawWorm", 30, 30),
+            enemy_no_intent("Cultist", 30, 30),
+        ],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.enemies[0].entity.set_status(sid::RITUAL, 2);
+    engine.state.enemies[1].entity.set_status(sid::RITUAL, 5);
+    engine.rebuild_effect_runtime();
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.enemies[0].entity.strength(), 0);
+    assert_eq!(engine.state.enemies[1].entity.strength(), 0);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.enemies[0].entity.strength(), 2);
+    assert_eq!(engine.state.enemies[1].entity.strength(), 5);
+}
+
+#[test]
 fn brimstone_buffs_player_and_all_enemies_on_turn_start() {
     // Source: reference/extracted/methods/relic/Brimstone.java and
     // decompiled/java-src/com/megacrit/cardcrawl/actions/common/ApplyPowerAction.java.

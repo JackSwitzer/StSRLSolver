@@ -14,13 +14,13 @@ use crate::engine::CombatEngine;
 use crate::status_ids::sid;
 
 // ===========================================================================
-// Ritual — EnemyTurnStart + NotFirstTurn: gain Strength
+// Ritual — player TurnEnd / enemy RoundEnd with a skip-first latch
 // ===========================================================================
 
 static RITUAL_TRIGGERS: [TriggeredEffect; 2] = [
     TriggeredEffect {
-        trigger: Trigger::EnemyTurnStart,
-        condition: TriggerCondition::NotFirstTurn,
+        trigger: Trigger::RoundEnd,
+        condition: TriggerCondition::Always,
         effects: &[],
         counter: None,
     },
@@ -36,18 +36,22 @@ fn ritual_hook(
     engine: &mut CombatEngine,
     owner: EffectOwner,
     event: &GameEvent,
-    _state: &mut EffectState,
+    state: &mut EffectState,
 ) {
     // RitualPower.java uses distinct boundaries by owner: player-controlled
     // Ritual gains Strength at player turn end, while enemy Ritual gains it at
-    // end of round after skipping its first round.
-    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RitualPower.java
+    // end of round after skipping its first round with a per-power latch.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RitualPower.java:19,46-54
     match (owner, event.kind) {
         (EffectOwner::PlayerPower, Trigger::TurnEnd) => {
             let amount = engine.state.player.status(sid::RITUAL);
             engine.state.player.add_status(sid::STRENGTH, amount);
         }
-        (EffectOwner::EnemyPower { enemy_idx }, Trigger::EnemyTurnStart) => {
+        (EffectOwner::EnemyPower { enemy_idx }, Trigger::RoundEnd) => {
+            if state.get(0) == 0 {
+                state.set(0, 1);
+                return;
+            }
             let idx = enemy_idx as usize;
             if idx < engine.state.enemies.len() {
                 let amount = engine.state.enemies[idx].entity.status(sid::RITUAL);
@@ -180,12 +184,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_ritual_skips_first_turn() {
-        assert_eq!(DEF_RITUAL.triggers[0].trigger, Trigger::EnemyTurnStart);
-        assert_eq!(
-            DEF_RITUAL.triggers[0].condition,
-            TriggerCondition::NotFirstTurn
-        );
+    fn test_ritual_uses_round_end_for_enemies_and_turn_end_for_player() {
+        assert_eq!(DEF_RITUAL.triggers[0].trigger, Trigger::RoundEnd);
+        assert_eq!(DEF_RITUAL.triggers[0].condition, TriggerCondition::Always);
+        assert_eq!(DEF_RITUAL.triggers[1].trigger, Trigger::TurnEnd);
     }
 
     #[test]
@@ -200,8 +202,8 @@ mod tests {
     }
 
     #[test]
-    fn test_all_enemy_defs_fire_on_enemy_turn() {
-        let defs = [&DEF_RITUAL, &DEF_GROWTH, &DEF_METALLICIZE_ENEMY];
+    fn test_enemy_turn_start_defs_fire_on_enemy_turn_start() {
+        let defs = [&DEF_GROWTH, &DEF_METALLICIZE_ENEMY];
         for def in &defs {
             assert_eq!(def.triggers[0].trigger, Trigger::EnemyTurnStart);
         }

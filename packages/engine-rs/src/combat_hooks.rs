@@ -678,6 +678,13 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         engine.state.enemies[enemy_idx]
             .entity
             .set_status(sid::RITUAL, amt as i32);
+        // Cultist's Incantation installs Ritual before the same round ends,
+        // and RitualPower.atEndOfRound consumes its skipFirst latch on that
+        // boundary. Refresh the owner-aware runtime immediately so the new
+        // power participates in this round's RoundEnd dispatch.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RitualPower.java:19,46-54
+        // Java: reference/extracted/methods/monster/Cultist.java:2-17
+        engine.rebuild_effect_runtime();
     }
     if let Some(amt) = get_fx(&effects, mfx::ENRAGE) {
         engine.state.enemies[enemy_idx]
