@@ -294,7 +294,6 @@ fn eda_010_static_discharge_auto_evoke_must_honor_electrodynamics_and_channel_co
 }
 
 #[test]
-#[ignore = "EDA-011: Spore Cloud debuffs the player when the final enemy dies"]
 fn eda_011_final_enemy_spore_cloud_death_must_not_apply_vulnerable() {
     // SporeCloudPower.onDeath returns when AbstractRoom.isBattleEnding;
     // isBattleEnding is true as soon as the monster group is basically dead.

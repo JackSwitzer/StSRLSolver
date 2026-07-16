@@ -1001,7 +1001,11 @@ fn blade_dance_generated_shiv_respects_wrist_blade_on_engine_path() {
 
 #[test]
 fn poison_tick_death_triggers_shared_enemy_death_effects() {
-    let state = combat_state_with(make_deck(&["Strike"]), vec![enemy_no_intent("JawWorm", 1, 1)], 3);
+    let state = combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 1, 1), enemy_no_intent("Cultist", 30, 30)],
+        3,
+    );
 
     let mut engine = engine_with_state(state);
     engine.state.enemies[0].entity.set_status(sid::POISON, 1);
@@ -1010,13 +1014,21 @@ fn poison_tick_death_triggers_shared_enemy_death_effects() {
     end_turn(&mut engine);
 
     assert_eq!(engine.state.player.status(sid::VULNERABLE), 1);
-    assert!(engine.state.combat_over);
-    assert!(engine.state.player_won);
+    assert!(engine.state.enemies[0].entity.is_dead());
+    assert!(engine.state.enemies[1].is_alive());
+    assert!(!engine.state.combat_over);
 }
 
 #[test]
 fn thorns_kill_triggers_shared_enemy_death_effects() {
-    let state = combat_state_with(make_deck(&["Strike"]), vec![enemy("JawWorm", 3, 3, 1, 5, 1)], 3);
+    let state = combat_state_with(
+        make_deck(&["Strike"]),
+        vec![
+            enemy("JawWorm", 3, 3, 1, 5, 1),
+            enemy_no_intent("Cultist", 30, 30),
+        ],
+        3,
+    );
 
     let mut engine = engine_with_state(state);
     engine.state.player.set_status(sid::THORNS, 3);
@@ -1025,8 +1037,9 @@ fn thorns_kill_triggers_shared_enemy_death_effects() {
     end_turn(&mut engine);
 
     assert_eq!(engine.state.player.status(sid::VULNERABLE), 1);
-    assert!(engine.state.combat_over);
-    assert!(engine.state.player_won);
+    assert!(engine.state.enemies[0].entity.is_dead());
+    assert!(engine.state.enemies[1].is_alive());
+    assert!(!engine.state.combat_over);
 }
 
 #[test]

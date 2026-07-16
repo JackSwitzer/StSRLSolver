@@ -3815,7 +3815,10 @@ impl CombatEngine {
         let spore = self.state.enemies[enemy_idx]
             .entity
             .status(sid::SPORE_CLOUD);
-        if spore > 0 {
+        // SporeCloudPower.onDeath returns immediately when the room is already
+        // battle-ending, so the final dying monster does not queue Vulnerable.
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/SporeCloudPower.java:36-43
+        if spore > 0 && !self.state.is_victory() {
             powers::apply_debuff(&mut self.state.player, sid::VULNERABLE, spore);
         }
 
