@@ -431,31 +431,13 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             }
 
             for _ in 0..static_discharge {
-                let focus = engine.state.player.focus();
-                let evoke_effect = engine.state.orb_slots.channel(
-                    crate::orbs::OrbType::Lightning,
-                    focus,
-                );
-                match evoke_effect {
-                    crate::orbs::EvokeEffect::LightningDamage(dmg) => {
-                        let living = engine.state.living_enemy_indices();
-                        if let Some(&target) = living.first() {
-                            let e = &mut engine.state.enemies[target];
-                            let blocked_e = e.entity.block.min(dmg);
-                            let hp_dmg_e = dmg - blocked_e;
-                            e.entity.block -= blocked_e;
-                            e.entity.hp -= hp_dmg_e;
-                            engine.state.total_damage_dealt += hp_dmg_e;
-                            if hp_dmg_e > 0 {
-                                engine.record_enemy_hp_damage(target, hp_dmg_e);
-                            }
-                        }
-                    }
-                    crate::orbs::EvokeEffect::FrostBlock(blk) => {
-                        engine.gain_block_player(blk);
-                    }
-                    _ => {}
-                }
+                // StaticDischargePower queues ordinary ChannelActions. Route
+                // them through the same channel path as cards and relics so
+                // full-slot eviction, Focus, Electrodynamics, and channel
+                // counters all stay canonical.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/StaticDischargePower.java:29-34
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ChannelAction.java:28-36
+                engine.channel_orb(crate::orbs::OrbType::Lightning);
             }
 
             if engine.state.player.hp <= 0 {

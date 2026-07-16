@@ -248,7 +248,6 @@ fn eda_009_cultist_ritual_must_buff_after_the_second_round_attack() {
 }
 
 #[test]
-#[ignore = "EDA-010: Static Discharge full-slot channel bypasses the orb evoke pipeline"]
 fn eda_010_static_discharge_auto_evoke_must_honor_electrodynamics_and_channel_count() {
     // StaticDischargePower queues an ordinary ChannelAction. Filling the last
     // slot auto-evokes the front Lightning; with Electrodynamics, Lightning's

@@ -218,6 +218,37 @@ fn static_discharge_triggers_before_tungsten_but_after_buffer() {
 }
 
 #[test]
+fn static_discharge_full_slot_uses_focus_and_canonical_evokes_for_each_stack() {
+    // StaticDischargePower queues one ordinary ChannelAction per stack. With
+    // one full slot, two stacks first evoke focused Frost and then focused
+    // Lightning while leaving the final Lightning channeled.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/StaticDischargePower.java:29-34
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ChannelAction.java:28-36
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy("JawWorm", 60, 60, 1, 5, 2)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.init_defect_orbs(1);
+    engine.state.player.set_status(sid::FOCUS, 2);
+    engine.channel_orb(OrbType::Frost);
+    engine.state.hand = make_deck(&["Static Discharge+"]);
+    assert!(play_self(&mut engine, "Static Discharge+"));
+
+    end_turn(&mut engine);
+
+    // Frost's focused seven block absorbs the second five-damage hit. The
+    // ordinary block remainder clears when the next player turn begins.
+    assert_eq!(engine.state.player.hp, 79);
+    assert_eq!(engine.state.player.block, 0);
+    assert_eq!(engine.state.enemies[0].entity.hp, 50);
+    assert_eq!(engine.state.player.status(sid::LIGHTNING_CHANNELED), 2);
+    assert_eq!(engine.state.orb_slots.occupied_count(), 1);
+    assert_eq!(engine.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
+}
+
+#[test]
 fn machine_learning_source_stacks_one_draw_and_upgrade_is_innate_only() {
     // MachineLearning.java constructs DrawPower with magicNumber 1. Its upgrade
     // sets only isInnate, so both versions add one persistent hand-size stack.
