@@ -83,6 +83,86 @@ fn trace_preserves_java_potion_slot_placeholders_outside_and_during_combat() {
     );
 }
 
+#[test]
+fn trace_emits_real_relic_counters_from_run_and_combat_runtime_state() {
+    // TraceWriter serializes AbstractRelic.counter directly. These fixtures
+    // cover the run-owned, runtime-owned, sentinel, and non-counter paths.
+    // Sources:
+    // - packages/harness-java/src/main/java/tracelab/TraceWriter.java
+    // - decompiled/java-src/com/megacrit/cardcrawl/relics/Nunchaku.java
+    // - decompiled/java-src/com/megacrit/cardcrawl/relics/Matryoshka.java
+    // - decompiled/java-src/com/megacrit/cardcrawl/relics/AncientTeaSet.java
+    let mut run = crate::run::RunEngine::new(4, 0);
+    run.run_state.relics = vec![
+        "PureWater".to_string(),
+        "Nunchaku".to_string(),
+        "Matryoshka".to_string(),
+        "Ancient Tea Set".to_string(),
+        "Lizard Tail".to_string(),
+        "Circlet".to_string(),
+    ];
+    run.run_state.relic_flags.rebuild(&run.run_state.relics);
+    run.run_state.relic_flags.init_relic_counter("Matryoshka");
+    run.run_state.relic_flags.counters[crate::relic_flags::counter::ANCIENT_TEA_SET] = 1;
+    run.run_state.lizard_tail_used = true;
+    run.run_state.persisted_effect_states.push(
+        crate::effects::runtime::PersistedEffectState {
+            def_id: "Nunchaku".to_string(),
+            values: vec![7],
+        },
+    );
+
+    let outside = crate::trace::build_post_state(&run);
+    assert_eq!(
+        outside
+            .relics
+            .iter()
+            .map(|relic| (relic.id.as_str(), relic.counter))
+            .collect::<Vec<_>>(),
+        [
+            ("PureWater", -1),
+            ("Nunchaku", 7),
+            ("Matryoshka", 2),
+            ("Ancient Tea Set", -2),
+            ("Lizard Tail", -2),
+            ("Circlet", 1),
+        ]
+    );
+
+    run.debug_enter_specific_combat(&["JawWorm"]);
+    {
+        let combat = run.debug_combat_engine_mut();
+        assert!(combat.set_hidden_effect_value(
+            "Nunchaku",
+            crate::effects::runtime::EffectOwner::PlayerRelic { slot: 1 },
+            0,
+            8,
+        ));
+    }
+    let during = crate::trace::build_post_state(&run);
+    assert_eq!(during.relics[0].counter, -1);
+    assert_eq!(during.relics[1].counter, 8);
+    assert_eq!(during.relics[2].counter, 2);
+    assert_eq!(during.relics[3].counter, -1);
+    assert_eq!(during.relics[4].counter, -2);
+    assert_eq!(during.relics[5].counter, 1);
+}
+
+#[test]
+fn trace_diff_reports_relic_counter_mismatches() {
+    let script = tiny_fixture_script();
+    let rust_records = crate::trace::replay_script(&script).expect("fixture script must replay cleanly");
+    let mut java_records = rust_records.clone();
+    java_records[0].post.relics[0].counter = 4;
+
+    let report = diff_records("relic-counter-doctored", &script.seed, &java_records, &rust_records, &[]);
+    let first = report.first_divergence.expect("counter mismatch must diverge");
+    assert_eq!(first.idx, 0);
+    assert_eq!(first.path, "post.relics[0].counter");
+    assert_eq!(first.java, serde_json::json!(4));
+    assert_eq!(first.rust, serde_json::json!(-1));
+}
+
 /// The tiny scripted sequence used by both tests below: resolve Neow, take
 /// the first map path into floor 1 combat (vs a lone Cultist for seed 0),
 /// play the first Defend in Java-shuffled opening-hand order, then end the turn.
