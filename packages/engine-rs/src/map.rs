@@ -186,6 +186,11 @@ pub(crate) fn generate_map_with_rng(
     // Step 4: Assign room types
     assign_room_types(&mut map, ascension, &mut rng);
 
+    // Step 5: The standard run starts with Act 4 available and no Emerald
+    // Key, so AbstractDungeon.setEmeraldElite consumes one counted mapRng
+    // draw and marks exactly one elite node.
+    set_emerald_elite(&mut map, &mut rng);
+
     (map, rng.into_inner())
 }
 
@@ -261,6 +266,44 @@ fn create_single_path(map: &mut DungeonMap, start_x: usize, rng: &mut MapRng) {
         };
 
         let mut next_x = (cx + rng.rand_range(min_off, max_off)) as usize;
+        let next_y = y + 1;
+
+        // Java rerolls paths that would rejoin a sibling branch fewer than
+        // three rows after their common ancestor. The original candidate's
+        // parent snapshot remains the loop source even if a reroll changes
+        // the candidate node.
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/map/MapGenerator.java
+        let candidate_parents = map.rows[next_y][next_x].parents.clone();
+        for parent in candidate_parents {
+            if parent == (current_x, y) {
+                continue;
+            }
+            let Some(ancestor) = common_ancestor(map, parent, (current_x, y), 5) else {
+                continue;
+            };
+            if next_y - ancestor.1 >= 3 {
+                continue;
+            }
+
+            let target_x = next_x as i32;
+            let rerolled = if target_x > cx {
+                let candidate = cx + rng.rand_range(-1, 0);
+                if candidate < 0 { cx } else { candidate }
+            } else if target_x == cx {
+                let candidate = cx + rng.rand_range(-1, 1);
+                if candidate > row_end {
+                    cx - 1
+                } else if candidate < 0 {
+                    cx + 1
+                } else {
+                    candidate
+                }
+            } else {
+                let candidate = cx + rng.rand_range(0, 1);
+                if candidate > row_end { cx } else { candidate }
+            };
+            next_x = rerolled as usize;
+        }
 
         // Anti-crossing: don't cross existing edges from neighbors
         // Check left neighbor
@@ -287,20 +330,57 @@ fn create_single_path(map: &mut DungeonMap, start_x: usize, rng: &mut MapRng) {
         // Clamp
         next_x = next_x.min(map.width - 1);
 
-        let next_y = y + 1;
-
         // Add edge and parent
         map.rows[y][current_x].add_edge(next_x, next_y);
         let parent = (current_x, y);
-        if !map.rows[next_y][next_x].parents.contains(&parent) {
-            map.rows[next_y][next_x].parents.push(parent);
-        }
+        // MapRoomNode.addParent appends unconditionally even when addEdge
+        // rejects a duplicate edge; common-ancestor traversal observes that
+        // exact parent list.
+        map.rows[next_y][next_x].parents.push(parent);
 
         current_x = next_x;
     }
 
     // Mark the starting node as connected
     map.rows[0][start_x].has_edges = true;
+}
+
+fn common_ancestor(
+    map: &DungeonMap,
+    node1: (usize, usize),
+    node2: (usize, usize),
+    max_depth: usize,
+) -> Option<(usize, usize)> {
+    debug_assert_eq!(node1.1, node2.1);
+    debug_assert_ne!(node1, node2);
+
+    // Preserve MapGenerator's shipped comparison exactly: it compares the
+    // first node's x against the second node's y when choosing left/right.
+    let (mut left, mut right) = if node1.0 < node2.1 {
+        (node1, node2)
+    } else {
+        (node2, node1)
+    };
+
+    for _ in 0..=max_depth {
+        let left_parents = &map.rows[left.1][left.0].parents;
+        let right_parents = &map.rows[right.1][right.0].parents;
+        if left_parents.is_empty() || right_parents.is_empty() {
+            return None;
+        }
+        left = *left_parents
+            .iter()
+            .max_by_key(|parent| parent.0)
+            .expect("non-empty left parent list");
+        right = *right_parents
+            .iter()
+            .min_by_key(|parent| parent.0)
+            .expect("non-empty right parent list");
+        if left == right {
+            return Some(left);
+        }
+    }
+    None
 }
 
 fn filter_redundant_row0(map: &mut DungeonMap) {
@@ -506,6 +586,22 @@ fn is_valid_room_placement(map: &DungeonMap, x: usize, y: usize, room: RoomType)
     true
 }
 
+fn set_emerald_elite(map: &mut DungeonMap, rng: &mut MapRng) {
+    let elite_nodes: Vec<(usize, usize)> = map
+        .rows
+        .iter()
+        .flat_map(|row| row.iter())
+        .filter(|node| node.room_type == RoomType::Elite)
+        .map(|node| (node.x, node.y))
+        .collect();
+    if elite_nodes.is_empty() {
+        return;
+    }
+    let chosen = rng.rand_range(0, elite_nodes.len() as i32 - 1) as usize;
+    let (x, y) = elite_nodes[chosen];
+    map.rows[y][x].has_emerald_key = true;
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -608,5 +704,25 @@ mod tests {
             }
         }
         assert!(differences > 0, "Different seeds should produce different maps");
+    }
+
+    #[test]
+    fn map_path_rerolls_match_java_counter_for_smoke_seed() {
+        // The shipped MapGenerator consumes 93 calls for this seed after
+        // three short common-ancestor rerolls. AbstractDungeon then consumes
+        // one more call while choosing the Emerald elite.
+        // Sources:
+        // - decompiled/java-src/com/megacrit/cardcrawl/map/MapGenerator.java
+        // - decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+        let (map, rng) = generate_map_with_rng(57_554_006_466_u64.wrapping_add(1), 0);
+        assert_eq!(rng.counter, 94);
+        assert_eq!(
+            map.rows
+                .iter()
+                .flat_map(|row| row.iter())
+                .filter(|node| node.has_emerald_key)
+                .count(),
+            1
+        );
     }
 }
