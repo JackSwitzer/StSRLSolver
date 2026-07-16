@@ -185,7 +185,6 @@ fn eda_007_large_devotion_without_mantra_enters_divinity_without_remainder() {
 }
 
 #[test]
-#[ignore = "EDA-008: Necronomicon replay bypasses the normal card-use pipeline"]
 fn eda_008_necronomicon_replay_must_repeat_card_counters_and_use_hooks() {
     // Necronomicon queues a CardQueueItem copy. GameActionManager processes
     // that copy as another card: it repeats onPlayCard hooks and increments the
@@ -211,6 +210,45 @@ fn eda_008_necronomicon_replay_must_repeat_card_counters_and_use_hooks() {
     assert_eq!(engine.state.attacks_played_this_turn, 2);
     assert_eq!(engine.state.total_cards_played, 2);
     assert_eq!(engine.state.player.block, 2);
+    assert_eq!(engine.state.enemies[0].entity.hp, 136);
+    assert_eq!(
+        engine
+            .state
+            .discard_pile
+            .iter()
+            .filter(|card| engine.card_registry.card_name(card.def_id) == "Bludgeon")
+            .count(),
+        1,
+        "the purge-on-use replay must not create a second pile card"
+    );
+}
+
+#[test]
+fn eda_008_necronomicon_x_replay_reuses_energy_on_use_and_chemical_x() {
+    // Necronomicon copies the original CardQueueItem.energyOnUse and marks the
+    // replay free/autoplay. Each Whirlwind use independently receives Chemical
+    // X's +2 effect while only the original spends EnergyPanel.totalCount.
+    // decompiled/java-src/com/megacrit/cardcrawl/relics/Necronomicon.java:56-73
+    // decompiled/java-src/com/megacrit/cardcrawl/cards/CardQueueItem.java:41-46
+    // decompiled/java-src/com/megacrit/cardcrawl/relics/ChemicalX.java
+    let mut engine =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 200, 200)], 2);
+    force_player_turn(&mut engine);
+    engine.state.relics.extend([
+        "Necronomicon".to_string(),
+        "Chemical X".to_string(),
+    ]);
+    engine.state.hand = make_deck(&["Whirlwind"]);
+    engine.rebuild_effect_runtime();
+
+    assert!(play_on_enemy(&mut engine, "Whirlwind", 0));
+
+    assert_eq!(engine.state.energy, 0);
+    assert_eq!(engine.state.enemies[0].entity.hp, 160);
+    assert_eq!(engine.state.cards_played_this_turn, 2);
+    assert_eq!(engine.state.attacks_played_this_turn, 2);
+    assert_eq!(engine.state.total_cards_played, 2);
+    assert_eq!(engine.state.discard_pile.len(), 1);
 }
 
 #[test]

@@ -2936,11 +2936,7 @@ impl CombatEngine {
                 if card.cost == -1 {
                     self.runtime_x_energy_override = Some(self.runtime_last_x_energy_on_use);
                 }
-                let mut replay_card = card_inst.set_free(true);
-                // Necronomicon.makeSameInstanceOf produces a purge-on-use
-                // autoplay copy in limbo, outside PerfectedStrike.countCards.
-                replay_card.flags |= CardInstance::FLAG_PURGE | CardInstance::FLAG_AUTOPLAY;
-                self.execute_card_effects_with_enemy_on_use(&card, replay_card, target_idx);
+                self.play_purge_autoplay_copy(card_inst, target_idx);
             }
         }
 
@@ -3023,6 +3019,44 @@ impl CombatEngine {
         }
 
         self.check_combat_end();
+    }
+
+    /// Process a same-instance replay copy through Java's normal queued-card path.
+    ///
+    /// The copy is temporarily placed in the hand only to reuse the canonical
+    /// play pipeline; `play_card` removes it before card-owned effects inspect
+    /// combat piles. `makeStatEquivalentCopy` preserves free-to-play state but
+    /// does not copy one-use exhaust or retain state.
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/AbstractCard.java
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+    pub(crate) fn play_purge_autoplay_copy(
+        &mut self,
+        mut card_inst: CardInstance,
+        target_idx: i32,
+    ) -> bool {
+        card_inst.flags &= !(CardInstance::FLAG_RETAINED | CardInstance::FLAG_EXHAUST_ON_USE);
+        card_inst.flags |=
+            CardInstance::FLAG_FREE | CardInstance::FLAG_PURGE | CardInstance::FLAG_AUTOPLAY;
+
+        let card = self.card_registry.card_def_by_id(card_inst.def_id).clone();
+        if !self.can_play_card_inst(&card, card_inst) {
+            return false;
+        }
+
+        self.state.hand.push(card_inst);
+        let hand_idx = self.state.hand.len() - 1;
+        let plays_before = self.state.total_cards_played;
+        self.play_card(hand_idx, target_idx);
+        if self.state.total_cards_played > plays_before {
+            return true;
+        }
+
+        // A hand-sensitive rule can differ only after the temporary limbo copy
+        // is inserted. Failed Java autoplay copies poof instead of entering a pile.
+        if hand_idx < self.state.hand.len() && self.state.hand[hand_idx] == card_inst {
+            self.state.hand.remove(hand_idx);
+        }
+        false
     }
 
     /// Install a power card as a permanent status effect.

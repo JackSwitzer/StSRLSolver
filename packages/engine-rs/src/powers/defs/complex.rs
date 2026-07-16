@@ -295,6 +295,9 @@ fn hook_double_tap(
         Some(card_inst) => card_inst,
         None => return,
     };
+    if card_inst.flags & crate::combat_types::CardInstance::FLAG_PURGE != 0 {
+        return;
+    }
 
     let remaining = player_power_amount(engine, owner, sid::DOUBLE_TAP);
     if remaining <= 0 {
@@ -469,6 +472,9 @@ fn hook_echo_form(
         Some(card_inst) => card_inst,
         None => return,
     };
+    if card_inst.flags & crate::combat_types::CardInstance::FLAG_PURGE != 0 {
+        return;
+    }
 
     let echo_count = player_power_amount(engine, owner, sid::ECHO_FORM);
     let card = engine.card_registry.card_def_by_id(card_inst.def_id).clone();
