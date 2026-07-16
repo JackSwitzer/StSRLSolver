@@ -1,8 +1,7 @@
 #![cfg(test)]
 
-//! Intentionally failing engine-path reproducers discovered by the deep audit.
-//!
-//! These remain ignored until their registered `EDA-*` work units are fixed.
+//! Engine-path reproducers discovered by the deep audit and retained as
+//! source-derived regression coverage after each finding is fixed.
 
 use crate::tests::support::{
     combat_state_with, enemy_no_intent, engine_with_state, engine_without_start, force_player_turn,
@@ -237,7 +236,7 @@ fn eda_005_first_weak_encounter_must_follow_monster_rng() {
     // decompiled/java-src/com/megacrit/cardcrawl/monsters/MonsterInfo.java:27-47
     let mut run = crate::run::RunEngine::new(4, 0);
     assert!(
-        run.step_with_result(&crate::run::RunAction::ChooseNeowOption(0))
+        run.step_with_result(&crate::run::RunAction::ChooseNeowOption(1))
             .action_accepted
     );
     assert!(
@@ -595,4 +594,38 @@ fn eda_013_player_poison_must_tick_after_enemy_turn_at_owner_turn_start() {
         engine.state.player.status(crate::status_ids::sid::BUFFER),
         0,
     );
+}
+
+#[test]
+fn f4_neow_option_index_must_match_java_blessing_categories() {
+    // NeowEvent.blessing constructs categories 0, 1, 2, and 3 in order from
+    // a dedicated Random(Settings.seed). For this seed, category 1 rolls
+    // TEN_PERCENT_HP_BONUS, so option index 1 adds floor(72 * 0.1) = 7 HP.
+    // decompiled/java-src/com/megacrit/cardcrawl/neow/NeowEvent.java:359-369
+    // decompiled/java-src/com/megacrit/cardcrawl/neow/NeowReward.java:54-115,249-256
+    let mut run = crate::run::RunEngine::new(57_554_006_466, 0);
+    let labels = run
+        .current_decision_context()
+        .neow
+        .expect("Neow decision")
+        .options
+        .into_iter()
+        .map(|option| option.label)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        labels,
+        [
+            "Remove a card from your deck.",
+            "Gain 7 Max HP.",
+            "Lose 7 Max HP. Choose 1 of 3 Rare cards to obtain.",
+            "Lose your starting Relic. Obtain a Boss Relic.",
+        ]
+    );
+
+    let result = run.step_with_result(&crate::run::RunAction::ChooseNeowOption(1));
+    assert!(result.action_accepted);
+    assert_eq!(run.current_phase(), crate::run::RunPhase::MapChoice);
+    assert_eq!(run.run_state.current_hp, 79);
+    assert_eq!(run.run_state.max_hp, 79);
+    assert_eq!(run.run_state.gold, 99);
 }

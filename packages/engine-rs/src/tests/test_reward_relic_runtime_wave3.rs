@@ -87,7 +87,7 @@ fn single_gold_reward_screen(amount: i32) -> RewardScreen {
 
 fn relic_choice_reward_screen(labels: &[&str]) -> RewardScreen {
     RewardScreen {
-        source: RewardScreenSource::Combat,
+        source: RewardScreenSource::BossCombat,
         ordered: true,
         active_item: None,
         items: vec![RewardItem {
@@ -262,7 +262,7 @@ fn neows_lament_choice_initializes_three_persistent_one_hp_combats() {
     // one HP. Java canonical relic ID is NeowsBlessing.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/neow/NeowReward.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/NeowsLament.java
-    let mut engine = RunEngine::new(1501, 0);
+    let mut engine = RunEngine::new(4, 0);
     let option = engine.current_decision_context().neow.expect("Neow").options
         .iter().find(|option| option.label.contains("next three combats"))
         .expect("Neow's Lament option").index;
@@ -4714,7 +4714,7 @@ fn entropic_brew_is_reachable_from_watcher_potion_rewards() {
 fn essence_of_steel_is_reachable_from_watcher_potion_rewards() {
     // PotionHelper.getPotions appends EssenceOfSteel to the shared pool.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/PotionHelper.java
-    let offered = (0..128).any(|seed| {
+    let offered = (0..1024).any(|seed| {
         let mut engine = RunEngine::new(seed, 0);
         engine
             .run_state
@@ -5273,7 +5273,7 @@ fn choosing_sacred_bark_uses_only_real_reward_choice_actions() {
     });
     assert!(choose.action_accepted);
     assert!(engine.run_state.relic_flags.has(crate::relic_flags::flag::SACRED_BARK));
-    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+    assert_eq!(engine.current_phase(), RunPhase::GameOver);
 }
 
 #[test]

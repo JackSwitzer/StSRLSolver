@@ -840,17 +840,56 @@ enum EventCardColor {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum NeowChoiceEffect {
-    GainCards,
-    GainGold,
-    UpgradeRandomCard,
+enum NeowReward {
+    RandomColorlessRare,
+    ThreeCards,
+    OneRandomRareCard,
+    RemoveCard,
+    UpgradeCard,
+    RandomColorless,
+    TransformCard,
+    ThreePotions,
+    RandomCommonRelic,
+    TenPercentHpBonus,
+    HundredGold,
     NeowsLament,
+    RemoveTwo,
+    TransformTwo,
+    OneRareRelic,
+    ThreeRareCards,
+    TwoFiftyGold,
+    TwentyPercentHpBonus,
+    BossRelic,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NeowDrawback {
+    None,
+    TenPercentHpLoss,
+    NoGold,
+    Curse,
+    PercentDamage,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NeowDeckChoice {
+    Remove,
+    Upgrade,
+    Transform,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PendingNeowDeckSelection {
+    choice: NeowDeckChoice,
+    remaining: usize,
+    skip_allowed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct NeowChoiceOption {
     label: String,
-    effect: NeowChoiceEffect,
+    reward: NeowReward,
+    drawback: NeowDrawback,
 }
 
 // ---------------------------------------------------------------------------
@@ -864,6 +903,7 @@ pub struct RunEngine {
     pub phase: RunPhase,
     pub seed: u64,
     rng: crate::seed::StsRandom,
+    neow_rng: crate::seed::StsRandom,
     monster_rng: crate::seed::StsRandom,
     event_rng: crate::seed::StsRandom,
     relic_rng: crate::seed::StsRandom,
@@ -890,6 +930,8 @@ pub struct RunEngine {
     pending_bottled_tornado_selection: bool,
     pending_calling_bell_rewards: bool,
     pending_empty_cage_removals: usize,
+    pending_neow_deck_selection: Option<PendingNeowDeckSelection>,
+    pending_relic_followup_source: RewardScreenSource,
 
     // Canonical stack of active decisions.
     decision_stack: DecisionStack,
@@ -969,6 +1011,7 @@ impl RunEngine {
             phase: RunPhase::Neow,
             seed,
             rng,
+            neow_rng: crate::seed::StsRandom::new(seed),
             monster_rng: crate::seed::StsRandom::new(seed),
             event_rng: crate::seed::StsRandom::new(seed),
             relic_rng,
@@ -991,6 +1034,8 @@ impl RunEngine {
             pending_bottled_tornado_selection: false,
             pending_calling_bell_rewards: false,
             pending_empty_cage_removals: 0,
+            pending_neow_deck_selection: None,
+            pending_relic_followup_source: RewardScreenSource::BossCombat,
             decision_stack: DecisionStack::new(),
             current_event: None,
             pending_event_combat: None,
@@ -1020,62 +1065,496 @@ impl RunEngine {
     }
 
     fn build_neow_options(&mut self) -> Vec<NeowChoiceOption> {
-        let mut options = vec![
-            NeowChoiceOption {
-                label: "Gain 100 gold".to_string(),
-                effect: NeowChoiceEffect::GainGold,
-            },
-            NeowChoiceOption {
-                label: "Gain 3 random cards".to_string(),
-                effect: NeowChoiceEffect::GainCards,
-            },
-            NeowChoiceOption {
-                label: "Upgrade a random card".to_string(),
-                effect: NeowChoiceEffect::UpgradeRandomCard,
-            },
-            NeowChoiceOption {
-                // NeowReward category 1 includes THREE_ENEMY_KILL, which
-                // obtains NeowsLament under canonical ID NeowsBlessing.
-                // Java: decompiled/java-src/com/megacrit/cardcrawl/neow/NeowReward.java
-                label: "Enemies in your next three combats have 1 HP".to_string(),
-                effect: NeowChoiceEffect::NeowsLament,
-            },
+        // NeowEvent.blessing creates one reward from each category in fixed
+        // order using its own Random(Settings.seed) stream. Category 2 first
+        // rolls a drawback, then filters its reward list around that drawback.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/neow/NeowEvent.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/neow/NeowReward.java
+        (0..4)
+            .map(|category| self.build_neow_option(category))
+            .collect()
+    }
+
+    fn build_neow_option(&mut self, category: usize) -> NeowChoiceOption {
+        const CATEGORY_ZERO: &[NeowReward] = &[
+            NeowReward::ThreeCards,
+            NeowReward::OneRandomRareCard,
+            NeowReward::RemoveCard,
+            NeowReward::UpgradeCard,
+            NeowReward::TransformCard,
+            NeowReward::RandomColorless,
+        ];
+        const CATEGORY_ONE: &[NeowReward] = &[
+            NeowReward::ThreePotions,
+            NeowReward::RandomCommonRelic,
+            NeowReward::TenPercentHpBonus,
+            NeowReward::NeowsLament,
+            NeowReward::HundredGold,
+        ];
+        const DRAWBACKS: &[NeowDrawback] = &[
+            NeowDrawback::TenPercentHpLoss,
+            NeowDrawback::NoGold,
+            NeowDrawback::Curse,
+            NeowDrawback::PercentDamage,
         ];
 
-        for i in (1..options.len()).rev() {
-            let j = self.rng.gen_range(0..=i);
-            options.swap(i, j);
+        let (reward, drawback) = match category {
+            0 => (self.roll_neow_reward(CATEGORY_ZERO), NeowDrawback::None),
+            1 => (self.roll_neow_reward(CATEGORY_ONE), NeowDrawback::None),
+            2 => {
+                let drawback =
+                    DRAWBACKS[self.neow_rng.random(DRAWBACKS.len() as i32 - 1) as usize];
+                let mut rewards = vec![NeowReward::RandomColorlessRare];
+                if drawback != NeowDrawback::Curse {
+                    rewards.push(NeowReward::RemoveTwo);
+                }
+                rewards.extend([
+                    NeowReward::OneRareRelic,
+                    NeowReward::ThreeRareCards,
+                ]);
+                if drawback != NeowDrawback::NoGold {
+                    rewards.push(NeowReward::TwoFiftyGold);
+                }
+                rewards.push(NeowReward::TransformTwo);
+                if drawback != NeowDrawback::TenPercentHpLoss {
+                    rewards.push(NeowReward::TwentyPercentHpBonus);
+                }
+                (self.roll_neow_reward(&rewards), drawback)
+            }
+            3 => (
+                self.roll_neow_reward(&[NeowReward::BossRelic]),
+                NeowDrawback::None,
+            ),
+            _ => unreachable!("Neow has exactly four reward categories"),
+        };
+        let hp_bonus = (self.run_state.max_hp as f32 * 0.1) as i32;
+        NeowChoiceOption {
+            label: Self::neow_option_label(reward, drawback, hp_bonus),
+            reward,
+            drawback,
         }
-
-        options
     }
 
-    fn apply_neow_choice(&mut self, effect: NeowChoiceEffect) {
-        match effect {
-            NeowChoiceEffect::GainCards => self.apply_event_deck_mutation(&EventDeckMutation::GainCard { count: 3 }),
-            NeowChoiceEffect::GainGold => self.adjust_run_gold(100),
-            NeowChoiceEffect::UpgradeRandomCard => self.upgrade_random_cards(1),
-            NeowChoiceEffect::NeowsLament => self.add_relic_reward("NeowsBlessing"),
+    fn roll_neow_reward(&mut self, rewards: &[NeowReward]) -> NeowReward {
+        rewards[self.neow_rng.random(rewards.len() as i32 - 1) as usize]
+    }
+
+    fn neow_option_label(
+        reward: NeowReward,
+        drawback: NeowDrawback,
+        hp_bonus: i32,
+    ) -> String {
+        let drawback = match drawback {
+            NeowDrawback::None => String::new(),
+            NeowDrawback::TenPercentHpLoss => format!("Lose {hp_bonus} Max HP. "),
+            NeowDrawback::NoGold => "Lose all Gold. ".to_string(),
+            NeowDrawback::Curse => "Obtain a Curse. ".to_string(),
+            NeowDrawback::PercentDamage => "Lose 30% of current HP. ".to_string(),
+        };
+        let reward = match reward {
+            NeowReward::RandomColorlessRare => {
+                "Choose 1 of 3 random Rare Colorless cards to obtain.".to_string()
+            }
+            NeowReward::ThreeCards => "Choose 1 of 3 cards to obtain.".to_string(),
+            NeowReward::OneRandomRareCard => "Obtain a random Rare card.".to_string(),
+            NeowReward::RemoveCard => "Remove a card from your deck.".to_string(),
+            NeowReward::UpgradeCard => "Upgrade a card.".to_string(),
+            NeowReward::RandomColorless => {
+                "Choose 1 of 3 random Colorless cards to obtain.".to_string()
+            }
+            NeowReward::TransformCard => "Transform a card.".to_string(),
+            NeowReward::ThreePotions => "Obtain 3 Potions.".to_string(),
+            NeowReward::RandomCommonRelic => "Obtain a random Common Relic.".to_string(),
+            NeowReward::TenPercentHpBonus => format!("Gain {hp_bonus} Max HP."),
+            NeowReward::HundredGold => "Gain 100 gold".to_string(),
+            NeowReward::NeowsLament => {
+                "Enemies in your next three combats have 1 HP".to_string()
+            }
+            NeowReward::RemoveTwo => "Remove 2 cards from your deck.".to_string(),
+            NeowReward::TransformTwo => "Transform 2 cards.".to_string(),
+            NeowReward::OneRareRelic => "Obtain a random Rare Relic.".to_string(),
+            NeowReward::ThreeRareCards => "Choose 1 of 3 Rare cards to obtain.".to_string(),
+            NeowReward::TwoFiftyGold => "Gain 250 gold".to_string(),
+            NeowReward::TwentyPercentHpBonus => format!("Gain {} Max HP.", hp_bonus * 2),
+            NeowReward::BossRelic => "Lose your starting Relic. Obtain a Boss Relic.".to_string(),
+        };
+        format!("{drawback}{reward}")
+    }
+
+    fn apply_neow_choice(&mut self, choice: NeowChoiceOption) {
+        let deferred_curse = choice.drawback == NeowDrawback::Curse;
+        match choice.drawback {
+            NeowDrawback::None | NeowDrawback::Curse => {}
+            NeowDrawback::TenPercentHpLoss => {
+                let hp_bonus = (self.run_state.max_hp as f32 * 0.1) as i32;
+                self.run_state.max_hp = (self.run_state.max_hp - hp_bonus).max(1);
+                self.run_state.current_hp =
+                    self.run_state.current_hp.min(self.run_state.max_hp);
+            }
+            NeowDrawback::NoGold => self.run_state.gold = 0,
+            NeowDrawback::PercentDamage => {
+                let damage = self.run_state.current_hp / 10 * 3;
+                self.run_state.current_hp = (self.run_state.current_hp - damage).max(0);
+            }
+        }
+
+        self.apply_neow_reward(choice.reward);
+        if deferred_curse {
+            let curse = RANDOM_OBTAINABLE_CURSES
+                [self.rng.random(RANDOM_OBTAINABLE_CURSES.len() as i32 - 1) as usize];
+            obtain_master_deck_card_state(&mut self.run_state, curse.to_string());
         }
     }
 
-    fn upgrade_random_cards(&mut self, count: usize) {
-        let registry = crate::cards::global_registry();
-        let mut eligible: Vec<usize> = self
+    fn apply_neow_reward(&mut self, reward: NeowReward) {
+        let hp_bonus = (self.run_state.max_hp as f32 * 0.1) as i32;
+        match reward {
+            NeowReward::RandomColorlessRare => {
+                let choices = self.generate_neow_card_choices(true, true);
+                self.build_neow_card_reward_screen(choices);
+            }
+            NeowReward::ThreeCards => {
+                let choices = self.generate_neow_card_choices(false, false);
+                self.build_neow_card_reward_screen(choices);
+            }
+            NeowReward::OneRandomRareCard => {
+                let card = self.roll_neow_card(WATCHER_RARE_CARDS);
+                obtain_master_deck_card_state(&mut self.run_state, card);
+            }
+            NeowReward::RemoveCard => {
+                self.start_neow_deck_selection(NeowDeckChoice::Remove, 1, true);
+            }
+            NeowReward::UpgradeCard => {
+                self.start_neow_deck_selection(NeowDeckChoice::Upgrade, 1, false);
+            }
+            NeowReward::RandomColorless => {
+                let choices = self.generate_neow_card_choices(true, false);
+                self.build_neow_card_reward_screen(choices);
+            }
+            NeowReward::TransformCard => {
+                self.start_neow_deck_selection(NeowDeckChoice::Transform, 1, false);
+            }
+            NeowReward::ThreePotions => self.build_neow_potion_reward_screen(),
+            NeowReward::RandomCommonRelic => {
+                let relic = self.roll_neow_common_relic();
+                self.obtain_neow_relic(&relic);
+            }
+            NeowReward::TenPercentHpBonus => {
+                self.run_state.max_hp += hp_bonus;
+                self.run_state.current_hp += hp_bonus;
+            }
+            NeowReward::HundredGold => self.adjust_run_gold(100),
+            NeowReward::NeowsLament => self.add_relic_reward("NeowsBlessing"),
+            NeowReward::RemoveTwo => {
+                self.start_neow_deck_selection(NeowDeckChoice::Remove, 2, false);
+            }
+            NeowReward::TransformTwo => {
+                self.start_neow_deck_selection(NeowDeckChoice::Transform, 2, false);
+            }
+            NeowReward::OneRareRelic => {
+                let relic = self.roll_neow_rare_relic();
+                self.obtain_neow_relic(&relic);
+            }
+            NeowReward::ThreeRareCards => {
+                let choices = self.generate_neow_card_choices(false, true);
+                self.build_neow_card_reward_screen(choices);
+            }
+            NeowReward::TwoFiftyGold => self.adjust_run_gold(250),
+            NeowReward::TwentyPercentHpBonus => {
+                self.run_state.max_hp += hp_bonus * 2;
+                self.run_state.current_hp += hp_bonus * 2;
+            }
+            NeowReward::BossRelic => {
+                if !self.run_state.relics.is_empty() {
+                    self.run_state.relics.remove(0);
+                    self.run_state.relic_flags.rebuild(&self.run_state.relics);
+                }
+                if let Some(relic) = self.roll_boss_relic_choices(1).into_iter().next() {
+                    self.obtain_neow_relic(&relic);
+                }
+            }
+        }
+    }
+
+    fn generate_neow_card_choices(
+        &mut self,
+        colorless: bool,
+        rare_only: bool,
+    ) -> Vec<RewardChoice> {
+        let mut cards = Vec::with_capacity(3);
+        for index in 0..3 {
+            // NeowReward rolls rarity even when rareOnly subsequently forces
+            // RARE, so each displayed card consumes the same two Neow RNG
+            // calls: rarity, then pool index.
+            let rolled_uncommon = self.neow_rng.random_float() < 0.33;
+            let pool = if colorless {
+                if rare_only {
+                    SHOP_COLORLESS_RARE_CARDS
+                } else if rolled_uncommon {
+                    SHOP_COLORLESS_UNCOMMON_CARDS
+                } else {
+                    // Colorless COMMON results are promoted to UNCOMMON.
+                    SHOP_COLORLESS_UNCOMMON_CARDS
+                }
+            } else if rare_only {
+                WATCHER_RARE_CARDS
+            } else if rolled_uncommon {
+                WATCHER_UNCOMMON_CARDS
+            } else {
+                WATCHER_COMMON_CARDS
+            };
+
+            let mut card = self.roll_neow_card(pool);
+            while cards.iter().any(
+                |choice| matches!(choice, RewardChoice::Card { card_id, .. } if card_id == &card),
+            ) {
+                card = self.roll_neow_card(pool);
+            }
+            cards.push(RewardChoice::Card {
+                index,
+                card_id: card,
+            });
+        }
+        cards
+    }
+
+    fn roll_neow_card(&mut self, pool: &[&str]) -> String {
+        pool[self.neow_rng.random(pool.len() as i32 - 1) as usize].to_string()
+    }
+
+    fn build_neow_card_reward_screen(&mut self, choices: Vec<RewardChoice>) {
+        self.reward_screen = Some(RewardScreen {
+            source: RewardScreenSource::Event,
+            ordered: true,
+            active_item: None,
+            items: vec![RewardItem {
+                index: 0,
+                kind: RewardItemKind::CardChoice,
+                state: RewardItemState::Available,
+                label: "neow_card_reward".to_string(),
+                claimable: true,
+                active: false,
+                skip_allowed: true,
+                skip_label: Some("Skip".to_string()),
+                choices,
+            }],
+        });
+        self.phase = RunPhase::CardReward;
+    }
+
+    fn build_neow_potion_reward_screen(&mut self) {
+        let mut screen = RewardScreen {
+            source: RewardScreenSource::Event,
+            ordered: false,
+            active_item: None,
+            items: (0..3)
+                .map(|index| RewardItem {
+                    index,
+                    kind: RewardItemKind::Potion,
+                    state: RewardItemState::Available,
+                    label: self.roll_neow_potion_id(),
+                    claimable: true,
+                    active: false,
+                    skip_allowed: true,
+                    skip_label: Some("Skip".to_string()),
+                    choices: Vec::new(),
+                })
+                .collect(),
+        };
+        Self::refresh_reward_screen(&mut screen);
+        self.reward_screen = Some(screen);
+        self.phase = RunPhase::CardReward;
+    }
+
+    fn roll_neow_potion_id(&mut self) -> String {
+        const POTIONS: &[&str] = &[
+            "Block Potion",
+            "Dexterity Potion",
+            "Energy Potion",
+            "Fire Potion",
+            "Fear Potion",
+            "Strength Potion",
+            "Swift Potion",
+            "Weak Potion",
+            "Ambrosia",
+            "BottledMiracle",
+            "StancePotion",
+            "Ancient Potion",
+            "BlessingOfTheForge",
+            "ColorlessPotion",
+            "CultistPotion",
+            "DistilledChaos",
+            "DuplicationPotion",
+            "EntropicBrew",
+            "EssenceOfSteel",
+            "Explosive Potion",
+            "FairyPotion",
+            "FruitJuice",
+            "GamblersBrew",
+            "LiquidBronze",
+            "LiquidMemories",
+            "Regen Potion",
+            "SmokeBomb",
+            "SneckoOil",
+            "SpeedPotion",
+            "SteroidPotion",
+            "PowerPotion",
+            "SkillPotion",
+        ];
+        POTIONS[self.potion_rng.random(POTIONS.len() as i32 - 1) as usize].to_string()
+    }
+
+    fn start_neow_deck_selection(
+        &mut self,
+        choice: NeowDeckChoice,
+        remaining: usize,
+        skip_allowed: bool,
+    ) {
+        self.pending_neow_deck_selection = Some(PendingNeowDeckSelection {
+            choice,
+            remaining,
+            skip_allowed,
+        });
+        self.build_neow_deck_selection_screen();
+    }
+
+    fn build_neow_deck_selection_screen(&mut self) {
+        let Some(pending) = self.pending_neow_deck_selection else {
+            return;
+        };
+        let choices = self
             .run_state
             .deck
             .iter()
             .enumerate()
-            .filter_map(|(idx, card_id)| registry.can_upgrade_name(card_id).then_some(idx))
+            .filter(|(_, card_id)| match pending.choice {
+                NeowDeckChoice::Upgrade => {
+                    crate::cards::global_registry().can_upgrade_name(card_id)
+                }
+                NeowDeckChoice::Remove | NeowDeckChoice::Transform => {
+                    Self::is_purgeable_master_deck_card(card_id)
+                }
+            })
+            .map(|(index, card_id)| RewardChoice::Card {
+                index,
+                card_id: card_id.clone(),
+            })
             .collect();
+        let label = match pending.choice {
+            NeowDeckChoice::Remove => "deck_selection_neow_remove",
+            NeowDeckChoice::Upgrade => "deck_selection_neow_upgrade",
+            NeowDeckChoice::Transform => "deck_selection_neow_transform",
+        };
+        let mut screen = RewardScreen {
+            source: RewardScreenSource::Event,
+            ordered: true,
+            active_item: None,
+            items: vec![RewardItem {
+                index: 0,
+                kind: RewardItemKind::CardChoice,
+                state: RewardItemState::Available,
+                label: label.to_string(),
+                claimable: true,
+                active: false,
+                skip_allowed: pending.skip_allowed,
+                skip_label: pending.skip_allowed.then(|| "Skip".to_string()),
+                choices,
+            }],
+        };
+        Self::refresh_reward_screen(&mut screen);
+        self.reward_screen = Some(screen);
+        self.phase = RunPhase::CardReward;
+    }
 
-        for _ in 0..count {
-            if eligible.is_empty() {
-                break;
-            }
-            let pick = self.rng.gen_range(0..eligible.len());
-            let deck_idx = eligible.swap_remove(pick);
-            self.run_state.upgrade_deck_card(deck_idx);
+    fn transform_neow_card(&mut self, original: &str) -> Option<String> {
+        let base = original.trim_end_matches('+');
+        let color = event_card_color(base)?;
+        let mut candidates = match color {
+            EventCardColor::Colorless => SHOP_COLORLESS_UNCOMMON_CARDS
+                .iter()
+                .chain(SHOP_COLORLESS_RARE_CARDS)
+                .map(|card| (*card).to_string())
+                .collect::<Vec<_>>(),
+            EventCardColor::Curse => RANDOM_OBTAINABLE_CURSES
+                .iter()
+                .map(|card| (*card).to_string())
+                .collect::<Vec<_>>(),
+            _ => WATCHER_COMMON_CARDS
+                .iter()
+                .chain(WATCHER_UNCOMMON_CARDS)
+                .chain(WATCHER_RARE_CARDS)
+                .map(|card| (*card).to_string())
+                .collect::<Vec<_>>(),
+        };
+        candidates.retain(|candidate| candidate != base);
+        (!candidates.is_empty()).then(|| {
+            candidates[self.neow_rng.random(candidates.len() as i32 - 1) as usize].clone()
+        })
+    }
+
+    fn roll_neow_common_relic(&mut self) -> String {
+        const COMMON: &[&str] = &[
+            "Akabeko",
+            "Anchor",
+            "Ancient Tea Set",
+            "Art of War",
+            "Bag of Marbles",
+            "Bag of Preparation",
+            "Blood Vial",
+            "Boot",
+            "Bronze Scales",
+            "Omamori",
+            "Smiling Mask",
+            "Tiny Chest",
+            "Toy Ornithopter",
+            "Vajra",
+        ];
+        self.roll_calling_bell_tier_relic(COMMON)
+    }
+
+    fn roll_neow_rare_relic(&mut self) -> String {
+        const RARE: &[&str] = &[
+            "Bird Faced Urn",
+            "Calipers",
+            "Du-Vu Doll",
+            "FossilizedHelix",
+            "Girya",
+            "Ginger",
+            "Ice Cream",
+            "Incense Burner",
+            "Old Coin",
+            "Peace Pipe",
+            "Pocketwatch",
+            "Shovel",
+            "StoneCalendar",
+            "Tingsha",
+            "Torii",
+            "Turnip",
+            "Unceasing Top",
+            "Thread and Needle",
+            "Tough Bandages",
+            "TungstenRod",
+        ];
+        self.roll_calling_bell_tier_relic(RARE)
+    }
+
+    fn obtain_neow_relic(&mut self, relic: &str) {
+        self.pending_relic_followup_source = RewardScreenSource::Event;
+        self.add_relic_reward(relic);
+        if relic == "Astrolabe" && self.pending_astrolabe_selection {
+            self.build_astrolabe_selection_screen();
+            self.phase = RunPhase::CardReward;
+        } else if relic == "Calling Bell" && self.pending_calling_bell_rewards {
+            self.build_calling_bell_reward_screen();
+            self.phase = RunPhase::CardReward;
+        } else if matches!(relic, "Empty Cage" | "EmptyCage")
+            && self.pending_empty_cage_removals > 0
+        {
+            self.build_empty_cage_selection_screen();
+            self.phase = RunPhase::CardReward;
+        } else if matches!(relic, "Tiny House" | "TinyHouse") {
+            self.build_tiny_house_reward_screen();
+            self.phase = RunPhase::CardReward;
         }
     }
 
@@ -1781,9 +2260,11 @@ impl RunEngine {
             return 0.0;
         };
 
-        self.apply_neow_choice(choice.effect);
+        self.apply_neow_choice(choice);
         self.neow_options.clear();
-        self.phase = RunPhase::MapChoice;
+        if self.reward_screen.is_none() {
+            self.phase = RunPhase::MapChoice;
+        }
         self.refresh_decision_stack();
         0.0
     }
@@ -4239,6 +4720,7 @@ impl RunEngine {
     }
 
     fn build_boss_reward_screen(&mut self) {
+        self.pending_relic_followup_source = RewardScreenSource::BossCombat;
         let choices = self
             .roll_boss_relic_choices(3)
             .into_iter()
@@ -4481,6 +4963,7 @@ impl RunEngine {
         let Some(item) = screen.items.get(item_index) else {
             return;
         };
+        let screen_source = screen.source.clone();
         if item.state != RewardItemState::Available {
             return;
         }
@@ -4502,6 +4985,12 @@ impl RunEngine {
         let bottled_lightning_card_pick = item_label == "deck_selection_bottled_lightning";
         let bottled_tornado_card_pick = item_label == "deck_selection_bottled_tornado";
         let empty_cage_card_pick = item_label == "deck_selection_empty_cage";
+        let neow_deck_card_pick = matches!(
+            item_label.as_str(),
+            "deck_selection_neow_remove"
+                | "deck_selection_neow_upgrade"
+                | "deck_selection_neow_transform"
+        );
 
         match (kind, choice) {
             (RewardItemKind::CardChoice, RewardChoice::Card { card_id, .. }) => {
@@ -4534,6 +5023,7 @@ impl RunEngine {
                 self.run_state.current_hp += 2;
             }
             (RewardItemKind::Relic, RewardChoice::Named { label, .. }) => {
+                self.pending_relic_followup_source = screen_source;
                 self.add_relic_reward(&label);
             }
             (RewardItemKind::Potion, RewardChoice::Named { label, .. }) => {
@@ -4574,6 +5064,15 @@ impl RunEngine {
             self.build_empty_cage_selection_screen();
         } else if empty_cage_card_pick && self.pending_empty_cage_removals > 0 {
             self.build_empty_cage_selection_screen();
+        } else if neow_deck_card_pick {
+            if self
+                .pending_neow_deck_selection
+                .is_some_and(|pending| pending.remaining > 0)
+            {
+                self.build_neow_deck_selection_screen();
+            } else {
+                self.pending_neow_deck_selection = None;
+            }
         }
         if (bottled_flame_card_pick
             || bottled_lightning_card_pick
@@ -4625,6 +5124,50 @@ impl RunEngine {
             }
             "deck_selection_dollys_mirror" => {
                 obtain_master_deck_card_state(&mut self.run_state, card_id.clone());
+                true
+            }
+            "deck_selection_neow_remove" => {
+                if self.remove_master_deck_card(*deck_index).is_some() {
+                    if let Some(pending) = self.pending_neow_deck_selection.as_mut() {
+                        pending.remaining = pending.remaining.saturating_sub(1);
+                    }
+                }
+                true
+            }
+            "deck_selection_neow_upgrade" => {
+                if let Some((original, upgraded)) =
+                    self.run_state.upgrade_deck_card(*deck_index)
+                {
+                    if self.run_state.bottled_flame_card.as_deref()
+                        == Some(original.as_str())
+                    {
+                        self.run_state.bottled_flame_card = Some(upgraded.clone());
+                    }
+                    if self.run_state.bottled_lightning_card.as_deref()
+                        == Some(original.as_str())
+                    {
+                        self.run_state.bottled_lightning_card = Some(upgraded.clone());
+                    }
+                    if self.run_state.bottled_tornado_card.as_deref()
+                        == Some(original.as_str())
+                    {
+                        self.run_state.bottled_tornado_card = Some(upgraded);
+                    }
+                    if let Some(pending) = self.pending_neow_deck_selection.as_mut() {
+                        pending.remaining = pending.remaining.saturating_sub(1);
+                    }
+                }
+                true
+            }
+            "deck_selection_neow_transform" => {
+                if let Some(original) = self.remove_master_deck_card(*deck_index) {
+                    if let Some(transformed) = self.transform_neow_card(&original) {
+                        obtain_master_deck_card_state(&mut self.run_state, transformed);
+                    }
+                    if let Some(pending) = self.pending_neow_deck_selection.as_mut() {
+                        pending.remaining = pending.remaining.saturating_sub(1);
+                    }
+                }
                 true
             }
             _ => false,
@@ -4703,6 +5246,12 @@ impl RunEngine {
         let Some(item) = screen.items.get(item_index) else {
             return;
         };
+        let skipped_neow_selection = matches!(
+            item.label.as_str(),
+            "deck_selection_neow_remove"
+                | "deck_selection_neow_upgrade"
+                | "deck_selection_neow_transform"
+        );
         if item.index != item_index || !item.skip_allowed || item.state != RewardItemState::Available {
             return;
         }
@@ -4722,6 +5271,9 @@ impl RunEngine {
         }
         if active_choice.is_some() {
             self.decision_stack.pop();
+        }
+        if skipped_neow_selection {
+            self.pending_neow_deck_selection = None;
         }
     }
 
@@ -4753,7 +5305,10 @@ impl RunEngine {
         }
 
         match kind {
-            RewardItemKind::Relic => self.add_relic_reward(&label),
+            RewardItemKind::Relic => {
+                self.pending_relic_followup_source = source.clone();
+                self.add_relic_reward(&label);
+            }
             RewardItemKind::Potion => self.add_potion_reward(&label),
             RewardItemKind::Gold => {
                 if let Ok(amount) = label.parse::<i32>() {
@@ -5195,7 +5750,7 @@ impl RunEngine {
             })
             .collect();
         let mut screen = RewardScreen {
-            source: RewardScreenSource::BossCombat,
+            source: self.pending_relic_followup_source.clone(),
             ordered: true,
             active_item: None,
             items: vec![RewardItem {
@@ -5227,7 +5782,7 @@ impl RunEngine {
             })
             .collect();
         let mut screen = RewardScreen {
-            source: RewardScreenSource::BossCombat,
+            source: self.pending_relic_followup_source.clone(),
             ordered: true,
             active_item: None,
             items: vec![RewardItem {
@@ -5427,7 +5982,7 @@ impl RunEngine {
         let uncommon = self.roll_calling_bell_tier_relic(UNCOMMON);
         let rare = self.roll_calling_bell_tier_relic(RARE);
         let mut screen = RewardScreen {
-            source: RewardScreenSource::BossCombat,
+            source: self.pending_relic_followup_source.clone(),
             ordered: true,
             active_item: None,
             items: vec![
@@ -5490,7 +6045,7 @@ impl RunEngine {
         // opens the current room's ordered combat reward screen.
         let potion = self.roll_reward_potion_id();
         let mut screen = RewardScreen {
-            source: RewardScreenSource::BossCombat,
+            source: self.pending_relic_followup_source.clone(),
             ordered: true,
             active_item: None,
             items: vec![
@@ -8549,19 +9104,28 @@ mod tests {
 
     fn resolve_opening_neow(engine: &mut RunEngine) {
         if engine.current_phase() == RunPhase::Neow {
-            let action = engine
-                .current_decision_context()
-                .neow
-                .and_then(|neow| {
-                    neow.options
-                        .iter()
-                        .position(|option| option.label == "Gain 100 gold")
-                })
-                .map(|idx| RunAction::ChooseNeowOption(idx))
-                .unwrap_or_else(|| engine.get_legal_actions()[0].clone());
-            let (reward, done) = engine.step(&action);
+            let (reward, done) = engine.step(&RunAction::ChooseNeowOption(1));
             assert_eq!(reward, 0.0);
             assert!(!done);
+            while engine.current_phase() == RunPhase::CardReward {
+                let actions = engine.get_legal_actions();
+                let action = actions
+                    .iter()
+                    .find(|action| matches!(action, RunAction::SkipRewardItem(_)))
+                    .or_else(|| {
+                        actions
+                            .iter()
+                            .find(|action| matches!(action, RunAction::SelectRewardItem(_)))
+                    })
+                    .or_else(|| {
+                        actions.iter().find(|action| {
+                            matches!(action, RunAction::ChooseRewardOption { .. })
+                        })
+                    })
+                    .cloned()
+                    .expect("Neow follow-up must expose a reward action");
+                engine.step(&action);
+            }
             assert_eq!(engine.current_phase(), RunPhase::MapChoice);
         }
     }
@@ -8574,6 +9138,72 @@ mod tests {
         assert_eq!(engine.phase, RunPhase::Neow);
         assert_eq!(engine.current_choice_count(), 4);
         assert!(!engine.is_done());
+    }
+
+    #[test]
+    fn neow_builds_four_java_categories_on_its_dedicated_rng() {
+        // Four NeowReward constructors consume one category draw each, while
+        // category 2 consumes its drawback draw first: five total calls.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/neow/NeowEvent.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/neow/NeowReward.java
+        for seed in [0, 4, 42, 57_554_006_466] {
+            let engine = RunEngine::new(seed, 0);
+            assert_eq!(engine.neow_options.len(), 4);
+            assert_eq!(engine.neow_rng.counter, 5);
+            assert_eq!(engine.rng_counters()["card"], 0);
+        }
+    }
+
+    #[test]
+    fn neow_remove_is_an_agent_choice_and_can_be_cancelled() {
+        // REMOVE_CARD opens the purgeable master-deck grid with canCancel=true;
+        // choosing the Neow option itself must not silently remove a card.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/neow/NeowReward.java:132-143,238-241
+        let seed = 57_554_006_466;
+        let mut chosen = RunEngine::new(seed, 0);
+        let deck_before = chosen.run_state.deck.clone();
+        chosen.step(&RunAction::ChooseNeowOption(0));
+        assert_eq!(chosen.current_phase(), RunPhase::CardReward);
+        assert_eq!(chosen.run_state.deck, deck_before);
+
+        chosen.step(&RunAction::SelectRewardItem(0));
+        chosen.step(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        });
+        assert_eq!(chosen.current_phase(), RunPhase::MapChoice);
+        assert_eq!(chosen.run_state.deck.len(), deck_before.len() - 1);
+
+        let mut cancelled = RunEngine::new(seed, 0);
+        cancelled.step(&RunAction::ChooseNeowOption(0));
+        cancelled.step(&RunAction::SkipRewardItem(0));
+        assert_eq!(cancelled.current_phase(), RunPhase::MapChoice);
+        assert_eq!(cancelled.run_state.deck, deck_before);
+    }
+
+    #[test]
+    fn neow_transform_replaces_the_selected_card_through_the_reward_surface() {
+        // TRANSFORM_CARD opens one non-cancellable purgeable-card selection,
+        // removes that exact card, and obtains the Neow-RNG-selected result.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/neow/NeowReward.java:144-151,265-268
+        let seed = (0..512)
+            .find(|seed| {
+                RunEngine::new(*seed, 0).neow_options[0].reward
+                    == NeowReward::TransformCard
+            })
+            .expect("category zero must reach TRANSFORM_CARD");
+        let mut engine = RunEngine::new(seed, 0);
+        let deck_before = engine.run_state.deck.clone();
+        engine.step(&RunAction::ChooseNeowOption(0));
+        engine.step(&RunAction::SelectRewardItem(0));
+        engine.step(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        });
+
+        assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+        assert_eq!(engine.run_state.deck.len(), deck_before.len());
+        assert_ne!(engine.run_state.deck, deck_before);
     }
 
     #[test]

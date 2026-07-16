@@ -9,12 +9,10 @@
 //! none — the loop below no-ops gracefully when the directory is empty or
 //! missing, per T5's "part of the lib suite" requirement).
 //!
-//! Seed 0 / ascension 0 (Watcher) is used because floor 1's first map node
+//! Seed 4 / ascension 0 (Watcher) is used because floor 1's first map node
 //! is naturally a `Monster` room (`RoomType::Monster`) reached by
-//! `ChoosePath(0)` with no map-state hacking, and Neow option 0 for this
-//! seed is "Gain 100 gold" (`NeowChoiceEffect::GainGold`, no cardRng
-//! consumption per `docs/vault/rng-system-analysis.md`), keeping the
-//! fixture's RNG trajectory simple and reproducible.
+//! `ChoosePath(0)` with no map-state hacking. Neow option 1 is Neow's
+//! Lament, an immediate reward with no follow-up decision.
 
 use std::fs;
 
@@ -41,7 +39,7 @@ fn run_trace_exposes_every_java_rng_counter_before_and_during_combat() {
     assert!(before["monster"] > 0);
     assert!(before["map"] > 0);
 
-    run.step(&crate::run::RunAction::ChooseNeowOption(0));
+    run.step(&crate::run::RunAction::ChooseNeowOption(1));
     run.step(&crate::run::RunAction::ChoosePath(0));
     let combat = run.rng_counters();
     assert_eq!(
@@ -164,19 +162,19 @@ fn trace_diff_reports_relic_counter_mismatches() {
 }
 
 /// The tiny scripted sequence used by both tests below: resolve Neow, take
-/// the first map path into floor 1 combat (vs a lone Cultist for seed 0),
+/// the first map path into floor 1 combat (vs a lone Jaw Worm for seed 4),
 /// play the first Defend in Java-shuffled opening-hand order, then end the turn.
 fn tiny_fixture_script() -> ActionScript {
     ActionScript {
         v: 1,
-        seed: crate::seed::seed_to_string(0),
+        seed: crate::seed::seed_to_string(4),
         character: "WATCHER".to_string(),
         ascension: 0,
         stop: ScriptStopCondition { max_floor: None, max_actions: None },
         actions: vec![
-            TraceAction::Neow { choice: 0 },
+            TraceAction::Neow { choice: 1 },
             TraceAction::Path { choice: 0 },
-            TraceAction::PlayCard { hand_idx: 1, target: -1, card_id: Some("Defend".to_string()) },
+            TraceAction::PlayCard { hand_idx: 3, target: -1, card_id: Some("Defend".to_string()) },
             TraceAction::EndTurn,
         ],
     }
