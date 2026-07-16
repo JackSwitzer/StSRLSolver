@@ -61,7 +61,7 @@ pub fn hook_perfected_strike(engine: &CombatEngine, card: &CardDef, card_inst: C
 /// Rampage: scaling damage bonus from status counter.
 pub fn hook_rampage(_engine: &CombatEngine, card: &CardDef, card_inst: CardInstance) -> DamageModifier {
     let current_damage = if card_inst.misc >= 0 {
-        card_inst.misc as i32
+        card_inst.misc
     } else {
         card.base_damage
     };
@@ -74,7 +74,7 @@ pub fn hook_rampage(_engine: &CombatEngine, card: &CardDef, card_inst: CardInsta
 /// Glass Knife: damage decreases each play (negative bonus from penalty counter).
 pub fn hook_glass_knife(_engine: &CombatEngine, card: &CardDef, card_inst: CardInstance) -> DamageModifier {
     let current_damage = if card_inst.misc >= 0 {
-        card_inst.misc as i32
+        card_inst.misc
     } else {
         card.base_damage
     };
@@ -87,7 +87,7 @@ pub fn hook_glass_knife(_engine: &CombatEngine, card: &CardDef, card_inst: CardI
 /// Ritual Dagger: scaling damage bonus from kills.
 pub fn hook_ritual_dagger(_engine: &CombatEngine, card: &CardDef, card_inst: CardInstance) -> DamageModifier {
     let current_damage = if card_inst.misc >= 0 {
-        card_inst.misc as i32
+        card_inst.misc
     } else {
         card.base_damage
     };
@@ -103,7 +103,7 @@ pub fn hook_searing_blow(_engine: &CombatEngine, card: &CardDef, card_inst: Card
     // stores n; named `Searing Blow+` cards without explicit state mean n=1.
     // Java: reference/extracted/methods/card/SearingBlow.java
     let upgrades = if card_inst.misc >= 0 {
-        i32::from(card_inst.misc)
+        card_inst.misc
     } else if card.id == "Searing Blow+" || card_inst.is_upgraded() {
         1
     } else {
@@ -119,7 +119,7 @@ pub fn hook_searing_blow(_engine: &CombatEngine, card: &CardDef, card_inst: Card
 /// Windmill Strike: damage growth belongs to the retained card instance.
 pub fn hook_windmill_strike_damage(_engine: &CombatEngine, card: &CardDef, card_inst: CardInstance) -> DamageModifier {
     let current_damage = if card_inst.misc >= 0 {
-        card_inst.misc as i32
+        card_inst.misc
     } else {
         card.base_damage
     };
@@ -140,7 +140,7 @@ pub fn hook_damage_random_x_times(_engine: &CombatEngine, _card: &CardDef, _card
 /// Claw: GashAction stores the mutable base damage on each affected instance.
 pub fn hook_claw_damage(_engine: &CombatEngine, card: &CardDef, card_inst: CardInstance) -> DamageModifier {
     let current_damage = if card_inst.misc >= 0 {
-        card_inst.misc as i32
+        card_inst.misc
     } else {
         card.base_damage
     };

@@ -10,7 +10,7 @@ use crate::status_ids::sid;
 
 use super::support::{
     combat_state_with, enemy, enemy_no_intent, end_turn, engine_with_state, engine_without_start,
-    make_deck, play_on_enemy, play_self, resolve_opening_neow,
+    force_player_turn, make_deck, play_on_enemy, play_self, resolve_opening_neow,
 };
 
 #[test]
@@ -91,6 +91,46 @@ fn persisted_relic_counters_reload_into_new_combat_runtime() {
     assert_eq!(
         next_engine.hidden_effect_value("Nunchaku", EffectOwner::PlayerRelic { slot: 0 }, 0),
         4
+    );
+}
+
+#[test]
+fn inserter_counter_persists_across_combats() {
+    // Inserter stores its two-turn progress in AbstractRelic.counter and does
+    // not reset that counter at battle start.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Inserter.java:16-38
+    let mut first_engine =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    first_engine.state.relics = vec!["Inserter".to_string()];
+    first_engine.init_defect_orbs(3);
+    first_engine.rebuild_effect_runtime();
+    first_engine.emit_event(GameEvent::empty(Trigger::TurnStart));
+
+    assert_eq!(
+        first_engine.hidden_effect_value(
+            "Inserter",
+            EffectOwner::PlayerRelic { slot: 0 },
+            0,
+        ),
+        1
+    );
+
+    let persisted = first_engine.export_persisted_effects();
+    let mut next_engine =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    next_engine.state.relics = vec!["Inserter".to_string()];
+    next_engine.init_defect_orbs(3);
+    next_engine.load_persisted_effects(persisted);
+    next_engine.emit_event(GameEvent::empty(Trigger::TurnStart));
+
+    assert_eq!(next_engine.state.orb_slots.get_slot_count(), 4);
+    assert_eq!(
+        next_engine.hidden_effect_value(
+            "Inserter",
+            EffectOwner::PlayerRelic { slot: 0 },
+            0,
+        ),
+        0
     );
 }
 
@@ -444,6 +484,61 @@ fn mercury_hourglass_uses_thorns_damage_ignoring_boot_slow_and_flight() {
     assert_eq!(engine.state.enemies[0].entity.hp, 37);
     assert_eq!(engine.state.enemies[1].entity.hp, 37);
     assert_eq!(engine.state.enemies[1].entity.status(sid::FLIGHT), 3);
+}
+
+#[test]
+fn mercury_hourglass_nested_kill_dispatches_gremlin_horn_on_the_same_runtime_frame() {
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![
+            enemy_no_intent("JawWorm", 3, 3),
+            enemy_no_intent("Cultist", 30, 30),
+        ],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.relics = vec!["Mercury Hourglass".to_string(), "Gremlin Horn".to_string()];
+    engine.state.draw_pile = make_deck(&["Strike"]);
+    engine.state.hand.clear();
+    engine.rebuild_effect_runtime();
+    engine.clear_event_log();
+
+    engine.emit_event(GameEvent::empty(Trigger::TurnStart));
+
+    let events = engine.take_event_log();
+    assert!(engine.state.enemies[0].entity.is_dead());
+    assert_eq!(engine.state.energy, 4);
+    assert_eq!(engine.state.hand.len(), 1);
+    assert!(events
+        .iter()
+        .any(|record| record.event == Trigger::TurnStart && record.def_id == Some("Mercury Hourglass")));
+    assert!(events
+        .iter()
+        .any(|record| record.event == Trigger::OnEnemyDeath && record.def_id == Some("Gremlin Horn")));
+}
+
+#[test]
+fn enemy_ritual_tracks_skip_first_per_owner_before_round_end_strength() {
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![
+            enemy_no_intent("JawWorm", 30, 30),
+            enemy_no_intent("Cultist", 30, 30),
+        ],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.enemies[0].entity.set_status(sid::RITUAL, 2);
+    engine.state.enemies[1].entity.set_status(sid::RITUAL, 5);
+    engine.rebuild_effect_runtime();
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.enemies[0].entity.strength(), 0);
+    assert_eq!(engine.state.enemies[1].entity.strength(), 0);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.enemies[0].entity.strength(), 2);
+    assert_eq!(engine.state.enemies[1].entity.strength(), 5);
 }
 
 #[test]
@@ -970,7 +1065,11 @@ fn blade_dance_generated_shiv_respects_wrist_blade_on_engine_path() {
 
 #[test]
 fn poison_tick_death_triggers_shared_enemy_death_effects() {
-    let state = combat_state_with(make_deck(&["Strike"]), vec![enemy_no_intent("JawWorm", 1, 1)], 3);
+    let state = combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 1, 1), enemy_no_intent("Cultist", 30, 30)],
+        3,
+    );
 
     let mut engine = engine_with_state(state);
     engine.state.enemies[0].entity.set_status(sid::POISON, 1);
@@ -979,13 +1078,21 @@ fn poison_tick_death_triggers_shared_enemy_death_effects() {
     end_turn(&mut engine);
 
     assert_eq!(engine.state.player.status(sid::VULNERABLE), 1);
-    assert!(engine.state.combat_over);
-    assert!(engine.state.player_won);
+    assert!(engine.state.enemies[0].entity.is_dead());
+    assert!(engine.state.enemies[1].is_alive());
+    assert!(!engine.state.combat_over);
 }
 
 #[test]
 fn thorns_kill_triggers_shared_enemy_death_effects() {
-    let state = combat_state_with(make_deck(&["Strike"]), vec![enemy("JawWorm", 3, 3, 1, 5, 1)], 3);
+    let state = combat_state_with(
+        make_deck(&["Strike"]),
+        vec![
+            enemy("JawWorm", 3, 3, 1, 5, 1),
+            enemy_no_intent("Cultist", 30, 30),
+        ],
+        3,
+    );
 
     let mut engine = engine_with_state(state);
     engine.state.player.set_status(sid::THORNS, 3);
@@ -994,8 +1101,9 @@ fn thorns_kill_triggers_shared_enemy_death_effects() {
     end_turn(&mut engine);
 
     assert_eq!(engine.state.player.status(sid::VULNERABLE), 1);
-    assert!(engine.state.combat_over);
-    assert!(engine.state.player_won);
+    assert!(engine.state.enemies[0].entity.is_dead());
+    assert!(engine.state.enemies[1].is_alive());
+    assert!(!engine.state.combat_over);
 }
 
 #[test]

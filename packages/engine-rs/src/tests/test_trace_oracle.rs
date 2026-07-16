@@ -9,31 +9,172 @@
 //! none — the loop below no-ops gracefully when the directory is empty or
 //! missing, per T5's "part of the lib suite" requirement).
 //!
-//! Seed 0 / ascension 0 (Watcher) is used because floor 1's first map node
+//! Seed 4 / ascension 0 (Watcher) is used because floor 1's first map node
 //! is naturally a `Monster` room (`RoomType::Monster`) reached by
-//! `ChoosePath(0)` with no map-state hacking, and Neow option 0 for this
-//! seed is "Gain 100 gold" (`NeowChoiceEffect::GainGold`, no cardRng
-//! consumption per `docs/vault/rng-system-analysis.md`), keeping the
-//! fixture's RNG trajectory simple and reproducible.
+//! `ChoosePath(0)` with no map-state hacking. Neow option 1 is Neow's
+//! Lament, an immediate reward with no follow-up decision.
 
 use std::fs;
 
 use crate::trace::{diff_records, ActionScript, DivergenceStatus, ScriptStopCondition, TraceAction};
 
+#[test]
+fn run_trace_exposes_every_java_rng_counter_before_and_during_combat() {
+    // Sources:
+    // - decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+    // - decompiled/java-src/com/megacrit/cardcrawl/dungeons/Exordium.java
+    // Seed 4's first Exordium encounter is a single Jaw Worm, so entering
+    // combat does not consume miscRng while expanding a composite encounter.
+    let mut run = crate::run::RunEngine::new(4, 0);
+    let expected_keys: std::collections::BTreeSet<&str> =
+        crate::trace::CANONICAL_RNG_KEYS.iter().copied().collect();
+
+    let before = run.rng_counters();
+    assert_eq!(
+        before.keys().map(String::as_str).collect::<std::collections::BTreeSet<_>>(),
+        expected_keys
+    );
+    assert_eq!(before["relic"], 5);
+    assert_eq!(before["misc"], 1);
+    assert!(before["monster"] > 0);
+    assert!(before["map"] > 0);
+
+    run.step(&crate::run::RunAction::ChooseNeowOption(1));
+    run.step(&crate::run::RunAction::ChoosePath(0));
+    let combat = run.rng_counters();
+    assert_eq!(
+        combat.keys().map(String::as_str).collect::<std::collections::BTreeSet<_>>(),
+        expected_keys
+    );
+    assert_eq!(combat["relic"], 5);
+    assert_eq!(combat["misc"], 0);
+    assert_eq!(combat["monsterHp"], 1);
+    assert_eq!(combat["shuffle"], 1);
+    assert_eq!(combat["cardRandom"], 0);
+}
+
+#[test]
+fn trace_preserves_java_potion_slot_placeholders_outside_and_during_combat() {
+    // PotionSlot.POTION_ID is "Potion Slot", and AbstractPlayer keeps one
+    // PotionSlot object for every vacant inventory position.
+    // Sources:
+    // - decompiled/java-src/com/megacrit/cardcrawl/potions/PotionSlot.java
+    // - decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+    let mut run = crate::run::RunEngine::new(4, 0);
+    run.run_state.potions = vec![
+        "DexterityPotion".to_string(),
+        String::new(),
+        "FirePotion".to_string(),
+    ];
+
+    let outside = crate::trace::build_post_state(&run);
+    assert_eq!(
+        outside.potions,
+        ["DexterityPotion", "Potion Slot", "FirePotion"]
+    );
+
+    run.debug_enter_specific_combat(&["JawWorm"]);
+    let during = crate::trace::build_post_state(&run);
+    assert_eq!(
+        during.potions,
+        ["DexterityPotion", "Potion Slot", "FirePotion"]
+    );
+}
+
+#[test]
+fn trace_emits_real_relic_counters_from_run_and_combat_runtime_state() {
+    // TraceWriter serializes AbstractRelic.counter directly. These fixtures
+    // cover the run-owned, runtime-owned, sentinel, and non-counter paths.
+    // Sources:
+    // - packages/harness-java/src/main/java/tracelab/TraceWriter.java
+    // - decompiled/java-src/com/megacrit/cardcrawl/relics/Nunchaku.java
+    // - decompiled/java-src/com/megacrit/cardcrawl/relics/Matryoshka.java
+    // - decompiled/java-src/com/megacrit/cardcrawl/relics/AncientTeaSet.java
+    let mut run = crate::run::RunEngine::new(4, 0);
+    run.run_state.relics = vec![
+        "PureWater".to_string(),
+        "Nunchaku".to_string(),
+        "Matryoshka".to_string(),
+        "Ancient Tea Set".to_string(),
+        "Lizard Tail".to_string(),
+        "Circlet".to_string(),
+    ];
+    run.run_state.relic_flags.rebuild(&run.run_state.relics);
+    run.run_state.relic_flags.init_relic_counter("Matryoshka");
+    run.run_state.relic_flags.counters[crate::relic_flags::counter::ANCIENT_TEA_SET] = 1;
+    run.run_state.lizard_tail_used = true;
+    run.run_state.persisted_effect_states.push(
+        crate::effects::runtime::PersistedEffectState {
+            def_id: "Nunchaku".to_string(),
+            values: vec![7],
+        },
+    );
+
+    let outside = crate::trace::build_post_state(&run);
+    assert_eq!(
+        outside
+            .relics
+            .iter()
+            .map(|relic| (relic.id.as_str(), relic.counter))
+            .collect::<Vec<_>>(),
+        [
+            ("PureWater", -1),
+            ("Nunchaku", 7),
+            ("Matryoshka", 2),
+            ("Ancient Tea Set", -2),
+            ("Lizard Tail", -2),
+            ("Circlet", 1),
+        ]
+    );
+
+    run.debug_enter_specific_combat(&["JawWorm"]);
+    {
+        let combat = run.debug_combat_engine_mut();
+        assert!(combat.set_hidden_effect_value(
+            "Nunchaku",
+            crate::effects::runtime::EffectOwner::PlayerRelic { slot: 1 },
+            0,
+            8,
+        ));
+    }
+    let during = crate::trace::build_post_state(&run);
+    assert_eq!(during.relics[0].counter, -1);
+    assert_eq!(during.relics[1].counter, 8);
+    assert_eq!(during.relics[2].counter, 2);
+    assert_eq!(during.relics[3].counter, -1);
+    assert_eq!(during.relics[4].counter, -2);
+    assert_eq!(during.relics[5].counter, 1);
+}
+
+#[test]
+fn trace_diff_reports_relic_counter_mismatches() {
+    let script = tiny_fixture_script();
+    let rust_records = crate::trace::replay_script(&script).expect("fixture script must replay cleanly");
+    let mut java_records = rust_records.clone();
+    java_records[0].post.relics[0].counter = 4;
+
+    let report = diff_records("relic-counter-doctored", &script.seed, &java_records, &rust_records, &[]);
+    let first = report.first_divergence.expect("counter mismatch must diverge");
+    assert_eq!(first.idx, 0);
+    assert_eq!(first.path, "post.relics[0].counter");
+    assert_eq!(first.java, serde_json::json!(4));
+    assert_eq!(first.rust, serde_json::json!(-1));
+}
+
 /// The tiny scripted sequence used by both tests below: resolve Neow, take
-/// the first map path into floor 1 combat (vs a lone Cultist for seed 0),
-/// play the Defend card on ourselves, then end the turn.
+/// the first map path into floor 1 combat (vs a lone Jaw Worm for seed 4),
+/// play the first Defend in Java-shuffled opening-hand order, then end the turn.
 fn tiny_fixture_script() -> ActionScript {
     ActionScript {
         v: 1,
-        seed: crate::seed::seed_to_string(0),
+        seed: crate::seed::seed_to_string(4),
         character: "WATCHER".to_string(),
         ascension: 0,
         stop: ScriptStopCondition { max_floor: None, max_actions: None },
         actions: vec![
-            TraceAction::Neow { choice: 0 },
+            TraceAction::Neow { choice: 1 },
             TraceAction::Path { choice: 0 },
-            TraceAction::PlayCard { hand_idx: 2, target: -1, card_id: Some("Defend_P".to_string()) },
+            TraceAction::PlayCard { hand_idx: 3, target: -1, card_id: Some("Defend".to_string()) },
             TraceAction::EndTurn,
         ],
     }
@@ -61,15 +202,15 @@ fn synthetic_self_diff_matches() {
 fn doctored_hp_and_rng_are_reported_as_first_divergence() {
     let script = tiny_fixture_script();
     let rust_records = crate::trace::replay_script(&script).expect("fixture script must replay cleanly");
-    assert!(rust_records.len() >= 2, "fixture must have at least 2 records to doctor the 2nd one");
+    assert!(rust_records.len() >= 3, "fixture must have a play-card record to doctor");
 
-    // Doctor the "java" side at record index 1 (after PLAY_CARD): bump the
+    // Doctor the "java" side at record index 2 (after PLAY_CARD): bump the
     // player's hp by 1 (an impossible value given the real replay) and the
     // `ai` rng counter by 1. hp is checked first among player fields but
     // rng counters are checked first overall (T3): the report's
     // first_divergence must land on the rng path, not hp.
     let mut java_records = rust_records.clone();
-    let doctored = &mut java_records[1];
+    let doctored = &mut java_records[2];
     let original_hp = doctored.post.player.hp;
     doctored.post.player.hp = original_hp + 1;
     let original_ai = *doctored.post.rng.get("ai").expect("ai counter must be tracked");
@@ -78,10 +219,13 @@ fn doctored_hp_and_rng_are_reported_as_first_divergence() {
     let report = diff_records("synthetic-fixture-doctored", &script.seed, &java_records, &rust_records, &[]);
 
     assert_eq!(report.status, DivergenceStatus::Diverged);
-    assert_eq!(report.matched_actions, 1, "record 0 (after NEOW) is undoctored and must still match");
+    assert_eq!(
+        report.matched_actions, 2,
+        "NEOW and PATH records are undoctored and must still match"
+    );
 
     let first = report.first_divergence.expect("must report a first_divergence");
-    assert_eq!(first.idx, 1);
+    assert_eq!(first.idx, 2);
     // RNG counters are diffed first in canonical order, so the `ai` counter
     // diff must be the reported path, not `post.player.hp` (also diffed,
     // but demoted to `secondary` since it's the same divergent record).

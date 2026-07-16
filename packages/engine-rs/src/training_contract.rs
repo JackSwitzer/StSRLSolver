@@ -949,7 +949,7 @@ fn build_card_token(
         target: format!("{:?}", def.target),
         cost_for_turn: card.cost.max(-1) as i32,
         base_cost: card.base_cost.max(-1) as i32,
-        misc: card.misc as i32,
+        misc: card.misc,
         upgraded: card.is_upgraded(),
         free_to_play: card.is_free(),
         retained: card.is_retained(),
@@ -969,7 +969,7 @@ fn build_card_snapshot(
         card_id: def.id.to_string(),
         cost_for_turn: card.cost.max(-1) as i32,
         base_cost: card.base_cost.max(-1) as i32,
-        misc: card.misc as i32,
+        misc: card.misc,
         upgraded: card.is_upgraded(),
         free_to_play: card.is_free(),
         retained: card.is_retained(),
@@ -987,7 +987,7 @@ fn restore_card_snapshots(
             let mut restored = registry.make_card(&card.card_id);
             restored.cost = card.cost_for_turn as i8;
             restored.base_cost = card.base_cost as i8;
-            restored.misc = card.misc as i16;
+            restored.misc = card.misc;
             restored.set_retained(card.retained);
             if card.upgraded {
                 restored.flags |= crate::combat_types::CardInstance::FLAG_UPGRADED;
@@ -1004,7 +1004,7 @@ fn restore_card_snapshots(
 }
 
 fn collect_status_tokens(
-    statuses: &[i16; crate::status_ids::sid::MAX_STATUS_ID],
+    statuses: &[i32; crate::status_ids::sid::MAX_STATUS_ID],
 ) -> Vec<StatusTokenV1> {
     statuses
         .iter()
@@ -1017,7 +1017,7 @@ fn collect_status_tokens(
                     status_id: idx as u16,
                     status_name: crate::status_ids::status_name(crate::ids::StatusId(idx as u16))
                         .to_string(),
-                    amount: *amount as i32,
+                    amount: *amount,
                 })
             }
         })
@@ -1025,14 +1025,14 @@ fn collect_status_tokens(
 }
 
 fn apply_status_tokens(
-    statuses: &mut [i16; crate::status_ids::sid::MAX_STATUS_ID],
+    statuses: &mut [i32; crate::status_ids::sid::MAX_STATUS_ID],
     tokens: &[StatusTokenV1],
 ) {
     *statuses = [0; crate::status_ids::sid::MAX_STATUS_ID];
     for token in tokens {
         let idx = token.status_id as usize;
         if idx < statuses.len() {
-            statuses[idx] = token.amount as i16;
+            statuses[idx] = token.amount;
         }
     }
 }
@@ -1051,7 +1051,7 @@ fn collect_enemy_status_tokens(state: &CombatState) -> Vec<EnemyStatusTokenV1> {
                     status_idx as u16,
                 ))
                 .to_string(),
-                amount: *amount as i32,
+                amount: *amount,
             });
         }
     }

@@ -19,19 +19,28 @@ mod run_java_parity_tests {
 
     fn resolve_opening_neow(engine: &mut RunEngine) {
         if engine.current_phase() == RunPhase::Neow {
-            let action = engine
-                .current_decision_context()
-                .neow
-                .and_then(|neow| {
-                    neow.options
-                        .iter()
-                        .position(|option| option.label == "Gain 100 gold")
-                })
-                .map(RunAction::ChooseNeowOption)
-                .unwrap_or_else(|| engine.get_legal_actions()[0].clone());
-            let (reward, done) = engine.step(&action);
+            let (reward, done) = engine.step(&RunAction::ChooseNeowOption(1));
             assert_eq!(reward, 0.0);
             assert!(!done);
+            while engine.current_phase() == RunPhase::CardReward {
+                let actions = engine.get_legal_actions();
+                let action = actions
+                    .iter()
+                    .find(|action| matches!(action, RunAction::SkipRewardItem(_)))
+                    .or_else(|| {
+                        actions
+                            .iter()
+                            .find(|action| matches!(action, RunAction::SelectRewardItem(_)))
+                    })
+                    .or_else(|| {
+                        actions.iter().find(|action| {
+                            matches!(action, RunAction::ChooseRewardOption { .. })
+                        })
+                    })
+                    .cloned()
+                    .expect("Neow follow-up must expose a reward action");
+                engine.step(&action);
+            }
             assert_eq!(engine.current_phase(), RunPhase::MapChoice);
         }
     }

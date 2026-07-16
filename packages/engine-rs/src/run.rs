@@ -6,8 +6,8 @@
 
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use std::collections::{HashMap, VecDeque};
+use std::sync::OnceLock;
 
 use crate::decision::{
     build_combat_context, build_shop_context, CampfireDecisionContext, CombatContext,
@@ -21,27 +21,10 @@ use crate::enemies;
 use crate::engine::CombatEngine;
 use crate::gameplay::registry::global_registry as gameplay_registry;
 use crate::gameplay::types::GameplayDomain;
-use crate::map::{generate_map, DungeonMap, RoomType};
+use crate::map::{
+    generate_map_with_rng, generate_map_with_rng_for_run, DungeonMap, RoomType,
+};
 use crate::state::{CombatState, EnemyCombatState};
-
-static NOTE_FOR_YOURSELF_CARD: OnceLock<Mutex<String>> = OnceLock::new();
-
-fn note_for_yourself_slot() -> &'static Mutex<String> {
-    NOTE_FOR_YOURSELF_CARD.get_or_init(|| Mutex::new("IronWave".to_string()))
-}
-
-fn current_note_for_yourself_card() -> String {
-    note_for_yourself_slot()
-        .lock()
-        .expect("note-for-yourself mutex poisoned")
-        .clone()
-}
-
-fn set_note_for_yourself_card(card_id: String) {
-    *note_for_yourself_slot()
-        .lock()
-        .expect("note-for-yourself mutex poisoned") = card_id;
-}
 
 // ---------------------------------------------------------------------------
 // Run-level action (distinct from combat Action)
@@ -213,30 +196,35 @@ const RANDOM_OBTAINABLE_CURSES: &[&str] = &[
 ];
 
 // ---------------------------------------------------------------------------
-// Act 1 encounter pools (simplified)
+// Seeded encounter queues
 // ---------------------------------------------------------------------------
 
-const ACT1_WEAK_ENCOUNTERS: &[&[&str]] = &[
-    &["Cultist"],
-    &["JawWorm"],
-    &["FuzzyLouseNormal", "FuzzyLouseDefensive"],
-    &["AcidSlime_S", "SpikeSlime_M"],
+type WeightedEncounter = (&'static str, f32);
+
+const ACT1_WEAK_ENCOUNTERS: &[WeightedEncounter] = &[
+    ("Cultist", 2.0),
+    ("Jaw Worm", 2.0),
+    ("2 Louse", 2.0),
+    ("Small Slimes", 2.0),
 ];
 
-const ACT1_STRONG_ENCOUNTERS: &[&[&str]] = &[
-    &["BlueSlaver"],
-    &["RedSlaver"],
-    &["FuzzyLouseNormal", "FuzzyLouseDefensive", "FuzzyLouseNormal"],
-    &["FungiBeast", "FungiBeast"],
-    &["AcidSlime_L"],
-    &["SpikeSlime_L"],
-    &["AcidSlime_M", "SpikeSlime_M"],
+const ACT1_STRONG_ENCOUNTERS: &[WeightedEncounter] = &[
+    ("Blue Slaver", 2.0),
+    ("Gremlin Gang", 1.0),
+    ("Looter", 2.0),
+    ("Large Slime", 2.0),
+    ("Lots of Slimes", 1.0),
+    ("Exordium Thugs", 1.5),
+    ("Exordium Wildlife", 1.5),
+    ("Red Slaver", 1.0),
+    ("3 Louse", 2.0),
+    ("2 Fungi Beasts", 2.0),
 ];
 
-const ACT1_ELITE_ENCOUNTERS: &[&[&str]] = &[
-    &["GremlinNob"],
-    &["Lagavulin"],
-    &["Sentry", "Sentry", "Sentry"],
+const ACT1_ELITE_ENCOUNTERS: &[WeightedEncounter] = &[
+    ("Gremlin Nob", 1.0),
+    ("Lagavulin", 1.0),
+    ("3 Sentries", 1.0),
 ];
 
 const ACT1_BOSSES: &[&str] = &["TheGuardian", "Hexaghost", "SlimeBoss"];
@@ -245,61 +233,158 @@ const ACT1_BOSSES: &[&str] = &["TheGuardian", "Hexaghost", "SlimeBoss"];
 // Act 2 encounter pools
 // ---------------------------------------------------------------------------
 
-const ACT2_WEAK_ENCOUNTERS: &[&[&str]] = &[
-    &["Byrd", "Byrd"],
-    &["Chosen"],
-    &["Shelled Parasite"],
-    &["Cultist", "Chosen"],
+const ACT2_WEAK_ENCOUNTERS: &[WeightedEncounter] = &[
+    ("Spheric Guardian", 2.0),
+    ("Chosen", 2.0),
+    ("Shell Parasite", 2.0),
+    ("3 Byrds", 2.0),
+    ("2 Thieves", 2.0),
 ];
 
-const ACT2_STRONG_ENCOUNTERS: &[&[&str]] = &[
-    &["SnakePlant"],
-    &["Centurion", "Healer"],
-    &["Cultist", "Cultist", "Cultist"],
-    &["Byrd", "Byrd", "Byrd"],
-    &["Chosen", "Cultist"],
-    &["Shelled Parasite", "FungiBeast"],
+const ACT2_STRONG_ENCOUNTERS: &[WeightedEncounter] = &[
+    ("Chosen and Byrds", 2.0),
+    ("Sentry and Sphere", 2.0),
+    ("Snake Plant", 6.0),
+    ("Snecko", 4.0),
+    ("Centurion and Healer", 6.0),
+    ("Cultist and Chosen", 3.0),
+    ("3 Cultists", 3.0),
+    ("Shelled Parasite and Fungi", 3.0),
 ];
 
-const ACT2_ELITE_ENCOUNTERS: &[&[&str]] = &[
-    &["GremlinLeader"],
-    &["BookOfStabbing"],
-    &["SlaverBlue", "SlaverBoss", "SlaverRed"],
+const ACT2_ELITE_ENCOUNTERS: &[WeightedEncounter] = &[
+    ("Gremlin Leader", 1.0),
+    ("Slavers", 1.0),
+    ("Book of Stabbing", 1.0),
 ];
+
+const ACT2_BOSSES: &[&str] = &["BronzeAutomaton", "TheCollector", "TheChamp"];
 
 // ---------------------------------------------------------------------------
 // Act 3 encounter pools
 // ---------------------------------------------------------------------------
 
-const ACT3_WEAK_ENCOUNTERS: &[&[&str]] = &[
-    &["Darkling", "Darkling", "Darkling"],
-    &["Orb Walker"],
-    &["3 Shapes"],
+const ACT3_WEAK_ENCOUNTERS: &[WeightedEncounter] = &[
+    ("3 Darklings", 2.0),
+    ("Orb Walker", 2.0),
+    ("3 Shapes", 2.0),
 ];
 
-const ACT3_STRONG_ENCOUNTERS: &[&[&str]] = &[
-    &["WrithingMass"],
-    &["GiantHead"],
-    &["Nemesis"],
-    &["Reptomancer"],
-    &["Transient"],
-    &["Maw"],
-    &["Serpent"],
+const ACT3_STRONG_ENCOUNTERS: &[WeightedEncounter] = &[
+    ("Spire Growth", 1.0),
+    ("Transient", 1.0),
+    ("4 Shapes", 1.0),
+    ("Maw", 1.0),
+    ("Sphere and 2 Shapes", 1.0),
+    ("Jaw Worm Horde", 1.0),
+    ("3 Darklings", 1.0),
+    ("Writhing Mass", 1.0),
 ];
 
-const ACT3_ELITE_ENCOUNTERS: &[&[&str]] = &[
-    &["GiantHead"],
-    &["Nemesis"],
-    &["Reptomancer"],
+const ACT3_ELITE_ENCOUNTERS: &[WeightedEncounter] = &[
+    ("Giant Head", 2.0),
+    ("Nemesis", 2.0),
+    ("Reptomancer", 2.0),
 ];
+
+const ACT3_BOSSES: &[&str] = &["AwakenedOne", "TimeEater", "DonuAndDeca"];
 
 // ---------------------------------------------------------------------------
 // Act 4 encounters
 // ---------------------------------------------------------------------------
 
-const ACT4_ELITE_ENCOUNTERS: &[&[&str]] = &[
-    &["SpireShield", "SpireSpear"],
-];
+const ACT4_ELITE_ENCOUNTER: &str = "Shield and Spear";
+
+fn encounter_pools_for_act(
+    act: i32,
+) -> (
+    &'static [WeightedEncounter],
+    usize,
+    &'static [WeightedEncounter],
+    &'static [WeightedEncounter],
+) {
+    match act {
+        2 => (
+            ACT2_WEAK_ENCOUNTERS,
+            2,
+            ACT2_STRONG_ENCOUNTERS,
+            ACT2_ELITE_ENCOUNTERS,
+        ),
+        3 => (
+            ACT3_WEAK_ENCOUNTERS,
+            2,
+            ACT3_STRONG_ENCOUNTERS,
+            ACT3_ELITE_ENCOUNTERS,
+        ),
+        _ => (
+            ACT1_WEAK_ENCOUNTERS,
+            3,
+            ACT1_STRONG_ENCOUNTERS,
+            ACT1_ELITE_ENCOUNTERS,
+        ),
+    }
+}
+
+fn roll_weighted_encounter(
+    encounters: &[WeightedEncounter],
+    rng: &mut crate::seed::StsRandom,
+) -> &'static str {
+    // MonsterInfo.normalizeWeights stable-sorts by weight before accumulating
+    // normalized f32 weights. Equal-weight entries retain declaration order.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/MonsterInfo.java
+    let mut sorted = encounters.to_vec();
+    sorted.sort_by(|left, right| left.1.total_cmp(&right.1));
+    let total = sorted.iter().fold(0.0_f32, |sum, entry| sum + entry.1);
+    let roll = rng.random_float();
+    let mut current = 0.0_f32;
+    for (name, weight) in sorted {
+        current += weight / total;
+        if roll < current {
+            return name;
+        }
+    }
+    "ERROR"
+}
+
+fn populate_encounter_queue(
+    queue: &mut VecDeque<String>,
+    encounters: &[WeightedEncounter],
+    count: usize,
+    elites: bool,
+    rng: &mut crate::seed::StsRandom,
+) {
+    for _ in 0..count {
+        loop {
+            let candidate = roll_weighted_encounter(encounters, rng);
+            let repeats_last = queue.back().is_some_and(|last| last == candidate);
+            let repeats_two_back = !elites
+                && queue.len() > 1
+                && queue
+                    .get(queue.len() - 2)
+                    .is_some_and(|previous| previous == candidate);
+            if !repeats_last && !repeats_two_back {
+                queue.push_back(candidate.to_string());
+                break;
+            }
+        }
+    }
+}
+
+fn first_strong_exclusions(act: i32, previous: &str) -> &'static [&'static str] {
+    match (act, previous) {
+        (1, "Looter") => &["Exordium Thugs"],
+        (1, "Blue Slaver") => &["Red Slaver", "Exordium Thugs"],
+        (1, "2 Louse") => &["3 Louse"],
+        (1, "Small Slimes") => &["Large Slime", "Lots of Slimes"],
+        (2, "Spheric Guardian") => &["Sentry and Sphere"],
+        (2, "3 Byrds") => &["Chosen and Byrds"],
+        (2, "Chosen") => &["Chosen and Byrds", "Cultist and Chosen"],
+        (3, "3 Darklings") => &["3 Darklings"],
+        (3, "Orb Walker") => &["Orb Walker"],
+        (3, "3 Shapes") => &["4 Shapes"],
+        _ => &[],
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Event definitions
@@ -329,6 +414,44 @@ pub struct ShopState {
     pub remove_price: i32,
     /// Whether the player has already used their one card removal this shop visit
     pub removal_used: bool,
+}
+
+// ---------------------------------------------------------------------------
+// Profile input and cross-run outputs
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProfileSnapshot {
+    pub note_for_yourself_card: String,
+}
+
+impl Default for ProfileSnapshot {
+    fn default() -> Self {
+        Self {
+            note_for_yourself_card: "IronWave".to_string(),
+        }
+    }
+}
+
+impl ProfileSnapshot {
+    pub fn with_note_for_yourself_card(card_id: impl Into<String>) -> Self {
+        Self {
+            note_for_yourself_card: card_id.into(),
+        }
+    }
+
+    pub fn apply_update(&mut self, update: &ProfileUpdate) {
+        match update {
+            ProfileUpdate::StoreNoteForYourselfCard { card_id } => {
+                self.note_for_yourself_card = card_id.clone();
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProfileUpdate {
+    StoreNoteForYourselfCard { card_id: String },
 }
 
 // ---------------------------------------------------------------------------
@@ -738,17 +861,56 @@ enum EventCardColor {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum NeowChoiceEffect {
-    GainCards,
-    GainGold,
-    UpgradeRandomCard,
+enum NeowReward {
+    RandomColorlessRare,
+    ThreeCards,
+    OneRandomRareCard,
+    RemoveCard,
+    UpgradeCard,
+    RandomColorless,
+    TransformCard,
+    ThreePotions,
+    RandomCommonRelic,
+    TenPercentHpBonus,
+    HundredGold,
     NeowsLament,
+    RemoveTwo,
+    TransformTwo,
+    OneRareRelic,
+    ThreeRareCards,
+    TwoFiftyGold,
+    TwentyPercentHpBonus,
+    BossRelic,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NeowDrawback {
+    None,
+    TenPercentHpLoss,
+    NoGold,
+    Curse,
+    PercentDamage,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NeowDeckChoice {
+    Remove,
+    Upgrade,
+    Transform,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PendingNeowDeckSelection {
+    choice: NeowDeckChoice,
+    remaining: usize,
+    skip_allowed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct NeowChoiceOption {
     label: String,
-    effect: NeowChoiceEffect,
+    reward: NeowReward,
+    drawback: NeowDrawback,
 }
 
 // ---------------------------------------------------------------------------
@@ -761,7 +923,22 @@ pub struct RunEngine {
     pub map: DungeonMap,
     pub phase: RunPhase,
     pub seed: u64,
+    profile: ProfileSnapshot,
+    profile_updates: Vec<ProfileUpdate>,
     rng: crate::seed::StsRandom,
+    neow_rng: crate::seed::StsRandom,
+    monster_rng: crate::seed::StsRandom,
+    event_rng: crate::seed::StsRandom,
+    relic_rng: crate::seed::StsRandom,
+    treasure_rng: crate::seed::StsRandom,
+    merchant_rng: crate::seed::StsRandom,
+    monster_hp_rng: crate::seed::StsRandom,
+    ai_rng: crate::seed::StsRandom,
+    shuffle_rng: crate::seed::StsRandom,
+    card_random_rng: crate::seed::StsRandom,
+    potion_rng: crate::seed::StsRandom,
+    combat_misc_rng: crate::seed::StsRandom,
+    map_rng: crate::seed::StsRandom,
 
     // Active combat (when in Combat phase)
     combat_engine: Option<CombatEngine>,
@@ -776,6 +953,8 @@ pub struct RunEngine {
     pending_bottled_tornado_selection: bool,
     pending_calling_bell_rewards: bool,
     pending_empty_cage_removals: usize,
+    pending_neow_deck_selection: Option<PendingNeowDeckSelection>,
+    pending_relic_followup_source: RewardScreenSource,
 
     // Canonical stack of active decisions.
     decision_stack: DecisionStack,
@@ -796,11 +975,14 @@ pub struct RunEngine {
 
     // Boss for this act
     boss_id: String,
+    pending_act_three_boss_id: Option<String>,
+    active_combat_is_boss: bool,
 
-    // Encounter counters
-    weak_encounter_idx: usize,
-    strong_encounter_idx: usize,
-    elite_encounter_idx: usize,
+    // Java generates seeded encounter-key queues once per act, then consumes
+    // them from the front as rooms are entered.
+    encounter_queue_act: i32,
+    monster_encounter_queue: VecDeque<String>,
+    elite_encounter_queue: VecDeque<String>,
 
     // Reward tracking
     pub total_reward: f32,
@@ -831,19 +1013,53 @@ impl RunEngine {
 
     /// Create a new run engine with given seed and ascension level.
     pub fn new(seed: u64, ascension: i32) -> Self {
-        let map = generate_map(seed, ascension);
-        let mut rng = crate::seed::StsRandom::new(seed.wrapping_add(1));
+        Self::new_with_profile(seed, ascension, ProfileSnapshot::default())
+    }
 
-        // Pick boss
-        let boss_idx = rng.gen_range(0..ACT1_BOSSES.len());
-        let boss_id = ACT1_BOSSES[boss_idx].to_string();
+    /// Create a run from immutable save/profile inputs.
+    pub fn new_with_profile(
+        seed: u64,
+        ascension: i32,
+        profile: ProfileSnapshot,
+    ) -> Self {
+        // Exordium seeds mapRng with Settings.seed + actNum.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/Exordium.java:56
+        let (map, map_rng) = generate_map_with_rng(seed.wrapping_add(1), ascension);
+        let rng = crate::seed::StsRandom::new(seed.wrapping_add(1));
+        let mut relic_rng = crate::seed::StsRandom::new(seed);
+        // AbstractDungeon.initializeRelicList shuffles five tier pools through
+        // five relicRng.randomLong calls before Neow is resolved.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:1227-1231
+        for _ in 0..5 {
+            relic_rng.random_long();
+        }
+        let mut combat_misc_rng = crate::seed::StsRandom::new(seed);
+        // Initial dungeon music selection consumes one miscRng draw. This is
+        // reset on the first room transition, but remains visible after Neow.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/audio/MainMusic.java:61-83
+        combat_misc_rng.random(1);
 
         let mut engine = Self {
             run_state: RunState::new(ascension),
             map,
             phase: RunPhase::Neow,
             seed,
+            profile,
+            profile_updates: Vec::new(),
             rng,
+            neow_rng: crate::seed::StsRandom::new(seed),
+            monster_rng: crate::seed::StsRandom::new(seed),
+            event_rng: crate::seed::StsRandom::new(seed),
+            relic_rng,
+            treasure_rng: crate::seed::StsRandom::new(seed),
+            merchant_rng: crate::seed::StsRandom::new(seed),
+            monster_hp_rng: crate::seed::StsRandom::new(seed),
+            ai_rng: crate::seed::StsRandom::new(seed),
+            shuffle_rng: crate::seed::StsRandom::new(seed),
+            card_random_rng: crate::seed::StsRandom::new(seed),
+            potion_rng: crate::seed::StsRandom::new(seed),
+            combat_misc_rng,
+            map_rng,
             combat_engine: None,
             reward_screen: None,
             suspended_reward_screen: None,
@@ -854,6 +1070,8 @@ impl RunEngine {
             pending_bottled_tornado_selection: false,
             pending_calling_bell_rewards: false,
             pending_empty_cage_removals: 0,
+            pending_neow_deck_selection: None,
+            pending_relic_followup_source: RewardScreenSource::BossCombat,
             decision_stack: DecisionStack::new(),
             current_event: None,
             pending_event_combat: None,
@@ -861,14 +1079,18 @@ impl RunEngine {
             scrap_ooze_state: None,
             forced_event_rolls: Vec::new(),
             current_shop: None,
-            boss_id,
-            weak_encounter_idx: 0,
-            strong_encounter_idx: 0,
-            elite_encounter_idx: 0,
+            boss_id: String::new(),
+            pending_act_three_boss_id: None,
+            active_combat_is_boss: false,
+            encounter_queue_act: 0,
+            monster_encounter_queue: VecDeque::new(),
+            elite_encounter_queue: VecDeque::new(),
             total_reward: 0.0,
             last_combat_events: Vec::new(),
             neow_options: Vec::new(),
         };
+        engine.generate_encounter_queues(1);
+        engine.roll_boss_sequence_for_act(1);
         engine.neow_options = engine.build_neow_options();
         engine.refresh_decision_stack();
         engine
@@ -877,66 +1099,616 @@ impl RunEngine {
     /// Reset the engine to a fresh run with a new seed.
     pub fn reset(&mut self, seed: u64) {
         let ascension = self.run_state.ascension;
-        *self = Self::new(seed, ascension);
+        let profile = self.profile.clone();
+        *self = Self::new_with_profile(seed, ascension, profile);
+    }
+
+    /// Immutable inputs supplied when this simulation root was created.
+    pub fn profile_snapshot(&self) -> &ProfileSnapshot {
+        &self.profile
+    }
+
+    /// Explicit cross-run writes produced by this simulation.
+    pub fn profile_updates(&self) -> &[ProfileUpdate] {
+        &self.profile_updates
+    }
+
+    fn current_note_for_yourself_card(&self) -> &str {
+        self.profile_updates
+            .iter()
+            .rev()
+            .find_map(|update| match update {
+                ProfileUpdate::StoreNoteForYourselfCard { card_id } => Some(card_id.as_str()),
+            })
+            .unwrap_or(&self.profile.note_for_yourself_card)
+    }
+
+    fn store_note_for_yourself_card(&mut self, card_id: String) {
+        self.profile_updates
+            .push(ProfileUpdate::StoreNoteForYourselfCard { card_id });
+    }
+
+    fn boss_floor_for_act(act: i32) -> i32 {
+        act * 17 - 1
+    }
+
+    fn is_boss_room_resolution(&self, room_type: RoomType) -> bool {
+        self.active_combat_is_boss
+            || room_type == RoomType::Boss
+            || self.run_state.floor == Self::boss_floor_for_act(self.run_state.act)
+    }
+
+    fn map_seed_for_act(&self, act: i32) -> u64 {
+        match act {
+            2 => self.seed.wrapping_add((act as u64) * 100),
+            3 => self.seed.wrapping_add((act as u64) * 200),
+            _ => self.seed.wrapping_add(act as u64),
+        }
+    }
+
+    fn advance_card_rng_for_act_transition(&mut self) {
+        let target = match self.rng.counter {
+            1..=249 => 250,
+            251..=499 => 500,
+            501..=749 => 750,
+            _ => return,
+        };
+        while self.rng.counter < target {
+            self.rng.random_boolean();
+        }
+    }
+
+    fn transition_to_next_act(&mut self) {
+        let next_act = self.run_state.act + 1;
+        debug_assert!(matches!(next_act, 2 | 3));
+
+        // TreasureRoomBoss occupies the floor after the boss, then
+        // dungeonTransitionSetup increments the act and heals the player.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/buttons/ProceedButton.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:2552-2584
+        self.run_state.floor += 1;
+        self.advance_card_rng_for_act_transition();
+        self.run_state.act = next_act;
+        self.run_state.map_x = -1;
+        self.run_state.map_y = -1;
+        self.run_state.event_monster_chance = default_event_monster_chance();
+        self.run_state.event_shop_chance = default_event_shop_chance();
+        self.run_state.event_treasure_chance = default_event_treasure_chance();
+
+        let heal_amount = if self.run_state.ascension >= 5 {
+            (((self.run_state.max_hp - self.run_state.current_hp) as f32) * 0.75).round() as i32
+        } else {
+            self.run_state.max_hp
+        };
+        self.heal_run_player(heal_amount);
+
+        let map_seed = self.map_seed_for_act(next_act);
+        let (map, map_rng) = generate_map_with_rng_for_run(
+            map_seed,
+            self.run_state.ascension,
+            !self.run_state.has_emerald_key,
+        );
+        self.map = map;
+        self.map_rng = map_rng;
+        self.generate_encounter_queues(next_act);
+        self.roll_boss_sequence_for_act(next_act);
+
+        self.current_event = None;
+        self.pending_event_combat = None;
+        self.match_and_keep_state = None;
+        self.scrap_ooze_state = None;
+        self.current_shop = None;
+        self.reward_screen = None;
+        self.suspended_reward_screen = None;
+        self.combat_engine = None;
+        self.active_combat_is_boss = false;
+        self.phase = RunPhase::MapChoice;
+    }
+
+    fn enter_spire_heart_event(&mut self) {
+        let event = typed_events_for_act(3)
+            .into_iter()
+            .find(|event| event.name == "Spire Heart")
+            .expect("typed Spire Heart event must exist");
+        self.current_event = Some(event);
+        self.pending_event_combat = None;
+        self.reward_screen = None;
+        self.combat_engine = None;
+        self.active_combat_is_boss = false;
+        self.phase = RunPhase::Event;
     }
 
     fn build_neow_options(&mut self) -> Vec<NeowChoiceOption> {
-        let mut options = vec![
-            NeowChoiceOption {
-                label: "Gain 100 gold".to_string(),
-                effect: NeowChoiceEffect::GainGold,
-            },
-            NeowChoiceOption {
-                label: "Gain 3 random cards".to_string(),
-                effect: NeowChoiceEffect::GainCards,
-            },
-            NeowChoiceOption {
-                label: "Upgrade a random card".to_string(),
-                effect: NeowChoiceEffect::UpgradeRandomCard,
-            },
-            NeowChoiceOption {
-                // NeowReward category 1 includes THREE_ENEMY_KILL, which
-                // obtains NeowsLament under canonical ID NeowsBlessing.
-                // Java: decompiled/java-src/com/megacrit/cardcrawl/neow/NeowReward.java
-                label: "Enemies in your next three combats have 1 HP".to_string(),
-                effect: NeowChoiceEffect::NeowsLament,
-            },
+        // NeowEvent.blessing creates one reward from each category in fixed
+        // order using its own Random(Settings.seed) stream. Category 2 first
+        // rolls a drawback, then filters its reward list around that drawback.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/neow/NeowEvent.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/neow/NeowReward.java
+        (0..4)
+            .map(|category| self.build_neow_option(category))
+            .collect()
+    }
+
+    fn build_neow_option(&mut self, category: usize) -> NeowChoiceOption {
+        const CATEGORY_ZERO: &[NeowReward] = &[
+            NeowReward::ThreeCards,
+            NeowReward::OneRandomRareCard,
+            NeowReward::RemoveCard,
+            NeowReward::UpgradeCard,
+            NeowReward::TransformCard,
+            NeowReward::RandomColorless,
+        ];
+        const CATEGORY_ONE: &[NeowReward] = &[
+            NeowReward::ThreePotions,
+            NeowReward::RandomCommonRelic,
+            NeowReward::TenPercentHpBonus,
+            NeowReward::NeowsLament,
+            NeowReward::HundredGold,
+        ];
+        const DRAWBACKS: &[NeowDrawback] = &[
+            NeowDrawback::TenPercentHpLoss,
+            NeowDrawback::NoGold,
+            NeowDrawback::Curse,
+            NeowDrawback::PercentDamage,
         ];
 
-        for i in (1..options.len()).rev() {
-            let j = self.rng.gen_range(0..=i);
-            options.swap(i, j);
+        let (reward, drawback) = match category {
+            0 => (self.roll_neow_reward(CATEGORY_ZERO), NeowDrawback::None),
+            1 => (self.roll_neow_reward(CATEGORY_ONE), NeowDrawback::None),
+            2 => {
+                let drawback =
+                    DRAWBACKS[self.neow_rng.random(DRAWBACKS.len() as i32 - 1) as usize];
+                let mut rewards = vec![NeowReward::RandomColorlessRare];
+                if drawback != NeowDrawback::Curse {
+                    rewards.push(NeowReward::RemoveTwo);
+                }
+                rewards.extend([
+                    NeowReward::OneRareRelic,
+                    NeowReward::ThreeRareCards,
+                ]);
+                if drawback != NeowDrawback::NoGold {
+                    rewards.push(NeowReward::TwoFiftyGold);
+                }
+                rewards.push(NeowReward::TransformTwo);
+                if drawback != NeowDrawback::TenPercentHpLoss {
+                    rewards.push(NeowReward::TwentyPercentHpBonus);
+                }
+                (self.roll_neow_reward(&rewards), drawback)
+            }
+            3 => (
+                self.roll_neow_reward(&[NeowReward::BossRelic]),
+                NeowDrawback::None,
+            ),
+            _ => unreachable!("Neow has exactly four reward categories"),
+        };
+        let hp_bonus = (self.run_state.max_hp as f32 * 0.1) as i32;
+        NeowChoiceOption {
+            label: Self::neow_option_label(reward, drawback, hp_bonus),
+            reward,
+            drawback,
         }
-
-        options
     }
 
-    fn apply_neow_choice(&mut self, effect: NeowChoiceEffect) {
-        match effect {
-            NeowChoiceEffect::GainCards => self.apply_event_deck_mutation(&EventDeckMutation::GainCard { count: 3 }),
-            NeowChoiceEffect::GainGold => self.adjust_run_gold(100),
-            NeowChoiceEffect::UpgradeRandomCard => self.upgrade_random_cards(1),
-            NeowChoiceEffect::NeowsLament => self.add_relic_reward("NeowsBlessing"),
+    fn roll_neow_reward(&mut self, rewards: &[NeowReward]) -> NeowReward {
+        rewards[self.neow_rng.random(rewards.len() as i32 - 1) as usize]
+    }
+
+    fn neow_option_label(
+        reward: NeowReward,
+        drawback: NeowDrawback,
+        hp_bonus: i32,
+    ) -> String {
+        let drawback = match drawback {
+            NeowDrawback::None => String::new(),
+            NeowDrawback::TenPercentHpLoss => format!("Lose {hp_bonus} Max HP. "),
+            NeowDrawback::NoGold => "Lose all Gold. ".to_string(),
+            NeowDrawback::Curse => "Obtain a Curse. ".to_string(),
+            NeowDrawback::PercentDamage => "Lose 30% of current HP. ".to_string(),
+        };
+        let reward = match reward {
+            NeowReward::RandomColorlessRare => {
+                "Choose 1 of 3 random Rare Colorless cards to obtain.".to_string()
+            }
+            NeowReward::ThreeCards => "Choose 1 of 3 cards to obtain.".to_string(),
+            NeowReward::OneRandomRareCard => "Obtain a random Rare card.".to_string(),
+            NeowReward::RemoveCard => "Remove a card from your deck.".to_string(),
+            NeowReward::UpgradeCard => "Upgrade a card.".to_string(),
+            NeowReward::RandomColorless => {
+                "Choose 1 of 3 random Colorless cards to obtain.".to_string()
+            }
+            NeowReward::TransformCard => "Transform a card.".to_string(),
+            NeowReward::ThreePotions => "Obtain 3 Potions.".to_string(),
+            NeowReward::RandomCommonRelic => "Obtain a random Common Relic.".to_string(),
+            NeowReward::TenPercentHpBonus => format!("Gain {hp_bonus} Max HP."),
+            NeowReward::HundredGold => "Gain 100 gold".to_string(),
+            NeowReward::NeowsLament => {
+                "Enemies in your next three combats have 1 HP".to_string()
+            }
+            NeowReward::RemoveTwo => "Remove 2 cards from your deck.".to_string(),
+            NeowReward::TransformTwo => "Transform 2 cards.".to_string(),
+            NeowReward::OneRareRelic => "Obtain a random Rare Relic.".to_string(),
+            NeowReward::ThreeRareCards => "Choose 1 of 3 Rare cards to obtain.".to_string(),
+            NeowReward::TwoFiftyGold => "Gain 250 gold".to_string(),
+            NeowReward::TwentyPercentHpBonus => format!("Gain {} Max HP.", hp_bonus * 2),
+            NeowReward::BossRelic => "Lose your starting Relic. Obtain a Boss Relic.".to_string(),
+        };
+        format!("{drawback}{reward}")
+    }
+
+    fn apply_neow_choice(&mut self, choice: NeowChoiceOption) {
+        let deferred_curse = choice.drawback == NeowDrawback::Curse;
+        match choice.drawback {
+            NeowDrawback::None | NeowDrawback::Curse => {}
+            NeowDrawback::TenPercentHpLoss => {
+                let hp_bonus = (self.run_state.max_hp as f32 * 0.1) as i32;
+                self.run_state.max_hp = (self.run_state.max_hp - hp_bonus).max(1);
+                self.run_state.current_hp =
+                    self.run_state.current_hp.min(self.run_state.max_hp);
+            }
+            NeowDrawback::NoGold => self.run_state.gold = 0,
+            NeowDrawback::PercentDamage => {
+                let damage = self.run_state.current_hp / 10 * 3;
+                self.run_state.current_hp = (self.run_state.current_hp - damage).max(0);
+            }
+        }
+
+        self.apply_neow_reward(choice.reward);
+        if deferred_curse {
+            let curse = RANDOM_OBTAINABLE_CURSES
+                [self.rng.random(RANDOM_OBTAINABLE_CURSES.len() as i32 - 1) as usize];
+            obtain_master_deck_card_state(&mut self.run_state, curse.to_string());
         }
     }
 
-    fn upgrade_random_cards(&mut self, count: usize) {
-        let registry = crate::cards::global_registry();
-        let mut eligible: Vec<usize> = self
+    fn apply_neow_reward(&mut self, reward: NeowReward) {
+        let hp_bonus = (self.run_state.max_hp as f32 * 0.1) as i32;
+        match reward {
+            NeowReward::RandomColorlessRare => {
+                let choices = self.generate_neow_card_choices(true, true);
+                self.build_neow_card_reward_screen(choices);
+            }
+            NeowReward::ThreeCards => {
+                let choices = self.generate_neow_card_choices(false, false);
+                self.build_neow_card_reward_screen(choices);
+            }
+            NeowReward::OneRandomRareCard => {
+                let card = self.roll_neow_card(WATCHER_RARE_CARDS);
+                obtain_master_deck_card_state(&mut self.run_state, card);
+            }
+            NeowReward::RemoveCard => {
+                self.start_neow_deck_selection(NeowDeckChoice::Remove, 1, true);
+            }
+            NeowReward::UpgradeCard => {
+                self.start_neow_deck_selection(NeowDeckChoice::Upgrade, 1, false);
+            }
+            NeowReward::RandomColorless => {
+                let choices = self.generate_neow_card_choices(true, false);
+                self.build_neow_card_reward_screen(choices);
+            }
+            NeowReward::TransformCard => {
+                self.start_neow_deck_selection(NeowDeckChoice::Transform, 1, false);
+            }
+            NeowReward::ThreePotions => self.build_neow_potion_reward_screen(),
+            NeowReward::RandomCommonRelic => {
+                let relic = self.roll_neow_common_relic();
+                self.obtain_neow_relic(&relic);
+            }
+            NeowReward::TenPercentHpBonus => {
+                self.run_state.max_hp += hp_bonus;
+                self.run_state.current_hp += hp_bonus;
+            }
+            NeowReward::HundredGold => self.adjust_run_gold(100),
+            NeowReward::NeowsLament => self.add_relic_reward("NeowsBlessing"),
+            NeowReward::RemoveTwo => {
+                self.start_neow_deck_selection(NeowDeckChoice::Remove, 2, false);
+            }
+            NeowReward::TransformTwo => {
+                self.start_neow_deck_selection(NeowDeckChoice::Transform, 2, false);
+            }
+            NeowReward::OneRareRelic => {
+                let relic = self.roll_neow_rare_relic();
+                self.obtain_neow_relic(&relic);
+            }
+            NeowReward::ThreeRareCards => {
+                let choices = self.generate_neow_card_choices(false, true);
+                self.build_neow_card_reward_screen(choices);
+            }
+            NeowReward::TwoFiftyGold => self.adjust_run_gold(250),
+            NeowReward::TwentyPercentHpBonus => {
+                self.run_state.max_hp += hp_bonus * 2;
+                self.run_state.current_hp += hp_bonus * 2;
+            }
+            NeowReward::BossRelic => {
+                if !self.run_state.relics.is_empty() {
+                    self.run_state.relics.remove(0);
+                    self.run_state.relic_flags.rebuild(&self.run_state.relics);
+                }
+                if let Some(relic) = self.roll_boss_relic_choices(1).into_iter().next() {
+                    self.obtain_neow_relic(&relic);
+                }
+            }
+        }
+    }
+
+    fn generate_neow_card_choices(
+        &mut self,
+        colorless: bool,
+        rare_only: bool,
+    ) -> Vec<RewardChoice> {
+        let mut cards = Vec::with_capacity(3);
+        for index in 0..3 {
+            // NeowReward rolls rarity even when rareOnly subsequently forces
+            // RARE, so each displayed card consumes the same two Neow RNG
+            // calls: rarity, then pool index.
+            let rolled_uncommon = self.neow_rng.random_float() < 0.33;
+            let pool = if colorless {
+                if rare_only {
+                    SHOP_COLORLESS_RARE_CARDS
+                } else if rolled_uncommon {
+                    SHOP_COLORLESS_UNCOMMON_CARDS
+                } else {
+                    // Colorless COMMON results are promoted to UNCOMMON.
+                    SHOP_COLORLESS_UNCOMMON_CARDS
+                }
+            } else if rare_only {
+                WATCHER_RARE_CARDS
+            } else if rolled_uncommon {
+                WATCHER_UNCOMMON_CARDS
+            } else {
+                WATCHER_COMMON_CARDS
+            };
+
+            let mut card = self.roll_neow_card(pool);
+            while cards.iter().any(
+                |choice| matches!(choice, RewardChoice::Card { card_id, .. } if card_id == &card),
+            ) {
+                card = self.roll_neow_card(pool);
+            }
+            cards.push(RewardChoice::Card {
+                index,
+                card_id: card,
+            });
+        }
+        cards
+    }
+
+    fn roll_neow_card(&mut self, pool: &[&str]) -> String {
+        pool[self.neow_rng.random(pool.len() as i32 - 1) as usize].to_string()
+    }
+
+    fn build_neow_card_reward_screen(&mut self, choices: Vec<RewardChoice>) {
+        self.reward_screen = Some(RewardScreen {
+            source: RewardScreenSource::Event,
+            ordered: true,
+            active_item: None,
+            items: vec![RewardItem {
+                index: 0,
+                kind: RewardItemKind::CardChoice,
+                state: RewardItemState::Available,
+                label: "neow_card_reward".to_string(),
+                claimable: true,
+                active: false,
+                skip_allowed: true,
+                skip_label: Some("Skip".to_string()),
+                choices,
+            }],
+        });
+        self.phase = RunPhase::CardReward;
+    }
+
+    fn build_neow_potion_reward_screen(&mut self) {
+        let mut screen = RewardScreen {
+            source: RewardScreenSource::Event,
+            ordered: false,
+            active_item: None,
+            items: (0..3)
+                .map(|index| RewardItem {
+                    index,
+                    kind: RewardItemKind::Potion,
+                    state: RewardItemState::Available,
+                    label: self.roll_neow_potion_id(),
+                    claimable: true,
+                    active: false,
+                    skip_allowed: true,
+                    skip_label: Some("Skip".to_string()),
+                    choices: Vec::new(),
+                })
+                .collect(),
+        };
+        Self::refresh_reward_screen(&mut screen);
+        self.reward_screen = Some(screen);
+        self.phase = RunPhase::CardReward;
+    }
+
+    fn roll_neow_potion_id(&mut self) -> String {
+        const POTIONS: &[&str] = &[
+            "Block Potion",
+            "Dexterity Potion",
+            "Energy Potion",
+            "Fire Potion",
+            "Fear Potion",
+            "Strength Potion",
+            "Swift Potion",
+            "Weak Potion",
+            "Ambrosia",
+            "BottledMiracle",
+            "StancePotion",
+            "Ancient Potion",
+            "BlessingOfTheForge",
+            "ColorlessPotion",
+            "CultistPotion",
+            "DistilledChaos",
+            "DuplicationPotion",
+            "EntropicBrew",
+            "EssenceOfSteel",
+            "Explosive Potion",
+            "FairyPotion",
+            "FruitJuice",
+            "GamblersBrew",
+            "LiquidBronze",
+            "LiquidMemories",
+            "Regen Potion",
+            "SmokeBomb",
+            "SneckoOil",
+            "SpeedPotion",
+            "SteroidPotion",
+            "PowerPotion",
+            "SkillPotion",
+        ];
+        POTIONS[self.potion_rng.random(POTIONS.len() as i32 - 1) as usize].to_string()
+    }
+
+    fn start_neow_deck_selection(
+        &mut self,
+        choice: NeowDeckChoice,
+        remaining: usize,
+        skip_allowed: bool,
+    ) {
+        self.pending_neow_deck_selection = Some(PendingNeowDeckSelection {
+            choice,
+            remaining,
+            skip_allowed,
+        });
+        self.build_neow_deck_selection_screen();
+    }
+
+    fn build_neow_deck_selection_screen(&mut self) {
+        let Some(pending) = self.pending_neow_deck_selection else {
+            return;
+        };
+        let choices = self
             .run_state
             .deck
             .iter()
             .enumerate()
-            .filter_map(|(idx, card_id)| registry.can_upgrade_name(card_id).then_some(idx))
+            .filter(|(_, card_id)| match pending.choice {
+                NeowDeckChoice::Upgrade => {
+                    crate::cards::global_registry().can_upgrade_name(card_id)
+                }
+                NeowDeckChoice::Remove | NeowDeckChoice::Transform => {
+                    Self::is_purgeable_master_deck_card(card_id)
+                }
+            })
+            .map(|(index, card_id)| RewardChoice::Card {
+                index,
+                card_id: card_id.clone(),
+            })
             .collect();
+        let label = match pending.choice {
+            NeowDeckChoice::Remove => "deck_selection_neow_remove",
+            NeowDeckChoice::Upgrade => "deck_selection_neow_upgrade",
+            NeowDeckChoice::Transform => "deck_selection_neow_transform",
+        };
+        let mut screen = RewardScreen {
+            source: RewardScreenSource::Event,
+            ordered: true,
+            active_item: None,
+            items: vec![RewardItem {
+                index: 0,
+                kind: RewardItemKind::CardChoice,
+                state: RewardItemState::Available,
+                label: label.to_string(),
+                claimable: true,
+                active: false,
+                skip_allowed: pending.skip_allowed,
+                skip_label: pending.skip_allowed.then(|| "Skip".to_string()),
+                choices,
+            }],
+        };
+        Self::refresh_reward_screen(&mut screen);
+        self.reward_screen = Some(screen);
+        self.phase = RunPhase::CardReward;
+    }
 
-        for _ in 0..count {
-            if eligible.is_empty() {
-                break;
-            }
-            let pick = self.rng.gen_range(0..eligible.len());
-            let deck_idx = eligible.swap_remove(pick);
-            self.run_state.upgrade_deck_card(deck_idx);
+    fn transform_neow_card(&mut self, original: &str) -> Option<String> {
+        let base = original.trim_end_matches('+');
+        let color = event_card_color(base)?;
+        let mut candidates = match color {
+            EventCardColor::Colorless => SHOP_COLORLESS_UNCOMMON_CARDS
+                .iter()
+                .chain(SHOP_COLORLESS_RARE_CARDS)
+                .map(|card| (*card).to_string())
+                .collect::<Vec<_>>(),
+            EventCardColor::Curse => RANDOM_OBTAINABLE_CURSES
+                .iter()
+                .map(|card| (*card).to_string())
+                .collect::<Vec<_>>(),
+            _ => WATCHER_COMMON_CARDS
+                .iter()
+                .chain(WATCHER_UNCOMMON_CARDS)
+                .chain(WATCHER_RARE_CARDS)
+                .map(|card| (*card).to_string())
+                .collect::<Vec<_>>(),
+        };
+        candidates.retain(|candidate| candidate != base);
+        (!candidates.is_empty()).then(|| {
+            candidates[self.neow_rng.random(candidates.len() as i32 - 1) as usize].clone()
+        })
+    }
+
+    fn roll_neow_common_relic(&mut self) -> String {
+        const COMMON: &[&str] = &[
+            "Akabeko",
+            "Anchor",
+            "Ancient Tea Set",
+            "Art of War",
+            "Bag of Marbles",
+            "Bag of Preparation",
+            "Blood Vial",
+            "Boot",
+            "Bronze Scales",
+            "Omamori",
+            "Smiling Mask",
+            "Tiny Chest",
+            "Toy Ornithopter",
+            "Vajra",
+        ];
+        self.roll_calling_bell_tier_relic(COMMON)
+    }
+
+    fn roll_neow_rare_relic(&mut self) -> String {
+        const RARE: &[&str] = &[
+            "Bird Faced Urn",
+            "Calipers",
+            "Du-Vu Doll",
+            "FossilizedHelix",
+            "Girya",
+            "Ginger",
+            "Ice Cream",
+            "Incense Burner",
+            "Old Coin",
+            "Peace Pipe",
+            "Pocketwatch",
+            "Shovel",
+            "StoneCalendar",
+            "Tingsha",
+            "Torii",
+            "Turnip",
+            "Unceasing Top",
+            "Thread and Needle",
+            "Tough Bandages",
+            "TungstenRod",
+        ];
+        self.roll_calling_bell_tier_relic(RARE)
+    }
+
+    fn obtain_neow_relic(&mut self, relic: &str) {
+        self.pending_relic_followup_source = RewardScreenSource::Event;
+        self.add_relic_reward(relic);
+        if relic == "Astrolabe" && self.pending_astrolabe_selection {
+            self.build_astrolabe_selection_screen();
+            self.phase = RunPhase::CardReward;
+        } else if relic == "Calling Bell" && self.pending_calling_bell_rewards {
+            self.build_calling_bell_reward_screen();
+            self.phase = RunPhase::CardReward;
+        } else if matches!(relic, "Empty Cage" | "EmptyCage")
+            && self.pending_empty_cage_removals > 0
+        {
+            self.build_empty_cage_selection_screen();
+            self.phase = RunPhase::CardReward;
+        } else if matches!(relic, "Tiny House" | "TinyHouse") {
+            self.build_tiny_house_reward_screen();
+            self.phase = RunPhase::CardReward;
         }
     }
 
@@ -1642,9 +2414,11 @@ impl RunEngine {
             return 0.0;
         };
 
-        self.apply_neow_choice(choice.effect);
+        self.apply_neow_choice(choice);
         self.neow_options.clear();
-        self.phase = RunPhase::MapChoice;
+        if self.reward_screen.is_none() {
+            self.phase = RunPhase::MapChoice;
+        }
         self.refresh_decision_stack();
         0.0
     }
@@ -1653,47 +2427,343 @@ impl RunEngine {
     // Combat
     // =======================================================================
 
+    fn generate_encounter_queues(&mut self, act: i32) {
+        self.encounter_queue_act = act;
+        self.monster_encounter_queue.clear();
+        self.elite_encounter_queue.clear();
+
+        if act == 4 {
+            self.monster_encounter_queue
+                .extend(std::iter::repeat_n(ACT4_ELITE_ENCOUNTER.to_string(), 3));
+            self.elite_encounter_queue
+                .extend(std::iter::repeat_n(ACT4_ELITE_ENCOUNTER.to_string(), 3));
+            return;
+        }
+
+        let (weak, weak_count, strong, elites) = encounter_pools_for_act(act);
+        populate_encounter_queue(
+            &mut self.monster_encounter_queue,
+            weak,
+            weak_count,
+            false,
+            &mut self.monster_rng,
+        );
+
+        let previous = self
+            .monster_encounter_queue
+            .back()
+            .cloned()
+            .unwrap_or_default();
+        let exclusions = first_strong_exclusions(act, &previous);
+        loop {
+            let candidate = roll_weighted_encounter(strong, &mut self.monster_rng);
+            if !exclusions.contains(&candidate) {
+                self.monster_encounter_queue
+                    .push_back(candidate.to_string());
+                break;
+            }
+        }
+
+        populate_encounter_queue(
+            &mut self.monster_encounter_queue,
+            strong,
+            12,
+            false,
+            &mut self.monster_rng,
+        );
+        populate_encounter_queue(
+            &mut self.elite_encounter_queue,
+            elites,
+            10,
+            true,
+            &mut self.monster_rng,
+        );
+    }
+
+    fn roll_boss_sequence_for_act(&mut self, act: i32) {
+        if act == 4 {
+            self.boss_id = "CorruptHeart".to_string();
+            self.pending_act_three_boss_id = None;
+            return;
+        }
+        // The simulator exposes the full unlocked content catalog, so use
+        // Java's all-bosses-seen branch: shuffle all three with one
+        // monsterRng.randomLong(), then take the first.
+        let mut bosses = match act {
+            2 => ACT2_BOSSES.to_vec(),
+            3 => ACT3_BOSSES.to_vec(),
+            _ => ACT1_BOSSES.to_vec(),
+        };
+        let shuffle_seed = self.monster_rng.random_long();
+        crate::seed::java_util_shuffle(&mut bosses, shuffle_seed);
+        self.boss_id = bosses[0].to_string();
+        self.pending_act_three_boss_id =
+            (act == 3 && self.run_state.ascension >= 20).then(|| bosses[1].to_string());
+    }
+
+    fn ensure_encounter_queues_for_act(&mut self, act: i32) {
+        if self.encounter_queue_act != act {
+            self.generate_encounter_queues(act);
+            self.roll_boss_sequence_for_act(act);
+        }
+    }
+
     fn enter_combat(&mut self, is_elite: bool, is_boss: bool) {
         let act = self.run_state.act;
         let encounter = if is_boss {
             vec![self.boss_id.clone()]
         } else if is_elite {
-            let pool = match act {
-                2 => ACT2_ELITE_ENCOUNTERS,
-                3 => ACT3_ELITE_ENCOUNTERS,
-                4 => ACT4_ELITE_ENCOUNTERS,
-                _ => ACT1_ELITE_ENCOUNTERS,
-            };
-            let idx = self.elite_encounter_idx % pool.len();
-            self.elite_encounter_idx += 1;
-            pool[idx].iter().map(|s| s.to_string()).collect()
+            self.ensure_encounter_queues_for_act(act);
+            if self.elite_encounter_queue.is_empty() {
+                if act == 4 {
+                    self.elite_encounter_queue
+                        .push_back(ACT4_ELITE_ENCOUNTER.to_string());
+                } else {
+                    let (_, _, _, elites) = encounter_pools_for_act(act);
+                    populate_encounter_queue(
+                        &mut self.elite_encounter_queue,
+                        elites,
+                        10,
+                        true,
+                        &mut self.monster_rng,
+                    );
+                }
+            }
+            vec![self
+                .elite_encounter_queue
+                .pop_front()
+                .expect("elite encounter queue was refilled")]
         } else {
-            // Weak encounters for early floors in the act, strong otherwise
-            let act_floor = self.run_state.floor % 17; // relative floor within act
-            let is_weak = act_floor <= 3;
-            let pool = match (act, is_weak) {
-                (2, true) => ACT2_WEAK_ENCOUNTERS,
-                (2, false) => ACT2_STRONG_ENCOUNTERS,
-                (3, true) => ACT3_WEAK_ENCOUNTERS,
-                (3, false) => ACT3_STRONG_ENCOUNTERS,
-                (_, true) => ACT1_WEAK_ENCOUNTERS,
-                (_, false) => ACT1_STRONG_ENCOUNTERS,
-            };
-            let counter = if is_weak { &mut self.weak_encounter_idx } else { &mut self.strong_encounter_idx };
-            let idx = *counter % pool.len();
-            *counter += 1;
-            pool[idx].iter().map(|s| s.to_string()).collect()
+            self.ensure_encounter_queues_for_act(act);
+            if self.monster_encounter_queue.is_empty() {
+                if act == 4 {
+                    self.monster_encounter_queue
+                        .push_back(ACT4_ELITE_ENCOUNTER.to_string());
+                } else {
+                    let (_, _, strong, _) = encounter_pools_for_act(act);
+                    populate_encounter_queue(
+                        &mut self.monster_encounter_queue,
+                        strong,
+                        12,
+                        false,
+                        &mut self.monster_rng,
+                    );
+                }
+            }
+            vec![self
+                .monster_encounter_queue
+                .pop_front()
+                .expect("monster encounter queue was refilled")]
         };
-        self.enter_specific_combat(encounter);
+        self.enter_specific_combat_with_kind(encounter, is_boss);
+    }
+
+    fn random_louse_id(&mut self) -> String {
+        if self.combat_misc_rng.random_boolean() {
+            "FuzzyLouseNormal".to_string()
+        } else {
+            "FuzzyLouseDefensive".to_string()
+        }
+    }
+
+    fn random_slaver_id(&mut self) -> String {
+        if self.combat_misc_rng.random_boolean() {
+            "RedSlaver".to_string()
+        } else {
+            "BlueSlaver".to_string()
+        }
+    }
+
+    fn random_ancient_shape_id(&mut self) -> String {
+        match self.combat_misc_rng.random(2) {
+            0 => "Spiker".to_string(),
+            1 => "Repulsor".to_string(),
+            _ => "Exploder".to_string(),
+        }
+    }
+
+    fn random_weak_wildlife_id(&mut self) -> String {
+        // MonsterHelper constructs the louse candidate before rolling among
+        // louse / Spike Slime M / Acid Slime M, so the louse boolean is
+        // consumed even when another candidate wins.
+        let candidates = [
+            self.random_louse_id(),
+            "SpikeSlime_M".to_string(),
+            "AcidSlime_M".to_string(),
+        ];
+        let index = self.combat_misc_rng.random(2) as usize;
+        candidates[index].clone()
+    }
+
+    fn random_strong_humanoid_id(&mut self) -> String {
+        // As with the Java helper, constructing the slaver candidate consumes
+        // its color boolean before the outer three-way selection.
+        let candidates = [
+            "Cultist".to_string(),
+            self.random_slaver_id(),
+            "Looter".to_string(),
+        ];
+        let index = self.combat_misc_rng.random(2) as usize;
+        candidates[index].clone()
+    }
+
+    fn random_strong_wildlife_id(&mut self) -> String {
+        if self.combat_misc_rng.random_boolean() {
+            "JawWorm".to_string()
+        } else {
+            "FungiBeast".to_string()
+        }
     }
 
     fn enter_specific_combat(&mut self, encounter: Vec<String>) {
+        self.enter_specific_combat_with_kind(encounter, false);
+    }
+
+    fn enter_specific_boss_combat(&mut self, encounter: Vec<String>) {
+        self.enter_specific_combat_with_kind(encounter, true);
+    }
+
+    fn enter_specific_combat_with_kind(&mut self, encounter: Vec<String>, is_boss: bool) {
+        self.active_combat_is_boss = is_boss;
+        // AbstractDungeon.nextRoomTransition resets these room-scoped streams
+        // from Settings.seed + floorNum. potionRng intentionally is not reset.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:1737-1741
+        let floor_seed = self.seed.wrapping_add(self.run_state.floor as u64);
+        self.monster_hp_rng = crate::seed::StsRandom::new(floor_seed);
+        self.ai_rng = crate::seed::StsRandom::new(floor_seed);
+        self.shuffle_rng = crate::seed::StsRandom::new(floor_seed);
+        self.card_random_rng = crate::seed::StsRandom::new(floor_seed);
+        self.combat_misc_rng = crate::seed::StsRandom::new(floor_seed);
+
         // Expand composite encounters. MonsterHelper constructs Gremlin Leader
         // with two independent weighted miscRng gremlins before the Leader.
         // Source: decompiled/java-src/com/megacrit/cardcrawl/helpers/MonsterHelper.java.
         let mut expanded = Vec::new();
         for id in &encounter {
             match id.as_str() {
+                "Jaw Worm" => expanded.push("JawWorm".to_string()),
+                "2 Louse" | "3 Louse" => {
+                    let count = if id == "2 Louse" { 2 } else { 3 };
+                    for _ in 0..count {
+                        expanded.push(self.random_louse_id());
+                    }
+                }
+                "Small Slimes" => {
+                    if self.combat_misc_rng.random_boolean() {
+                        expanded.push("SpikeSlime_S".to_string());
+                        expanded.push("AcidSlime_M".to_string());
+                    } else {
+                        expanded.push("AcidSlime_S".to_string());
+                        expanded.push("SpikeSlime_M".to_string());
+                    }
+                }
+                "Blue Slaver" => expanded.push("BlueSlaver".to_string()),
+                "Red Slaver" => expanded.push("RedSlaver".to_string()),
+                "Gremlin Gang" => {
+                    let mut pool = vec![
+                        "GremlinWarrior", "GremlinWarrior",
+                        "GremlinThief", "GremlinThief",
+                        "GremlinFat", "GremlinFat",
+                        "GremlinTsundere", "GremlinWizard",
+                    ];
+                    for _ in 0..4 {
+                        let index = self.combat_misc_rng.random((pool.len() - 1) as i32)
+                            as usize;
+                        expanded.push(pool.remove(index).to_string());
+                    }
+                }
+                "Large Slime" => {
+                    expanded.push(if self.combat_misc_rng.random_boolean() {
+                        "AcidSlime_L".to_string()
+                    } else {
+                        "SpikeSlime_L".to_string()
+                    });
+                }
+                "Lots of Slimes" => {
+                    let mut pool = vec![
+                        "SpikeSlime_S", "SpikeSlime_S", "SpikeSlime_S",
+                        "AcidSlime_S", "AcidSlime_S",
+                    ];
+                    while !pool.is_empty() {
+                        let index = self.combat_misc_rng.random((pool.len() - 1) as i32)
+                            as usize;
+                        expanded.push(pool.remove(index).to_string());
+                    }
+                }
+                "Exordium Thugs" => {
+                    expanded.push(self.random_weak_wildlife_id());
+                    expanded.push(self.random_strong_humanoid_id());
+                }
+                "Exordium Wildlife" => {
+                    expanded.push(self.random_strong_wildlife_id());
+                    expanded.push(self.random_weak_wildlife_id());
+                }
+                "2 Fungi Beasts" => {
+                    expanded.push("FungiBeast".to_string());
+                    expanded.push("FungiBeast".to_string());
+                }
+                "Gremlin Nob" => expanded.push("GremlinNob".to_string()),
+                "3 Sentries" => {
+                    expanded.extend(std::iter::repeat_n("Sentry".to_string(), 3));
+                }
+                "Spheric Guardian" => expanded.push("SphericGuardian".to_string()),
+                "Shell Parasite" => expanded.push("Shelled Parasite".to_string()),
+                "3 Byrds" => {
+                    expanded.extend(std::iter::repeat_n("Byrd".to_string(), 3));
+                }
+                "2 Thieves" => {
+                    expanded.push("Looter".to_string());
+                    expanded.push("Mugger".to_string());
+                }
+                "Chosen and Byrds" => {
+                    expanded.push("Byrd".to_string());
+                    expanded.push("Chosen".to_string());
+                }
+                "Sentry and Sphere" => {
+                    expanded.push("Sentry".to_string());
+                    expanded.push("SphericGuardian".to_string());
+                }
+                "Snake Plant" => expanded.push("SnakePlant".to_string()),
+                "Centurion and Healer" => {
+                    expanded.push("Centurion".to_string());
+                    expanded.push("Healer".to_string());
+                }
+                "Cultist and Chosen" => {
+                    expanded.push("Cultist".to_string());
+                    expanded.push("Chosen".to_string());
+                }
+                "3 Cultists" => {
+                    expanded.extend(std::iter::repeat_n("Cultist".to_string(), 3));
+                }
+                "Shelled Parasite and Fungi" => {
+                    expanded.push("Shelled Parasite".to_string());
+                    expanded.push("FungiBeast".to_string());
+                }
+                "Slavers" => {
+                    expanded.push("BlueSlaver".to_string());
+                    expanded.push("SlaverBoss".to_string());
+                    expanded.push("RedSlaver".to_string());
+                }
+                "Book of Stabbing" => expanded.push("BookOfStabbing".to_string()),
+                "3 Darklings" => {
+                    expanded.extend(std::iter::repeat_n("Darkling".to_string(), 3));
+                }
+                "Orb Walker" => expanded.push("Orb Walker".to_string()),
+                "Spire Growth" => expanded.push("Serpent".to_string()),
+                "Sphere and 2 Shapes" => {
+                    expanded.push(self.random_ancient_shape_id());
+                    expanded.push(self.random_ancient_shape_id());
+                    expanded.push("SphericGuardian".to_string());
+                }
+                "Jaw Worm Horde" => {
+                    expanded.extend(std::iter::repeat_n("JawWorm".to_string(), 3));
+                }
+                "Writhing Mass" => expanded.push("WrithingMass".to_string()),
+                "Giant Head" => expanded.push("GiantHead".to_string()),
+                "Shield and Spear" => {
+                    expanded.push("SpireShield".to_string());
+                    expanded.push("SpireSpear".to_string());
+                }
                 "DonuAndDeca" => {
                     expanded.push("Donu".to_string());
                     expanded.push("Deca".to_string());
@@ -1706,7 +2776,10 @@ impl RunEngine {
                         "GremlinTsundere", "GremlinWizard",
                     ];
                     for _ in 0..2 {
-                        let index = self.rng.gen_range(0..GREMLIN_POOL.len());
+                        let index = self
+                            .combat_misc_rng
+                            .random((GREMLIN_POOL.len() - 1) as i32)
+                            as usize;
                         expanded.push(GREMLIN_POOL[index].to_string());
                     }
                     expanded.push("GremlinLeader".to_string());
@@ -1729,7 +2802,8 @@ impl RunEngine {
                         "Spiker", "Spiker",
                     ];
                     for _ in 0..count {
-                        let index = self.rng.gen_range(0..pool.len());
+                        let index = self.combat_misc_rng.random((pool.len() - 1) as i32)
+                            as usize;
                         expanded.push(pool.remove(index).to_string());
                     }
                 }
@@ -1814,7 +2888,7 @@ impl RunEngine {
         for enemy in enemy_states.iter_mut().filter(|e| matches!(e.id.as_str(),
             "FuzzyLouseNormal" | "RedLouse" | "FuzzyLouseDefensive" | "GreenLouse")) {
             let bite_base = if self.run_state.ascension >= 2 { 6 } else { 5 };
-            let bite_damage = bite_base + self.rng.gen_range(0..=2);
+            let bite_damage = bite_base + self.monster_hp_rng.random(2);
             let (curl_base, curl_width) = if self.run_state.ascension >= 17 {
                 (9, 3)
             } else if self.run_state.ascension >= 7 {
@@ -1822,7 +2896,7 @@ impl RunEngine {
             } else {
                 (3, 4)
             };
-            let curl_up = curl_base + self.rng.gen_range(0..=curl_width);
+            let curl_up = curl_base + self.monster_hp_rng.random(curl_width);
             enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, bite_damage);
             enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
                 if self.run_state.ascension >= 17 { 4 } else { 3 });
@@ -2104,7 +3178,7 @@ impl RunEngine {
                 if self.run_state.ascension >= 2 { 9 } else { 8 });
             let nip_base = if self.run_state.ascension >= 2 { 9 } else { 7 };
             enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
-                nip_base + self.rng.gen_range(0..=4));
+                nip_base + self.monster_hp_rng.random(4));
             enemy.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI,
                 if self.run_state.ascension >= 17 { 1 } else { 0 });
             enemy.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 1);
@@ -2806,13 +3880,13 @@ impl RunEngine {
         combat_state.relic_counters = self.run_state.relic_flags.counters;
         combat_state.run_gold = self.run_state.gold;
 
-        let combat_seed = self.seed.wrapping_add(self.run_state.floor as u64 * 1000);
-        // Java reseeds cardRandomRng to seed + floorNum on each floor.
-        let card_random_seed = self.seed.wrapping_add(self.run_state.floor as u64);
-        let mut engine = CombatEngine::new_with_card_random_seed(
+        let mut engine = CombatEngine::new_with_rng_streams(
             combat_state,
-            combat_seed,
-            card_random_seed,
+            self.shuffle_rng.clone(),
+            self.card_random_rng.clone(),
+            self.potion_rng.clone(),
+            self.combat_misc_rng.clone(),
+            self.ai_rng.clone(),
         );
         engine.load_persisted_effects(self.run_state.persisted_effect_states.clone());
         engine.start_combat();
@@ -2829,7 +3903,7 @@ impl RunEngine {
                 // Source: reference/extracted/methods/monster/JawWorm.java:
                 // setHp(40,44), or setHp(42,46) at ascension 7+ (inclusive).
                 let base = if a20 { 42 } else { 40 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "Cultist" => {
@@ -2837,108 +3911,108 @@ impl RunEngine {
                 // setHp(48, 54) below — a uniform inclusive roll, not a fixed
                 // value (AbstractMonster.setHp -> monsterHpRng.random(min, max)).
                 let base = if a20 { 50 } else { 48 };
-                let hp = base + self.rng.gen_range(0..=6);
+                let hp = base + self.monster_hp_rng.random(6);
                 (hp, hp)
             }
             "FuzzyLouseNormal" | "RedLouse" => {
                 let base = if a20 { 11 } else { 10 };
-                let hp = base + self.rng.gen_range(0..=5);
+                let hp = base + self.monster_hp_rng.random(5);
                 (hp, hp)
             }
             "FuzzyLouseDefensive" | "GreenLouse" => {
                 let base = if a20 { 12 } else { 11 };
-                let hp = base + self.rng.gen_range(0..=6);
+                let hp = base + self.monster_hp_rng.random(6);
                 (hp, hp)
             }
             "AcidSlime_S" => {
                 let base = if a20 { 9 } else { 8 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "AcidSlime_M" => {
                 let base = if a20 { 29 } else { 28 };
                 let width = if a20 { 5 } else { 4 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "AcidSlime_L" => {
                 let base = if a20 { 68 } else { 65 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "SpikeSlime_S" => {
                 let base = if a20 { 11 } else { 10 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "SpikeSlime_M" => {
                 let base = if a20 { 29 } else { 28 };
                 let width = if a20 { 5 } else { 4 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "SpikeSlime_L" => {
                 let base = if a20 { 67 } else { 64 };
-                let hp = base + self.rng.gen_range(0..=6);
+                let hp = base + self.monster_hp_rng.random(6);
                 (hp, hp)
             }
             "Looter" => {
                 let base = if a20 { 46 } else { 44 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "Mugger" => {
                 // Source: reference/extracted/methods/monster/Mugger.java:
                 // inclusive 48..52, or 50..54 at ascension 7.
                 let base = if a20 { 50 } else { 48 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "GremlinFat" => {
                 let base = if a20 { 14 } else { 13 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "GremlinThief" => {
                 let base = if a20 { 11 } else { 10 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "GremlinWarrior" => {
                 let base = if a20 { 21 } else { 20 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "GremlinWizard" => {
                 let base = if a20 { 22 } else { 21 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "GremlinTsundere" => {
                 let (base, width) = if a20 { (13, 4) } else { (12, 3) };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "FungiBeast" => {
                 // Source: reference/extracted/methods/monster/FungiBeast.java:
                 // setHp(22,28), or setHp(24,28) at ascension 7+ (inclusive).
                 let base = if a20 { 24 } else { 22 };
-                let hp = base + self.rng.gen_range(0..=(28 - base));
+                let hp = base + self.monster_hp_rng.random(28 - base);
                 (hp, hp)
             }
             "BlueSlaver" | "SlaverBlue" => {
                 let base = if a20 { 48 } else { 46 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "RedSlaver" | "SlaverRed" => {
                 let base = if a20 { 48 } else { 46 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "BanditBear" | "Bear" => {
                 let base = if a20 { 40 } else { 38 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "BanditChild" | "BanditPointy" | "Pointy" => {
@@ -2947,7 +4021,7 @@ impl RunEngine {
             }
             "BanditLeader" => {
                 let base = if a20 { 37 } else { 35 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "GremlinNob" => {
@@ -2956,7 +4030,7 @@ impl RunEngine {
                 } else {
                     (82, 4)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "Lagavulin" => {
@@ -2965,7 +4039,7 @@ impl RunEngine {
                 } else {
                     (109, 2)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "Sentry" => {
@@ -2974,7 +4048,7 @@ impl RunEngine {
                 } else {
                     (38, 4)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "TheGuardian" => {
@@ -2995,7 +4069,7 @@ impl RunEngine {
             }
             "Apology Slime" | "ApologySlime" => {
                 // Source: ApologySlime.java constructor: monsterHpRng.random(8, 12).
-                let hp = self.rng.gen_range(8..=12);
+                let hp = self.monster_hp_rng.random_range(8, 12);
                 (hp, hp)
             }
             // Act 2 enemies
@@ -3003,14 +4077,14 @@ impl RunEngine {
                 // Source: reference/extracted/methods/monster/Byrd.java:
                 // setHp(25,31), or setHp(26,33) at ascension 7+.
                 let (base, width) = if a20 { (26, 7) } else { (25, 6) };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "Chosen" => {
                 // Source: Chosen.java constructor: inclusive setHp(95,99),
                 // or setHp(98,103) at ascension 7+.
                 let (base, width) = if a20 { (98, 5) } else { (95, 4) };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "Shelled Parasite" | "ShelledParasite" => {
@@ -3021,28 +4095,28 @@ impl RunEngine {
                 } else {
                     (68, 4)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "SnakePlant" => {
                 // Source: reference/extracted/methods/monster/SnakePlant.java:
                 // inclusive 75..79, or 78..82 at ascension 7+.
                 let base = if a20 { 78 } else { 75 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "Centurion" => {
                 // Source: reference/extracted/methods/monster/Centurion.java:
                 // setHp(76,80), or setHp(78,83) at ascension 7+.
                 let (base, width) = if a20 { (78, 5) } else { (76, 4) };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "Healer" | "Mystic" => {
                 // Source: reference/extracted/methods/monster/Healer.java:
                 // inclusive 48..56, or 50..58 at ascension 7.
                 let base = if self.run_state.ascension >= 7 { 50 } else { 48 };
-                let hp = base + self.rng.gen_range(0..=8);
+                let hp = base + self.monster_hp_rng.random(8);
                 (hp, hp)
             }
             "GremlinLeader" => {
@@ -3053,12 +4127,12 @@ impl RunEngine {
                 } else {
                     (140, 8)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "BookOfStabbing" => {
                 let base = if self.run_state.ascension >= 8 { 168 } else { 160 };
-                let hp = base + self.rng.gen_range(0..=4);
+                let hp = base + self.monster_hp_rng.random(4);
                 (hp, hp)
             }
             "SlaverBoss" | "TaskMaster" | "Taskmaster" => {
@@ -3068,7 +4142,7 @@ impl RunEngine {
                 } else {
                     (54, 6)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "Snecko" => {
@@ -3079,7 +4153,7 @@ impl RunEngine {
                 } else {
                     (114, 6)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "SphericGuardian" | "Spheric Guardian" => {
@@ -3093,7 +4167,7 @@ impl RunEngine {
             }
             "BronzeOrb" | "Bronze Orb" => {
                 let base = if self.run_state.ascension >= 9 { 54 } else { 52 };
-                let hp = base + self.rng.gen_range(0..=6);
+                let hp = base + self.monster_hp_rng.random(6);
                 (hp, hp)
             }
             "TorchHead" | "Torch Head" => {
@@ -3104,7 +4178,7 @@ impl RunEngine {
                 } else {
                     (38, 2)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "TheCollector" => {
@@ -3123,7 +4197,7 @@ impl RunEngine {
             "Darkling" => {
                 // Source: Darkling.java uses inclusive 48..56 / 50..59 rolls.
                 let (base, width) = if a20 { (50, 9) } else { (48, 8) };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "OrbWalker" | "Orb Walker" => {
@@ -3134,7 +4208,7 @@ impl RunEngine {
                 } else {
                     (90, 6)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "Repulsor" => {
@@ -3145,7 +4219,7 @@ impl RunEngine {
                 } else {
                     (29, 6)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "Spiker" => {
@@ -3156,14 +4230,14 @@ impl RunEngine {
                 } else {
                     (42, 14)
                 };
-                let hp = base + self.rng.gen_range(0..=width);
+                let hp = base + self.monster_hp_rng.random(width);
                 (hp, hp)
             }
             "Exploder" => {
                 // Source: reference/extracted/methods/monster/Exploder.java.
                 // A7 changes fixed 30 HP to an inclusive 30..35 roll.
                 let hp = if self.run_state.ascension >= 7 {
-                    30 + self.rng.gen_range(0..=5)
+                    30 + self.monster_hp_rng.random(5)
                 } else {
                     30
                 };
@@ -3191,12 +4265,12 @@ impl RunEngine {
                 // at ascension 8. The constructor's earlier roll is a
                 // run-stream detail; semantic HP uses the final setHp range.
                 let base = if self.run_state.ascension >= 8 { 190 } else { 180 };
-                let hp = base + self.rng.gen_range(0..=10);
+                let hp = base + self.monster_hp_rng.random(10);
                 (hp, hp)
             }
             "SnakeDagger" | "Snake Dagger" => {
                 // Source: reference/extracted/methods/monster/SnakeDagger.java.
-                let hp = 20 + self.rng.gen_range(0..=5);
+                let hp = 20 + self.monster_hp_rng.random(5);
                 (hp, hp)
             }
             "Transient" => {
@@ -3282,6 +4356,14 @@ impl RunEngine {
         engine.clear_event_log();
         let hp_before = engine.state.player.hp;
         engine.execute_action(&combat_action);
+        // potionRng is dungeon-owned in Java and is not reset by room
+        // transitions, so keep the run copy synchronized with combat use.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:397,422,1737-1741
+        self.potion_rng = engine.potion_rng.clone();
+        self.ai_rng = engine.ai_rng.clone();
+        self.shuffle_rng = engine.rng.clone();
+        self.card_random_rng = engine.card_random_rng.clone();
+        self.combat_misc_rng = engine.misc_rng.clone();
         self.run_state.gold = engine.state.run_gold;
 
         let mut reward = 0.0;
@@ -3399,8 +4481,9 @@ impl RunEngine {
                     } else if start_boss_combat {
                         self.current_event = None;
                         self.pending_event_combat = None;
-                        self.run_state.floor = 16;
-                        self.enter_specific_combat(vec![self.boss_id.clone()]);
+                        self.run_state.floor =
+                            Self::boss_floor_for_act(self.run_state.act);
+                        self.enter_specific_boss_combat(vec![self.boss_id.clone()]);
                     } else if start_final_act {
                         self.current_event = None;
                         self.pending_event_combat = None;
@@ -3420,10 +4503,38 @@ impl RunEngine {
                 } else {
                     RoomType::Monster
                 };
-                let is_boss = self.run_state.floor >= 16 || room_type == RoomType::Boss;
+                let is_boss = self.is_boss_room_resolution(room_type);
                 let is_final_heart = self.run_state.act == 4
                     && combat_enemy_ids.len() == 1
                     && combat_enemy_ids[0] == "CorruptHeart";
+
+                if is_boss && self.run_state.act == 3 {
+                    if let Some(second_boss) = self.pending_act_three_boss_id.take() {
+                        // At A20, ProceedButton routes directly into the second
+                        // shuffled Act 3 boss while bossList still has two
+                        // entries. The first boss's reward screen is skipped.
+                        // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/buttons/ProceedButton.java:100-105,210-219
+                        self.run_state.bosses_killed += 1;
+                        reward += 5.0;
+                        self.run_state.floor += 1;
+                        self.boss_id = second_boss.clone();
+                        self.combat_engine = None;
+                        self.enter_specific_boss_combat(vec![second_boss]);
+                        self.refresh_decision_stack();
+                        return reward;
+                    }
+
+                    // The final Act 3 boss also transitions directly to
+                    // VictoryRoom/SpireHeart, so none of its generated combat
+                    // rewards are exposed or claimed.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/buttons/ProceedButton.java:100-113
+                    self.run_state.bosses_killed += 1;
+                    reward += 5.0;
+                    self.run_state.floor += 1;
+                    self.enter_spire_heart_event();
+                    self.refresh_decision_stack();
+                    return reward;
+                }
 
                 // AbstractRoom.java creates exactly one gold reward band per
                 // ordinary, elite, or boss room. RewardItem.java then applies
@@ -3791,11 +4902,7 @@ impl RunEngine {
         }
 
         let mut screen = RewardScreen {
-            source: if self.run_state.floor >= 16 {
-                RewardScreenSource::BossCombat
-            } else {
-                RewardScreenSource::Combat
-            },
+            source: RewardScreenSource::Combat,
             ordered: true,
             active_item: None,
             items,
@@ -3805,6 +4912,7 @@ impl RunEngine {
     }
 
     fn build_boss_reward_screen(&mut self) {
+        self.pending_relic_followup_source = RewardScreenSource::BossCombat;
         let choices = self
             .roll_boss_relic_choices(3)
             .into_iter()
@@ -3964,9 +5072,12 @@ impl RunEngine {
             self.reward_screen = None;
 
             if source == RewardScreenSource::BossCombat {
-                self.run_state.run_won = true;
-                self.run_state.run_over = true;
-                self.phase = RunPhase::GameOver;
+                if self.run_state.act < 3 {
+                    self.transition_to_next_act();
+                } else {
+                    self.run_state.floor += 1;
+                    self.enter_spire_heart_event();
+                }
                 self.refresh_decision_stack();
                 return 0.0;
             }
@@ -4047,6 +5158,7 @@ impl RunEngine {
         let Some(item) = screen.items.get(item_index) else {
             return;
         };
+        let screen_source = screen.source.clone();
         if item.state != RewardItemState::Available {
             return;
         }
@@ -4068,6 +5180,12 @@ impl RunEngine {
         let bottled_lightning_card_pick = item_label == "deck_selection_bottled_lightning";
         let bottled_tornado_card_pick = item_label == "deck_selection_bottled_tornado";
         let empty_cage_card_pick = item_label == "deck_selection_empty_cage";
+        let neow_deck_card_pick = matches!(
+            item_label.as_str(),
+            "deck_selection_neow_remove"
+                | "deck_selection_neow_upgrade"
+                | "deck_selection_neow_transform"
+        );
 
         match (kind, choice) {
             (RewardItemKind::CardChoice, RewardChoice::Card { card_id, .. }) => {
@@ -4100,6 +5218,7 @@ impl RunEngine {
                 self.run_state.current_hp += 2;
             }
             (RewardItemKind::Relic, RewardChoice::Named { label, .. }) => {
+                self.pending_relic_followup_source = screen_source;
                 self.add_relic_reward(&label);
             }
             (RewardItemKind::Potion, RewardChoice::Named { label, .. }) => {
@@ -4140,6 +5259,15 @@ impl RunEngine {
             self.build_empty_cage_selection_screen();
         } else if empty_cage_card_pick && self.pending_empty_cage_removals > 0 {
             self.build_empty_cage_selection_screen();
+        } else if neow_deck_card_pick {
+            if self
+                .pending_neow_deck_selection
+                .is_some_and(|pending| pending.remaining > 0)
+            {
+                self.build_neow_deck_selection_screen();
+            } else {
+                self.pending_neow_deck_selection = None;
+            }
         }
         if (bottled_flame_card_pick
             || bottled_lightning_card_pick
@@ -4180,7 +5308,7 @@ impl RunEngine {
             }
             "deck_selection_note_for_yourself" => {
                 self.remove_master_deck_card(*deck_index);
-                set_note_for_yourself_card(card_id.clone());
+                self.store_note_for_yourself_card(card_id.clone());
                 true
             }
             "deck_selection_empty_cage" => {
@@ -4191,6 +5319,50 @@ impl RunEngine {
             }
             "deck_selection_dollys_mirror" => {
                 obtain_master_deck_card_state(&mut self.run_state, card_id.clone());
+                true
+            }
+            "deck_selection_neow_remove" => {
+                if self.remove_master_deck_card(*deck_index).is_some() {
+                    if let Some(pending) = self.pending_neow_deck_selection.as_mut() {
+                        pending.remaining = pending.remaining.saturating_sub(1);
+                    }
+                }
+                true
+            }
+            "deck_selection_neow_upgrade" => {
+                if let Some((original, upgraded)) =
+                    self.run_state.upgrade_deck_card(*deck_index)
+                {
+                    if self.run_state.bottled_flame_card.as_deref()
+                        == Some(original.as_str())
+                    {
+                        self.run_state.bottled_flame_card = Some(upgraded.clone());
+                    }
+                    if self.run_state.bottled_lightning_card.as_deref()
+                        == Some(original.as_str())
+                    {
+                        self.run_state.bottled_lightning_card = Some(upgraded.clone());
+                    }
+                    if self.run_state.bottled_tornado_card.as_deref()
+                        == Some(original.as_str())
+                    {
+                        self.run_state.bottled_tornado_card = Some(upgraded);
+                    }
+                    if let Some(pending) = self.pending_neow_deck_selection.as_mut() {
+                        pending.remaining = pending.remaining.saturating_sub(1);
+                    }
+                }
+                true
+            }
+            "deck_selection_neow_transform" => {
+                if let Some(original) = self.remove_master_deck_card(*deck_index) {
+                    if let Some(transformed) = self.transform_neow_card(&original) {
+                        obtain_master_deck_card_state(&mut self.run_state, transformed);
+                    }
+                    if let Some(pending) = self.pending_neow_deck_selection.as_mut() {
+                        pending.remaining = pending.remaining.saturating_sub(1);
+                    }
+                }
                 true
             }
             _ => false,
@@ -4269,6 +5441,12 @@ impl RunEngine {
         let Some(item) = screen.items.get(item_index) else {
             return;
         };
+        let skipped_neow_selection = matches!(
+            item.label.as_str(),
+            "deck_selection_neow_remove"
+                | "deck_selection_neow_upgrade"
+                | "deck_selection_neow_transform"
+        );
         if item.index != item_index || !item.skip_allowed || item.state != RewardItemState::Available {
             return;
         }
@@ -4288,6 +5466,9 @@ impl RunEngine {
         }
         if active_choice.is_some() {
             self.decision_stack.pop();
+        }
+        if skipped_neow_selection {
+            self.pending_neow_deck_selection = None;
         }
     }
 
@@ -4319,7 +5500,10 @@ impl RunEngine {
         }
 
         match kind {
-            RewardItemKind::Relic => self.add_relic_reward(&label),
+            RewardItemKind::Relic => {
+                self.pending_relic_followup_source = source.clone();
+                self.add_relic_reward(&label);
+            }
             RewardItemKind::Potion => self.add_potion_reward(&label),
             RewardItemKind::Gold => {
                 if let Ok(amount) = label.parse::<i32>() {
@@ -4761,7 +5945,7 @@ impl RunEngine {
             })
             .collect();
         let mut screen = RewardScreen {
-            source: RewardScreenSource::BossCombat,
+            source: self.pending_relic_followup_source.clone(),
             ordered: true,
             active_item: None,
             items: vec![RewardItem {
@@ -4793,7 +5977,7 @@ impl RunEngine {
             })
             .collect();
         let mut screen = RewardScreen {
-            source: RewardScreenSource::BossCombat,
+            source: self.pending_relic_followup_source.clone(),
             ordered: true,
             active_item: None,
             items: vec![RewardItem {
@@ -4993,7 +6177,7 @@ impl RunEngine {
         let uncommon = self.roll_calling_bell_tier_relic(UNCOMMON);
         let rare = self.roll_calling_bell_tier_relic(RARE);
         let mut screen = RewardScreen {
-            source: RewardScreenSource::BossCombat,
+            source: self.pending_relic_followup_source.clone(),
             ordered: true,
             active_item: None,
             items: vec![
@@ -5056,7 +6240,7 @@ impl RunEngine {
         // opens the current room's ordered combat reward screen.
         let potion = self.roll_reward_potion_id();
         let mut screen = RewardScreen {
-            source: RewardScreenSource::BossCombat,
+            source: self.pending_relic_followup_source.clone(),
             ordered: true,
             active_item: None,
             items: vec![
@@ -5791,6 +6975,7 @@ impl RunEngine {
         self.pending_event_combat = None;
         self.reward_screen = None;
         self.combat_engine = None;
+        self.active_combat_is_boss = false;
         self.run_state.run_won = true;
         self.run_state.run_over = true;
         self.phase = RunPhase::GameOver;
@@ -6929,8 +8114,8 @@ impl RunEngine {
         if start_boss_combat {
             self.current_event = None;
             self.pending_event_combat = None;
-            self.run_state.floor = 16;
-            self.enter_specific_combat(vec![self.boss_id.clone()]);
+            self.run_state.floor = Self::boss_floor_for_act(self.run_state.act);
+            self.enter_specific_boss_combat(vec![self.boss_id.clone()]);
             self.refresh_decision_stack();
             return 0.0;
         }
@@ -7012,7 +8197,8 @@ impl RunEngine {
                     })
                     .collect::<Vec<_>>();
                 if label == "deck_selection_note_for_yourself" {
-                    let reward_card = self.upgrade_reward_card_if_needed(&current_note_for_yourself_card());
+                    let reward_card =
+                        self.upgrade_reward_card_if_needed(self.current_note_for_yourself_card());
                     choices.push(RewardChoice::Card {
                         index: choices.len(),
                         card_id: reward_card,
@@ -7408,7 +8594,8 @@ impl RunEngine {
                 }
             }
             EventReward::StoredNoteCard => {
-                let card_id = self.upgrade_reward_card_if_needed(&current_note_for_yourself_card());
+                let card_id =
+                    self.upgrade_reward_card_if_needed(self.current_note_for_yourself_card());
                 reward_items.push(RewardItem {
                     index: reward_items.len(),
                     kind: RewardItemKind::CardChoice,
@@ -7647,18 +8834,40 @@ impl RunEngine {
     /// vault's canonical short names (`docs/vault/rng-system-analysis.md`).
     /// Used by `bin/trace_replay.rs` (U05) to populate `trace::PostState::rng`.
     ///
-    /// While in combat, delegates to `CombatEngine::rng_counters` (which
-    /// tracks `card`/`ai` distinctly); outside combat, only the run-level
-    /// catch-all `rng` counter is available and is reported as `card`
-    /// (today's engine does not yet separate map/shop/event/relic/etc.
-    /// streams — see `docs/vault/rng-system-analysis.md` for the full
-    /// 13-stream target this will grow into).
+    /// Java owns seven persistent dungeon streams, five streams reset from
+    /// `seed + floor`, and one act-local map stream. Report all thirteen at
+    /// every action so a missing stream can never hide a parity divergence.
+    ///
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:388-401,1737-1741
     pub fn rng_counters(&self) -> HashMap<String, u64> {
-        if let Some(combat) = &self.combat_engine {
-            return combat.rng_counters().into_iter().collect();
-        }
-        let mut counters = HashMap::new();
+        let mut counters = HashMap::with_capacity(13);
         counters.insert("card".to_string(), self.rng.counter as u64);
+        counters.insert("monster".to_string(), self.monster_rng.counter as u64);
+        counters.insert("event".to_string(), self.event_rng.counter as u64);
+        counters.insert("relic".to_string(), self.relic_rng.counter as u64);
+        counters.insert("treasure".to_string(), self.treasure_rng.counter as u64);
+        counters.insert("potion".to_string(), self.potion_rng.counter as u64);
+        counters.insert("merchant".to_string(), self.merchant_rng.counter as u64);
+        counters.insert("monsterHp".to_string(), self.monster_hp_rng.counter as u64);
+        counters.insert("ai".to_string(), self.ai_rng.counter as u64);
+        counters.insert("shuffle".to_string(), self.shuffle_rng.counter as u64);
+        counters.insert(
+            "cardRandom".to_string(),
+            self.card_random_rng.counter as u64,
+        );
+        counters.insert("misc".to_string(), self.combat_misc_rng.counter as u64);
+        counters.insert("map".to_string(), self.map_rng.counter as u64);
+
+        if let Some(combat) = &self.combat_engine {
+            counters.insert("potion".to_string(), combat.potion_rng.counter as u64);
+            counters.insert("ai".to_string(), combat.ai_rng.counter as u64);
+            counters.insert("shuffle".to_string(), combat.rng.counter as u64);
+            counters.insert(
+                "cardRandom".to_string(),
+                combat.card_random_rng.counter as u64,
+            );
+            counters.insert("misc".to_string(), combat.misc_rng.counter as u64);
+        }
         counters
     }
 
@@ -7832,21 +9041,6 @@ impl RunEngine {
     #[cfg(test)]
     pub(crate) fn debug_current_event(&self) -> Option<TypedEventDef> {
         self.current_event.clone()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn debug_current_note_for_yourself_card(&self) -> String {
-        current_note_for_yourself_card()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn debug_set_note_for_yourself_card(&mut self, card_id: &str) {
-        set_note_for_yourself_card(card_id.to_string());
-    }
-
-    #[cfg(test)]
-    pub(crate) fn debug_reset_note_for_yourself_card(&mut self) {
-        set_note_for_yourself_card("IronWave".to_string());
     }
 
     #[cfg(test)]
@@ -8093,19 +9287,28 @@ mod tests {
 
     fn resolve_opening_neow(engine: &mut RunEngine) {
         if engine.current_phase() == RunPhase::Neow {
-            let action = engine
-                .current_decision_context()
-                .neow
-                .and_then(|neow| {
-                    neow.options
-                        .iter()
-                        .position(|option| option.label == "Gain 100 gold")
-                })
-                .map(|idx| RunAction::ChooseNeowOption(idx))
-                .unwrap_or_else(|| engine.get_legal_actions()[0].clone());
-            let (reward, done) = engine.step(&action);
+            let (reward, done) = engine.step(&RunAction::ChooseNeowOption(1));
             assert_eq!(reward, 0.0);
             assert!(!done);
+            while engine.current_phase() == RunPhase::CardReward {
+                let actions = engine.get_legal_actions();
+                let action = actions
+                    .iter()
+                    .find(|action| matches!(action, RunAction::SkipRewardItem(_)))
+                    .or_else(|| {
+                        actions
+                            .iter()
+                            .find(|action| matches!(action, RunAction::SelectRewardItem(_)))
+                    })
+                    .or_else(|| {
+                        actions.iter().find(|action| {
+                            matches!(action, RunAction::ChooseRewardOption { .. })
+                        })
+                    })
+                    .cloned()
+                    .expect("Neow follow-up must expose a reward action");
+                engine.step(&action);
+            }
             assert_eq!(engine.current_phase(), RunPhase::MapChoice);
         }
     }
@@ -8118,6 +9321,215 @@ mod tests {
         assert_eq!(engine.phase, RunPhase::Neow);
         assert_eq!(engine.current_choice_count(), 4);
         assert!(!engine.is_done());
+    }
+
+    #[test]
+    fn neow_builds_four_java_categories_on_its_dedicated_rng() {
+        // Four NeowReward constructors consume one category draw each, while
+        // category 2 consumes its drawback draw first: five total calls.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/neow/NeowEvent.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/neow/NeowReward.java
+        for seed in [0, 4, 42, 57_554_006_466] {
+            let engine = RunEngine::new(seed, 0);
+            assert_eq!(engine.neow_options.len(), 4);
+            assert_eq!(engine.neow_rng.counter, 5);
+            assert_eq!(engine.rng_counters()["card"], 0);
+        }
+    }
+
+    #[test]
+    fn neow_remove_is_an_agent_choice_and_can_be_cancelled() {
+        // REMOVE_CARD opens the purgeable master-deck grid with canCancel=true;
+        // choosing the Neow option itself must not silently remove a card.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/neow/NeowReward.java:132-143,238-241
+        let seed = 57_554_006_466;
+        let mut chosen = RunEngine::new(seed, 0);
+        let deck_before = chosen.run_state.deck.clone();
+        chosen.step(&RunAction::ChooseNeowOption(0));
+        assert_eq!(chosen.current_phase(), RunPhase::CardReward);
+        assert_eq!(chosen.run_state.deck, deck_before);
+
+        chosen.step(&RunAction::SelectRewardItem(0));
+        chosen.step(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        });
+        assert_eq!(chosen.current_phase(), RunPhase::MapChoice);
+        assert_eq!(chosen.run_state.deck.len(), deck_before.len() - 1);
+
+        let mut cancelled = RunEngine::new(seed, 0);
+        cancelled.step(&RunAction::ChooseNeowOption(0));
+        cancelled.step(&RunAction::SkipRewardItem(0));
+        assert_eq!(cancelled.current_phase(), RunPhase::MapChoice);
+        assert_eq!(cancelled.run_state.deck, deck_before);
+    }
+
+    #[test]
+    fn neow_transform_replaces_the_selected_card_through_the_reward_surface() {
+        // TRANSFORM_CARD opens one non-cancellable purgeable-card selection,
+        // removes that exact card, and obtains the Neow-RNG-selected result.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/neow/NeowReward.java:144-151,265-268
+        let seed = (0..512)
+            .find(|seed| {
+                RunEngine::new(*seed, 0).neow_options[0].reward
+                    == NeowReward::TransformCard
+            })
+            .expect("category zero must reach TRANSFORM_CARD");
+        let mut engine = RunEngine::new(seed, 0);
+        let deck_before = engine.run_state.deck.clone();
+        engine.step(&RunAction::ChooseNeowOption(0));
+        engine.step(&RunAction::SelectRewardItem(0));
+        engine.step(&RunAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        });
+
+        assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+        assert_eq!(engine.run_state.deck.len(), deck_before.len());
+        assert_ne!(engine.run_state.deck, deck_before);
+    }
+
+    #[test]
+    fn encounter_queues_match_java_lengths_and_repeat_rejection_rules() {
+        // Each act generates its weak prefix, one exclusion-filtered first
+        // strong encounter, twelve more strong encounters, and ten elites.
+        // Hallways reject the previous two keys; elites reject the previous
+        // key. Java: AbstractDungeon.java:1047-1084 and each act's
+        // generateMonsters implementation.
+        let mut engine = RunEngine::new(0, 0);
+        for act in 1..=3 {
+            for seed in 0..64 {
+                engine.monster_rng = crate::seed::StsRandom::new(seed);
+                engine.generate_encounter_queues(act);
+
+                let expected_monsters = if act == 1 { 16 } else { 15 };
+                assert_eq!(engine.monster_encounter_queue.len(), expected_monsters);
+                assert_eq!(engine.elite_encounter_queue.len(), 10);
+
+                let weak_count = if act == 1 { 3 } else { 2 };
+                let monsters = engine.monster_encounter_queue.iter().collect::<Vec<_>>();
+                for index in 1..monsters.len() {
+                    if index == weak_count {
+                        // populateFirstStrongEnemy uses only the act-specific
+                        // exclusion list, not populateMonsterList's generic
+                        // previous/two-back rejection.
+                        continue;
+                    }
+                    assert_ne!(monsters[index], monsters[index - 1]);
+                    if index > 1 {
+                        assert_ne!(monsters[index], monsters[index - 2]);
+                    }
+                }
+
+                let elites = engine.elite_encounter_queue.iter().collect::<Vec<_>>();
+                for index in 1..elites.len() {
+                    assert_ne!(elites[index], elites[index - 1]);
+                }
+
+                let previous = monsters[weak_count - 1];
+                let first_strong = monsters[weak_count];
+                assert!(
+                    !first_strong_exclusions(act, previous).contains(&first_strong.as_str()),
+                    "act {act} seed {seed}: {first_strong} followed excluded {previous}",
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn canonical_encounter_keys_expand_through_monster_helper_shapes() {
+        // MonsterHelper keeps encounter selection separate from concrete group
+        // construction. These cases guard the previously incomplete Act 2
+        // weak group and the fixed Act 4 elite group.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/MonsterHelper.java
+        let mut engine = RunEngine::new(11, 0);
+        engine.enter_specific_combat(vec!["3 Byrds".to_string()]);
+        assert_eq!(
+            engine.debug_current_enemy_ids(),
+            vec!["Byrd".to_string(), "Byrd".to_string(), "Byrd".to_string()],
+        );
+
+        engine.enter_specific_combat(vec!["Shield and Spear".to_string()]);
+        assert_eq!(
+            engine.debug_current_enemy_ids(),
+            vec!["SpireShield".to_string(), "SpireSpear".to_string()],
+        );
+    }
+
+    #[test]
+    fn every_seeded_encounter_key_builds_its_java_group_size() {
+        // Source: each act's generateWeak/Strong/Elites methods plus
+        // MonsterHelper.getEncounter.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/Exordium.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/TheCity.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/TheBeyond.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/MonsterHelper.java
+        let encounter_sizes = [
+            ("Cultist", 1),
+            ("Jaw Worm", 1),
+            ("2 Louse", 2),
+            ("Small Slimes", 2),
+            ("Blue Slaver", 1),
+            ("Gremlin Gang", 4),
+            ("Looter", 1),
+            ("Large Slime", 1),
+            ("Lots of Slimes", 5),
+            ("Exordium Thugs", 2),
+            ("Exordium Wildlife", 2),
+            ("Red Slaver", 1),
+            ("3 Louse", 3),
+            ("2 Fungi Beasts", 2),
+            ("Gremlin Nob", 1),
+            ("Lagavulin", 1),
+            ("3 Sentries", 3),
+            ("Spheric Guardian", 1),
+            ("Chosen", 1),
+            ("Shell Parasite", 1),
+            ("3 Byrds", 3),
+            ("2 Thieves", 2),
+            ("Chosen and Byrds", 2),
+            ("Sentry and Sphere", 2),
+            ("Snake Plant", 1),
+            ("Snecko", 1),
+            ("Centurion and Healer", 2),
+            ("Cultist and Chosen", 2),
+            ("3 Cultists", 3),
+            ("Shelled Parasite and Fungi", 2),
+            ("Gremlin Leader", 3),
+            ("Slavers", 3),
+            ("Book of Stabbing", 1),
+            ("3 Darklings", 3),
+            ("Orb Walker", 1),
+            ("3 Shapes", 3),
+            ("Spire Growth", 1),
+            ("Transient", 1),
+            ("4 Shapes", 4),
+            ("Maw", 1),
+            ("Sphere and 2 Shapes", 3),
+            ("Jaw Worm Horde", 3),
+            ("Writhing Mass", 1),
+            ("Giant Head", 1),
+            ("Nemesis", 1),
+            ("Reptomancer", 3),
+            ("Shield and Spear", 2),
+        ];
+
+        let mut engine = RunEngine::new(19, 20);
+        for (encounter, expected_size) in encounter_sizes {
+            engine.enter_specific_combat(vec![encounter.to_string()]);
+            let combat = engine
+                .get_combat_engine()
+                .unwrap_or_else(|| panic!("{encounter} did not enter combat"));
+            assert_eq!(
+                combat.state.enemies.len(),
+                expected_size,
+                "{encounter} group size",
+            );
+            assert!(
+                combat.state.enemies.iter().all(|enemy| enemy.entity.hp > 0),
+                "{encounter} contained an invalid enemy",
+            );
+        }
     }
 
     #[test]

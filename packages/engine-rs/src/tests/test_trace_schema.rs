@@ -7,7 +7,7 @@
 use std::collections::BTreeMap;
 
 use crate::trace::{
-    check_version, parse_masks, ActionScript, DivergenceReport, DivergenceStatus,
+    check_version, parse_masks, parse_script_seed, ActionScript, DivergenceReport, DivergenceStatus,
     EnemyPostState, FieldDiff, FirstDivergence, IntentPostState, Mask, MaskedDiff,
     OrbPostState, PilePostState, PlayerPostState, PostState, PowerPostState, RelicPostState,
     RngSnapshotPair, ScriptStopCondition, TraceAction, TraceHeader, TraceRecord,
@@ -17,6 +17,15 @@ use crate::trace::{
 // ---------------------------------------------------------------------------
 // Version helper
 // ---------------------------------------------------------------------------
+
+#[test]
+fn script_seed_parsing_matches_tracelab_decimal_then_display_precedence() {
+    // Source: packages/harness-java/src/main/java/tracelab/TraceLabMod.java
+    assert_eq!(parse_script_seed("57554006466"), 57_554_006_466);
+    assert_eq!(parse_script_seed("ABC"), crate::seed::seed_from_string("ABC"));
+    assert_eq!(parse_script_seed("10"), 10);
+    assert_eq!(parse_script_seed("-1"), u64::MAX);
+}
 
 #[test]
 fn check_version_accepts_v1() {

@@ -299,6 +299,20 @@ impl ActionScript {
     }
 }
 
+/// Parse a script seed using the same precedence as TraceLab.
+///
+/// Decimal strings are Java `long` values; display-form seeds fall back to
+/// `SeedHelper.getLong`. The signed parse matters for seeds with the high bit
+/// set because Java stores dungeon seeds in a signed `long`.
+///
+/// Source: packages/harness-java/src/main/java/tracelab/TraceLabMod.java
+pub fn parse_script_seed(raw: &str) -> u64 {
+    raw.trim()
+        .parse::<i64>()
+        .map(|seed| seed as u64)
+        .unwrap_or_else(|_| crate::seed::seed_from_string(raw.trim()))
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ScriptStopCondition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -620,14 +634,22 @@ fn record_field_diffs(
     push_diff_vec(&mut diffs, "post.piles.exhaust", &java.post.piles.exhaust, &rust.post.piles.exhaust);
 
     // 5. Relics + potions.
-    let java_relics: Vec<&str> = java.post.relics.iter().map(|r| r.id.as_str()).collect();
-    let rust_relics: Vec<&str> = rust.post.relics.iter().map(|r| r.id.as_str()).collect();
-    if java_relics != rust_relics {
-        diffs.push((
-            "post.relics".to_string(),
-            serde_json::json!(java_relics),
-            serde_json::json!(rust_relics),
-        ));
+    let relic_count = java.post.relics.len().max(rust.post.relics.len());
+    for idx in 0..relic_count {
+        let base = format!("post.relics[{idx}]");
+        match (java.post.relics.get(idx), rust.post.relics.get(idx)) {
+            (Some(jr), Some(rr)) => {
+                push_diff_str(&mut diffs, &format!("{base}.id"), &jr.id, &rr.id);
+                push_diff(&mut diffs, &format!("{base}.counter"), jr.counter, rr.counter);
+            }
+            (Some(_), None) => {
+                diffs.push((base, serde_json::json!("present"), serde_json::json!("absent")))
+            }
+            (None, Some(_)) => {
+                diffs.push((base, serde_json::json!("absent"), serde_json::json!("present")))
+            }
+            (None, None) => {}
+        }
     }
     push_diff_vec(&mut diffs, "post.potions", &java.post.potions, &rust.post.potions);
 
@@ -767,6 +789,133 @@ pub fn build_trace_record(engine: &crate::run::RunEngine, idx: u64, action: Trac
     }
 }
 
+fn trace_potion_id(potion_id: &str) -> String {
+    // Java keeps vacant inventory entries as PotionSlot instances whose
+    // stable POTION_ID is "Potion Slot"; traces must preserve those entries.
+    // Source: decompiled/java-src/com/megacrit/cardcrawl/potions/PotionSlot.java
+    if potion_id.is_empty() {
+        "Potion Slot".to_string()
+    } else {
+        potion_id.to_string()
+    }
+}
+
+fn run_relic_counter(relic_id: &str, counters: &[i16; crate::relic_flags::counter::NUM_COUNTERS]) -> Option<i32> {
+    use crate::relic_flags::counter;
+
+    let (index, normalize): (usize, fn(i16) -> i32) = match relic_id {
+        "MawBank" | "Maw Bank" => (counter::MAW_BANK_GOLD, |value| if value == -2 { -2 } else { -1 }),
+        "Omamori" => (counter::OMAMORI_USES, |value| value as i32),
+        "Matryoshka" => (counter::MATRYOSHKA_USES, |value| if value <= 0 { -2 } else { value as i32 }),
+        "Ancient Tea Set" | "AncientTeaSet" => (
+            counter::ANCIENT_TEA_SET,
+            |value| if value > 0 { -2 } else { -1 },
+        ),
+        "Girya" => (counter::GIRYA, |value| value as i32),
+        "Tiny Chest" | "TinyChest" => (counter::TINY_CHEST, |value| value as i32),
+        "NlothsMask" => (counter::NLOTHS_MASK, |value| value as i32),
+        "WingedGreaves" => (counter::WINGED_GREAVES, |value| value as i32),
+        "NeowsBlessing" => (counter::NEOWS_LAMENT, |value| value as i32),
+        _ => return None,
+    };
+    Some(normalize(counters[index]))
+}
+
+fn runtime_counter_relic(relic_id: &str) -> bool {
+    matches!(
+        relic_id,
+        "Pen Nib"
+            | "Nunchaku"
+            | "InkBottle"
+            | "Happy Flower"
+            | "Incense Burner"
+            | "Sundial"
+            | "Inserter"
+            | "Ornamental Fan"
+            | "Kunai"
+            | "Shuriken"
+            | "Letter Opener"
+            | "StoneCalendar"
+            | "Velvet Choker"
+            | "Pocketwatch"
+            | "Du-Vu Doll"
+            | "HornCleat"
+            | "CaptainsWheel"
+    )
+}
+
+fn runtime_counter_persists_outside_combat(relic_id: &str) -> bool {
+    matches!(
+        relic_id,
+        "Pen Nib"
+            | "Nunchaku"
+            | "InkBottle"
+            | "Happy Flower"
+            | "Incense Burner"
+            | "Sundial"
+            | "Inserter"
+    )
+}
+
+fn outside_combat_relic_counter(engine: &crate::run::RunEngine, relic_id: &str) -> i32 {
+    if let Some(counter) = run_relic_counter(relic_id, &engine.run_state.relic_flags.counters) {
+        return counter;
+    }
+    match relic_id {
+        "Lizard Tail" => return if engine.run_state.lizard_tail_used { -2 } else { -1 },
+        "Circlet" => return 1,
+        "Du-Vu Doll" => {
+            let registry = crate::cards::global_registry();
+            return engine
+                .run_state
+                .deck
+                .iter()
+                .filter(|id| {
+                    registry
+                        .get(id)
+                        .is_some_and(|card| card.card_type == crate::cards::CardType::Curse)
+                })
+                .count() as i32;
+        }
+        _ => {}
+    }
+    if runtime_counter_persists_outside_combat(relic_id) {
+        return engine
+            .run_state
+            .persisted_effect_states
+            .iter()
+            .find(|state| state.def_id == relic_id)
+            .and_then(|state| state.values.first())
+            .copied()
+            .unwrap_or(0) as i32;
+    }
+    -1
+}
+
+fn combat_relic_counter(
+    engine: &crate::run::RunEngine,
+    combat: &crate::engine::CombatEngine,
+    relic_id: &str,
+    slot: usize,
+) -> i32 {
+    if let Some(counter) = run_relic_counter(relic_id, &combat.state.relic_counters) {
+        return counter;
+    }
+    match relic_id {
+        "Lizard Tail" => return if engine.run_state.lizard_tail_used { -2 } else { -1 },
+        "Circlet" => return 1,
+        _ => {}
+    }
+    if runtime_counter_relic(relic_id) {
+        return combat.hidden_effect_value(
+            relic_id,
+            crate::effects::runtime::EffectOwner::PlayerRelic { slot: slot as u16 },
+            0,
+        );
+    }
+    -1
+}
+
 /// Snapshot the engine's current state into a [`PostState`].
 ///
 /// Outside combat there is no `CombatState` to report player/enemy detail
@@ -793,9 +942,17 @@ pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
                 .run_state
                 .relics
                 .iter()
-                .map(|id| RelicPostState { id: id.clone(), counter: -1 })
+                .map(|id| RelicPostState {
+                    id: id.clone(),
+                    counter: outside_combat_relic_counter(engine, id),
+                })
                 .collect(),
-            potions: engine.run_state.potions.clone(),
+            potions: engine
+                .run_state
+                .potions
+                .iter()
+                .map(|potion| trace_potion_id(potion))
+                .collect(),
             rng,
         };
     };
@@ -811,14 +968,14 @@ pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
         name
     };
 
-    let powers_from_statuses = |statuses: &[i16; crate::status_ids::sid::MAX_STATUS_ID]| -> Vec<PowerPostState> {
+    let powers_from_statuses = |statuses: &[i32; crate::status_ids::sid::MAX_STATUS_ID]| -> Vec<PowerPostState> {
         statuses
             .iter()
             .enumerate()
             .filter(|(_, &amt)| amt != 0)
             .map(|(i, &amt)| PowerPostState {
                 id: crate::status_ids::status_name(crate::ids::StatusId(i as u16)).to_string(),
-                amt: amt as i32,
+                amt,
             })
             .collect()
     };
@@ -874,8 +1031,20 @@ pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
             discard: state.discard_pile.iter().map(card_name).collect(),
             exhaust: state.exhaust_pile.iter().map(card_name).collect(),
         },
-        relics: state.relics.iter().map(|id| RelicPostState { id: id.clone(), counter: -1 }).collect(),
-        potions: state.potions.iter().filter(|p| !p.is_empty()).cloned().collect(),
+        relics: state
+            .relics
+            .iter()
+            .enumerate()
+            .map(|(slot, id)| RelicPostState {
+                id: id.clone(),
+                counter: combat_relic_counter(engine, combat, id, slot),
+            })
+            .collect(),
+        potions: state
+            .potions
+            .iter()
+            .map(|potion| trace_potion_id(potion))
+            .collect(),
         rng,
     }
 }
@@ -885,7 +1054,7 @@ pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
 /// script's stop condition or run completion. Errors (unsupported action,
 /// illegal action) mirror `bin/trace_replay.rs`'s behavior.
 pub fn replay_script(script: &ActionScript) -> Result<Vec<TraceRecord>, String> {
-    let seed = crate::seed::seed_from_string(&script.seed);
+    let seed = parse_script_seed(&script.seed);
     let mut engine = crate::run::RunEngine::new(seed, script.ascension);
     let mut records = Vec::with_capacity(script.actions.len());
 
@@ -931,7 +1100,7 @@ pub fn header_for_script(script: &ActionScript) -> TraceHeader {
         v: 1,
         kind: "header".to_string(),
         seed: script.seed.clone(),
-        seed_long: crate::seed::seed_from_string(&script.seed) as i64,
+        seed_long: parse_script_seed(&script.seed) as i64,
         character: script.character.clone(),
         ascension: script.ascension,
         game_version: "rust-sim".to_string(),

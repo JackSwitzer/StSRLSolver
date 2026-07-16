@@ -1478,7 +1478,7 @@ impl CardRegistry {
             // static `+` definition represents level one; later levels keep
             // that definition and store the counter on the card instance.
             // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/SearingBlow.java
-            card.misc = i16::from(name == "Searing Blow+");
+            card.misc = i32::from(name == "Searing Blow+");
         }
         card
     }
@@ -1533,7 +1533,7 @@ impl CardRegistry {
             } else {
                 0
             };
-            card.misc = current.saturating_add(1);
+            card.misc = current.wrapping_add(1);
             if let Some(&id) = self.name_to_id.get("Searing Blow+") {
                 card.def_id = id;
                 card.flags |= CardInstance::FLAG_UPGRADED;

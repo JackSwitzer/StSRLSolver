@@ -19,14 +19,7 @@ fn python_bridge_guard() -> std::sync::MutexGuard<'static, ()> {
 
 fn enter_test_combat(engine: &mut RunEngine) {
     if engine.current_phase() == RunPhase::Neow {
-        let neow = engine
-            .get_legal_actions()
-            .into_iter()
-            .next()
-            .expect("expected a Neow action");
-        let result = engine.step_with_result(&neow);
-        assert!(result.action_accepted);
-        assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+        crate::tests::support::resolve_opening_neow(engine);
     }
 
     let action = engine
@@ -499,14 +492,7 @@ fn step_with_result_surfaces_illegal_actions_and_decision_context() {
         "ThirdEye".to_string(),
     ];
     engine.run_state.potions[0] = "Block Potion".to_string();
-    let first_neow = engine
-        .get_legal_actions()
-        .into_iter()
-        .next()
-        .expect("expected a Neow action");
-    let neow_step = engine.step_with_result(&first_neow);
-    assert!(neow_step.action_accepted);
-    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+    crate::tests::support::resolve_opening_neow(&mut engine);
 
     let first_map = engine
         .get_legal_actions()
@@ -585,10 +571,7 @@ fn decision_accessors_match_canonical_run_state() {
         engine.get_legal_actions()
     );
 
-    let first_neow = engine.get_legal_actions()[0].clone();
-    let result = engine.step_with_result(&first_neow);
-    assert!(result.action_accepted);
-    assert!(result.reward >= 0.0);
+    crate::tests::support::resolve_opening_neow(&mut engine);
 
     let context = engine.current_decision_context();
     assert_eq!(context.kind, DecisionKind::MapPath);

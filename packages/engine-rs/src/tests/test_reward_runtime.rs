@@ -275,8 +275,12 @@ fn full_inventory_leaves_a_potion_reward_unclaimed_without_sozu() {
 }
 
 #[test]
-fn boss_reward_screen_requires_relic_choice_and_ends_run_after_resolution() {
+fn boss_reward_screen_requires_relic_choice_and_transitions_to_act_two() {
     let mut engine = RunEngine::new(42, 20);
+    engine.run_state.floor = 16;
+    engine.run_state.map_x = 0;
+    engine.run_state.map_y = 14;
+    engine.run_state.current_hp = 20;
     engine.debug_build_boss_reward_screen();
 
     let screen = engine
@@ -332,9 +336,160 @@ fn boss_reward_screen_requires_relic_choice_and_ends_run_after_resolution() {
     });
     assert!(choose.action_accepted);
     assert!(engine.run_state.relics.iter().any(|relic| relic == &chosen_relic));
-    assert!(engine.run_state.run_won);
-    assert!(engine.run_state.run_over);
-    assert_eq!(engine.current_phase(), crate::run::RunPhase::GameOver);
+    assert_eq!(engine.run_state.act, 2);
+    assert_eq!(engine.run_state.floor, 17);
+    assert_eq!(engine.run_state.current_hp, 56);
+    assert_eq!(engine.run_state.map_x, -1);
+    assert_eq!(engine.run_state.map_y, -1);
+    assert!(!engine.run_state.run_won);
+    assert!(!engine.run_state.run_over);
+    assert_eq!(engine.current_phase(), crate::run::RunPhase::MapChoice);
+    assert!(!engine.get_legal_actions().is_empty());
+}
+
+#[test]
+fn act_two_hallway_combat_after_floor_sixteen_is_not_a_boss() {
+    let mut engine = RunEngine::new(43, 20);
+    engine.run_state.act = 2;
+    engine.run_state.floor = 18;
+    engine.run_state.map_x = 0;
+    engine.run_state.map_y = 0;
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    engine.debug_force_current_combat_outcome(true);
+    engine.debug_resolve_current_combat_outcome();
+
+    let screen = engine
+        .current_reward_screen()
+        .expect("ordinary Act 2 hallway should open combat rewards");
+    assert_eq!(screen.source, RewardScreenSource::Combat);
+    assert!(!engine.run_state.run_over);
+}
+
+#[test]
+fn second_boss_relic_transitions_to_act_three_with_a_fresh_map() {
+    let seed = 45;
+    let mut engine = RunEngine::new(seed, 0);
+    engine.run_state.act = 2;
+    engine.run_state.floor = 33;
+    engine.run_state.map_x = 0;
+    engine.run_state.map_y = 14;
+    engine.run_state.current_hp = 1;
+    engine.debug_build_boss_reward_screen();
+
+    engine.step(&RunAction::SelectRewardItem(0));
+    let screen = engine
+        .current_reward_screen()
+        .expect("boss relic choices should remain active");
+    let choice_index = screen.items[0]
+        .choices
+        .iter()
+        .position(|choice| {
+            matches!(choice, RewardChoice::Named { label, .. }
+                if label != "Astrolabe" && label != "Calling Bell")
+        })
+        .expect("boss screen should include a direct relic choice");
+    engine.step(&RunAction::ChooseRewardOption {
+        item_index: 0,
+        choice_index,
+    });
+
+    assert_eq!(engine.run_state.act, 3);
+    assert_eq!(engine.run_state.floor, 34);
+    assert_eq!(engine.run_state.current_hp, engine.run_state.max_hp);
+    assert_eq!(engine.current_phase(), crate::run::RunPhase::MapChoice);
+    let expected = crate::map::generate_map(seed + 600, 0);
+    for y in 0..expected.height {
+        for x in 0..expected.width {
+            assert_eq!(engine.map.rows[y][x].room_type, expected.rows[y][x].room_type);
+            assert_eq!(engine.map.rows[y][x].edges, expected.rows[y][x].edges);
+        }
+    }
+}
+
+#[test]
+fn act_three_boss_routes_to_spire_heart_without_a_boss_relic() {
+    let mut engine = RunEngine::new(44, 0);
+    engine.run_state.act = 3;
+    engine.run_state.floor = 50;
+    engine.run_state.map_x = 0;
+    engine.run_state.map_y = 14;
+    let gold_before_boss = engine.run_state.gold;
+    engine.debug_enter_specific_combat(&["TimeEater"]);
+    engine.debug_force_current_combat_outcome(true);
+    engine.debug_resolve_current_combat_outcome();
+
+    assert_eq!(engine.run_state.floor, 51);
+    assert_eq!(engine.current_phase(), crate::run::RunPhase::Event);
+    assert_eq!(
+        engine.debug_current_event().as_ref().map(|event| event.name.as_str()),
+        Some("Spire Heart")
+    );
+    assert!(engine.current_reward_screen().is_none());
+    assert_eq!(engine.run_state.gold, gold_before_boss);
+    assert!(!engine.run_state.run_over);
+}
+
+#[test]
+fn ascension_twenty_runs_the_second_act_three_boss_before_spire_heart() {
+    // TheBeyond.initializeBoss shuffles all three bosses once.
+    // MonsterRoomBoss removes the current boss from bossList, and
+    // ProceedButton.goToDoubleBoss selects the next entry at A20 without
+    // opening or claiming the first boss's reward screen.
+    let mut engine = RunEngine::new(46, 20);
+    engine.run_state.act = 2;
+    engine.run_state.floor = 33;
+    engine.run_state.map_x = 0;
+    engine.run_state.map_y = 14;
+    engine.debug_build_boss_reward_screen();
+
+    engine.step(&RunAction::SelectRewardItem(0));
+    let choice_index = engine
+        .current_reward_screen()
+        .expect("Act 2 boss relic choices should remain active")
+        .items[0]
+        .choices
+        .iter()
+        .position(|choice| {
+            matches!(choice, RewardChoice::Named { label, .. }
+                if label != "Astrolabe" && label != "Calling Bell")
+        })
+        .expect("boss screen should include a direct relic choice");
+    engine.step(&RunAction::ChooseRewardOption {
+        item_index: 0,
+        choice_index,
+    });
+
+    assert_eq!(engine.run_state.act, 3);
+    let first_boss = engine.boss_name().to_string();
+    let gold_before_bosses = engine.run_state.gold;
+    engine.run_state.floor = 50;
+    engine.run_state.map_x = 0;
+    engine.run_state.map_y = 14;
+    engine.debug_enter_specific_combat(&[first_boss.as_str()]);
+    engine.debug_force_current_combat_outcome(true);
+    engine.debug_resolve_current_combat_outcome();
+
+    let second_boss = engine.boss_name().to_string();
+    assert_ne!(second_boss, first_boss);
+    assert_eq!(engine.current_phase(), crate::run::RunPhase::Combat);
+    assert_eq!(engine.run_state.floor, 51);
+    assert_eq!(engine.run_state.gold, gold_before_bosses);
+    assert_eq!(engine.run_state.bosses_killed, 1);
+    assert!(engine.current_reward_screen().is_none());
+
+    engine.debug_force_current_combat_outcome(true);
+    engine.debug_resolve_current_combat_outcome();
+
+    assert_eq!(engine.run_state.floor, 52);
+    assert_eq!(engine.run_state.bosses_killed, 2);
+    assert_eq!(engine.run_state.gold, gold_before_bosses);
+    assert_eq!(engine.current_phase(), crate::run::RunPhase::Event);
+    assert_eq!(
+        engine.debug_current_event().as_ref().map(|event| event.name.as_str()),
+        Some("Spire Heart")
+    );
+    assert!(engine.current_reward_screen().is_none());
+    assert!(!engine.run_state.run_over);
 }
 
 #[test]

@@ -87,7 +87,7 @@ fn single_gold_reward_screen(amount: i32) -> RewardScreen {
 
 fn relic_choice_reward_screen(labels: &[&str]) -> RewardScreen {
     RewardScreen {
-        source: RewardScreenSource::Combat,
+        source: RewardScreenSource::BossCombat,
         ordered: true,
         active_item: None,
         items: vec![RewardItem {
@@ -262,7 +262,7 @@ fn neows_lament_choice_initializes_three_persistent_one_hp_combats() {
     // one HP. Java canonical relic ID is NeowsBlessing.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/neow/NeowReward.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/NeowsLament.java
-    let mut engine = RunEngine::new(1501, 0);
+    let mut engine = RunEngine::new(4, 0);
     let option = engine.current_decision_context().neow.expect("Neow").options
         .iter().find(|option| option.label.contains("next three combats"))
         .expect("Neow's Lament option").index;
@@ -1293,10 +1293,12 @@ fn warped_tongs_rummage_grants_the_fixed_relic_and_upgrades_only_eligible_cards(
     // AccursedBlacksmith.java's Rummage branch always obtains Pain and the
     // SPECIAL WarpedTongs relic. WarpedTongs queues UpgradeRandomCardAction,
     // which excludes upgraded and Status cards and consumes one
-    // shuffleRng.randomLong only when an eligible card exists.
+    // shuffleRng.randomLong only when an eligible card exists. Combat start
+    // consumes the preceding tick through CardGroup.shuffle.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/events/shrines/AccursedBlacksmith.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/WarpedTongs.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/UpgradeRandomCardAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
     let event = crate::events::typed_shrine_events().into_iter()
         .find(|event| event.name == "Accursed Blacksmith")
         .expect("Accursed Blacksmith event");
@@ -1325,7 +1327,11 @@ fn warped_tongs_rummage_grants_the_fixed_relic_and_upgrades_only_eligible_cards(
     assert!(hand_names.contains(&"Burn"));
     assert!(hand_names.contains(&"Strike+"));
     assert!(hand_names.contains(&"Defend+"));
-    assert_eq!(combat.rng_counters()["card"], 1);
+    assert_eq!(
+        combat.rng_counters()["card"],
+        2,
+        "opening CardGroup shuffle plus Warped Tongs eligible-card shuffle"
+    );
 
     combat.state.hand = crate::tests::support::make_deck(&["Burn", "Strike+"]);
     let shuffle_before = combat.rng_counters()["card"];
@@ -3604,6 +3610,9 @@ fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
     assert!(offered);
 
     let mut engine = RunEngine::new(77, 0);
+    engine.run_state.floor = 16;
+    engine.run_state.map_x = 0;
+    engine.run_state.map_y = 14;
     engine.run_state.deck.push("Wallop".to_string());
     engine.run_state.deck.push("ThirdEye".to_string());
     engine.run_state.deck.push("Devotion".to_string());
@@ -3664,7 +3673,10 @@ fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
         }
     }
     assert_eq!(engine.run_state.relics.len(), 5);
-    assert!(engine.run_state.run_over);
+    assert_eq!(engine.run_state.act, 2);
+    assert_eq!(engine.run_state.floor, 17);
+    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+    assert!(!engine.run_state.run_over);
 }
 
 #[test]
@@ -4708,7 +4720,7 @@ fn entropic_brew_is_reachable_from_watcher_potion_rewards() {
 fn essence_of_steel_is_reachable_from_watcher_potion_rewards() {
     // PotionHelper.getPotions appends EssenceOfSteel to the shared pool.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/PotionHelper.java
-    let offered = (0..128).any(|seed| {
+    let offered = (0..1024).any(|seed| {
         let mut engine = RunEngine::new(seed, 0);
         engine
             .run_state
@@ -5250,6 +5262,9 @@ fn white_beast_statue_is_reachable_from_uncommon_watcher_relic_rewards() {
 #[test]
 fn choosing_sacred_bark_uses_only_real_reward_choice_actions() {
     let mut engine = RunEngine::new(123, 20);
+    engine.run_state.floor = 16;
+    engine.run_state.map_x = 0;
+    engine.run_state.map_y = 14;
     engine.debug_set_reward_screen(relic_choice_reward_screen(&[
         "BlackStar",
         "SacredBark",
@@ -5267,7 +5282,10 @@ fn choosing_sacred_bark_uses_only_real_reward_choice_actions() {
     });
     assert!(choose.action_accepted);
     assert!(engine.run_state.relic_flags.has(crate::relic_flags::flag::SACRED_BARK));
+    assert_eq!(engine.run_state.act, 2);
+    assert_eq!(engine.run_state.floor, 17);
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+    assert!(!engine.run_state.run_over);
 }
 
 #[test]

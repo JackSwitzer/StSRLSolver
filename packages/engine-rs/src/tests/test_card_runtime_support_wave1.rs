@@ -322,7 +322,18 @@ fn support_wave1_end_turn_curse_and_status_hooks_fire_on_the_runtime_path() {
     end_turn(&mut engine);
 
     assert_eq!(hp_before - engine.state.player.hp, 7);
-    assert_eq!(draw_prefix_count(&engine, "Pride"), 1);
+    let pride_count = engine
+        .state
+        .hand
+        .iter()
+        .chain(engine.state.draw_pile.iter())
+        .chain(engine.state.discard_pile.iter())
+        .filter(|card| engine.card_registry.card_name(card.def_id).starts_with("Pride"))
+        .count();
+    assert_eq!(
+        pride_count, 2,
+        "Pride's end-turn copy may be drawn immediately but must still exist"
+    );
 }
 
 #[test]

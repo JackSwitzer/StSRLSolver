@@ -514,7 +514,7 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
         // -- Add temp card to a pile with explicit misc state --
         SimpleEffect::AddCardWithMisc(name, pile, ref amount_src, ref misc_src) => {
             let count = resolve_card_amount(engine, ctx, amount_src).max(0);
-            let misc = resolve_card_amount(engine, ctx, misc_src).max(0) as i16;
+            let misc = resolve_card_amount(engine, ctx, misc_src).max(0);
             for _ in 0..count {
                 let mut card = engine.temp_card(name);
                 card.misc = misc;
@@ -785,7 +785,7 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                 let current = if is_steam {
                     card.decrementing_misc_or(ctx.card.base_block.max(0))
                 } else if card.misc >= 0 {
-                    card.misc as i32
+                    card.misc
                 } else {
                     ctx.card.base_block.max(0)
                 };
@@ -798,12 +798,12 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                     card.set_decrementing_misc(next);
                     ctx.card_inst.set_decrementing_misc(next);
                 } else {
-                    card.misc = next as i16;
-                    ctx.card_inst.misc = next as i16;
+                    card.misc = next;
+                    ctx.card_inst.misc = next;
                 }
                 engine.runtime_played_card = Some(card);
                 if matches!(ctx.card.id, "Genetic Algorithm" | "Genetic Algorithm+") {
-                    engine.sync_genetic_algorithm_master_deck(before, next as i16);
+                    engine.sync_genetic_algorithm_master_deck(before, next);
                 }
             }
         }
@@ -826,11 +826,11 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             if let Some(mut card) = engine.runtime_played_card {
                 let before = card;
                 let current = if card.misc >= 0 {
-                    card.misc as i32
+                    card.misc
                 } else {
                     ctx.card.base_damage
                 };
-                let next = (current + delta).max(0) as i16;
+                let next = current.wrapping_add(delta).max(0);
                 card.misc = next;
                 ctx.card_inst.misc = next;
                 engine.runtime_played_card = Some(card);
@@ -1192,7 +1192,7 @@ pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &A
                     .decrementing_misc_or(ctx.card.base_block.max(0))
                     .max(0)
             } else if ctx.card_inst.misc >= 0 {
-                ctx.card_inst.misc as i32
+                ctx.card_inst.misc
             } else {
                 ctx.card.base_block.max(0)
             }
@@ -1203,7 +1203,7 @@ pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &A
                     .decrementing_misc_or(ctx.card.base_block.max(0))
                     .max(0)
             } else if ctx.card_inst.misc >= 0 {
-                ctx.card_inst.misc as i32
+                ctx.card_inst.misc
             } else {
                 ctx.card.base_block.max(0)
             };
@@ -1244,7 +1244,7 @@ pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &A
         AmountSource::DiscardPileSizePlusBlock => {
             engine.state.discard_pile.len() as i32 + ctx.card.base_block.max(0)
         }
-        AmountSource::CardMisc => ctx.card_inst.misc.max(0) as i32,
+        AmountSource::CardMisc => ctx.card_inst.misc.max(0),
         AmountSource::DrawPileSize => engine.state.draw_pile.len() as i32,
         AmountSource::DrawPileDivN(n) => {
             if n > 0 {
@@ -2192,8 +2192,7 @@ fn execute_draw_random_cards_from_pile_to_hand(
         if eligible.is_empty() {
             break;
         }
-        let shuffle_seed = engine.rng.random_long();
-        crate::seed::java_util_shuffle(&mut eligible, shuffle_seed);
+        crate::seed::card_group_shuffle(&mut eligible, &mut engine.rng);
         let original_idx = eligible.remove(0);
         let shifted_by = removed_source_indices
             .iter()

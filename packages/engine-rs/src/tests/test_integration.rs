@@ -1303,10 +1303,15 @@ mod combat_engine_p0_p1_regression {
         }
     }
 
-    // ===== P0-1: Player Poison Ticks =====
+    // ===== P0-1: Player Poison Owner-Turn Timing =====
 
     #[test]
-    fn player_poison_ticks_at_end_of_turn() {
+    fn player_poison_ticks_after_enemy_turn_at_next_turn_start() {
+        // GameActionManager completes monster turns before invoking the
+        // player's atStartOfTurn powers. Poison therefore resolves after this
+        // enemy attack has consumed Buffer.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java:297-359
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/PoisonPower.java:58-64
         let deck: Vec<CardInstance> = make_deck_n("Defend", 10);
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 6, 1, 0); // JawWorm does 6 damage
@@ -1314,24 +1319,27 @@ mod combat_engine_p0_p1_regression {
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
 
-        // Apply poison to player and give enough block to absorb enemy attack
+        // The enemy attack consumes Buffer. Poison then deals five HP_LOSS at
+        // the next owner-turn start and decrements to four.
         e.state.player.set_status(sid::POISON, 5);
-        e.state.player.block = 100; // Block all enemy damage
+        e.state.player.set_status(sid::BUFFER, 1);
         let hp_before = e.state.player.hp;
 
-        // End turn triggers poison tick (poison bypasses block)
         e.execute_action(&Action::EndTurn);
 
-        // Player should have taken exactly 5 poison damage (enemy was fully blocked)
         assert_eq!(e.state.player.hp, hp_before - 5,
-            "Player should take exactly 5 poison damage (enemy blocked)");
-        // Poison decrements by 1
+            "Player should take Poison only after Buffer absorbs the enemy attack");
         assert_eq!(e.state.player.status(sid::POISON), 4,
             "Poison should decrement to 4");
+        assert_eq!(e.state.player.status(sid::BUFFER), 0,
+            "Enemy attack should consume Buffer before player Poison resolves");
     }
 
     #[test]
-    fn player_poison_kills_player() {
+    fn player_poison_kills_player_at_turn_start_and_still_decrements() {
+        // PoisonLoseHpAction decrements Poison after applying HP_LOSS even when
+        // that damage is lethal.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/PoisonLoseHpAction.java:43-59
         let deck: Vec<CardInstance> = make_deck_n("Defend", 10);
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
@@ -1345,6 +1353,7 @@ mod combat_engine_p0_p1_regression {
         assert!(e.state.combat_over, "Combat should be over");
         assert!(!e.state.player_won, "Player should have lost");
         assert_eq!(e.state.player.hp, 0);
+        assert_eq!(e.state.player.status(sid::POISON), 4);
     }
 
     // ===== P0-2: Enemy Attacks Use Intangible/Torii/Tungsten =====

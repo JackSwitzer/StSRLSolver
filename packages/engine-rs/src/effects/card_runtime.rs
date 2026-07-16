@@ -258,9 +258,9 @@ pub fn apply_on_retain(card_inst: &mut CardInstance, card: &CardDef) -> (i32, i3
                     let current_block = if card_inst.misc >= 0 {
                         card_inst.misc
                     } else {
-                        card.base_block as i16
+                        card.base_block
                     };
-                    card_inst.misc = current_block + card.base_magic as i16;
+                    card_inst.misc = current_block.wrapping_add(card.base_magic);
                 }
                 OnRetainRule::GrowDamage => {
                     // WindmillStrike.onRetained upgrades this exact card's
@@ -269,9 +269,9 @@ pub fn apply_on_retain(card_inst: &mut CardInstance, card: &CardDef) -> (i32, i3
                     let current_damage = if card_inst.misc >= 0 {
                         card_inst.misc
                     } else {
-                        card.base_damage as i16
+                        card.base_damage
                     };
-                    card_inst.misc = current_damage + card.base_magic as i16;
+                    card_inst.misc = current_damage.wrapping_add(card.base_magic);
                 }
             }
         }

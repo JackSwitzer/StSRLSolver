@@ -376,7 +376,9 @@ fn attack_potion_uses_watcher_pool_and_card_random_rng_tick_for_tick() {
         .collect();
     assert_eq!(names.len(), 3);
     assert!(names.iter().all(|name| WATCHER_ATTACK_CHOICES.contains(name)));
-    assert_eq!(card_random_oracle.counter, card_random_before + 4);
+    // The shipped RandomXS128 sequence reaches three unique cards in three
+    // draws for this seed; the old four-draw expectation used a 31-bit RNG.
+    assert_eq!(card_random_oracle.counter, card_random_before + 3);
     assert_eq!(engine.card_random_rng.counter, card_random_oracle.counter);
     assert_eq!(engine.rng.counter, general_before);
 }

@@ -7,7 +7,6 @@
 
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use rand::seq::SliceRandom;
 
 use crate::actions::{Action, PyAction};
 use crate::cards::{CardDef, CardRegistry, CardTarget, CardType};
@@ -161,6 +160,11 @@ pub struct CombatEngine {
     /// parent card whose action queue owns them.
     pub(crate) omniscience_autoplay: Vec<(CardInstance, usize)>,
     pub event_log: Vec<crate::effects::runtime::GameEventRecord>,
+    /// Nested runtime-triggered events are queued onto the active dispatch
+    /// frame so reentrant death/victory/card-play chains keep the current
+    /// runtime instance set instead of seeing a temporary empty runtime.
+    pub(crate) pending_runtime_events: Vec<crate::effects::runtime::GameEvent>,
+    pub(crate) runtime_dispatch_active: bool,
     pub runtime_played_card: Option<CardInstance>,
     pub(crate) runtime_play_target_idx: Option<i32>,
     pub(crate) runtime_play_stack: Vec<(CardInstance, i32, bool)>,
@@ -188,25 +192,45 @@ impl CombatEngine {
         seed: u64,
         card_random_seed: u64,
     ) -> Self {
+        Self::new_with_rng_streams(
+            state,
+            crate::seed::StsRandom::new(seed),
+            crate::seed::StsRandom::new(card_random_seed),
+            crate::seed::StsRandom::new(card_random_seed),
+            crate::seed::StsRandom::new(card_random_seed),
+            // Standalone combat fixtures have no dungeon floor from which to
+            // derive Java's aiRng. Preserve their established independent
+            // deterministic stream; RunEngine injects the real floor stream.
+            crate::seed::StsRandom::new(seed.wrapping_add(0xA1A1_A1A1)),
+        )
+    }
+
+    pub(crate) fn new_with_rng_streams(
+        state: CombatState,
+        shuffle_rng: crate::seed::StsRandom,
+        card_random_rng: crate::seed::StsRandom,
+        potion_rng: crate::seed::StsRandom,
+        misc_rng: crate::seed::StsRandom,
+        ai_rng: crate::seed::StsRandom,
+    ) -> Self {
         let mut effect_runtime = crate::effects::runtime::EffectRuntime::default();
         effect_runtime.rebuild_from_state(&state);
         Self {
             state,
             phase: CombatPhase::NotStarted,
             card_registry: crate::cards::global_registry(),
-            rng: crate::seed::StsRandom::new(seed),
-            card_random_rng: crate::seed::StsRandom::new(card_random_seed),
-            potion_rng: crate::seed::StsRandom::new(card_random_seed),
-            misc_rng: crate::seed::StsRandom::new(card_random_seed),
-            // ai_rng seeded distinctly so it is not perturbed by re-seeds of `rng`
-            // when callers replay a snapshot. Mirrors Java's separate dungeon-level
-            // `aiRng` distinct from `cardRandomRng`/`shuffleRng`.
-            ai_rng: crate::seed::StsRandom::new(seed.wrapping_add(0xA1A1_A1A1)),
+            rng: shuffle_rng,
+            card_random_rng,
+            potion_rng,
+            misc_rng,
+            ai_rng,
             choice: None,
             effect_runtime,
             nightmare_pending_copies: Vec::new(),
             omniscience_autoplay: Vec::new(),
             event_log: Vec::new(),
+            pending_runtime_events: Vec::new(),
+            runtime_dispatch_active: false,
             runtime_played_card: None,
             runtime_play_target_idx: None,
             runtime_play_stack: Vec::new(),
@@ -256,14 +280,16 @@ impl CombatEngine {
     }
 
     pub fn emit_event(&mut self, event: crate::effects::runtime::GameEvent) {
-        let mut runtime = std::mem::take(&mut self.effect_runtime);
         let mut event = event;
         if event.card_inst.is_none() {
             event.card_inst = self.runtime_played_card;
         }
         event.replay_window = self.runtime_replay_window;
-        runtime.emit(self, event);
-        self.effect_runtime = runtime;
+        if self.runtime_dispatch_active {
+            self.pending_runtime_events.push(event);
+            return;
+        }
+        self.with_effect_runtime(|runtime, engine| runtime.emit(engine, event));
     }
 
     pub fn take_event_log(&mut self) -> Vec<crate::effects::runtime::GameEventRecord> {
@@ -272,6 +298,24 @@ impl CombatEngine {
 
     pub fn clear_event_log(&mut self) {
         self.event_log.clear();
+    }
+
+    pub(crate) fn take_pending_runtime_events(
+        &mut self,
+    ) -> Vec<crate::effects::runtime::GameEvent> {
+        std::mem::take(&mut self.pending_runtime_events)
+    }
+
+    fn with_effect_runtime<T>(
+        &mut self,
+        f: impl FnOnce(&mut crate::effects::runtime::EffectRuntime, &mut CombatEngine) -> T,
+    ) -> T {
+        let mut runtime = std::mem::take(&mut self.effect_runtime);
+        self.runtime_dispatch_active = true;
+        let result = f(&mut runtime, self);
+        self.runtime_dispatch_active = false;
+        self.effect_runtime = runtime;
+        result
     }
 
     fn begin_runtime_play_context(&mut self, card_inst: CardInstance, target_idx: i32) {
@@ -411,7 +455,7 @@ impl CombatEngine {
         }
 
         // Shuffle draw pile
-        self.state.draw_pile.shuffle(&mut self.rng);
+        crate::seed::card_group_shuffle(&mut self.state.draw_pile, &mut self.rng);
 
         // Innate: move cards with "innate" tag to top of draw pile
         // Draw pile convention: index 0 = bottom, last = top
@@ -559,6 +603,8 @@ impl CombatEngine {
             nightmare_pending_copies: self.nightmare_pending_copies.clone(),
             omniscience_autoplay: self.omniscience_autoplay.clone(),
             event_log: self.event_log.clone(),
+            pending_runtime_events: self.pending_runtime_events.clone(),
+            runtime_dispatch_active: self.runtime_dispatch_active,
             runtime_played_card: self.runtime_played_card,
             runtime_play_target_idx: self.runtime_play_target_idx,
             runtime_play_stack: self.runtime_play_stack.clone(),
@@ -1384,11 +1430,11 @@ impl CombatEngine {
                 return;
             }
             let current = if card.misc >= 0 {
-                card.misc as i32
+                card.misc
             } else {
                 def.base_damage
             };
-            card.misc = (current + amount).max(0).min(i16::MAX as i32) as i16;
+            card.misc = current.wrapping_add(amount).max(0);
         };
 
         if let Some(card) = self.runtime_played_card.as_mut() {
@@ -1408,7 +1454,7 @@ impl CombatEngine {
     pub(crate) fn sync_genetic_algorithm_master_deck(
         &mut self,
         before: CardInstance,
-        next_block: i16,
+        next_block: i32,
     ) {
         // IncreaseMiscAction updates both the combat instance and the matching
         // UUID in AbstractDungeon.player.masterDeck. CardInstance has no UUID,
@@ -1419,7 +1465,7 @@ impl CombatEngine {
         let previous_block = if before.misc >= 0 {
             before.misc
         } else {
-            def.base_block.max(0) as i16
+            def.base_block.max(0)
         };
         if let Some(card) = self.state.master_deck.iter_mut().find(|card| {
             if card.def_id != before.def_id {
@@ -1428,7 +1474,7 @@ impl CombatEngine {
             let current = if card.misc >= 0 {
                 card.misc
             } else {
-                def.base_block.max(0) as i16
+                def.base_block.max(0)
             };
             current == previous_block
         }) {
@@ -1439,7 +1485,7 @@ impl CombatEngine {
     pub(crate) fn sync_ritual_dagger_master_deck(
         &mut self,
         before: CardInstance,
-        next_damage: i16,
+        next_damage: i32,
     ) {
         // RitualDaggerAction matches the played card's UUID in masterDeck and
         // raises that persistent card's misc/baseDamage. CardInstance has no
@@ -1452,7 +1498,7 @@ impl CombatEngine {
         let previous_damage = if before.misc >= 0 {
             before.misc
         } else {
-            def.base_damage.max(0) as i16
+            def.base_damage.max(0)
         };
         if let Some(card) = self.state.master_deck.iter_mut().find(|card| {
             if card.def_id != before.def_id {
@@ -1461,7 +1507,7 @@ impl CombatEngine {
             let current = if card.misc >= 0 {
                 card.misc
             } else {
-                def.base_damage.max(0) as i16
+                def.base_damage.max(0)
             };
             current == previous_damage
         }) {
@@ -1653,6 +1699,26 @@ impl CombatEngine {
             amount: 0,
             replay_window: false,
         });
+
+        // PoisonPower.atStartOfTurn queues PoisonLoseHpAction for the poisoned
+        // owner. Player Poison therefore resolves after monster turns, not at
+        // the preceding player turn end. PoisonLoseHpAction applies HP_LOSS
+        // first and decrements the power afterward, even when the damage is
+        // lethal or prevented by Buffer.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/PoisonPower.java:58-64
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/PoisonLoseHpAction.java:43-59
+        if !self.state.is_victory() {
+            let player_poison = self.state.player.status(sid::POISON);
+            if player_poison > 0 {
+                self.player_lose_hp_from_damage(player_poison);
+                self.state
+                    .player
+                    .set_status(sid::POISON, player_poison - 1);
+                if self.state.combat_over {
+                    return;
+                }
+            }
+        }
 
         // WrathNextTurnPower.atStartOfTurn changes stance before normal draw.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/WrathNextTurnPower.java
@@ -2179,18 +2245,6 @@ impl CombatEngine {
         if regen > 0 {
             self.heal_player(regen);
             self.state.player.add_status(sid::REGENERATION, -1);
-        }
-
-        // Player poison tick (before enemy turns)
-        let player_poison = self.state.player.status(sid::POISON);
-        if player_poison > 0 {
-            // Decrement poison by 1
-            let new_poison = player_poison - 1;
-            self.state.player.set_status(sid::POISON, new_poison);
-            self.player_lose_hp_from_damage(player_poison);
-            if self.state.combat_over {
-                return;
-            }
         }
 
         // Check combat end (Omega may have killed enemies)
@@ -2861,9 +2915,9 @@ impl CombatEngine {
 
         {
             self.runtime_replay_window = true;
-            let mut runtime = std::mem::take(&mut self.effect_runtime);
-            runtime.emit_replay_window(self, card.card_type, target_idx, card_inst);
-            self.effect_runtime = runtime;
+            self.with_effect_runtime(|runtime, engine| {
+                runtime.emit_replay_window(engine, card.card_type, target_idx, card_inst);
+            });
         }
         self.runtime_replay_window = false;
 
@@ -2899,11 +2953,7 @@ impl CombatEngine {
                 if card.cost == -1 {
                     self.runtime_x_energy_override = Some(self.runtime_last_x_energy_on_use);
                 }
-                let mut replay_card = card_inst.set_free(true);
-                // Necronomicon.makeSameInstanceOf produces a purge-on-use
-                // autoplay copy in limbo, outside PerfectedStrike.countCards.
-                replay_card.flags |= CardInstance::FLAG_PURGE | CardInstance::FLAG_AUTOPLAY;
-                self.execute_card_effects_with_enemy_on_use(&card, replay_card, target_idx);
+                self.play_purge_autoplay_copy(card_inst, target_idx);
             }
         }
 
@@ -2986,6 +3036,44 @@ impl CombatEngine {
         }
 
         self.check_combat_end();
+    }
+
+    /// Process a same-instance replay copy through Java's normal queued-card path.
+    ///
+    /// The copy is temporarily placed in the hand only to reuse the canonical
+    /// play pipeline; `play_card` removes it before card-owned effects inspect
+    /// combat piles. `makeStatEquivalentCopy` preserves free-to-play state but
+    /// does not copy one-use exhaust or retain state.
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/AbstractCard.java
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+    pub(crate) fn play_purge_autoplay_copy(
+        &mut self,
+        mut card_inst: CardInstance,
+        target_idx: i32,
+    ) -> bool {
+        card_inst.flags &= !(CardInstance::FLAG_RETAINED | CardInstance::FLAG_EXHAUST_ON_USE);
+        card_inst.flags |=
+            CardInstance::FLAG_FREE | CardInstance::FLAG_PURGE | CardInstance::FLAG_AUTOPLAY;
+
+        let card = self.card_registry.card_def_by_id(card_inst.def_id).clone();
+        if !self.can_play_card_inst(&card, card_inst) {
+            return false;
+        }
+
+        self.state.hand.push(card_inst);
+        let hand_idx = self.state.hand.len() - 1;
+        let plays_before = self.state.total_cards_played;
+        self.play_card(hand_idx, target_idx);
+        if self.state.total_cards_played > plays_before {
+            return true;
+        }
+
+        // A hand-sensitive rule can differ only after the temporary limbo copy
+        // is inserted. Failed Java autoplay copies poof instead of entering a pile.
+        if hand_idx < self.state.hand.len() && self.state.hand[hand_idx] == card_inst {
+            self.state.hand.remove(hand_idx);
+        }
+        false
     }
 
     /// Install a power card as a permanent status effect.
@@ -3786,7 +3874,10 @@ impl CombatEngine {
         let spore = self.state.enemies[enemy_idx]
             .entity
             .status(sid::SPORE_CLOUD);
-        if spore > 0 {
+        // SporeCloudPower.onDeath returns immediately when the room is already
+        // battle-ending, so the final dying monster does not queue Vulnerable.
+        // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/SporeCloudPower.java:36-43
+        if spore > 0 && !self.state.is_victory() {
             powers::apply_debuff(&mut self.state.player, sid::VULNERABLE, spore);
         }
 
@@ -4453,7 +4544,7 @@ impl CombatEngine {
                     break; // No cards left anywhere
                 }
                 let mut shuffled = std::mem::take(&mut self.state.discard_pile);
-                shuffled.shuffle(&mut self.rng);
+                crate::seed::card_group_shuffle(&mut shuffled, &mut self.rng);
                 self.state.draw_pile = shuffled;
                 shuffles += 1;
             }
@@ -4479,7 +4570,7 @@ impl CombatEngine {
                         drawn.misc = self
                             .state
                             .power_cards_played_this_combat
-                            .min(i16::MAX as i32) as i16;
+                            .max(0);
                     }
                     drawn.flags &= !CardInstance::FLAG_FREE;
                 }
@@ -4545,7 +4636,7 @@ impl CombatEngine {
 
     /// Shuffle the draw pile (pub(crate) for card_effects).
     pub(crate) fn shuffle_draw_pile(&mut self) {
-        self.state.draw_pile.shuffle(&mut self.rng);
+        crate::seed::card_group_shuffle(&mut self.state.draw_pile, &mut self.rng);
     }
 
     /// Execute Reboot's ShuffleAllAction, explicit ShuffleAction, and draw.
@@ -4567,8 +4658,7 @@ impl CombatEngine {
     fn continue_shuffle_all_and_draw(&mut self, draw_count: i32) {
         // ShuffleAllAction always shuffles the discard group, even when empty.
         // CardGroup.shuffle consumes exactly one shuffleRng.randomLong().
-        let discard_seed = self.rng.random_long();
-        crate::seed::java_util_shuffle(&mut self.state.discard_pile, discard_seed);
+        crate::seed::card_group_shuffle(&mut self.state.discard_pile, &mut self.rng);
 
         // PutOnDeckAction selects each remaining hand card with one inclusive
         // cardRandomRng.random(size - 1), including the singleton case, then
@@ -4592,8 +4682,7 @@ impl CombatEngine {
         // Java: reference/extracted/methods/card/Reboot.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/PutOnDeckAction.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ShuffleAction.java
-        let draw_seed = self.rng.random_long();
-        crate::seed::java_util_shuffle(&mut self.state.draw_pile, draw_seed);
+        crate::seed::card_group_shuffle(&mut self.state.draw_pile, &mut self.rng);
         self.draw_cards(draw_count.max(0));
     }
 

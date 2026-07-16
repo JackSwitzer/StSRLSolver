@@ -346,7 +346,7 @@ fn reboot_moves_remaining_hand_and_discard_into_draw_then_draws_and_exhausts() {
         .collect();
     assert_eq!(
         hand_names,
-        vec!["Strike", "Defend", "Zap", "Cold Snap", "Dualcast", "Gash"]
+        vec!["Defend", "Strike", "Zap", "Cold Snap", "Dualcast", "Gash"]
     );
     assert_eq!(reboot.rng.counter, shuffle_before + 2);
     assert_eq!(reboot.card_random_rng.counter, card_random_before + 2);

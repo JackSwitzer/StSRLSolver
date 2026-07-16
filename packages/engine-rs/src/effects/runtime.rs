@@ -410,7 +410,12 @@ impl EffectRuntime {
                 continue;
             }
             self.execute_instance(engine, idx, &event);
-            if engine.state.combat_over {
+            self.drain_nested_events(engine);
+            // Java marks combat complete before AbstractPlayer.onVictory()
+            // iterates relics, blights, and powers, but still runs the full
+            // victory handler snapshot in order.
+            // Source: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java:1949-1960
+            if engine.state.combat_over && event.kind != Trigger::CombatVictory {
                 break;
             }
         }
@@ -430,6 +435,7 @@ impl EffectRuntime {
                 continue;
             }
             self.execute_instance_hook_only(engine, idx, &event);
+            self.drain_nested_events(engine);
             if engine.state.combat_over {
                 break;
             }
@@ -536,11 +542,24 @@ impl EffectRuntime {
                 continue;
             }
             self.execute_instance_hook_only(engine, idx, &event);
+            self.drain_nested_events(engine);
             if engine.state.combat_over {
                 break;
             }
         }
         self.persisted_states = self.export_persisted_states();
+    }
+
+    fn drain_nested_events(&mut self, engine: &mut CombatEngine) {
+        loop {
+            let pending = engine.take_pending_runtime_events();
+            if pending.is_empty() {
+                break;
+            }
+            for event in pending {
+                self.emit(engine, event);
+            }
+        }
     }
 
     fn alloc_instance_id(&mut self) -> u32 {
@@ -849,7 +868,7 @@ impl EffectRuntime {
                     let current = if is_steam {
                         card.decrementing_misc_or(def.base_block.max(0))
                     } else if card.misc >= 0 {
-                        card.misc as i32
+                        card.misc
                     } else {
                         engine.card_registry
                             .card_def_by_id(card.def_id)
@@ -864,12 +883,12 @@ impl EffectRuntime {
                     if is_steam {
                         card.set_decrementing_misc(next);
                     } else {
-                        card.misc = next as i16;
+                        card.misc = next;
                     }
                     engine.runtime_played_card = Some(card);
                     let card_id = engine.card_registry.card_def_by_id(def_id).id;
                     if matches!(card_id, "Genetic Algorithm" | "Genetic Algorithm+") {
-                        engine.sync_genetic_algorithm_master_deck(before, next as i16);
+                        engine.sync_genetic_algorithm_master_deck(before, next);
                     }
                 }
             }
@@ -877,11 +896,11 @@ impl EffectRuntime {
                 let delta = self.resolve_amount(engine, instance_idx, owner, amount_src);
                 if let Some(mut card) = engine.runtime_played_card {
                     let current = if card.misc >= 0 {
-                        card.misc as i32
+                        card.misc
                     } else {
                         engine.card_registry.card_def_by_id(card.def_id).base_damage
                     };
-                    let next = (current + delta).max(0) as i16;
+                    let next = current.wrapping_add(delta).max(0);
                     card.misc = next;
                     engine.runtime_played_card = Some(card);
                 }
@@ -999,7 +1018,7 @@ impl EffectRuntime {
             }
             SimpleEffect::AddCardWithMisc(card_name, pile, amount_src, misc_src) => {
                 let count = self.resolve_amount(engine, instance_idx, owner, amount_src).max(0);
-                let misc = self.resolve_amount(engine, instance_idx, owner, misc_src).max(0) as i16;
+                let misc = self.resolve_amount(engine, instance_idx, owner, misc_src).max(0);
                 if pile == Pile::Hand {
                     for _ in 0..count {
                         let mut card = engine.temp_card(card_name);
@@ -1901,7 +1920,13 @@ fn default_persistence_for(def_id: &str) -> PersistenceScope {
     match def_id {
         // PenNib.java stores progress in AbstractRelic.counter, including the
         // armed value 9 that atBattleStart turns into PenNibPower.
-        "Pen Nib" | "Nunchaku" | "InkBottle" | "Happy Flower" | "Incense Burner" | "Sundial" => PersistenceScope::Run,
+        "Pen Nib"
+        | "Nunchaku"
+        | "InkBottle"
+        | "Happy Flower"
+        | "Incense Burner"
+        | "Sundial"
+        | "Inserter" => PersistenceScope::Run,
         _ => PersistenceScope::Combat,
     }
 }

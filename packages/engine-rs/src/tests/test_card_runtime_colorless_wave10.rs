@@ -59,7 +59,7 @@ fn violence_moves_random_attacks_from_draw_to_hand() {
     // cardRandomRng for every eligible card after the first, then shuffles the
     // temporary group once per selection through shuffleRng.randomLong(). For
     // cardRandom seed 42 and shuffle seed 99, the Java selections below are
-    // Bash, Strike, Uppercut, then Bludgeon. A full hand sends later selections
+    // Bash, Strike, Bludgeon, then Uppercut. A full hand sends later selections
     // to discard without changing RNG consumption.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/DrawPileToHandAction.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
@@ -86,7 +86,7 @@ fn violence_moves_random_attacks_from_draw_to_hand() {
         .iter()
         .map(|card| base.card_registry.card_name(card.def_id))
         .collect();
-    assert_eq!(base_hand, ["Bash", "Strike", "Uppercut"]);
+    assert_eq!(base_hand, ["Bash", "Strike", "Bludgeon"]);
     assert_eq!(base.card_random_rng.counter, 4);
     assert_eq!(base.rng.counter, 3);
     assert_eq!(exhaust_prefix_count(&base, "Violence"), 1);
