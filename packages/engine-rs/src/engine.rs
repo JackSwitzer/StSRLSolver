@@ -1683,6 +1683,26 @@ impl CombatEngine {
             replay_window: false,
         });
 
+        // PoisonPower.atStartOfTurn queues PoisonLoseHpAction for the poisoned
+        // owner. Player Poison therefore resolves after monster turns, not at
+        // the preceding player turn end. PoisonLoseHpAction applies HP_LOSS
+        // first and decrements the power afterward, even when the damage is
+        // lethal or prevented by Buffer.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/PoisonPower.java:58-64
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/PoisonLoseHpAction.java:43-59
+        if !self.state.is_victory() {
+            let player_poison = self.state.player.status(sid::POISON);
+            if player_poison > 0 {
+                self.player_lose_hp_from_damage(player_poison);
+                self.state
+                    .player
+                    .set_status(sid::POISON, player_poison - 1);
+                if self.state.combat_over {
+                    return;
+                }
+            }
+        }
+
         // WrathNextTurnPower.atStartOfTurn changes stance before normal draw.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/WrathNextTurnPower.java
         if self.state.player.status(sid::WRATH_NEXT_TURN) > 0 {
@@ -2208,18 +2228,6 @@ impl CombatEngine {
         if regen > 0 {
             self.heal_player(regen);
             self.state.player.add_status(sid::REGENERATION, -1);
-        }
-
-        // Player poison tick (before enemy turns)
-        let player_poison = self.state.player.status(sid::POISON);
-        if player_poison > 0 {
-            // Decrement poison by 1
-            let new_poison = player_poison - 1;
-            self.state.player.set_status(sid::POISON, new_poison);
-            self.player_lose_hp_from_damage(player_poison);
-            if self.state.combat_over {
-                return;
-            }
         }
 
         // Check combat end (Omega may have killed enemies)

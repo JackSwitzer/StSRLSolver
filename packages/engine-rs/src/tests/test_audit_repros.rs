@@ -315,3 +315,39 @@ fn eda_011_final_enemy_spore_cloud_death_must_not_apply_vulnerable() {
         0,
     );
 }
+
+#[test]
+fn eda_013_player_poison_must_tick_after_enemy_turn_at_owner_turn_start() {
+    // GameActionManager runs monster turns before player atStartOfTurn powers.
+    // PoisonPower then queues PoisonLoseHpAction at the poisoned owner's turn
+    // start. Buffer must therefore absorb the enemy hit before Poison resolves.
+    // decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java:297-359
+    // decompiled/java-src/com/megacrit/cardcrawl/powers/PoisonPower.java:58-64
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![crate::tests::support::enemy("JawWorm", 100, 100, 1, 6, 1)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine
+        .state
+        .player
+        .set_status(crate::status_ids::sid::POISON, 5);
+    engine
+        .state
+        .player
+        .set_status(crate::status_ids::sid::BUFFER, 1);
+    let hp_before = engine.state.player.hp;
+
+    crate::tests::support::end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.hp, hp_before - 5);
+    assert_eq!(
+        engine.state.player.status(crate::status_ids::sid::POISON),
+        4,
+    );
+    assert_eq!(
+        engine.state.player.status(crate::status_ids::sid::BUFFER),
+        0,
+    );
+}
