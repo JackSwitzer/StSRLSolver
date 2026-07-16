@@ -74,7 +74,7 @@ pub struct EntityState {
     pub max_hp: i32,
     pub block: i32,
     /// All statuses as a flat array indexed by StatusId. Zero means absent.
-    pub statuses: [i16; sid::MAX_STATUS_ID],
+    pub statuses: [i32; sid::MAX_STATUS_ID],
 }
 
 impl EntityState {
@@ -90,15 +90,15 @@ impl EntityState {
     // -- Convenience accessors (match Python properties) --
 
     pub fn strength(&self) -> i32 {
-        self.statuses[sid::STRENGTH.0 as usize] as i32
+        self.statuses[sid::STRENGTH.0 as usize]
     }
 
     pub fn dexterity(&self) -> i32 {
-        self.statuses[sid::DEXTERITY.0 as usize] as i32
+        self.statuses[sid::DEXTERITY.0 as usize]
     }
 
     pub fn focus(&self) -> i32 {
-        self.statuses[sid::FOCUS.0 as usize] as i32
+        self.statuses[sid::FOCUS.0 as usize]
     }
 
     pub fn is_weak(&self) -> bool {
@@ -119,18 +119,18 @@ impl EntityState {
 
     /// Get a status value, defaulting to 0.
     pub fn status(&self, id: StatusId) -> i32 {
-        self.statuses[id.0 as usize] as i32
+        self.statuses[id.0 as usize]
     }
 
     /// Set a status value.
     pub fn set_status(&mut self, id: StatusId, value: i32) {
-        self.statuses[id.0 as usize] = value as i16;
+        self.statuses[id.0 as usize] = value;
     }
 
     /// Add to a status value.
     pub fn add_status(&mut self, id: StatusId, amount: i32) {
         let idx = id.0 as usize;
-        self.statuses[idx] = (self.statuses[idx] as i32 + amount) as i16;
+        self.statuses[idx] = self.statuses[idx].wrapping_add(amount);
     }
 }
 

@@ -70,7 +70,6 @@ fn eda_002_card_misc_round_trips_the_training_snapshot_at_java_int_width() {
 }
 
 #[test]
-#[ignore = "EDA-003: EntityState status storage truncates Java Poison amounts to i16"]
 fn eda_003_catalyst_poison_must_preserve_java_int_range() {
     // TriplePoisonAction applies twice the current amount to the existing
     // PoisonPower; AbstractPower.stackPower uses Java int arithmetic. The
@@ -94,6 +93,42 @@ fn eda_003_catalyst_poison_must_preserve_java_int_range() {
             .entity
             .status(crate::status_ids::sid::POISON),
         89_991,
+    );
+}
+
+#[test]
+fn eda_003_status_amounts_round_trip_the_training_snapshot_at_java_int_width() {
+    // AbstractPower.amount is a signed Java int. Both positive and negative
+    // amounts must survive the training snapshot without narrowing.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/AbstractPower.java:69
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 100_000, 100_000)],
+        3,
+    );
+    engine
+        .state
+        .player
+        .set_status(crate::status_ids::sid::STRENGTH, -70_000);
+    engine.state.enemies[0]
+        .entity
+        .set_status(crate::status_ids::sid::POISON, 90_000);
+
+    let snapshot = crate::training_contract::combat_snapshot_from_combat(&engine);
+    let restored = crate::training_contract::combat_engine_from_snapshot(&snapshot);
+
+    assert_eq!(
+        restored
+            .state
+            .player
+            .status(crate::status_ids::sid::STRENGTH),
+        -70_000,
+    );
+    assert_eq!(
+        restored.state.enemies[0]
+            .entity
+            .status(crate::status_ids::sid::POISON),
+        90_000,
     );
 }
 

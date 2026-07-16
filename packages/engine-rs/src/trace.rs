@@ -811,14 +811,14 @@ pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
         name
     };
 
-    let powers_from_statuses = |statuses: &[i16; crate::status_ids::sid::MAX_STATUS_ID]| -> Vec<PowerPostState> {
+    let powers_from_statuses = |statuses: &[i32; crate::status_ids::sid::MAX_STATUS_ID]| -> Vec<PowerPostState> {
         statuses
             .iter()
             .enumerate()
             .filter(|(_, &amt)| amt != 0)
             .map(|(i, &amt)| PowerPostState {
                 id: crate::status_ids::status_name(crate::ids::StatusId(i as u16)).to_string(),
-                amt: amt as i32,
+                amt,
             })
             .collect()
     };
