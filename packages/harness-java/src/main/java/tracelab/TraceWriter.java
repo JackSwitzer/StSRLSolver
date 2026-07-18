@@ -93,7 +93,7 @@ public class TraceWriter {
         out.flush();
     }
 
-    private static String currentPhase() {
+    static String currentPhase() {
         AbstractRoom room = ScriptRunner.currRoom();
         if (room == null) {
             return "NONE";
@@ -121,7 +121,7 @@ public class TraceWriter {
         return m;
     }
 
-    private static Map<String, Object> postState() {
+    static Map<String, Object> postState() {
         Map<String, Object> post = new LinkedHashMap<String, Object>();
         post.put("player", playerState());
         post.put("enemies", enemyStates());
@@ -226,7 +226,7 @@ public class TraceWriter {
         return piles;
     }
 
-    private static List<String> cardIds(ArrayList<AbstractCard> cards) {
+    static List<String> cardIds(ArrayList<AbstractCard> cards) {
         List<String> ids = new ArrayList<String>();
         for (AbstractCard c : cards) {
             StringBuilder sb = new StringBuilder(c.cardID);

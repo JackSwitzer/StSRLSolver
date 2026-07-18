@@ -37,7 +37,11 @@ public class TraceLabMod implements PostInitializeSubscriber, PostUpdateSubscrib
         String scriptPath = System.getProperty("tracelab.script");
         String outPath = System.getProperty("tracelab.out");
         if (scriptPath == null || outPath == null) {
-            System.out.println("[TraceLab] no -Dtracelab.script/-Dtracelab.out; idle.");
+            if (!"0".equals(System.getProperty("tracelab.record", "1"))) {
+                Recorder.enable(System.getProperty("tracelab.recorddir", "tracelab-recordings"));
+            } else {
+                System.out.println("[TraceLab] no script and record-mode off; idle.");
+            }
             return;
         }
         try {
@@ -56,6 +60,7 @@ public class TraceLabMod implements PostInitializeSubscriber, PostUpdateSubscrib
     @Override
     public void receivePostUpdate() {
         ScriptRunner.update();
+        Recorder.update();
     }
 
     public static void updateMainMenu(MainMenuScreen screen) {
