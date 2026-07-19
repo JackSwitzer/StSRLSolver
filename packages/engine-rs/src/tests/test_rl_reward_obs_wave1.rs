@@ -19,12 +19,16 @@ fn treasure_reward_screen_is_explicitly_visible_in_rl_observation() {
     let screen = engine
         .current_reward_screen()
         .expect("treasure reward screen should exist");
-    assert_eq!(screen.items.len(), 3, "Matryoshka should add a second relic");
+    assert_eq!(
+        screen.items.len(),
+        4,
+        "Matryoshka adds a relic and the unopened key remains a linked choice"
+    );
 
     let obs = get_observation(&engine);
     assert_eq!(obs[RUN_DECISION_TAIL_OFFSET + 6], 1.0);
     assert_eq!(obs[RUN_DECISION_TAIL_OFFSET + 7], 0.0);
-    assert_eq!(obs[RUN_DECISION_TAIL_OFFSET + 8], 0.6);
+    assert_eq!(obs[RUN_DECISION_TAIL_OFFSET + 8], 0.8);
 }
 
 #[test]

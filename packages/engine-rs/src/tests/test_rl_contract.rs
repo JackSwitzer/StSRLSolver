@@ -14,7 +14,10 @@ use std::sync::{Mutex, OnceLock};
 
 fn python_bridge_guard() -> std::sync::MutexGuard<'static, ()> {
     static PYTHON_BRIDGE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    PYTHON_BRIDGE_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
+    PYTHON_BRIDGE_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 fn enter_test_combat(engine: &mut RunEngine) {
@@ -311,13 +314,7 @@ fn card_reward_decision_context_surfaces_structured_reward_screen() {
     ));
 
     let legal = engine.get_legal_decision_actions();
-    assert_eq!(
-        legal,
-        vec![
-            DecisionAction::ClaimRewardItem { item_index: 0 },
-            DecisionAction::SkipRewardItem { item_index: 0 },
-        ]
-    );
+    assert_eq!(legal, vec![DecisionAction::ClaimRewardItem { item_index: 0 }]);
 
     let reward_obs = get_observation(&engine);
     assert_eq!(reward_obs[RUN_DECISION_TAIL_OFFSET + 1], 0.25);
@@ -433,34 +430,36 @@ fn reward_action_features_distinguish_potion_and_boss_relic_states() {
     let reward_slot = STATE_DIM;
     assert_eq!(obs[reward_slot], 1.0, "reward actions should be marked");
     assert_eq!(obs[reward_slot + 1], 1.0, "first action should be reward item selection");
-    assert_eq!(obs[reward_slot + 6], 1.0, "first reward item should encode as a potion");
+    assert_eq!(obs[reward_slot + 7], 1.0, "first reward item should encode as gold");
     assert_eq!(obs[reward_slot + 10], 1.0, "first reward item should be claimable");
 
     let offered_potion = engine
         .current_reward_screen()
         .expect("reward screen")
-        .items[0]
+        .items[1]
         .label
         .clone();
-    let potion_claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
+    let potion_claim = engine.step_with_result(&RunAction::SelectRewardItem(1));
     assert!(potion_claim.action_accepted);
     let mut expected_actions = vec![
-        DecisionAction::ClaimRewardItem { item_index: 1 },
-        DecisionAction::SkipRewardItem { item_index: 1 },
+        DecisionAction::ClaimRewardItem { item_index: 0 },
+        DecisionAction::ClaimRewardItem { item_index: 2 },
+        DecisionAction::LeaveRewards,
     ];
     // FruitJuice.canUse permits use on non-combat reward screens.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FruitJuice.java
     if matches!(offered_potion.as_str(), "FruitJuice" | "Fruit Juice") {
         expected_actions.push(DecisionAction::UsePotion(0));
     }
+    expected_actions.push(DecisionAction::DiscardPotion(0));
     assert_eq!(
         potion_claim.legal_decision_actions,
         expected_actions
     );
 
-    let skip_slot = STATE_DIM + ACTION_FEAT_DIM;
-    assert_eq!(obs[skip_slot + 3], 1.0, "second action should encode skip");
-    assert_eq!(obs[skip_slot + 6], 1.0, "skip should still carry potion item kind");
+    let potion_slot = STATE_DIM + ACTION_FEAT_DIM;
+    assert_eq!(obs[potion_slot + 1], 1.0, "second action should select a reward");
+    assert_eq!(obs[potion_slot + 6], 1.0, "second reward should be the potion");
 
     let py_engine = PyRunEngine::new_py(42, 20);
     let select = RunAction::SelectRewardItem(0);
@@ -492,7 +491,7 @@ fn reward_action_features_distinguish_potion_and_boss_relic_states() {
     );
     assert_eq!(
         treasure_obs[RUN_DECISION_TAIL_OFFSET + 8],
-        0.6,
+        0.8,
         "Matryoshka should expand the treasure reward item count"
     );
 }
@@ -509,8 +508,11 @@ fn rl_surface_does_not_fabricate_blocked_campfire_or_empty_event_actions() {
 
     let campfire_context = engine.current_decision_context();
     assert!(campfire_context.campfire.is_some());
-    assert!(engine.get_legal_actions().is_empty());
-    assert!(engine.get_legal_decision_actions().is_empty());
+    assert_eq!(engine.get_legal_actions(), vec![RunAction::CampfireRecall]);
+    assert_eq!(
+        engine.get_legal_decision_actions(),
+        vec![DecisionAction::CampfireRecall]
+    );
 
     engine.debug_clear_event_state();
     let event_state = engine.current_decision_state();
@@ -642,5 +644,5 @@ fn decision_accessors_match_canonical_run_state() {
         .as_ref()
         .expect("treasure reward screen should be available");
     assert_eq!(treasure_screen.source, crate::decision::RewardScreenSource::Treasure);
-    assert_eq!(treasure_screen.items.len(), 3);
+    assert_eq!(treasure_screen.items.len(), 4);
 }

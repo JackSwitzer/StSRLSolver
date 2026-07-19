@@ -7,6 +7,7 @@ use crate::run::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DecisionKind {
     NeowChoice,
+    ChestAction,
     CombatAction,
     CombatChoice,
     RewardScreen,
@@ -14,6 +15,7 @@ pub enum DecisionKind {
     EventOption,
     ShopAction,
     CampfireAction,
+    Proceed,
     GameOver,
 }
 
@@ -29,6 +31,7 @@ pub struct DecisionState {
 pub enum RewardScreenSource {
     Combat,
     BossCombat,
+    BossRelic,
     Campfire,
     Event,
     Treasure,
@@ -45,12 +48,24 @@ pub enum RewardItemState {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RewardKeyColor {
+    Ruby,
+    Emerald,
+    Sapphire,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RewardItemKind {
     CardChoice,
     Relic,
     Gold,
     Potion,
-    Key,
+    Key {
+        color: RewardKeyColor,
+        /// Sapphire is mutually exclusive with its chest relic. Java's
+        /// Emerald reward is independent and therefore leaves this empty.
+        linked_item_index: Option<usize>,
+    },
     Unknown,
 }
 
@@ -104,6 +119,12 @@ pub struct CombatPotionSlotContext {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PotionSlotContext {
+    pub slot: usize,
+    pub potion_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CombatChoiceOptionContext {
     pub index: usize,
     pub kind: String,
@@ -134,6 +155,23 @@ pub struct CombatContext {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MapDecisionContext {
     pub available_paths: usize,
+    pub paths: Vec<MapPathContext>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MapPathContext {
+    pub choice: usize,
+    pub x: usize,
+    pub y: usize,
+    pub room_type: String,
+    pub uses_winged_greaves: bool,
+    pub has_emerald_key: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChestDecisionContext {
+    /// Chest size is visible from the room art before the chest is opened.
+    pub size: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -200,23 +238,34 @@ pub struct CampfireDecisionContext {
     pub removable_cards: Vec<usize>,
     pub can_lift: bool,
     pub can_dig: bool,
+    pub can_recall: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TransitionDecisionContext {
+    pub continuation: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DecisionContext {
     pub kind: DecisionKind,
+    /// Stable top-panel potion slots visible at every live decision.
+    pub potion_slots: Vec<PotionSlotContext>,
     pub neow: Option<NeowDecisionContext>,
+    pub chest: Option<ChestDecisionContext>,
     pub combat: Option<CombatContext>,
     pub reward_screen: Option<RewardScreen>,
     pub map: Option<MapDecisionContext>,
     pub event: Option<EventDecisionContext>,
     pub shop: Option<ShopDecisionContext>,
     pub campfire: Option<CampfireDecisionContext>,
+    pub transition: Option<TransitionDecisionContext>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DecisionFrame {
     Neow(NeowDecisionContext),
+    Chest(ChestDecisionContext),
     Combat(CombatContext),
     CombatChoice(CombatChoiceContext),
     RewardScreen { source: RewardScreenSource },
@@ -225,6 +274,7 @@ pub enum DecisionFrame {
     Event(EventDecisionContext),
     Shop(ShopDecisionContext),
     Campfire(CampfireDecisionContext),
+    Transition(TransitionDecisionContext),
     GameOver,
 }
 
@@ -232,6 +282,7 @@ impl DecisionFrame {
     pub fn kind(&self) -> DecisionKind {
         match self {
             Self::Neow(_) => DecisionKind::NeowChoice,
+            Self::Chest(_) => DecisionKind::ChestAction,
             Self::Combat(_) => DecisionKind::CombatAction,
             Self::CombatChoice(_) => DecisionKind::CombatChoice,
             Self::RewardScreen { .. } | Self::RewardChoice(_) => DecisionKind::RewardScreen,
@@ -239,6 +290,7 @@ impl DecisionFrame {
             Self::Event(_) => DecisionKind::EventOption,
             Self::Shop(_) => DecisionKind::ShopAction,
             Self::Campfire(_) => DecisionKind::CampfireAction,
+            Self::Transition(_) => DecisionKind::Proceed,
             Self::GameOver => DecisionKind::GameOver,
         }
     }
@@ -304,6 +356,8 @@ impl DecisionStack {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum DecisionAction {
     ChooseNeowOption(usize),
+    OpenChest,
+    LeaveChest,
     ChooseMapPath(usize),
     Combat(Action),
     ClaimRewardItem {
@@ -316,11 +370,14 @@ pub enum DecisionAction {
     SkipRewardItem {
         item_index: usize,
     },
+    LeaveRewards,
+    Proceed,
     CampfireRest,
     CampfireUpgrade(usize),
     CampfireToke,
     CampfireLift,
     CampfireDig,
+    CampfireRecall,
     ShopBuyCard(usize),
     ShopBuyRelic(usize),
     ShopBuyPotion(usize),
@@ -328,12 +385,15 @@ pub enum DecisionAction {
     ShopLeave,
     EventChoice(usize),
     UsePotion(usize),
+    DiscardPotion(usize),
 }
 
 impl DecisionAction {
     pub fn to_run_action(&self) -> RunAction {
         match self {
             Self::ChooseNeowOption(idx) => RunAction::ChooseNeowOption(*idx),
+            Self::OpenChest => RunAction::OpenChest,
+            Self::LeaveChest => RunAction::LeaveChest,
             Self::ChooseMapPath(idx) => RunAction::ChoosePath(*idx),
             Self::Combat(action) => RunAction::CombatAction(action.clone()),
             Self::ClaimRewardItem { item_index } => RunAction::SelectRewardItem(*item_index),
@@ -345,11 +405,14 @@ impl DecisionAction {
                 choice_index: *choice_index,
             },
             Self::SkipRewardItem { item_index } => RunAction::SkipRewardItem(*item_index),
+            Self::LeaveRewards => RunAction::LeaveRewards,
+            Self::Proceed => RunAction::Proceed,
             Self::CampfireRest => RunAction::CampfireRest,
             Self::CampfireUpgrade(idx) => RunAction::CampfireUpgrade(*idx),
             Self::CampfireToke => RunAction::CampfireToke,
             Self::CampfireLift => RunAction::CampfireLift,
             Self::CampfireDig => RunAction::CampfireDig,
+            Self::CampfireRecall => RunAction::CampfireRecall,
             Self::ShopBuyCard(idx) => RunAction::ShopBuyCard(*idx),
             Self::ShopBuyRelic(idx) => RunAction::ShopBuyRelic(*idx),
             Self::ShopBuyPotion(idx) => RunAction::ShopBuyPotion(*idx),
@@ -357,12 +420,15 @@ impl DecisionAction {
             Self::ShopLeave => RunAction::ShopLeave,
             Self::EventChoice(idx) => RunAction::EventChoice(*idx),
             Self::UsePotion(idx) => RunAction::UsePotion(*idx),
+            Self::DiscardPotion(idx) => RunAction::DiscardPotion(*idx),
         }
     }
 
     pub fn from_run_action(action: &RunAction, phase: RunPhase) -> Self {
         match action {
             RunAction::ChooseNeowOption(idx) => Self::ChooseNeowOption(*idx),
+            RunAction::OpenChest => Self::OpenChest,
+            RunAction::LeaveChest => Self::LeaveChest,
             RunAction::ChoosePath(idx) => Self::ChooseMapPath(*idx),
             RunAction::SelectRewardItem(item_index) => Self::ClaimRewardItem {
                 item_index: *item_index,
@@ -377,11 +443,14 @@ impl DecisionAction {
             RunAction::SkipRewardItem(item_index) => Self::SkipRewardItem {
                 item_index: *item_index,
             },
+            RunAction::LeaveRewards => Self::LeaveRewards,
+            RunAction::Proceed => Self::Proceed,
             RunAction::CampfireRest => Self::CampfireRest,
             RunAction::CampfireUpgrade(idx) => Self::CampfireUpgrade(*idx),
             RunAction::CampfireToke => Self::CampfireToke,
             RunAction::CampfireLift => Self::CampfireLift,
             RunAction::CampfireDig => Self::CampfireDig,
+            RunAction::CampfireRecall => Self::CampfireRecall,
             RunAction::ShopBuyCard(idx) => Self::ShopBuyCard(*idx),
             RunAction::ShopBuyRelic(idx) => Self::ShopBuyRelic(*idx),
             RunAction::ShopBuyPotion(idx) => Self::ShopBuyPotion(*idx),
@@ -389,6 +458,7 @@ impl DecisionAction {
             RunAction::ShopLeave => Self::ShopLeave,
             RunAction::EventChoice(idx) => Self::EventChoice(*idx),
             RunAction::UsePotion(idx) => Self::UsePotion(*idx),
+            RunAction::DiscardPotion(idx) => Self::DiscardPotion(*idx),
             RunAction::CombatAction(action) => {
                 let _ = phase;
                 Self::Combat(action.clone())

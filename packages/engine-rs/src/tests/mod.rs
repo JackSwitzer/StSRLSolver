@@ -183,3 +183,4 @@ mod test_runtime_inline_cutover_wave1;
 mod test_runtime_inline_cutover_wave2;
 mod test_trace_oracle;
 mod test_trace_schema;
+mod test_trace_schema_v2;

@@ -32,6 +32,9 @@ fn secret_portal_transitions_into_boss_combat() {
     engine.debug_force_current_combat_outcome(true);
     let reward = engine.debug_resolve_current_combat_outcome();
     assert!(reward > 0.0);
+    assert_eq!(engine.current_phase(), RunPhase::Transition);
+    assert_eq!(engine.run_state.floor, 43);
+    assert!(engine.step_with_result(&RunAction::Proceed).action_accepted);
     assert_eq!(engine.current_phase(), RunPhase::Event);
     assert_eq!(engine.run_state.floor, 44);
     assert_eq!(

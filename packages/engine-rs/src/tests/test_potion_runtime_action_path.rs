@@ -1,6 +1,7 @@
 use crate::actions::Action;
 use crate::cards::CardType;
 use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
+use crate::run::{RunAction, RunEngine, RunPhase, ShopState};
 use crate::state::Stance;
 use crate::status_ids::sid;
 use crate::tests::support::{
@@ -66,6 +67,18 @@ const COLORLESS_CHOICES: &[&str] = &[
     "Trip",
     "Violence",
 ];
+
+fn has_discard_potion_action(engine: &RunEngine, slot: usize) -> bool {
+    engine.get_legal_actions().iter().any(
+        |action| matches!(action, RunAction::DiscardPotion(action_slot) if *action_slot == slot),
+    )
+}
+
+fn has_noncombat_use_potion_action(engine: &RunEngine, slot: usize) -> bool {
+    engine
+        .get_legal_actions()
+        .contains(&RunAction::UsePotion(slot))
+}
 
 #[test]
 fn blood_potion_heals_twenty_percent_at_every_ascension_and_bark_doubles_it() {
@@ -956,4 +969,191 @@ fn smoke_bomb_uses_runtime_action_path_and_consumes_its_slot() {
         record.event == crate::effects::trigger::Trigger::ManualActivation
             && record.def_id == Some("SmokeBomb")
     }));
+}
+
+#[test]
+fn discard_potion_is_legal_across_representative_live_decision_frames() {
+    // AbstractPotion.canDiscard is independent of room phase. TopPanel keeps
+    // occupied potion slots interactive while ordinary run screens are open,
+    // and PotionPopUp destroys the selected slot through the same discard path.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/AbstractPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/panels/PotionPopUp.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/panels/TopPanel.java
+    let mut run = RunEngine::new(42, 0);
+    run.run_state.potions[1] = "Dexterity Potion".to_string();
+    assert!(has_discard_potion_action(&run, 1), "Neow");
+
+    run.phase = RunPhase::MapChoice;
+    assert!(has_discard_potion_action(&run, 1), "map");
+
+    run.debug_set_card_reward_screen(vec!["Strike".to_string()]);
+    assert!(has_discard_potion_action(&run, 1), "reward screen");
+
+    run.debug_set_campfire_phase();
+    assert!(has_discard_potion_action(&run, 1), "campfire");
+
+    run.debug_set_shop_state(ShopState {
+        cards: Vec::new(),
+        relics: Vec::new(),
+        potions: Vec::new(),
+        remove_price: 75,
+        removal_used: false,
+    });
+    assert!(has_discard_potion_action(&run, 1), "shop");
+
+    let ordinary_event = crate::events::typed_events_for_act(1)
+        .into_iter()
+        .find(|event| event.name == "Big Fish")
+        .expect("Act 1 should contain Big Fish");
+    run.debug_set_typed_event_state(ordinary_event);
+    assert!(has_discard_potion_action(&run, 1), "ordinary event");
+
+    let mut combat = RunEngine::new(42, 0);
+    combat.run_state.potions[1] = "Dexterity Potion".to_string();
+    combat.debug_enter_specific_combat(&["JawWorm"]);
+    assert!(has_discard_potion_action(&combat, 1), "combat");
+}
+
+#[test]
+fn we_meet_again_empty_slots_and_game_over_block_potion_discard() {
+    // AbstractPotion.canDiscard rejects WeMeetAgain specifically. PotionPopUp
+    // can only open for a real occupied potion, while terminal runs expose no
+    // live top-panel action surface.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/AbstractPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/panels/PotionPopUp.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/panels/TopPanel.java
+    let mut run = RunEngine::new(73, 0);
+    run.run_state.potions = vec![
+        "FairyPotion".to_string(),
+        String::new(),
+        "SmokeBomb".to_string(),
+    ];
+    run.phase = RunPhase::MapChoice;
+    assert!(!has_discard_potion_action(&run, 1), "empty slot");
+
+    let we_meet_again = crate::events::typed_shrine_events()
+        .into_iter()
+        .find(|event| event.name == "WeMeetAgain")
+        .expect("shrine pool should contain WeMeetAgain");
+    run.debug_set_typed_event_state(we_meet_again);
+    assert!(!has_discard_potion_action(&run, 0));
+    assert!(!has_discard_potion_action(&run, 2));
+
+    run.run_state.run_over = true;
+    run.phase = RunPhase::GameOver;
+    assert!(run.get_legal_actions().is_empty());
+}
+
+#[test]
+fn fairy_and_boss_blocked_smoke_bomb_remain_discardable() {
+    // FairyPotion.canUse always returns false. SmokeBomb.canUse returns false
+    // against a boss, but neither override changes AbstractPotion.canDiscard.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FairyPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/SmokeBomb.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/AbstractPotion.java
+    let mut run = RunEngine::new(97, 0);
+    run.run_state.potions = vec![
+        "FairyPotion".to_string(),
+        "SmokeBomb".to_string(),
+        String::new(),
+    ];
+    run.debug_enter_specific_combat(&["TheGuardian"]);
+
+    let actions = run.get_legal_actions();
+    assert!(!actions.iter().any(|action| {
+        matches!(
+            action,
+            RunAction::CombatAction(Action::UsePotion { potion_idx: 0, .. })
+        )
+    }));
+    assert!(!actions.iter().any(|action| {
+        matches!(
+            action,
+            RunAction::CombatAction(Action::UsePotion { potion_idx: 1, .. })
+        )
+    }));
+    assert!(has_discard_potion_action(&run, 0));
+    assert!(has_discard_potion_action(&run, 1));
+}
+
+#[test]
+fn discard_potion_only_destroys_the_slot_and_preserves_callbacks_and_rng() {
+    // PotionPopUp's discard branch calls destroyPotion directly: it does not
+    // invoke AbstractPotion.use, ManualActivation, OnPotionUsed, or relic use
+    // callbacks. The UI's discard sound is presentation-only and consumes no
+    // named dungeon RNG stream.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/panels/PotionPopUp.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/panels/TopPanel.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/AbstractPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/ToyOrnithopter.java
+    let mut run = RunEngine::new_with_ambient_seed(101, 0, 202);
+    run.run_state.current_hp = 30;
+    run.run_state.relics.push("Toy Ornithopter".to_string());
+    run.run_state.potions = vec![
+        "FairyPotion".to_string(),
+        "SwiftPotion".to_string(),
+        "SmokeBomb".to_string(),
+    ];
+    run.debug_enter_specific_combat(&["JawWorm"]);
+
+    {
+        let combat = run.debug_combat_engine_mut();
+        combat.state.player.hp = 30;
+        combat.state.player.set_status(sid::POTION_DRAW, 2);
+        combat.clear_event_log();
+    }
+    let rng_before = run.rng_counters();
+    let ambient_before = run.ambient_math_rng_state();
+    let java_collections_before = run
+        .get_combat_engine()
+        .expect("active combat")
+        .java_collections_rng_state();
+
+    let result = run.step_with_result(&RunAction::DiscardPotion(1));
+
+    assert!(result.action_accepted);
+    assert_eq!(run.rng_counters(), rng_before);
+    assert_eq!(run.ambient_math_rng_state(), ambient_before);
+    let combat = run
+        .get_combat_engine()
+        .expect("discard keeps combat active");
+    assert_eq!(combat.java_collections_rng_state(), java_collections_before);
+    assert_eq!(
+        combat.state.potions,
+        vec![
+            "FairyPotion".to_string(),
+            String::new(),
+            "SmokeBomb".to_string()
+        ]
+    );
+    assert_eq!(combat.state.player.hp, 30, "Toy Ornithopter must not heal");
+    assert_eq!(combat.state.player.status(sid::POTION_DRAW), 2);
+    assert!(combat.event_log.is_empty());
+    assert!(run.last_combat_events().is_empty());
+}
+
+#[test]
+fn blood_potion_and_entropic_brew_are_usable_outside_combat_except_we_meet_again() {
+    // Both potions override canUse so they are legal outside combat whenever
+    // the current event is not WeMeetAgain.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/BloodPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/EntropicBrew.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/events/shrines/WeMeetAgain.java
+    let mut run = RunEngine::new(131, 0);
+    run.run_state.potions = vec![
+        "BloodPotion".to_string(),
+        "EntropicBrew".to_string(),
+        String::new(),
+    ];
+    run.phase = RunPhase::MapChoice;
+    assert!(has_noncombat_use_potion_action(&run, 0));
+    assert!(has_noncombat_use_potion_action(&run, 1));
+
+    let we_meet_again = crate::events::typed_shrine_events()
+        .into_iter()
+        .find(|event| event.name == "WeMeetAgain")
+        .expect("shrine pool should contain WeMeetAgain");
+    run.debug_set_typed_event_state(we_meet_again);
+    assert!(!has_noncombat_use_potion_action(&run, 0));
+    assert!(!has_noncombat_use_potion_action(&run, 1));
 }

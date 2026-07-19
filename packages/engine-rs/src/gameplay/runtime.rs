@@ -254,6 +254,7 @@ fn decision_program_from_snapshot(
         crate::decision::DecisionKind::NeowChoice => decision_context
             .and_then(|context| context.neow.as_ref())
             .map(gameplay_program_for_neow_context),
+        crate::decision::DecisionKind::ChestAction => None,
         crate::decision::DecisionKind::RewardScreen => {
             reward_screen.map(gameplay_program_for_reward_screen)
         }
@@ -272,7 +273,9 @@ fn decision_program_from_snapshot(
         crate::decision::DecisionKind::CombatChoice => decision_context
             .and_then(|context| context.combat.as_ref())
             .map(|combat| gameplay_program_for_combat_choice(&combat.choice)),
-        crate::decision::DecisionKind::CombatAction | crate::decision::DecisionKind::GameOver => {
+        crate::decision::DecisionKind::CombatAction
+        | crate::decision::DecisionKind::Proceed
+        | crate::decision::DecisionKind::GameOver => {
             None
         }
     }
