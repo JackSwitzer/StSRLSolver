@@ -41,6 +41,18 @@ Any commit observed through a generic path that doesn't map to the table emits
 validator (P4) fails a recording containing UNKNOWN, which is the signal to add
 the missing hook. This is the completeness ratchet.
 
+This only catches decisions that reach a commit hook of *some* kind. A
+decision with NO hook at all (like Empty Cage's `BOSS_RELIC` before the fix
+above) produces no record whatsoever, so UNKNOWN can't see it — its effect
+just silently rides along on the state snapshot of whatever the next
+recorded action happens to be. `scripts/validate_recording.sh` complements
+the UNKNOWN check with a state-delta cross-check: it diffs `post.relics`
+length and `deck` length between consecutive action records and fails if
+either changes on an action type that can't legitimately explain it (see the
+allowlist and its derivation comment in `validate_recording.sh`). This is
+how the Empty Cage gap was originally found (pilot sitting 2, idx 67->68) and
+is now the regression test for it.
+
 ## Snapshot pairing rule
 
 One pending action at a time: a commit hook while another pending action awaits
