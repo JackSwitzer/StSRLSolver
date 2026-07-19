@@ -232,11 +232,12 @@ public class RecordPatches {
 
     // --------------------------------------------------------------- rewards
 
-    // decompiled RewardItem.java:255 — record only successful claims.
+    // decompiled RewardItem.java:255 — claimReward sets isDone on success, so
+    // a plain Postfix on the instance avoids MTS's return-value param rules.
     @SpirePatch(clz = RewardItem.class, method = "claimReward")
     public static class ClaimReward {
-        public static void Postfix(boolean __result, RewardItem __instance) {
-            if (!Recorder.active() || !__result) {
+        public static void Postfix(RewardItem __instance) {
+            if (!Recorder.active() || !__instance.isDone) {
                 return;
             }
             String id = "";
