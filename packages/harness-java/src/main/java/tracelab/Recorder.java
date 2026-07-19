@@ -32,9 +32,6 @@ public final class Recorder {
 
     /** Set by RecordPatches when CardCrawlGame.loadPlayerSave runs (continue run). */
     public static boolean resumeDetected = false;
-    /** Frame counter of the last SaveAndContinue.save call, for SAVE_QUIT vs ABANDON. */
-    private static long lastSaveFrame = Long.MIN_VALUE;
-    private static long frame = 0;
     /** Set within a frame when a potion `use` was recorded, so the paired
      *  TopPanel.destroyPotion is not double-recorded as a discard. */
     public static int potionUsedSlotThisFrame = -1;
@@ -71,15 +68,10 @@ public final class Recorder {
         pending.addLast(action);
     }
 
-    public static void noteSave() {
-        lastSaveFrame = frame;
-    }
-
     static void update() {
         if (!enabled) {
             return;
         }
-        frame++;
         potionUsedSlotThisFrame = -1;
 
         if (writer == null) {
@@ -91,12 +83,13 @@ public final class Recorder {
         }
 
         if (!CardCrawlGame.isInARun()) {
-            // Back at the menu with an open recording: save-and-quit if the
-            // game saved just before leaving, otherwise the run was abandoned.
-            // Death/victory close earlier via their own patches.
+            // Back at the menu with an open recording: SAVE_QUIT if a usable
+            // save file exists for this run's character (the same signal
+            // the game's own "Continue" flow relies on — decompiled
+            // SaveAndContinue.java:51-68), ABANDON otherwise. Death/victory
+            // close earlier via their own patches and never reach here.
             drainAll();
-            boolean savedRecently = frame - lastSaveFrame < 600;
-            closeRun(savedRecently ? "SAVE_QUIT" : "ABANDON");
+            closeRun(writer.hasUsableSave() ? "SAVE_QUIT" : "ABANDON");
             return;
         }
 

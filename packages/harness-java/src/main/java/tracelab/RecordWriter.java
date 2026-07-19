@@ -1,10 +1,13 @@
 package tracelab;
 
+import com.badlogic.gdx.Gdx;
 import com.google.gson.Gson;
+import com.megacrit.cardcrawl.characters.AbstractPlayer;
 import com.megacrit.cardcrawl.core.CardCrawlGame;
 import com.megacrit.cardcrawl.core.Settings;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.helpers.SeedHelper;
+import com.megacrit.cardcrawl.saveAndContinue.SaveAndContinue;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -64,12 +67,12 @@ final class RecordWriter {
         }
 
         if (resume) {
-            RecordWriter reopened = findInProgress(root, seedLong, character);
+            RecordWriter reopened = findReattachable(root, seedLong, character);
             if (reopened != null) {
                 reopened.addSitting();
                 return reopened;
             }
-            System.err.println("[TraceLab] resume detected but no in-progress recording for seed "
+            System.err.println("[TraceLab] resume detected but no in-progress/save-quit recording for seed "
                     + seedLong + "; starting fresh artifacts");
         }
 
@@ -97,12 +100,27 @@ final class RecordWriter {
         return writer;
     }
 
+    // Fix 3(b): reattach on resume. "in_progress" is the crash-recovery case
+    // (the previous sitting never got a chance to close the recording at
+    // all); "SAVE_QUIT" is the normal case — the player saved-and-quit, and
+    // CardCrawlGame.loadPlayerSave (decompiled CardCrawlGame.java:855) fires
+    // when they hit Continue, so the SAME run directory must be reopened
+    // rather than split into a second one. When multiple SAVE_QUIT
+    // directories match the same seed+character (e.g. the same seed replayed
+    // across sessions), the most recent one wins — directory names embed a
+    // yyyyMMdd-HHmmss suffix (see `open`), so lexical order is chronological
+    // order. An in_progress match always wins over a SAVE_QUIT match: it
+    // means a prior sitting is still (spuriously) open and is the more
+    // authoritative target to reattach to.
     @SuppressWarnings("unchecked")
-    private static RecordWriter findInProgress(File root, long seedLong, String character) {
+    private static RecordWriter findReattachable(File root, long seedLong, String character) throws IOException {
         File[] candidates = root.listFiles();
         if (candidates == null) {
             return null;
         }
+        File bestDir = null;
+        Map<String, Object> bestMeta = null;
+        boolean bestInProgress = false;
         for (File dir : candidates) {
             File metaFile = new File(dir, "meta.json");
             if (!metaFile.isFile()) {
@@ -111,20 +129,65 @@ final class RecordWriter {
             try {
                 String raw = new String(Files.readAllBytes(metaFile.toPath()), StandardCharsets.UTF_8);
                 Map<String, Object> meta = GSON.fromJson(raw, LinkedHashMap.class);
-                boolean match = "in_progress".equals(meta.get("status"))
+                String status = (String) meta.get("status");
+                boolean inProgress = "in_progress".equals(status);
+                boolean reattachable = inProgress || "SAVE_QUIT".equals(status);
+                boolean match = reattachable
                         && meta.get("seed_long") instanceof Number
                         && ((Number) meta.get("seed_long")).longValue() == seedLong
                         && character.equals(meta.get("character"));
-                if (match) {
-                    RecordWriter writer = new RecordWriter(dir, meta, true);
-                    System.out.println("[TraceLab] resuming recording " + dir);
-                    return writer;
+                if (!match) {
+                    continue;
+                }
+                boolean better = bestDir == null
+                        || (inProgress && !bestInProgress)
+                        || (inProgress == bestInProgress && dir.getName().compareTo(bestDir.getName()) > 0);
+                if (better) {
+                    bestDir = dir;
+                    bestMeta = meta;
+                    bestInProgress = inProgress;
                 }
             } catch (Exception e) {
                 System.err.println("[TraceLab] skipping unreadable recording meta " + metaFile + ": " + e);
             }
         }
-        return null;
+        if (bestDir == null) {
+            return null;
+        }
+        RecordWriter writer = new RecordWriter(bestDir, bestMeta, true);
+        if (!bestInProgress) {
+            // Was SAVE_QUIT: this sitting resumes it, so it's open again.
+            writer.meta.put("status", "in_progress");
+        }
+        System.out.println("[TraceLab] resuming recording " + bestDir
+                + " (was " + (bestInProgress ? "in_progress" : "SAVE_QUIT") + ")");
+        return writer;
+    }
+
+    /** Fix 3(a): whether a usable save exists for this run's character —
+     * used to classify a return-to-menu as SAVE_QUIT vs ABANDON. Mirrors the
+     * file-existence half of SaveAndContinue.saveExistsAndNotCorrupted
+     * (decompiled SaveAndContinue.java:51-68), the same signal the game's
+     * own main menu uses to decide whether "Continue" is available. The
+     * corruption-recovery half of that method needs a live AbstractPlayer
+     * and, on a corrupt file, falls into loadSaveFile(PlayerClass), which
+     * calls Gdx.app.exit() on failure — not safe to invoke from an observer
+     * patch that must never affect game flow, so we resolve the save path
+     * from the run's recorded character instead of a live player instance
+     * (AbstractDungeon.player is already null by this point — MainMenuScreen
+     * nulls it in its constructor, decompiled MainMenuScreen.java:116).
+     */
+    boolean hasUsableSave() {
+        Object character = meta.get("character");
+        if (!(character instanceof String)) {
+            return false;
+        }
+        try {
+            AbstractPlayer.PlayerClass cls = AbstractPlayer.PlayerClass.valueOf((String) character);
+            return Gdx.files.local(SaveAndContinue.getPlayerSavePath(cls)).exists();
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 
     void writeAction(Map<String, Object> action) {

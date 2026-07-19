@@ -18,8 +18,6 @@ import com.megacrit.cardcrawl.relics.AbstractRelic;
 import com.megacrit.cardcrawl.rewards.RewardItem;
 import com.megacrit.cardcrawl.rewards.chests.AbstractChest;
 import com.megacrit.cardcrawl.rooms.AbstractRoom;
-import com.megacrit.cardcrawl.saveAndContinue.SaveAndContinue;
-import com.megacrit.cardcrawl.saveAndContinue.SaveFile;
 import com.megacrit.cardcrawl.screens.CardRewardScreen;
 import com.megacrit.cardcrawl.screens.DeathScreen;
 import com.megacrit.cardcrawl.screens.VictoryScreen;
@@ -494,13 +492,6 @@ public class RecordPatches {
     }
 
     // -------------------------------------------------------------- lifecycle
-
-    @SpirePatch(clz = SaveAndContinue.class, method = "save")
-    public static class NoteSave {
-        public static void Postfix(SaveFile save) {
-            Recorder.noteSave();
-        }
-    }
 
     // Private (decompiled CardCrawlGame.java:855); marks the next dungeon
     // attach as a resumed run.
