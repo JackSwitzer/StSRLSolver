@@ -703,10 +703,10 @@ fn deep_breath_only_shuffles_a_nonempty_discard_and_consumes_two_shuffle_ticks()
     force_player_turn(&mut empty);
     empty.state.hand = make_deck(&["Deep Breath"]);
     empty.clear_event_log();
-    let empty_rng_before = empty.rng.counter;
+    let empty_rng_before = empty.shuffle_rng.counter;
 
     assert!(play_self(&mut empty, "Deep Breath"));
-    assert_eq!(empty.rng.counter, empty_rng_before);
+    assert_eq!(empty.shuffle_rng.counter, empty_rng_before);
     assert_eq!(hand_count(&empty, "Defend"), 1);
     assert_eq!(
         empty
@@ -726,10 +726,10 @@ fn deep_breath_only_shuffles_a_nonempty_discard_and_consumes_two_shuffle_ticks()
     shuffled.state.hand = make_deck(&["Deep Breath+"]);
     shuffled.state.discard_pile = make_deck(&["Defend", "Bash"]);
     shuffled.clear_event_log();
-    let shuffled_rng_before = shuffled.rng.counter;
+    let shuffled_rng_before = shuffled.shuffle_rng.counter;
 
     assert!(play_self(&mut shuffled, "Deep Breath+"));
-    assert_eq!(shuffled.rng.counter, shuffled_rng_before + 2);
+    assert_eq!(shuffled.shuffle_rng.counter, shuffled_rng_before + 2);
     assert_eq!(shuffled.state.hand.len(), 2);
     assert_eq!(shuffled.state.draw_pile.len(), 1);
     assert_eq!(

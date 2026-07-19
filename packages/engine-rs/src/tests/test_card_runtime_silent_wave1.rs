@@ -112,7 +112,7 @@ mod silent_wave1 {
         let confusion_seed = (0u64..100)
             .find(|seed| {
                 let mut rng = crate::seed::StsRandom::new(*seed);
-                rng.random(3) == 3
+                rng.random_int(3) == 3
             })
             .expect("a seed whose first Confusion roll is three");
         let mut confusion_engine = CombatEngine::new(

@@ -832,7 +832,7 @@ impl EffectRuntime {
                     } else {
                         engine
                             .card_random_rng
-                            .random((engine.state.hand.len() - 1) as i32) as usize
+                            .random_int((engine.state.hand.len() - 1) as i32) as usize
                     };
                     let exhausted = engine.state.hand.remove(idx);
                     engine.state.exhaust_pile.push(exhausted);
@@ -969,7 +969,7 @@ impl EffectRuntime {
                     Target::RandomEnemy => {
                         let living = engine.state.living_enemy_indices();
                         if !living.is_empty() {
-                            let idx = living[engine.rng_gen_range(0..living.len())];
+                            let idx = living[engine.card_random_rng.random_index(living.len())];
                             engine.state.enemies[idx].entity.block = 0;
                         }
                     }
@@ -1008,7 +1008,7 @@ impl EffectRuntime {
                     if engine.state.draw_pile.is_empty() {
                         engine.state.draw_pile.push(card);
                     } else {
-                        let idx = engine.card_random_rng.random_range(
+                        let idx = engine.card_random_rng.random_int_range(
                             0,
                             (engine.state.draw_pile.len() - 1) as i32,
                         ) as usize;
@@ -1056,45 +1056,15 @@ impl EffectRuntime {
                     crate::orbs::OrbType::Plasma,
                 ];
                 for _ in 0..count {
-                    let idx = engine.card_random_rng.random(3) as usize;
+                    let idx = engine.card_random_rng.random_int(3) as usize;
                     engine.channel_orb(orb_types[idx]);
                 }
             }
             SimpleEffect::DrawRandomCardsFromPileToHand(pile, filter, count_src) => {
                 let count = self.resolve_amount(engine, instance_idx, owner, count_src).max(0) as usize;
-                if count == 0 {
-                    return;
-                }
-                let mut picked = Vec::new();
-                let mut eligible: Vec<usize> = self
-                    .pile_ref(engine, pile)
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, card)| self.matches_filter(engine, card, filter))
-                    .map(|(idx, _)| idx)
-                    .collect();
-                for _ in 0..count {
-                    if eligible.is_empty() {
-                        break;
-                    }
-                    let choice_idx = engine.rng_gen_range(0..eligible.len());
-                    let idx = eligible.remove(choice_idx);
-                    let source = self.pile_ref_mut(engine, pile);
-                    if idx < source.len() {
-                        picked.push(source.remove(idx));
-                        eligible = eligible
-                            .into_iter()
-                            .map(|n| if n > idx { n - 1 } else { n })
-                            .collect();
-                    }
-                }
-                for card in picked {
-                    if engine.state.hand.len() < 10 {
-                        engine.state.hand.push(card);
-                    } else {
-                        engine.state.discard_pile.push(card);
-                    }
-                }
+                crate::effects::interpreter::draw_random_cards_from_pile_to_hand(
+                    engine, pile, filter, count,
+                );
             }
             SimpleEffect::RemoveOrbSlot => {
                 let focus = engine.state.player.focus();
@@ -1286,70 +1256,6 @@ impl EffectRuntime {
         engine.begin_choice_with_named_payloads(ChoiceReason::PickOption, options, 1, 1, payloads);
     }
 
-    fn pile_ref<'a>(
-        &self,
-        engine: &'a CombatEngine,
-        pile: crate::effects::declarative::Pile,
-    ) -> &'a [crate::combat_types::CardInstance] {
-        match pile {
-            crate::effects::declarative::Pile::Hand => &engine.state.hand,
-            crate::effects::declarative::Pile::Draw => &engine.state.draw_pile,
-            crate::effects::declarative::Pile::Discard => &engine.state.discard_pile,
-            crate::effects::declarative::Pile::Exhaust => &engine.state.exhaust_pile,
-        }
-    }
-
-    fn pile_ref_mut<'a>(
-        &self,
-        engine: &'a mut CombatEngine,
-        pile: crate::effects::declarative::Pile,
-    ) -> &'a mut Vec<crate::combat_types::CardInstance> {
-        match pile {
-            crate::effects::declarative::Pile::Hand => &mut engine.state.hand,
-            crate::effects::declarative::Pile::Draw => &mut engine.state.draw_pile,
-            crate::effects::declarative::Pile::Discard => &mut engine.state.discard_pile,
-            crate::effects::declarative::Pile::Exhaust => &mut engine.state.exhaust_pile,
-        }
-    }
-
-    fn matches_filter(
-        &self,
-        engine: &CombatEngine,
-        card: &crate::combat_types::CardInstance,
-        filter: crate::effects::declarative::CardFilter,
-    ) -> bool {
-        match filter {
-            crate::effects::declarative::CardFilter::All => true,
-            crate::effects::declarative::CardFilter::NonExhume => {
-                let id = engine.card_registry.card_def_by_id(card.def_id).id;
-                id.strip_suffix('+').unwrap_or(id) != "Exhume"
-            }
-            crate::effects::declarative::CardFilter::Attacks => {
-                engine.card_registry.card_def_by_id(card.def_id).card_type == crate::cards::CardType::Attack
-            }
-            crate::effects::declarative::CardFilter::AttackOrPower => {
-                matches!(
-                    engine.card_registry.card_def_by_id(card.def_id).card_type,
-                    crate::cards::CardType::Attack | crate::cards::CardType::Power
-                )
-            }
-            crate::effects::declarative::CardFilter::Skills => {
-                engine.card_registry.card_def_by_id(card.def_id).card_type == crate::cards::CardType::Skill
-            }
-            crate::effects::declarative::CardFilter::NonAttacks => {
-                engine.card_registry.card_def_by_id(card.def_id).card_type != crate::cards::CardType::Attack
-            }
-            crate::effects::declarative::CardFilter::ZeroCost => {
-                let def = engine.card_registry.card_def_by_id(card.def_id);
-                let current_cost = if card.cost >= 0 { card.cost as i32 } else { def.cost };
-                current_cost == 0 || card.is_free()
-            }
-            crate::effects::declarative::CardFilter::Upgradeable => {
-                engine.card_registry.can_upgrade_card(card)
-            }
-        }
-    }
-
     fn evaluate_effect_condition(
         &self,
         engine: &CombatEngine,
@@ -1528,7 +1434,7 @@ impl EffectRuntime {
             if len == 0 {
                 break;
             }
-            let idx = engine.card_random_rng.random((len - 1) as i32) as usize;
+            let idx = engine.card_random_rng.random_int((len - 1) as i32) as usize;
             let source = match pile {
                 Pile::Hand => &mut engine.state.hand,
                 Pile::Draw => &mut engine.state.draw_pile,
@@ -1686,7 +1592,7 @@ impl EffectRuntime {
             Target::RandomEnemy => {
                 let living = engine.state.living_enemy_indices();
                 if !living.is_empty() {
-                    let idx = living[engine.rng_gen_range(0..living.len())];
+                    let idx = living[engine.card_random_rng.random_index(living.len())];
                     if is_debuff(status_id) {
                         match owner {
                             EffectOwner::EnemyPower { .. } => {
@@ -1744,7 +1650,7 @@ impl EffectRuntime {
             Target::RandomEnemy => {
                 let living = engine.state.living_enemy_indices();
                 if !living.is_empty() {
-                    let idx = living[engine.rng_gen_range(0..living.len())];
+                    let idx = living[engine.card_random_rng.random_index(living.len())];
                     engine.state.enemies[idx].entity.set_status(status_id, value);
                 }
             }
@@ -1824,7 +1730,7 @@ impl EffectRuntime {
             Target::RandomEnemy => {
                 let living = engine.state.living_enemy_indices();
                 if !living.is_empty() {
-                    let idx = living[engine.rng_gen_range(0..living.len())];
+                    let idx = living[engine.card_random_rng.random_index(living.len())];
                     engine.deal_damage_to_enemy(idx, amount);
                 }
             }
@@ -1871,7 +1777,7 @@ impl EffectRuntime {
             Target::RandomEnemy => {
                 let living = engine.state.living_enemy_indices();
                 if !living.is_empty() {
-                    let idx = living[engine.rng_gen_range(0..living.len())];
+                    let idx = living[engine.card_random_rng.random_index(living.len())];
                     let enemy = &mut engine.state.enemies[idx].entity;
                     enemy.hp = (enemy.hp + amount).min(enemy.max_hp);
                 }

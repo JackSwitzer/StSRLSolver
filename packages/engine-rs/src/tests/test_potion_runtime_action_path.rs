@@ -278,7 +278,7 @@ fn distilled_chaos_preselects_random_targets_and_retries_after_shuffle() {
     let mut oracle = engine.card_random_rng.clone();
     let mut expected_hits = [0; 2];
     for _ in 0..3 {
-        expected_hits[oracle.random_range(0, 1) as usize] += 1;
+        expected_hits[oracle.random_int_range(0, 1) as usize] += 1;
     }
 
     use_potion(&mut engine, 0, -1);
@@ -639,7 +639,7 @@ fn snecko_oil_draws_then_randomizes_hand_costs_without_confusion() {
             assert_eq!(engine.card_registry.card_name(card.def_id), "Whirlwind");
             continue;
         }
-        let expected = oracle.random(3);
+        let expected = oracle.random_int(3);
         let actual = if card.base_cost >= 0 {
             card.base_cost as i32
         } else {

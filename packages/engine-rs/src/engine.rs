@@ -139,7 +139,14 @@ pub struct CombatEngine {
     pub state: CombatState,
     pub phase: CombatPhase,
     pub card_registry: &'static CardRegistry,
-    pub(crate) rng: crate::seed::StsRandom,
+    /// Java's persistent `AbstractDungeon.cardRng`, used by card-library
+    /// selection even when the request originates during combat.
+    pub(crate) card_rng: crate::seed::StsRandom,
+    /// Java's floor-local `AbstractDungeon.shuffleRng`.
+    pub(crate) shuffle_rng: crate::seed::StsRandom,
+    /// Java's floor-local `AbstractDungeon.monsterHpRng`, retained in combat
+    /// because summoned monsters roll HP when their constructors run.
+    pub(crate) monster_hp_rng: crate::seed::StsRandom,
     /// Java's `AbstractDungeon.cardRandomRng`, used by random card placement
     /// and card-owned random choices. RunEngine seeds this with seed + floor.
     pub(crate) card_random_rng: crate::seed::StsRandom,
@@ -194,24 +201,23 @@ impl CombatEngine {
     ) -> Self {
         Self::new_with_rng_streams(
             state,
-            crate::seed::StsRandom::new(seed),
-            crate::seed::StsRandom::new(card_random_seed),
-            crate::seed::StsRandom::new(card_random_seed),
-            crate::seed::StsRandom::new(card_random_seed),
-            // Standalone combat fixtures have no dungeon floor from which to
-            // derive Java's aiRng. Preserve their established independent
-            // deterministic stream; RunEngine injects the real floor stream.
-            crate::seed::StsRandom::new(seed.wrapping_add(0xA1A1_A1A1)),
+            crate::seed::CombatRngs {
+                card: crate::seed::StsRandom::new(seed),
+                monster_hp: crate::seed::StsRandom::new(seed),
+                shuffle: crate::seed::StsRandom::new(seed),
+                card_random: crate::seed::StsRandom::new(card_random_seed),
+                potion: crate::seed::StsRandom::new(card_random_seed),
+                misc: crate::seed::StsRandom::new(card_random_seed),
+                // Standalone combat fixtures have no dungeon floor from which
+                // to derive Java's aiRng. RunEngine injects the real stream.
+                ai: crate::seed::StsRandom::new(seed.wrapping_add(0xA1A1_A1A1)),
+            },
         )
     }
 
     pub(crate) fn new_with_rng_streams(
         state: CombatState,
-        shuffle_rng: crate::seed::StsRandom,
-        card_random_rng: crate::seed::StsRandom,
-        potion_rng: crate::seed::StsRandom,
-        misc_rng: crate::seed::StsRandom,
-        ai_rng: crate::seed::StsRandom,
+        rngs: crate::seed::CombatRngs,
     ) -> Self {
         let mut effect_runtime = crate::effects::runtime::EffectRuntime::default();
         effect_runtime.rebuild_from_state(&state);
@@ -219,11 +225,13 @@ impl CombatEngine {
             state,
             phase: CombatPhase::NotStarted,
             card_registry: crate::cards::global_registry(),
-            rng: shuffle_rng,
-            card_random_rng,
-            potion_rng,
-            misc_rng,
-            ai_rng,
+            card_rng: rngs.card,
+            shuffle_rng: rngs.shuffle,
+            monster_hp_rng: rngs.monster_hp,
+            card_random_rng: rngs.card_random,
+            potion_rng: rngs.potion,
+            misc_rng: rngs.misc,
+            ai_rng: rngs.ai,
             choice: None,
             effect_runtime,
             nightmare_pending_copies: Vec::new(),
@@ -245,6 +253,18 @@ impl CombatEngine {
         }
     }
 
+    pub(crate) fn rng_snapshot(&self) -> crate::seed::CombatRngs {
+        crate::seed::CombatRngs {
+            card: self.card_rng.clone(),
+            monster_hp: self.monster_hp_rng.clone(),
+            shuffle: self.shuffle_rng.clone(),
+            card_random: self.card_random_rng.clone(),
+            potion: self.potion_rng.clone(),
+            misc: self.misc_rng.clone(),
+            ai: self.ai_rng.clone(),
+        }
+    }
+
     pub fn rebuild_effect_runtime(&mut self) {
         self.effect_runtime.rebuild_from_state(&self.state);
     }
@@ -252,18 +272,24 @@ impl CombatEngine {
     /// RNG stream counters currently tracked by this combat, keyed by the
     /// vault's canonical short names (`docs/vault/rng-system-analysis.md`).
     /// Used by `bin/trace_replay.rs` (U05) to populate `trace::PostState::rng`.
-    /// The currently threaded card, cardRandom, misc, and enemy-AI streams are
-    /// reported independently; absent canonical streams remain schema-legal.
-    pub fn rng_counters(&self) -> std::collections::BTreeMap<String, u64> {
+    /// The currently threaded monsterHp, shuffle, cardRandom, potion, misc, and
+    /// enemy-AI streams are reported independently; absent canonical streams
+    /// remain schema-legal.
+    pub fn rng_counters(&self) -> std::collections::BTreeMap<String, i64> {
         let mut counters = std::collections::BTreeMap::new();
-        counters.insert("card".to_string(), self.rng.counter as u64);
+        counters.insert(
+            "monsterHp".to_string(),
+            i64::from(self.monster_hp_rng.counter),
+        );
+        counters.insert("card".to_string(), i64::from(self.card_rng.counter));
+        counters.insert("shuffle".to_string(), i64::from(self.shuffle_rng.counter));
         counters.insert(
             "cardRandom".to_string(),
-            self.card_random_rng.counter as u64,
+            i64::from(self.card_random_rng.counter),
         );
-        counters.insert("potion".to_string(), self.potion_rng.counter as u64);
-        counters.insert("misc".to_string(), self.misc_rng.counter as u64);
-        counters.insert("ai".to_string(), self.ai_rng.counter as u64);
+        counters.insert("potion".to_string(), i64::from(self.potion_rng.counter));
+        counters.insert("misc".to_string(), i64::from(self.misc_rng.counter));
+        counters.insert("ai".to_string(), i64::from(self.ai_rng.counter));
         counters
     }
 
@@ -410,7 +436,7 @@ impl CombatEngine {
         let living_enemy_count = self.state.enemies.iter()
             .filter(|enemy| enemy.is_alive()).count() as i32;
         for enemy in self.state.enemies.iter_mut().filter(|e| matches!(e.id.as_str(),
-            "FungiBeast" | "FuzzyLouseNormal" | "RedLouse"
+            "Cultist" | "FungiBeast" | "FuzzyLouseNormal" | "RedLouse"
                 | "FuzzyLouseDefensive" | "GreenLouse"
                 | "SlaverBlue" | "BlueSlaver" | "SlaverRed" | "RedSlaver"
                 | "AcidSlime_S" | "AcidSlime_M" | "AcidSlime_L"
@@ -444,6 +470,23 @@ impl CombatEngine {
             crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
         }
 
+        // MonsterGroup initializes every member before AbstractPlayer calls
+        // usePreBattleAction on the group. Louse Curl Up therefore consumes its
+        // monsterHpRng draw only after all opening aiRng draws.
+        // Java: MonsterGroup.java (`initialize`, `usePreBattleAction`) and
+        // AbstractPlayer.java (`preBattlePrep`).
+        for enemy in self.state.enemies.iter_mut().filter(|enemy| matches!(enemy.id.as_str(),
+            "FuzzyLouseNormal" | "RedLouse" | "FuzzyLouseDefensive" | "GreenLouse"))
+        {
+            let curl_min = enemy.entity.status(sid::BLOCK_AMT);
+            if curl_min > 0 {
+                let curl_max = if curl_min == 9 { 12 } else { curl_min + 4 };
+                let curl_up = self.monster_hp_rng.random_int_range(curl_min, curl_max);
+                enemy.entity.set_status(sid::CURL_UP, curl_up);
+                enemy.entity.set_status(sid::BLOCK_AMT, 0);
+            }
+        }
+
         // Apply combat-start relic + power effects via owner-aware runtime.
         self.emit_event(crate::effects::runtime::GameEvent::empty(
             crate::effects::trigger::Trigger::CombatStart,
@@ -455,7 +498,7 @@ impl CombatEngine {
         }
 
         // Shuffle draw pile
-        crate::seed::card_group_shuffle(&mut self.state.draw_pile, &mut self.rng);
+        crate::seed::card_group_shuffle(&mut self.state.draw_pile, &mut self.shuffle_rng);
 
         // Innate: move cards with "innate" tag to top of draw pile
         // Draw pile convention: index 0 = bottom, last = top
@@ -593,7 +636,9 @@ impl CombatEngine {
             state: self.state.clone(),
             phase: self.phase.clone(),
             card_registry: self.card_registry, // &'static ref — zero-cost copy
-            rng: self.rng.clone(),
+            card_rng: self.card_rng.clone(),
+            shuffle_rng: self.shuffle_rng.clone(),
+            monster_hp_rng: self.monster_hp_rng.clone(),
             card_random_rng: self.card_random_rng.clone(),
             potion_rng: self.potion_rng.clone(),
             misc_rng: self.misc_rng.clone(),
@@ -1090,7 +1135,7 @@ impl CombatEngine {
                             // inserts before one existing index.
                             let index = self
                                 .card_random_rng
-                                .random((self.state.draw_pile.len() - 1) as i32)
+                                .random_int((self.state.draw_pile.len() - 1) as i32)
                                 as usize;
                             self.state.draw_pile.insert(index, card);
                         }
@@ -1309,7 +1354,7 @@ impl CombatEngine {
                 // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
                 let selected = self
                     .card_random_rng
-                    .random_range(0, (living.len() - 1) as i32) as usize;
+                    .random_int_range(0, (living.len() - 1) as i32) as usize;
                 living[selected] as i32
             }
         } else {
@@ -2972,7 +3017,7 @@ impl CombatEngine {
             // cardRandomRng.randomBoolean(), then follows the ordinary post-use
             // destination when true.
             // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
-            && self.card_random_rng.random_boolean();
+            && self.card_random_rng.random_bool();
 
         // UseCardAction clears freeToPlayOnce before moving the card to its
         // post-play pile, so Forethought's flag applies to exactly one play.
@@ -3008,7 +3053,7 @@ impl CombatEngine {
             } else {
                 let idx = self
                     .card_random_rng
-                    .random_range(0, (self.state.draw_pile.len() - 1) as i32)
+                    .random_int_range(0, (self.state.draw_pile.len() - 1) as i32)
                     as usize;
                 self.state.draw_pile.insert(idx, post_play_card);
             }
@@ -3787,7 +3832,7 @@ impl CombatEngine {
             // Source: decompiled/java-src/com/megacrit/cardcrawl/monsters/
             // city/Mugger.java (`die` -> `playDeathSfx`). The voice variant
             // consumes aiRng.random(2), even when no gold was stolen.
-            let _ = self.ai_rng.random(2);
+            let _ = self.ai_rng.random_int(2);
         }
 
         if matches!(self.state.enemies[enemy_idx].id.as_str(),
@@ -4263,7 +4308,7 @@ impl CombatEngine {
         // cardRandomRng and calls random(0, size - 1), even when size is one.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/MonsterGroup.java
-        let roll = self.card_random_rng.random(living.len() as i32 - 1) as usize;
+        let roll = self.card_random_rng.random_int(living.len() as i32 - 1) as usize;
         Some(living[roll])
     }
 
@@ -4544,7 +4589,7 @@ impl CombatEngine {
                     break; // No cards left anywhere
                 }
                 let mut shuffled = std::mem::take(&mut self.state.discard_pile);
-                crate::seed::card_group_shuffle(&mut shuffled, &mut self.rng);
+                crate::seed::card_group_shuffle(&mut shuffled, &mut self.shuffle_rng);
                 self.state.draw_pile = shuffled;
                 shuffles += 1;
             }
@@ -4560,7 +4605,7 @@ impl CombatEngine {
                 // every non-negative-cost card, permanently sets both cost
                 // and costForTurn to 0..3, and clears freeToPlayOnce.
                 if self.state.player.status(sid::CONFUSION) > 0 && card_def.cost >= 0 {
-                    let new_cost = self.card_random_rng.random(3) as i8;
+                    let new_cost = self.card_random_rng.random_int(3) as i8;
                     drawn.set_permanent_cost(new_cost);
                     if matches!(card_def.id, "Force Field" | "Force Field+") {
                         // ConfusionPower overwrites both cost and costForTurn,
@@ -4636,7 +4681,7 @@ impl CombatEngine {
 
     /// Shuffle the draw pile (pub(crate) for card_effects).
     pub(crate) fn shuffle_draw_pile(&mut self) {
-        crate::seed::card_group_shuffle(&mut self.state.draw_pile, &mut self.rng);
+        crate::seed::card_group_shuffle(&mut self.state.draw_pile, &mut self.shuffle_rng);
     }
 
     /// Execute Reboot's ShuffleAllAction, explicit ShuffleAction, and draw.
@@ -4658,7 +4703,7 @@ impl CombatEngine {
     fn continue_shuffle_all_and_draw(&mut self, draw_count: i32) {
         // ShuffleAllAction always shuffles the discard group, even when empty.
         // CardGroup.shuffle consumes exactly one shuffleRng.randomLong().
-        crate::seed::card_group_shuffle(&mut self.state.discard_pile, &mut self.rng);
+        crate::seed::card_group_shuffle(&mut self.state.discard_pile, &mut self.shuffle_rng);
 
         // PutOnDeckAction selects each remaining hand card with one inclusive
         // cardRandomRng.random(size - 1), including the singleton case, then
@@ -4666,7 +4711,7 @@ impl CombatEngine {
         while !self.state.hand.is_empty() {
             let idx = self
                 .card_random_rng
-                .random((self.state.hand.len() - 1) as i32) as usize;
+                .random_int((self.state.hand.len() - 1) as i32) as usize;
             let card = self.state.hand.remove(idx);
             self.state.draw_pile.push(card);
         }
@@ -4682,7 +4727,7 @@ impl CombatEngine {
         // Java: reference/extracted/methods/card/Reboot.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/PutOnDeckAction.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ShuffleAction.java
-        crate::seed::card_group_shuffle(&mut self.state.draw_pile, &mut self.rng);
+        crate::seed::card_group_shuffle(&mut self.state.draw_pile, &mut self.shuffle_rng);
         self.draw_cards(draw_count.max(0));
     }
 
@@ -4742,7 +4787,7 @@ impl CombatEngine {
         } else {
             let spoon_saved = (self.state.has_relic("Strange Spoon")
                 || self.state.has_relic("StrangeSpoon"))
-                && self.card_random_rng.random_boolean();
+                && self.card_random_rng.random_bool();
             if spoon_saved {
                 self.state.discard_pile.push(post_play_card);
             } else {
@@ -4750,12 +4795,6 @@ impl CombatEngine {
                 self.trigger_card_on_exhaust(post_play_card);
             }
         }
-    }
-
-    /// Generate a random range using the engine RNG (pub(crate) for card_effects).
-    pub(crate) fn rng_gen_range(&mut self, range: std::ops::Range<usize>) -> usize {
-        use rand::Rng;
-        self.rng.gen_range(range)
     }
 
     pub(crate) fn apply_madness_action(&mut self, cost: i8) {
@@ -4798,7 +4837,7 @@ impl CombatEngine {
         loop {
             let idx = self
                 .card_random_rng
-                .random(self.state.hand.len() as i32 - 1) as usize;
+                .random_int(self.state.hand.len() as i32 - 1) as usize;
             let (cost_for_turn, permanent_cost) = costs(self.state.hand[idx]);
             let eligible = if better_possible {
                 cost_for_turn > 0
@@ -4891,7 +4930,7 @@ impl CombatEngine {
         if eligible.is_empty() {
             return None;
         }
-        let selected = self.misc_rng.random_range(0, (eligible.len() - 1) as i32) as usize;
+        let selected = self.misc_rng.random_int_range(0, (eligible.len() - 1) as i32) as usize;
         let deck_idx = eligible[selected];
         self.card_registry
             .upgrade_card(&mut self.state.master_deck[deck_idx]);

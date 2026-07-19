@@ -66,7 +66,7 @@ fn the_specimen_uses_card_random_rng_instead_of_always_picking_first_alive_enemy
             engine.rng_counters()["cardRandom"],
             counters_before["cardRandom"] + 1
         );
-        assert_eq!(engine.rng_counters()["card"], counters_before["card"]);
+        assert_eq!(engine.rng_counters()["shuffle"], counters_before["shuffle"]);
 
         hit_left |= engine.state.enemies[0].entity.status(sid::POISON) == 7;
         hit_right |= engine.state.enemies[2].entity.status(sid::POISON) == 7;

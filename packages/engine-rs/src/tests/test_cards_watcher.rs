@@ -588,9 +588,13 @@ mod watcher_card_java_parity_tests {
     #[test]
     fn foreign_influence_source_uses_split_rng_ticks_and_unique_non_healing_attacks() {
         let mut engine = one_enemy_engine("JawWorm", 50, 0);
+        engine.card_rng = crate::seed::StsRandom::new(73);
+        engine.shuffle_rng = crate::seed::StsRandom::new(91);
+        engine.card_random_rng = crate::seed::StsRandom::new(107);
         ensure_in_hand(&mut engine, "ForeignInfluence");
         let card_random_before = engine.card_random_rng.counter;
-        let card_before = engine.rng.counter;
+        let card_before = engine.card_rng.counter;
+        let shuffle_before = engine.shuffle_rng.state_tuple();
         play_self(&mut engine, "ForeignInfluence");
 
         let choice = engine.choice.as_ref().expect("Foreign Influence choice");
@@ -607,10 +611,11 @@ mod watcher_card_java_parity_tests {
             ids.push(def.id);
         }
 
-        let card_attempts = engine.rng.counter - card_before;
+        let card_attempts = engine.card_rng.counter - card_before;
         let card_random_ticks = engine.card_random_rng.counter - card_random_before;
         assert!(card_attempts >= 3);
         assert_eq!(card_random_ticks, card_attempts * 2);
+        assert_eq!(engine.shuffle_rng.state_tuple(), shuffle_before);
     }
 
     // ForeignInfluenceAction sends the selected copy to discard if the hand is
@@ -691,12 +696,12 @@ mod watcher_card_java_parity_tests {
         engine.state.draw_pile = make_deck(&["Strike", "Defend", "Worship"]);
         engine.state.hand = make_deck(&["Tantrum+"]);
         let card_random_before = engine.card_random_rng.counter;
-        let shuffle_before = engine.rng.counter;
+        let shuffle_before = engine.shuffle_rng.counter;
         assert!(play_on_enemy(&mut engine, "Tantrum+", 0));
         assert_eq!(engine.state.enemies[0].entity.hp, 88);
         assert_eq!(engine.state.stance, Stance::Wrath);
         assert_eq!(engine.card_random_rng.counter, card_random_before + 1);
-        assert_eq!(engine.rng.counter, shuffle_before);
+        assert_eq!(engine.shuffle_rng.counter, shuffle_before);
         let existing: Vec<_> = engine
             .state
             .draw_pile
@@ -1314,11 +1319,11 @@ mod watcher_card_java_parity_tests {
         engine.state.draw_pile = make_deck(&["Strike", "Defend", "Worship"]);
         ensure_in_hand(&mut engine, "Pray");
         let card_random_before = engine.card_random_rng.counter;
-        let card_before = engine.rng.counter;
+        let card_before = engine.shuffle_rng.counter;
         assert!(play_self(&mut engine, "Pray"));
         assert_eq!(engine.state.mantra, 3);
         assert_eq!(engine.card_random_rng.counter, card_random_before + 1);
-        assert_eq!(engine.rng.counter, card_before);
+        assert_eq!(engine.shuffle_rng.counter, card_before);
         let existing: Vec<_> = engine
             .state
             .draw_pile
@@ -1420,11 +1425,11 @@ mod watcher_card_java_parity_tests {
         let mut engine = one_enemy_engine("JawWorm", 100, 0);
         engine.state.hand = make_deck(&["Ragnarok"]);
         let card_random_before = engine.card_random_rng.counter;
-        let card_before = engine.rng.counter;
+        let card_before = engine.shuffle_rng.counter;
         assert!(play_on_enemy(&mut engine, "Ragnarok", 0));
         assert_eq!(engine.state.enemies[0].entity.hp, 75);
         assert_eq!(engine.card_random_rng.counter, card_random_before + 5);
-        assert_eq!(engine.rng.counter, card_before);
+        assert_eq!(engine.shuffle_rng.counter, card_before);
     }
     watcher_test!(
         reach_heaven_java_parity,
@@ -1443,11 +1448,11 @@ mod watcher_card_java_parity_tests {
         engine.state.draw_pile = make_deck(&["Strike", "Defend", "Worship"]);
         engine.state.hand = make_deck(&["ReachHeaven+"]);
         let card_random_before = engine.card_random_rng.counter;
-        let card_before = engine.rng.counter;
+        let card_before = engine.shuffle_rng.counter;
         assert!(play_on_enemy(&mut engine, "ReachHeaven+", 0));
         assert_eq!(engine.state.enemies[0].entity.hp, 35);
         assert_eq!(engine.card_random_rng.counter, card_random_before + 1);
-        assert_eq!(engine.rng.counter, card_before);
+        assert_eq!(engine.shuffle_rng.counter, card_before);
         let names: Vec<_> = engine
             .state
             .draw_pile
@@ -1590,10 +1595,10 @@ mod watcher_card_java_parity_tests {
         assert!(play_self(&mut engine, "Study+"));
         assert_eq!(engine.state.player.status(sid::STUDY), 2);
         let card_random_before = engine.card_random_rng.counter;
-        let shuffle_before = engine.rng.counter;
+        let shuffle_before = engine.shuffle_rng.counter;
         end_turn(&mut engine);
         assert_eq!(engine.card_random_rng.counter, card_random_before + 2);
-        assert_eq!(engine.rng.counter, shuffle_before);
+        assert_eq!(engine.shuffle_rng.counter, shuffle_before);
         let existing: Vec<_> = engine
             .state
             .draw_pile
@@ -2093,13 +2098,13 @@ mod watcher_card_java_parity_tests {
         engine.state.draw_pile = make_deck(&["Strike", "Defend", "Worship"]);
         ensure_in_hand(&mut engine, "Evaluate+");
         let rng_before = engine.card_random_rng.counter;
-        let catch_all_before = engine.rng.counter;
+        let catch_all_before = engine.shuffle_rng.counter;
         play_self(&mut engine, "Evaluate+");
         assert_eq!(engine.state.player.block, 10);
         assert_eq!(draw_prefix_count(&engine, "Insight"), 1);
         assert_eq!(engine.card_registry.card_name(engine.state.draw_pile.last().unwrap().def_id), "Worship");
         assert_eq!(engine.card_random_rng.counter, rng_before + 1);
-        assert_eq!(engine.rng.counter, catch_all_before);
+        assert_eq!(engine.shuffle_rng.counter, catch_all_before);
     }
     watcher_test!(
         fasting_java_parity,
@@ -2193,10 +2198,10 @@ mod watcher_card_java_parity_tests {
         normal.state.master_deck = make_deck(&["Wallop", "Strike+", "AscendersBane"]);
         ensure_in_hand(&mut normal, "LessonLearned");
         let misc_before = normal.misc_rng.counter;
-        let card_before = normal.rng.counter;
+        let card_before = normal.shuffle_rng.counter;
         play_on_enemy(&mut normal, "LessonLearned", 0);
         assert_eq!(normal.misc_rng.counter, misc_before + 1);
-        assert_eq!(normal.rng.counter, card_before);
+        assert_eq!(normal.shuffle_rng.counter, card_before);
         assert_eq!(normal.card_registry.card_name(normal.state.master_deck[0].def_id), "Wallop+");
         assert_eq!(normal.card_registry.card_name(normal.state.draw_pile[0].def_id), "Wallop");
 

@@ -44,7 +44,7 @@ fn check_version_rejects_other() {
 // Round-trip helpers
 // ---------------------------------------------------------------------------
 
-fn sample_rng_map() -> BTreeMap<String, u64> {
+fn sample_rng_map() -> BTreeMap<String, i64> {
     let mut rng = BTreeMap::new();
     rng.insert("card".to_string(), 37);
     rng.insert("ai".to_string(), 4);
@@ -139,6 +139,15 @@ round_trip!(
     sample_post_state(),
     PostState
 );
+
+#[test]
+fn post_state_preserves_signed_java_rng_counter_overflow() {
+    let mut post = sample_post_state();
+    post.rng.insert("card".to_string(), i64::from(i32::MIN));
+    let json = serde_json::to_string(&post).unwrap();
+    assert!(json.contains("-2147483648"));
+    assert_eq!(serde_json::from_str::<PostState>(&json).unwrap(), post);
+}
 
 round_trip!(
     trace_record_round_trip,

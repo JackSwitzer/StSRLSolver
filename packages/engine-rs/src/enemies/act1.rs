@@ -29,31 +29,37 @@ pub(super) fn roll_jaw_worm(enemy: &mut EnemyCombatState, num: i32, ai_rng: &mut
 
     if num < 25 {
         if last_move(enemy, move_ids::JW_CHOMP) {
-            if ai_rng.random_float() < 0.5625 { bellow(enemy); } else { thrash(enemy); }
+            if ai_rng.random_f32() < 0.5625 { bellow(enemy); } else { thrash(enemy); }
         } else {
             chomp(enemy);
         }
     } else if num < 55 {
         if last_two_moves(enemy, move_ids::JW_THRASH) {
-            if ai_rng.random_float() < 0.357 { chomp(enemy); } else { bellow(enemy); }
+            if ai_rng.random_f32() < 0.357 { chomp(enemy); } else { bellow(enemy); }
         } else {
             thrash(enemy);
         }
     } else if last_move(enemy, move_ids::JW_BELLOW) {
-        if ai_rng.random_float() < 0.416 { chomp(enemy); } else { thrash(enemy); }
+        if ai_rng.random_f32() < 0.416 { chomp(enemy); } else { thrash(enemy); }
     } else {
         bellow(enemy);
     }
 }
 
 // Java Cultist.getMove(int num) (decompiled monsters/exordium/Cultist.java):
-//   firstMove -> INCANTATION (byte 3, BUFF)   [handled at create_enemy]
+//   firstMove -> INCANTATION (byte 3, BUFF)
 //   otherwise -> DARK_STRIKE (byte 1, ATTACK, damage.get(0).base = 6), forever.
 // `num` is ignored by the Java switch, but AbstractMonster.rollMove()
 // (AbstractMonster.java:465-466) still consumes one aiRng.random(99) tick per
 // roll — our caller roll_next_move() does the same, keeping counters in sync.
 pub(super) fn roll_cultist(enemy: &mut EnemyCombatState, _num: i32) {
     enemy.set_move(move_ids::CULT_DARK_STRIKE, 6, 1, 0);
+}
+
+pub(super) fn roll_cultist_initial(enemy: &mut EnemyCombatState) {
+    let ritual = enemy.entity.status(sid::STR_AMT).max(3) as i16;
+    enemy.set_move(move_ids::CULT_INCANTATION, 0, 0, 0);
+    enemy.add_effect(mfx::RITUAL, ritual);
 }
 
 pub(super) fn roll_fungi_beast(enemy: &mut EnemyCombatState, num: i32) {
@@ -181,7 +187,7 @@ pub(super) fn roll_acid_slime_s(
     let tackle = if enemy.entity.status(sid::STR_AMT) >= 17 {
         last_two_moves(enemy, move_ids::AS_S_TACKLE)
     } else {
-        ai_rng.random_boolean()
+        ai_rng.random_bool()
     };
     if tackle {
         enemy.set_move(move_ids::AS_S_TACKLE, damage, 1, 0);
@@ -228,25 +234,25 @@ pub(super) fn roll_acid_slime_m(
     if a17 {
         if num < 40 {
             if last_two_moves(enemy, move_ids::AS_CORROSIVE_SPIT) {
-                if ai_rng.random_boolean() { normal(enemy); } else { lick(enemy); }
+                if ai_rng.random_bool() { normal(enemy); } else { lick(enemy); }
             } else { wound(enemy); }
         } else if num < 80 {
             if last_two_moves(enemy, move_ids::AS_TACKLE) {
-                if ai_rng.random_float() < 0.5 { wound(enemy); } else { lick(enemy); }
+                if ai_rng.random_f32() < 0.5 { wound(enemy); } else { lick(enemy); }
             } else { normal(enemy); }
         } else if last_move(enemy, move_ids::AS_LICK) {
-            if ai_rng.random_float() < 0.4 { wound(enemy); } else { normal(enemy); }
+            if ai_rng.random_f32() < 0.4 { wound(enemy); } else { normal(enemy); }
         } else { lick(enemy); }
     } else if num < 30 {
         if last_two_moves(enemy, move_ids::AS_CORROSIVE_SPIT) {
-            if ai_rng.random_boolean() { normal(enemy); } else { lick(enemy); }
+            if ai_rng.random_bool() { normal(enemy); } else { lick(enemy); }
         } else { wound(enemy); }
     } else if num < 70 {
         if last_move(enemy, move_ids::AS_TACKLE) {
-            if ai_rng.random_float() < 0.4 { wound(enemy); } else { lick(enemy); }
+            if ai_rng.random_f32() < 0.4 { wound(enemy); } else { lick(enemy); }
         } else { normal(enemy); }
     } else if last_two_moves(enemy, move_ids::AS_LICK) {
-        if ai_rng.random_float() < 0.4 { wound(enemy); } else { normal(enemy); }
+        if ai_rng.random_f32() < 0.4 { wound(enemy); } else { normal(enemy); }
     } else {
         lick(enemy);
     }
@@ -275,25 +281,25 @@ pub(super) fn roll_acid_slime_l(
     if a17 {
         if num < 40 {
             if last_two_moves(enemy, move_ids::AS_CORROSIVE_SPIT) {
-                if ai_rng.random_float() < 0.6 { normal(enemy); } else { lick(enemy); }
+                if ai_rng.random_f32() < 0.6 { normal(enemy); } else { lick(enemy); }
             } else { wound(enemy); }
         } else if num < 70 {
             if last_two_moves(enemy, move_ids::AS_TACKLE) {
-                if ai_rng.random_float() < 0.6 { wound(enemy); } else { lick(enemy); }
+                if ai_rng.random_f32() < 0.6 { wound(enemy); } else { lick(enemy); }
             } else { normal(enemy); }
         } else if last_move(enemy, move_ids::AS_LICK) {
-            if ai_rng.random_float() < 0.4 { wound(enemy); } else { normal(enemy); }
+            if ai_rng.random_f32() < 0.4 { wound(enemy); } else { normal(enemy); }
         } else { lick(enemy); }
     } else if num < 30 {
         if last_two_moves(enemy, move_ids::AS_CORROSIVE_SPIT) {
-            if ai_rng.random_boolean() { normal(enemy); } else { lick(enemy); }
+            if ai_rng.random_bool() { normal(enemy); } else { lick(enemy); }
         } else { wound(enemy); }
     } else if num < 70 {
         if last_move(enemy, move_ids::AS_TACKLE) {
-            if ai_rng.random_float() < 0.4 { wound(enemy); } else { lick(enemy); }
+            if ai_rng.random_f32() < 0.4 { wound(enemy); } else { lick(enemy); }
         } else { normal(enemy); }
     } else if last_two_moves(enemy, move_ids::AS_LICK) {
-        if ai_rng.random_float() < 0.4 { wound(enemy); } else { normal(enemy); }
+        if ai_rng.random_f32() < 0.4 { wound(enemy); } else { normal(enemy); }
     } else {
         lick(enemy);
     }
@@ -367,11 +373,11 @@ pub fn advance_looter_after_turn(
         move_ids::LOOTER_MUG => {
             let slash_count = enemy.entity.status(sid::ATTACK_COUNT);
             if slash_count == 0 {
-                let _ = ai_rng.random_float() < 0.6;
+                let _ = ai_rng.random_f32() < 0.6;
             }
             enemy.entity.set_status(sid::ATTACK_COUNT, slash_count + 1);
             if slash_count + 1 == 2 {
-                if ai_rng.random_float() < 0.5 {
+                if ai_rng.random_f32() < 0.5 {
                     enemy.set_move(move_ids::LOOTER_SMOKE_BOMB, 0, 0, escape_block);
                 } else {
                     enemy.set_move(move_ids::LOOTER_LUNGE, lunge, 1, 0);
@@ -510,6 +516,16 @@ pub(super) fn roll_gremlin_nob(enemy: &mut EnemyCombatState, num: i32) {
 
 pub(super) fn roll_lagavulin(enemy: &mut EnemyCombatState) {
     // Source: reference/extracted/methods/monster/Lagavulin.java (`getMove`).
+    // Lagavulin(false) still consumes AbstractMonster.rollMove's opening AI
+    // draw before usePreBattleAction replaces its attack with Siphon Soul.
+    if enemy.entity.status(sid::FIRST_MOVE) > 0 {
+        enemy.entity.set_status(sid::FIRST_MOVE, 0);
+        let debuff = enemy.entity.status(sid::STR_AMT).max(1) as i16;
+        enemy.set_move(move_ids::LAGA_SIPHON, 0, 0, 0);
+        enemy.add_effect(mfx::SIPHON_STR, debuff);
+        enemy.add_effect(mfx::SIPHON_DEX, debuff);
+        return;
+    }
     if enemy.entity.status(sid::IS_FIRST_MOVE) > 0 {
         let damage = enemy.entity.status(sid::STARTING_DMG).max(18);
         if enemy.entity.status(sid::ATTACK_COUNT) >= 2
@@ -792,7 +808,7 @@ pub(super) fn roll_apology_slime(
     ai_rng: &mut crate::seed::StsRandom,
 ) {
     // Source: reference/extracted/methods/monster/ApologySlime.java (`getMove`).
-    if ai_rng.random_boolean() {
+    if ai_rng.random_bool() {
         enemy.set_move(move_ids::APOLOGY_TACKLE, 3, 1, 0);
     } else {
         enemy.set_move(move_ids::APOLOGY_DEBUFF, 0, 0, 0);

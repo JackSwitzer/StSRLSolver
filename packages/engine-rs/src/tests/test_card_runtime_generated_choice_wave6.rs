@@ -130,10 +130,10 @@ fn free_transmutation_plus_uses_current_x_and_chemical_x_then_spills_overflow() 
     let expected: Vec<&str> = (0..4)
         .map(|_| {
             JAVA_COLORLESS_GENERATION_POOL
-                [oracle.random((JAVA_COLORLESS_GENERATION_POOL.len() - 1) as i32) as usize]
+                [oracle.random_int((JAVA_COLORLESS_GENERATION_POOL.len() - 1) as i32) as usize]
         })
         .collect();
-    let generic_before = engine.rng.counter;
+    let generic_before = engine.shuffle_rng.counter;
 
     assert!(play_self(&mut engine, "Transmutation+"));
 
@@ -151,6 +151,6 @@ fn free_transmutation_plus_uses_current_x_and_chemical_x_then_spills_overflow() 
     assert_eq!(generated_names, expected);
     assert!(generated.iter().all(|card| card.is_upgraded() && card.cost == 0));
     assert_eq!(engine.card_random_rng.counter, oracle.counter);
-    assert_eq!(engine.rng.counter, generic_before);
+    assert_eq!(engine.shuffle_rng.counter, generic_before);
     assert_eq!(engine.state.exhaust_pile.len(), 1);
 }

@@ -1328,17 +1328,17 @@ fn warped_tongs_rummage_grants_the_fixed_relic_and_upgrades_only_eligible_cards(
     assert!(hand_names.contains(&"Strike+"));
     assert!(hand_names.contains(&"Defend+"));
     assert_eq!(
-        combat.rng_counters()["card"],
+        combat.rng_counters()["shuffle"],
         2,
         "opening CardGroup shuffle plus Warped Tongs eligible-card shuffle"
     );
 
     combat.state.hand = crate::tests::support::make_deck(&["Burn", "Strike+"]);
-    let shuffle_before = combat.rng_counters()["card"];
+    let shuffle_before = combat.rng_counters()["shuffle"];
     combat.emit_event(crate::effects::runtime::GameEvent::empty(
         crate::effects::trigger::Trigger::TurnStartPostDrawLate,
     ));
-    assert_eq!(combat.rng_counters()["card"], shuffle_before);
+    assert_eq!(combat.rng_counters()["shuffle"], shuffle_before);
     assert!(combat.state.hand.iter().all(|card| {
         matches!(combat.card_registry.card_name(card.def_id), "Burn" | "Strike+")
     }));
@@ -4825,7 +4825,9 @@ fn fire_potion_is_reachable_from_watcher_potion_rewards() {
 fn claiming_question_card_expands_later_card_reward_choices() {
     // Source: QuestionCard.java::changeNumberOfCardsInReward returns the
     // incoming count plus exactly one, under canonical ID "Question Card".
-    let mut engine = RunEngine::new(42, 20);
+    // Seed 0's first potionRng.random(0, 99) is 72, so this proof stays
+    // focused on the single card-reward item rather than a preceding potion.
+    let mut engine = RunEngine::new(0, 20);
     engine.debug_set_reward_screen(single_relic_reward_screen("Question Card"));
 
     let claim = engine.step_with_result(&RunAction::SelectRewardItem(0));

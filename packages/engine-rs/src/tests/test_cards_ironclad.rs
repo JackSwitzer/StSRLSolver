@@ -317,14 +317,14 @@ mod ironclad_card_java_parity_tests {
             1,
         );
         let mut oracle = engine.card_random_rng.clone();
-        let expected_idx = oracle.random_range(0, 2) as usize;
-        let general_before = engine.rng.counter;
+        let expected_idx = oracle.random_int_range(0, 2) as usize;
+        let general_before = engine.shuffle_rng.counter;
 
         assert!(play_on_enemy(&mut engine, "Wild Strike+", 0));
 
         assert_eq!(engine.state.enemies[0].entity.hp, 33);
         assert_eq!(engine.card_random_rng.counter, oracle.counter);
-        assert_eq!(engine.rng.counter, general_before);
+        assert_eq!(engine.shuffle_rng.counter, general_before);
         assert_eq!(
             engine.card_registry.card_name(engine.state.draw_pile[expected_idx].def_id),
             "Wound"
@@ -728,13 +728,13 @@ mod ironclad_card_java_parity_tests {
             0,
         );
         let card_random_before = engine.card_random_rng.counter;
-        let shuffle_before = engine.rng.counter;
+        let shuffle_before = engine.shuffle_rng.counter;
 
         assert!(play_on_enemy(&mut engine, "Reckless Charge+", 0));
 
         assert_eq!(engine.state.enemies[0].entity.hp, 30);
         assert_eq!(engine.card_random_rng.counter, card_random_before + 1);
-        assert_eq!(engine.rng.counter, shuffle_before);
+        assert_eq!(engine.shuffle_rng.counter, shuffle_before);
         let existing: Vec<_> = engine
             .state
             .draw_pile
@@ -1256,8 +1256,8 @@ mod ironclad_card_java_parity_tests {
             assert_eq!(engine.card_random_rng.counter, card_random_before_zero);
 
             let mut oracle = engine.card_random_rng.clone();
-            let expected_target = oracle.random(1) as usize;
-            let general_before = engine.rng.counter;
+            let expected_target = oracle.random_int(1) as usize;
+            let general_before = engine.shuffle_rng.counter;
             assert!(play_self(&mut engine, "Defend"));
 
             for (idx, enemy) in engine.state.enemies.iter().enumerate() {
@@ -1267,7 +1267,7 @@ mod ironclad_card_java_parity_tests {
             }
             assert_eq!(engine.state.player.block, 5);
             assert_eq!(engine.card_random_rng.counter, oracle.counter);
-            assert_eq!(engine.rng.counter, general_before);
+            assert_eq!(engine.shuffle_rng.counter, general_before);
         }
     }
     card_pair_test!(limit_break, "Limit Break", "Limit Break+", 1, -1, -1, -1, 1, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, true, false);
@@ -1574,9 +1574,9 @@ mod ironclad_card_java_parity_tests {
             let mut oracle = engine.card_random_rng.clone();
             let mut expected_hits = [0; 2];
             for _ in 0..hits {
-                expected_hits[oracle.random_range(0, 1) as usize] += 1;
+                expected_hits[oracle.random_int_range(0, 1) as usize] += 1;
             }
-            let general_before = engine.rng.counter;
+            let general_before = engine.shuffle_rng.counter;
 
             assert!(play_self(&mut engine, card_id));
 
@@ -1584,7 +1584,7 @@ mod ironclad_card_java_parity_tests {
                 assert_eq!(enemy.entity.hp, 100 - hit_count * 3, "{card_id}");
             }
             assert_eq!(engine.card_random_rng.counter, oracle.counter, "{card_id}");
-            assert_eq!(engine.rng.counter, general_before, "{card_id}");
+            assert_eq!(engine.shuffle_rng.counter, general_before, "{card_id}");
             assert_eq!(engine.state.energy, 0, "{card_id}");
         }
     }

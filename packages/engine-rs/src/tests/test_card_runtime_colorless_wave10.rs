@@ -74,7 +74,7 @@ fn violence_moves_random_attacks_from_draw_to_hand() {
     );
     force_player_turn(&mut base);
     base.card_random_rng = crate::seed::StsRandom::new(42);
-    base.rng = crate::seed::StsRandom::new(99);
+    base.shuffle_rng = crate::seed::StsRandom::new(99);
     base.state.hand = make_deck(&["Violence"]);
     base.state.draw_pile = make_deck(&draw);
 
@@ -88,7 +88,7 @@ fn violence_moves_random_attacks_from_draw_to_hand() {
         .collect();
     assert_eq!(base_hand, ["Bash", "Strike", "Bludgeon"]);
     assert_eq!(base.card_random_rng.counter, 4);
-    assert_eq!(base.rng.counter, 3);
+    assert_eq!(base.shuffle_rng.counter, 3);
     assert_eq!(exhaust_prefix_count(&base, "Violence"), 1);
 
     let mut upgraded = engine_without_start(
@@ -98,7 +98,7 @@ fn violence_moves_random_attacks_from_draw_to_hand() {
     );
     force_player_turn(&mut upgraded);
     upgraded.card_random_rng = crate::seed::StsRandom::new(42);
-    upgraded.rng = crate::seed::StsRandom::new(99);
+    upgraded.shuffle_rng = crate::seed::StsRandom::new(99);
     upgraded.state.hand = make_deck(&["Violence+"]);
     upgraded.state.hand.extend(make_deck_n("Defend", 8));
     upgraded.state.draw_pile = make_deck(&draw);
@@ -117,7 +117,7 @@ fn violence_moves_random_attacks_from_draw_to_hand() {
     assert_eq!(discard_prefix_count(&upgraded, "Uppercut"), 1);
     assert_eq!(discard_prefix_count(&upgraded, "Bludgeon"), 1);
     assert_eq!(upgraded.card_random_rng.counter, 4);
-    assert_eq!(upgraded.rng.counter, 4);
+    assert_eq!(upgraded.shuffle_rng.counter, 4);
     assert_eq!(exhaust_prefix_count(&upgraded, "Violence"), 1);
 }
 

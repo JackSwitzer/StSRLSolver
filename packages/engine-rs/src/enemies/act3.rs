@@ -50,7 +50,7 @@ pub(super) fn roll_darkling(
             }
             // Odd-position Darklings and repeat Chomps recurse only into the
             // 40..=99 portion of the table.
-            roll = ai_rng.random_range(40, 99);
+            roll = ai_rng.random_int_range(40, 99);
         } else if roll < 70 {
             if !last_move(enemy, move_ids::DARK_HARDEN) {
                 harden(enemy);
@@ -62,7 +62,7 @@ pub(super) fn roll_darkling(
             enemy.set_move(move_ids::DARK_NIP, nip, 1, 0);
             return;
         } else {
-            roll = ai_rng.random(99);
+            roll = ai_rng.random_int(99);
         }
     }
 }
@@ -178,7 +178,7 @@ pub(super) fn roll_writhing_mass(
         if !last_move(enemy, move_ids::WM_BIG_HIT) {
             set_big(enemy);
         } else {
-            let reroll = ai_rng.random_range(10, 99);
+            let reroll = ai_rng.random_int_range(10, 99);
             roll_writhing_mass(enemy, reroll, ai_rng);
         }
     } else if num < 20 {
@@ -187,35 +187,35 @@ pub(super) fn roll_writhing_mass(
         {
             enemy.set_move(move_ids::WM_MEGA_DEBUFF, 0, 0, 0);
             enemy.intent = crate::combat_types::Intent::Debuff { effects: 0 };
-        } else if ai_rng.random_float() < 0.1 {
+        } else if ai_rng.random_f32() < 0.1 {
             set_big(enemy);
         } else {
-            let reroll = ai_rng.random_range(20, 99);
+            let reroll = ai_rng.random_int_range(20, 99);
             roll_writhing_mass(enemy, reroll, ai_rng);
         }
     } else if num < 40 {
         if !last_move(enemy, move_ids::WM_ATTACK_DEBUFF) {
             set_attack_debuff(enemy);
-        } else if ai_rng.random_float() < 0.4 {
-            let reroll = ai_rng.random(19);
+        } else if ai_rng.random_f32() < 0.4 {
+            let reroll = ai_rng.random_int(19);
             roll_writhing_mass(enemy, reroll, ai_rng);
         } else {
-            let reroll = ai_rng.random_range(40, 99);
+            let reroll = ai_rng.random_int_range(40, 99);
             roll_writhing_mass(enemy, reroll, ai_rng);
         }
     } else if num < 70 {
         if !last_move(enemy, move_ids::WM_MULTI_HIT) {
             set_multi(enemy);
-        } else if ai_rng.random_float() < 0.3 {
+        } else if ai_rng.random_f32() < 0.3 {
             set_attack_block(enemy);
         } else {
-            let reroll = ai_rng.random(39);
+            let reroll = ai_rng.random_int(39);
             roll_writhing_mass(enemy, reroll, ai_rng);
         }
     } else if !last_move(enemy, move_ids::WM_ATTACK_BLOCK) {
         set_attack_block(enemy);
     } else {
-        let reroll = ai_rng.random(69);
+        let reroll = ai_rng.random_int(69);
         roll_writhing_mass(enemy, reroll, ai_rng);
     }
 }
@@ -225,7 +225,7 @@ pub fn writhing_mass_reactive_reroll(
     enemy: &mut EnemyCombatState,
     ai_rng: &mut StsRandom,
 ) {
-    let num = ai_rng.random(99);
+    let num = ai_rng.random_int(99);
     roll_writhing_mass(enemy, num, ai_rng);
 }
 
@@ -366,7 +366,7 @@ pub(super) fn roll_nemesis(
     if num < 30 {
         if !last_move(enemy, move_ids::NEM_SCYTHE) && cooldown <= 0 {
             scythe(enemy);
-        } else if ai_rng.random_boolean() {
+        } else if ai_rng.random_bool() {
             if !last_two_moves(enemy, move_ids::NEM_TRI_ATTACK) {
                 tri_attack(enemy);
             } else {
@@ -380,7 +380,7 @@ pub(super) fn roll_nemesis(
     } else if num < 65 {
         if !last_two_moves(enemy, move_ids::NEM_TRI_ATTACK) {
             tri_attack(enemy);
-        } else if ai_rng.random_boolean() {
+        } else if ai_rng.random_bool() {
             if cooldown > 0 {
                 burn(enemy);
             } else {
@@ -391,7 +391,7 @@ pub(super) fn roll_nemesis(
         }
     } else if !last_move(enemy, move_ids::NEM_BURN) {
         burn(enemy);
-    } else if ai_rng.random_boolean() && cooldown <= 0 {
+    } else if ai_rng.random_bool() && cooldown <= 0 {
         scythe(enemy);
     } else {
         tri_attack(enemy);
@@ -433,7 +433,7 @@ pub(super) fn roll_reptomancer(
                 strike(enemy);
                 return;
             }
-            roll = ai_rng.random_range(33, 99);
+            roll = ai_rng.random_int_range(33, 99);
         } else if roll < 66 {
             if !last_two_moves(enemy, move_ids::REPTO_SPAWN) {
                 if enemy.entity.status(sid::COUNT) <= 3 {
@@ -449,7 +449,7 @@ pub(super) fn roll_reptomancer(
             enemy.set_move(move_ids::REPTO_BIG_BITE, bite_damage, 1, 0);
             return;
         } else {
-            roll = ai_rng.random(65);
+            roll = ai_rng.random_int(65);
         }
     }
 }
@@ -596,7 +596,7 @@ pub(super) fn roll_time_eater(
 
     if num < 45 {
         if last_two_moves(enemy, move_ids::TE_REVERBERATE) {
-            let reroll = ai_rng.random_range(50, 99);
+            let reroll = ai_rng.random_int_range(50, 99);
             roll_time_eater(enemy, reroll, ai_rng);
             return;
         }
@@ -616,7 +616,7 @@ pub(super) fn roll_time_eater(
             if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
                 enemy.add_effect(mfx::SLIMED, 2);
             }
-        } else if ai_rng.random_float() < 0.66 {
+        } else if ai_rng.random_f32() < 0.66 {
             enemy.set_move(move_ids::TE_REVERBERATE, reverb_dmg, 3, 0);
         } else {
             set_time_eater_ripple(enemy);
@@ -627,7 +627,7 @@ pub(super) fn roll_time_eater(
     if !last_move(enemy, move_ids::TE_RIPPLE) {
         set_time_eater_ripple(enemy);
     } else {
-        let reroll = ai_rng.random(74);
+        let reroll = ai_rng.random_int(74);
         roll_time_eater(enemy, reroll, ai_rng);
     }
 }

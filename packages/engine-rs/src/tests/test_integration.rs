@@ -2742,41 +2742,129 @@ mod effect_handler_tests {
 
     #[test]
     fn collector_spawns_torch_heads() {
-        let deck = make_deck_n("Defend", 20);
-        let collector = crate::enemies::create_enemy("TheCollector", 282, 282);
-        let state = CombatState::new(80, 80, vec![collector], deck, 3);
-        let mut e = CombatEngine::new(state, 42);
-        e.start_combat();
+        // Sources: reference/extracted/methods/monster/TheCollector.java,
+        // reference/extracted/methods/monster/TorchHead.java, and decompiled/
+        // java-src/com/megacrit/cardcrawl/monsters/AbstractMonster.java (`setHp`).
+        // Each Torch Head consumes an overwritten 38..40 roll, then its
+        // ascension-specific final HP roll.
+        for (block_amt, final_min, final_max) in [(15, 38, 40), (18, 40, 45)] {
+            let deck = make_deck_n("Defend", 20);
+            let mut collector = crate::enemies::create_enemy("TheCollector", 282, 282);
+            collector.entity.set_status(sid::BLOCK_AMT, block_amt);
+            let state = CombatState::new(80, 80, vec![collector], deck, 3);
+            let mut e = CombatEngine::new(state, 42);
+            e.start_combat();
 
-        assert_eq!(e.state.enemies.len(), 1, "Should start with just Collector");
-        // Collector's first move is COLL_SPAWN. End turn to execute it.
-        e.execute_action(&Action::EndTurn);
-        assert_eq!(e.state.enemies.len(), 3,
-            "Collector should spawn 2 TorchHeads (1 + 2 = 3 enemies)");
-        assert_eq!(e.state.enemies[1].id, "TorchHead");
-        assert_eq!(e.state.enemies[2].id, "TorchHead");
+            let counters_before = e.rng_counters();
+            let mut hp_oracle = e.monster_hp_rng.clone();
+            let expected_hp: Vec<i32> = (0..2)
+                .map(|_| {
+                    let _ = hp_oracle.random_int_range(38, 40);
+                    hp_oracle.random_int_range(final_min, final_max)
+                })
+                .collect();
+            let mut ai_oracle = e.ai_rng.clone();
+            for _ in 0..3 {
+                ai_oracle.random_int(99);
+            }
+
+            // Collector's first move is COLL_SPAWN. End turn to execute it.
+            e.execute_action(&Action::EndTurn);
+
+            assert_eq!(e.state.enemies.len(), 3,
+                "Collector should spawn 2 TorchHeads (1 + 2 = 3 enemies)");
+            assert_eq!(e.state.enemies[1].id, "TorchHead");
+            assert_eq!(e.state.enemies[2].id, "TorchHead");
+            assert_eq!(
+                e.state.enemies[1..]
+                    .iter()
+                    .map(|enemy| enemy.entity.hp)
+                    .collect::<Vec<_>>(),
+                expected_hp,
+            );
+            assert_eq!(e.monster_hp_rng, hp_oracle);
+            assert_eq!(
+                e.ai_rng, ai_oracle,
+                "both Torch Heads are constructed before either queued init, then Collector rolls",
+            );
+            assert_eq!(e.rng_counters()["monsterHp"], counters_before["monsterHp"] + 4);
+            assert_eq!(e.rng_counters()["ai"], counters_before["ai"] + 3);
+            assert_eq!(e.rng_counters()["shuffle"], counters_before["shuffle"]);
+        }
     }
 
     #[test]
     fn automaton_spawns_bronze_orbs() {
-        let deck = make_deck_n("Defend", 20);
-        let auto = crate::enemies::create_enemy("BronzeAutomaton", 300, 300);
-        let state = CombatState::new(80, 80, vec![auto], deck, 3);
-        let mut e = CombatEngine::new(state, 42);
-        e.start_combat();
+        // Sources: decompiled/java-src/com/megacrit/cardcrawl/monsters/city/
+        // {BronzeAutomaton,BronzeOrb}.java and actions/common/
+        // SpawnMonsterAction.java. Both Orb constructors run before either
+        // queued spawn initializes its intent.
+        for (automaton_hp, final_min, final_max) in [(300, 52, 58), (320, 54, 60)] {
+            let deck = make_deck_n("Defend", 20);
+            let auto = crate::enemies::create_enemy(
+                "BronzeAutomaton", automaton_hp, automaton_hp);
+            let state = CombatState::new(80, 80, vec![auto], deck, 3);
+            let mut e = CombatEngine::new(state, 42);
+            e.start_combat();
 
-        assert_eq!(e.state.enemies.len(), 1);
-        e.execute_action(&Action::EndTurn);
-        assert_eq!(e.state.enemies.len(), 3,
-            "Automaton should spawn 2 BronzeOrbs");
-        assert_eq!(e.state.enemies[1].id, "BronzeOrb");
-        assert_eq!(e.state.enemies[2].id, "BronzeOrb");
+            let counters_before = e.rng_counters();
+            let unrelated_before = (
+                e.card_rng.clone(),
+                e.shuffle_rng.clone(),
+                e.card_random_rng.clone(),
+                e.potion_rng.clone(),
+                e.misc_rng.clone(),
+            );
+            let mut hp_oracle = e.monster_hp_rng.clone();
+            let expected_hp: Vec<i32> = (0..2)
+                .map(|_| {
+                    let _ = hp_oracle.random_int_range(52, 58);
+                    hp_oracle.random_int_range(final_min, final_max)
+                })
+                .collect();
+            let mut ai_oracle = e.ai_rng.clone();
+            for _ in 0..3 {
+                ai_oracle.random_int(99);
+            }
+
+            e.execute_action(&Action::EndTurn);
+
+            assert_eq!(e.state.enemies.len(), 3,
+                "Automaton should spawn 2 BronzeOrbs");
+            assert_eq!(
+                e.state.enemies[1..].iter()
+                    .map(|enemy| enemy.id.as_str()).collect::<Vec<_>>(),
+                vec!["BronzeOrb", "BronzeOrb"],
+            );
+            assert_eq!(
+                e.state.enemies[1..].iter()
+                    .map(|enemy| enemy.entity.hp).collect::<Vec<_>>(),
+                expected_hp,
+            );
+            assert_eq!(e.monster_hp_rng, hp_oracle);
+            assert_eq!(e.ai_rng, ai_oracle);
+            assert_eq!(e.rng_counters()["monsterHp"], counters_before["monsterHp"] + 4);
+            assert_eq!(e.rng_counters()["ai"], counters_before["ai"] + 3);
+            assert_eq!(
+                (
+                    e.card_rng.clone(),
+                    e.shuffle_rng.clone(),
+                    e.card_random_rng.clone(),
+                    e.potion_rng.clone(),
+                    e.misc_rng.clone(),
+                ),
+                unrelated_before,
+            );
+        }
     }
 
     #[test]
     fn reptomancer_spawns_snake_daggers() {
-        // Sources: MonsterHelper.java (canonical encounter group) and
-        // reference/extracted/methods/monster/Reptomancer.java (`takeTurn`).
+        // Sources: decompiled/java-src/com/megacrit/cardcrawl/helpers/
+        // MonsterHelper.java and reference/extracted/methods/monster/
+        // Reptomancer.java plus SnakeDagger.java.
+        // Every dynamically constructed dagger consumes one inclusive
+        // monsterHpRng.random(20, 25), never the shuffle stream.
         let deck = make_deck_n("Defend", 20);
         let repto = crate::enemies::create_enemy("Reptomancer", 185, 185);
         let mut left = crate::enemies::create_enemy("SnakeDagger", 22, 22);
@@ -2790,28 +2878,157 @@ mod effect_handler_tests {
         assert_eq!(e.state.enemies.len(), 3);
         assert_eq!(e.ai_rng.counter, 3,
             "each member of the opening group consumes one init roll");
+        let counters_before = e.rng_counters();
+        let expected_hp = e.monster_hp_rng.clone().random_int_range(20, 25);
         e.execute_action(&Action::EndTurn);
         assert_eq!(e.state.enemies.len(), 4,
             "baseline Reptomancer fills one of four dagger slots");
         assert_eq!(e.state.enemies[3].id, "SnakeDagger");
+        assert_eq!(e.state.enemies[3].entity.hp, expected_hp);
         assert!(e.state.enemies[3].is_minion);
+        assert_eq!(e.rng_counters()["monsterHp"], counters_before["monsterHp"] + 1);
+        assert_eq!(e.rng_counters()["shuffle"], counters_before["shuffle"]);
         assert_eq!(e.state.discard_pile.iter().filter(|card|
             e.card_registry.card_name(card.def_id) == "Wound").count(), 2,
             "newly spawned dagger waits until the next monster turn queue");
     }
 
     #[test]
-    fn gremlin_leader_spawns_gremlins() {
+    fn reptomancer_a18_constructs_both_daggers_before_queued_initialization() {
+        // Reptomancer.takeTurn enqueues two SpawnMonsterAction instances at
+        // A18. Both constructors consume monsterHpRng before either action's
+        // update initializes its dagger; RollMoveAction for Reptomancer runs
+        // after both dagger init rolls.
+        // Sources: reference/extracted/methods/monster/Reptomancer.java and
+        // decompiled/java-src/com/megacrit/cardcrawl/actions/common/
+        // SpawnMonsterAction.java.
         let deck = make_deck_n("Defend", 20);
-        let gl = crate::enemies::create_enemy("GremlinLeader", 140, 140);
-        let state = CombatState::new(80, 80, vec![gl], deck, 3);
+        let mut repto = crate::enemies::create_enemy("Reptomancer", 185, 185);
+        repto.entity.set_status(sid::BLOCK_AMT, 2);
+        let state = CombatState::new(80, 80, vec![repto], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
+        e.state.enemies[0].set_move(crate::enemies::move_ids::REPTO_SPAWN, 0, 0, 0);
+        e.state.enemies[0].move_effects.clear();
 
-        assert_eq!(e.state.enemies.len(), 1);
+        let mut hp_oracle = e.monster_hp_rng.clone();
+        let expected_hp = [
+            hp_oracle.random_int_range(20, 25),
+            hp_oracle.random_int_range(20, 25),
+        ];
+        let mut ai_oracle = e.ai_rng.clone();
+        for _ in 0..3 {
+            ai_oracle.random_int(99);
+        }
+
         e.execute_action(&Action::EndTurn);
-        assert_eq!(e.state.enemies.len(), 3,
-            "GremlinLeader should spawn 2 gremlins");
+
+        assert_eq!(e.state.enemies.len(), 3);
+        assert_eq!(
+            e.state.enemies[1..]
+                .iter()
+                .map(|enemy| (enemy.id.as_str(), enemy.entity.hp, enemy.is_minion))
+                .collect::<Vec<_>>(),
+            vec![
+                ("SnakeDagger", expected_hp[0], true),
+                ("SnakeDagger", expected_hp[1], true),
+            ],
+        );
+        assert_eq!(e.monster_hp_rng, hp_oracle);
+        assert_eq!(
+            e.ai_rng, ai_oracle,
+            "two dagger init rolls must precede Reptomancer's next move roll",
+        );
+    }
+
+    #[test]
+    fn gremlin_leader_spawns_gremlins() {
+        // Sources: decompiled/java-src/com/megacrit/cardcrawl/monsters/city/
+        // GremlinLeader.java, actions/unique/SummonGremlinAction.java, and the
+        // five monsters/exordium/Gremlin*.java constructors. The two action
+        // constructors select type and HP before queued init() rolls begin.
+        for ascension in [0, 20] {
+            let deck = make_deck_n("Defend", 20);
+            let mut gl = crate::enemies::create_enemy("GremlinLeader", 140, 140);
+            gl.entity.set_status(sid::STARTING_DMG, ascension);
+            let state = CombatState::new(80, 80, vec![gl], deck, 3);
+            let mut e = CombatEngine::new(state, 42);
+            e.start_combat();
+
+            let counters_before = e.rng_counters();
+            let unrelated_before = (
+                e.card_rng.clone(),
+                e.shuffle_rng.clone(),
+                e.card_random_rng.clone(),
+                e.potion_rng.clone(),
+                e.misc_rng.clone(),
+            );
+            let mut ai_oracle = e.ai_rng.clone();
+            let mut hp_oracle = e.monster_hp_rng.clone();
+            let high_hp = ascension >= 7;
+            let mut expected = Vec::with_capacity(2);
+            for _ in 0..2 {
+                let id = match ai_oracle.random_int_range(0, 7) {
+                    0 | 1 => "GremlinWarrior",
+                    2 | 3 => "GremlinThief",
+                    4 | 5 => "GremlinFat",
+                    6 => "GremlinTsundere",
+                    _ => "GremlinWizard",
+                };
+                let hp = match id {
+                    "GremlinFat" => hp_oracle.random_int_range(
+                        if high_hp { 14 } else { 13 },
+                        if high_hp { 18 } else { 17 },
+                    ),
+                    "GremlinThief" => hp_oracle.random_int_range(
+                        if high_hp { 11 } else { 10 },
+                        if high_hp { 15 } else { 14 },
+                    ),
+                    "GremlinWarrior" => hp_oracle.random_int_range(
+                        if high_hp { 21 } else { 20 },
+                        if high_hp { 25 } else { 24 },
+                    ),
+                    "GremlinWizard" => hp_oracle.random_int_range(
+                        if high_hp { 22 } else { 21 },
+                        if high_hp { 26 } else { 25 },
+                    ),
+                    _ => hp_oracle.random_int_range(
+                        if high_hp { 13 } else { 12 },
+                        if high_hp { 17 } else { 15 },
+                    ),
+                };
+                expected.push((id, hp));
+            }
+            for _ in 0..3 {
+                ai_oracle.random_int(99);
+            }
+
+            e.execute_action(&Action::EndTurn);
+
+            assert_eq!(e.state.enemies.len(), 3,
+                "GremlinLeader should spawn 2 gremlins");
+            assert_eq!(
+                e.state.enemies[1..].iter()
+                    .map(|enemy| (enemy.id.as_str(), enemy.entity.hp))
+                    .collect::<Vec<_>>(),
+                expected,
+            );
+            assert!(e.state.enemies[1..].iter().all(|enemy| enemy.is_minion));
+            assert_eq!(e.monster_hp_rng, hp_oracle);
+            assert_eq!(e.ai_rng, ai_oracle);
+            assert_eq!(e.rng_counters()["monsterHp"], counters_before["monsterHp"] + 2);
+            assert_eq!(e.rng_counters()["ai"], counters_before["ai"] + 5);
+            assert_eq!(
+                (
+                    e.card_rng.clone(),
+                    e.shuffle_rng.clone(),
+                    e.card_random_rng.clone(),
+                    e.potion_rng.clone(),
+                    e.misc_rng.clone(),
+                ),
+                unrelated_before,
+            );
+        }
     }
 
     // ====================================================================

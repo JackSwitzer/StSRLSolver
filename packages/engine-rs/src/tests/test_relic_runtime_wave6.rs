@@ -330,6 +330,7 @@ fn bronze_scales_grants_three_thorns_that_retaliates_through_full_block() {
     );
     engine.start_combat();
     assert_eq!(engine.state.player.status(sid::THORNS), 3);
+    engine.state.enemies[0].set_move(1, 4, 1, 0);
     engine.state.player.block = 10;
     let player_hp = engine.state.player.hp;
 
@@ -375,6 +376,7 @@ fn fossilized_helix_buffer_prevents_and_is_consumed_by_first_enemy_attack() {
     engine.start_combat();
     let hp = engine.state.player.hp;
     assert_eq!(engine.state.player.status(sid::BUFFER), 1);
+    engine.state.enemies[0].set_move(1, 12, 1, 0);
 
     end_turn(&mut engine);
 

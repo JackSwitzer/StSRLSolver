@@ -160,7 +160,7 @@ fn fiend_fire_exhausts_the_hand_and_fires_exhaust_triggers_for_each_card() {
     let mut candidates = vec!["Strike", "Defend"];
     let mut expected_exhaust_order = Vec::new();
     while !candidates.is_empty() {
-        let index = oracle.random((candidates.len() - 1) as i32) as usize;
+        let index = oracle.random_int((candidates.len() - 1) as i32) as usize;
         expected_exhaust_order.push(candidates.remove(index));
     }
 

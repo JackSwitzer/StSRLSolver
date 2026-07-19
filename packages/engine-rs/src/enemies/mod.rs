@@ -433,6 +433,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // ctor sets ritualAmount = ascension >= 2 ? 4 : 3 and takeTurn adds
             // +1 at ascension >= 17. Base 3 here = ascension 0/1; the run layer
             // (run.rs enter_specific_combat) patches 4/5 for ascension >= 2/17.
+            enemy.entity.set_status(sid::STR_AMT, 3);
             enemy.set_move(move_ids::CULT_INCANTATION, 0, 0, 0);
             enemy.add_effect(mfx::RITUAL, 3);
         }
@@ -1062,7 +1063,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
 /// Deterministic enemies ignore `num` but the stream still advances, preserving
 /// multi-enemy intent ordering parity with Java.
 pub fn roll_next_move(enemy: &mut EnemyCombatState, ai_rng: &mut crate::seed::StsRandom) {
-    let num: i32 = ai_rng.random(99);
+    let num: i32 = ai_rng.random_int(99);
     roll_next_move_with_num_and_rng(enemy, num, ai_rng);
 }
 
@@ -1070,7 +1071,7 @@ pub fn roll_next_move(enemy: &mut EnemyCombatState, ai_rng: &mut crate::seed::St
 /// history. Java calls `rollMove()` from `AbstractMonster.init()` while history
 /// is empty. This is currently used only for source-verified random openers.
 pub fn roll_initial_move(enemy: &mut EnemyCombatState, ai_rng: &mut crate::seed::StsRandom) {
-    let num = ai_rng.random(99);
+    let num = ai_rng.random_int(99);
     roll_initial_move_with_num_and_rng(enemy, num, ai_rng);
 }
 
@@ -1081,7 +1082,11 @@ pub fn roll_initial_move_with_num_and_rng(
 ) {
     enemy.move_history.clear();
     enemy.move_effects.clear();
-    select_move(enemy, num, ai_rng);
+    if enemy.id == "Cultist" {
+        act1::roll_cultist_initial(enemy);
+    } else {
+        select_move(enemy, num, ai_rng);
+    }
 }
 
 /// Test-friendly entry point: advance enemy intent using an explicit `num` (0..=99)
@@ -1270,6 +1275,12 @@ mod tests {
         let mut enemy = create_enemy("Cultist", 50, 50);
         assert_eq!(enemy.move_id, move_ids::CULT_INCANTATION);
         assert_eq!(enemy.move_damage(), 0);
+        assert_eq!(enemy.effect(mfx::RITUAL), Some(3));
+
+        // AbstractMonster.init calls rollMove; Cultist's first getMove keeps
+        // Incantation while consuming the mandatory aiRng draw.
+        roll_initial_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(enemy.move_id, move_ids::CULT_INCANTATION);
         assert_eq!(enemy.effect(mfx::RITUAL), Some(3));
 
         roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
@@ -1499,8 +1510,8 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::LOOTER_MUG);
         let seed = (1..10_000).find(|&seed| {
             let mut rng = crate::seed::StsRandom::new(seed);
-            let _ = rng.random_float();
-            rng.random_float() < 0.5
+            let _ = rng.random_f32();
+            rng.random_f32() < 0.5
         }).unwrap();
         let mut rng = crate::seed::StsRandom::new(seed);
 
@@ -1521,8 +1532,8 @@ mod tests {
 
         let lunge_seed = (1..10_000).find(|&seed| {
             let mut rng = crate::seed::StsRandom::new(seed);
-            let _ = rng.random_float();
-            rng.random_float() >= 0.5
+            let _ = rng.random_f32();
+            rng.random_f32() >= 0.5
         }).unwrap();
         let mut lunge = create_enemy("Looter", 44, 44);
         let mut rng = crate::seed::StsRandom::new(lunge_seed);
@@ -1573,7 +1584,7 @@ mod tests {
 
         let seed_for = |chance: f32, expected: bool| (1..10_000).find(|&seed| {
             let mut rng = crate::seed::StsRandom::new(seed);
-            (rng.random_float() < chance) == expected
+            (rng.random_f32() < chance) == expected
         }).unwrap();
 
         for (caws, expected) in [
@@ -1934,7 +1945,7 @@ mod tests {
         assert_eq!(enemy.entity.status(sid::ARTIFACT), 1);
 
         let false_seed = (1..10_000).find(|&seed|
-            !crate::seed::StsRandom::new(seed).random_boolean()).unwrap();
+            !crate::seed::StsRandom::new(seed).random_bool()).unwrap();
         let mut rng = crate::seed::StsRandom::new(false_seed);
         roll_initial_move_with_num_and_rng(&mut enemy, 0, &mut rng);
         assert_eq!(enemy.move_id, move_ids::SHIELD_BASH);
@@ -1962,7 +1973,7 @@ mod tests {
         // Source: reference/extracted/methods/monster/SpireSpear.java. The
         // empty-history opener is Burn Strike, then Skewer, then a boolean.
         let true_seed = (1..10_000).find(|&seed|
-            crate::seed::StsRandom::new(seed).random_boolean()).unwrap();
+            crate::seed::StsRandom::new(seed).random_bool()).unwrap();
         let mut rng = crate::seed::StsRandom::new(true_seed);
         roll_initial_move_with_num_and_rng(&mut enemy, 0, &mut rng);
         assert_eq!(enemy.move_id, move_ids::SPEAR_BURN_STRIKE);

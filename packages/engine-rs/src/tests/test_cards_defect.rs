@@ -440,7 +440,7 @@ mod defect_card_java_parity_tests {
         engine.init_defect_orbs(1);
         engine.channel_orb(OrbType::Lightning);
         let mut oracle = engine.card_random_rng.clone();
-        oracle.random(0);
+        oracle.random_int(0);
         engine.evoke_front_orb();
         assert_eq!(engine.state.enemies[0].entity.hp, 57); // floor(8 * 1.5)
         assert_eq!(engine.card_random_rng.counter, oracle.counter);
@@ -546,7 +546,7 @@ mod defect_card_java_parity_tests {
             e.state.hand = make_deck(&[card_id]);
             e.state.energy = 3;
             let card_random_before = e.card_random_rng.counter;
-            let general_before = e.rng.counter;
+            let general_before = e.shuffle_rng.counter;
 
             assert!(play_self(&mut e, card_id));
 
@@ -556,7 +556,7 @@ mod defect_card_java_parity_tests {
             assert_eq!(e.state.orb_slots.slots[1].orb_type, OrbType::Lightning);
             assert_eq!(e.state.player.status(sid::LIGHTNING_CHANNELED), 1);
             assert_eq!(e.card_random_rng.counter, card_random_before);
-            assert_eq!(e.rng.counter, general_before);
+            assert_eq!(e.shuffle_rng.counter, general_before);
         }
     });
 
@@ -1138,8 +1138,8 @@ mod defect_card_java_parity_tests {
             ensure_in_hand(&mut e, card_id);
             let pool = generated_card_pool(&e, GeneratedCardPool::DefectPower);
             let mut oracle = e.card_random_rng.clone();
-            let expected = pool[oracle.random((pool.len() - 1) as i32) as usize];
-            let general_before = e.rng.counter;
+            let expected = pool[oracle.random_int((pool.len() - 1) as i32) as usize];
+            let general_before = e.shuffle_rng.counter;
             let hand_before = e.state.hand.len();
 
             assert!(play_self(&mut e, card_id));
@@ -1147,7 +1147,7 @@ mod defect_card_java_parity_tests {
             assert_eq!(e.state.hand.len(), hand_before);
             assert_eq!(e.state.energy, expected_energy);
             assert_eq!(e.card_random_rng.counter, oracle.counter);
-            assert_eq!(e.rng.counter, general_before);
+            assert_eq!(e.shuffle_rng.counter, general_before);
             assert_eq!(
                 e.state
                     .exhaust_pile
@@ -1345,7 +1345,7 @@ mod defect_card_java_parity_tests {
         e.state.discard_pile.clear();
         let mut oracle = e.card_random_rng.clone();
         let expected: Vec<&str> = (0..2)
-            .map(|_| POOL[oracle.random((POOL.len() - 1) as i32) as usize])
+            .map(|_| POOL[oracle.random_int((POOL.len() - 1) as i32) as usize])
             .collect();
 
         end_turn(&mut e);

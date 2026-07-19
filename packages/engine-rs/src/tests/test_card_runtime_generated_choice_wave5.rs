@@ -108,11 +108,11 @@ fn chrysalis_plus_matches_watcher_pool_rng_placement_and_master_reality() {
     engine.state.draw_pile = make_deck(&["Strike", "Defend", "Strike"]);
     engine.state.player.set_status(sid::MASTER_REALITY, 1);
 
-    let general_before = engine.rng.counter;
+    let general_before = engine.shuffle_rng.counter;
     let mut oracle = engine.card_random_rng.clone();
     let selected: Vec<&str> = (0..5)
         .map(|_| {
-            let idx = oracle.random((JAVA_WATCHER_SKILL_POOL.len() - 1) as i32) as usize;
+            let idx = oracle.random_int((JAVA_WATCHER_SKILL_POOL.len() - 1) as i32) as usize;
             JAVA_WATCHER_SKILL_POOL[idx]
         })
         .collect();
@@ -123,7 +123,7 @@ fn chrysalis_plus_matches_watcher_pool_rng_placement_and_master_reality() {
         .map(|card| engine.card_registry.card_name(card.def_id).to_string())
         .collect();
     for id in &selected {
-        let idx = oracle.random((expected_draw.len() - 1) as i32) as usize;
+        let idx = oracle.random_int((expected_draw.len() - 1) as i32) as usize;
         expected_draw.insert(idx, format!("{id}+"));
     }
 
@@ -137,7 +137,7 @@ fn chrysalis_plus_matches_watcher_pool_rng_placement_and_master_reality() {
         .collect();
     assert_eq!(actual_draw, expected_draw);
     assert_eq!(engine.card_random_rng.counter, oracle.counter);
-    assert_eq!(engine.rng.counter, general_before);
+    assert_eq!(engine.shuffle_rng.counter, general_before);
     assert_eq!(engine.state.exhaust_pile.len(), 1);
     for card in &engine.state.draw_pile {
         let name = engine.card_registry.card_name(card.def_id);
@@ -165,11 +165,11 @@ fn metamorphosis_plus_matches_watcher_attack_rng_placement_and_master_reality() 
     engine.state.draw_pile = make_deck(&["Strike", "Defend", "Strike"]);
     engine.state.player.set_status(sid::MASTER_REALITY, 1);
 
-    let general_before = engine.rng.counter;
+    let general_before = engine.shuffle_rng.counter;
     let mut oracle = engine.card_random_rng.clone();
     let selected: Vec<&str> = (0..5)
         .map(|_| {
-            let idx = oracle.random((JAVA_WATCHER_ATTACK_POOL.len() - 1) as i32) as usize;
+            let idx = oracle.random_int((JAVA_WATCHER_ATTACK_POOL.len() - 1) as i32) as usize;
             JAVA_WATCHER_ATTACK_POOL[idx]
         })
         .collect();
@@ -180,7 +180,7 @@ fn metamorphosis_plus_matches_watcher_attack_rng_placement_and_master_reality() 
         .map(|card| engine.card_registry.card_name(card.def_id).to_string())
         .collect();
     for id in &selected {
-        let idx = oracle.random((expected_draw.len() - 1) as i32) as usize;
+        let idx = oracle.random_int((expected_draw.len() - 1) as i32) as usize;
         expected_draw.insert(idx, format!("{id}+"));
     }
 
@@ -194,7 +194,7 @@ fn metamorphosis_plus_matches_watcher_attack_rng_placement_and_master_reality() 
         .collect();
     assert_eq!(actual_draw, expected_draw);
     assert_eq!(engine.card_random_rng.counter, oracle.counter);
-    assert_eq!(engine.rng.counter, general_before);
+    assert_eq!(engine.shuffle_rng.counter, general_before);
     assert_eq!(engine.state.exhaust_pile.len(), 1);
     for card in &engine.state.draw_pile {
         let name = engine.card_registry.card_name(card.def_id);

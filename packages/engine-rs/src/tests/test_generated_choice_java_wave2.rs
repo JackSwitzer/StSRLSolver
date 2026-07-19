@@ -162,8 +162,8 @@ fn jack_of_all_trades_uses_exact_colorless_pool_and_card_random_rng() {
 
     let pool = generated_card_pool(&engine, GeneratedCardPool::Colorless);
     let mut oracle = engine.card_random_rng.clone();
-    let expected = pool[oracle.random((pool.len() - 1) as i32) as usize];
-    let general_before = engine.rng.counter;
+    let expected = pool[oracle.random_int((pool.len() - 1) as i32) as usize];
+    let general_before = engine.shuffle_rng.counter;
     let hand_before = engine.state.hand.len();
     play_card(&mut engine, "Jack Of All Trades");
 
@@ -171,7 +171,7 @@ fn jack_of_all_trades_uses_exact_colorless_pool_and_card_random_rng() {
     let generated_name = engine.card_registry.card_name(engine.state.hand.last().unwrap().def_id);
     assert_eq!(generated_name, expected);
     assert_eq!(engine.card_random_rng.counter, oracle.counter);
-    assert_eq!(engine.rng.counter, general_before);
+    assert_eq!(engine.shuffle_rng.counter, general_before);
     assert_eq!(exhaust_prefix_count(&engine, "Jack Of All Trades"), 1);
 }
 
@@ -189,8 +189,8 @@ fn infernal_blade_uses_card_random_attack_pool_and_zeroes_turn_cost() {
         ));
         let attack_pool = generated_card_pool(&engine, GeneratedCardPool::Attack);
         let mut oracle = engine.card_random_rng.clone();
-        let expected = attack_pool[oracle.random((attack_pool.len() - 1) as i32) as usize];
-        let general_before = engine.rng.counter;
+        let expected = attack_pool[oracle.random_int((attack_pool.len() - 1) as i32) as usize];
+        let general_before = engine.shuffle_rng.counter;
         let hand_before = engine.state.hand.len();
 
         play_card(&mut engine, card_id);
@@ -198,7 +198,7 @@ fn infernal_blade_uses_card_random_attack_pool_and_zeroes_turn_cost() {
         assert_eq!(engine.state.hand.len(), hand_before);
         assert_eq!(engine.state.energy, expected_energy);
         assert_eq!(engine.card_random_rng.counter, oracle.counter);
-        assert_eq!(engine.rng.counter, general_before);
+        assert_eq!(engine.shuffle_rng.counter, general_before);
         assert_eq!(exhaust_prefix_count(&engine, "Infernal Blade"), 1);
         let generated = *engine.state.hand.last().unwrap();
         assert_eq!(engine.card_registry.card_name(generated.def_id), expected);
@@ -249,9 +249,9 @@ fn jack_of_all_trades_plus_generates_two_colorless_cards() {
     let pool = generated_card_pool(&engine, GeneratedCardPool::Colorless);
     let mut oracle = engine.card_random_rng.clone();
     let expected: Vec<_> = (0..2)
-        .map(|_| pool[oracle.random((pool.len() - 1) as i32) as usize])
+        .map(|_| pool[oracle.random_int((pool.len() - 1) as i32) as usize])
         .collect();
-    let general_before = engine.rng.counter;
+    let general_before = engine.shuffle_rng.counter;
 
     play_card(&mut engine, "Jack Of All Trades+");
 
@@ -262,7 +262,7 @@ fn jack_of_all_trades_plus_generates_two_colorless_cards() {
         expected[0]
     );
     assert_eq!(engine.card_random_rng.counter, oracle.counter);
-    assert_eq!(engine.rng.counter, general_before);
+    assert_eq!(engine.shuffle_rng.counter, general_before);
     assert_eq!(exhaust_prefix_count(&engine, "Jack Of All Trades"), 1);
 }
 

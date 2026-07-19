@@ -104,7 +104,7 @@ fn relic_wave15_mark_of_pain_adds_two_wounds_to_draw_pile_at_combat_start() {
 
     assert_eq!(draw_prefix_count(&engine, "Wound"), 2);
     assert_eq!(engine.rng_counters()["cardRandom"], before["cardRandom"] + 2);
-    assert_eq!(engine.rng_counters()["card"], before["card"]);
+    assert_eq!(engine.rng_counters()["shuffle"], before["shuffle"]);
 }
 
 #[test]

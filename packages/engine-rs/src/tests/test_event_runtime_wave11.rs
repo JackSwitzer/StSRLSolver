@@ -19,15 +19,36 @@ fn typed_event(act: i32, name: &str) -> TypedEventDef {
         .unwrap_or_else(|| panic!("missing typed event {name} in act {act}"))
 }
 
+fn assert_floor_rngs(engine: &RunEngine, seed: u64, floor: i32, counters: [i32; 5]) {
+    const NAMES: [&str; 5] = ["monsterHp", "ai", "shuffle", "cardRandom", "misc"];
+    let actual_counters = engine.rng_counters();
+    for (name, expected) in NAMES.into_iter().zip(counters) {
+        assert_eq!(actual_counters[name], i64::from(expected), "{name} counter");
+    }
+
+    let floor_seed = seed.wrapping_add(floor as u64);
+    let expected_states = counters
+        .map(|counter| crate::seed::StsRandom::with_counter(floor_seed, counter).state_tuple());
+    assert_eq!(engine.debug_floor_rng_states(), expected_states);
+}
+
 #[test]
 fn colosseum_is_supported_and_uses_event_continuation_plus_two_combats() {
-    let mut engine = RunEngine::new(91, 20);
+    let seed = 91;
+    let floor = 23;
+    let mut engine = RunEngine::new(seed, 20);
+    engine.run_state.floor = floor;
+    // Model distinct draws already consumed in the live EventRoom. Neither
+    // AbstractImageEvent.enterCombatFromImage call may reconstruct these streams.
+    let event_room_counters = [3, 5, 7, 11, 13];
+    engine.debug_set_floor_rng_counters(event_room_counters);
     let colosseum = typed_event(2, "Colosseum");
     assert!(matches!(
         colosseum.options[0].status,
         EventRuntimeStatus::Supported
     ));
     engine.debug_set_typed_event_state(colosseum);
+    assert_floor_rngs(&engine, seed, floor, event_room_counters);
 
     let intro = engine.step_with_result(&RunAction::EventChoice(0));
     assert!(intro.action_accepted);
@@ -35,6 +56,7 @@ fn colosseum_is_supported_and_uses_event_continuation_plus_two_combats() {
     let intro_ctx = engine.current_decision_context().event.expect("colosseum follow-up event");
     assert_eq!(intro_ctx.name, "Colosseum");
     assert_eq!(intro_ctx.options.len(), 1);
+    assert_floor_rngs(&engine, seed, floor, event_room_counters);
 
     let first_fight = engine.step_with_result(&RunAction::EventChoice(0));
     assert!(first_fight.action_accepted);
@@ -43,6 +65,8 @@ fn colosseum_is_supported_and_uses_event_continuation_plus_two_combats() {
     assert_eq!(combat.state.enemies.len(), 2);
     assert!(combat.state.enemies.iter().any(|enemy| enemy.id == "SlaverBlue"));
     assert!(combat.state.enemies.iter().any(|enemy| enemy.id == "SlaverRed"));
+    let first_combat_counters = [5, 7, 8, 11, 13];
+    assert_floor_rngs(&engine, seed, floor, first_combat_counters);
 
     engine.debug_force_current_combat_outcome(true);
     engine.debug_resolve_current_combat_outcome();
@@ -50,6 +74,7 @@ fn colosseum_is_supported_and_uses_event_continuation_plus_two_combats() {
     let post_ctx = engine.current_decision_context().event.expect("colosseum post combat");
     assert_eq!(post_ctx.name, "Colosseum");
     assert_eq!(post_ctx.options.len(), 2);
+    assert_floor_rngs(&engine, seed, floor, first_combat_counters);
 
     let second_fight = engine.step_with_result(&RunAction::EventChoice(1));
     assert!(second_fight.action_accepted);
@@ -58,6 +83,12 @@ fn colosseum_is_supported_and_uses_event_continuation_plus_two_combats() {
     assert_eq!(combat.state.enemies.len(), 2);
     assert!(combat.state.enemies.iter().any(|enemy| enemy.id == "SlaverBoss"));
     assert!(combat.state.enemies.iter().any(|enemy| enemy.id == "GremlinNob"));
+
+    // Taskmaster consumes a constructor HP roll and then an overwritten
+    // setHp roll; Gremlin Nob consumes one setHp roll.
+    // Java: monsters/city/Taskmaster.java and exordium/GremlinNob.java.
+    let second_combat_counters = [8, 9, 9, 11, 13];
+    assert_floor_rngs(&engine, seed, floor, second_combat_counters);
 
     let gold_before = engine.run_state.gold;
     engine.debug_force_current_combat_outcome(true);

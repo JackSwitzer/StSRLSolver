@@ -37,7 +37,7 @@ fn distilled_chaos_hook(
             .map(|_| {
                 let pick = engine
                     .card_random_rng
-                    .random_range(0, (living.len() - 1) as i32)
+                    .random_int_range(0, (living.len() - 1) as i32)
                     as usize;
                 living[pick] as i32
             })

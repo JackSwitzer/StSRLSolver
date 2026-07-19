@@ -2,33 +2,17 @@
 
 Running list of concrete divergences found by the trace oracle / decompile audit, most-actionable first. Each is a target for the `/goal` grind with the exact source citation. Clear an item by fixing + adding a smart test (or trace-matching it) and moving it to "Resolved".
 
-## F1 — `roll_jaw_worm` logic and RNG consumption are wrong (and existing parity tests hide it)
+## F1 — RESOLVED: Jaw Worm logic and secondary RNG draws
 
-`packages/engine-rs/src/enemies/act1.rs` `roll_jaw_worm` does not match `decompiled/java-src/com/megacrit/cardcrawl/monsters/exordium/JawWorm.java` `getMove(int num)`. The Rust comment paraphrases a *different, simpler* algorithm than the game actually ships.
+`roll_jaw_worm` now follows the three Java branch windows and consumes the
+conditional `randomBoolean` draw from the shared AI stream. The source-derived
+boundary and stream-order proofs live in `test_ai_rng_parity`.
 
-Actual decompiled `getMove(num)` (desktop-1.0):
-```
-firstMove            -> CHOMP
-num < 25:  lastMove(CHOMP)      ? (aiRng.randomBoolean(0.5625) ? BELLOW : THRASH) : CHOMP
-num < 55:  lastTwoMoves(THRASH) ? (aiRng.randomBoolean(0.357)  ? CHOMP  : BELLOW) : THRASH
-else:      lastMove(BELLOW)     ? (aiRng.randomBoolean(0.416)  ? CHOMP  : THRASH) : BELLOW
-```
-Current Rust:
-```
-num<25 && !lastTwoMoves(CHOMP) -> CHOMP
-num<55 && !lastMove(BELLOW)    -> BELLOW
-!lastTwoMoves(THRASH)          -> THRASH
-else                           -> CHOMP
-```
-Two defects: (1) different branch decisions; (2) Java consumes **an extra `aiRng` value** (`randomBoolean`) in three branches — Rust consumes none — so after the first such branch the `ai` counter desyncs from Java for the rest of combat. This poisons every downstream trace comparison for any fight containing a JawWorm.
+## F2 — RESOLVED: all 13 run RNG counters are observable
 
-**Trap:** `src/tests/test_ai_rng_parity.rs` asserts the *current wrong* Rust logic, so it's green. Hand-written parity tests validated against a misremembered spec give false confidence. The fix must re-derive expected values from the decompiled source (or the trace), not from the existing tests.
-
-**Scope note:** this is not JawWorm-only. Threading `ai_rng` into the per-enemy roll for the conditional `randomBoolean` branches changes the `roll_next_move_with_num(enemy, num)` shape (it needs the rng) across every enemy that uses a secondary roll. That's the real body of U08/U10 — bigger than one enemy, smaller than "implement enemy RNG" (which is already done, see F3).
-
-## F2 — `RunEngine::rng_counters()` exposes only `card` out of combat
-
-`packages/engine-rs/src/run.rs:3741` returns just `{"card": …}` when not in combat; in combat it delegates to `CombatEngine::rng_counters()`. The trace schema needs all 13 streams (`card, cardRandom, shuffle, monster, monsterHp, ai, relic, treasure, event, merchant, potion, map, misc`) at every action so map/shop/event RNG parity is checkable. Until this is fixed, the differ reports `rust: null` for 12 of 13 counters on every non-combat record (see the smoke-neow-floor1 report). Fix: populate the full stream set from the `RunEngine`'s own RNG fields in both branches. Small, unblocks all non-combat RNG parity.
+`RunEngine::rng_counters()` now emits every canonical persistent, floor, map,
+and Neow stream outside combat and overlays all seven combat-owned streams while
+a fight is active. Counters are signed so Java `int` overflow remains traceable.
 
 ## F3 — RECONCILED: enemy AI RNG threading is already implemented
 
@@ -48,7 +32,8 @@ Java emits `"Potion Slot"` for an empty potion slot; Rust emits `""`. Normalize 
 
 ## F7 — Java/Rust harness contract nits (flagged, not yet biting)
 
-- `TraceWriter.putCounter` emits `-1` for a null RNG stream; Rust `PostState.rng` is `BTreeMap<String, u64>`, so such a golden would hard-fail deserialization with an unhelpful error. All streams are initialized once a run starts, so today's goldens are safe — but a pre-run/menu record would poison a trace.
+- Resolved: `PostState.rng` and the differ use `BTreeMap<String, i64>`, so Java's
+  `-1` null-stream marker and signed counter overflow round-trip correctly.
 - `Script.Action.choice` is `Integer` in the Java harness, while the Rust `TraceAction::Campfire` and the TOOLING T2 example use a string (`"REST"`). CAMPFIRE isn't implemented in the harness yet (`execute()` rejects it); whoever adds it must reconcile the type first.
 - Rust `ScriptStopCondition.max_actions` has no Java-side counterpart; scripts relying on it will produce longer Java goldens than Rust replays. Use `max_floor` (semantics: stop once floor *exceeds* max_floor — actions on the max floor still run) or trim the action list.
 

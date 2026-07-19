@@ -19,7 +19,7 @@ fn hook(
         // size-1), consuming one tick even when there is only one candidate.
         let pick = engine
             .card_random_rng
-            .random((living.len() - 1) as i32) as usize;
+            .random_int((living.len() - 1) as i32) as usize;
         engine.deal_damage_to_enemy(living[pick], 3);
     }
 }

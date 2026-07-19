@@ -6,6 +6,19 @@ use crate::events::{EventDef, EventEffect, EventOption};
 use crate::map::RoomType;
 use crate::run::{RunAction, RunEngine};
 
+fn assert_floor_rngs(engine: &RunEngine, seed: u64, floor: i32, counters: [i32; 5]) {
+    const NAMES: [&str; 5] = ["monsterHp", "ai", "shuffle", "cardRandom", "misc"];
+    let actual_counters = engine.rng_counters();
+    for (name, expected) in NAMES.into_iter().zip(counters) {
+        assert_eq!(actual_counters[name], i64::from(expected), "{name} counter");
+    }
+
+    let floor_seed = seed.wrapping_add(floor as u64);
+    let expected_states = counters
+        .map(|counter| crate::seed::StsRandom::with_counter(floor_seed, counter).state_tuple());
+    assert_eq!(engine.debug_floor_rng_states(), expected_states);
+}
+
 #[test]
 fn elite_reward_screen_orders_relic_before_card_choice() {
     let mut engine = RunEngine::new(42, 20);
@@ -345,6 +358,87 @@ fn boss_reward_screen_requires_relic_choice_and_transitions_to_act_two() {
     assert!(!engine.run_state.run_over);
     assert_eq!(engine.current_phase(), crate::run::RunPhase::MapChoice);
     assert!(!engine.get_legal_actions().is_empty());
+}
+
+#[test]
+fn act_one_and_two_boss_chests_reset_floor_rngs_before_astrolabe_effects() {
+    // ProceedButton.goToTreasureRoom invokes nextRoomTransition before
+    // TreasureRoomBoss.onPlayerEntry constructs and exposes its BossChest.
+    // Astrolabe.giveCards then transforms with that new floor's miscRng.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/buttons/ProceedButton.java:179-186
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:1731-1741
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Astrolabe.java:59-72
+    for (act, boss_floor, boss_id) in [(1, 16, "SlimeBoss"), (2, 33, "TheChamp")] {
+        let seed = (0..512)
+            .find(|&seed| {
+                let mut probe = RunEngine::new(seed, 0);
+                probe.run_state.act = act;
+                probe.debug_build_boss_reward_screen();
+                probe.current_reward_screen().is_some_and(|screen| {
+                    screen.items[0].choices.iter().any(|choice| {
+                        matches!(choice, RewardChoice::Named { label, .. } if label == "Astrolabe")
+                    })
+                })
+            })
+            .expect("Astrolabe must be reachable from each boss pool");
+
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.act = act;
+        engine.run_state.floor = boss_floor;
+        engine.debug_enter_specific_combat(&[boss_id]);
+        engine.debug_force_current_combat_outcome(true);
+        engine.debug_resolve_current_combat_outcome();
+
+        let chest_floor = boss_floor + 1;
+        assert_eq!(engine.run_state.floor, chest_floor);
+        assert_eq!(engine.current_phase(), crate::run::RunPhase::CardReward);
+        assert_floor_rngs(&engine, seed, chest_floor, [0, 0, 0, 0, 0]);
+
+        let astrolabe_index = engine
+            .current_reward_screen()
+            .expect("boss relic screen")
+            .items[0]
+            .choices
+            .iter()
+            .position(|choice| {
+                matches!(choice, RewardChoice::Named { label, .. } if label == "Astrolabe")
+            })
+            .expect("seeded boss chest should expose Astrolabe");
+        assert!(
+            engine
+                .step_with_result(&RunAction::SelectRewardItem(0))
+                .action_accepted
+        );
+        assert!(
+            engine
+                .step_with_result(&RunAction::ChooseRewardOption {
+                    item_index: 0,
+                    choice_index: astrolabe_index,
+                })
+                .action_accepted
+        );
+        assert_floor_rngs(&engine, seed, chest_floor, [0, 0, 0, 0, 0]);
+
+        for _ in 0..3 {
+            assert!(
+                engine
+                    .step_with_result(&RunAction::SelectRewardItem(0))
+                    .action_accepted
+            );
+            assert!(
+                engine
+                    .step_with_result(&RunAction::ChooseRewardOption {
+                        item_index: 0,
+                        choice_index: 0,
+                    })
+                    .action_accepted
+            );
+        }
+
+        assert_eq!(engine.run_state.act, act + 1);
+        assert_eq!(engine.run_state.floor, chest_floor);
+        assert_floor_rngs(&engine, seed, chest_floor, [0, 0, 0, 0, 4]);
+    }
 }
 
 #[test]

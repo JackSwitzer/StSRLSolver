@@ -138,9 +138,9 @@ fn defect_wave12_chaos_uses_java_orb_order_and_card_random_rng() {
     let java_orbs = [OrbType::Dark, OrbType::Frost, OrbType::Lightning, OrbType::Plasma];
     let mut oracle = engine.card_random_rng.clone();
     let expected: Vec<OrbType> = (0..3)
-        .map(|_| java_orbs[oracle.random(3) as usize])
+        .map(|_| java_orbs[oracle.random_int(3) as usize])
         .collect();
-    let generic_before = engine.rng_counters()["card"];
+    let generic_before = engine.rng_counters()["shuffle"];
 
     assert!(play_self(&mut engine, "Chaos"));
     assert!(play_self(&mut engine, "Chaos+"));
@@ -151,7 +151,7 @@ fn defect_wave12_chaos_uses_java_orb_order_and_card_random_rng() {
         .collect();
     assert_eq!(actual, expected);
     assert_eq!(engine.card_random_rng.counter, oracle.counter);
-    assert_eq!(engine.rng_counters()["card"], generic_before);
+    assert_eq!(engine.rng_counters()["shuffle"], generic_before);
 }
 
 #[test]
@@ -273,14 +273,14 @@ fn thunder_strike_plus_uses_strike_tag_and_card_random_once_per_lightning() {
     engine.state.player.set_status(sid::STRENGTH, 2);
     engine.state.hand = make_deck(&["Thunder Strike+"]);
     let card_random_before = engine.rng_counters()["cardRandom"];
-    let generic_before = engine.rng_counters()["card"];
+    let generic_before = engine.rng_counters()["shuffle"];
 
     assert!(play_self(&mut engine, "Thunder Strike+"));
 
     assert_eq!(engine.state.energy, 0);
     assert_eq!(engine.state.enemies[0].entity.hp, 72);
     assert_eq!(engine.rng_counters()["cardRandom"], card_random_before + 2);
-    assert_eq!(engine.rng_counters()["card"], generic_before);
+    assert_eq!(engine.rng_counters()["shuffle"], generic_before);
 }
 
 #[test]

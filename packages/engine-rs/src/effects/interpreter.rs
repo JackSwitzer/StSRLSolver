@@ -190,7 +190,7 @@ fn execute_scaled_attack_damage(
                 // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/AttackDamageRandomEnemyAction.java
                 let selected = engine
                     .card_random_rng
-                    .random_range(0, (living.len() - 1) as i32) as usize;
+                    .random_int_range(0, (living.len() - 1) as i32) as usize;
                 let enemy_idx = living[selected];
                 let enemy_vuln = engine.state.enemies[enemy_idx].entity.is_vulnerable();
                 let enemy_intangible = engine.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) > 0;
@@ -331,7 +331,7 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                 } else {
                     engine
                         .card_random_rng
-                        .random((engine.state.hand.len() - 1) as i32) as usize
+                        .random_int((engine.state.hand.len() - 1) as i32) as usize
                 };
                 let exhausted = engine.state.hand.remove(idx);
                 engine.state.exhaust_pile.push(exhausted);
@@ -502,7 +502,7 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                 if engine.state.draw_pile.is_empty() {
                     engine.state.draw_pile.push(card);
                 } else {
-                    let idx = engine.card_random_rng.random_range(
+                    let idx = engine.card_random_rng.random_int_range(
                         0,
                         (engine.state.draw_pile.len() - 1) as i32,
                     ) as usize;
@@ -569,7 +569,7 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                 crate::orbs::OrbType::Plasma,
             ];
             for _ in 0..count {
-                let idx = engine.card_random_rng.random(3) as usize;
+                let idx = engine.card_random_rng.random_int(3) as usize;
                 engine.channel_orb(orb_types[idx]);
             }
         }
@@ -707,7 +707,7 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                 Target::RandomEnemy => {
                     let living = engine.state.living_enemy_indices();
                     if !living.is_empty() {
-                        let idx = living[engine.rng_gen_range(0..living.len())];
+                        let idx = living[engine.card_random_rng.random_index(living.len())];
                         engine.state.enemies[idx].entity.block = 0;
                     }
                 }
@@ -1004,7 +1004,7 @@ fn apply_status(
                 // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/MonsterGroup.java
                 let selected = engine
                     .card_random_rng
-                    .random_range(0, (living.len() - 1) as i32) as usize;
+                    .random_int_range(0, (living.len() - 1) as i32) as usize;
                 let idx = living[selected];
                 if is_debuff(status, amount) {
                     engine.apply_player_debuff_to_enemy(idx, status, amount);
@@ -1047,7 +1047,7 @@ fn set_status(
         Target::RandomEnemy => {
             let living = engine.state.living_enemy_indices();
             if !living.is_empty() {
-                let idx = living[engine.rng_gen_range(0..living.len())];
+                let idx = living[engine.card_random_rng.random_index(living.len())];
                 engine.state.enemies[idx].entity.set_status(status, value);
             }
         }
@@ -1169,7 +1169,7 @@ fn multiply_status(
         Target::RandomEnemy => {
             let living = engine.state.living_enemy_indices();
             if !living.is_empty() {
-                let idx = living[engine.rng_gen_range(0..living.len())];
+                let idx = living[engine.card_random_rng.random_index(living.len())];
                 let current = engine.state.enemies[idx].entity.status(status);
                 if current > 0 {
                     engine.state.enemies[idx].entity.set_status(status, current * multiplier);
@@ -1322,7 +1322,7 @@ fn deal_flat_damage(
         Target::RandomEnemy => {
             let living = engine.state.living_enemy_indices();
             if !living.is_empty() {
-                let idx = living[engine.rng_gen_range(0..living.len())];
+                let idx = living[engine.card_random_rng.random_index(living.len())];
                 engine.deal_damage_to_enemy(idx, amount);
             }
         }
@@ -1606,7 +1606,7 @@ fn execute_choose_cards(
         for _ in 0..options.len() {
             let index = engine
                 .card_random_rng
-                .random((engine.state.hand.len() - 1) as i32) as usize;
+                .random_int((engine.state.hand.len() - 1) as i32) as usize;
             let card = engine.state.hand.remove(index);
             engine.state.draw_pile.push(card);
         }
@@ -2016,7 +2016,7 @@ fn execute_for_each(
             while !candidates.is_empty() {
                 let index = engine
                     .card_random_rng
-                    .random((candidates.len() - 1) as i32) as usize;
+                    .random_int((candidates.len() - 1) as i32) as usize;
                 exhausted.push(candidates.remove(index));
             }
 
@@ -2157,6 +2157,15 @@ fn execute_draw_random_cards_from_pile_to_hand(
     count_src: AmountSource,
 ) {
     let count = resolve_card_amount(engine, ctx, &count_src).max(0) as usize;
+    draw_random_cards_from_pile_to_hand(engine, pile, filter, count);
+}
+
+pub(crate) fn draw_random_cards_from_pile_to_hand(
+    engine: &mut CombatEngine,
+    pile: Pile,
+    filter: CardFilter,
+    count: usize,
+) {
     if count == 0 {
         return;
     }
@@ -2182,7 +2191,7 @@ fn execute_draw_random_cards_from_pile_to_hand(
         } else {
             let insert_idx = engine
                 .card_random_rng
-                .random((eligible.len() - 1) as i32) as usize;
+                .random_int((eligible.len() - 1) as i32) as usize;
             eligible.insert(insert_idx, source_idx);
         }
     }
@@ -2192,7 +2201,7 @@ fn execute_draw_random_cards_from_pile_to_hand(
         if eligible.is_empty() {
             break;
         }
-        crate::seed::card_group_shuffle(&mut eligible, &mut engine.rng);
+        crate::seed::card_group_shuffle(&mut eligible, &mut engine.shuffle_rng);
         let original_idx = eligible.remove(0);
         let shifted_by = removed_source_indices
             .iter()
@@ -2236,7 +2245,7 @@ fn execute_discard_random_cards_from_pile(
         if len == 0 {
             break;
         }
-        let idx = engine.card_random_rng.random((len - 1) as i32) as usize;
+        let idx = engine.card_random_rng.random_int((len - 1) as i32) as usize;
         let source = get_pile_mut(engine, pile);
         let card = source.remove(idx);
         engine.state.discard_pile.push(card);
@@ -2480,7 +2489,7 @@ pub fn generate_random_cards(
                 } else {
                     let idx = engine
                         .card_random_rng
-                        .random((engine.state.draw_pile.len() - 1) as i32)
+                        .random_int((engine.state.draw_pile.len() - 1) as i32)
                         as usize;
                     engine.state.draw_pile.insert(idx, card);
                 }
@@ -2512,9 +2521,9 @@ pub(crate) fn generate_random_card(
     ) {
         // AbstractDungeon.returnTrulyRandomCardInCombat(type) selects from
         // the source color pools with cardRandomRng.
-        engine.card_random_rng.random((pool_cards.len() - 1) as i32) as usize
+        engine.card_random_rng.random_int((pool_cards.len() - 1) as i32) as usize
     } else {
-        engine.rng_gen_range(0..pool_cards.len())
+        engine.card_random_rng.random_index(pool_cards.len())
     };
     let choice = pool_cards[choice_index];
     Some(engine.temp_card(choice))
@@ -2537,7 +2546,7 @@ pub(crate) fn generate_unique_random_cards(
     let mut seen = HashSet::new();
     while picked.len() < target {
         let choice = pool_cards
-            [engine.card_random_rng.random((pool_cards.len() - 1) as i32) as usize];
+            [engine.card_random_rng.random_int((pool_cards.len() - 1) as i32) as usize];
         if seen.insert(choice) {
             // DiscoveryAction previews base copies; Master Reality upgrades
             // only the selected copy during resolution.
@@ -2838,7 +2847,7 @@ fn foreign_influence_excludes_healing_attack(card_id: &str) -> bool {
 
 fn roll_generated_attack_rarity(engine: &mut CombatEngine) -> GeneratedPoolRarity {
     // ForeignInfluenceAction.generateCardChoices uses cardRandomRng.random(99).
-    let roll = engine.card_random_rng.random(99) as usize;
+    let roll = engine.card_random_rng.random_int(99) as usize;
     if roll < 55 {
         GeneratedPoolRarity::Common
     } else if roll < 85 {
@@ -2862,8 +2871,8 @@ fn generate_weighted_any_color_attack_card(
     // ordering, but its RNG tick is observable and must still be consumed.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
-    let _shuffle_seed = engine.card_random_rng.random_long();
-    let idx = engine.rng.random((bucket.len() - 1) as i32) as usize;
+    let _shuffle_seed = engine.card_random_rng.random_long_unbounded();
+    let idx = engine.card_rng.random_int((bucket.len() - 1) as i32) as usize;
     // Foreign Influence presents base copies. Master Reality upgrades only the
     // selected copy when it is added to hand/discard.
     Some(engine.card_registry.make_card(bucket[idx]))

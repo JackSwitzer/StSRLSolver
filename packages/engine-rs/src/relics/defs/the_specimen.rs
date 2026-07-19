@@ -40,7 +40,7 @@ fn hook(
         // ApplyPowerToRandomEnemyAction.java, and ApplyPowerAction.java.
         let selected = engine
             .card_random_rng
-            .random_range(0, (living.len() - 1) as i32) as usize;
+            .random_int_range(0, (living.len() - 1) as i32) as usize;
         let alive_idx = living[selected];
         engine.apply_player_debuff_to_enemy(alive_idx, sid::POISON, dead_poison);
     }
