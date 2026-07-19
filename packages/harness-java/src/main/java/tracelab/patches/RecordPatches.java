@@ -6,6 +6,9 @@ import com.megacrit.cardcrawl.characters.AbstractPlayer;
 import com.megacrit.cardcrawl.core.AbstractCreature;
 import com.megacrit.cardcrawl.core.CardCrawlGame;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
+import com.megacrit.cardcrawl.events.AbstractEvent;
+import com.megacrit.cardcrawl.events.GenericEventDialog;
+import com.megacrit.cardcrawl.events.RoomEventDialog;
 import com.megacrit.cardcrawl.map.MapRoomNode;
 import com.megacrit.cardcrawl.monsters.AbstractMonster;
 import com.megacrit.cardcrawl.monsters.MonsterGroup;
@@ -205,21 +208,69 @@ public class RecordPatches {
         }
     }
 
-    // All ordinary events route option clicks through
-    // AbstractEvent.update -> this.buttonEffect(i) (decompiled
-    // AbstractEvent.java:102). NeowEvent overrides update, so no dedupe needed.
-    @SpirePatch(clz = com.megacrit.cardcrawl.events.AbstractEvent.class, method = "update")
-    public static class EventChoice {
-        public static ExprEditor Instrument() {
-            return new ExprEditor() {
-                @Override
-                public void edit(MethodCall m) throws CannotCompileException {
-                    if (m.getMethodName().equals("buttonEffect")) {
-                        m.replace("{ tracelab.patches.RecordPatches.onEventChoice(this, $1); $proceed($$); }");
-                    }
-                }
-            };
+    // AbstractEvent.update() dispatches option clicks via
+    // `this.buttonEffect(this.roomEventText.getSelectedOption())`
+    // (decompiled AbstractEvent.java:112-114), but 24 of the ~50 event
+    // classes OVERRIDE update() themselves (all of them still end by calling
+    // super.update() or, for image events, AbstractImageEvent.update()'s own
+    // `this.buttonEffect(GenericEventDialog.getSelectedOption())`,
+    // decompiled AbstractImageEvent.java:52-54). A patch on
+    // AbstractEvent.update() alone never runs for an overridden update() —
+    // that's why every image-type event (floors 4, 5, 22 in the pilot) went
+    // unrecorded. Every path, without exception, bottoms out in exactly one
+    // of two dialog widgets consuming a button press: RoomEventDialog.update
+    // (decompiled RoomEventDialog.java:62-70, sets `selectedOption` and
+    // flips `waitForInput` false->true) or GenericEventDialog.update
+    // (decompiled GenericEventDialog.java:84-92, same pattern). Hooking both
+    // dialogs directly supersedes the old AbstractEvent.update instrument,
+    // so that patch is replaced rather than stacked (RecordPatches no longer
+    // has an AbstractEvent.update hook at all).
+    //
+    // NeowEvent reuses its own RoomEventDialog instance for its choice UI
+    // (decompiled neow/NeowEvent.java:139-140), so RoomEventDialog.update
+    // fires for Neow choices too; onEventDialogChoice defers to the existing
+    // NeowEvent.buttonEffect Prefix (NeowChoice, above) for those so a Neow
+    // pick is never double-recorded as EVENT_CHOICE.
+    @SpirePatch(clz = RoomEventDialog.class, method = "update")
+    public static class RoomEventChoice {
+        private static boolean wasWaitingForInput;
+
+        public static void Prefix() {
+            wasWaitingForInput = RoomEventDialog.waitForInput;
         }
+
+        public static void Postfix() {
+            if (wasWaitingForInput && !RoomEventDialog.waitForInput) {
+                onEventDialogChoice(RoomEventDialog.selectedOption);
+            }
+        }
+    }
+
+    @SpirePatch(clz = GenericEventDialog.class, method = "update")
+    public static class ImageEventChoice {
+        private static boolean wasWaitingForInput;
+
+        public static void Prefix() {
+            wasWaitingForInput = GenericEventDialog.waitForInput;
+        }
+
+        public static void Postfix() {
+            if (wasWaitingForInput && !GenericEventDialog.waitForInput) {
+                onEventDialogChoice(GenericEventDialog.selectedOption);
+            }
+        }
+    }
+
+    private static void onEventDialogChoice(int choice) {
+        if (!Recorder.active()) {
+            return;
+        }
+        AbstractRoom room = AbstractDungeon.getCurrRoom();
+        AbstractEvent event = room != null ? room.event : null;
+        if (event == null) {
+            return;
+        }
+        onEventChoice(event, choice);
     }
 
     public static void onEventChoice(Object event, int choice) {
