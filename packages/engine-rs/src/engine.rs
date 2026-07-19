@@ -160,6 +160,10 @@ pub struct CombatEngine {
     /// probabilistic intent branching (JawWorm, Chosen, ~20+ enemies). Kept separate
     /// from `rng` so card/shuffle draws do not perturb intent sequences.
     pub(crate) ai_rng: crate::seed::StsRandom,
+    /// Java's static default `java.util.Random` used by no-argument
+    /// `Collections.shuffle`. Its natural Java seed is process/time-derived,
+    /// so trace replay must inject its captured 48-bit state explicitly.
+    java_collections_rng: crate::seed::JavaCollectionsRng,
     pub choice: Option<ChoiceContext>,
     pub effect_runtime: crate::effects::runtime::EffectRuntime,
     pub(crate) nightmare_pending_copies: Vec<(CardInstance, usize)>,
@@ -211,6 +215,7 @@ impl CombatEngine {
                 // Standalone combat fixtures have no dungeon floor from which
                 // to derive Java's aiRng. RunEngine injects the real stream.
                 ai: crate::seed::StsRandom::new(seed.wrapping_add(0xA1A1_A1A1)),
+                java_collections: crate::seed::JavaCollectionsRng::deterministic_default(),
             },
         )
     }
@@ -232,6 +237,7 @@ impl CombatEngine {
             potion_rng: rngs.potion,
             misc_rng: rngs.misc,
             ai_rng: rngs.ai,
+            java_collections_rng: rngs.java_collections,
             choice: None,
             effect_runtime,
             nightmare_pending_copies: Vec::new(),
@@ -262,7 +268,24 @@ impl CombatEngine {
             potion: self.potion_rng.clone(),
             misc: self.misc_rng.clone(),
             ai: self.ai_rng.clone(),
+            java_collections: self.java_collections_rng.clone(),
         }
+    }
+
+    /// Capture the raw 48-bit state behind Java's no-argument
+    /// `Collections.shuffle` stream for deterministic continuation.
+    pub fn java_collections_rng_state(&self) -> u64 {
+        self.java_collections_rng.state()
+    }
+
+    /// Restore a captured raw 48-bit `java.util.Random` state. Values are
+    /// masked to Java's 48-bit state width.
+    pub fn restore_java_collections_rng_state(&mut self, state: u64) {
+        self.java_collections_rng.restore_state(state);
+    }
+
+    pub(crate) fn shuffle_end_turn_trigger_snapshot<T>(&mut self, values: &mut [T]) {
+        self.java_collections_rng.shuffle(values);
     }
 
     pub fn rebuild_effect_runtime(&mut self) {
@@ -643,6 +666,7 @@ impl CombatEngine {
             potion_rng: self.potion_rng.clone(),
             misc_rng: self.misc_rng.clone(),
             ai_rng: self.ai_rng.clone(),
+            java_collections_rng: self.java_collections_rng.clone(),
             choice: self.choice.clone(),
             effect_runtime: self.effect_runtime.clone(),
             nightmare_pending_copies: self.nightmare_pending_copies.clone(),

@@ -337,6 +337,78 @@ fn support_wave1_end_turn_curse_and_status_hooks_fire_on_the_runtime_path() {
 }
 
 #[test]
+fn rng_collections_001_ordinary_actions_resolve_before_shuffled_card_queue() {
+    // DiscardAtEndOfTurnAction clones the non-retained hand, calls the
+    // no-argument Collections.shuffle, then triggers that shuffled snapshot.
+    // JDK 8 Collections uses its separate static java.util.Random; an internal
+    // state of 0x5DEECE66D (the post-constructor state for Java seed 0) shuffles
+    // [Pride, Shame, Regret, Burn] to [Burn, Pride, Shame, Regret] and ends at
+    // 0x3D93CB7AB84E after exactly three nextInt calls.
+    // Sources: actions/common/DiscardAtEndOfTurnAction.java:21-45 and JDK 8
+    // java.util.Collections.shuffle/java.util.Random.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.player.hp = 2;
+    engine.state.hand = make_deck(&["Pride", "Shame", "Regret", "Burn"]);
+    engine.restore_java_collections_rng_state(0x5DEECE66D);
+    assert_eq!(engine.java_collections_rng_state(), 0x5DEECE66D);
+    let dungeon_rngs_before = engine.rng_counters();
+
+    end_turn(&mut engine);
+
+    assert!(engine.state.combat_over, "shuffled Burn should be the first card-queue item");
+    assert_eq!(engine.state.player.hp, 0);
+    assert_eq!(engine.state.player.status(sid::FRAIL), 0);
+    let pride_count = engine
+        .state
+        .hand
+        .iter()
+        .chain(engine.state.draw_pile.iter())
+        .chain(engine.state.discard_pile.iter())
+        .filter(|card| engine.card_registry.card_name(card.def_id) == "Pride")
+        .count();
+    assert_eq!(
+        pride_count, 2,
+        "Pride's ordinary action resolves before every card-queue item"
+    );
+    assert_eq!(engine.java_collections_rng_state(), 0x3D93CB7AB84E);
+    assert_eq!(engine.rng_counters(), dungeon_rngs_before);
+}
+
+#[test]
+fn rng_collections_001_run_carries_state_across_combat_boundaries() {
+    // The no-argument Collections.shuffle stream is process-global in Java.
+    // RunEngine must absorb the post-combat LCG state and inject that same
+    // state into the next combat instead of rebuilding Java seed zero.
+    let mut run = crate::run::RunEngine::new(42, 0);
+    run.debug_enter_specific_combat(&["JawWorm"]);
+
+    let state_after_first_shuffle = {
+        let combat = run.debug_combat_engine_mut();
+        combat.state.hand = make_deck(&["Strike", "Defend", "Eruption", "Burn"]);
+        combat.restore_java_collections_rng_state(0x5DEECE66D);
+        assert!(!crate::status_effects::process_end_turn_hand_cards(combat));
+        combat.java_collections_rng_state()
+    };
+    assert_eq!(state_after_first_shuffle, 0x3D93CB7AB84E);
+
+    run.debug_force_current_combat_outcome(true);
+    run.debug_resolve_current_combat_outcome();
+    run.debug_enter_specific_combat(&["Cultist"]);
+
+    assert_eq!(
+        run.get_combat_engine()
+            .expect("second combat")
+            .java_collections_rng_state(),
+        state_after_first_shuffle
+    );
+}
+
+#[test]
 fn shame_applies_one_frail_that_survives_its_application_round() {
     // Shame.java leaves the inherited magic number at -1, then queues itself
     // at end of turn and constructs FrailPower(player, 1, true). FrailPower's

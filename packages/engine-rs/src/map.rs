@@ -147,6 +147,38 @@ impl DungeonMap {
 // Map generation (port of Java MapGenerator)
 // ---------------------------------------------------------------------------
 
+/// Generate The Ending's fixed map without consuming map RNG.
+///
+/// `TrueVictoryRoom` at `(3, 4)` has no corresponding [`RoomType`], so it is
+/// represented by [`RoomType::None`]. Java leaves that node disconnected from
+/// the boss node as well.
+///
+/// Source: `decompiled/java-src/com/megacrit/cardcrawl/dungeons/TheEnding.java`
+pub fn generate_the_ending_map() -> DungeonMap {
+    const HEIGHT: usize = 5;
+    const WIDTH: usize = 7;
+    const PATH_X: usize = 3;
+
+    let mut map = DungeonMap {
+        rows: (0..HEIGHT)
+            .map(|y| (0..WIDTH).map(|x| MapNode::new(x, y)).collect())
+            .collect(),
+        height: HEIGHT,
+        width: WIDTH,
+    };
+
+    map.rows[0][PATH_X].room_type = RoomType::Rest;
+    map.rows[1][PATH_X].room_type = RoomType::Shop;
+    map.rows[2][PATH_X].room_type = RoomType::Elite;
+    map.rows[3][PATH_X].room_type = RoomType::Boss;
+
+    map.rows[0][PATH_X].add_edge(PATH_X, 1);
+    map.rows[1][PATH_X].add_edge(PATH_X, 2);
+    map.rows[2][PATH_X].add_edge(PATH_X, 3);
+
+    map
+}
+
 /// Generate a dungeon map for one act.
 ///
 /// Standard parameters: height=15, width=7, path_density=6.
@@ -217,12 +249,9 @@ impl MapRng {
 
     /// Returns a random int in [min, max] inclusive (matches Java randRange).
     fn rand_range(&mut self, min: i32, max: i32) -> i32 {
-        if min >= max {
-            return min;
-        }
         // MapGenerator.randRange calls Random.random(max - min) + min, so
-        // path-generation draws advance the public mapRng counter.
-        // Java: decompiled/java-src/com/megacrit/cardcrawl/map/MapGenerator.java
+        // even an equal-bound random(0) advances the public mapRng counter.
+        // Sources: MapGenerator.java:270-275 and Random.java:55-58.
         self.rng.random_int(max - min) + min
     }
 
@@ -626,6 +655,99 @@ fn set_emerald_elite(map: &mut DungeonMap, rng: &mut MapRng) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_ending_map_matches_java_fixed_rooms() {
+        // Java: TheEnding.java::generateSpecialMap.
+        let map = generate_the_ending_map();
+
+        assert_eq!((map.width, map.height), (7, 5));
+        for y in 0..map.height {
+            for x in 0..map.width {
+                assert_eq!((map.rows[y][x].x, map.rows[y][x].y), (x, y));
+                let expected = match (x, y) {
+                    (3, 0) => RoomType::Rest,
+                    (3, 1) => RoomType::Shop,
+                    (3, 2) => RoomType::Elite,
+                    (3, 3) => RoomType::Boss,
+                    // TrueVictoryRoom has no current RoomType equivalent.
+                    _ => RoomType::None,
+                };
+                assert_eq!(map.rows[y][x].room_type, expected, "node ({x}, {y})");
+                assert!(!map.rows[y][x].has_emerald_key);
+            }
+        }
+    }
+
+    #[test]
+    fn the_ending_map_matches_java_edge_topology() {
+        // connectNode links Rest -> Shop -> Elite, then Java adds Elite ->
+        // Boss directly. It does not link Boss -> TrueVictoryRoom or populate
+        // MapRoomNode's separate parent lists.
+        // Java: TheEnding.java::generateSpecialMap and connectNode.
+        let map = generate_the_ending_map();
+
+        assert_eq!(map.rows[0][3].edges, vec![(3, 1)]);
+        assert_eq!(map.rows[1][3].edges, vec![(3, 2)]);
+        assert_eq!(map.rows[2][3].edges, vec![(3, 3)]);
+        assert!(map.rows[3][3].edges.is_empty());
+        assert!(map.rows[4][3].edges.is_empty());
+
+        for y in 0..map.height {
+            for x in 0..map.width {
+                assert_eq!(map.rows[y][x].has_edges, x == 3 && y < 3);
+                assert!(map.rows[y][x].parents.is_empty());
+            }
+        }
+
+        let starts: Vec<(usize, usize)> = map
+            .get_start_nodes()
+            .iter()
+            .map(|node| (node.x, node.y))
+            .collect();
+        assert_eq!(starts, vec![(3, 0)]);
+        assert_eq!(map.get_next_nodes(3, 0)[0].room_type, RoomType::Shop);
+        assert_eq!(map.get_next_nodes(3, 1)[0].room_type, RoomType::Elite);
+        assert_eq!(map.get_next_nodes(3, 2)[0].room_type, RoomType::Boss);
+        assert!(map.get_next_nodes(3, 3).is_empty());
+    }
+
+    #[test]
+    fn the_ending_map_is_deterministic_and_requires_no_rng() {
+        // The no-argument function type ensures callers neither provide nor
+        // advance an RNG; Java's generateSpecialMap does not use mapRng.
+        // Java: TheEnding.java::generateSpecialMap.
+        let generator: fn() -> DungeonMap = generate_the_ending_map;
+        let first = generator();
+        let second = generator();
+
+        for y in 0..first.height {
+            for x in 0..first.width {
+                let first_node = &first.rows[y][x];
+                let second_node = &second.rows[y][x];
+                assert_eq!(first_node.room_type, second_node.room_type);
+                assert_eq!(first_node.edges, second_node.edges);
+                assert_eq!(first_node.parents, second_node.parents);
+                assert_eq!(first_node.has_edges, second_node.has_edges);
+                assert_eq!(first_node.has_emerald_key, second_node.has_emerald_key);
+            }
+        }
+    }
+
+    #[test]
+    fn rng_map_bound_001_equal_bounds_consume_java_wrapper_draw() {
+        // MapGenerator.randRange always delegates to Random.random(max - min),
+        // and Random.random increments its counter even when passed zero.
+        // Sources: MapGenerator.java:270-275 and Random.java:55-58.
+        let mut map_rng = MapRng::new(42);
+        let mut oracle = crate::seed::StsRandom::new(42);
+
+        assert_eq!(map_rng.rand_range(3, 3), 3);
+        assert_eq!(oracle.random_int(0), 0);
+        assert_eq!(map_rng.rand_range(0, 6), oracle.random_int(6));
+        assert_eq!(map_rng.into_inner().state_tuple(), oracle.state_tuple());
+        assert_eq!(oracle.counter, 2);
+    }
 
     #[test]
     fn test_generate_map_basic() {

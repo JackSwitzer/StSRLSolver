@@ -1126,7 +1126,14 @@ impl StSEngine {
             };
         }
 
-        let (name, atype, desc) = if id >= RUN_POTION_BASE {
+        let (name, atype, desc) = if id >= DISCARD_POTION_BASE {
+            let idx = id - DISCARD_POTION_BASE;
+            (
+                format!("discard_potion_{}", idx),
+                "potion".to_string(),
+                format!("Discard potion in slot {}", idx),
+            )
+        } else if id >= RUN_POTION_BASE {
             let idx = id - RUN_POTION_BASE;
             (
                 format!("use_potion_{}", idx),
@@ -1211,6 +1218,18 @@ impl StSEngine {
                 "campfire".to_string(),
                 "Dig for a relic with Shovel".to_string(),
             )
+        } else if id == CAMP_RECALL {
+            (
+                "camp_recall".to_string(),
+                "campfire".to_string(),
+                "Recall the Ruby Key".to_string(),
+            )
+        } else if id == PROCEED {
+            (
+                "proceed".to_string(),
+                "transition".to_string(),
+                "Proceed to the next room or act".to_string(),
+            )
         } else if id >= CAMP_UPGRADE_BASE {
             let idx = id - CAMP_UPGRADE_BASE;
             let card = self
@@ -1294,11 +1313,13 @@ fn phase_str(phase: run::RunPhase) -> &'static str {
     match phase {
         run::RunPhase::Neow => "neow",
         run::RunPhase::MapChoice => "map",
+        run::RunPhase::Chest => "chest",
         run::RunPhase::Combat => "combat",
         run::RunPhase::CardReward => "card_reward",
         run::RunPhase::Campfire => "campfire",
         run::RunPhase::Shop => "shop",
         run::RunPhase::Event => "event",
+        run::RunPhase::Transition => "transition",
         run::RunPhase::GameOver => "game_over",
     }
 }
@@ -1306,6 +1327,7 @@ fn phase_str(phase: run::RunPhase) -> &'static str {
 fn decision_kind_str(kind: crate::decision::DecisionKind) -> &'static str {
     match kind {
         crate::decision::DecisionKind::NeowChoice => "neow_choice",
+        crate::decision::DecisionKind::ChestAction => "chest_action",
         crate::decision::DecisionKind::CombatAction => "combat_action",
         crate::decision::DecisionKind::CombatChoice => "combat_choice",
         crate::decision::DecisionKind::RewardScreen => "reward_screen",
@@ -1313,6 +1335,7 @@ fn decision_kind_str(kind: crate::decision::DecisionKind) -> &'static str {
         crate::decision::DecisionKind::EventOption => "event_option",
         crate::decision::DecisionKind::ShopAction => "shop_action",
         crate::decision::DecisionKind::CampfireAction => "campfire_action",
+        crate::decision::DecisionKind::Proceed => "proceed",
         crate::decision::DecisionKind::GameOver => "game_over",
     }
 }
@@ -1321,6 +1344,7 @@ fn reward_screen_source_str(source: crate::decision::RewardScreenSource) -> &'st
     match source {
         crate::decision::RewardScreenSource::Combat => "combat",
         crate::decision::RewardScreenSource::BossCombat => "boss_combat",
+        crate::decision::RewardScreenSource::BossRelic => "boss_relic",
         crate::decision::RewardScreenSource::Campfire => "campfire",
         crate::decision::RewardScreenSource::Event => "event",
         crate::decision::RewardScreenSource::Treasure => "treasure",
@@ -1344,7 +1368,7 @@ fn reward_item_kind_str(kind: crate::decision::RewardItemKind) -> &'static str {
         crate::decision::RewardItemKind::Relic => "relic",
         crate::decision::RewardItemKind::Gold => "gold",
         crate::decision::RewardItemKind::Potion => "potion",
-        crate::decision::RewardItemKind::Key => "key",
+        crate::decision::RewardItemKind::Key { .. } => "key",
         crate::decision::RewardItemKind::Unknown => "unknown",
     }
 }
@@ -1561,6 +1585,11 @@ const CAMP_UPGRADE_BASE: i32 = 201;
 const CAMP_TOKE: i32 = 250;
 const CAMP_LIFT: i32 = 251;
 const CAMP_DIG: i32 = 252;
+const CHEST_OPEN: i32 = 253;
+const CHEST_LEAVE: i32 = 254;
+const REWARD_LEAVE: i32 = 255;
+const CAMP_RECALL: i32 = 256;
+const PROCEED: i32 = 257;
 const NEOW_BASE: i32 = 1_000_000;
 const SHOP_BUY_BASE: i32 = 300;
 const SHOP_RELIC_BASE: i32 = 325;
@@ -1569,6 +1598,7 @@ const SHOP_POTION_BASE: i32 = 375;
 const SHOP_LEAVE: i32 = 399;
 const EVENT_BASE: i32 = 400;
 const RUN_POTION_BASE: i32 = 450;
+const DISCARD_POTION_BASE: i32 = 475;
 const COMBAT_BASE: i32 = 500;
 
 #[pyclass(name = "RustRunEngine")]
@@ -1999,6 +2029,8 @@ impl PyRunEngine {
         match action {
             run::RunAction::ChooseNeowOption(i) => NEOW_BASE + *i as i32,
             run::RunAction::ChoosePath(i) => PATH_BASE + *i as i32,
+            run::RunAction::OpenChest => CHEST_OPEN,
+            run::RunAction::LeaveChest => CHEST_LEAVE,
             run::RunAction::SelectRewardItem(i) => REWARD_SELECT_BASE + *i as i32,
             run::RunAction::ChooseRewardOption {
                 item_index,
@@ -2009,11 +2041,14 @@ impl PyRunEngine {
                     + (*choice_index as i32)
             }
             run::RunAction::SkipRewardItem(i) => REWARD_SKIP_BASE + *i as i32,
+            run::RunAction::LeaveRewards => REWARD_LEAVE,
+            run::RunAction::Proceed => PROCEED,
             run::RunAction::CampfireRest => CAMP_REST,
             run::RunAction::CampfireUpgrade(i) => CAMP_UPGRADE_BASE + *i as i32,
             run::RunAction::CampfireToke => CAMP_TOKE,
             run::RunAction::CampfireLift => CAMP_LIFT,
             run::RunAction::CampfireDig => CAMP_DIG,
+            run::RunAction::CampfireRecall => CAMP_RECALL,
             run::RunAction::ShopBuyCard(i) => SHOP_BUY_BASE + *i as i32,
             run::RunAction::ShopBuyRelic(i) => SHOP_RELIC_BASE + *i as i32,
             run::RunAction::ShopBuyPotion(i) => SHOP_POTION_BASE + *i as i32,
@@ -2021,6 +2056,7 @@ impl PyRunEngine {
             run::RunAction::ShopLeave => SHOP_LEAVE,
             run::RunAction::EventChoice(i) => EVENT_BASE + *i as i32,
             run::RunAction::UsePotion(i) => RUN_POTION_BASE + *i as i32,
+            run::RunAction::DiscardPotion(i) => DISCARD_POTION_BASE + *i as i32,
             run::RunAction::CombatAction(a) => match a {
                 crate::actions::Action::EndTurn => COMBAT_BASE,
                 crate::actions::Action::PlayCard {
@@ -2056,6 +2092,10 @@ impl PyRunEngine {
         if action_id >= COMBAT_BASE {
             let combat_id = action_id - COMBAT_BASE;
             return decode_combat_action_id_in_run(combat_id).map(run::RunAction::CombatAction);
+        } else if action_id >= DISCARD_POTION_BASE {
+            return Some(run::RunAction::DiscardPotion(
+                (action_id - DISCARD_POTION_BASE) as usize,
+            ));
         } else if action_id >= RUN_POTION_BASE {
             return Some(run::RunAction::UsePotion(
                 (action_id - RUN_POTION_BASE) as usize,
@@ -2086,6 +2126,16 @@ impl PyRunEngine {
             return Some(run::RunAction::CampfireLift);
         } else if action_id == CAMP_DIG {
             return Some(run::RunAction::CampfireDig);
+        } else if action_id == CHEST_OPEN {
+            return Some(run::RunAction::OpenChest);
+        } else if action_id == CHEST_LEAVE {
+            return Some(run::RunAction::LeaveChest);
+        } else if action_id == REWARD_LEAVE {
+            return Some(run::RunAction::LeaveRewards);
+        } else if action_id == CAMP_RECALL {
+            return Some(run::RunAction::CampfireRecall);
+        } else if action_id == PROCEED {
+            return Some(run::RunAction::Proceed);
         } else if action_id >= CAMP_UPGRADE_BASE {
             return Some(run::RunAction::CampfireUpgrade(
                 (action_id - CAMP_UPGRADE_BASE) as usize,

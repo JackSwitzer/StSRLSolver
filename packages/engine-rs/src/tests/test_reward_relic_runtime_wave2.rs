@@ -10,7 +10,7 @@ fn set_first_reachable_room(engine: &mut RunEngine, room_type: RoomType) {
 }
 
 #[test]
-fn black_star_elite_rewards_unlock_second_relic_before_other_rewards() {
+fn black_star_elite_rewards_include_two_independently_claimable_relics() {
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.relics.push("BlackStar".to_string());
     engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
@@ -19,43 +19,30 @@ fn black_star_elite_rewards_unlock_second_relic_before_other_rewards() {
     let screen = engine
         .current_reward_screen()
         .expect("elite reward screen should exist");
-    assert_eq!(screen.items.len(), 4);
-    assert_eq!(screen.items[0].kind, RewardItemKind::Relic);
+    assert_eq!(screen.items.len(), 5);
+    assert_eq!(screen.items[0].kind, RewardItemKind::Gold);
     assert_eq!(screen.items[1].kind, RewardItemKind::Relic);
-    assert_eq!(screen.items[2].kind, RewardItemKind::Potion);
-    assert_eq!(screen.items[3].kind, RewardItemKind::CardChoice);
-    assert!(screen.items[0].claimable);
-    assert!(!screen.items[1].claimable);
-    assert_eq!(
-        engine.get_legal_decision_actions(),
-        vec![DecisionAction::ClaimRewardItem { item_index: 0 }]
-    );
+    assert_eq!(screen.items[2].kind, RewardItemKind::Relic);
+    assert_eq!(screen.items[3].kind, RewardItemKind::Potion);
+    assert_eq!(screen.items[4].kind, RewardItemKind::CardChoice);
+    assert!(!screen.ordered);
+    assert!(screen.items.iter().all(|item| item.claimable));
 
-    let second_relic = screen.items[1].label.clone();
-    let claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
+    let first_relic = screen.items[1].label.clone();
+    let second_relic = screen.items[2].label.clone();
+    let claim = engine.step_with_result(&RunAction::SelectRewardItem(2));
     assert!(claim.action_accepted);
-    assert!(
-        engine.run_state.relics.iter().any(|relic| relic == &screen.items[0].label),
-        "first elite relic should be added immediately"
-    );
-    assert_eq!(
-        claim.legal_decision_actions,
-        vec![DecisionAction::ClaimRewardItem { item_index: 1 }]
-    );
+    assert!(engine.run_state.relics.iter().any(|relic| relic == &second_relic));
+    assert!(claim.legal_decision_actions.contains(
+        &DecisionAction::ClaimRewardItem { item_index: 1 }
+    ));
 
     let claim_second = engine.step_with_result(&RunAction::SelectRewardItem(1));
     assert!(claim_second.action_accepted);
-    assert!(
-        engine.run_state.relics.iter().any(|relic| relic == &second_relic),
-        "second elite relic should be added before potion or card rewards"
-    );
-    assert_eq!(
-        claim_second.legal_decision_actions,
-        vec![
-            DecisionAction::ClaimRewardItem { item_index: 2 },
-            DecisionAction::SkipRewardItem { item_index: 2 },
-        ]
-    );
+    assert!(engine.run_state.relics.iter().any(|relic| relic == &first_relic));
+    assert!(claim_second
+        .legal_decision_actions
+        .contains(&DecisionAction::LeaveRewards));
 }
 
 #[test]
@@ -137,7 +124,7 @@ fn juzu_bracelet_converts_a_mystery_monster_roll_into_an_event() {
 }
 
 #[test]
-fn matryoshka_treasure_room_builds_ordered_chest_reward_screen() {
+fn matryoshka_treasure_room_defers_open_then_builds_unordered_rewards() {
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.relics.push("Matryoshka".to_string());
     engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
@@ -148,28 +135,31 @@ fn matryoshka_treasure_room_builds_ordered_chest_reward_screen() {
     let actions = engine.get_legal_actions();
     let step = engine.step_with_result(&actions[0]);
     assert!(step.action_accepted);
+    assert_eq!(engine.current_phase(), RunPhase::Chest);
+    let open = engine.step_with_result(&RunAction::OpenChest);
+    assert!(open.action_accepted);
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
     let screen = engine
         .current_reward_screen()
         .expect("treasure reward screen should exist");
     assert_eq!(screen.source, RewardScreenSource::Treasure);
-    assert_eq!(screen.items.len(), 3);
+    assert_eq!(screen.items.len(), 4);
     // Matryoshka.onChestOpen queues its extra relic before AbstractChest.open
     // appends the chest's optional gold and normal relic rewards.
     assert_eq!(screen.items[0].kind, RewardItemKind::Relic);
     assert_eq!(screen.items[1].kind, RewardItemKind::Gold);
     assert_eq!(screen.items[2].kind, RewardItemKind::Relic);
-    assert!(screen.items[0].claimable);
-    assert!(!screen.items[1].claimable);
+    assert!(matches!(screen.items[3].kind, RewardItemKind::Key { .. }));
+    assert!(!screen.ordered);
+    assert!(screen.items.iter().all(|item| item.claimable));
     assert_eq!(
         engine.run_state.relic_flags.counters[crate::relic_flags::counter::MATRYOSHKA_USES],
         1,
         "opening the chest should consume one Matryoshka use"
     );
-    assert_eq!(
-        step.legal_decision_actions,
-        vec![DecisionAction::ClaimRewardItem { item_index: 0 }]
-    );
+    assert!(open
+        .legal_decision_actions
+        .contains(&DecisionAction::ClaimRewardItem { item_index: 0 }));
 }
 
 #[test]
@@ -183,6 +173,7 @@ fn matryoshka_chest_rewards_preserve_extra_then_gold_then_chest_relic_order() {
 
     let first_action = engine.get_legal_actions()[0].clone();
     engine.step_with_result(&first_action);
+    engine.step_with_result(&RunAction::OpenChest);
     let screen = engine
         .current_reward_screen()
         .expect("treasure reward screen should exist");
@@ -197,22 +188,24 @@ fn matryoshka_chest_rewards_preserve_extra_then_gold_then_chest_relic_order() {
     let claim_extra = engine.step_with_result(&RunAction::SelectRewardItem(0));
     assert!(claim_extra.action_accepted);
     assert!(engine.run_state.relics.iter().any(|relic| relic == &extra_relic));
-    assert_eq!(
-        claim_extra.legal_decision_actions,
-        vec![DecisionAction::ClaimRewardItem { item_index: 1 }]
-    );
+    assert!(claim_extra.legal_decision_actions.contains(
+        &DecisionAction::ClaimRewardItem { item_index: 1 }
+    ));
 
     let claim_gold = engine.step_with_result(&RunAction::SelectRewardItem(1));
     assert!(claim_gold.action_accepted);
     assert_eq!(engine.run_state.gold, gold_before + gold_amount);
-    assert_eq!(
-        claim_gold.legal_decision_actions,
-        vec![DecisionAction::ClaimRewardItem { item_index: 2 }]
-    );
+    assert!(claim_gold.legal_decision_actions.contains(
+        &DecisionAction::ClaimRewardItem { item_index: 2 }
+    ));
 
     let claim_chest_relic = engine.step_with_result(&RunAction::SelectRewardItem(2));
     assert!(claim_chest_relic.action_accepted);
     assert!(engine.run_state.relics.iter().any(|relic| relic == &chest_relic));
+    assert_eq!(engine.current_phase(), RunPhase::CardReward);
+    assert!(engine
+        .step_with_result(&RunAction::LeaveRewards)
+        .action_accepted);
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert!(engine.current_reward_screen().is_none());
 }

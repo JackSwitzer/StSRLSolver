@@ -1008,6 +1008,8 @@ fn combat_action_sort_key(action: &Action) -> (u8, i32, i32) {
 fn decision_action_sort_key(action: &DecisionAction) -> (u8, i32, i32, i32) {
     match action {
         DecisionAction::ChooseNeowOption(idx) => (0, *idx as i32, 0, 0),
+        DecisionAction::OpenChest => (0, i32::MAX - 1, 0, 0),
+        DecisionAction::LeaveChest => (0, i32::MAX, 0, 0),
         DecisionAction::Combat(action) => {
             let key = combat_action_sort_key(action);
             (1, key.0 as i32, key.1, key.2)
@@ -1019,11 +1021,14 @@ fn decision_action_sort_key(action: &DecisionAction) -> (u8, i32, i32, i32) {
             choice_index,
         } => (4, *item_index as i32, *choice_index as i32, 0),
         DecisionAction::SkipRewardItem { item_index } => (5, *item_index as i32, 0, 0),
+        DecisionAction::LeaveRewards => (5, i32::MAX, 0, 0),
+        DecisionAction::Proceed => (5, i32::MAX - 1, 0, 0),
         DecisionAction::CampfireRest => (6, 0, 0, 0),
         DecisionAction::CampfireUpgrade(idx) => (7, *idx as i32, 0, 0),
         DecisionAction::CampfireToke => (7, i32::MAX, 0, 0),
         DecisionAction::CampfireLift => (7, i32::MAX - 1, 0, 0),
         DecisionAction::CampfireDig => (7, i32::MAX - 2, 0, 0),
+        DecisionAction::CampfireRecall => (7, i32::MAX - 3, 0, 0),
         DecisionAction::ShopBuyCard(idx) => (8, *idx as i32, 0, 0),
         DecisionAction::ShopBuyRelic(idx) => (9, *idx as i32, 0, 0),
         DecisionAction::ShopBuyPotion(idx) => (10, *idx as i32, 0, 0),
@@ -1031,6 +1036,7 @@ fn decision_action_sort_key(action: &DecisionAction) -> (u8, i32, i32, i32) {
         DecisionAction::ShopLeave => (12, 0, 0, 0),
         DecisionAction::EventChoice(idx) => (13, *idx as i32, 0, 0),
         DecisionAction::UsePotion(idx) => (14, *idx as i32, 0, 0),
+        DecisionAction::DiscardPotion(idx) => (15, *idx as i32, 0, 0),
     }
 }
 

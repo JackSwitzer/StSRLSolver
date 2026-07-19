@@ -139,6 +139,11 @@ pub(crate) fn resolve_opening_neow(engine: &mut RunEngine) {
                         matches!(action, RunAction::ChooseRewardOption { .. })
                     })
                 })
+                .or_else(|| {
+                    actions
+                        .iter()
+                        .find(|action| matches!(action, RunAction::LeaveRewards))
+                })
                 .cloned()
                 .expect("Neow follow-up must expose a reward action");
             engine.step(&action);

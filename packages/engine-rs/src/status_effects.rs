@@ -25,7 +25,7 @@ pub fn process_end_turn_hand_cards(engine: &mut CombatEngine) -> bool {
     // their blanket-kept cards retained, so those cards remain in this list.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/
     // DiscardAtEndOfTurnAction.java
-    let hand: Vec<_> = engine
+    let mut hand: Vec<_> = engine
         .state
         .hand
         .iter()
@@ -35,52 +35,62 @@ pub fn process_end_turn_hand_cards(engine: &mut CombatEngine) -> bool {
             !card.runtime_traits().retain && !card_inst.is_retained()
         })
         .collect();
+    // DiscardAtEndOfTurnAction clones this filtered hand and invokes the
+    // no-argument Collections.shuffle before firing card-owned callbacks. That
+    // shuffle uses Java's separate static default java.util.Random, not any
+    // AbstractDungeon stream.
+    engine.shuffle_end_turn_trigger_snapshot(&mut hand);
     let hand_size = hand.len() as i32;
+    let mut ordinary_actions = Vec::new();
+    let mut card_queue = Vec::new();
 
+    // Card callbacks only enqueue work. GameActionManager drains ordinary
+    // actions before cardQueue, regardless of the shuffled callback order.
+    // Pride therefore creates its copy before a lethal Burn/Decay/Regret can
+    // stop later card-queue items.
+    // Java: GameActionManager.java::getNextAction, Pride.java, Burn.java.
     for card_inst in &hand {
         let card = engine.card_registry.card_def_by_id(card_inst.def_id);
 
         for trigger in card.runtime_triggers() {
             if let CardRuntimeTrigger::EndTurnInHand(rule) = trigger {
-                match rule {
-                    EndTurnHandRule::Damage => {
-                        let raw = if card.base_magic > 0 { card.base_magic } else { 2 };
-                        // Burn/Decay queue DamageAction with THORNS damage.
-                        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/status/Burn.java
-                        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Decay.java
-                        // Burn/Decay construct player-owned THORNS DamageInfo,
-                        // so positive HP loss satisfies RupturePower's owner check.
-                        engine.deal_self_thorns_damage_to_player(raw);
-                    }
-                    EndTurnHandRule::Regret => {
-                        // Regret.triggerOnEndOfTurnForPlayingCard stores the
-                        // current hand size in magicNumber before auto-play.
-                        // Java: reference/extracted/methods/card/Regret.java
-                        engine.player_lose_hp_from_damage(hand_size);
-                    }
-                    EndTurnHandRule::Weak => {
-                        powers::apply_debuff(&mut engine.state.player, sid::WEAKENED, 1);
-                    }
-                    EndTurnHandRule::Frail => {
-                        // Shame constructs FrailPower(player, 1, true), whose
-                        // justApplied flag skips this round's decrement.
-                        // Java: reference/extracted/methods/card/Shame.java and
-                        // decompiled/.../powers/FrailPower.java::atEndOfRound.
-                        powers::apply_debuff_from_enemy(
-                            &mut engine.state.player,
-                            sid::FRAIL,
-                            1,
-                        );
-                    }
-                    EndTurnHandRule::AddCopy => {
-                        // Pride passes false for randomSpot, so the copied card
-                        // is added to the top without consuming cardRandomRng.
-                        // Java: cards/curses/Pride.java and
-                        // actions/common/MakeTempCardInDrawPileAction.java.
-                        engine.state.draw_pile.push(*card_inst);
-                    }
+                if *rule == EndTurnHandRule::AddCopy {
+                    ordinary_actions.push(*card_inst);
+                } else {
+                    card_queue.push((*card_inst, *rule, card.base_magic));
                 }
             }
+        }
+    }
+
+    for card_inst in ordinary_actions {
+        // Pride passes false for randomSpot, so the copied card is added to the
+        // top without consuming cardRandomRng.
+        engine.state.draw_pile.push(card_inst);
+    }
+
+    for (_card_inst, rule, base_magic) in card_queue {
+        match rule {
+            EndTurnHandRule::Damage => {
+                let raw = if base_magic > 0 { base_magic } else { 2 };
+                // Burn/Decay autoplay through cardQueue, then queue a
+                // player-owned THORNS DamageAction.
+                engine.deal_self_thorns_damage_to_player(raw);
+            }
+            EndTurnHandRule::Regret => {
+                // Regret snapshots the hand size during its callback, before
+                // the queued card is eventually played.
+                engine.player_lose_hp_from_damage(hand_size);
+            }
+            EndTurnHandRule::Weak => {
+                powers::apply_debuff(&mut engine.state.player, sid::WEAKENED, 1);
+            }
+            EndTurnHandRule::Frail => {
+                // Shame constructs FrailPower(player, 1, true), whose
+                // justApplied flag skips this round's decrement.
+                powers::apply_debuff_from_enemy(&mut engine.state.player, sid::FRAIL, 1);
+            }
+            EndTurnHandRule::AddCopy => unreachable!("Pride is an ordinary action"),
         }
         if engine.state.combat_over {
             return true;

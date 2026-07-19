@@ -4,7 +4,9 @@
 //! context, and runtime-snapshot surface so migration waves can target one
 //! coordinator API instead of reaching into engine-specific internals.
 
-use crate::decision::{build_combat_context, DecisionAction, DecisionContext, DecisionKind};
+use crate::decision::{
+    build_combat_context, DecisionAction, DecisionContext, DecisionKind, PotionSlotContext,
+};
 use crate::engine::{CombatEngine, CombatPhase};
 use crate::gameplay::runtime::{
     GameplayRuntimeEventRecord, GameplayRuntimeScope, GameplayRuntimeSnapshot, GameplayRuntimeSource,
@@ -56,13 +58,25 @@ impl GameplaySession for CombatEngine {
     fn gameplay_decision_context(&self) -> DecisionContext {
         DecisionContext {
             kind: combat_decision_kind(self),
+            potion_slots: self
+                .state
+                .potions
+                .iter()
+                .enumerate()
+                .map(|(slot, potion)| PotionSlotContext {
+                    slot,
+                    potion_id: (!potion.is_empty()).then(|| potion.clone()),
+                })
+                .collect(),
             neow: None,
+            chest: None,
             combat: Some(build_combat_context(self)),
             reward_screen: None,
             map: None,
             event: None,
             shop: None,
             campfire: None,
+            transition: None,
         }
     }
 

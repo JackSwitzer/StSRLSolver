@@ -198,7 +198,22 @@ impl FloorRngs {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn combat_snapshot(&self, persistent: &PersistentRngs) -> CombatRngs {
+        self.combat_snapshot_with_collections(
+            persistent,
+            JavaCollectionsRng::deterministic_default(),
+        )
+    }
+
+    /// Transfer the process-global Collections RNG into combat alongside the
+    /// dungeon streams. `RunEngine` owns this ambient LCG and must use this path
+    /// rather than reconstructing the deterministic test default per combat.
+    pub(crate) fn combat_snapshot_with_collections(
+        &self,
+        persistent: &PersistentRngs,
+        java_collections: JavaCollectionsRng,
+    ) -> CombatRngs {
         CombatRngs {
             card: persistent.card.clone(),
             monster_hp: self.monster_hp.clone(),
@@ -207,6 +222,7 @@ impl FloorRngs {
             potion: persistent.potion.clone(),
             misc: self.misc.clone(),
             ai: self.ai.clone(),
+            java_collections,
         }
     }
 }
@@ -221,6 +237,7 @@ pub(crate) struct CombatRngs {
     pub potion: StsRandom,
     pub misc: StsRandom,
     pub ai: StsRandom,
+    pub java_collections: JavaCollectionsRng,
 }
 
 impl CombatRngs {
@@ -231,7 +248,7 @@ impl CombatRngs {
         self,
         persistent: &mut PersistentRngs,
         floor: &mut FloorRngs,
-    ) {
+    ) -> JavaCollectionsRng {
         persistent.card = self.card;
         persistent.potion = self.potion;
         floor.monster_hp = self.monster_hp;
@@ -239,6 +256,7 @@ impl CombatRngs {
         floor.card_random = self.card_random;
         floor.misc = self.misc;
         floor.ai = self.ai;
+        self.java_collections
     }
 }
 
@@ -372,7 +390,7 @@ impl StsRandom {
 /// `StsRandom.randomLong()` and passes that value to this distinct RNG.
 ///
 /// Source: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 struct JavaUtilRandom {
     seed: u64,
 }
@@ -386,6 +404,16 @@ impl JavaUtilRandom {
         Self {
             seed: (seed as u64 ^ Self::MULTIPLIER) & Self::MASK,
         }
+    }
+
+    fn from_internal_state(seed: u64) -> Self {
+        Self {
+            seed: seed & Self::MASK,
+        }
+    }
+
+    fn internal_state(&self) -> u64 {
+        self.seed
     }
 
     fn next_bits(&mut self, bits: u32) -> u32 {
@@ -421,6 +449,50 @@ impl JavaUtilRandom {
             let other = self.next_int(len);
             values.swap(len - 1, other);
         }
+    }
+}
+
+/// Transferable state for the static default `Random` used by no-argument
+/// `Collections.shuffle`.
+///
+/// Java initializes that generator from process/time state, not the dungeon
+/// seed. Standalone simulation therefore uses Java seed `0` as an explicit,
+/// deterministic boundary default. Exact trace replay must inject the captured
+/// 48-bit internal state instead of pretending it can be derived from a run
+/// seed.
+///
+/// Source: JDK 8 `java.util.Collections.shuffle(List)` and
+/// `actions/common/DiscardAtEndOfTurnAction.java`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct JavaCollectionsRng {
+    inner: JavaUtilRandom,
+}
+
+impl JavaCollectionsRng {
+    const DETERMINISTIC_SIMULATOR_SEED: i64 = 0;
+
+    pub(crate) fn deterministic_default() -> Self {
+        Self {
+            inner: JavaUtilRandom::new(Self::DETERMINISTIC_SIMULATOR_SEED),
+        }
+    }
+
+    pub(crate) fn from_state(state: u64) -> Self {
+        Self {
+            inner: JavaUtilRandom::from_internal_state(state),
+        }
+    }
+
+    pub(crate) fn state(&self) -> u64 {
+        self.inner.internal_state()
+    }
+
+    pub(crate) fn restore_state(&mut self, state: u64) {
+        *self = Self::from_state(state);
+    }
+
+    pub(crate) fn shuffle<T>(&mut self, values: &mut [T]) {
+        self.inner.shuffle(values);
     }
 }
 
@@ -612,6 +684,19 @@ mod tests {
             !all_zero,
             "Seed 0 produced all-zero output (absorbing state)"
         );
+    }
+
+    #[test]
+    fn combat_rng_transfer_preserves_java_collections_state() {
+        let mut persistent = PersistentRngs::new(42);
+        let mut floor = FloorRngs::new(43);
+        let injected = JavaCollectionsRng::from_state(0x1234_5678_9ABC);
+
+        let combat = floor.combat_snapshot_with_collections(&persistent, injected);
+        assert_eq!(combat.java_collections.state(), 0x1234_5678_9ABC);
+
+        let returned = combat.absorb_into(&mut persistent, &mut floor);
+        assert_eq!(returned.state(), 0x1234_5678_9ABC);
     }
 
     #[test]

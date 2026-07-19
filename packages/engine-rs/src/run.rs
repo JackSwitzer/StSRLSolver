@@ -9,32 +9,36 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::OnceLock;
 
 use crate::decision::{
-    build_combat_context, build_shop_context, CampfireDecisionContext, CombatContext,
+    build_combat_context, build_shop_context, CampfireDecisionContext, ChestDecisionContext, CombatContext,
     DecisionAction, DecisionContext, DecisionFrame, DecisionKind, DecisionStack, DecisionState,
-    EventDecisionContext, EventOptionContext, MapDecisionContext, NeowDecisionContext,
-    NeowOptionContext, RewardChoice,
-    RewardChoiceFrame, RewardItem, RewardItemKind, RewardItemState, RewardScreen,
-    RewardScreenSource,
+    EventDecisionContext, EventOptionContext, MapDecisionContext, MapPathContext, NeowDecisionContext,
+    NeowOptionContext, PotionSlotContext, RewardChoice,
+    RewardChoiceFrame, RewardItem, RewardItemKind, RewardItemState, RewardKeyColor, RewardScreen,
+    RewardScreenSource, TransitionDecisionContext,
 };
 use crate::enemies;
 use crate::engine::CombatEngine;
 use crate::gameplay::registry::global_registry as gameplay_registry;
 use crate::gameplay::types::GameplayDomain;
 use crate::map::{
-    generate_map_with_rng, generate_map_with_rng_for_run, DungeonMap, RoomType,
+    generate_map_with_rng_for_run, generate_the_ending_map, DungeonMap, RoomType,
 };
 use crate::state::{CombatState, EnemyCombatState};
 
 // ---------------------------------------------------------------------------
-// Run-level action (distinct from combat Action)
+// Canonical game action
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum RunAction {
+pub enum GameAction {
     /// Choose one of the opening Neow options.
     ChooseNeowOption(usize),
     /// Choose a path on the map: index into available next nodes
     ChoosePath(usize),
+    /// Open the generated chest in the current treasure room.
+    OpenChest,
+    /// Proceed from the treasure room without opening its chest.
+    LeaveChest,
     /// Click or claim a reward item in the current ordered reward screen.
     SelectRewardItem(usize),
     /// Choose an option within the currently active reward item.
@@ -44,6 +48,10 @@ pub enum RunAction {
     },
     /// Skip a skippable reward item.
     SkipRewardItem(usize),
+    /// Proceed from an unordered reward screen, abandoning all remaining items.
+    LeaveRewards,
+    /// Resolve the current typed room/run continuation.
+    Proceed,
     /// Campfire: rest (heal 30% max HP)
     CampfireRest,
     /// Campfire: upgrade a card (index into deck)
@@ -54,6 +62,8 @@ pub enum RunAction {
     CampfireLift,
     /// Campfire: use Shovel to open a random relic reward.
     CampfireDig,
+    /// Campfire: claim the Ruby Key through Recall.
+    CampfireRecall,
     /// Shop: buy a card (index into shop offerings)
     ShopBuyCard(usize),
     /// Shop: buy a relic (index into shop relic offerings)
@@ -70,6 +80,57 @@ pub enum RunAction {
     CombatAction(crate::actions::Action),
     /// Use a potion from a run-level (non-combat) screen.
     UsePotion(usize),
+    /// Discard an occupied potion slot without using the potion.
+    DiscardPotion(usize),
+}
+
+/// Temporary source-compatibility name for consumers removed by the pure-core
+/// stack layer. Runtime semantics are owned exclusively by `GameAction`.
+pub type RunAction = GameAction;
+
+impl GameAction {
+    /// Stable ordering for deterministic replay, search frontiers, and action
+    /// serialization. This ordering is independent of enum layout.
+    pub fn canonical_sort_key(&self) -> (u8, i32, i32, i32) {
+        match self {
+            Self::ChooseNeowOption(index) => (0, *index as i32, 0, 0),
+            Self::ChoosePath(index) => (1, *index as i32, 0, 0),
+            Self::OpenChest => (2, 0, 0, 0),
+            Self::LeaveChest => (2, 1, 0, 0),
+            Self::CombatAction(action) => match action {
+                crate::actions::Action::PlayCard { card_idx, target_idx } => {
+                    (3, 0, *card_idx as i32, *target_idx)
+                }
+                crate::actions::Action::UsePotion { potion_idx, target_idx } => {
+                    (3, 1, *potion_idx as i32, *target_idx)
+                }
+                crate::actions::Action::Choose(index) => (3, 2, *index as i32, 0),
+                crate::actions::Action::ConfirmSelection => (3, 3, 0, 0),
+                crate::actions::Action::EndTurn => (3, 4, 0, 0),
+            },
+            Self::SelectRewardItem(index) => (4, *index as i32, 0, 0),
+            Self::ChooseRewardOption { item_index, choice_index } => {
+                (5, *item_index as i32, *choice_index as i32, 0)
+            }
+            Self::SkipRewardItem(index) => (6, *index as i32, 0, 0),
+            Self::LeaveRewards => (6, i32::MAX, 0, 0),
+            Self::Proceed => (6, i32::MAX - 1, 0, 0),
+            Self::CampfireRest => (7, 0, 0, 0),
+            Self::CampfireUpgrade(index) => (7, 1, *index as i32, 0),
+            Self::CampfireToke => (7, 2, 0, 0),
+            Self::CampfireLift => (7, 3, 0, 0),
+            Self::CampfireDig => (7, 4, 0, 0),
+            Self::CampfireRecall => (7, 5, 0, 0),
+            Self::ShopBuyCard(index) => (8, 0, *index as i32, 0),
+            Self::ShopBuyRelic(index) => (8, 1, *index as i32, 0),
+            Self::ShopBuyPotion(index) => (8, 2, *index as i32, 0),
+            Self::ShopRemoveCard(index) => (8, 3, *index as i32, 0),
+            Self::ShopLeave => (8, 4, 0, 0),
+            Self::EventChoice(index) => (9, *index as i32, 0, 0),
+            Self::UsePotion(index) => (10, 0, *index as i32, 0),
+            Self::DiscardPotion(index) => (10, 1, *index as i32, 0),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -82,6 +143,8 @@ pub enum RunPhase {
     Neow,
     /// Choose next room on map
     MapChoice,
+    /// A generated treasure chest is waiting to be opened or left behind.
+    Chest,
     /// In combat
     Combat,
     /// Picking card reward after combat
@@ -92,8 +155,19 @@ pub enum RunPhase {
     Shop,
     /// In event
     Event,
+    /// A completed room is waiting for an explicit Proceed action.
+    Transition,
     /// Run is over (win or loss)
     GameOver,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RunContinuation {
+    MapBoss,
+    ActThreeSecondBoss,
+    SpireHeart,
+    NextAct,
+    TrueVictory,
 }
 
 // ---------------------------------------------------------------------------
@@ -276,7 +350,30 @@ struct GeneratedChest {
     relic_tier: RelicTier,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+enum PendingChest {
+    Treasure(GeneratedChest),
+    Boss { relic_choices: Vec<String> },
+}
+
+impl PendingChest {
+    fn size_label(&self) -> &'static str {
+        match self {
+            Self::Treasure(chest) => chest.size_label(),
+            Self::Boss { .. } => "boss",
+        }
+    }
+}
+
 impl GeneratedChest {
+    fn size_label(self) -> &'static str {
+        match self.size {
+            ChestSize::Small => "small",
+            ChestSize::Medium => "medium",
+            ChestSize::Large => "large",
+        }
+    }
+
     fn base_gold(self) -> i32 {
         match self.size {
             ChestSize::Small => 25,
@@ -525,6 +622,21 @@ const ACT3_ELITE_ENCOUNTERS: &[WeightedEncounter] = &[
 
 const ACT3_BOSSES: &[&str] = &["AwakenedOne", "TimeEater", "DonuAndDeca"];
 
+fn boss_seen_id_for_encounter(id: &str) -> Option<BossSeenId> {
+    match id {
+        "TheGuardian" => Some(BossSeenId::Guardian),
+        "Hexaghost" => Some(BossSeenId::Ghost),
+        "SlimeBoss" => Some(BossSeenId::Slime),
+        "TheChamp" => Some(BossSeenId::Champ),
+        "BronzeAutomaton" => Some(BossSeenId::Automaton),
+        "TheCollector" => Some(BossSeenId::Collector),
+        "AwakenedOne" => Some(BossSeenId::Crow),
+        "DonuAndDeca" => Some(BossSeenId::Donut),
+        "TimeEater" => Some(BossSeenId::Wizard),
+        _ => None,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Act 4 encounters
 // ---------------------------------------------------------------------------
@@ -665,26 +777,115 @@ pub struct ProfileSnapshot {
     pub highest_unlocked_ascension: i32,
     #[serde(default)]
     pub is_daily_run: bool,
+    /// Profile unlock controlling whether the three-key/Act 4 route exists.
+    #[serde(default = "default_final_act_available")]
+    pub final_act_available: bool,
+    /// Bosses already encountered by this profile. Dungeon constructors use
+    /// this to select the first unseen boss without consuming monster RNG.
+    #[serde(default = "BossSeenSnapshot::all_seen")]
+    pub bosses_seen: BossSeenSnapshot,
 }
 
-fn default_highest_unlocked_ascension() -> i32 { 20 }
+/// Java preference keys used by the three standard dungeon constructors.
+///
+/// Java: Exordium.java, TheCity.java, and TheBeyond.java `initializeBoss`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum BossSeenId {
+    Guardian,
+    Ghost,
+    Slime,
+    Champ,
+    Automaton,
+    Collector,
+    Crow,
+    Donut,
+    Wizard,
+}
 
-impl Default for ProfileSnapshot {
-    fn default() -> Self {
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BossSeenSnapshot {
+    seen: Vec<BossSeenId>,
+}
+
+impl BossSeenSnapshot {
+    pub fn fresh() -> Self {
+        Self { seen: Vec::new() }
+    }
+
+    pub fn all_seen() -> Self {
         Self {
-            note_for_yourself_card: "IronWave".to_string(),
-            highest_unlocked_ascension: default_highest_unlocked_ascension(),
-            is_daily_run: false,
+            seen: vec![
+                BossSeenId::Guardian,
+                BossSeenId::Ghost,
+                BossSeenId::Slime,
+                BossSeenId::Champ,
+                BossSeenId::Automaton,
+                BossSeenId::Collector,
+                BossSeenId::Crow,
+                BossSeenId::Donut,
+                BossSeenId::Wizard,
+            ],
+        }
+    }
+
+    pub fn contains(&self, boss: BossSeenId) -> bool {
+        self.seen.contains(&boss)
+    }
+
+    fn insert(&mut self, boss: BossSeenId) {
+        if !self.seen.contains(&boss) {
+            self.seen.push(boss);
+            self.seen.sort_unstable();
         }
     }
 }
 
+impl Default for BossSeenSnapshot {
+    fn default() -> Self {
+        Self::all_seen()
+    }
+}
+
+fn default_highest_unlocked_ascension() -> i32 { 20 }
+fn default_final_act_available() -> bool { true }
+
+impl Default for ProfileSnapshot {
+    fn default() -> Self {
+        Self::all_unlocked()
+    }
+}
+
 impl ProfileSnapshot {
+    /// Simulator-friendly profile with the full content catalog unlocked and
+    /// all standard bosses seen. Callers reproducing a fresh Java profile must
+    /// use `fresh()` instead of relying on an implicit assumption.
+    pub fn all_unlocked() -> Self {
+        Self {
+            note_for_yourself_card: "IronWave".to_string(),
+            highest_unlocked_ascension: default_highest_unlocked_ascension(),
+            is_daily_run: false,
+            final_act_available: default_final_act_available(),
+            bosses_seen: BossSeenSnapshot::all_seen(),
+        }
+    }
+
+    pub fn fresh() -> Self {
+        Self {
+            note_for_yourself_card: "IronWave".to_string(),
+            highest_unlocked_ascension: 0,
+            is_daily_run: false,
+            final_act_available: false,
+            bosses_seen: BossSeenSnapshot::fresh(),
+        }
+    }
+
     pub fn with_note_for_yourself_card(card_id: impl Into<String>) -> Self {
         Self {
             note_for_yourself_card: card_id.into(),
             highest_unlocked_ascension: default_highest_unlocked_ascension(),
             is_daily_run: false,
+            final_act_available: default_final_act_available(),
+            bosses_seen: BossSeenSnapshot::all_seen(),
         }
     }
 
@@ -693,6 +894,7 @@ impl ProfileSnapshot {
             ProfileUpdate::StoreNoteForYourselfCard { card_id } => {
                 self.note_for_yourself_card = card_id.clone();
             }
+            ProfileUpdate::MarkBossSeen { boss } => self.bosses_seen.insert(*boss),
         }
     }
 }
@@ -700,6 +902,7 @@ impl ProfileSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProfileUpdate {
     StoreNoteForYourselfCard { card_id: String },
+    MarkBossSeen { boss: BossSeenId },
 }
 
 // ---------------------------------------------------------------------------
@@ -1066,6 +1269,34 @@ pub struct EngineStepResult {
     pub combat_context: Option<CombatContext>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ActionStatus {
+    Accepted,
+    Rejected,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RunOutcome {
+    Victory,
+    Defeat,
+}
+
+#[derive(Debug, Clone)]
+pub struct DecisionSnapshot {
+    pub state: DecisionState,
+    pub context: DecisionContext,
+    pub legal_actions: Vec<GameAction>,
+}
+
+/// Training-neutral result of one canonical simulator action.
+#[derive(Debug, Clone)]
+pub struct StepOutcome {
+    pub status: ActionStatus,
+    pub terminal: Option<RunOutcome>,
+    pub next_decision: DecisionSnapshot,
+    pub events: Vec<crate::effects::runtime::GameEventRecord>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 struct PendingEventCombat {
     enemies: Vec<String>,
@@ -1223,6 +1454,7 @@ pub struct RunEngine {
     persistent_rngs: crate::seed::PersistentRngs,
     floor_rngs: crate::seed::FloorRngs,
     ambient_math_rng: crate::seed::AmbientMathRng,
+    java_collections_rng: crate::seed::JavaCollectionsRng,
     neow_rng: crate::seed::StsRandom,
     map_rng: crate::seed::StsRandom,
     card_pools: CardPools,
@@ -1231,6 +1463,10 @@ pub struct RunEngine {
 
     // Active combat (when in Combat phase)
     combat_engine: Option<CombatEngine>,
+
+    // TreasureRoom creates the chest on entry, but opening is a separate
+    // player action. Hidden reward details remain internal until then.
+    pending_chest: Option<PendingChest>,
 
     // Ordered reward screen state (when in CardReward phase).
     reward_screen: Option<RewardScreen>,
@@ -1244,6 +1480,7 @@ pub struct RunEngine {
     pending_empty_cage_removals: usize,
     pending_neow_deck_selection: Option<PendingNeowDeckSelection>,
     pending_relic_followup_source: RewardScreenSource,
+    pending_continuation: Option<RunContinuation>,
 
     // Canonical stack of active decisions.
     decision_stack: DecisionStack,
@@ -1265,8 +1502,8 @@ pub struct RunEngine {
     // Boss for this act
     boss_id: String,
     boss_sequence: VecDeque<String>,
-    pending_act_three_boss_id: Option<String>,
     active_combat_is_boss: bool,
+    active_combat_has_emerald_key: bool,
 
     // Java generates seeded encounter-key queues once per act, then consumes
     // them from the front as rooms are entered.
@@ -1360,7 +1597,11 @@ impl RunEngine {
     ) -> Self {
         // Exordium seeds mapRng with Settings.seed + actNum.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/Exordium.java:56
-        let (map, map_rng) = generate_map_with_rng(seed.wrapping_add(1), ascension);
+        let (map, map_rng) = generate_map_with_rng_for_run(
+            seed.wrapping_add(1),
+            ascension,
+            profile.final_act_available,
+        );
         let mut persistent_rngs = crate::seed::PersistentRngs::new(seed);
         // AbstractDungeon.initializeRelicList shuffles these five persistent
         // tier pools before Neow is resolved.
@@ -1387,12 +1628,14 @@ impl RunEngine {
             persistent_rngs,
             floor_rngs,
             ambient_math_rng: crate::seed::AmbientMathRng::new(ambient_seed),
+            java_collections_rng: crate::seed::JavaCollectionsRng::deterministic_default(),
             neow_rng: crate::seed::StsRandom::new(seed),
             map_rng,
             card_pools: CardPools::watcher_all_unlocked(),
             relic_pools,
             event_pools,
             combat_engine: None,
+            pending_chest: None,
             reward_screen: None,
             suspended_reward_screen: None,
             pending_astrolabe_selection: false,
@@ -1404,6 +1647,7 @@ impl RunEngine {
             pending_empty_cage_removals: 0,
             pending_neow_deck_selection: None,
             pending_relic_followup_source: RewardScreenSource::BossCombat,
+            pending_continuation: None,
             decision_stack: DecisionStack::new(),
             current_event: None,
             pending_event_combat: None,
@@ -1413,8 +1657,8 @@ impl RunEngine {
             current_shop: None,
             boss_id: String::new(),
             boss_sequence: VecDeque::new(),
-            pending_act_three_boss_id: None,
             active_combat_is_boss: false,
+            active_combat_has_emerald_key: false,
             encounter_queue_act: 0,
             monster_encounter_queue: VecDeque::new(),
             elite_encounter_queue: VecDeque::new(),
@@ -1453,6 +1697,7 @@ impl RunEngine {
             .rev()
             .find_map(|update| match update {
                 ProfileUpdate::StoreNoteForYourselfCard { card_id } => Some(card_id.as_str()),
+                ProfileUpdate::MarkBossSeen { .. } => None,
             })
             .unwrap_or(&self.profile.note_for_yourself_card)
     }
@@ -1460,6 +1705,15 @@ impl RunEngine {
     fn store_note_for_yourself_card(&mut self, card_id: String) {
         self.profile_updates
             .push(ProfileUpdate::StoreNoteForYourselfCard { card_id });
+    }
+
+    fn mark_boss_seen(&mut self, boss: BossSeenId) {
+        let already_pending = self.profile_updates.iter().any(
+            |update| matches!(update, ProfileUpdate::MarkBossSeen { boss: queued } if *queued == boss),
+        );
+        if !self.profile.bosses_seen.contains(boss) && !already_pending {
+            self.profile_updates.push(ProfileUpdate::MarkBossSeen { boss });
+        }
     }
 
     fn boss_floor_for_act(act: i32) -> i32 {
@@ -1493,6 +1747,47 @@ impl RunEngine {
         }
     }
 
+    fn wait_for_continuation(&mut self, continuation: RunContinuation) {
+        self.pending_continuation = Some(continuation);
+        self.reward_screen = None;
+        self.phase = RunPhase::Transition;
+    }
+
+    fn step_transition(&mut self, action: &GameAction) -> f32 {
+        if !matches!(action, GameAction::Proceed) {
+            return 0.0;
+        }
+        let Some(continuation) = self.pending_continuation.take() else {
+            return 0.0;
+        };
+        match continuation {
+            RunContinuation::MapBoss | RunContinuation::ActThreeSecondBoss => {
+                self.run_state.floor += 1;
+                self.reset_floor_rngs();
+                if continuation == RunContinuation::ActThreeSecondBoss {
+                    self.boss_id = self
+                        .boss_sequence
+                        .front()
+                        .cloned()
+                        .expect("second Act 3 boss requires a remaining frontier");
+                }
+                self.enter_combat(false, true);
+            }
+            RunContinuation::SpireHeart => {
+                self.run_state.floor += 1;
+                self.reset_floor_rngs();
+                self.enter_spire_heart_event();
+            }
+            RunContinuation::NextAct => self.transition_to_next_act(),
+            RunContinuation::TrueVictory => {
+                self.run_state.floor += 1;
+                self.reset_floor_rngs();
+                self.resolve_terminal_run_victory();
+            }
+        }
+        0.0
+    }
+
     fn transition_to_next_act(&mut self) {
         let next_act = self.run_state.act + 1;
         debug_assert!(matches!(next_act, 2 | 3));
@@ -1522,7 +1817,7 @@ impl RunEngine {
         let (map, map_rng) = generate_map_with_rng_for_run(
             map_seed,
             self.run_state.ascension,
-            !self.run_state.has_emerald_key,
+            self.profile.final_act_available && !self.run_state.has_emerald_key,
         );
         self.map = map;
         self.map_rng = map_rng;
@@ -1542,6 +1837,7 @@ impl RunEngine {
         self.suspended_reward_screen = None;
         self.combat_engine = None;
         self.active_combat_is_boss = false;
+        self.pending_continuation = None;
         self.phase = RunPhase::MapChoice;
     }
 
@@ -2098,16 +2394,19 @@ impl RunEngine {
         let mut actions = match self.phase {
             RunPhase::Neow => self.get_neow_actions(),
             RunPhase::MapChoice => self.get_map_actions(),
+            RunPhase::Chest => vec![RunAction::OpenChest, RunAction::LeaveChest],
             RunPhase::Combat => self.get_combat_actions(),
             RunPhase::CardReward => self.get_card_reward_actions(),
             RunPhase::Campfire => self.get_campfire_actions(),
             RunPhase::Shop => self.get_shop_actions(),
             RunPhase::Event => self.get_event_actions(),
+            RunPhase::Transition => vec![RunAction::Proceed],
             RunPhase::GameOver => Vec::new(),
         };
         if !matches!(self.phase, RunPhase::Combat | RunPhase::GameOver) {
             actions.extend(self.get_noncombat_potion_actions());
         }
+        actions.extend(self.get_potion_discard_actions());
         actions
     }
 
@@ -2130,6 +2429,19 @@ impl RunEngine {
     pub fn current_decision_context(&self) -> DecisionContext {
         DecisionContext {
             kind: self.current_decision_kind(),
+            potion_slots: self
+                .combat_engine
+                .as_ref()
+                .filter(|_| self.phase == RunPhase::Combat)
+                .map(|combat| combat.state.potions.as_slice())
+                .unwrap_or(self.run_state.potions.as_slice())
+                .iter()
+                .enumerate()
+                .map(|(slot, potion)| PotionSlotContext {
+                    slot,
+                    potion_id: (!potion.is_empty()).then(|| potion.clone()),
+                })
+                .collect(),
             neow: if self.phase == RunPhase::Neow {
                 Some(NeowDecisionContext {
                     options: self
@@ -2145,6 +2457,13 @@ impl RunEngine {
             } else {
                 None
             },
+            chest: if self.phase == RunPhase::Chest {
+                self.pending_chest.as_ref().map(|chest| ChestDecisionContext {
+                    size: chest.size_label().to_string(),
+                })
+            } else {
+                None
+            },
             combat: if self.phase == RunPhase::Combat {
                 self.current_combat_context()
             } else {
@@ -2152,9 +2471,7 @@ impl RunEngine {
             },
             reward_screen: self.current_reward_screen(),
             map: if self.phase == RunPhase::MapChoice {
-                Some(MapDecisionContext {
-                    available_paths: self.get_map_actions().len(),
-                })
+                Some(self.map_decision_context())
             } else {
                 None
             },
@@ -2205,10 +2522,18 @@ impl RunEngine {
                     removable_cards: self.peace_pipe_removable_indices(),
                     can_lift: self.can_lift_girya(),
                     can_dig: self.has_shovel(),
+                    can_recall: self.can_recall_at_campfire(),
                 })
             } else {
                 None
             },
+            transition: (self.phase == RunPhase::Transition).then(|| TransitionDecisionContext {
+                continuation: format!(
+                    "{:?}",
+                    self.pending_continuation
+                        .expect("transition phase requires a continuation")
+                ),
+            }),
         }
     }
 
@@ -2219,6 +2544,7 @@ impl RunEngine {
         match self.phase {
             RunPhase::Neow => DecisionKind::NeowChoice,
             RunPhase::MapChoice => DecisionKind::MapPath,
+            RunPhase::Chest => DecisionKind::ChestAction,
             RunPhase::Combat => {
                 if self
                     .combat_engine
@@ -2235,6 +2561,7 @@ impl RunEngine {
             RunPhase::Campfire => DecisionKind::CampfireAction,
             RunPhase::Shop => DecisionKind::ShopAction,
             RunPhase::Event => DecisionKind::EventOption,
+            RunPhase::Transition => DecisionKind::Proceed,
             RunPhase::GameOver => DecisionKind::GameOver,
         }
     }
@@ -2255,9 +2582,14 @@ impl RunEngine {
                     })
                     .collect(),
             }),
-            RunPhase::MapChoice => DecisionFrame::Map(MapDecisionContext {
-                available_paths: self.get_map_actions().len(),
-            }),
+            RunPhase::MapChoice => DecisionFrame::Map(self.map_decision_context()),
+            RunPhase::Chest => self
+                .pending_chest
+                .as_ref()
+                .map(|chest| DecisionFrame::Chest(ChestDecisionContext {
+                    size: chest.size_label().to_string(),
+                }))
+                .unwrap_or(DecisionFrame::GameOver),
             RunPhase::Combat => {
                 if let Some(context) = self.current_combat_context() {
                     if context.choice.active {
@@ -2302,6 +2634,7 @@ impl RunEngine {
                 removable_cards: self.peace_pipe_removable_indices(),
                 can_lift: self.can_lift_girya(),
                 can_dig: self.has_shovel(),
+                can_recall: self.can_recall_at_campfire(),
             }),
             RunPhase::Shop => self
                 .current_shop
@@ -2324,6 +2657,13 @@ impl RunEngine {
                         .collect(),
                 }))
                 .unwrap_or(DecisionFrame::GameOver),
+            RunPhase::Transition => DecisionFrame::Transition(TransitionDecisionContext {
+                continuation: format!(
+                    "{:?}",
+                    self.pending_continuation
+                        .expect("transition phase requires a continuation")
+                ),
+            }),
             RunPhase::GameOver => DecisionFrame::GameOver,
         };
         self.decision_stack.push(root);
@@ -2340,6 +2680,25 @@ impl RunEngine {
             .enumerate()
             .map(|(i, _)| RunAction::ChoosePath(i))
             .collect()
+    }
+
+    fn map_decision_context(&self) -> MapDecisionContext {
+        let destinations = self.available_map_destinations();
+        MapDecisionContext {
+            available_paths: destinations.len(),
+            paths: destinations
+                .into_iter()
+                .enumerate()
+                .map(|(choice, (x, y, room_type, uses_winged_greaves))| MapPathContext {
+                    choice,
+                    x,
+                    y,
+                    room_type: format!("{room_type:?}"),
+                    uses_winged_greaves,
+                    has_emerald_key: self.map.rows[y][x].has_emerald_key,
+                })
+                .collect(),
+        }
     }
 
     fn available_map_destinations(&self) -> Vec<(usize, usize, RoomType, bool)> {
@@ -2437,10 +2796,10 @@ impl RunEngine {
         for item in &screen.items {
             if item.claimable {
                 actions.push(RunAction::SelectRewardItem(item.index));
-                if item.skip_allowed {
-                    actions.push(RunAction::SkipRewardItem(item.index));
-                }
             }
+        }
+        if !screen.ordered {
+            actions.push(RunAction::LeaveRewards);
         }
         actions
     }
@@ -2474,6 +2833,10 @@ impl RunEngine {
 
         if self.has_shovel() {
             actions.push(RunAction::CampfireDig);
+        }
+
+        if self.can_recall_at_campfire() {
+            actions.push(RunAction::CampfireRecall);
         }
 
         actions
@@ -2547,6 +2910,10 @@ impl RunEngine {
         self.run_state.relics.iter().any(|relic| relic == "Shovel")
     }
 
+    fn can_recall_at_campfire(&self) -> bool {
+        self.profile.final_act_available && !self.run_state.has_ruby_key
+    }
+
     fn get_event_actions(&self) -> Vec<RunAction> {
         if let Some(state) = &self.match_and_keep_state {
             if matches!(state.screen, MatchAndKeepScreen::Play) {
@@ -2569,14 +2936,9 @@ impl RunEngine {
     }
 
     fn get_noncombat_potion_actions(&self) -> Vec<RunAction> {
-        // FruitJuice.canUse permits every non-combat screen except WeMeetAgain.
-        // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FruitJuice.java
-        if self.phase == RunPhase::Event
-            && self
-                .current_event
-                .as_ref()
-                .is_some_and(|event| event.name == "WeMeetAgain")
-        {
+        // Fruit Juice, Blood Potion, and Entropic Brew override canUse so they
+        // are available outside combat except during WeMeetAgain.
+        if self.potion_overlay_blocked() {
             return Vec::new();
         }
 
@@ -2585,8 +2947,39 @@ impl RunEngine {
             .iter()
             .enumerate()
             .filter_map(|(idx, potion)| {
-                matches!(potion.as_str(), "Fruit Juice" | "FruitJuice")
-                    .then_some(RunAction::UsePotion(idx))
+                matches!(
+                    potion.as_str(),
+                    "Fruit Juice" | "FruitJuice" | "BloodPotion" | "Blood Potion" | "EntropicBrew" | "Entropic Brew"
+                )
+                .then_some(RunAction::UsePotion(idx))
+            })
+            .collect()
+    }
+
+    fn potion_overlay_blocked(&self) -> bool {
+        self.phase == RunPhase::GameOver
+            || (self.phase == RunPhase::Event
+                && self
+                    .current_event
+                    .as_ref()
+                    .is_some_and(|event| event.name == "WeMeetAgain"))
+    }
+
+    fn get_potion_discard_actions(&self) -> Vec<RunAction> {
+        if self.potion_overlay_blocked() {
+            return Vec::new();
+        }
+        let potions = self
+            .combat_engine
+            .as_ref()
+            .filter(|_| self.phase == RunPhase::Combat)
+            .map(|combat| combat.state.potions.as_slice())
+            .unwrap_or(self.run_state.potions.as_slice());
+        potions
+            .iter()
+            .enumerate()
+            .filter_map(|(slot, potion)| {
+                (!potion.is_empty()).then_some(RunAction::DiscardPotion(slot))
             })
             .collect()
     }
@@ -2601,32 +2994,43 @@ impl RunEngine {
         (result.reward, result.done)
     }
 
+    /// Execute one canonical action without observations, search metadata, or
+    /// shaped training rewards.
+    pub fn step_game(&mut self, action: &GameAction) -> StepOutcome {
+        let applied = self.apply_game_action(action);
+        let accepted = applied.is_some();
+        StepOutcome {
+            status: if accepted {
+                ActionStatus::Accepted
+            } else {
+                ActionStatus::Rejected
+            },
+            terminal: self.run_state.run_over.then_some(if self.run_state.run_won {
+                RunOutcome::Victory
+            } else {
+                RunOutcome::Defeat
+            }),
+            next_decision: DecisionSnapshot {
+                state: self.current_decision_state(),
+                context: self.current_decision_context(),
+                legal_actions: self.get_legal_actions(),
+            },
+            events: if accepted {
+                self.last_combat_events.clone()
+            } else {
+                Vec::new()
+            },
+        }
+    }
+
     /// Execute an action and return the stable post-step RL contract.
     pub fn step_with_result(&mut self, action: &RunAction) -> EngineStepResult {
-        self.last_combat_events.clear();
-        let legal_before = self.get_legal_actions();
-        let action_accepted = legal_before.contains(action);
-        let reward = if action_accepted {
-            if let RunAction::UsePotion(potion_idx) = action {
-                self.step_noncombat_potion(*potion_idx)
-            } else {
-                match self.phase {
-                    RunPhase::Neow => self.step_neow(action),
-                    RunPhase::MapChoice => self.step_map(action),
-                    RunPhase::Combat => self.step_combat(action),
-                    RunPhase::CardReward => self.step_card_reward(action),
-                    RunPhase::Campfire => self.step_campfire(action),
-                    RunPhase::Shop => self.step_shop(action),
-                    RunPhase::Event => self.step_event(action),
-                    RunPhase::GameOver => 0.0,
-                }
-            }
-        } else {
-            0.0
-        };
-
-        self.refresh_decision_stack();
-        self.total_reward += reward;
+        let applied = self.apply_game_action(action);
+        let action_accepted = applied.is_some();
+        let reward = applied.unwrap_or(0.0);
+        if action_accepted {
+            self.total_reward += reward;
+        }
         let combat_obs_v2 = if self.phase == RunPhase::Combat {
             Some(crate::obs::encode_combat_state_v2(self).to_vec())
         } else {
@@ -2648,11 +3052,44 @@ impl RunEngine {
             decision_state,
             decision_context,
             legal_decision_actions: self.get_legal_decision_actions(),
-            combat_events: self.last_combat_events.clone(),
+            combat_events: if action_accepted {
+                self.last_combat_events.clone()
+            } else {
+                Vec::new()
+            },
             combat_obs_v2,
             combat_obs_version: crate::obs::COMBAT_OBS_VERSION,
             combat_context,
         }
+    }
+
+    fn apply_game_action(&mut self, action: &GameAction) -> Option<f32> {
+        if !self.get_legal_actions().contains(action) {
+            return None;
+        }
+
+        self.last_combat_events.clear();
+        let reward = match action {
+            GameAction::UsePotion(potion_idx) => self.step_noncombat_potion(*potion_idx),
+            GameAction::DiscardPotion(potion_idx) => {
+                self.step_discard_potion(*potion_idx);
+                0.0
+            }
+            _ => match self.phase {
+                RunPhase::Neow => self.step_neow(action),
+                RunPhase::MapChoice => self.step_map(action),
+                RunPhase::Chest => self.step_chest(action),
+                RunPhase::Combat => self.step_combat(action),
+                RunPhase::CardReward => self.step_card_reward(action),
+                RunPhase::Campfire => self.step_campfire(action),
+                RunPhase::Shop => self.step_shop(action),
+                RunPhase::Event => self.step_event(action),
+                RunPhase::Transition => self.step_transition(action),
+                RunPhase::GameOver => 0.0,
+            },
+        };
+        self.refresh_decision_stack();
+        Some(reward)
     }
 
     fn step_noncombat_potion(&mut self, potion_idx: usize) -> f32 {
@@ -2677,21 +3114,64 @@ impl RunEngine {
                 self.run_state.max_hp += amount;
                 self.heal_run_player(amount);
                 self.run_state.potions[potion_idx].clear();
-                if self
+                self.trigger_noncombat_potion_used_relics();
+            }
+            "BloodPotion" | "Blood Potion" => {
+                let potency = if self
                     .run_state
-                    .relics
-                    .iter()
-                    .any(|relic| relic == "Toy Ornithopter")
+                    .relic_flags
+                    .has(crate::relic_flags::flag::SACRED_BARK)
                 {
-                    // ToyOrnithopter.java heals 5 immediately outside combat
-                    // whenever a potion is used.
-                    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/ToyOrnithopter.java
-                    self.heal_run_player(5);
+                    40
+                } else {
+                    20
+                };
+                // BloodPotion.java casts the max-HP percentage to int.
+                self.heal_run_player(self.run_state.max_hp * potency / 100);
+                self.run_state.potions[potion_idx].clear();
+                self.trigger_noncombat_potion_used_relics();
+            }
+            "EntropicBrew" | "Entropic Brew" => {
+                self.run_state.potions[potion_idx].clear();
+                if !self.run_state.relic_flags.has(crate::relic_flags::flag::SOZU) {
+                    // EntropicBrew generates one candidate per potion slot even
+                    // after the inventory becomes full; failed obtains still
+                    // consume the potion RNG draws.
+                    for _ in 0..self.run_state.max_potions {
+                        let potion = self.roll_reward_potion_id();
+                        self.add_potion_reward(&potion);
+                    }
                 }
+                self.trigger_noncombat_potion_used_relics();
             }
             _ => {}
         }
         0.0
+    }
+
+    fn trigger_noncombat_potion_used_relics(&mut self) {
+        if self
+            .run_state
+            .relics
+            .iter()
+            .any(|relic| relic == "Toy Ornithopter")
+        {
+            // ToyOrnithopter.java heals only for use, never discard.
+            self.heal_run_player(5);
+        }
+    }
+
+    fn step_discard_potion(&mut self, potion_idx: usize) {
+        if self.phase == RunPhase::Combat {
+            if let Some(combat) = self.combat_engine.as_mut() {
+                if let Some(slot) = combat.state.potions.get_mut(potion_idx) {
+                    slot.clear();
+                }
+            }
+        }
+        if let Some(slot) = self.run_state.potions.get_mut(potion_idx) {
+            slot.clear();
+        }
     }
 
     // =======================================================================
@@ -2745,13 +3225,7 @@ impl RunEngine {
                 self.enter_mystery_room();
             }
             RoomType::Treasure => {
-                // AbstractChest.open always creates a non-boss relic reward;
-                // optional gold is a separate ordered reward. Keep the reward
-                // screen available even without Matryoshka so chest callbacks
-                // such as NlothsMask can mutate the relic reward.
-                // Java: decompiled/java-src/com/megacrit/cardcrawl/rewards/chests/AbstractChest.java
-                self.build_treasure_reward_screen();
-                self.phase = RunPhase::CardReward;
+                self.enter_treasure_room();
             }
             RoomType::Boss => {
                 self.enter_combat(false, true);
@@ -2855,28 +3329,61 @@ impl RunEngine {
         if act == 4 {
             self.boss_sequence = std::iter::repeat_n("CorruptHeart".to_string(), 3).collect();
             self.boss_id = "CorruptHeart".to_string();
-            self.pending_act_three_boss_id = None;
             return;
         }
-        // The simulator exposes the full unlocked content catalog, so use
-        // Java's all-bosses-seen branch: shuffle all three with one
-        // monsterRng.randomLong(), then take the first.
-        let mut bosses = match act {
-            2 => ACT2_BOSSES.to_vec(),
-            3 => ACT3_BOSSES.to_vec(),
-            _ => ACT1_BOSSES.to_vec(),
+
+        // Standard dungeon constructors choose the first unseen boss without
+        // consuming monsterRng. Daily runs and all-seen profiles shuffle the
+        // complete list using one randomLong-backed java.util.Random.
+        // Java: Exordium.java, TheCity.java, TheBeyond.java `initializeBoss`.
+        let (shuffle_order, unseen_priority): (&[&str], &[(&str, BossSeenId)]) = match act {
+            2 => (
+                ACT2_BOSSES,
+                &[
+                    ("TheChamp", BossSeenId::Champ),
+                    ("BronzeAutomaton", BossSeenId::Automaton),
+                    ("TheCollector", BossSeenId::Collector),
+                ],
+            ),
+            3 => (
+                ACT3_BOSSES,
+                &[
+                    ("AwakenedOne", BossSeenId::Crow),
+                    ("DonuAndDeca", BossSeenId::Donut),
+                    ("TimeEater", BossSeenId::Wizard),
+                ],
+            ),
+            _ => (
+                ACT1_BOSSES,
+                &[
+                    ("TheGuardian", BossSeenId::Guardian),
+                    ("Hexaghost", BossSeenId::Ghost),
+                    ("SlimeBoss", BossSeenId::Slime),
+                ],
+            ),
         };
-        let shuffle_seed = self.persistent_rngs.monster.random_long_unbounded();
-        crate::seed::java_util_shuffle(&mut bosses, shuffle_seed);
+
+        let mut bosses = if !self.profile.is_daily_run {
+            unseen_priority
+                .iter()
+                .find(|(_, key)| !self.profile.bosses_seen.contains(*key))
+                .map(|(boss, _)| vec![*boss])
+                .unwrap_or_else(|| shuffle_order.to_vec())
+        } else {
+            shuffle_order.to_vec()
+        };
+        if bosses.len() == 3 {
+            let shuffle_seed = self.persistent_rngs.monster.random_long_unbounded();
+            crate::seed::java_util_shuffle(&mut bosses, shuffle_seed);
+        } else {
+            bosses.push(bosses[0]);
+        }
         self.boss_sequence = bosses.iter().map(|boss| (*boss).to_string()).collect();
         self.boss_id = self
             .boss_sequence
             .front()
             .cloned()
             .expect("standard acts have three bosses");
-        self.pending_act_three_boss_id =
-            (act == 3 && self.run_state.ascension >= 20)
-                .then(|| self.boss_sequence[1].clone());
     }
 
     fn ensure_encounter_queues_for_act(&mut self, act: i32) {
@@ -2900,12 +3407,25 @@ impl RunEngine {
 
     fn enter_combat(&mut self, is_elite: bool, is_boss: bool) {
         let act = self.run_state.act;
+        self.active_combat_has_emerald_key = is_elite
+            && self.profile.final_act_available
+            && !self.run_state.has_emerald_key
+            && self.run_state.map_y >= 0
+            && self.map.rows[self.run_state.map_y as usize][self.run_state.map_x as usize]
+                .has_emerald_key;
         let encounter = if is_boss {
             self.active_encounter_queue = None;
-            if self.boss_sequence.front() == Some(&self.boss_id) {
-                self.boss_sequence.pop_front();
+            let boss = self
+                .boss_sequence
+                .pop_front()
+                .unwrap_or_else(|| self.boss_id.clone());
+            self.boss_id = boss.clone();
+            if let Some(seen_id) = boss_seen_id_for_encounter(&boss) {
+                // MonsterRoomBoss marks the metric/profile before battle, so a
+                // subsequent loss must not erase this cross-run update.
+                self.mark_boss_seen(seen_id);
             }
-            vec![self.boss_id.clone()]
+            vec![boss]
         } else if is_elite {
             self.ensure_encounter_queues_for_act(act);
             if self.elite_encounter_queue.is_empty() {
@@ -3027,7 +3547,9 @@ impl RunEngine {
         candidates.remove(index)
     }
 
+    #[cfg(test)]
     fn enter_specific_combat(&mut self, encounter: Vec<String>) {
+        self.active_combat_has_emerald_key = false;
         self.reset_floor_rngs();
         self.start_specific_combat(encounter, false);
     }
@@ -3039,6 +3561,7 @@ impl RunEngine {
         // streams retain event-side consumption.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/events/AbstractEvent.java:85-93
         // Java: decompiled/java-src/com/megacrit/cardcrawl/events/AbstractImageEvent.java:76-88
+        self.active_combat_has_emerald_key = false;
         self.start_specific_combat(encounter, false);
     }
 
@@ -4328,9 +4851,40 @@ impl RunEngine {
         combat_state.relic_counters = self.run_state.relic_flags.counters;
         combat_state.run_gold = self.run_state.gold;
 
+        if self.active_combat_has_emerald_key {
+            // MonsterRoomElite applies one shared mapRng-selected buff after
+            // monster pre-battle actions and before player relic setup.
+            // Java: MonsterRoomElite.java::applyEmeraldEliteBuff,
+            // AbstractPlayer.java::preBattlePrep.
+            let buff = self.map_rng.random_int(3);
+            for enemy in &mut combat_state.enemies {
+                match buff {
+                    0 => enemy
+                        .entity
+                        .add_status(crate::status_ids::sid::STRENGTH, self.run_state.act + 1),
+                    1 => {
+                        let increase = ((enemy.entity.max_hp as f32) * 0.25).round() as i32;
+                        enemy.entity.max_hp += increase;
+                        enemy.entity.hp += increase;
+                    }
+                    2 => enemy.entity.add_status(
+                        crate::status_ids::sid::METALLICIZE,
+                        self.run_state.act * 2 + 2,
+                    ),
+                    _ => enemy.entity.add_status(
+                        crate::status_ids::sid::REGENERATION,
+                        1 + self.run_state.act * 2,
+                    ),
+                }
+            }
+        }
+
         let mut engine = CombatEngine::new_with_rng_streams(
             combat_state,
-            self.floor_rngs.combat_snapshot(&self.persistent_rngs),
+            self.floor_rngs.combat_snapshot_with_collections(
+                &self.persistent_rngs,
+                self.java_collections_rng.clone(),
+            ),
         );
         engine.load_persisted_effects(self.run_state.persisted_effect_states.clone());
         engine.start_combat();
@@ -4867,7 +5421,8 @@ impl RunEngine {
         // floor-owned. Return the complete combat snapshot atomically.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:397,422,1737-1741
         let combat_rngs = engine.rng_snapshot();
-        combat_rngs.absorb_into(&mut self.persistent_rngs, &mut self.floor_rngs);
+        self.java_collections_rng =
+            combat_rngs.absorb_into(&mut self.persistent_rngs, &mut self.floor_rngs);
         self.run_state.gold = engine.state.run_gold;
 
         let mut reward = 0.0;
@@ -4987,7 +5542,7 @@ impl RunEngine {
                         self.pending_event_combat = None;
                         self.run_state.floor += 1;
                         self.reset_floor_rngs();
-                        self.start_specific_combat(vec![self.boss_id.clone()], true);
+                        self.enter_combat(false, true);
                     } else if start_final_act {
                         self.current_event = None;
                         self.pending_event_combat = None;
@@ -5016,63 +5571,27 @@ impl RunEngine {
                 // Those final-act values are discarded, but miscRng still
                 // advances once for every boss victory.
                 // Java: AbstractRoom.java:286-331.
-                let boss_gold_roll = is_boss.then(|| self.roll_boss_gold_reward());
-
-                if is_boss && self.run_state.act == 3 {
-                    if let Some(second_boss) = self.pending_act_three_boss_id.take() {
-                        // At A20, ProceedButton routes directly into the second
-                        // shuffled Act 3 boss while bossList still has two
-                        // entries. The first boss's reward screen is skipped.
-                        // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/buttons/ProceedButton.java:100-105,210-219
-                        self.run_state.bosses_killed += 1;
-                        reward += 5.0;
-                        self.run_state.floor += 1;
-                        self.reset_floor_rngs();
-                        self.boss_id = second_boss.clone();
-                        if self.boss_sequence.front() == Some(&second_boss) {
-                            self.boss_sequence.pop_front();
-                        }
-                        self.combat_engine = None;
-                        self.start_specific_combat(vec![second_boss], true);
-                        self.refresh_decision_stack();
-                        return reward;
-                    }
-
-                    // The final Act 3 boss also transitions directly to
-                    // VictoryRoom/SpireHeart, so none of its generated combat
-                    // rewards are exposed or claimed.
-                    // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/buttons/ProceedButton.java:100-113
-                    self.run_state.bosses_killed += 1;
-                    reward += 5.0;
-                    self.run_state.floor += 1;
-                    self.reset_floor_rngs();
-                    self.enter_spire_heart_event();
-                    self.refresh_decision_stack();
-                    return reward;
+                if is_boss && self.run_state.act >= 3 {
+                    let _hidden_gold = self.roll_boss_gold_reward();
                 }
 
-                // AbstractRoom.java creates exactly one gold reward band per
-                // ordinary, elite, or boss room. RewardItem.java then applies
-                // Golden Idol's rounded 25% bonus to that complete base amount.
-                // The run engine auto-claims combat gold because it has no gold
-                // reward decision item, preserving the same final run state.
-                // Java: decompiled/java-src/com/megacrit/cardcrawl/rooms/AbstractRoom.java
-                // Java: decompiled/java-src/com/megacrit/cardcrawl/rewards/RewardItem.java
-                if !is_final_heart {
-                    let base_gold = if is_boss {
-                        boss_gold_roll.expect("boss gold roll created above")
-                    } else if room_type == RoomType::Elite {
-                        self.persistent_rngs.treasure.random_int_range(25, 35)
+                if is_boss && self.run_state.act == 3 {
+                    self.run_state.bosses_killed += 1;
+                    reward += 5.0;
+                    let continuation = if self.run_state.ascension >= 20
+                        && self.boss_sequence.len() == 2
+                    {
+                        RunContinuation::ActThreeSecondBoss
                     } else {
-                        self.persistent_rngs.treasure.random_int_range(10, 20)
+                        RunContinuation::SpireHeart
                     };
-                    let gold = golden_idol_combat_gold(
-                        base_gold,
-                        self.run_state
-                            .relic_flags
-                            .has(crate::relic_flags::flag::GOLDEN_IDOL),
-                    );
-                    self.adjust_run_gold(gold);
+                    // MonsterRoomBoss is complete now; Proceed owns the next
+                    // floor increment, five floor-stream resets, and room entry.
+                    // Java: ProceedButton.java:100-113,199-219.
+                    self.combat_engine = None;
+                    self.wait_for_continuation(continuation);
+                    self.refresh_decision_stack();
+                    return reward;
                 }
 
                 if room_type == RoomType::Elite {
@@ -5085,13 +5604,10 @@ impl RunEngine {
                     reward += 5.0; // Boss kill bonus
                     if is_final_heart {
                         self.combat_engine = None;
-                        self.resolve_terminal_run_victory();
+                        self.wait_for_continuation(RunContinuation::TrueVictory);
                         return reward;
                     }
-                    if matches!(self.run_state.act, 1 | 2) {
-                        self.enter_boss_treasure_room();
-                    }
-                    self.build_boss_reward_screen();
+                    self.build_combat_reward_screen(RoomType::Boss);
                     self.combat_engine = None;
                     self.phase = RunPhase::CardReward;
                     return reward;
@@ -5364,25 +5880,70 @@ impl RunEngine {
     }
 
     fn build_combat_reward_screen(&mut self, room_type: RoomType) {
-        let mut items = Vec::new();
+        let base_gold = if room_type == RoomType::Boss {
+            self.roll_boss_gold_reward()
+        } else if room_type == RoomType::Elite {
+            self.persistent_rngs.treasure.random_int_range(25, 35)
+        } else {
+            self.persistent_rngs.treasure.random_int_range(10, 20)
+        };
+        let gold = golden_idol_combat_gold(
+            base_gold,
+            self.run_state
+                .relic_flags
+                .has(crate::relic_flags::flag::GOLDEN_IDOL),
+        );
+        let mut items = vec![RewardItem {
+            index: 0,
+            kind: RewardItemKind::Gold,
+            state: RewardItemState::Available,
+            label: gold.to_string(),
+            claimable: false,
+            active: false,
+            skip_allowed: false,
+            skip_label: None,
+            choices: Vec::new(),
+        }];
 
         if room_type == RoomType::Elite {
-            let relic_count = if self
+            items.push(RewardItem {
+                index: items.len(),
+                kind: RewardItemKind::Relic,
+                state: RewardItemState::Available,
+                label: self.roll_reward_relic_id(),
+                claimable: false,
+                active: false,
+                skip_allowed: false,
+                skip_label: None,
+                choices: Vec::new(),
+            });
+            if self
                 .run_state
                 .relic_flags
                 .has(crate::relic_flags::flag::BLACK_STAR)
             {
-                2
-            } else {
-                1
-            };
-            for reward_idx in 0..relic_count {
                 items.push(RewardItem {
                     index: items.len(),
                     kind: RewardItemKind::Relic,
                     state: RewardItemState::Available,
-                    label: self.roll_reward_relic_id(),
-                    claimable: reward_idx == 0,
+                    label: self.roll_noncamp_reward_relic_id(),
+                    claimable: false,
+                    active: false,
+                    skip_allowed: false,
+                    skip_label: None,
+                    choices: Vec::new(),
+                });
+            }
+            if self.active_combat_has_emerald_key {
+                items.push(RewardItem {
+                    index: items.len(),
+                    kind: RewardItemKind::Key {
+                        color: RewardKeyColor::Emerald,
+                        linked_item_index: None,
+                    },
+                    state: RewardItemState::Available,
+                    label: "Emerald Key".to_string(),
+                    claimable: false,
                     active: false,
                     skip_allowed: false,
                     skip_label: None,
@@ -5443,8 +6004,12 @@ impl RunEngine {
         }
 
         let mut screen = RewardScreen {
-            source: RewardScreenSource::Combat,
-            ordered: true,
+            source: if room_type == RoomType::Boss {
+                RewardScreenSource::BossCombat
+            } else {
+                RewardScreenSource::Combat
+            },
+            ordered: false,
             active_item: None,
             items,
         };
@@ -5461,10 +6026,20 @@ impl RunEngine {
         }
     }
 
-    fn build_boss_reward_screen(&mut self) {
+    fn enter_boss_chest(&mut self) {
+        // BossChest constructs and removes its three persistent-pool relics
+        // when the treasure room is entered, before the chest is opened.
+        // Closing the boss-relic screen reuses these same instances.
+        // Java: BossChest.java::<init>, BossRelicSelectScreen::relicSkipLogic.
+        let relic_choices = self.roll_boss_relic_choices(3);
+        self.reward_screen = None;
+        self.pending_chest = Some(PendingChest::Boss { relic_choices });
+        self.phase = RunPhase::Chest;
+    }
+
+    fn build_boss_reward_screen(&mut self, relic_choices: Vec<String>) {
         self.pending_relic_followup_source = RewardScreenSource::BossCombat;
-        let choices = self
-            .roll_boss_relic_choices(3)
+        let choices = relic_choices
             .into_iter()
             .enumerate()
             .map(|(index, relic_id)| RewardChoice::Named {
@@ -5474,7 +6049,7 @@ impl RunEngine {
             .collect();
 
         let mut screen = RewardScreen {
-            source: RewardScreenSource::BossCombat,
+            source: RewardScreenSource::BossRelic,
             ordered: true,
             active_item: None,
             items: vec![RewardItem {
@@ -5484,8 +6059,8 @@ impl RunEngine {
                 label: "boss_relic_reward".to_string(),
                 claimable: true,
                 active: false,
-                skip_allowed: false,
-                skip_label: None,
+                skip_allowed: true,
+                skip_label: Some("Skip".to_string()),
                 choices,
             }],
         };
@@ -5493,8 +6068,57 @@ impl RunEngine {
         self.reward_screen = Some(screen);
     }
 
+    fn enter_treasure_room(&mut self) {
+        // TreasureRoom.onPlayerEntry creates and randomizes the chest. The
+        // chest click and the room's Proceed button remain separate actions.
+        // Java: TreasureRoom.java::onPlayerEntry, AbstractChest.java::open.
+        self.reward_screen = None;
+        self.pending_chest = Some(PendingChest::Treasure(self.generate_chest()));
+        self.phase = RunPhase::Chest;
+    }
+
+    fn step_chest(&mut self, action: &RunAction) -> f32 {
+        match action {
+            RunAction::OpenChest => {
+                let Some(chest) = self.pending_chest.clone() else {
+                    return 0.0;
+                };
+                match chest {
+                    PendingChest::Treasure(chest) => {
+                        self.pending_chest = None;
+                        self.build_treasure_reward_screen_for(chest)
+                    }
+                    PendingChest::Boss { relic_choices } => {
+                        self.build_boss_reward_screen(relic_choices)
+                    }
+                }
+                self.phase = RunPhase::CardReward;
+            }
+            RunAction::LeaveChest => {
+                let pending = self.pending_chest.take();
+                self.reward_screen = None;
+                if matches!(pending, Some(PendingChest::Boss { .. })) {
+                    if self.run_state.act < 3 {
+                        self.wait_for_continuation(RunContinuation::NextAct);
+                    } else {
+                        self.wait_for_continuation(RunContinuation::SpireHeart);
+                    }
+                } else {
+                    self.phase = RunPhase::MapChoice;
+                }
+            }
+            _ => {}
+        }
+        0.0
+    }
+
+    #[cfg(test)]
     fn build_treasure_reward_screen(&mut self) {
         let chest = self.generate_chest();
+        self.build_treasure_reward_screen_for(chest);
+    }
+
+    fn build_treasure_reward_screen_for(&mut self, chest: GeneratedChest) {
         let extra_relic = self.run_state.relic_flags.counters
             [crate::relic_flags::counter::MATRYOSHKA_USES]
             > 0;
@@ -5562,6 +6186,7 @@ impl RunEngine {
             obtain_master_deck_card_state(&mut self.run_state, curse);
         }
 
+        let mut chest_relic_index = Some(items.len());
         items.push(RewardItem {
             index: items.len(),
             kind: RewardItemKind::Relic,
@@ -5573,6 +6198,23 @@ impl RunEngine {
             skip_label: None,
             choices: Vec::new(),
         });
+
+        if self.profile.final_act_available && !self.run_state.has_sapphire_key {
+            items.push(RewardItem {
+                index: items.len(),
+                kind: RewardItemKind::Key {
+                    color: RewardKeyColor::Sapphire,
+                    linked_item_index: chest_relic_index,
+                },
+                state: RewardItemState::Available,
+                label: "Sapphire Key".to_string(),
+                claimable: false,
+                active: false,
+                skip_allowed: false,
+                skip_label: None,
+                choices: Vec::new(),
+            });
+        }
 
         let has_nloths_mask = self
             .run_state
@@ -5594,6 +6236,36 @@ impl RunEngine {
                 .position(|item| item.kind == RewardItemKind::Relic)
             {
                 items.remove(index);
+                if items.get(index).is_some_and(|item| {
+                    matches!(
+                        item.kind,
+                        RewardItemKind::Key {
+                            color: RewardKeyColor::Sapphire,
+                            linked_item_index: Some(linked),
+                        } if linked == index
+                    )
+                }) {
+                    items.remove(index);
+                }
+                chest_relic_index = chest_relic_index.and_then(|linked| {
+                    if index == linked {
+                        None
+                    } else if index < linked {
+                        Some(linked - 1)
+                    } else {
+                        Some(linked)
+                    }
+                });
+            }
+        }
+
+        for item in &mut items {
+            if let RewardItemKind::Key {
+                linked_item_index: Some(linked),
+                ..
+            } = &mut item.kind
+            {
+                *linked = chest_relic_index.expect("surviving Sapphire key must link to relic");
             }
         }
 
@@ -5603,7 +6275,7 @@ impl RunEngine {
 
         let mut screen = RewardScreen {
             source: RewardScreenSource::Treasure,
-            ordered: true,
+            ordered: false,
             active_item: None,
             items,
         };
@@ -5663,6 +6335,7 @@ impl RunEngine {
     // =======================================================================
 
     fn step_card_reward(&mut self, action: &RunAction) -> f32 {
+        let leave_requested = matches!(action, RunAction::LeaveRewards);
         match action {
             RunAction::SelectRewardItem(item_index) => self.select_reward_item(*item_index),
             RunAction::ChooseRewardOption {
@@ -5670,14 +6343,30 @@ impl RunEngine {
                 choice_index,
             } => self.choose_reward_option(*item_index, *choice_index),
             RunAction::SkipRewardItem(item_index) => self.skip_reward_item(*item_index),
+            RunAction::LeaveRewards => {
+                if let Some(screen) = self.reward_screen.as_mut() {
+                    for item in &mut screen.items {
+                        if item.state == RewardItemState::Available {
+                            item.state = RewardItemState::Skipped;
+                        }
+                    }
+                }
+            }
             _ => {}
         }
 
+        if self.phase != RunPhase::CardReward {
+            self.refresh_decision_stack();
+            return 0.0;
+        }
+
         let reward_complete = self.reward_screen.as_ref().is_none_or(|screen| {
-            screen
-                .items
-                .iter()
-                .all(|item| item.state != RewardItemState::Available)
+            leave_requested
+                || (screen.ordered
+                    && screen
+                        .items
+                        .iter()
+                        .all(|item| item.state != RewardItemState::Available))
         });
         if reward_complete {
             let source = self
@@ -5688,11 +6377,18 @@ impl RunEngine {
             self.reward_screen = None;
 
             if source == RewardScreenSource::BossCombat {
+                self.enter_boss_treasure_room();
+                self.enter_boss_chest();
+                self.refresh_decision_stack();
+                return 0.0;
+            }
+
+            if source == RewardScreenSource::BossRelic {
+                self.pending_chest = None;
                 if self.run_state.act < 3 {
-                    self.transition_to_next_act();
+                    self.wait_for_continuation(RunContinuation::NextAct);
                 } else {
-                    self.run_state.floor += 1;
-                    self.enter_spire_heart_event();
+                    self.wait_for_continuation(RunContinuation::SpireHeart);
                 }
                 self.refresh_decision_stack();
                 return 0.0;
@@ -5706,10 +6402,9 @@ impl RunEngine {
 
             // Check if at last row (floor 15) — enter boss
             if self.run_state.map_y >= 0 && self.run_state.map_y as usize >= self.map.height - 1 {
-                // Boss fight next
-                self.run_state.floor += 1;
-                self.reset_floor_rngs();
-                self.enter_combat(false, true);
+                // The map boss node is a separate room transition. Proceed
+                // owns the floor increment and floor-RNG reset.
+                self.wait_for_continuation(RunContinuation::MapBoss);
                 self.refresh_decision_stack();
                 return 0.0;
             }
@@ -6075,6 +6770,29 @@ impl RunEngine {
             return;
         }
 
+        // BossRelicSelectScreen's cancel button closes the boss chest and
+        // returns to TreasureRoomBoss. The same three constructor-generated
+        // choices are available if the chest is opened again.
+        // Java: BossRelicSelectScreen.java::relicSkipLogic, BossChest.java::close.
+        if active_choice.is_some() && screen.source == RewardScreenSource::BossRelic {
+            self.decision_stack.pop();
+            self.reward_screen = None;
+            self.phase = RunPhase::Chest;
+            return;
+        }
+
+        // SkipCardButton closes CardRewardScreen without taking its backing
+        // RewardItem. The player may click that card reward again or abandon
+        // the entire combat reward screen with Proceed.
+        // Java: CardRewardScreen.java::takeReward, SkipCardButton.java::update.
+        if active_choice.is_some()
+            && !screen.ordered
+            && item.kind == RewardItemKind::CardChoice
+        {
+            self.decision_stack.pop();
+            return;
+        }
+
         if let Some(screen) = self.reward_screen.as_mut() {
             if let Some(item) = screen.items.get_mut(item_index) {
                 item.state = RewardItemState::Skipped;
@@ -6099,6 +6817,19 @@ impl RunEngine {
         let kind = item.kind;
         let label = item.label.clone();
         let source = screen.source.clone();
+        let linked_to_disable = match kind {
+            RewardItemKind::Key {
+                linked_item_index,
+                ..
+            } => linked_item_index,
+            _ => screen.items.iter().find_map(|candidate| match candidate.kind {
+                RewardItemKind::Key {
+                    linked_item_index: Some(linked),
+                    ..
+                } if linked == item_index => Some(candidate.index),
+                _ => None,
+            }),
+        };
         let suspend_for_bottle = screen.items.len() > 1
             && matches!(
                 label.as_str(),
@@ -6127,12 +6858,22 @@ impl RunEngine {
                     self.adjust_run_gold(amount.max(0));
                 }
             }
+            RewardItemKind::Key { color, .. } => match color {
+                RewardKeyColor::Ruby => self.run_state.has_ruby_key = true,
+                RewardKeyColor::Emerald => self.run_state.has_emerald_key = true,
+                RewardKeyColor::Sapphire => self.run_state.has_sapphire_key = true,
+            },
             _ => {}
         }
 
         if let Some(screen) = self.reward_screen.as_mut() {
             if let Some(item) = screen.items.get_mut(item_index) {
                 item.state = RewardItemState::Claimed;
+            }
+            if let Some(linked_index) = linked_to_disable {
+                if let Some(linked) = screen.items.get_mut(linked_index) {
+                    linked.state = RewardItemState::Disabled;
+                }
             }
             Self::refresh_reward_screen(screen);
         }
@@ -6354,7 +7095,7 @@ impl RunEngine {
             .collect();
         let mut screen = RewardScreen {
             source: RewardScreenSource::Shop,
-            ordered: true,
+            ordered: false,
             active_item: None,
             items: std::mem::take(&mut items),
         };
@@ -6417,7 +7158,7 @@ impl RunEngine {
             .collect::<Vec<_>>();
         let mut screen = RewardScreen {
             source: RewardScreenSource::Shop,
-            ordered: true,
+            ordered: false,
             active_item: None,
             items: std::mem::take(&mut items),
         };
@@ -7066,9 +7807,6 @@ impl RunEngine {
 
     fn roll_relic_tier(&mut self) -> RelicTier {
         let roll = self.persistent_rngs.relic.random_int(99);
-        if self.run_state.act == 4 {
-            return RelicTier::Uncommon;
-        }
         if roll < 50 {
             RelicTier::Common
         } else if roll < 83 {
@@ -7217,6 +7955,16 @@ impl RunEngine {
         self.draw_relic_from_pool(tier, false, false)
     }
 
+    fn roll_noncamp_reward_relic_id(&mut self) -> String {
+        let tier = self.roll_relic_tier();
+        loop {
+            let relic = self.draw_relic_from_pool(tier, false, false);
+            if !matches!(relic.as_str(), "Peace Pipe" | "Shovel" | "Girya") {
+                return relic;
+            }
+        }
+    }
+
     fn roll_shop_reward_relic_id(&mut self) -> String {
         let tier = self.roll_shop_relic_tier();
         self.draw_relic_from_pool(tier, true, true)
@@ -7352,7 +8100,8 @@ impl RunEngine {
     }
 
     fn can_enter_final_act(&self) -> bool {
-        self.run_state.has_ruby_key
+        self.profile.final_act_available
+            && self.run_state.has_ruby_key
             && self.run_state.has_emerald_key
             && self.run_state.has_sapphire_key
     }
@@ -7369,16 +8118,44 @@ impl RunEngine {
     }
 
     fn start_final_act(&mut self) {
+        // SpireHeart's key branch performs the same dungeon-transition setup
+        // as standard acts, then TheEnding installs a fixed zero-draw map and
+        // a fresh mapRng seeded with Settings.seed + actNum * 300.
+        // Java: AbstractDungeon.java::dungeonTransitionSetup,
+        // TheEnding.java::<init>/generateSpecialMap.
+        self.advance_card_rng_for_act_transition();
         self.run_state.act = 4;
+        self.run_state.map_x = -1;
+        self.run_state.map_y = -1;
+        self.run_state.event_monster_chance = default_event_monster_chance();
+        self.run_state.event_shop_chance = default_event_shop_chance();
+        self.run_state.event_treasure_chance = default_event_treasure_chance();
+        self.run_state.potion_blizz_randomizer = 0;
+        let heal_amount = if self.run_state.ascension >= 5 {
+            (((self.run_state.max_hp - self.run_state.current_hp) as f32) * 0.75).round() as i32
+        } else {
+            self.run_state.max_hp
+        };
+        self.heal_run_player(heal_amount);
+        self.map = generate_the_ending_map();
+        self.map_rng = crate::seed::StsRandom::new(self.seed.wrapping_add(1200));
         self.boss_id = "CorruptHeart".to_string();
-        self.pending_event_combat = Some(PendingEventCombat {
-            enemies: vec!["CorruptHeart".to_string()],
-            on_win: crate::events::EventProgram::from_ops(vec![EventProgramOp::StartBossCombat]),
-        });
-        self.enter_specific_combat(vec![
-            "SpireShield".to_string(),
-            "SpireSpear".to_string(),
-        ]);
+        self.boss_sequence = std::iter::repeat_n("CorruptHeart".to_string(), 3).collect();
+        self.encounter_queue_act = 4;
+        self.monster_encounter_queue.clear();
+        self.elite_encounter_queue.clear();
+        self.monster_encounter_queue
+            .extend(std::iter::repeat_n(ACT4_ELITE_ENCOUNTER.to_string(), 3));
+        self.elite_encounter_queue
+            .extend(std::iter::repeat_n(ACT4_ELITE_ENCOUNTER.to_string(), 3));
+        self.current_event = None;
+        self.pending_event_combat = None;
+        self.reward_screen = None;
+        self.pending_chest = None;
+        self.combat_engine = None;
+        self.active_combat_is_boss = false;
+        self.active_combat_has_emerald_key = false;
+        self.phase = RunPhase::MapChoice;
     }
 
     fn refresh_reward_screen(screen: &mut RewardScreen) {
@@ -7480,6 +8257,9 @@ impl RunEngine {
                 self.phase = RunPhase::CardReward;
                 self.refresh_decision_stack();
                 return 0.0;
+            }
+            RunAction::CampfireRecall => {
+                self.run_state.has_ruby_key = true;
             }
             _ => {}
         }
@@ -8360,8 +9140,7 @@ impl RunEngine {
             MysteryResult::Monster => self.enter_combat(false, false),
             MysteryResult::Shop => self.enter_shop(),
             MysteryResult::Treasure => {
-                self.build_treasure_reward_screen();
-                self.phase = RunPhase::CardReward;
+                self.enter_treasure_room();
             }
             MysteryResult::Event => self.enter_event(),
         }
@@ -8715,7 +9494,7 @@ impl RunEngine {
             // Java: decompiled/java-src/com/megacrit/cardcrawl/events/beyond/SecretPortal.java:43
             self.run_state.floor += 1;
             self.reset_floor_rngs();
-            self.start_specific_combat(vec![self.boss_id.clone()], true);
+            self.enter_combat(false, true);
             self.refresh_decision_stack();
             return 0.0;
         }
@@ -9550,6 +10329,7 @@ impl RunEngine {
         match self.phase {
             RunPhase::Neow => self.neow_options.len(),
             RunPhase::MapChoice => self.get_map_actions().len(),
+            RunPhase::Chest => self.pending_chest.is_some().then_some(2).unwrap_or(0),
             RunPhase::Combat => self
                 .combat_engine
                 .as_ref()
@@ -9560,6 +10340,7 @@ impl RunEngine {
             RunPhase::Campfire => self.get_campfire_actions().len(),
             RunPhase::Shop => self.get_shop_actions().len(),
             RunPhase::Event => self.get_event_actions().len(),
+            RunPhase::Transition => 1,
             RunPhase::GameOver => 0,
         }
     }
@@ -9598,7 +10379,7 @@ impl RunEngine {
 
     #[cfg(test)]
     pub(crate) fn debug_set_reward_screen(&mut self, mut screen: RewardScreen) {
-        if matches!(&screen.source, RewardScreenSource::BossCombat) {
+        if matches!(&screen.source, RewardScreenSource::BossRelic) {
             self.enter_boss_treasure_room();
         }
         Self::refresh_reward_screen(&mut screen);
@@ -9617,8 +10398,8 @@ impl RunEngine {
     #[cfg(test)]
     pub(crate) fn debug_build_boss_reward_screen(&mut self) {
         self.enter_boss_treasure_room();
-        self.build_boss_reward_screen();
-        self.phase = RunPhase::CardReward;
+        self.enter_boss_chest();
+        self.step_chest(&RunAction::OpenChest);
         self.refresh_decision_stack();
     }
 
@@ -9627,6 +10408,17 @@ impl RunEngine {
         self.build_treasure_reward_screen();
         self.phase = RunPhase::CardReward;
         self.refresh_decision_stack();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_relic_pool_lengths(&self) -> (usize, usize, usize, usize, usize) {
+        (
+            self.relic_pools.common.len(),
+            self.relic_pools.uncommon.len(),
+            self.relic_pools.rare.len(),
+            self.relic_pools.shop.len(),
+            self.relic_pools.boss.len(),
+        )
     }
 
     #[cfg(test)]
@@ -9644,6 +10436,32 @@ impl RunEngine {
     #[cfg(test)]
     pub(crate) fn debug_enter_specific_combat(&mut self, enemies: &[&str]) {
         self.enter_specific_combat(enemies.iter().map(|enemy| (*enemy).to_string()).collect());
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_enter_current_boss_combat(&mut self) {
+        self.reset_floor_rngs();
+        self.enter_combat(false, true);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_enter_boss_room(&mut self) {
+        self.enter_combat(false, true);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_roll_boss_sequence_for_act(&mut self, act: i32) {
+        self.roll_boss_sequence_for_act(act);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_boss_sequence(&self) -> Vec<String> {
+        self.boss_sequence.iter().cloned().collect()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_set_persistent_monster_rng(&mut self, rng: crate::seed::StsRandom) {
+        self.persistent_rngs.monster = rng;
     }
 
     #[cfg(test)]
@@ -9766,6 +10584,28 @@ impl RunEngine {
         self.floor_rngs.shuffle = crate::seed::StsRandom::with_counter(seed, counters[2]);
         self.floor_rngs.card_random = crate::seed::StsRandom::with_counter(seed, counters[3]);
         self.floor_rngs.misc = crate::seed::StsRandom::with_counter(seed, counters[4]);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_advance_persistent_card_rng_once(&mut self) {
+        self.persistent_rngs.card.random_bool();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_start_final_act(&mut self) {
+        self.start_final_act();
+        self.refresh_decision_stack();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_peek_map_rng_int3(&self) -> i32 {
+        let mut copy = self.map_rng.clone();
+        copy.random_int(3)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_set_active_emerald_elite(&mut self, active: bool) {
+        self.active_combat_has_emerald_key = active;
     }
 
     #[cfg(test)]
@@ -10372,6 +11212,9 @@ mod tests {
 
         engine.debug_force_current_combat_outcome(true);
         engine.debug_resolve_current_combat_outcome();
+        assert_eq!(engine.phase, RunPhase::Transition);
+        assert_eq!(engine.run_state.floor, 43);
+        assert!(engine.step_with_result(&RunAction::Proceed).action_accepted);
         assert_eq!(engine.phase, RunPhase::Event);
         assert_eq!(engine.run_state.floor, 44);
 
@@ -10645,6 +11488,9 @@ mod tests {
 
         let mut cancelled = RunEngine::new(seed, 0);
         cancelled.step(&RunAction::ChooseNeowOption(0));
+        // The screen-level action opens the grid; Skip belongs to that nested
+        // cancellable grid, not to the parent reward row.
+        cancelled.step(&RunAction::SelectRewardItem(0));
         cancelled.step(&RunAction::SkipRewardItem(0));
         assert_eq!(cancelled.current_phase(), RunPhase::MapChoice);
         assert_eq!(cancelled.run_state.deck, deck_before);
@@ -14279,8 +15125,10 @@ mod tests {
         refund.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
         refund.combat_engine.as_mut().unwrap().state.enemies[0].entity.hp = 0;
         refund.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
-        assert!((109..=119).contains(&refund.run_state.gold),
-            "death returns 15 stolen gold before the normal 10..=20 reward");
+        assert_eq!(refund.run_state.gold, 99,
+            "death returns stolen gold before room rewards are claimed");
+        refund.step(&RunAction::SelectRewardItem(0));
+        assert!((109..=119).contains(&refund.run_state.gold));
     }
 
     #[test]
@@ -14405,8 +15253,10 @@ mod tests {
         refund.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
         refund.combat_engine.as_mut().unwrap().state.enemies[0].entity.hp = 0;
         refund.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
-        assert!((109..=119).contains(&refund.run_state.gold),
-            "death returns 15 stolen gold before the normal 10..=20 reward");
+        assert_eq!(refund.run_state.gold, 99,
+            "death returns stolen gold before room rewards are claimed");
+        refund.step(&RunAction::SelectRewardItem(0));
+        assert!((109..=119).contains(&refund.run_state.gold));
     }
 
     #[test]
@@ -15989,6 +16839,7 @@ mod tests {
             engine.debug_enter_specific_combat(&["Cultist"]);
             engine.debug_force_current_combat_outcome(true);
             engine.debug_resolve_current_combat_outcome();
+            engine.step(&RunAction::SelectRewardItem(0));
             engine.run_state.gold - gold_before
         }
 

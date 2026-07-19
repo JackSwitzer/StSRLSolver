@@ -87,7 +87,7 @@ fn single_gold_reward_screen(amount: i32) -> RewardScreen {
 
 fn relic_choice_reward_screen(labels: &[&str]) -> RewardScreen {
     RewardScreen {
-        source: RewardScreenSource::BossCombat,
+        source: RewardScreenSource::BossRelic,
         ordered: true,
         active_item: None,
         items: vec![RewardItem {
@@ -2247,6 +2247,10 @@ fn tiny_chest_forces_every_fourth_mystery_room_to_treasure_and_resets() {
     }
 
     engine.debug_enter_mystery_room();
+    assert_eq!(engine.current_phase(), RunPhase::Chest);
+    assert!(engine
+        .step_with_result(&RunAction::OpenChest)
+        .action_accepted);
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
     assert!(engine.current_reward_screen().is_some_and(|screen| {
         screen.source == RewardScreenSource::Treasure
@@ -3101,8 +3105,7 @@ fn cauldron_is_shop_reachable_and_opens_five_ordered_potion_rewards() {
     assert!(engine.step_with_result(&RunAction::SelectRewardItem(3)).action_accepted);
     assert_eq!(engine.current_reward_screen().expect("reward").items[3].state,
         RewardItemState::Available);
-    assert!(engine.step_with_result(&RunAction::SkipRewardItem(3)).action_accepted);
-    assert!(engine.step_with_result(&RunAction::SkipRewardItem(4)).action_accepted);
+    assert!(engine.step_with_result(&RunAction::LeaveRewards).action_accepted);
     assert_eq!(engine.current_phase(), RunPhase::Shop);
     assert!(engine.get_shop().is_some());
 }
@@ -3236,9 +3239,7 @@ fn orrery_is_shop_reachable_and_opens_five_independent_card_rewards() {
     assert!(engine.run_state.deck.contains(&selected_card));
     assert_eq!(engine.run_state.gold, gold_after_purchase + 9);
 
-    for item_index in 1..5 {
-        assert!(engine.step_with_result(&RunAction::SkipRewardItem(item_index)).action_accepted);
-    }
+    assert!(engine.step_with_result(&RunAction::LeaveRewards).action_accepted);
     assert_eq!(engine.current_phase(), RunPhase::Shop);
     assert!(engine.get_shop().is_some());
 }
@@ -3674,6 +3675,9 @@ fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
         }
     }
     assert_eq!(engine.run_state.relics.len(), 5);
+    assert_eq!(engine.current_phase(), RunPhase::Transition);
+    assert_eq!(engine.run_state.act, 1);
+    assert!(engine.step_with_result(&RunAction::Proceed).action_accepted);
     assert_eq!(engine.run_state.act, 2);
     assert_eq!(engine.run_state.floor, 17);
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
@@ -4839,16 +4843,13 @@ fn claiming_question_card_expands_later_card_reward_choices() {
     let screen = engine
         .current_reward_screen()
         .expect("question card should mutate later combat rewards");
-    assert_eq!(screen.items.len(), 1);
-    assert_eq!(screen.items[0].kind, RewardItemKind::CardChoice);
-    assert_eq!(screen.items[0].choices.len(), 4);
-    assert_eq!(
-        engine.get_legal_decision_actions(),
-        vec![
-            DecisionAction::ClaimRewardItem { item_index: 0 },
-            DecisionAction::SkipRewardItem { item_index: 0 },
-        ]
-    );
+    assert_eq!(screen.items.len(), 2);
+    assert_eq!(screen.items[0].kind, RewardItemKind::Gold);
+    assert_eq!(screen.items[1].kind, RewardItemKind::CardChoice);
+    assert_eq!(screen.items[1].choices.len(), 4);
+    assert!(engine
+        .get_legal_decision_actions()
+        .contains(&DecisionAction::ClaimRewardItem { item_index: 1 }));
 }
 
 #[test]
@@ -4909,10 +4910,6 @@ fn claiming_prayer_wheel_adds_second_ordered_card_reward_item() {
         .map(|item| item.index)
         .collect();
     assert_eq!(card_indices.len(), 2);
-    if let Some(potion) = screen.items.iter().find(|item| item.kind == RewardItemKind::Potion) {
-        assert!(engine.step_with_result(&RunAction::SkipRewardItem(potion.index)).action_accepted);
-    }
-
     let open_first = engine.step_with_result(&RunAction::SelectRewardItem(card_indices[0]));
     assert!(open_first.action_accepted);
     let pick_first = engine.step_with_result(&RunAction::ChooseRewardOption {
@@ -4920,13 +4917,9 @@ fn claiming_prayer_wheel_adds_second_ordered_card_reward_item() {
         choice_index: 0,
     });
     assert!(pick_first.action_accepted);
-    assert_eq!(
-        pick_first.legal_decision_actions,
-        vec![
-            DecisionAction::ClaimRewardItem { item_index: card_indices[1] },
-            DecisionAction::SkipRewardItem { item_index: card_indices[1] },
-        ]
-    );
+    assert!(pick_first.legal_decision_actions.contains(
+        &DecisionAction::ClaimRewardItem { item_index: card_indices[1] }
+    ));
 }
 
 #[test]
@@ -5219,10 +5212,11 @@ fn choosing_black_star_from_relic_choice_doubles_future_elite_relic_rewards() {
     let screen = engine
         .current_reward_screen()
         .expect("black star should mutate future elite rewards");
-    assert_eq!(screen.items[0].kind, RewardItemKind::Relic);
+    assert_eq!(screen.items[0].kind, RewardItemKind::Gold);
     assert_eq!(screen.items[1].kind, RewardItemKind::Relic);
-    assert!(screen.items[0].claimable);
-    assert!(!screen.items[1].claimable);
+    assert_eq!(screen.items[2].kind, RewardItemKind::Relic);
+    assert!(screen.items[1].claimable);
+    assert!(screen.items[2].claimable);
 }
 
 #[test]
@@ -5240,10 +5234,11 @@ fn white_beast_statue_flag_guarantees_potion_reward_on_ordered_screen() {
     let screen = engine
         .current_reward_screen()
         .expect("white beast should guarantee potion rewards");
-    assert_eq!(screen.items[0].kind, RewardItemKind::Potion);
-    assert!(screen.items[0].claimable);
-    assert_eq!(screen.items[1].kind, RewardItemKind::CardChoice);
-    assert!(!screen.items[1].claimable);
+    assert_eq!(screen.items[0].kind, RewardItemKind::Gold);
+    assert_eq!(screen.items[1].kind, RewardItemKind::Potion);
+    assert!(screen.items[1].claimable);
+    assert_eq!(screen.items[2].kind, RewardItemKind::CardChoice);
+    assert!(screen.items[2].claimable);
 }
 
 #[test]
@@ -5285,6 +5280,9 @@ fn choosing_sacred_bark_uses_only_real_reward_choice_actions() {
     });
     assert!(choose.action_accepted);
     assert!(engine.run_state.relic_flags.has(crate::relic_flags::flag::SACRED_BARK));
+    assert_eq!(engine.current_phase(), RunPhase::Transition);
+    assert_eq!(engine.run_state.act, 1);
+    assert!(engine.step_with_result(&RunAction::Proceed).action_accepted);
     assert_eq!(engine.run_state.act, 2);
     assert_eq!(engine.run_state.floor, 17);
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);

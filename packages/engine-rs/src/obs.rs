@@ -331,7 +331,8 @@ pub fn encode_run_state(engine: &RunEngine, obs: &mut [f32; RUN_DIM]) {
     if let Some(screen) = engine.current_reward_screen() {
         match &screen.source {
             crate::decision::RewardScreenSource::Combat => obs[off + 3] = 1.0,
-            crate::decision::RewardScreenSource::BossCombat => obs[off + 4] = 1.0,
+            crate::decision::RewardScreenSource::BossCombat
+            | crate::decision::RewardScreenSource::BossRelic => obs[off + 4] = 1.0,
             crate::decision::RewardScreenSource::Campfire => {},
             crate::decision::RewardScreenSource::Event => obs[off + 5] = 1.0,
             crate::decision::RewardScreenSource::Treasure => obs[off + 6] = 1.0,
@@ -488,10 +489,11 @@ pub fn encode_actions(engine: &RunEngine, actions: &[RunAction], obs: &mut [f32;
                     RunAction::CampfireToke => obs[base + 6] = 1.0,
                     RunAction::CampfireLift => obs[base + 7] = 1.0,
                     RunAction::CampfireDig => obs[base + 8] = 1.0,
+                    RunAction::CampfireRecall => obs[base + 9] = 1.0,
                     _ => {}
                 }
             }
-            RunPhase::Shop | RunPhase::Event => {
+            RunPhase::Chest | RunPhase::Shop | RunPhase::Event => {
                 obs[base + 3] = 1.0; // is_other
                 obs[base + 4] = (i as f32 + 1.0) / n.max(1) as f32;
             }
@@ -517,7 +519,7 @@ fn encode_reward_item_features(
         crate::decision::RewardItemKind::Relic => obs[base + 5] = 1.0,
         crate::decision::RewardItemKind::Potion => obs[base + 6] = 1.0,
         crate::decision::RewardItemKind::Gold => obs[base + 7] = 1.0,
-        crate::decision::RewardItemKind::Key => obs[base + 8] = 1.0,
+        crate::decision::RewardItemKind::Key { .. } => obs[base + 8] = 1.0,
         crate::decision::RewardItemKind::Unknown => {}
     }
     obs[base + 9] = if item.active { 1.0 } else { 0.0 };

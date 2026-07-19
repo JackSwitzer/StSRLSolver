@@ -42,6 +42,10 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+/// Additive trace-v2 schema types. The existing definitions in this file stay
+/// frozen as the read-only v1 contract.
+pub mod v2;
+
 /// Current trace schema version. Every header/record carries `v` so a
 /// consumer can immediately detect drift instead of silently misparsing.
 pub const TRACE_SCHEMA_VERSION: u32 = 1;
@@ -763,11 +767,13 @@ fn phase_label(phase: crate::run::RunPhase) -> &'static str {
     match phase {
         RunPhase::Neow => "NEOW",
         RunPhase::MapChoice => "MAP",
+        RunPhase::Chest => "CHEST",
         RunPhase::Combat => "COMBAT",
         RunPhase::CardReward => "CARD_REWARD",
         RunPhase::Campfire => "CAMPFIRE",
         RunPhase::Shop => "SHOP",
         RunPhase::Event => "EVENT",
+        RunPhase::Transition => "TRANSITION",
         RunPhase::GameOver => "GAME_OVER",
     }
 }
