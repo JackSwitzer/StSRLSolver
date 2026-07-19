@@ -191,6 +191,14 @@ fn dual_wield_only_offers_attack_and_power_cards_then_copies_the_selected_card()
     assert_eq!(hand_count(&engine, "Strike"), 3);
     assert_eq!(hand_count(&engine, "Inflame"), 1);
     assert_eq!(hand_count(&engine, "Defend"), 1);
+    let strike_ids: std::collections::HashSet<_> = engine
+        .state
+        .hand
+        .iter()
+        .filter(|card| engine.card_registry.card_name(card.def_id) == "Strike")
+        .map(|card| card.instance_id)
+        .collect();
+    assert_eq!(strike_ids.len(), 3, "each stat copy needs a fresh UUID");
 }
 
 #[test]

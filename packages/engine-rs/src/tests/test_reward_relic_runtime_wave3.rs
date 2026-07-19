@@ -7,6 +7,26 @@ use crate::gameplay::global_registry as gameplay_registry;
 use crate::map::RoomType;
 use crate::run::{RunAction, RunEngine, RunPhase, ShopState};
 
+fn sync_test_master_deck(engine: &mut RunEngine) {
+    let registry = crate::cards::global_registry();
+    engine.run_state.deck_card_states = engine
+        .run_state
+        .deck
+        .iter()
+        .enumerate()
+        .map(|(index, card_id)| {
+            registry
+                .make_card(card_id)
+                .with_instance_id(index as u32 + 1)
+        })
+        .collect();
+    engine.run_state.next_card_instance_id = engine.run_state.deck.len() as u64 + 1;
+}
+
+fn test_master_card_id(engine: &RunEngine, index: usize) -> u32 {
+    engine.run_state.deck_card_states[index].instance_id
+}
+
 fn assert_unregistered_java_test_relic(id: &str) {
     assert!(crate::relics::defs::relic_def_by_id(id).is_none());
     assert!(gameplay_registry().relic(id).is_none());
@@ -1794,7 +1814,8 @@ fn peace_pipe_toke_selects_one_purgeable_non_bottled_card_and_is_rl_visible() {
         "Wallop".to_string(),
         "CurseOfTheBell".to_string(),
     ];
-    engine.run_state.bottled_flame_card = Some("Wallop".to_string());
+    sync_test_master_deck(&mut engine);
+    engine.run_state.bottled_flame_card_instance_id = Some(test_master_card_id(&engine, 1));
     engine.run_state.relics.push("Peace Pipe".to_string());
     engine
         .run_state
@@ -1835,6 +1856,32 @@ fn peace_pipe_toke_selects_one_purgeable_non_bottled_card_and_is_rl_visible() {
     assert_eq!(engine.run_state.deck, vec!["Wallop", "CurseOfTheBell"]);
     engine.phase = RunPhase::Campfire;
     assert!(!engine.get_legal_actions().contains(&RunAction::CampfireToke));
+}
+
+#[test]
+fn bottle_identity_excludes_only_the_selected_duplicate_and_survives_other_upgrades() {
+    // Java stores bottle flags on one AbstractCard object. Equal-name copies
+    // remain purgeable, and upgrading a different copy cannot move the flag.
+    let mut engine = RunEngine::new(61, 0);
+    engine.run_state.deck = vec!["Wallop".to_string(), "Wallop".to_string()];
+    sync_test_master_deck(&mut engine);
+    let bottled_id = test_master_card_id(&engine, 0);
+    engine.run_state.bottled_flame_card_instance_id = Some(bottled_id);
+    engine.run_state.relics.push("Peace Pipe".to_string());
+    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine.phase = RunPhase::Campfire;
+
+    let campfire = engine.current_decision_context().campfire.unwrap();
+    assert_eq!(campfire.removable_cards, vec![1]);
+    assert!(engine
+        .step_with_result(&RunAction::CampfireUpgrade(1))
+        .action_accepted);
+    assert_eq!(engine.run_state.deck, vec!["Wallop", "Wallop+"]);
+    assert_eq!(
+        engine.run_state.bottled_flame_card_instance_id,
+        Some(bottled_id)
+    );
+    assert_eq!(test_master_card_id(&engine, 0), bottled_id);
 }
 
 #[test]
@@ -3125,7 +3172,8 @@ fn dollys_mirror_is_shop_reachable_and_obtains_one_unbottled_card_copy() {
             "Defend".to_string(),
             "Wallop+".to_string(),
         ];
-        engine.run_state.bottled_flame_card = Some("Wallop+".to_string());
+        sync_test_master_deck(&mut engine);
+        engine.run_state.bottled_flame_card_instance_id = Some(test_master_card_id(&engine, 2));
         engine.run_state.relics.push("CeramicFish".to_string());
         engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
         engine.run_state.gold = 10_000;
@@ -3141,7 +3189,8 @@ fn dollys_mirror_is_shop_reachable_and_obtains_one_unbottled_card_copy() {
         "Defend".to_string(),
         "Wallop+".to_string(),
     ];
-    engine.run_state.bottled_flame_card = Some("Wallop+".to_string());
+    sync_test_master_deck(&mut engine);
+    engine.run_state.bottled_flame_card_instance_id = Some(test_master_card_id(&engine, 2));
     engine.run_state.relics.push("CeramicFish".to_string());
     engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
     engine.run_state.gold = 10_000;
@@ -3174,6 +3223,68 @@ fn dollys_mirror_is_shop_reachable_and_obtains_one_unbottled_card_copy() {
             && card.flags & crate::combat_types::CardInstance::FLAG_INNATE != 0
     }).count();
     assert_eq!(innate_wallops, 1);
+}
+
+#[test]
+fn dollys_mirror_preserves_mutable_card_state_with_fresh_identity() {
+    // DollysMirror.onEquip obtains makeStatEquivalentCopy(): misc, upgrades,
+    // and Searing Blow's repeated-upgrade state survive, while UUID is fresh.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/DollysMirror.java:44.
+    let seed = (0..256)
+        .find(|seed| {
+            let mut engine = RunEngine::new(*seed, 0);
+            engine.debug_enter_shop();
+            engine.get_shop().is_some_and(|shop| {
+                shop
+                    .relics
+                    .iter()
+                    .any(|(relic, _)| relic == "DollysMirror")
+            })
+        })
+        .expect("DollysMirror shop seed");
+
+    for (card_id, misc) in [
+        ("Genetic Algorithm", 17),
+        ("RitualDagger", 24),
+        ("Searing Blow+", 6),
+    ] {
+        let mut engine = RunEngine::new(seed, 0);
+        engine.run_state.deck = vec![card_id.to_string(), "Defend".to_string()];
+        sync_test_master_deck(&mut engine);
+        engine.run_state.deck_card_states[0].misc = misc;
+        let source_id = test_master_card_id(&engine, 0);
+        engine.run_state.gold = 10_000;
+        engine.debug_enter_shop();
+        let relic_index = engine
+            .get_shop()
+            .expect("shop")
+            .relics
+            .iter()
+            .position(|(relic, _)| relic == "DollysMirror")
+            .expect("DollysMirror offer");
+
+        assert!(engine
+            .step_with_result(&RunAction::ShopBuyRelic(relic_index))
+            .action_accepted);
+        assert!(engine
+            .step_with_result(&RunAction::SelectRewardItem(0))
+            .action_accepted);
+        assert!(engine
+            .step_with_result(&RunAction::ChooseRewardOption {
+                item_index: 0,
+                choice_index: 0,
+            })
+            .action_accepted);
+
+        assert_eq!(engine.run_state.deck_card_states.len(), 3);
+        let copy = engine.run_state.deck_card_states[2];
+        assert_eq!(copy.misc, misc, "{card_id} misc");
+        assert_ne!(copy.instance_id, source_id, "{card_id} UUID");
+        assert_eq!(
+            engine.run_state.deck[2], card_id,
+            "{card_id} upgrade identity"
+        );
+    }
 }
 
 #[test]
@@ -4000,7 +4111,16 @@ fn bottled_flame_requires_a_nonbasic_attack_then_selects_any_purgeable_attack() 
             choice_index: wallop_choice,
         })
         .action_accepted);
-    assert_eq!(engine.run_state.bottled_flame_card.as_deref(), Some("Wallop"));
+    let wallop_index = engine
+        .run_state
+        .deck
+        .iter()
+        .position(|card| card == "Wallop")
+        .unwrap();
+    assert_eq!(
+        engine.run_state.bottled_flame_card_instance_id,
+        Some(test_master_card_id(&engine, wallop_index))
+    );
 }
 
 #[test]
@@ -4049,9 +4169,15 @@ fn bottled_lightning_requires_a_nonbasic_skill_then_selects_any_purgeable_skill(
             choice_index,
         })
         .action_accepted);
+    let third_eye_index = engine
+        .run_state
+        .deck
+        .iter()
+        .position(|card| card == "ThirdEye")
+        .unwrap();
     assert_eq!(
-        engine.run_state.bottled_lightning_card.as_deref(),
-        Some("ThirdEye")
+        engine.run_state.bottled_lightning_card_instance_id,
+        Some(test_master_card_id(&engine, third_eye_index))
     );
 }
 
@@ -4098,9 +4224,15 @@ fn bottled_tornado_requires_and_selects_a_purgeable_power() {
             choice_index: 0,
         })
         .action_accepted);
+    let devotion_index = engine
+        .run_state
+        .deck
+        .iter()
+        .position(|card| card == "Devotion")
+        .unwrap();
     assert_eq!(
-        engine.run_state.bottled_tornado_card.as_deref(),
-        Some("Devotion")
+        engine.run_state.bottled_tornado_card_instance_id,
+        Some(test_master_card_id(&engine, devotion_index))
     );
 }
 
@@ -5042,7 +5174,9 @@ fn whetstone_upgrades_only_eligible_attacks_and_syncs_a_bottled_attack() {
         "Defend".to_string(),
         "Eruption+".to_string(),
     ];
-    engine.run_state.bottled_flame_card = Some("Strike".to_string());
+    sync_test_master_deck(&mut engine);
+    let bottled_id = test_master_card_id(&engine, 0);
+    engine.run_state.bottled_flame_card_instance_id = Some(bottled_id);
     engine.debug_set_reward_screen(single_relic_reward_screen("Whetstone"));
 
     assert!(engine
@@ -5052,10 +5186,7 @@ fn whetstone_upgrades_only_eligible_attacks_and_syncs_a_bottled_attack() {
         engine.run_state.deck,
         vec!["Strike+", "Defend", "Eruption+"]
     );
-    assert_eq!(
-        engine.run_state.bottled_flame_card.as_deref(),
-        Some("Strike+")
-    );
+    assert_eq!(engine.run_state.bottled_flame_card_instance_id, Some(bottled_id));
 }
 
 #[test]
@@ -5084,7 +5215,9 @@ fn war_paint_upgrades_only_eligible_skills_and_syncs_a_bottled_skill() {
         "Strike".to_string(),
         "Vigilance+".to_string(),
     ];
-    engine.run_state.bottled_lightning_card = Some("Defend".to_string());
+    sync_test_master_deck(&mut engine);
+    let bottled_id = test_master_card_id(&engine, 0);
+    engine.run_state.bottled_lightning_card_instance_id = Some(bottled_id);
     engine.debug_set_reward_screen(single_relic_reward_screen("War Paint"));
 
     assert!(engine
@@ -5094,10 +5227,7 @@ fn war_paint_upgrades_only_eligible_skills_and_syncs_a_bottled_skill() {
         engine.run_state.deck,
         vec!["Defend+", "Strike", "Vigilance+"]
     );
-    assert_eq!(
-        engine.run_state.bottled_lightning_card.as_deref(),
-        Some("Defend+")
-    );
+    assert_eq!(engine.run_state.bottled_lightning_card_instance_id, Some(bottled_id));
 }
 
 #[test]

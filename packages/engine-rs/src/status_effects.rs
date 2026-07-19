@@ -66,7 +66,8 @@ pub fn process_end_turn_hand_cards(engine: &mut CombatEngine) -> bool {
     for card_inst in ordinary_actions {
         // Pride passes false for randomSpot, so the copied card is added to the
         // top without consuming cardRandomRng.
-        engine.state.draw_pile.push(card_inst);
+        let copy = engine.fresh_stat_copy(card_inst);
+        engine.state.draw_pile.push(copy);
     }
 
     for (_card_inst, rule, base_magic) in card_queue {

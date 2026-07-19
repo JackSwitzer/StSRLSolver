@@ -1,22 +1,12 @@
 //! Trace schema v2 wire types.
 //!
-//! This module is intentionally schema-only. The `pre`, `post`, initial, and
-//! final checkpoint fields remain opaque JSON until the checkpoint stack lands
-//! a typed `CoreCheckpoint`. Their presence must not be interpreted as a claim
-//! that the current engine can capture or restore complete causal state.
-
+use crate::checkpoint::CoreCheckpoint;
 use crate::run::GameAction;
 use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::Value;
 
 pub const TRACE_SCHEMA_NAME: &str = "sts.trace";
 pub const TRACE_SCHEMA_MAJOR: u32 = 2;
 pub const TRACE_SCHEMA_MINOR: u32 = 0;
-
-/// A checkpoint-shaped payload whose structure is deliberately unspecified in
-/// schema 2.0. This alias is replaced by typed core checkpoint data in the next
-/// stacked PR.
-pub type OpaqueCheckpoint = Value;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SchemaVersion {
@@ -48,6 +38,12 @@ impl SchemaVersion {
             return Err(format!(
                 "unsupported trace schema major {} (expected {TRACE_SCHEMA_MAJOR})",
                 self.major
+            ));
+        }
+        if self.minor > TRACE_SCHEMA_MINOR {
+            return Err(format!(
+                "unsupported trace schema minor {} (maximum supported {TRACE_SCHEMA_MINOR})",
+                self.minor
             ));
         }
         Ok(())
@@ -93,7 +89,8 @@ impl TraceEnvelopeV2 {
     }
 
     pub fn validate(&self) -> Result<(), String> {
-        self.schema.validate()
+        self.schema.validate()?;
+        self.payload.validate()
     }
 }
 
@@ -113,12 +110,14 @@ impl<'de> Deserialize<'de> for TraceEnvelopeV2 {
     {
         let wire = TraceEnvelopeWire::deserialize(deserializer)?;
         wire.schema.validate().map_err(serde::de::Error::custom)?;
-        Ok(Self {
+        let envelope = Self {
             schema: wire.schema,
             capabilities: wire.capabilities,
             producer: wire.producer,
             payload: wire.payload,
-        })
+        };
+        envelope.validate().map_err(serde::de::Error::custom)?;
+        Ok(envelope)
     }
 }
 
@@ -128,6 +127,35 @@ pub enum TracePayloadV2 {
     Header(HeaderV2),
     Transition(TransitionV2),
     End(EndV2),
+}
+
+impl TracePayloadV2 {
+    fn validate(&self) -> Result<(), String> {
+        match self {
+            Self::Header(header) => {
+                let engine = header.initial_checkpoint.engine();
+                if header.seed_long as u64 != engine.seed {
+                    return Err("trace header seed does not match its initial checkpoint".to_string());
+                }
+                if header.ascension != engine.run_state.ascension {
+                    return Err(
+                        "trace header ascension does not match its initial checkpoint".to_string(),
+                    );
+                }
+            }
+            Self::Transition(transition) => {
+                if matches!(&transition.outcome, ActionOutcome::Rejected { .. })
+                    && transition.pre != transition.post
+                {
+                    return Err(
+                        "rejected trace transition must preserve its causal checkpoint".to_string(),
+                    );
+                }
+            }
+            Self::End(_) => {}
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -140,8 +168,7 @@ pub struct HeaderV2 {
     pub game_version: String,
     #[serde(default)]
     pub mods: Vec<String>,
-    /// Opaque until `CoreCheckpoint` is introduced.
-    pub initial_checkpoint: OpaqueCheckpoint,
+    pub initial_checkpoint: CoreCheckpoint,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -151,10 +178,8 @@ pub struct TransitionV2 {
     /// trace-only action vocabulary or semantic adapter.
     pub action: GameAction,
     pub outcome: ActionOutcome,
-    /// Opaque until `CoreCheckpoint` is introduced.
-    pub pre: OpaqueCheckpoint,
-    /// Opaque until `CoreCheckpoint` is introduced.
-    pub post: OpaqueCheckpoint,
+    pub pre: CoreCheckpoint,
+    pub post: CoreCheckpoint,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -172,6 +197,5 @@ pub enum ActionOutcome {
 pub struct EndV2 {
     pub transition_count: u64,
     pub result: String,
-    /// Opaque until `CoreCheckpoint` is introduced.
-    pub final_checkpoint: OpaqueCheckpoint,
+    pub final_checkpoint: CoreCheckpoint,
 }

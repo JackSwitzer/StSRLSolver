@@ -194,7 +194,7 @@ fn wave8_stance_potion_matches_java_choose_one_semantics() {
         .options
         .iter()
         .filter_map(|opt| match opt {
-            crate::engine::ChoiceOption::Named(label) => Some(*label),
+            crate::engine::ChoiceOption::Named(label) => Some(label.as_str()),
             _ => None,
         })
         .collect();

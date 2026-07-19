@@ -11,6 +11,7 @@
 pub mod actions;
 pub mod card_effects;
 pub mod cards;
+pub mod checkpoint;
 pub mod combat_hooks;
 pub mod combat_types;
 pub mod damage;
@@ -570,7 +571,7 @@ fn choice_option_payload(
             -1,
             combat.card_registry.card_name(card.def_id).to_string(),
         ),
-        crate::engine::ChoiceOption::Named(name) => ("named".to_string(), -1, (*name).to_string()),
+        crate::engine::ChoiceOption::Named(name) => ("named".to_string(), -1, name.clone()),
         crate::engine::ChoiceOption::ExhaustCard(idx) => {
             let name = combat
                 .state

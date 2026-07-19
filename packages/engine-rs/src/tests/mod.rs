@@ -37,6 +37,7 @@ mod test_card_runtime_defect_wave17;
 mod test_card_runtime_instance_mutation_wave1;
 mod test_card_runtime_xcount_wave1;
 mod test_card_runtime_xcount_wave2;
+mod test_core_checkpoint;
 mod test_card_runtime_xcount_wave3;
 mod test_card_runtime_colorless_wave1;
 mod test_card_runtime_colorless_wave2;

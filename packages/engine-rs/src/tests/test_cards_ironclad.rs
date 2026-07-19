@@ -160,6 +160,8 @@ mod ironclad_card_java_parity_tests {
         assert_eq!(dynamic.state.enemies[0].entity.hp, 42);
         assert_eq!(dynamic.state.discard_pile.len(), 1);
         let copy = dynamic.state.discard_pile[0];
+        assert_ne!(copy.instance_id, original.instance_id);
+        assert_ne!(copy.instance_id, 0);
         assert_eq!((copy.cost, copy.base_cost, copy.misc), (2, 2, 7));
         assert!(copy.is_upgraded());
         assert!(copy.is_free());

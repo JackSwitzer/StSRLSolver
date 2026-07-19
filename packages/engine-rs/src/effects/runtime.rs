@@ -6,7 +6,7 @@
 //! deterministic event trace for debugging / RL inspection.
 
 use smallvec::SmallVec;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::hash::{Hash, Hasher};
 
 use crate::cards::CardType;
@@ -20,7 +20,7 @@ use crate::engine::{ChoiceOption, ChoiceReason, CombatEngine, NamedChoicePayload
 use crate::ids::StatusId;
 use crate::status_ids::sid;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum EffectOwner {
     PlayerRelic { slot: u16 },
     PlayerPower,
@@ -29,7 +29,7 @@ pub enum EffectOwner {
     RunEffect,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PersistenceScope {
     Combat,
     Run,
@@ -41,7 +41,7 @@ impl Hash for Trigger {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EffectState {
     pub persistence: PersistenceScope,
     values: SmallVec<[i16; 4]>,
@@ -103,7 +103,7 @@ pub struct EntityInstance {
     pub state: EffectState,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameEvent {
     pub kind: Trigger,
     pub card_type: Option<CardType>,
@@ -157,23 +157,24 @@ impl GameEvent {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EventRecordPhase {
     Emitted,
     Handled,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EffectExecutionPhase {
     Declarative,
     Hook,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameEventRecord {
     pub phase: EventRecordPhase,
     pub event: Trigger,
     pub owner: Option<EffectOwner>,
+    #[serde(deserialize_with = "deserialize_effect_def_id")]
     pub def_id: Option<&'static str>,
     pub execution: Option<EffectExecutionPhase>,
     pub card_type: Option<CardType>,
@@ -266,6 +267,139 @@ pub struct EffectRuntime {
     instances: Vec<EntityInstance>,
     dispatch: DispatchTable,
     persisted_states: Vec<PersistedEffectState>,
+}
+
+#[derive(Serialize)]
+struct EntityInstanceRef<'a> {
+    instance_id: u32,
+    def_id: &'a str,
+    owner: EffectOwner,
+    state: &'a EffectState,
+}
+
+#[derive(Serialize)]
+struct EffectRuntimeRef<'a> {
+    next_instance_id: u32,
+    instances: Vec<EntityInstanceRef<'a>>,
+    persisted_states: &'a [PersistedEffectState],
+}
+
+#[derive(Deserialize)]
+struct EntityInstanceWire {
+    instance_id: u32,
+    def_id: String,
+    owner: EffectOwner,
+    state: EffectState,
+}
+
+#[derive(Deserialize)]
+struct EffectRuntimeWire {
+    next_instance_id: u32,
+    instances: Vec<EntityInstanceWire>,
+    persisted_states: Vec<PersistedEffectState>,
+}
+
+impl Serialize for EffectRuntime {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let instances = self
+            .instances
+            .iter()
+            .map(|instance| EntityInstanceRef {
+                instance_id: instance.instance_id,
+                def_id: instance.def.id,
+                owner: instance.owner,
+                state: &instance.state,
+            })
+            .collect();
+        EffectRuntimeRef {
+            next_instance_id: self.next_instance_id,
+            instances,
+            persisted_states: &self.persisted_states,
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for EffectRuntime {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = EffectRuntimeWire::deserialize(deserializer)?;
+        let mut instances = Vec::with_capacity(wire.instances.len());
+        for instance in wire.instances {
+            let def = entity_def_for_owner(instance.owner, &instance.def_id).ok_or_else(|| {
+                serde::de::Error::custom(format!(
+                    "unknown effect definition {:?} for owner {:?}",
+                    instance.def_id, instance.owner
+                ))
+            })?;
+            instances.push(EntityInstance {
+                instance_id: instance.instance_id,
+                def,
+                owner: instance.owner,
+                state: instance.state,
+            });
+        }
+        for state in &wire.persisted_states {
+            if canonical_entity_def_by_id(&state.def_id).is_none() {
+                return Err(serde::de::Error::custom(format!(
+                    "unknown persisted effect definition {:?}",
+                    state.def_id
+                )));
+            }
+        }
+
+        let mut runtime = Self {
+            next_instance_id: wire.next_instance_id,
+            instances,
+            dispatch: DispatchTable::default(),
+            persisted_states: wire.persisted_states,
+        };
+        runtime.rebuild_dispatch();
+        Ok(runtime)
+    }
+}
+
+fn power_def_by_id(id: &str) -> Option<&'static EntityDef> {
+    crate::powers::defs::POWER_DEFS
+        .iter()
+        .find(|def| def.id == id)
+        .copied()
+}
+
+fn canonical_entity_def_by_id(id: &str) -> Option<&'static EntityDef> {
+    crate::relics::defs::relic_def_by_id(id)
+        .or_else(|| power_def_by_id(id))
+        .or_else(|| crate::potions::defs::potion_def_by_id(id))
+}
+
+fn entity_def_for_owner(owner: EffectOwner, id: &str) -> Option<&'static EntityDef> {
+    match owner {
+        EffectOwner::PlayerRelic { .. } => crate::relics::defs::relic_def_by_id(id),
+        EffectOwner::PlayerPower | EffectOwner::EnemyPower { .. } => power_def_by_id(id),
+        EffectOwner::PotionSlot { .. } => crate::potions::defs::potion_def_by_id(id),
+        EffectOwner::RunEffect => canonical_entity_def_by_id(id),
+    }
+}
+
+fn deserialize_effect_def_id<'de, D>(
+    deserializer: D,
+) -> Result<Option<&'static str>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    match Option::<String>::deserialize(deserializer)? {
+        Some(id) => canonical_entity_def_by_id(&id)
+            .map(|def| Some(def.id))
+            .ok_or_else(|| {
+                serde::de::Error::custom(format!("unknown effect definition {:?}", id))
+            }),
+        None => Ok(None),
+    }
 }
 
 impl EffectRuntime {
@@ -1227,6 +1361,7 @@ impl EffectRuntime {
         let options = option_names
             .iter()
             .copied()
+            .map(str::to_string)
             .map(ChoiceOption::Named)
             .collect();
         engine.begin_choice(ChoiceReason::PickOption, options, 1, 1);
@@ -1244,7 +1379,7 @@ impl EffectRuntime {
         }
         let options = option_specs
             .iter()
-            .map(|option| ChoiceOption::Named(option.label))
+            .map(|option| ChoiceOption::Named(option.label.to_string()))
             .collect();
         let payloads = option_specs
             .iter()
@@ -1985,4 +2120,96 @@ fn is_debuff(status_id: StatusId) -> bool {
         || status_id == sid::CONSTRICTED
         || status_id == sid::LOSE_STRENGTH
         || status_id == sid::WRAITH_FORM
+}
+
+#[cfg(test)]
+mod serde_tests {
+    use super::*;
+
+    fn runtime_with_owner_aware_state() -> EffectRuntime {
+        let relic = crate::relics::defs::relic_def_by_id("Nunchaku").unwrap();
+        let power = power_def_by_id("demon_form").unwrap();
+        let potion = crate::potions::defs::potion_def_by_id("EnergyPotion").unwrap();
+
+        let mut runtime = EffectRuntime {
+            next_instance_id: 91,
+            instances: vec![
+                EntityInstance {
+                    instance_id: 12,
+                    def: relic,
+                    owner: EffectOwner::PlayerRelic { slot: 3 },
+                    state: EffectState::from_values(
+                        PersistenceScope::Run,
+                        vec![9, -17, i16::MAX],
+                    ),
+                },
+                EntityInstance {
+                    instance_id: 44,
+                    def: power,
+                    owner: EffectOwner::EnemyPower { enemy_idx: 2 },
+                    state: EffectState::from_values(PersistenceScope::Combat, vec![-3, 8]),
+                },
+                EntityInstance {
+                    instance_id: 90,
+                    def: potion,
+                    owner: EffectOwner::PotionSlot { slot: 1 },
+                    state: EffectState::from_values(PersistenceScope::Combat, vec![6]),
+                },
+            ],
+            dispatch: DispatchTable::default(),
+            persisted_states: vec![PersistedEffectState {
+                def_id: "Nunchaku".to_string(),
+                values: vec![7, -1],
+            }],
+        };
+        runtime.rebuild_dispatch();
+        runtime
+    }
+
+    #[test]
+    fn effect_runtime_serde_round_trip_preserves_causal_state() {
+        let runtime = runtime_with_owner_aware_state();
+        let encoded = serde_json::to_value(&runtime).unwrap();
+        assert!(encoded.get("dispatch").is_none());
+
+        let mut restored: EffectRuntime = serde_json::from_value(encoded).unwrap();
+        assert_eq!(restored.next_instance_id, runtime.next_instance_id);
+        assert_eq!(restored.persisted_states, runtime.persisted_states);
+        assert_eq!(restored.instances.len(), runtime.instances.len());
+        for (actual, expected) in restored.instances.iter().zip(&runtime.instances) {
+            assert_eq!(actual.instance_id, expected.instance_id);
+            assert_eq!(actual.def.id, expected.def.id);
+            assert!(std::ptr::eq(actual.def, expected.def));
+            assert_eq!(actual.owner, expected.owner);
+            assert_eq!(actual.state, expected.state);
+        }
+        for (idx, instance) in restored.instances.iter().enumerate() {
+            for trigger in instance.def.triggers {
+                assert!(restored
+                    .dispatch
+                    .handlers_for(trigger.trigger)
+                    .contains(&idx));
+            }
+        }
+        assert_eq!(restored.alloc_instance_id(), 91);
+    }
+
+    #[test]
+    fn effect_runtime_deserialize_rejects_unknown_definition() {
+        let mut encoded = serde_json::to_value(runtime_with_owner_aware_state()).unwrap();
+        encoded["instances"][0]["def_id"] = serde_json::json!("unknown-runtime-def");
+
+        let error = serde_json::from_value::<EffectRuntime>(encoded).unwrap_err();
+        assert!(error.to_string().contains("unknown effect definition"));
+        assert!(error.to_string().contains("unknown-runtime-def"));
+
+        let mut encoded = serde_json::to_value(runtime_with_owner_aware_state()).unwrap();
+        encoded["persisted_states"][0]["def_id"] =
+            serde_json::json!("unknown-persisted-def");
+        let error = serde_json::from_value::<EffectRuntime>(encoded).unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("unknown persisted effect definition"));
+        assert!(error.to_string().contains("unknown-persisted-def"));
+    }
 }

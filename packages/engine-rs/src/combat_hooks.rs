@@ -413,8 +413,8 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                     .entity
                     .status(sid::PAINFUL_STABS) > 0
                 {
-                    engine.state.discard_pile.push(
-                        engine.card_registry.make_card("Wound"));
+                    let wound = engine.temp_card("Wound");
+                    engine.state.discard_pile.push(wound);
                 }
                 engine.player_lose_hp(hp_loss);
                 if engine.state.combat_over {
@@ -534,7 +534,8 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         // master deck; it does not install Painful Stabs or add a combat Wound.
         engine.state.enemies[enemy_idx]
             .entity.set_status(sid::USED_MEGA_DEBUFF, 1);
-        engine.state.master_deck.push(engine.card_registry.make_card("Parasite"));
+        let parasite = engine.temp_card("Parasite");
+        engine.state.master_deck.push(parasite);
     }
 
     // Apply move effects
@@ -625,7 +626,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         // (`takeTurn`, case 3). Each MakeTempCardInDrawPileAction uses a
         // random spot, in this exact action order.
         for id in ["Dazed", "Slimed", "Wound", "Burn", "Void"] {
-            let card = engine.card_registry.make_card(id);
+            let card = engine.temp_card(id);
             if engine.state.draw_pile.is_empty() {
                 engine.state.draw_pile.push(card);
             } else {
@@ -683,12 +684,14 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     }
     if let Some(amt) = get_fx(&effects, mfx::SLIMED) {
         for _ in 0..amt {
-            engine.state.discard_pile.push(engine.card_registry.make_card("Slimed"));
+            let card = engine.temp_card("Slimed");
+            engine.state.discard_pile.push(card);
         }
     }
     if let Some(amt) = get_fx(&effects, mfx::DAZE) {
         for _ in 0..amt {
-            engine.state.discard_pile.push(engine.card_registry.make_card("Dazed"));
+            let card = engine.temp_card("Dazed");
+            engine.state.discard_pile.push(card);
         }
     }
     if let Some(amt) = get_fx(&effects, mfx::DAZE_DRAW) {
@@ -698,7 +701,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         // Dazed separately and consumes cardRandomRng whenever the pile is
         // already nonempty.
         for _ in 0..amt {
-            let card = engine.card_registry.make_card("Dazed");
+            let card = engine.temp_card("Dazed");
             if engine.state.draw_pile.is_empty() {
                 engine.state.draw_pile.push(card);
             } else {
@@ -718,7 +721,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             && engine.state.enemies[enemy_idx]
                 .entity.status(sid::HIGH_ASCENSION_AI) > 0;
         for _ in 0..amt {
-            let burn = engine.card_registry.make_card("Burn");
+            let burn = engine.temp_card("Burn");
             if spear_draw_burns {
                 // Source: reference/extracted/methods/monster/SpireSpear.java
                 // (`takeTurn`, BURN_STRIKE). A18 uses randomSpot=true for two
@@ -742,7 +745,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         // MakeTempCardInDiscardAndDeckAction.java. Each copy goes to a random
         // draw-pile position and to discard, in that order.
         for _ in 0..amt {
-            let draw_burn = engine.card_registry.make_card("Burn");
+            let draw_burn = engine.temp_card("Burn");
             if engine.state.draw_pile.is_empty() {
                 engine.state.draw_pile.push(draw_burn);
             } else {
@@ -750,12 +753,14 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                     engine.state.draw_pile.len() as i32 - 1) as usize;
                 engine.state.draw_pile.insert(idx, draw_burn);
             }
-            engine.state.discard_pile.push(engine.card_registry.make_card("Burn"));
+            let discard_burn = engine.temp_card("Burn");
+            engine.state.discard_pile.push(discard_burn);
         }
     }
     if let Some(amt) = get_fx(&effects, mfx::BURN_PLUS) {
         for _ in 0..amt {
-            engine.state.discard_pile.push(engine.card_registry.make_card("Burn+"));
+            let burn = engine.temp_card("Burn+");
+            engine.state.discard_pile.push(burn);
         }
     }
     // Lagavulin Siphon Soul: reduce player Strength and Dexterity
@@ -830,15 +835,15 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     // then add three upgraded Burns to discard. Future Sear cards are upgraded.
     if get_fx(&effects, mfx::BURN_UPGRADE).unwrap_or(0) > 0 {
         let burn_id = engine.card_registry.make_card("Burn").def_id;
-        let burn_plus = engine.card_registry.make_card("Burn+");
         for card in &mut engine.state.draw_pile {
-            if card.def_id == burn_id { *card = burn_plus; }
+            if card.def_id == burn_id { engine.card_registry.upgrade_card(card); }
         }
         for card in &mut engine.state.discard_pile {
-            if card.def_id == burn_id { *card = burn_plus; }
+            if card.def_id == burn_id { engine.card_registry.upgrade_card(card); }
         }
         for _ in 0..3 {
-            engine.state.discard_pile.push(burn_plus);
+            let burn = engine.temp_card("Burn+");
+            engine.state.discard_pile.push(burn);
         }
         engine.state.enemies[enemy_idx].entity.set_status(sid::BUFF_COUNT, 1);
     }
@@ -883,7 +888,8 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     // Painful Stabs: add Wound cards to player discard
     if let Some(amt) = get_fx(&effects, mfx::PAINFUL_STABS) {
         for _ in 0..amt {
-            engine.state.discard_pile.push(engine.card_registry.make_card("Wound"));
+            let wound = engine.temp_card("Wound");
+            engine.state.discard_pile.push(wound);
         }
     }
 
@@ -962,7 +968,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     // Void: add Void card to player draw pile
     if let Some(amt) = get_fx(&effects, mfx::VOID) {
         for _ in 0..amt {
-            let card = engine.card_registry.make_card("Void");
+            let card = engine.temp_card("Void");
             if engine.state.draw_pile.is_empty() {
                 engine.state.draw_pile.push(card);
             } else {
@@ -982,7 +988,8 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     // Wound: add Wound cards to player discard
     if let Some(amt) = get_fx(&effects, mfx::WOUND) {
         for _ in 0..amt {
-            engine.state.discard_pile.push(engine.card_registry.make_card("Wound"));
+            let wound = engine.temp_card("Wound");
+            engine.state.discard_pile.push(wound);
         }
     }
 

@@ -807,6 +807,34 @@ mod boss_java_parity_tests {
     }
 
     #[test]
+    fn corrupt_heart_debilitate_creates_five_distinct_status_instances() {
+        // CorruptHeart.takeTurn case 3 queues five independent
+        // MakeTempCardInDrawPileAction instances in Dazed, Slimed, Wound,
+        // Burn, Void order. Each Java makeCopy receives a fresh UUID.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/ending/CorruptHeart.java
+        let mut combat = boss_engine("CorruptHeart", 750, 750);
+        do_enemy_turns(&mut combat);
+
+        let mut ids = combat
+            .state
+            .draw_pile
+            .iter()
+            .filter_map(|card| {
+                matches!(
+                    combat.card_registry.card_name(card.def_id),
+                    "Dazed" | "Slimed" | "Wound" | "Burn" | "Void"
+                )
+                .then_some(card.instance_id)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(ids.len(), 5);
+        assert!(ids.iter().all(|instance_id| *instance_id != 0));
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), 5, "each generated status needs a fresh UUID");
+    }
+
+    #[test]
     fn corrupt_heart_constructor_defaults_do_not_infer_ascension_from_hp() {
         // Source: reference/extracted/methods/monster/CorruptHeart.java.
         // create_enemy has no ascension input; the run spawn site applies the

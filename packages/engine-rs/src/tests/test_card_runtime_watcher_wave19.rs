@@ -81,7 +81,10 @@ fn test_card_runtime_watcher_wave19_wish_named_choice_resolves_strength_branch()
     let choice = engine.choice.as_ref().expect("Wish should open a choice");
     assert_eq!(choice.reason, ChoiceReason::PickOption);
     assert_eq!(choice.options.len(), 3);
-    assert!(matches!(choice.options[0], ChoiceOption::Named("Strength")));
+    assert!(matches!(
+        &choice.options[0],
+        ChoiceOption::Named(name) if name == "Strength"
+    ));
 
     engine.execute_action(&Action::Choose(0));
 

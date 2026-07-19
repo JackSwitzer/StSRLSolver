@@ -3,8 +3,9 @@ use crate::engine::{ChoiceOption, ChoiceReason, CombatEngine};
 use crate::run::{
     RunAction, RunPhase, ShopState,
 };
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DecisionKind {
     NeowChoice,
     ChestAction,
@@ -19,7 +20,7 @@ pub enum DecisionKind {
     GameOver,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DecisionState {
     pub kind: DecisionKind,
     pub phase: RunPhase,
@@ -27,7 +28,7 @@ pub struct DecisionState {
     pub room_type: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RewardScreenSource {
     Combat,
     BossCombat,
@@ -39,7 +40,7 @@ pub enum RewardScreenSource {
     Unknown,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RewardItemState {
     Available,
     Claimed,
@@ -47,14 +48,14 @@ pub enum RewardItemState {
     Disabled,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RewardKeyColor {
     Ruby,
     Emerald,
     Sapphire,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RewardItemKind {
     CardChoice,
     Relic,
@@ -69,7 +70,7 @@ pub enum RewardItemKind {
     Unknown,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RewardChoice {
     Card {
         index: usize,
@@ -81,7 +82,7 @@ pub enum RewardChoice {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RewardItem {
     pub index: usize,
     pub kind: RewardItemKind,
@@ -94,7 +95,7 @@ pub struct RewardItem {
     pub choices: Vec<RewardChoice>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RewardScreen {
     pub source: RewardScreenSource,
     pub ordered: bool,
@@ -102,7 +103,7 @@ pub struct RewardScreen {
     pub items: Vec<RewardItem>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RewardChoiceFrame {
     pub item_index: usize,
     pub item_kind: RewardItemKind,
@@ -110,7 +111,7 @@ pub struct RewardChoiceFrame {
     pub choices: Vec<RewardChoice>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CombatPotionSlotContext {
     pub slot: usize,
     pub occupied: bool,
@@ -118,13 +119,13 @@ pub struct CombatPotionSlotContext {
     pub requires_target: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PotionSlotContext {
     pub slot: usize,
     pub potion_id: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CombatChoiceOptionContext {
     pub index: usize,
     pub kind: String,
@@ -133,7 +134,7 @@ pub struct CombatChoiceOptionContext {
     pub selected: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CombatChoiceContext {
     pub active: bool,
     pub reason: Option<String>,
@@ -144,7 +145,7 @@ pub struct CombatChoiceContext {
     pub options: Vec<CombatChoiceOptionContext>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CombatContext {
     pub potions: Vec<CombatPotionSlotContext>,
     /// Actual draw order is visible only with Frozen Eye.
@@ -152,13 +153,13 @@ pub struct CombatContext {
     pub choice: CombatChoiceContext,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MapDecisionContext {
     pub available_paths: usize,
     pub paths: Vec<MapPathContext>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MapPathContext {
     pub choice: usize,
     pub x: usize,
@@ -168,36 +169,36 @@ pub struct MapPathContext {
     pub has_emerald_key: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChestDecisionContext {
     /// Chest size is visible from the room art before the chest is opened.
     pub size: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NeowOptionContext {
     pub index: usize,
     pub label: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NeowDecisionContext {
     pub options: Vec<NeowOptionContext>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EventOptionContext {
     pub index: usize,
     pub label: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EventDecisionContext {
     pub name: String,
     pub options: Vec<EventOptionContext>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShopCardOfferContext {
     pub index: usize,
     pub card_id: String,
@@ -205,7 +206,7 @@ pub struct ShopCardOfferContext {
     pub affordable: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShopRelicOfferContext {
     pub index: usize,
     pub relic_id: String,
@@ -213,7 +214,7 @@ pub struct ShopRelicOfferContext {
     pub affordable: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShopPotionOfferContext {
     pub index: usize,
     pub potion_id: String,
@@ -221,7 +222,7 @@ pub struct ShopPotionOfferContext {
     pub affordable: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShopDecisionContext {
     pub offers: Vec<ShopCardOfferContext>,
     pub relic_offers: Vec<ShopRelicOfferContext>,
@@ -231,7 +232,7 @@ pub struct ShopDecisionContext {
     pub removable_cards: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CampfireDecisionContext {
     pub can_rest: bool,
     pub upgradable_cards: Vec<usize>,
@@ -241,12 +242,12 @@ pub struct CampfireDecisionContext {
     pub can_recall: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TransitionDecisionContext {
     pub continuation: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DecisionContext {
     pub kind: DecisionKind,
     /// Stable top-panel potion slots visible at every live decision.
@@ -262,7 +263,7 @@ pub struct DecisionContext {
     pub transition: Option<TransitionDecisionContext>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DecisionFrame {
     Neow(NeowDecisionContext),
     Chest(ChestDecisionContext),
@@ -296,7 +297,7 @@ impl DecisionFrame {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct DecisionStack {
     pub frames: Vec<DecisionFrame>,
 }
@@ -634,7 +635,7 @@ fn choice_option_payload(option: &ChoiceOption, combat: &CombatEngine) -> (Strin
             -1,
             combat.card_registry.card_name(card.def_id).to_string(),
         ),
-        ChoiceOption::Named(name) => ("named".to_string(), -1, (*name).to_string()),
+        ChoiceOption::Named(name) => ("named".to_string(), -1, name.clone()),
         ChoiceOption::ExhaustCard(idx) => {
             let name = combat
                 .state

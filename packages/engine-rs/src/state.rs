@@ -68,13 +68,35 @@ impl Stance {
 // EntityState — shared between player and enemies
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EntityState {
     pub hp: i32,
     pub max_hp: i32,
     pub block: i32,
     /// All statuses as a flat array indexed by StatusId. Zero means absent.
+    #[serde(with = "status_array_serde")]
     pub statuses: [i32; sid::MAX_STATUS_ID],
+}
+
+mod status_array_serde {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S>(statuses: &[i32; super::sid::MAX_STATUS_ID], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        statuses.as_slice().serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<[i32; super::sid::MAX_STATUS_ID], D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let statuses = Vec::<i32>::deserialize(deserializer)?;
+        statuses.try_into().map_err(|statuses: Vec<i32>| {
+            serde::de::Error::invalid_length(statuses.len(), &"512 status entries")
+        })
+    }
 }
 
 impl EntityState {
@@ -138,7 +160,7 @@ impl EntityState {
 // EnemyCombatState
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnemyCombatState {
     pub entity: EntityState,
     pub id: String,
@@ -281,7 +303,7 @@ impl EnemyCombatState {
 // CombatState
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CombatState {
     // Player
     pub player: EntityState,
@@ -297,6 +319,9 @@ pub struct CombatState {
     /// Persistent deck snapshot used by combat actions that mutate Java's
     /// `AbstractPlayer.masterDeck` (not the combat draw/discard copies).
     pub master_deck: Vec<CardInstance>,
+    /// Next deterministic identity for a card created within this combat.
+    #[serde(default = "default_next_card_instance_id")]
+    pub next_card_instance_id: u64,
 
     // Enemies
     pub enemies: Vec<EnemyCombatState>,
@@ -366,6 +391,19 @@ impl CombatState {
         deck: Vec<CardInstance>,
         energy: i32,
     ) -> Self {
+        let mut deck = deck;
+        let mut next_card_instance_id = deck
+            .iter()
+            .map(|card| u64::from(card.instance_id))
+            .max()
+            .unwrap_or(0)
+            .wrapping_add(1)
+            .max(1);
+        for card in &mut deck {
+            if card.instance_id == 0 {
+                card.instance_id = take_card_instance_id(&mut next_card_instance_id);
+            }
+        }
         let master_deck = deck.clone();
         Self {
             player: EntityState::new(player_hp, player_max_hp),
@@ -377,6 +415,7 @@ impl CombatState {
             discard_pile: Vec::new(),
             exhaust_pile: Vec::new(),
             master_deck,
+            next_card_instance_id,
             enemies,
             potions: vec!["".to_string(); 3],
             turn: 0,
@@ -401,6 +440,10 @@ impl CombatState {
             pending_bombs: SmallVec::new(),
             relic_counters: [0i16; crate::relic_flags::counter::NUM_COUNTERS],
         }
+    }
+
+    pub fn allocate_card_instance_id(&mut self) -> u32 {
+        take_card_instance_id(&mut self.next_card_instance_id)
     }
 
     pub fn is_victory(&self) -> bool {
@@ -459,6 +502,18 @@ impl CombatState {
         }
         self.player.hp = (self.player.hp + heal).min(self.player.max_hp);
     }
+}
+
+fn default_next_card_instance_id() -> u64 {
+    1
+}
+
+fn take_card_instance_id(next: &mut u64) -> u32 {
+    let current = (*next).max(1);
+    let instance_id = u32::try_from(current)
+        .expect("card instance identity space exhausted");
+    *next = current + 1;
+    instance_id
 }
 
 // ---------------------------------------------------------------------------

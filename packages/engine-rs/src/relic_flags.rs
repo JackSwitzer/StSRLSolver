@@ -2,6 +2,8 @@
 //!
 //! Avoids Vec<String> scanning for relics that just need boolean or counter checks.
 
+use serde::{Deserialize, Serialize};
+
 /// Bitfield flags for boolean relics. Checked via `flags & FLAG != 0`.
 pub mod flag {
     pub const ECTOPLASM: u64        = 1 << 0;   // No gold gain
@@ -66,7 +68,7 @@ pub mod counter {
 }
 
 /// Relic flags for a run. Populated from Vec<String> relics on add/remove.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RelicFlags {
     pub flags: u64,
     pub counters: [i16; counter::NUM_COUNTERS],

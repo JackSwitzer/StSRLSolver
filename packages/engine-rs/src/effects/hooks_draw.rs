@@ -10,14 +10,16 @@ pub fn hook_lose_energy_on_draw(engine: &mut CombatEngine, _card_inst: CardInsta
 
 /// Endless Agony: add a copy to hand when drawn.
 pub fn hook_copy_on_draw(engine: &mut CombatEngine, card_inst: CardInstance) {
+    let mut copy = card_inst;
+    copy.instance_id = engine.state.allocate_card_instance_id();
     if engine.state.hand.len() < 10 {
-        engine.state.hand.push(card_inst);
+        engine.state.hand.push(copy);
     } else {
         // EndlessAgony.triggerWhenDrawn queues MakeTempCardInHandAction, which
         // puts copies beyond the ten-card hand limit in the discard pile.
         // Java: reference/extracted/methods/card/EndlessAgony.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
-        engine.state.discard_pile.push(card_inst);
+        engine.state.discard_pile.push(copy);
     }
 }
 
@@ -30,7 +32,13 @@ pub fn hook_deus_ex_machina_on_draw(engine: &mut CombatEngine, card_inst: CardIn
 
     // DeusExMachina.java adds the exhaust action to the top after adding the
     // creation action to the top, so exhaustion resolves first.
-    if let Some(pos) = engine.state.hand.iter().rposition(|c| c.def_id == card_inst.def_id) {
+    if let Some(pos) = engine.state.hand.iter().rposition(|card| {
+        if card_inst.instance_id != 0 {
+            card.instance_id == card_inst.instance_id
+        } else {
+            card.def_id == card_inst.def_id
+        }
+    }) {
         let removed = engine.state.hand.remove(pos);
         engine.state.exhaust_pile.push(removed);
         engine.trigger_card_on_exhaust(removed);

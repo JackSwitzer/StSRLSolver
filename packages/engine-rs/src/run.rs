@@ -927,17 +927,20 @@ pub struct RunState {
     /// across combats for cards such as Genetic Algorithm.
     #[serde(default)]
     pub deck_card_states: Vec<crate::combat_types::CardInstance>,
+    /// Next deterministic identity for a newly obtained master-deck card.
+    #[serde(default = "default_next_card_instance_id")]
+    pub next_card_instance_id: u64,
     pub relics: Vec<String>,
     /// Empty strings represent Java's inert PotionSlot placeholder objects.
     /// Source: reference/extracted/methods/potion/PotionSlot.java.
     pub potions: Vec<String>,
     pub max_potions: usize,
     #[serde(default)]
-    pub bottled_flame_card: Option<String>,
+    pub bottled_flame_card_instance_id: Option<u32>,
     #[serde(default)]
-    pub bottled_lightning_card: Option<String>,
+    pub bottled_lightning_card_instance_id: Option<u32>,
     #[serde(default)]
-    pub bottled_tornado_card: Option<String>,
+    pub bottled_tornado_card_instance_id: Option<u32>,
 
     // Map state
     pub map_x: i32,   // -1 before first move
@@ -967,8 +970,8 @@ pub struct RunState {
     pub run_won: bool,
     pub run_over: bool,
 
-    // Relic flags (bitfield for O(1) relic checks)
-    #[serde(skip)]
+    // Relic presence bits and cross-combat counters. Presence bits are
+    // rebuilt after checkpoint restore, while counters are causal state.
     pub relic_flags: crate::relic_flags::RelicFlags,
 
     // Canonical owner-aware runtime state that persists across combats.
@@ -990,6 +993,18 @@ pub struct RunState {
 
 fn default_purge_cost() -> i32 {
     75
+}
+
+fn default_next_card_instance_id() -> u64 {
+    1
+}
+
+fn take_run_card_instance_id(next: &mut u64) -> u32 {
+    let current = (*next).max(1);
+    let instance_id = u32::try_from(current)
+        .expect("card instance identity space exhausted");
+    *next = current + 1;
+    instance_id
 }
 
 fn default_card_blizz_randomizer() -> i32 { 5 }
@@ -1101,10 +1116,15 @@ fn obtain_master_deck_card_state(run_state: &mut RunState, card_id: String) {
     run_state.deck.push(card_id.clone());
     let registry = crate::cards::global_registry();
     let mut card_state = registry.make_card(&card_id);
+    card_state.instance_id = run_state.allocate_card_instance_id();
     if extra_searing_upgrade {
         registry.upgrade_card(&mut card_state);
     }
     run_state.deck_card_states.push(card_state);
+    apply_master_deck_obtain_hooks(run_state, is_curse);
+}
+
+fn apply_master_deck_obtain_hooks(run_state: &mut RunState, is_curse: bool) {
     // DarkstonePeriapt.java calls increaseMaxHp(6, true) after an obtained
     // curse. AbstractCreature.java increases max HP, then heals through the
     // ordinary relic-modified healing path.
@@ -1131,6 +1151,47 @@ fn obtain_master_deck_card_state(run_state: &mut RunState, card_id: String) {
     {
         adjust_run_gold_state(run_state, 9);
     }
+}
+
+fn obtain_master_deck_stat_copy(
+    run_state: &mut RunState,
+    mut source: crate::combat_types::CardInstance,
+) {
+    let registry = crate::cards::global_registry();
+    let is_curse = registry.card_def_by_id(source.def_id).card_type
+        == crate::cards::CardType::Curse;
+    if is_curse
+        && run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::OMAMORI)
+        && run_state.relic_flags.counters[crate::relic_flags::counter::OMAMORI_USES] > 0
+    {
+        run_state.relic_flags.counters[crate::relic_flags::counter::OMAMORI_USES] -= 1;
+        return;
+    }
+    let should_upgrade = match registry.card_def_by_id(source.def_id).card_type {
+        crate::cards::CardType::Attack => run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::MOLTEN_EGG),
+        crate::cards::CardType::Skill => run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::TOXIC_EGG),
+        crate::cards::CardType::Power => run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::FROZEN_EGG),
+        _ => false,
+    };
+    if should_upgrade && registry.can_upgrade_card(&source) {
+        registry.upgrade_card(&mut source);
+    }
+    source.instance_id = run_state.allocate_card_instance_id();
+    source.flags &= crate::combat_types::CardInstance::FLAG_UPGRADED
+        | crate::combat_types::CardInstance::FLAG_INNATE;
+    run_state
+        .deck
+        .push(registry.card_name(source.def_id).to_string());
+    run_state.deck_card_states.push(source);
+    apply_master_deck_obtain_hooks(run_state, is_curse);
 }
 
 impl RunState {
@@ -1163,8 +1224,14 @@ impl RunState {
         let registry = crate::cards::global_registry();
         let deck_card_states = deck
             .iter()
-            .map(|card_id| registry.make_card(card_id))
+            .enumerate()
+            .map(|(index, card_id)| {
+                registry
+                    .make_card(card_id)
+                    .with_instance_id(index as u32 + 1)
+            })
             .collect();
+        let next_card_instance_id = deck.len() as u64 + 1;
 
         Self {
             current_hp: max_hp,
@@ -1176,12 +1243,13 @@ impl RunState {
             playtime_seconds: 0.0,
             deck,
             deck_card_states,
+            next_card_instance_id,
             relics,
             potions: vec!["".to_string(); 3],
             max_potions: 3,
-            bottled_flame_card: None,
-            bottled_lightning_card: None,
-            bottled_tornado_card: None,
+            bottled_flame_card_instance_id: None,
+            bottled_lightning_card_instance_id: None,
+            bottled_tornado_card_instance_id: None,
             map_x: -1,
             map_y: -1,
             has_ruby_key: false,
@@ -1208,6 +1276,7 @@ impl RunState {
         let registry = crate::cards::global_registry();
         let mut prior = std::mem::take(&mut self.deck_card_states);
         let mut reconciled = Vec::with_capacity(self.deck.len());
+        let mut next_instance_id = self.next_card_instance_id.max(1);
 
         for card_id in &self.deck {
             let mut card = registry.make_card(card_id);
@@ -1221,12 +1290,22 @@ impl RunState {
             }) {
                 // Upgrade operations keep misc; transforms construct a fresh
                 // card and therefore do not match by base ID.
-                card.misc = prior.remove(index).misc;
+                let prior_card = prior.remove(index);
+                card.instance_id = prior_card.instance_id;
+                card.misc = prior_card.misc;
+            }
+            if card.instance_id == 0 {
+                card.instance_id = take_run_card_instance_id(&mut next_instance_id);
             }
             reconciled.push(card);
         }
 
         self.deck_card_states = reconciled;
+        self.next_card_instance_id = next_instance_id;
+    }
+
+    fn allocate_card_instance_id(&mut self) -> u32 {
+        take_run_card_instance_id(&mut self.next_card_instance_id)
     }
 
     fn upgrade_deck_card(&mut self, index: usize) -> Option<(String, String)> {
@@ -1303,7 +1382,7 @@ struct PendingEventCombat {
     on_win: crate::events::EventProgram,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum MatchAndKeepScreen {
     Intro,
     RuleExplanation,
@@ -1311,7 +1390,7 @@ enum MatchAndKeepScreen {
     Complete,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct MatchAndKeepState {
     screen: MatchAndKeepScreen,
     board: Vec<String>,
@@ -1319,7 +1398,7 @@ struct MatchAndKeepState {
     attempts_left: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct ScrapOozeState {
     damage: i32,
     relic_chance: usize,
@@ -1355,7 +1434,7 @@ enum CardRewardContext {
     Boss,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum EncounterQueueKind {
     Hallway,
     Elite,
@@ -1386,7 +1465,7 @@ enum EventCardColor {
     Curse,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum NeowReward {
     RandomColorlessRare,
     ThreeCards,
@@ -1409,7 +1488,7 @@ enum NeowReward {
     BossRelic,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum NeowDrawback {
     None,
     TenPercentHpLoss,
@@ -1418,21 +1497,21 @@ enum NeowDrawback {
     PercentDamage,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum NeowDeckChoice {
     Remove,
     Upgrade,
     Transform,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 struct PendingNeowDeckSelection {
     choice: NeowDeckChoice,
     remaining: usize,
     skip_allowed: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct NeowChoiceOption {
     label: String,
     reward: NeowReward,
@@ -1443,7 +1522,7 @@ struct NeowChoiceOption {
 // RunEngine — the full run simulation engine
 // ---------------------------------------------------------------------------
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct RunEngine {
     pub run_state: RunState,
     pub map: DungeonMap,
@@ -1514,6 +1593,7 @@ pub struct RunEngine {
 
     // Reward tracking
     pub total_reward: f32,
+    #[serde(skip, default)]
     last_combat_events: Vec<crate::effects::runtime::GameEventRecord>,
 
     // Opening Neow choice before the map starts.
@@ -1578,6 +1658,126 @@ impl RunEngine {
     pub fn restore_ambient_math_rng_state(&mut self, ambient_state: (u64, u64)) {
         self.ambient_math_rng
             .restore_state(ambient_state.0, ambient_state.1);
+    }
+
+    /// Rebuild indexes that are deliberately excluded from causal checkpoint
+    /// data. The relic bitset and decision stack are projections of canonical
+    /// inventory/phase state; event records are telemetry and never affect a
+    /// future action.
+    pub(crate) fn rebuild_checkpoint_projections(&mut self) {
+        self.run_state.relic_flags.rebuild(&self.run_state.relics);
+        self.last_combat_events.clear();
+        self.refresh_decision_stack();
+    }
+
+    pub(crate) fn validate_checkpoint_state(&self) -> Result<(), String> {
+        if let Some(combat) = self.combat_engine.as_ref() {
+            combat.validate_checkpoint_boundary()?;
+        }
+        if (self.phase == RunPhase::Combat) != self.combat_engine.is_some() {
+            return Err("combat phase and active combat payload disagree".to_string());
+        }
+        match self.phase {
+            RunPhase::Neow if self.neow_options.len() != 4 => {
+                return Err("Neow phase must expose exactly four options".to_string());
+            }
+            RunPhase::Chest if self.pending_chest.is_none() => {
+                return Err("chest phase is missing its pending chest".to_string());
+            }
+            RunPhase::CardReward if self.reward_screen.is_none() => {
+                return Err("reward phase is missing its reward screen".to_string());
+            }
+            RunPhase::Shop if self.current_shop.is_none() => {
+                return Err("shop phase is missing its shop inventory".to_string());
+            }
+            RunPhase::Event if self.current_event.is_none() => {
+                return Err("event phase is missing its event definition".to_string());
+            }
+            RunPhase::Transition if self.pending_continuation.is_none() => {
+                return Err("transition phase is missing its continuation".to_string());
+            }
+            RunPhase::GameOver if !self.run_state.run_over => {
+                return Err("game-over phase is missing its terminal run state".to_string());
+            }
+            _ => {}
+        }
+        let current_event_name = self.current_event.as_ref().map(|event| event.name.as_str());
+        if self.phase == RunPhase::Event {
+            if (current_event_name == Some("Match and Keep!")) != self.match_and_keep_state.is_some() {
+                return Err("Match and Keep event and runtime sidecar disagree".to_string());
+            }
+            if (current_event_name == Some("Scrap Ooze")) != self.scrap_ooze_state.is_some() {
+                return Err("Scrap Ooze event and runtime sidecar disagree".to_string());
+            }
+        } else if self.match_and_keep_state.is_some() || self.scrap_ooze_state.is_some() {
+            return Err("stateful event sidecar exists outside an event phase".to_string());
+        }
+        if let Some(choice) = self.decision_stack.current_reward_choice() {
+            if self.phase != RunPhase::CardReward {
+                return Err("reward choice exists outside a reward phase".to_string());
+            }
+            let screen = self
+                .reward_screen
+                .as_ref()
+                .ok_or_else(|| "reward choice is missing its reward screen".to_string())?;
+            let item = screen
+                .items
+                .get(choice.item_index)
+                .ok_or_else(|| "reward choice item index is invalid".to_string())?;
+            let mut expected_choices = item.choices.clone();
+            if item.kind == RewardItemKind::CardChoice
+                && self
+                    .run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::SINGING_BOWL)
+            {
+                expected_choices.push(RewardChoice::Named {
+                    index: expected_choices.len(),
+                    label: "Singing Bowl".to_string(),
+                });
+            }
+            if item.index != choice.item_index
+                || !item.claimable
+                || item.state != RewardItemState::Available
+                || item.kind != choice.item_kind
+                || item.skip_allowed != choice.skip_allowed
+                || expected_choices != choice.choices
+            {
+                return Err("reward choice is not backed by its reward-screen item".to_string());
+            }
+        }
+        if self.run_state.deck.len() != self.run_state.deck_card_states.len() {
+            return Err("master-deck names and instances are misaligned".to_string());
+        }
+        let mut ids = std::collections::HashSet::new();
+        for card in &self.run_state.deck_card_states {
+            if card.instance_id == 0 || !ids.insert(card.instance_id) {
+                return Err("master-deck card instance ids must be unique and nonzero".to_string());
+            }
+        }
+        let max_run_id = self
+            .run_state
+            .deck_card_states
+            .iter()
+            .map(|card| u64::from(card.instance_id))
+            .max()
+            .unwrap_or(0);
+        if self.run_state.next_card_instance_id <= max_run_id {
+            return Err("master-deck card allocator is behind a live identity".to_string());
+        }
+        if let Some(combat) = self.combat_engine.as_ref() {
+            ids.clear();
+            for card in &combat.state.master_deck {
+                if card.instance_id == 0 || !ids.insert(card.instance_id) {
+                    return Err(
+                        "combat master-deck card instance ids must be unique and nonzero"
+                            .to_string(),
+                    );
+                }
+            }
+            combat.validate_card_instance_ids()?;
+        }
+        Ok(())
     }
 
     /// Create a run from immutable save/profile inputs.
@@ -2239,12 +2439,12 @@ impl RunEngine {
             .deck
             .iter()
             .enumerate()
-            .filter(|(_, card_id)| match pending.choice {
+            .filter(|(index, card_id)| match pending.choice {
                 NeowDeckChoice::Upgrade => {
                     crate::cards::global_registry().can_upgrade_name(card_id)
                 }
                 NeowDeckChoice::Remove | NeowDeckChoice::Transform => {
-                    Self::is_purgeable_master_deck_card(card_id)
+                    self.is_removable_master_deck_index(*index)
                 }
             })
             .map(|(index, card_id)| RewardChoice::Card {
@@ -2865,8 +3065,8 @@ impl RunEngine {
                 }
             }
             if !shop.removal_used && self.run_state.gold >= shop.remove_price {
-                for (i, card_id) in self.run_state.deck.iter().enumerate() {
-                    if Self::is_purgeable_master_deck_card(card_id) {
+                for i in 0..self.run_state.deck.len() {
+                    if self.is_removable_master_deck_index(i) {
                         actions.push(RunAction::ShopRemoveCard(i));
                     }
                 }
@@ -2880,23 +3080,36 @@ impl RunEngine {
         !matches!(card_id, "Necronomicurse" | "CurseOfTheBell" | "AscendersBane")
     }
 
+    fn is_removable_master_deck_index(&self, index: usize) -> bool {
+        let Some(card_id) = self.run_state.deck.get(index) else {
+            return false;
+        };
+        if !Self::is_purgeable_master_deck_card(card_id) {
+            return false;
+        }
+        let Some(card) = self.run_state.deck_card_states.get(index) else {
+            return false;
+        };
+        ![
+            self.run_state.bottled_flame_card_instance_id,
+            self.run_state.bottled_lightning_card_instance_id,
+            self.run_state.bottled_tornado_card_instance_id,
+        ]
+        .contains(&Some(card.instance_id))
+    }
+
     fn peace_pipe_removable_indices(&self) -> Vec<usize> {
         if !self.run_state.relics.iter().any(|relic| relic == "Peace Pipe") {
             return Vec::new();
         }
-        let bottled = [
-            self.run_state.bottled_flame_card.as_deref(),
-            self.run_state.bottled_lightning_card.as_deref(),
-            self.run_state.bottled_tornado_card.as_deref(),
-        ];
         self.run_state
             .deck
             .iter()
             .enumerate()
             .filter_map(|(index, card)| {
                 (Self::is_purgeable_master_deck_card(card)
-                    && !bottled.contains(&Some(card.as_str())))
-                .then_some(index)
+                    && self.is_removable_master_deck_index(index))
+                    .then_some(index)
             })
             .collect()
     }
@@ -4713,27 +4926,18 @@ impl RunEngine {
         // Create combat state — convert deck strings to CardInstance
         let registry = crate::cards::global_registry();
         let mut deck_instances = self.run_state.combat_deck_instances();
-        if let Some(bottled) = self.run_state.bottled_flame_card.as_deref() {
-            if let Some(card) = deck_instances.iter_mut().find(|card| {
-                registry.card_name(card.def_id).trim_end_matches('+')
-                    == bottled.trim_end_matches('+')
-            }) {
+        if let Some(bottled) = self.run_state.bottled_flame_card_instance_id {
+            if let Some(card) = deck_instances.iter_mut().find(|card| card.instance_id == bottled) {
                 card.flags |= crate::combat_types::CardInstance::FLAG_INNATE;
             }
         }
-        if let Some(bottled) = self.run_state.bottled_lightning_card.as_deref() {
-            if let Some(card) = deck_instances.iter_mut().find(|card| {
-                registry.card_name(card.def_id).trim_end_matches('+')
-                    == bottled.trim_end_matches('+')
-            }) {
+        if let Some(bottled) = self.run_state.bottled_lightning_card_instance_id {
+            if let Some(card) = deck_instances.iter_mut().find(|card| card.instance_id == bottled) {
                 card.flags |= crate::combat_types::CardInstance::FLAG_INNATE;
             }
         }
-        if let Some(bottled) = self.run_state.bottled_tornado_card.as_deref() {
-            if let Some(card) = deck_instances.iter_mut().find(|card| {
-                registry.card_name(card.def_id).trim_end_matches('+')
-                    == bottled.trim_end_matches('+')
-            }) {
+        if let Some(bottled) = self.run_state.bottled_tornado_card_instance_id {
+            if let Some(card) = deck_instances.iter_mut().find(|card| card.instance_id == bottled) {
                 card.flags |= crate::combat_types::CardInstance::FLAG_INNATE;
             }
         }
@@ -5443,6 +5647,7 @@ impl RunEngine {
                     .map(|card| engine.card_registry.card_name(card.def_id).to_string())
                     .collect();
                 self.run_state.deck_card_states = engine.state.master_deck.clone();
+                self.run_state.next_card_instance_id = engine.state.next_card_instance_id;
                 self.run_state.relic_flags.counters = engine.state.relic_counters;
                 self.run_state.lizard_tail_used = engine
                     .state
@@ -5478,6 +5683,7 @@ impl RunEngine {
                     .map(|card| engine.card_registry.card_name(card.def_id).to_string())
                     .collect();
                 self.run_state.deck_card_states = engine.state.master_deck.clone();
+                self.run_state.next_card_instance_id = engine.state.next_card_instance_id;
                 // Combat gainGold calls update run_gold immediately. It was
                 // synchronized above after the accepted action, so replaying
                 // pending_run_gold here would award the same gold twice.
@@ -6500,15 +6706,30 @@ impl RunEngine {
         );
 
         match (kind, choice) {
-            (RewardItemKind::CardChoice, RewardChoice::Card { card_id, .. }) => {
+            (RewardItemKind::CardChoice, RewardChoice::Card { index, card_id }) => {
                 if bottled_tornado_card_pick {
-                    self.run_state.bottled_tornado_card = Some(card_id);
+                    self.run_state.reconcile_deck_card_states();
+                    self.run_state.bottled_tornado_card_instance_id = self
+                        .run_state
+                        .deck_card_states
+                        .get(index)
+                        .map(|card| card.instance_id);
                     self.pending_bottled_tornado_selection = false;
                 } else if bottled_lightning_card_pick {
-                    self.run_state.bottled_lightning_card = Some(card_id);
+                    self.run_state.reconcile_deck_card_states();
+                    self.run_state.bottled_lightning_card_instance_id = self
+                        .run_state
+                        .deck_card_states
+                        .get(index)
+                        .map(|card| card.instance_id);
                     self.pending_bottled_lightning_selection = false;
                 } else if bottled_flame_card_pick {
-                    self.run_state.bottled_flame_card = Some(card_id);
+                    self.run_state.reconcile_deck_card_states();
+                    self.run_state.bottled_flame_card_instance_id = self
+                        .run_state
+                        .deck_card_states
+                        .get(index)
+                        .map(|card| card.instance_id);
                     self.pending_bottled_flame_selection = false;
                 } else if astrolabe_card_pick {
                     if let Some(RewardChoice::Card { index, .. }) =
@@ -6630,7 +6851,11 @@ impl RunEngine {
                 true
             }
             "deck_selection_dollys_mirror" => {
-                obtain_master_deck_card_state(&mut self.run_state, card_id.clone());
+                self.run_state.reconcile_deck_card_states();
+                let Some(card) = self.run_state.deck_card_states.get(*deck_index).copied() else {
+                    return false;
+                };
+                obtain_master_deck_stat_copy(&mut self.run_state, card);
                 true
             }
             "deck_selection_neow_remove" => {
@@ -6642,24 +6867,7 @@ impl RunEngine {
                 true
             }
             "deck_selection_neow_upgrade" => {
-                if let Some((original, upgraded)) =
-                    self.run_state.upgrade_deck_card(*deck_index)
-                {
-                    if self.run_state.bottled_flame_card.as_deref()
-                        == Some(original.as_str())
-                    {
-                        self.run_state.bottled_flame_card = Some(upgraded.clone());
-                    }
-                    if self.run_state.bottled_lightning_card.as_deref()
-                        == Some(original.as_str())
-                    {
-                        self.run_state.bottled_lightning_card = Some(upgraded.clone());
-                    }
-                    if self.run_state.bottled_tornado_card.as_deref()
-                        == Some(original.as_str())
-                    {
-                        self.run_state.bottled_tornado_card = Some(upgraded);
-                    }
+                if self.run_state.upgrade_deck_card(*deck_index).is_some() {
                     if let Some(pending) = self.pending_neow_deck_selection.as_mut() {
                         pending.remaining = pending.remaining.saturating_sub(1);
                     }
@@ -6686,6 +6894,9 @@ impl RunEngine {
             return None;
         }
         self.run_state.reconcile_deck_card_states();
+        if !self.is_removable_master_deck_index(deck_index) {
+            return None;
+        }
         let removed = self.run_state.deck.remove(deck_index);
         self.run_state.deck_card_states.remove(deck_index);
         self.apply_master_deck_removal_hook(&removed);
@@ -6700,15 +6911,6 @@ impl RunEngine {
             // Java: decompiled/java-src/com/megacrit/cardcrawl/core/AbstractCreature.java
             self.run_state.max_hp = (self.run_state.max_hp - 3).max(1);
             self.run_state.current_hp = self.run_state.current_hp.min(self.run_state.max_hp);
-        } else if card_id == "Necronomicurse" {
-            // onRemoveFromMasterDeck constructs NecronomicurseEffect, whose
-            // constructor immediately adds a fresh curse to the master deck.
-            // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Necronomicurse.java
-            // Java: decompiled/java-src/com/megacrit/cardcrawl/vfx/NecronomicurseEffect.java
-            obtain_master_deck_card_state(
-                &mut self.run_state,
-                "Necronomicurse".to_string(),
-            );
         }
     }
 
@@ -7254,7 +7456,7 @@ impl RunEngine {
             .deck
             .iter()
             .enumerate()
-            .filter_map(|(idx, card)| Self::is_purgeable_master_deck_card(card).then_some(idx))
+            .filter_map(|(idx, _)| self.is_removable_master_deck_index(idx).then_some(idx))
             .collect();
         self.pending_astrolabe_removed.clear();
         if purgeable.is_empty() {
@@ -7262,7 +7464,9 @@ impl RunEngine {
         } else if purgeable.len() <= 3 {
             let mut originals = Vec::with_capacity(purgeable.len());
             for idx in purgeable.into_iter().rev() {
-                originals.push(self.run_state.deck.remove(idx));
+                if let Some(original) = self.remove_master_deck_card(idx) {
+                    originals.push(original);
+                }
             }
             originals.reverse();
             self.astrolabe_transform_cards(originals);
@@ -7281,7 +7485,7 @@ impl RunEngine {
             .deck
             .iter()
             .enumerate()
-            .filter_map(|(idx, card)| Self::is_purgeable_master_deck_card(card).then_some(idx))
+            .filter_map(|(idx, _)| self.is_removable_master_deck_index(idx).then_some(idx))
             .collect();
         if purgeable.len() <= 2 {
             for idx in purgeable.into_iter().rev() {
@@ -7299,7 +7503,7 @@ impl RunEngine {
             .deck
             .iter()
             .enumerate()
-            .filter(|(_, card)| Self::is_purgeable_master_deck_card(card))
+            .filter(|(index, _)| self.is_removable_master_deck_index(*index))
             .map(|(index, card_id)| RewardChoice::Card {
                 index,
                 card_id: card_id.clone(),
@@ -7331,7 +7535,7 @@ impl RunEngine {
             .deck
             .iter()
             .enumerate()
-            .filter(|(_, card)| Self::is_purgeable_master_deck_card(card))
+            .filter(|(index, _)| self.is_removable_master_deck_index(*index))
             .map(|(index, card_id)| RewardChoice::Card {
                 index,
                 card_id: card_id.clone(),
@@ -7723,23 +7927,7 @@ impl RunEngine {
         let seed = self.floor_rngs.misc.random_long_unbounded();
         crate::seed::java_util_shuffle(&mut eligible, seed);
         for deck_idx in eligible.into_iter().take(count) {
-            let Some((original, upgraded)) = self.run_state.upgrade_deck_card(deck_idx) else {
-                continue;
-            };
-            // Whetstone.java calls bottledCardUpgradeCheck after each ATTACK
-            // upgrade. RunEngine stores the bottle by card ID, so keep a
-            // uniquely represented bottled attack synchronized.
-            if card_type == crate::cards::CardType::Attack
-                && self.run_state.bottled_flame_card.as_deref() == Some(original.as_str())
-            {
-                self.run_state.bottled_flame_card = Some(upgraded);
-            } else if card_type == crate::cards::CardType::Skill
-                && self.run_state.bottled_lightning_card.as_deref() == Some(original.as_str())
-            {
-                // WarPaint.java performs the same bottledCardUpgradeCheck for
-                // each SKILL it upgrades.
-                self.run_state.bottled_lightning_card = Some(upgraded);
-            }
+            self.run_state.upgrade_deck_card(deck_idx);
         }
     }
 
@@ -7764,18 +7952,7 @@ impl RunEngine {
         let seed = self.floor_rngs.misc.random_long_unbounded();
         crate::seed::java_util_shuffle(&mut eligible, seed);
         let deck_idx = eligible[0];
-        let Some((original, upgraded)) = self.run_state.upgrade_deck_card(deck_idx) else {
-            return;
-        };
-        if self.run_state.bottled_flame_card.as_deref() == Some(original.as_str()) {
-            self.run_state.bottled_flame_card = Some(upgraded.clone());
-        }
-        if self.run_state.bottled_lightning_card.as_deref() == Some(original.as_str()) {
-            self.run_state.bottled_lightning_card = Some(upgraded.clone());
-        }
-        if self.run_state.bottled_tornado_card.as_deref() == Some(original.as_str()) {
-            self.run_state.bottled_tornado_card = Some(upgraded);
-        }
+        self.run_state.upgrade_deck_card(deck_idx);
     }
 
     fn can_spawn_bottled_flame(&self) -> bool {
@@ -8675,7 +8852,7 @@ impl RunEngine {
                 let remove_price = self.current_shop.as_ref().and_then(|shop| {
                     if !shop.removal_used
                         && *idx < self.run_state.deck.len()
-                        && Self::is_purgeable_master_deck_card(&self.run_state.deck[*idx])
+                        && self.is_removable_master_deck_index(*idx)
                         && self.run_state.gold >= shop.remove_price
                     {
                         Some(shop.remove_price)
@@ -16467,7 +16644,9 @@ mod tests {
             "Wallop".to_string(),
         ];
         engine.run_state.relics.push("Bottled Flame".to_string());
-        engine.run_state.bottled_flame_card = Some("Wallop".to_string());
+        engine.run_state.reconcile_deck_card_states();
+        engine.run_state.bottled_flame_card_instance_id =
+            Some(engine.run_state.deck_card_states[9].instance_id);
 
         engine.enter_specific_combat(vec!["JawWorm".to_string()]);
         let combat = engine.combat_engine.as_ref().expect("combat should start");
@@ -16496,7 +16675,9 @@ mod tests {
             "ThirdEye".to_string(),
         ];
         engine.run_state.relics.push("Bottled Lightning".to_string());
-        engine.run_state.bottled_lightning_card = Some("ThirdEye".to_string());
+        engine.run_state.reconcile_deck_card_states();
+        engine.run_state.bottled_lightning_card_instance_id =
+            Some(engine.run_state.deck_card_states[9].instance_id);
 
         engine.enter_specific_combat(vec!["JawWorm".to_string()]);
         let combat = engine.combat_engine.as_ref().expect("combat should start");
@@ -16525,7 +16706,9 @@ mod tests {
             "Devotion".to_string(),
         ];
         engine.run_state.relics.push("Bottled Tornado".to_string());
-        engine.run_state.bottled_tornado_card = Some("Devotion".to_string());
+        engine.run_state.reconcile_deck_card_states();
+        engine.run_state.bottled_tornado_card_instance_id =
+            Some(engine.run_state.deck_card_states[9].instance_id);
 
         engine.enter_specific_combat(vec!["JawWorm".to_string()]);
         let combat = engine.combat_engine.as_ref().expect("combat should start");
@@ -17029,15 +17212,17 @@ mod tests {
     }
 
     #[test]
-    fn necronomicurse_normal_master_deck_removal_recreates_the_curse() {
+    fn necronomicurse_is_not_exposed_to_normal_master_deck_removal() {
+        // CardGroup.getPurgeableCards excludes Necronomicurse, so no player
+        // removal screen can reach onRemoveFromMasterDeck. Necronomicon's
+        // onUnequip removes directly from group and intentionally bypasses it.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java:967-973
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Necronomicon.java:43-52
         let mut engine = RunEngine::new(42, 0);
         engine.run_state.deck = vec!["Necronomicurse".to_string()];
         engine.run_state.reconcile_deck_card_states();
 
-        assert_eq!(
-            engine.remove_master_deck_card(0),
-            Some("Necronomicurse".to_string())
-        );
+        assert_eq!(engine.remove_master_deck_card(0), None);
         assert_eq!(engine.run_state.deck, vec!["Necronomicurse"]);
     }
 }

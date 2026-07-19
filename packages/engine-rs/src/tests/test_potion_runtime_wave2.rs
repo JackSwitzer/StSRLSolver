@@ -238,7 +238,7 @@ fn stance_potion_preserves_java_choice_order_and_uses_stance_hooks() {
         .options
         .iter()
         .filter_map(|option| match option {
-            ChoiceOption::Named(label) => Some(*label),
+            ChoiceOption::Named(label) => Some(label.as_str()),
             _ => None,
         })
         .collect();

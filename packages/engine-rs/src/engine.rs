@@ -7,6 +7,7 @@
 
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use serde::{Deserialize, Serialize};
 
 use crate::actions::{Action, PyAction};
 use crate::cards::{CardDef, CardRegistry, CardTarget, CardType};
@@ -26,7 +27,7 @@ use crate::status_effects;
 use crate::status_ids::sid;
 
 /// Combat phase enum.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CombatPhase {
     NotStarted,
     PlayerTurn,
@@ -40,7 +41,7 @@ pub enum CombatPhase {
 mod test_runtime_inline_cutover_wave5;
 
 /// Why we're awaiting a player choice.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ChoiceReason {
     Scry,
     DiscardFromHand,
@@ -65,18 +66,18 @@ pub enum ChoiceReason {
 }
 
 /// A single option the player can choose.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ChoiceOption {
     HandCard(usize),
     DrawCard(usize),
     DiscardCard(usize),
     RevealedCard(crate::combat_types::CardInstance),
     GeneratedCard(crate::combat_types::CardInstance),
-    Named(&'static str),
+    Named(String),
     ExhaustCard(usize),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NamedChoicePayload {
     pub kind: NamedOptionKind,
     pub amount: i32,
@@ -85,7 +86,7 @@ pub struct NamedChoicePayload {
 /// Card effects queued behind an interactive ScryAction. Java keeps later
 /// actions pending until the Scry choice resolves; Just Lucky uses block then
 /// damage in that order.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeferredScryCardEffects {
     pub card_inst: CardInstance,
     pub target_idx: i32,
@@ -98,7 +99,7 @@ pub struct DeferredScryCardEffects {
 }
 
 /// Context for an in-progress player choice.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChoiceContext {
     pub reason: ChoiceReason,
     pub options: Vec<ChoiceOption>,
@@ -134,10 +135,11 @@ pub struct ChoiceContext {
 }
 
 /// The Rust combat engine. Wraps CombatState + card registry + RNG.
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CombatEngine {
     pub state: CombatState,
     pub phase: CombatPhase,
+    #[serde(skip, default = "crate::cards::global_registry")]
     pub card_registry: &'static CardRegistry,
     /// Java's persistent `AbstractDungeon.cardRng`, used by card-library
     /// selection even when the request originates during combat.
@@ -170,6 +172,7 @@ pub struct CombatEngine {
     /// Omniscience autoplay items paired with the runtime-stack depth of the
     /// parent card whose action queue owns them.
     pub(crate) omniscience_autoplay: Vec<(CardInstance, usize)>,
+    #[serde(skip, default)]
     pub event_log: Vec<crate::effects::runtime::GameEventRecord>,
     /// Nested runtime-triggered events are queued onto the active dispatch
     /// frame so reentrant death/victory/card-play chains keep the current
@@ -347,6 +350,147 @@ impl CombatEngine {
 
     pub fn clear_event_log(&mut self) {
         self.event_log.clear();
+    }
+
+    pub(crate) fn validate_checkpoint_boundary(&self) -> Result<(), String> {
+        if self.runtime_dispatch_active || !self.pending_runtime_events.is_empty() {
+            return Err("combat runtime dispatch is active".to_string());
+        }
+        if self.state.combat_over {
+            return Err("active combat payload is already over".to_string());
+        }
+
+        match self.phase {
+            CombatPhase::PlayerTurn => {
+                if self.choice.is_some() {
+                    return Err("player-turn combat has a stale choice payload".to_string());
+                }
+                if self.pending_combat_start_resume || self.pending_end_turn_resume {
+                    return Err("player-turn combat has a stale resume continuation".to_string());
+                }
+                if self.runtime_played_card.is_some()
+                    || self.runtime_play_target_idx.is_some()
+                    || !self.runtime_play_stack.is_empty()
+                    || !self.omniscience_autoplay.is_empty()
+                    || self.runtime_rebound_card
+                    || self.runtime_x_energy_override.is_some()
+                {
+                    return Err("player-turn combat has unresolved card runtime state".to_string());
+                }
+            }
+            CombatPhase::AwaitingChoice => {
+                let choice = self
+                    .choice
+                    .as_ref()
+                    .ok_or_else(|| "awaiting-choice combat is missing its choice payload".to_string())?;
+                if choice.min_picks > choice.max_picks || choice.max_picks > choice.options.len() {
+                    return Err("combat choice cardinality is invalid".to_string());
+                }
+                if choice.selected.len() > choice.max_picks {
+                    return Err("combat choice has too many selected options".to_string());
+                }
+                let mut selected = std::collections::HashSet::new();
+                for index in &choice.selected {
+                    if *index >= choice.options.len() || !selected.insert(*index) {
+                        return Err("combat choice selection indexes are invalid".to_string());
+                    }
+                }
+                if let Some(payloads) = &choice.named_payloads {
+                    if payloads.len() != choice.options.len() {
+                        return Err("combat named-choice payloads are misaligned".to_string());
+                    }
+                }
+                if self.pending_combat_start_resume && self.pending_end_turn_resume {
+                    return Err("combat choice has conflicting resume continuations".to_string());
+                }
+            }
+            CombatPhase::NotStarted | CombatPhase::EnemyTurn | CombatPhase::CombatOver => {
+                return Err("combat is not at an externally actionable boundary".to_string());
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn validate_card_instance_ids(&self) -> Result<(), String> {
+        fn insert_unique(
+            ids: &mut std::collections::HashSet<u32>,
+            card: CardInstance,
+            owner: &str,
+        ) -> Result<(), String> {
+            if card.instance_id == 0 {
+                return Err(format!("{owner} has a zero card instance id"));
+            }
+            if !ids.insert(card.instance_id) {
+                return Err(format!("independent live cards alias instance {}", card.instance_id));
+            }
+            Ok(())
+        }
+
+        let mut master_ids = std::collections::HashSet::new();
+        for card in &self.state.master_deck {
+            if card.instance_id == 0 || !master_ids.insert(card.instance_id) {
+                return Err("combat master-deck card instance ids must be unique and nonzero".to_string());
+            }
+        }
+
+        let mut live_ids = std::collections::HashSet::new();
+        for card in self
+            .state
+            .hand
+            .iter()
+            .chain(&self.state.draw_pile)
+            .chain(&self.state.discard_pile)
+            .chain(&self.state.exhaust_pile)
+        {
+            insert_unique(&mut live_ids, *card, "combat pile card")?;
+        }
+        for enemy in &self.state.enemies {
+            if let Some(card) = enemy.stasis_card {
+                insert_unique(&mut live_ids, card, "Stasis card")?;
+            }
+        }
+        if let Some(choice) = &self.choice {
+            for option in &choice.options {
+                if let ChoiceOption::RevealedCard(card) | ChoiceOption::GeneratedCard(card) = option {
+                    insert_unique(&mut live_ids, *card, "combat choice card")?;
+                }
+            }
+        }
+        if let Some(card) = self.runtime_played_card {
+            insert_unique(&mut live_ids, card, "active played card")?;
+        }
+        for (card, _, _) in &self.runtime_play_stack {
+            insert_unique(&mut live_ids, *card, "nested played card")?;
+        }
+        for (card, _) in &self.omniscience_autoplay {
+            insert_unique(&mut live_ids, *card, "queued Omniscience card")?;
+        }
+        for (card, _) in &self.nightmare_pending_copies {
+            insert_unique(&mut live_ids, *card, "Nightmare template")?;
+        }
+        for card in &self.state.retained_cards {
+            if card.instance_id == 0
+                || !self
+                    .state
+                    .hand
+                    .iter()
+                    .any(|hand_card| hand_card.instance_id == card.instance_id)
+            {
+                return Err("retained-card projection is not backed by the hand".to_string());
+            }
+        }
+
+        let max_id = master_ids
+            .iter()
+            .chain(&live_ids)
+            .copied()
+            .map(u64::from)
+            .max()
+            .unwrap_or(0);
+        if self.state.next_card_instance_id <= max_id {
+            return Err("combat card allocator is behind a live identity".to_string());
+        }
+        Ok(())
     }
 
     pub(crate) fn take_pending_runtime_events(
@@ -1151,6 +1295,7 @@ impl CombatEngine {
                         &mut card,
                         selected_cost_rule,
                     );
+                    let card = self.fresh_stat_copy(card);
                     if ctx.generated_to_draw {
                         if self.state.draw_pile.is_empty() {
                             self.state.draw_pile.push(card);
@@ -1175,7 +1320,7 @@ impl CombatEngine {
 
     fn resolve_pick_option(&mut self, ctx: ChoiceContext) {
         if let Some(&sel) = ctx.selected.first() {
-            if let ChoiceOption::Named(name) = ctx.options[sel] {
+            if let ChoiceOption::Named(name) = &ctx.options[sel] {
                 if let Some(payload) = ctx
                     .named_payloads
                     .as_ref()
@@ -1199,7 +1344,7 @@ impl CombatEngine {
                     return;
                 }
 
-                match name {
+                match name.as_str() {
                     "Strength" => {
                         let current = self.state.player.status(sid::STRENGTH);
                         self.state.player.set_status(sid::STRENGTH, current + 3);
@@ -1237,6 +1382,7 @@ impl CombatEngine {
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DualWieldAction.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
         for _ in 0..copies {
+            let card = self.fresh_stat_copy(card);
             if self.state.hand.len() < 10 {
                 self.state.hand.push(card);
             } else {
@@ -1269,6 +1415,7 @@ impl CombatEngine {
         card.flags &= CardInstance::FLAG_UPGRADED
             | CardInstance::FLAG_FREE
             | CardInstance::FLAG_INNATE;
+        let card = self.fresh_stat_copy(card);
 
         // ApplyPowerAction stacks another NightmarePower with the same ID onto
         // the existing power. AbstractPower.stackPower increases amount but
@@ -1347,6 +1494,7 @@ impl CombatEngine {
                         | CardInstance::FLAG_AUTOPLAY;
                     let mut purge_copy = card;
                     purge_copy.flags |= CardInstance::FLAG_PURGE;
+                    let purge_copy = self.fresh_stat_copy(purge_copy);
                     let parent_depth = self.runtime_play_stack.len();
                     self.omniscience_autoplay.push((card, parent_depth));
                     self.omniscience_autoplay
@@ -1526,27 +1674,14 @@ impl CombatEngine {
         next_block: i32,
     ) {
         // IncreaseMiscAction updates both the combat instance and the matching
-        // UUID in AbstractDungeon.player.masterDeck. CardInstance has no UUID,
-        // but equal same-definition/misc copies are behaviorally interchangeable,
-        // so updating one matching member preserves the exact state multiset.
+        // UUID in AbstractDungeon.player.masterDeck.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/IncreaseMiscAction.java
-        let def = self.card_registry.card_def_by_id(before.def_id);
-        let previous_block = if before.misc >= 0 {
-            before.misc
-        } else {
-            def.base_block.max(0)
-        };
-        if let Some(card) = self.state.master_deck.iter_mut().find(|card| {
-            if card.def_id != before.def_id {
-                return false;
-            }
-            let current = if card.misc >= 0 {
-                card.misc
-            } else {
-                def.base_block.max(0)
-            };
-            current == previous_block
-        }) {
+        if let Some(card) = self
+            .state
+            .master_deck
+            .iter_mut()
+            .find(|card| card.instance_id == before.instance_id)
+        {
             card.misc = next_block;
         }
     }
@@ -1557,29 +1692,15 @@ impl CombatEngine {
         next_damage: i32,
     ) {
         // RitualDaggerAction matches the played card's UUID in masterDeck and
-        // raises that persistent card's misc/baseDamage. CardInstance has no
-        // UUID, but equal same-definition/misc copies are behaviorally
-        // interchangeable, so updating one matching member preserves the
-        // exact master-deck state multiset.
+        // raises that persistent card's misc/baseDamage.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/
         // RitualDaggerAction.java
-        let def = self.card_registry.card_def_by_id(before.def_id);
-        let previous_damage = if before.misc >= 0 {
-            before.misc
-        } else {
-            def.base_damage.max(0)
-        };
-        if let Some(card) = self.state.master_deck.iter_mut().find(|card| {
-            if card.def_id != before.def_id {
-                return false;
-            }
-            let current = if card.misc >= 0 {
-                card.misc
-            } else {
-                def.base_damage.max(0)
-            };
-            current == previous_damage
-        }) {
+        if let Some(card) = self
+            .state
+            .master_deck
+            .iter_mut()
+            .find(|card| card.instance_id == before.instance_id)
+        {
             card.misc = next_damage;
         }
     }
@@ -2883,9 +3004,8 @@ impl CombatEngine {
             let hex = self.state.player.status(sid::HEX);
             if hex > 0 {
                 for _ in 0..hex {
-                    self.state
-                        .draw_pile
-                        .push(self.card_registry.make_card("Dazed"));
+                    let dazed = self.temp_card("Dazed");
+                    self.state.draw_pile.push(dazed);
                 }
             }
         }
@@ -4966,7 +5086,7 @@ impl CombatEngine {
     // =======================================================================
 
     /// Get a CardInstance for a temporary card, upgrading if Master Reality is active.
-    pub fn temp_card(&self, base_id: &str) -> CardInstance {
+    pub fn temp_card(&mut self, base_id: &str) -> CardInstance {
         let base = self.card_registry.get(base_id);
         let upgraded_id = format!("{}+", base_id);
         // MakeTempCard* excludes Status and Curse cards from Master Reality.
@@ -4974,11 +5094,20 @@ impl CombatEngine {
         let master_reality_can_upgrade = self.state.player.status(sid::MASTER_REALITY) > 0
             && base.is_some_and(|def| !matches!(def.card_type, CardType::Curse | CardType::Status))
             && self.card_registry.get(&upgraded_id).is_some();
-        if master_reality_can_upgrade {
+        let card = if master_reality_can_upgrade {
             self.card_registry.make_card(&upgraded_id)
         } else {
             self.card_registry.make_card(base_id)
-        }
+        };
+        self.fresh_stat_copy(card)
+    }
+
+    /// Java `makeStatEquivalentCopy`: preserve card state but mint a fresh
+    /// identity. Replays such as Echo Form and Necronomicon intentionally keep
+    /// using the original `CardInstance` instead.
+    pub(crate) fn fresh_stat_copy(&mut self, mut card: CardInstance) -> CardInstance {
+        card.instance_id = self.state.allocate_card_instance_id();
+        card
     }
 
     /// Add temporary cards to hand, spilling overflow into discard.
@@ -5041,6 +5170,7 @@ impl CombatEngine {
         for _ in 0..amount {
             let mut copy = card;
             copy.reset_cost_for_turn();
+            let copy = self.fresh_stat_copy(copy);
             if self.state.hand.len() < 10 {
                 self.state.hand.push(copy);
             } else {

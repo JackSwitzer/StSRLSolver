@@ -8,6 +8,17 @@ use crate::tests::support::{
     make_deck, play_on_enemy,
 };
 
+fn without_card_instance_ids(cards: &[crate::combat_types::CardInstance]) -> Vec<crate::combat_types::CardInstance> {
+    cards
+        .iter()
+        .copied()
+        .map(|mut card| {
+            card.instance_id = 0;
+            card
+        })
+        .collect()
+}
+
 #[test]
 fn eda_001_all_victory_relics_must_run_after_combat_is_marked_over() {
     // AbstractPlayer.onVictory iterates every relic without an early exit:
@@ -538,8 +549,14 @@ fn eda_012_opening_draw_and_empty_deck_reshuffle_share_the_java_contract() {
     );
     let mut opening = crate::engine::CombatEngine::new(state, 91);
     opening.start_combat();
-    assert_eq!(opening.state.hand, expected_opening_hand);
-    assert_eq!(opening.state.draw_pile, expected_opening);
+    assert_eq!(
+        without_card_instance_ids(&opening.state.hand),
+        expected_opening_hand
+    );
+    assert_eq!(
+        without_card_instance_ids(&opening.state.draw_pile),
+        expected_opening
+    );
     assert_eq!(opening.shuffle_rng.counter, 1);
 
     let mut expected_reshuffle = cards.clone();
@@ -558,8 +575,14 @@ fn eda_012_opening_draw_and_empty_deck_reshuffle_share_the_java_contract() {
     reshuffle.state.draw_pile.clear();
     reshuffle.state.discard_pile = cards;
     reshuffle.draw_cards(3);
-    assert_eq!(reshuffle.state.hand, expected_reshuffle_hand);
-    assert_eq!(reshuffle.state.draw_pile, expected_reshuffle);
+    assert_eq!(
+        without_card_instance_ids(&reshuffle.state.hand),
+        expected_reshuffle_hand
+    );
+    assert_eq!(
+        without_card_instance_ids(&reshuffle.state.draw_pile),
+        expected_reshuffle
+    );
     assert_eq!(reshuffle.shuffle_rng.counter, 1);
 }
 
