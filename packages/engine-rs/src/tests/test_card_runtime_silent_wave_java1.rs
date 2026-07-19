@@ -353,6 +353,14 @@ fn night_terror_delayed_copies_appear_before_next_turn_draw() {
         "NightmarePower adds three copies before the normal five-card draw"
     );
     assert_eq!(hand_count(&engine, "Strike"), 3);
+    let strike_ids: std::collections::HashSet<_> = engine
+        .state
+        .hand
+        .iter()
+        .filter(|card| engine.card_registry.card_name(card.def_id) == "Strike")
+        .map(|card| card.instance_id)
+        .collect();
+    assert_eq!(strike_ids.len(), 3, "Nightmare copies need fresh UUIDs");
 }
 
 #[test]

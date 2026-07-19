@@ -1,5 +1,7 @@
 use crate::actions::Action;
+use crate::checkpoint::CoreCheckpoint;
 use crate::run::GameAction;
+use crate::run::RunEngine;
 use crate::trace::v2::{
     ActionOutcome, Capabilities, EndV2, HeaderV2, Producer, SchemaVersion, TraceEnvelopeV2,
     TracePayloadV2, TransitionV2, TRACE_SCHEMA_MAJOR, TRACE_SCHEMA_MINOR, TRACE_SCHEMA_NAME,
@@ -18,8 +20,12 @@ fn capabilities() -> Capabilities {
     Capabilities(vec![
         "direct_game_action".to_string(),
         "action_outcomes".to_string(),
-        "opaque_checkpoints".to_string(),
+        "core_checkpoints".to_string(),
     ])
+}
+
+fn checkpoint(seed: u64) -> CoreCheckpoint {
+    CoreCheckpoint::capture(&RunEngine::new(seed, 0)).expect("public decision is quiescent")
 }
 
 fn all_current_game_actions() -> Vec<GameAction> {
@@ -65,6 +71,12 @@ fn all_current_game_actions() -> Vec<GameAction> {
 }
 
 fn transition_envelope(action: GameAction, outcome: ActionOutcome) -> TraceEnvelopeV2 {
+    let pre = checkpoint(41);
+    let post = if matches!(&outcome, ActionOutcome::Rejected { .. }) {
+        pre.clone()
+    } else {
+        checkpoint(42)
+    };
     TraceEnvelopeV2::new(
         capabilities(),
         producer(),
@@ -72,8 +84,8 @@ fn transition_envelope(action: GameAction, outcome: ActionOutcome) -> TraceEnvel
             idx: 42,
             action,
             outcome,
-            pre: json!({"opaque": "before"}),
-            post: json!({"opaque": "after"}),
+            pre,
+            post,
         }),
     )
 }
@@ -118,8 +130,12 @@ fn accepted_and_rejected_outcomes_preserve_pre_and_post_payloads() {
         let TracePayloadV2::Transition(transition) = decoded.payload else {
             panic!("expected transition payload");
         };
-        assert_eq!(transition.pre, json!({"opaque": "before"}));
-        assert_eq!(transition.post, json!({"opaque": "after"}));
+        assert_eq!(transition.pre, checkpoint(41));
+        if matches!(&transition.outcome, ActionOutcome::Rejected { .. }) {
+            assert_eq!(transition.post, transition.pre);
+        } else {
+            assert_eq!(transition.post, checkpoint(42));
+        }
     }
 }
 
@@ -129,18 +145,18 @@ fn header_transition_and_end_payloads_round_trip() {
         TracePayloadV2::Header(HeaderV2 {
             trace_id: "trace-1".to_string(),
             seed: "ABC123".to_string(),
-            seed_long: 12345,
+            seed_long: 1,
             character: "WATCHER".to_string(),
             ascension: 0,
             game_version: "desktop-2.3".to_string(),
             mods: vec!["tracelab".to_string()],
-            initial_checkpoint: json!({"opaque": "initial"}),
+            initial_checkpoint: checkpoint(1),
         }),
         transition_envelope(GameAction::Proceed, ActionOutcome::Accepted).payload,
         TracePayloadV2::End(EndV2 {
             transition_count: 99,
             result: "victory".to_string(),
-            final_checkpoint: json!({"opaque": "final"}),
+            final_checkpoint: checkpoint(99),
         }),
     ];
 
@@ -153,18 +169,85 @@ fn header_transition_and_end_payloads_round_trip() {
 }
 
 #[test]
-fn v2_accepts_unknown_minor_and_additive_fields() {
+fn v2_accepts_additive_fields_at_the_current_minor() {
     let envelope = transition_envelope(GameAction::Proceed, ActionOutcome::Accepted);
     let mut encoded = serde_json::to_value(envelope).unwrap();
-    encoded["schema"]["minor"] = json!(999);
     encoded["future_envelope_field"] = json!({"ignored": true});
     encoded["payload"]["data"]["future_transition_field"] = json!("ignored");
 
     let decoded: TraceEnvelopeV2 = serde_json::from_value(encoded).unwrap();
     assert_eq!(decoded.schema.name, TRACE_SCHEMA_NAME);
     assert_eq!(decoded.schema.major, TRACE_SCHEMA_MAJOR);
-    assert_eq!(decoded.schema.minor, 999);
+    assert_eq!(decoded.schema.minor, TRACE_SCHEMA_MINOR);
     decoded.validate().unwrap();
+}
+
+#[test]
+fn v2_rejects_an_unknown_future_minor() {
+    let envelope = transition_envelope(GameAction::Proceed, ActionOutcome::Accepted);
+    let mut encoded = serde_json::to_value(envelope).unwrap();
+    encoded["schema"]["minor"] = json!(TRACE_SCHEMA_MINOR + 1);
+
+    let error = serde_json::from_value::<TraceEnvelopeV2>(encoded).unwrap_err();
+    assert!(error.to_string().contains("unsupported trace schema minor"));
+}
+
+#[test]
+fn rejected_transition_requires_identical_pre_and_post_checkpoint() {
+    let rejected = transition_envelope(
+        GameAction::DiscardPotion(2),
+        ActionOutcome::Rejected {
+            code: "illegal_action".to_string(),
+            detail: None,
+        },
+    );
+    let mut encoded = serde_json::to_value(rejected).unwrap();
+    encoded["payload"]["data"]["post"] =
+        serde_json::to_value(checkpoint(42)).unwrap();
+
+    let error = serde_json::from_value::<TraceEnvelopeV2>(encoded).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("rejected trace transition must preserve"));
+}
+
+#[test]
+fn header_seed_and_ascension_must_match_initial_checkpoint() {
+    let header = TraceEnvelopeV2::new(
+        capabilities(),
+        producer(),
+        TracePayloadV2::Header(HeaderV2 {
+            trace_id: "trace-header-validation".to_string(),
+            seed: "1".to_string(),
+            seed_long: 2,
+            character: "WATCHER".to_string(),
+            ascension: 0,
+            game_version: "desktop-2.3".to_string(),
+            mods: Vec::new(),
+            initial_checkpoint: checkpoint(1),
+        }),
+    );
+    let error = serde_json::from_value::<TraceEnvelopeV2>(
+        serde_json::to_value(header).unwrap(),
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("trace header seed"));
+
+    let header = TraceEnvelopeV2::new(
+        capabilities(),
+        producer(),
+        TracePayloadV2::Header(HeaderV2 {
+            trace_id: "trace-header-validation".to_string(),
+            seed: "1".to_string(),
+            seed_long: 1,
+            character: "WATCHER".to_string(),
+            ascension: 1,
+            game_version: "desktop-2.3".to_string(),
+            mods: Vec::new(),
+            initial_checkpoint: checkpoint(1),
+        }),
+    );
+    assert!(header.validate().unwrap_err().contains("trace header ascension"));
 }
 
 #[test]

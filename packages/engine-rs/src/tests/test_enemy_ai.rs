@@ -990,13 +990,18 @@ mod enemy_ai_java_parity_tests {
         let deck_before = combat.state.master_deck.len();
         combat.state.enemies[0].set_move(move_ids::WM_MEGA_DEBUFF, 0, 0, 0);
         combat.state.enemies[0].intent = Intent::Debuff { effects: 0 };
-        crate::combat_hooks::do_enemy_turns(combat);
+        combat.execute_action(&crate::actions::Action::EndTurn);
         assert_eq!(combat.state.enemies[0].entity.status(sid::USED_MEGA_DEBUFF), 1);
         assert_eq!(combat.state.master_deck.len(), deck_before + 1);
         assert_eq!(combat.card_registry.card_name(
             combat.state.master_deck.last().unwrap().def_id), "Parasite");
+        assert_ne!(combat.state.master_deck.last().unwrap().instance_id, 0);
         assert!(combat.state.discard_pile.iter().all(|card|
             combat.card_registry.card_name(card.def_id) != "Wound"));
+        let _ = combat;
+        let checkpoint = crate::checkpoint::CoreCheckpoint::capture(&implant)
+            .expect("Implant must leave a checkpoint-safe card identity");
+        checkpoint.restore().expect("Implant checkpoint must restore");
 
         let mut debuff = RunEngine::new(222, 2);
         debuff.debug_enter_specific_combat(&["WrithingMass"]);

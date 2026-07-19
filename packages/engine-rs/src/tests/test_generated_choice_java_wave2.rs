@@ -93,7 +93,7 @@ fn wish_gold_branch_credits_pending_run_gold() {
         .options
         .iter()
         .filter_map(|opt| match opt {
-            ChoiceOption::Named(name) => Some(*name),
+            ChoiceOption::Named(name) => Some(name.as_str()),
             _ => None,
         })
         .collect();

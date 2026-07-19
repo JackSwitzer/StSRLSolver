@@ -91,7 +91,7 @@ fn wish_uses_named_choice_flow_for_its_java_menu() {
         .options
         .iter()
         .filter_map(|opt| match opt {
-            ChoiceOption::Named(name) => Some(*name),
+            ChoiceOption::Named(name) => Some(name.as_str()),
             _ => None,
         })
         .collect();

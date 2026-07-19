@@ -7,13 +7,14 @@
 use crate::cards::CardType;
 use crate::ids::StatusId;
 use crate::state::Stance;
+use serde::{Deserialize, Serialize};
 
 // ===========================================================================
 // Trigger — when an effect fires
 // ===========================================================================
 
 /// When a triggered effect should fire.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Trigger {
     /// At the start of combat (before initial draw).
     CombatStart,
@@ -97,7 +98,7 @@ pub enum Trigger {
 // ===========================================================================
 
 /// Additional condition that must be true for a triggered effect to fire.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TriggerCondition {
     /// Always fires (no additional condition).
     Always,
@@ -134,7 +135,7 @@ pub enum TriggerCondition {
 // ===========================================================================
 
 /// Runtime context passed when evaluating a trigger.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct TriggerContext {
     /// The type of card that caused this trigger (if any).
     pub card_type: Option<CardType>,

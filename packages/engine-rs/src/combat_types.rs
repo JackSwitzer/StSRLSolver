@@ -9,6 +9,10 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct CardInstance {
+    /// Stable identity shared by a master-deck card and its combat copy.
+    /// Zero means the caller has not assigned an engine-local identity yet.
+    #[serde(default)]
+    pub instance_id: u32,
     /// Index into static CardDef table.
     pub def_id: u16,
     /// Cost for this turn. -1 = use the permanent baseline or CardDef cost.
@@ -34,7 +38,11 @@ impl CardInstance {
     pub const FLAG_AUTOPLAY: u8 = 0x80;
 
     pub fn new(def_id: u16) -> Self {
-        Self { def_id, cost: -1, base_cost: -1, misc: -1, flags: 0 }
+        Self { instance_id: 0, def_id, cost: -1, base_cost: -1, misc: -1, flags: 0 }
+    }
+    pub fn with_instance_id(mut self, instance_id: u32) -> Self {
+        self.instance_id = instance_id;
+        self
     }
     pub fn with_cost(mut self, cost: i8) -> Self { self.cost = cost; self }
     pub fn upgraded(mut self) -> Self { self.flags |= Self::FLAG_UPGRADED; self }
@@ -202,11 +210,11 @@ mod tests {
     }
 
     #[test]
-    fn card_instance_stays_within_the_i32_misc_clone_budget() {
-        // EDA-002 requires Java-width misc state. The transparent Copy type is
-        // 12 bytes with ordinary Rust alignment; combat benchmarks guard the
-        // actual MCTS cloning cost.
-        assert_eq!(std::mem::size_of::<CardInstance>(), 12);
+    fn card_instance_stays_within_the_identity_and_i32_misc_clone_budget() {
+        // EDA-002 requires Java-width misc state, while Java's AbstractCard
+        // UUID semantics require stable identity for equal mutable cards. The
+        // compact Copy type is 16 bytes; benchmarks guard actual clone cost.
+        assert_eq!(std::mem::size_of::<CardInstance>(), 16);
     }
 
     #[test]

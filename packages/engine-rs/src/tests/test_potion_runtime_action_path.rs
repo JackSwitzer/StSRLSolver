@@ -889,7 +889,7 @@ fn stance_potion_opens_choose_one_and_sets_stance_via_action_path() {
         .options
         .iter()
         .filter_map(|opt| match opt {
-            crate::engine::ChoiceOption::Named(label) => Some(*label),
+            crate::engine::ChoiceOption::Named(label) => Some(label.as_str()),
             _ => None,
         })
         .collect();

@@ -334,6 +334,16 @@ fn support_wave1_end_turn_curse_and_status_hooks_fire_on_the_runtime_path() {
         pride_count, 2,
         "Pride's end-turn copy may be drawn immediately but must still exist"
     );
+    let pride_ids: std::collections::HashSet<_> = engine
+        .state
+        .hand
+        .iter()
+        .chain(engine.state.draw_pile.iter())
+        .chain(engine.state.discard_pile.iter())
+        .filter(|card| engine.card_registry.card_name(card.def_id) == "Pride")
+        .map(|card| card.instance_id)
+        .collect();
+    assert_eq!(pride_ids.len(), 2, "Pride's copy needs a fresh UUID");
 }
 
 #[test]
@@ -504,7 +514,12 @@ fn pride_is_playable_or_copies_itself_to_the_top_without_rng() {
 
     assert!(!crate::status_effects::process_end_turn_hand_cards(&mut held));
 
-    assert_eq!(held.state.draw_pile.last(), Some(&pride_instance));
+    let copied = held.state.draw_pile.last().expect("Pride copy");
+    assert_eq!(copied.def_id, pride_instance.def_id);
+    assert_eq!(copied.cost, pride_instance.cost);
+    assert_eq!(copied.base_cost, pride_instance.base_cost);
+    assert_eq!(copied.misc, pride_instance.misc);
+    assert_ne!(copied.instance_id, pride_instance.instance_id);
     assert_eq!(held.rng_counters()["cardRandom"], card_random_before);
 }
 

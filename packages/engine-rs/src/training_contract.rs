@@ -1445,7 +1445,7 @@ fn choice_option_details(option: &ChoiceOption, engine: &CombatEngine) -> (Strin
                 .name
                 .to_string(),
         ),
-        ChoiceOption::Named(name) => ("named".to_string(), -1, (*name).to_string()),
+        ChoiceOption::Named(name) => ("named".to_string(), -1, name.clone()),
         ChoiceOption::ExhaustCard(idx) => {
             let label = engine
                 .state

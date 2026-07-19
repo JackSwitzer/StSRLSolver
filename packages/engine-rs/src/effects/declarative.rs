@@ -12,6 +12,7 @@ use crate::ids::StatusId;
 use crate::orbs::OrbType;
 use crate::state::Stance;
 use crate::cards::CardType;
+use serde::{Deserialize, Serialize};
 
 // ===========================================================================
 // Core enums
@@ -140,7 +141,7 @@ pub enum Condition {
 }
 
 /// What happens to selected card(s) after a choice.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ChoiceAction {
     /// Discard the selected card(s).
     Discard,
@@ -235,7 +236,7 @@ pub enum GeneratedCardPool {
 }
 
 /// Temporary cost override applied to generated cards.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GeneratedCostRule {
     Base,
     ZeroThisTurn,
@@ -260,7 +261,7 @@ pub enum GeneratedDestination {
 }
 
 /// Runtime effect attached to a named choice option.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NamedOptionKind {
     AddStatus(StatusId),
     GainRunGold,

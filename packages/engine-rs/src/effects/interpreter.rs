@@ -535,6 +535,7 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             copy.flags &= crate::combat_types::CardInstance::FLAG_UPGRADED
                 | crate::combat_types::CardInstance::FLAG_FREE
                 | crate::combat_types::CardInstance::FLAG_INNATE;
+            let copy = engine.fresh_stat_copy(copy);
             push_to_pile(engine, pile, copy);
             if pile == Pile::Draw {
                 engine.shuffle_draw_pile();
@@ -2291,6 +2292,7 @@ fn execute_choose_named_options(engine: &mut CombatEngine, option_names: &[&'sta
     let options = option_names
         .iter()
         .copied()
+        .map(str::to_string)
         .map(crate::engine::ChoiceOption::Named)
         .collect();
     engine.begin_choice(ChoiceReason::PickOption, options, 1, 1);
@@ -2306,7 +2308,7 @@ fn execute_choose_scaled_named_options(
     }
     let options = option_specs
         .iter()
-        .map(|option| ChoiceOption::Named(option.label))
+        .map(|option| ChoiceOption::Named(option.label.to_string()))
         .collect();
     let payloads = option_specs
         .iter()
@@ -2550,7 +2552,8 @@ pub(crate) fn generate_unique_random_cards(
         if seen.insert(choice) {
             // DiscoveryAction previews base copies; Master Reality upgrades
             // only the selected copy during resolution.
-            picked.push(engine.card_registry.make_card(choice));
+            let preview = engine.card_registry.make_card(choice);
+            picked.push(engine.fresh_stat_copy(preview));
         }
     }
     picked
@@ -2875,7 +2878,8 @@ fn generate_weighted_any_color_attack_card(
     let idx = engine.card_rng.random_int((bucket.len() - 1) as i32) as usize;
     // Foreign Influence presents base copies. Master Reality upgrades only the
     // selected copy when it is added to hand/discard.
-    Some(engine.card_registry.make_card(bucket[idx]))
+    let preview = engine.card_registry.make_card(bucket[idx]);
+    Some(engine.fresh_stat_copy(preview))
 }
 
 fn generate_unique_weighted_any_color_attack_cards(
