@@ -28,10 +28,10 @@ fn murmur_hash3(mut x: u64) -> u64 {
 // RandomXs128 — private libGDX generator
 // ===========================================================================
 
-/// Native Rust port of libGDX 1.9.2's `RandomXS128`.
+/// Native Rust port of libGDX 1.9.5's `RandomXS128`.
 ///
-/// This type deliberately stays private: gameplay code must draw through
-/// `StsRandom` so every Java wrapper call advances its public counter once.
+/// This type deliberately stays private: counted gameplay draws go through
+/// `StsRandom`, while ambient libGDX draws go through `AmbientMathRng`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct RandomXs128 {
     seed0: u64,
@@ -95,6 +95,48 @@ impl RandomXs128 {
 
     fn next_f64(&mut self) -> f64 {
         (self.next_long() >> 11) as f64 * (1.0 / (1_u64 << 53) as f64)
+    }
+}
+
+// ===========================================================================
+// AmbientMathRng — uncounted libGDX MathUtils.random owner
+// ===========================================================================
+
+/// Deterministic owner for gameplay-significant draws made through libGDX's
+/// ambient `MathUtils.random` generator.
+///
+/// Unlike `StsRandom`, this stream has no wrapper counter and is not derived
+/// from a dungeon seed implicitly. Its owner must construct, persist, and
+/// restore it explicitly.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct AmbientMathRng {
+    inner: RandomXs128,
+}
+
+impl AmbientMathRng {
+    pub(crate) fn new(seed: u64) -> Self {
+        Self {
+            inner: RandomXs128::new(seed),
+        }
+    }
+
+    pub(crate) fn from_state(seed0: u64, seed1: u64) -> Self {
+        Self {
+            inner: RandomXs128::from_state(seed0, seed1),
+        }
+    }
+
+    pub(crate) fn state_tuple(&self) -> (u64, u64) {
+        self.inner.state_tuple()
+    }
+
+    pub(crate) fn restore_state(&mut self, seed0: u64, seed1: u64) {
+        self.inner = RandomXs128::from_state(seed0, seed1);
+    }
+
+    /// Match libGDX `MathUtils.random(int range)`: both endpoints are inclusive.
+    pub(crate) fn random_int(&mut self, max_inclusive: i32) -> i32 {
+        self.inner.next_int(max_inclusive.wrapping_add(1))
     }
 }
 
@@ -705,6 +747,45 @@ mod tests {
     }
 
     #[test]
+    fn ambient_math_rng_zero_seed_state_and_first_draw_match_libgdx() {
+        // Oracle: shipped libGDX 1.9.5 RandomXS128.
+        let mut rng = AmbientMathRng::new(0);
+        assert_eq!(
+            rng.state_tuple(),
+            (0x8f78_0810_af31_a493, 0xd1f9_a22a_f8e8_3383)
+        );
+        assert_eq!(rng.inner.next_long() as i64, 2_940_871_956_904_845_945);
+        assert_eq!(
+            rng.state_tuple(),
+            (0xd1f9_a22a_f8e8_3383, 0x56d6_714b_a850_6ef6)
+        );
+    }
+
+    #[test]
+    fn ambient_math_rng_inclusive_int_matches_math_utils() {
+        // Oracle: shipped libGDX 1.9.5 MathUtils.random(int range).
+        assert_eq!(AmbientMathRng::new(0).random_int(9), 2);
+        assert_eq!(AmbientMathRng::new(1).random_int(9), 5);
+    }
+
+    #[test]
+    fn ambient_math_rng_exact_state_clones_serializes_and_restores() {
+        let initial = (0x8f78_0810_af31_a493, 0xd1f9_a22a_f8e8_3383);
+        let original = AmbientMathRng::from_state(initial.0, initial.1);
+        let encoded = serde_json::to_string(&original).unwrap();
+        let mut restored: AmbientMathRng = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(restored, original);
+
+        let mut cloned = original.clone();
+        assert_eq!(restored.random_int(9), cloned.random_int(9));
+        assert_eq!(restored.state_tuple(), cloned.state_tuple());
+
+        restored.restore_state(initial.0, initial.1);
+        assert_eq!(restored, original);
+        assert_eq!(restored.random_int(9), 2);
+    }
+
+    #[test]
     fn signed_seed_boundaries_match_java_first_draws() {
         let cases = [
             (0_u64, 2_940_871_956_904_845_945_i64),
@@ -770,7 +851,7 @@ mod tests {
 
     #[test]
     fn sts_random_mixed_overloads_match_java_derived_fixture() {
-        // Oracle: Random.java:55-103 and libGDX 1.9.2 RandomXS128.java.
+        // Oracle: Random.java:55-103 and libGDX 1.9.5 RandomXS128.java.
         // Re-verified: integer overloads are inclusive, while the long overload
         // multiplies nextDouble and therefore excludes its upper endpoint.
         let mut rng = StsRandom::new(42);

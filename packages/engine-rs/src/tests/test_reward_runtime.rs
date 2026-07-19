@@ -502,6 +502,9 @@ fn second_boss_relic_transitions_to_act_three_with_a_fresh_map() {
 
 #[test]
 fn act_three_boss_routes_to_spire_heart_without_a_boss_relic() {
+    // Re-verified: AbstractRoom constructs a miscRng-based boss gold reward
+    // before the Act 3 Proceed path suppresses the combat reward screen.
+    // Java: AbstractRoom.java:286-331, ProceedButton.java:100-113.
     let mut engine = RunEngine::new(44, 0);
     engine.run_state.act = 3;
     engine.run_state.floor = 50;

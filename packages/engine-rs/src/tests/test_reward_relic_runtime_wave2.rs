@@ -222,15 +222,22 @@ fn matryoshka_extra_chest_reward_uses_only_common_or_uncommon_tiers() {
     // Matryoshka.java::onChestOpen rolls COMMON at 75%, otherwise UNCOMMON;
     // it never adds a RARE relic. Exercise both branches on treasure screens.
     const COMMON: &[&str] = &[
-        "Akabeko", "Anchor", "Ancient Tea Set", "Art of War", "Bag of Marbles",
-        "Bag of Preparation", "Blood Vial", "Boot", "Bronze Scales", "CeramicFish",
-        "Dream Catcher", "Lantern", "Omamori", "Vajra",
+        "Whetstone", "Boot", "Blood Vial", "MealTicket", "Pen Nib", "Akabeko",
+        "Lantern", "Regal Pillow", "Bag of Preparation", "Ancient Tea Set",
+        "Smiling Mask", "Potion Belt", "PreservedInsect", "Omamori", "MawBank",
+        "Art of War", "Toy Ornithopter", "CeramicFish", "Vajra",
+        "Centennial Puzzle", "Strawberry", "Happy Flower", "Oddly Smooth Stone",
+        "War Paint", "Bronze Scales", "Juzu Bracelet", "Dream Catcher", "Nunchaku",
+        "Tiny Chest", "Orichalcum", "Anchor", "Bag of Marbles", "Damaru",
     ];
     const UNCOMMON: &[&str] = &[
-        "Blue Candle", "Bottled Flame", "Bottled Lightning", "Bottled Tornado",
-        "Darkstone Periapt", "Eternal Feather", "Frozen Egg 2", "InkBottle", "Kunai",
-        "Letter Opener", "Matryoshka", "Molten Egg 2", "Ornamental Fan",
-        "Toxic Egg 2", "White Beast Statue",
+        "Bottled Tornado", "Sundial", "Kunai", "Pear", "Blue Candle",
+        "Eternal Feather", "StrikeDummy", "Singing Bowl", "Matryoshka", "InkBottle",
+        "The Courier", "Frozen Egg 2", "Ornamental Fan", "Bottled Lightning",
+        "Gremlin Horn", "HornCleat", "Toxic Egg 2", "Letter Opener", "Question Card",
+        "Bottled Flame", "Shuriken", "Molten Egg 2", "Meat on the Bone",
+        "Darkstone Periapt", "Mummified Hand", "Pantograph", "White Beast Statue",
+        "Mercury Hourglass", "Yang", "TeardropLocket",
     ];
     let mut saw_common = false;
     let mut saw_uncommon = false;
