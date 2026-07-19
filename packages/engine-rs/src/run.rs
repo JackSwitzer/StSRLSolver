@@ -108,30 +108,266 @@ pub enum RunPhase {
 /// Cards not in CardRegistry fall back to `get_or_default()` for defensive safety,
 /// but the audited runtime now treats the Rust registry as canonical.
 const WATCHER_COMMON_CARDS: &[&str] = &[
-    "BowlingBash", "Consecrate", "Crescendo", "CrushJoints",
-    "CutThroughFate", "EmptyBody", "EmptyFist", "Evaluate",
-    "FlurryOfBlows", "FlyingSleeves", "FollowUp", "Halt",
-    "JustLucky", "PathToVictory", "Prostrate",
-    "Protect", "SashWhip", "ClearTheMind", "ThirdEye",
+    "Consecrate", "BowlingBash", "FlyingSleeves", "Halt",
+    "JustLucky", "FlurryOfBlows", "Protect", "ThirdEye",
+    "Crescendo", "ClearTheMind", "EmptyBody", "SashWhip",
+    "CutThroughFate", "FollowUp", "PathToVictory", "CrushJoints",
+    "Evaluate", "Prostrate", "EmptyFist",
 ];
 
 const WATCHER_UNCOMMON_CARDS: &[&str] = &[
-    "Adaptation", "BattleHymn", "CarveReality", "Collect", "Conclude",
-    "DeceiveReality", "EmptyMind", "Fasting2", "FearNoEvil",
-    "ForeignInfluence", "Indignation", "InnerPeace", "LikeWater",
-    "Meditate", "MentalFortress", "Nirvana", "Perseverance", "Pray",
-    "ReachHeaven", "Sanctity", "SandsOfTime", "SignatureMove", "Study",
-    "Swivel", "TalkToTheHand", "Tantrum", "Vengeance", "Wallop",
-    "WaveOfTheHand", "Weave", "WheelKick", "WindmillStrike",
-    "Wireheading", "Worship", "WreathOfFlame",
+    "WheelKick", "Vengeance", "Wireheading", "Sanctity", "TalkToTheHand",
+    "BattleHymn", "Indignation", "WindmillStrike", "ForeignInfluence",
+    "LikeWater", "Fasting2", "CarveReality", "Wallop", "WreathOfFlame",
+    "Collect", "InnerPeace", "Adaptation", "DeceiveReality",
+    "MentalFortress", "ReachHeaven", "FearNoEvil", "SandsOfTime",
+    "WaveOfTheHand", "Study", "Meditate", "Perseverance", "Swivel",
+    "Worship", "Conclude", "Tantrum", "Nirvana", "EmptyMind", "Weave",
+    "SignatureMove", "Pray",
 ];
 
 const WATCHER_RARE_CARDS: &[&str] = &[
-    "Alpha", "Blasphemy", "Brilliance", "ConjureBlade", "DeusExMachina",
-    "DevaForm", "Devotion", "Establishment", "Judgement", "LessonLearned",
-    "MasterReality", "Omniscience", "Ragnarok", "Scrawl", "SpiritShield",
-    "Vault", "Wish",
+    "DeusExMachina", "DevaForm", "SpiritShield", "Establishment",
+    "Omniscience", "Wish", "Alpha", "Vault", "Scrawl", "LessonLearned",
+    "Ragnarok", "Blasphemy", "Devotion", "Brilliance", "MasterReality",
+    "ConjureBlade", "Judgement",
 ];
+
+/// Java keeps both mutable working pools and source pools for the entire run.
+/// Reward generation samples the working pools without removal; transforms
+/// mutate the source pools and can therefore change later source-pool order.
+/// Source: AbstractDungeon.initializeCardPools/srcTransformCard.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct CardPools {
+    common: Vec<String>,
+    uncommon: Vec<String>,
+    rare: Vec<String>,
+    source_common: Vec<String>,
+    source_uncommon: Vec<String>,
+    source_rare: Vec<String>,
+}
+
+impl CardPools {
+    fn watcher_all_unlocked() -> Self {
+        let common: Vec<String> =
+            WATCHER_COMMON_CARDS.iter().map(|id| (*id).to_string()).collect();
+        let uncommon: Vec<String> =
+            WATCHER_UNCOMMON_CARDS.iter().map(|id| (*id).to_string()).collect();
+        let rare: Vec<String> =
+            WATCHER_RARE_CARDS.iter().map(|id| (*id).to_string()).collect();
+        Self {
+            // src*CardPool uses addToBottom, which inserts at index zero.
+            source_common: common.iter().rev().cloned().collect(),
+            source_uncommon: uncommon.iter().rev().cloned().collect(),
+            source_rare: rare.iter().rev().cloned().collect(),
+            common,
+            uncommon,
+            rare,
+        }
+    }
+
+    fn working(&self, rarity: EventCardRarity) -> &[String] {
+        match rarity {
+            EventCardRarity::Common => &self.common,
+            EventCardRarity::Uncommon => &self.uncommon,
+            EventCardRarity::Rare => &self.rare,
+            _ => &[],
+        }
+    }
+}
+
+// Dungeon event pools preserve Java insertion order because event selection
+// indexes the eligible copy directly. Regular and generic shrine pools are
+// rebuilt on act entry; selected one-time shrines remain absent for the run.
+// Java: AbstractDungeon.java::generateEvent/getEvent/getShrine,
+// Exordium.java/TheCity.java/TheBeyond.java::initialize*List.
+const ACT_ONE_EVENTS: &[&str] = &[
+    "Big Fish", "The Cleric", "Dead Adventurer", "Golden Idol", "Golden Wing",
+    "World of Goop", "Liars Game", "Living Wall", "Mushrooms", "Scrap Ooze",
+    "Shining Light",
+];
+const ACT_TWO_EVENTS: &[&str] = &[
+    "Addict", "Back to Basics", "Beggar", "Colosseum", "Cursed Tome",
+    "Drug Dealer", "Forgotten Altar", "Ghosts", "Masked Bandits",
+    "Nest", "The Library", "The Mausoleum", "Vampires",
+];
+const ACT_THREE_EVENTS: &[&str] = &[
+    "Falling", "MindBloom", "The Moai Head", "Mysterious Sphere",
+    "SensoryStone", "Tomb of Lord Red Mask", "Winding Halls",
+];
+const ACT_ONE_SHRINES: &[&str] = &[
+    "Match and Keep!", "Golden Shrine", "Transmorgrifier", "Purifier",
+    "Upgrade Shrine", "Wheel of Change",
+];
+const LATER_ACT_SHRINES: &[&str] = &[
+    "Match and Keep!", "Wheel of Change", "Golden Shrine", "Transmorgrifier",
+    "Purifier", "Upgrade Shrine",
+];
+const ONE_TIME_SHRINES: &[&str] = &[
+    "Accursed Blacksmith", "Bonfire Elementals", "Designer", "Duplicator",
+    "FaceTrader", "Fountain of Cleansing", "Knowing Skull", "Lab", "N'loth",
+    "NoteForYourself", "SecretPortal", "The Joust", "WeMeetAgain",
+    "The Woman in Blue",
+];
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct EventPools {
+    regular: Vec<String>,
+    shrines: Vec<String>,
+    one_time_shrines: Vec<String>,
+}
+
+impl EventPools {
+    fn watcher(
+        ascension: i32,
+        highest_unlocked_ascension: i32,
+        is_daily_run: bool,
+    ) -> Self {
+        let note_for_yourself_available = !is_daily_run
+            && (ascension == 0
+                || (ascension < 15 && ascension < highest_unlocked_ascension));
+        Self {
+            regular: ACT_ONE_EVENTS.iter().map(|id| (*id).to_string()).collect(),
+            shrines: ACT_ONE_SHRINES.iter().map(|id| (*id).to_string()).collect(),
+            one_time_shrines: ONE_TIME_SHRINES
+                .iter()
+                .filter(|id| **id != "NoteForYourself" || note_for_yourself_available)
+                .map(|id| (*id).to_string())
+                .collect(),
+        }
+    }
+
+    fn reset_for_act(&mut self, act: i32) {
+        let regular = match act {
+            2 => ACT_TWO_EVENTS,
+            3 => ACT_THREE_EVENTS,
+            _ => ACT_ONE_EVENTS,
+        };
+        let shrines = if act == 1 {
+            ACT_ONE_SHRINES
+        } else {
+            LATER_ACT_SHRINES
+        };
+        self.regular = regular.iter().map(|id| (*id).to_string()).collect();
+        self.shrines = shrines.iter().map(|id| (*id).to_string()).collect();
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+enum RelicTier {
+    Common,
+    Uncommon,
+    Rare,
+    Shop,
+    Boss,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+enum ChestSize {
+    Small,
+    Medium,
+    Large,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+struct GeneratedChest {
+    size: ChestSize,
+    gold_reward: bool,
+    relic_tier: RelicTier,
+}
+
+impl GeneratedChest {
+    fn base_gold(self) -> i32 {
+        match self.size {
+            ChestSize::Small => 25,
+            ChestSize::Medium => 50,
+            ChestSize::Large => 75,
+        }
+    }
+}
+
+// RelicLibrary.populateRelicPool traverses Java 8 HashMaps, not constructor
+// insertion order. These all-unlocked Watcher vectors are the exact resulting
+// pre-shuffle order. Java: RelicLibrary.java::populateRelicPool.
+const WATCHER_COMMON_RELICS: &[&str] = &[
+    "Whetstone", "Boot", "Blood Vial", "MealTicket", "Pen Nib", "Akabeko",
+    "Lantern", "Regal Pillow", "Bag of Preparation", "Ancient Tea Set",
+    "Smiling Mask", "Potion Belt", "PreservedInsect", "Omamori", "MawBank",
+    "Art of War", "Toy Ornithopter", "CeramicFish", "Vajra",
+    "Centennial Puzzle", "Strawberry", "Happy Flower", "Oddly Smooth Stone",
+    "War Paint", "Bronze Scales", "Juzu Bracelet", "Dream Catcher", "Nunchaku",
+    "Tiny Chest", "Orichalcum", "Anchor", "Bag of Marbles", "Damaru",
+];
+
+const WATCHER_UNCOMMON_RELICS: &[&str] = &[
+    "Bottled Tornado", "Sundial", "Kunai", "Pear", "Blue Candle",
+    "Eternal Feather", "StrikeDummy", "Singing Bowl", "Matryoshka", "InkBottle",
+    "The Courier", "Frozen Egg 2", "Ornamental Fan", "Bottled Lightning",
+    "Gremlin Horn", "HornCleat", "Toxic Egg 2", "Letter Opener", "Question Card",
+    "Bottled Flame", "Shuriken", "Molten Egg 2", "Meat on the Bone",
+    "Darkstone Periapt", "Mummified Hand", "Pantograph", "White Beast Statue",
+    "Mercury Hourglass", "Yang", "TeardropLocket",
+];
+
+const WATCHER_RARE_RELICS: &[&str] = &[
+    "Ginger", "Old Coin", "Bird Faced Urn", "Unceasing Top", "Torii",
+    "StoneCalendar", "Shovel", "WingedGreaves", "Thread and Needle", "Turnip",
+    "Ice Cream", "Calipers", "Lizard Tail", "Prayer Wheel", "Girya", "Dead Branch",
+    "Du-Vu Doll", "Pocketwatch", "Mango", "Incense Burner", "Gambling Chip",
+    "Peace Pipe", "CaptainsWheel", "FossilizedHelix", "TungstenRod", "CloakClasp",
+    "GoldenEye",
+];
+
+const WATCHER_SHOP_RELICS: &[&str] = &[
+    "Sling", "HandDrill", "Toolbox", "Chemical X", "Lee's Waffle", "Orrery",
+    "DollysMirror", "OrangePellets", "PrismaticShard", "ClockworkSouvenir",
+    "Frozen Eye", "TheAbacus", "Medical Kit", "Cauldron", "Strange Spoon",
+    "Membership Card", "Melange",
+];
+
+const WATCHER_BOSS_RELICS: &[&str] = &[
+    "Fusion Hammer", "Velvet Choker", "Runic Dome", "SlaversCollar", "Snecko Eye",
+    "Pandora's Box", "Cursed Key", "Busted Crown", "Ectoplasm", "Tiny House", "Sozu",
+    "Philosopher's Stone", "Astrolabe", "Black Star", "SacredBark", "Empty Cage",
+    "Runic Pyramid", "Calling Bell", "Coffee Dripper", "HolyWater", "VioletLotus",
+];
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct RelicPools {
+    common: Vec<String>,
+    uncommon: Vec<String>,
+    rare: Vec<String>,
+    shop: Vec<String>,
+    boss: Vec<String>,
+}
+
+impl RelicPools {
+    fn watcher_all_unlocked(rng: &mut crate::seed::StsRandom) -> Self {
+        fn shuffled(ids: &[&str], rng: &mut crate::seed::StsRandom) -> Vec<String> {
+            let mut pool = ids.iter().map(|id| (*id).to_string()).collect::<Vec<_>>();
+            let seed = rng.random_long_unbounded();
+            crate::seed::java_util_shuffle(&mut pool, seed);
+            pool
+        }
+        Self {
+            common: shuffled(WATCHER_COMMON_RELICS, rng),
+            uncommon: shuffled(WATCHER_UNCOMMON_RELICS, rng),
+            rare: shuffled(WATCHER_RARE_RELICS, rng),
+            shop: shuffled(WATCHER_SHOP_RELICS, rng),
+            boss: shuffled(WATCHER_BOSS_RELICS, rng),
+        }
+    }
+
+    fn pool_mut(&mut self, tier: RelicTier) -> &mut Vec<String> {
+        match tier {
+            RelicTier::Common => &mut self.common,
+            RelicTier::Uncommon => &mut self.uncommon,
+            RelicTier::Rare => &mut self.rare,
+            RelicTier::Shop => &mut self.shop,
+            RelicTier::Boss => &mut self.boss,
+        }
+    }
+}
 
 // AbstractDungeon.addColorlessCards supplies these non-special cards to the
 // merchant's fixed uncommon and rare colorless slots.
@@ -182,16 +418,17 @@ const MATCH_AND_KEEP_CURSES: &[&str] = &[
 // CardLibrary.java::getCurse excludes Ascender's Bane, Necronomicurse,
 // Curse of the Bell, and Pride from random curse generation.
 const RANDOM_OBTAINABLE_CURSES: &[&str] = &[
-    "Clumsy",
-    "Decay",
-    "Doubt",
-    "Injury",
-    "Normality",
-    "Pain",
-    "Parasite",
+    // Java 8 HashMap traversal order from CardLibrary.curses.entrySet().
     "Regret",
+    "Injury",
     "Shame",
+    "Parasite",
+    "Normality",
+    "Doubt",
     "Writhe",
+    "Pain",
+    "Decay",
+    "Clumsy",
 ];
 
 // ---------------------------------------------------------------------------
@@ -422,12 +659,22 @@ pub struct ShopState {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProfileSnapshot {
     pub note_for_yourself_card: String,
+    /// NoteForYourself.java compares the current ascension with this profile
+    /// value when deciding whether the one-time shrine enters the run pool.
+    #[serde(default = "default_highest_unlocked_ascension")]
+    pub highest_unlocked_ascension: i32,
+    #[serde(default)]
+    pub is_daily_run: bool,
 }
+
+fn default_highest_unlocked_ascension() -> i32 { 20 }
 
 impl Default for ProfileSnapshot {
     fn default() -> Self {
         Self {
             note_for_yourself_card: "IronWave".to_string(),
+            highest_unlocked_ascension: default_highest_unlocked_ascension(),
+            is_daily_run: false,
         }
     }
 }
@@ -436,6 +683,8 @@ impl ProfileSnapshot {
     pub fn with_note_for_yourself_card(card_id: impl Into<String>) -> Self {
         Self {
             note_for_yourself_card: card_id.into(),
+            highest_unlocked_ascension: default_highest_unlocked_ascension(),
+            is_daily_run: false,
         }
     }
 
@@ -465,6 +714,10 @@ pub struct RunState {
     pub floor: i32,
     pub act: i32,
     pub ascension: i32,
+    /// Java gates Secret Portal on CardCrawlGame.playtime >= 800 seconds.
+    /// Simulation callers may advance or inject this external clock explicitly.
+    #[serde(default)]
+    pub playtime_seconds: f32,
     pub deck: Vec<String>,
     /// Per-card persistent state aligned with `deck`. The string deck remains
     /// the public/run-action surface; this snapshot carries Java CardSave.misc
@@ -496,6 +749,14 @@ pub struct RunState {
     pub combats_won: i32,
     pub elites_killed: i32,
     pub bosses_killed: i32,
+    /// AbstractDungeon.cardBlizzRandomizer persists across reward screens and
+    /// acts, resets to 5 after a rare, and bottoms out at -40 after commons.
+    #[serde(default = "default_card_blizz_randomizer")]
+    pub card_blizz_randomizer: i32,
+    /// AbstractRoom.blizzardPotionMod persists within an act, moving by ten
+    /// after every potion reward success/failure, and resets on act entry.
+    #[serde(default)]
+    pub potion_blizz_randomizer: i32,
     #[serde(default = "default_purge_cost")]
     pub purge_cost: i32,
 
@@ -527,6 +788,8 @@ pub struct RunState {
 fn default_purge_cost() -> i32 {
     75
 }
+
+fn default_card_blizz_randomizer() -> i32 { 5 }
 
 fn default_event_monster_chance() -> i32 { 10 }
 fn default_event_shop_chance() -> i32 { 3 }
@@ -707,6 +970,7 @@ impl RunState {
             floor: 0,
             act: 1,
             ascension,
+            playtime_seconds: 0.0,
             deck,
             deck_card_states,
             relics,
@@ -723,6 +987,8 @@ impl RunState {
             combats_won: 0,
             elites_killed: 0,
             bosses_killed: 0,
+            card_blizz_randomizer: default_card_blizz_randomizer(),
+            potion_blizz_randomizer: 0,
             purge_cost: default_purge_cost(),
             run_won: false,
             run_over: false,
@@ -849,6 +1115,36 @@ enum EventCardRarity {
     Rare,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CardRewardContext {
+    Standard,
+    Elite,
+    Rest,
+    Shop,
+    Boss,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EncounterQueueKind {
+    Hallway,
+    Elite,
+}
+
+impl CardRewardContext {
+    fn base_chances(self) -> (i32, i32) {
+        match self {
+            Self::Standard | Self::Rest => (3, 37),
+            Self::Elite => (10, 40),
+            Self::Shop => (9, 37),
+            Self::Boss => (100, 0),
+        }
+    }
+
+    fn applies_relic_rarity_modifiers(self) -> bool {
+        !matches!(self, Self::Rest | Self::Shop | Self::Boss)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum EventCardColor {
     Red,
@@ -926,8 +1222,12 @@ pub struct RunEngine {
     profile_updates: Vec<ProfileUpdate>,
     persistent_rngs: crate::seed::PersistentRngs,
     floor_rngs: crate::seed::FloorRngs,
+    ambient_math_rng: crate::seed::AmbientMathRng,
     neow_rng: crate::seed::StsRandom,
     map_rng: crate::seed::StsRandom,
+    card_pools: CardPools,
+    relic_pools: RelicPools,
+    event_pools: EventPools,
 
     // Active combat (when in Combat phase)
     combat_engine: Option<CombatEngine>,
@@ -964,6 +1264,7 @@ pub struct RunEngine {
 
     // Boss for this act
     boss_id: String,
+    boss_sequence: VecDeque<String>,
     pending_act_three_boss_id: Option<String>,
     active_combat_is_boss: bool,
 
@@ -972,6 +1273,7 @@ pub struct RunEngine {
     encounter_queue_act: i32,
     monster_encounter_queue: VecDeque<String>,
     elite_encounter_queue: VecDeque<String>,
+    active_encounter_queue: Option<EncounterQueueKind>,
 
     // Reward tracking
     pub total_reward: f32,
@@ -1002,7 +1304,43 @@ impl RunEngine {
 
     /// Create a new run engine with given seed and ascension level.
     pub fn new(seed: u64, ascension: i32) -> Self {
-        Self::new_with_profile(seed, ascension, ProfileSnapshot::default())
+        Self::new_with_ambient_seed(seed, ascension, 0)
+    }
+
+    /// Create a deterministic simulator run with an explicit state-local
+    /// libGDX `MathUtils.random` seed. Java initializes this ambient stream
+    /// from process time, not from the run seed, so callers that need exact
+    /// oracle replay must inject the captured state/outcome instead.
+    pub fn new_with_ambient_seed(seed: u64, ascension: i32, ambient_seed: u64) -> Self {
+        Self::new_with_profile_and_ambient_seed(
+            seed,
+            ascension,
+            ProfileSnapshot::default(),
+            ambient_seed,
+        )
+    }
+
+    /// Create a run from a captured libGDX `MathUtils.random` state. This is
+    /// the exact oracle-replay path for ambient randomness that Java does not
+    /// derive from the dungeon seed.
+    pub fn new_with_ambient_state(
+        seed: u64,
+        ascension: i32,
+        ambient_state: (u64, u64),
+    ) -> Self {
+        let mut engine = Self::new(seed, ascension);
+        engine.ambient_math_rng =
+            crate::seed::AmbientMathRng::from_state(ambient_state.0, ambient_state.1);
+        engine
+    }
+
+    pub fn ambient_math_rng_state(&self) -> (u64, u64) {
+        self.ambient_math_rng.state_tuple()
+    }
+
+    pub fn restore_ambient_math_rng_state(&mut self, ambient_state: (u64, u64)) {
+        self.ambient_math_rng
+            .restore_state(ambient_state.0, ambient_state.1);
     }
 
     /// Create a run from immutable save/profile inputs.
@@ -1011,16 +1349,28 @@ impl RunEngine {
         ascension: i32,
         profile: ProfileSnapshot,
     ) -> Self {
+        Self::new_with_profile_and_ambient_seed(seed, ascension, profile, 0)
+    }
+
+    pub fn new_with_profile_and_ambient_seed(
+        seed: u64,
+        ascension: i32,
+        profile: ProfileSnapshot,
+        ambient_seed: u64,
+    ) -> Self {
         // Exordium seeds mapRng with Settings.seed + actNum.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/Exordium.java:56
         let (map, map_rng) = generate_map_with_rng(seed.wrapping_add(1), ascension);
         let mut persistent_rngs = crate::seed::PersistentRngs::new(seed);
-        // AbstractDungeon.initializeRelicList shuffles five tier pools through
-        // five relicRng.randomLong calls before Neow is resolved.
+        // AbstractDungeon.initializeRelicList shuffles these five persistent
+        // tier pools before Neow is resolved.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:1227-1231
-        for _ in 0..5 {
-            persistent_rngs.relic.random_long_unbounded();
-        }
+        let relic_pools = RelicPools::watcher_all_unlocked(&mut persistent_rngs.relic);
+        let event_pools = EventPools::watcher(
+            ascension,
+            profile.highest_unlocked_ascension,
+            profile.is_daily_run,
+        );
         let mut floor_rngs = crate::seed::FloorRngs::new(seed);
         // Initial dungeon music selection consumes one miscRng draw. This is
         // reset on the first room transition, but remains visible after Neow.
@@ -1036,8 +1386,12 @@ impl RunEngine {
             profile_updates: Vec::new(),
             persistent_rngs,
             floor_rngs,
+            ambient_math_rng: crate::seed::AmbientMathRng::new(ambient_seed),
             neow_rng: crate::seed::StsRandom::new(seed),
             map_rng,
+            card_pools: CardPools::watcher_all_unlocked(),
+            relic_pools,
+            event_pools,
             combat_engine: None,
             reward_screen: None,
             suspended_reward_screen: None,
@@ -1058,11 +1412,13 @@ impl RunEngine {
             forced_event_rolls: Vec::new(),
             current_shop: None,
             boss_id: String::new(),
+            boss_sequence: VecDeque::new(),
             pending_act_three_boss_id: None,
             active_combat_is_boss: false,
             encounter_queue_act: 0,
             monster_encounter_queue: VecDeque::new(),
             elite_encounter_queue: VecDeque::new(),
+            active_encounter_queue: None,
             total_reward: 0.0,
             last_combat_events: Vec::new(),
             neow_options: Vec::new(),
@@ -1152,6 +1508,8 @@ impl RunEngine {
         self.run_state.event_monster_chance = default_event_monster_chance();
         self.run_state.event_shop_chance = default_event_shop_chance();
         self.run_state.event_treasure_chance = default_event_treasure_chance();
+        self.run_state.potion_blizz_randomizer = 0;
+        self.event_pools.reset_for_act(next_act);
 
         let heal_amount = if self.run_state.ascension >= 5 {
             (((self.run_state.max_hp - self.run_state.current_hp) as f32) * 0.75).round() as i32
@@ -2362,6 +2720,14 @@ impl RunEngine {
             }
         }
 
+
+        // Java keeps the current encounter at the front of its persistent
+        // queue for the room's full lifetime and removes it only while leaving
+        // that room. This also covers EventRoom rolls that became MonsterRoom.
+        // Java: AbstractDungeon.java::nextRoomTransition,
+        // AbstractDungeon.java::getMonsterForRoomCreation.
+        self.consume_active_encounter_queue();
+
         self.run_state.map_x = next_x as i32;
         self.run_state.map_y = next_y as i32;
         self.run_state.floor += 1;
@@ -2487,6 +2853,7 @@ impl RunEngine {
 
     fn roll_boss_sequence_for_act(&mut self, act: i32) {
         if act == 4 {
+            self.boss_sequence = std::iter::repeat_n("CorruptHeart".to_string(), 3).collect();
             self.boss_id = "CorruptHeart".to_string();
             self.pending_act_three_boss_id = None;
             return;
@@ -2501,9 +2868,15 @@ impl RunEngine {
         };
         let shuffle_seed = self.persistent_rngs.monster.random_long_unbounded();
         crate::seed::java_util_shuffle(&mut bosses, shuffle_seed);
-        self.boss_id = bosses[0].to_string();
+        self.boss_sequence = bosses.iter().map(|boss| (*boss).to_string()).collect();
+        self.boss_id = self
+            .boss_sequence
+            .front()
+            .cloned()
+            .expect("standard acts have three bosses");
         self.pending_act_three_boss_id =
-            (act == 3 && self.run_state.ascension >= 20).then(|| bosses[1].to_string());
+            (act == 3 && self.run_state.ascension >= 20)
+                .then(|| self.boss_sequence[1].clone());
     }
 
     fn ensure_encounter_queues_for_act(&mut self, act: i32) {
@@ -2513,9 +2886,25 @@ impl RunEngine {
         }
     }
 
+    fn consume_active_encounter_queue(&mut self) {
+        match self.active_encounter_queue.take() {
+            Some(EncounterQueueKind::Hallway) => {
+                self.monster_encounter_queue.pop_front();
+            }
+            Some(EncounterQueueKind::Elite) => {
+                self.elite_encounter_queue.pop_front();
+            }
+            None => {}
+        }
+    }
+
     fn enter_combat(&mut self, is_elite: bool, is_boss: bool) {
         let act = self.run_state.act;
         let encounter = if is_boss {
+            self.active_encounter_queue = None;
+            if self.boss_sequence.front() == Some(&self.boss_id) {
+                self.boss_sequence.pop_front();
+            }
             vec![self.boss_id.clone()]
         } else if is_elite {
             self.ensure_encounter_queues_for_act(act);
@@ -2534,9 +2923,11 @@ impl RunEngine {
                     );
                 }
             }
+            self.active_encounter_queue = Some(EncounterQueueKind::Elite);
             vec![self
                 .elite_encounter_queue
-                .pop_front()
+                .front()
+                .cloned()
                 .expect("elite encounter queue was refilled")]
         } else {
             self.ensure_encounter_queues_for_act(act);
@@ -2555,9 +2946,11 @@ impl RunEngine {
                     );
                 }
             }
+            self.active_encounter_queue = Some(EncounterQueueKind::Hallway);
             vec![self
                 .monster_encounter_queue
-                .pop_front()
+                .front()
+                .cloned()
                 .expect("monster encounter queue was refilled")]
         };
         self.start_specific_combat(encounter, is_boss);
@@ -4618,6 +5011,12 @@ impl RunEngine {
                 let is_final_heart = self.run_state.act == 4
                     && combat_enemy_ids.len() == 1
                     && combat_enemy_ids[0] == "CorruptHeart";
+                // AbstractRoom.addGoldToRewards constructs the boss gold item
+                // before MonsterRoomBoss suppresses the Act 3/4 reward screen.
+                // Those final-act values are discarded, but miscRng still
+                // advances once for every boss victory.
+                // Java: AbstractRoom.java:286-331.
+                let boss_gold_roll = is_boss.then(|| self.roll_boss_gold_reward());
 
                 if is_boss && self.run_state.act == 3 {
                     if let Some(second_boss) = self.pending_act_three_boss_id.take() {
@@ -4630,6 +5029,9 @@ impl RunEngine {
                         self.run_state.floor += 1;
                         self.reset_floor_rngs();
                         self.boss_id = second_boss.clone();
+                        if self.boss_sequence.front() == Some(&second_boss) {
+                            self.boss_sequence.pop_front();
+                        }
                         self.combat_engine = None;
                         self.start_specific_combat(vec![second_boss], true);
                         self.refresh_decision_stack();
@@ -4658,12 +5060,7 @@ impl RunEngine {
                 // Java: decompiled/java-src/com/megacrit/cardcrawl/rewards/RewardItem.java
                 if !is_final_heart {
                     let base_gold = if is_boss {
-                        let rolled = 100 + self.floor_rngs.misc.random_int_range(-5, 5);
-                        if self.run_state.ascension >= 13 {
-                            ((rolled as f32) * 0.75).round() as i32
-                        } else {
-                            rolled
-                        }
+                        boss_gold_roll.expect("boss gold roll created above")
                     } else if room_type == RoomType::Elite {
                         self.persistent_rngs.treasure.random_int_range(25, 35)
                     } else {
@@ -4733,77 +5130,93 @@ impl RunEngine {
         reward
     }
 
-    fn generate_card_reward_choices(&mut self, count: usize) -> Vec<RewardChoice> {
-        let mut cards = Vec::new();
+    fn generate_card_reward_choices(
+        &mut self,
+        count: usize,
+        context: CardRewardContext,
+    ) -> Vec<RewardChoice> {
+        // AbstractDungeon.getRewardCards first rolls every rarity/card pair,
+        // retrying duplicate IDs, and only afterward performs natural upgrade
+        // rolls and relic preview callbacks over the copied result list.
+        // Java: AbstractDungeon.java:1413-1468.
+        let mut selected = Vec::<(String, EventCardRarity)>::new();
         let prismatic = self
             .run_state
             .relic_flags
             .has(crate::relic_flags::flag::PRISMATIC_SHARD);
-        let rare_chance = if self
-            .run_state
-            .relics
-            .iter()
-            .any(|relic| relic == "Nloth's Gift")
+        let (base_rare, base_uncommon) = context.base_chances();
+        let rare_chance = if context.applies_relic_rarity_modifiers()
+            && self.run_state.relics.iter().any(|relic| relic == "Nloth's Gift")
         {
-            // NlothsGift.java::changeRareCardRewardChance multiplies the
-            // room's rare chance by exactly three; AbstractRoom leaves the
-            // uncommon chance unchanged, so the extra rare share displaces
-            // common cards.
-            // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/NlothsGift.java
-            0.21
+            base_rare * 3
         } else {
-            0.07
+            base_rare
         };
-        let uncommon_chance = 0.33;
-        let common_chance = 1.0 - uncommon_chance - rare_chance;
-        for choice_index in 0..count {
-            let roll = self.persistent_rngs.card.random_f32();
-            let rarity = if roll < common_chance {
-                EventCardRarity::Common
-            } else if roll < common_chance + uncommon_chance {
+
+        for _ in 0..count {
+            let roll = self.persistent_rngs.card.random_int(99)
+                + self.run_state.card_blizz_randomizer;
+            let rarity = if matches!(context, CardRewardContext::Boss) || roll < rare_chance {
+                EventCardRarity::Rare
+            } else if roll < rare_chance + base_uncommon {
                 EventCardRarity::Uncommon
             } else {
-                EventCardRarity::Rare
+                EventCardRarity::Common
             };
-            let card = if prismatic {
-                // AbstractDungeon.getRewardCards calls getAnyColorCard for a
-                // PrismaticShard owner, preserving the rolled rarity while
-                // sampling red, green, blue, and purple source pools.
-                // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
-                let mut candidates = [
-                    EventCardColor::Red,
-                    EventCardColor::Green,
-                    EventCardColor::Blue,
-                    EventCardColor::Purple,
-                ]
-                .iter()
-                .flat_map(|color| matching_event_cards(*color, rarity))
-                .filter(|card_id| {
-                    crate::cards::global_registry().get(card_id.as_str()).is_some()
-                        && !cards.iter().any(|choice| {
-                            matches!(choice, RewardChoice::Card { card_id: chosen, .. } if chosen == card_id)
-                        })
-                })
-                .collect::<Vec<_>>();
-                if candidates.is_empty() {
-                    candidates = matching_event_cards(EventCardColor::Purple, rarity);
+            match rarity {
+                EventCardRarity::Rare => self.run_state.card_blizz_randomizer = 5,
+                EventCardRarity::Common => {
+                    self.run_state.card_blizz_randomizer =
+                        (self.run_state.card_blizz_randomizer - 1).max(-40);
                 }
-                candidates[self.persistent_rngs.card.random_index(candidates.len())].clone()
-            } else {
-                let pool = match rarity {
-                    EventCardRarity::Common => WATCHER_COMMON_CARDS,
-                    EventCardRarity::Uncommon => WATCHER_UNCOMMON_CARDS,
-                    EventCardRarity::Rare => WATCHER_RARE_CARDS,
-                    _ => unreachable!("reward rarity is common, uncommon, or rare"),
+                EventCardRarity::Uncommon => {}
+                _ => unreachable!("reward rarity is common, uncommon, or rare"),
+            }
+
+            let card = loop {
+                let candidate = if prismatic {
+                    // CardLibrary.getAnyColorCard constructs all colored and
+                    // colorless candidates, shuffles through randomLong(), then
+                    // CardGroup.getRandomCard filters and sorts by card ID before
+                    // the inclusive selection draw. The shuffle cannot change
+                    // the sorted result, but its wrapper draw remains causal.
+                    self.persistent_rngs.card.random_long_unbounded();
+                    let candidates = prismatic_reward_candidates(rarity);
+                    let java_id = &candidates
+                        [self.persistent_rngs.card.random_index(candidates.len())];
+                    runtime_card_id_for_java_id(java_id).to_string()
+                } else {
+                    let pool = self.card_pools.working(rarity);
+                    pool[self.persistent_rngs.card.random_index(pool.len())].clone()
                 };
-                pool[self.persistent_rngs.card.random_index(pool.len())].to_string()
+                if selected.iter().all(|(chosen, _)| chosen != &candidate) {
+                    break candidate;
+                }
             };
-            cards.push(RewardChoice::Card {
-                index: choice_index,
-                card_id: self.upgrade_reward_card_if_needed(&card),
-            });
+            selected.push((card, rarity));
         }
-        cards
+
+        let upgrade_chance = match self.run_state.act {
+            1 => 0.0,
+            2 => if self.run_state.ascension >= 12 { 0.125 } else { 0.25 },
+            _ => if self.run_state.ascension >= 12 { 0.25 } else { 0.5 },
+        };
+        let registry = crate::cards::global_registry();
+        selected
+            .into_iter()
+            .enumerate()
+            .map(|(index, (card, rarity))| {
+                let naturally_upgraded = rarity != EventCardRarity::Rare
+                    && self.persistent_rngs.card.random_bool_chance(upgrade_chance)
+                    && registry.can_upgrade_name(&card);
+                let card_id = if naturally_upgraded {
+                    format!("{card}+")
+                } else {
+                    self.upgrade_reward_card_if_needed(&card)
+                };
+                RewardChoice::Card { index, card_id }
+            })
+            .collect()
     }
 
     fn card_reward_choice_count(&self) -> usize {
@@ -4832,7 +5245,10 @@ impl RunEngine {
         // CampfireSleepEffect.java opens AbstractDungeon.getRewardCards after
         // resting with Dream Catcher, so normal reward-count relic callbacks
         // (Question Card and Busted Crown) still apply.
-        let choices = self.generate_card_reward_choices(self.card_reward_choice_count());
+        let choices = self.generate_card_reward_choices(
+            self.card_reward_choice_count(),
+            CardRewardContext::Rest,
+        );
         self.reward_screen = Some(RewardScreen {
             source: RewardScreenSource::Event,
             ordered: true,
@@ -4975,7 +5391,7 @@ impl RunEngine {
             }
         }
 
-        if self.should_offer_potion_reward(room_type) {
+        if self.should_offer_potion_reward(room_type, items.len()) {
             items.push(RewardItem {
                 index: items.len(),
                 kind: RewardItemKind::Potion,
@@ -5013,7 +5429,16 @@ impl RunEngine {
                 active: false,
                 skip_allowed: true,
                 skip_label: Some("Skip".to_string()),
-                choices: self.generate_card_reward_choices(card_choice_count),
+                choices: self.generate_card_reward_choices(
+                    card_choice_count,
+                    if room_type == RoomType::Elite {
+                        CardRewardContext::Elite
+                    } else if room_type == RoomType::Boss {
+                        CardRewardContext::Boss
+                    } else {
+                        CardRewardContext::Standard
+                    },
+                ),
             });
         }
 
@@ -5025,6 +5450,15 @@ impl RunEngine {
         };
         Self::refresh_reward_screen(&mut screen);
         self.reward_screen = Some(screen);
+    }
+
+    fn roll_boss_gold_reward(&mut self) -> i32 {
+        let rolled = 100 + self.floor_rngs.misc.random_int_range(-5, 5);
+        if self.run_state.ascension >= 13 {
+            ((rolled as f32) * 0.75).round() as i32
+        } else {
+            rolled
+        }
     }
 
     fn build_boss_reward_screen(&mut self) {
@@ -5060,26 +5494,17 @@ impl RunEngine {
     }
 
     fn build_treasure_reward_screen(&mut self) {
-        // CursedKey.java::onChestOpen obtains one random curse for non-boss
-        // chests. Boss relic rewards use their separate boss-chest path.
-        if self
-            .run_state
-            .relic_flags
-            .has(crate::relic_flags::flag::CURSED_KEY)
-        {
-            let curse = RANDOM_OBTAINABLE_CURSES
-                [self.persistent_rngs
-                .card
-                .random_index(RANDOM_OBTAINABLE_CURSES.len())]
-                .to_string();
-            obtain_master_deck_card_state(&mut self.run_state, curse);
-        }
-        let gold = self.persistent_rngs.treasure.random_int_range(50, 80);
+        let chest = self.generate_chest();
         let extra_relic = self.run_state.relic_flags.counters
             [crate::relic_flags::counter::MATRYOSHKA_USES]
             > 0;
         if extra_relic {
-            self.run_state.relic_flags.counters[crate::relic_flags::counter::MATRYOSHKA_USES] -= 1;
+            let counter = &mut self.run_state.relic_flags.counters
+                [crate::relic_flags::counter::MATRYOSHKA_USES];
+            *counter -= 1;
+            if *counter == 0 {
+                *counter = -2;
+            }
         }
 
         let mut items = Vec::new();
@@ -5100,22 +5525,48 @@ impl RunEngine {
             });
         }
 
-        items.push(RewardItem {
-            index: items.len(),
-            kind: RewardItemKind::Gold,
-            state: RewardItemState::Available,
-            label: gold.to_string(),
-            claimable: items.is_empty(),
-            active: false,
-            skip_allowed: false,
-            skip_label: None,
-            choices: Vec::new(),
-        });
+        if chest.gold_reward {
+            let base = chest.base_gold() as f32;
+            let gold = self
+                .persistent_rngs
+                .treasure
+                .random_f32_range(base * 0.9, base * 1.1)
+                .round() as i32;
+            items.push(RewardItem {
+                index: items.len(),
+                kind: RewardItemKind::Gold,
+                state: RewardItemState::Available,
+                label: gold.to_string(),
+                claimable: items.is_empty(),
+                active: false,
+                skip_allowed: false,
+                skip_label: None,
+                choices: Vec::new(),
+            });
+        }
+
+        // CursedKey.onChestOpen marks the chest cursed. AbstractChest.open
+        // consumes the random curse after optional gold generation and before
+        // adding the chest relic reward.
+        // Java: CursedKey.java, AbstractChest.java:65-95.
+        if self
+            .run_state
+            .relic_flags
+            .has(crate::relic_flags::flag::CURSED_KEY)
+        {
+            let curse = RANDOM_OBTAINABLE_CURSES
+                [self.persistent_rngs
+                    .card
+                    .random_index(RANDOM_OBTAINABLE_CURSES.len())]
+                .to_string();
+            obtain_master_deck_card_state(&mut self.run_state, curse);
+        }
+
         items.push(RewardItem {
             index: items.len(),
             kind: RewardItemKind::Relic,
             state: RewardItemState::Available,
-            label: self.roll_reward_relic_id(),
+            label: self.draw_relic_from_pool(chest.relic_tier, false, false),
             claimable: false,
             active: false,
             skip_allowed: false,
@@ -5158,6 +5609,53 @@ impl RunEngine {
         };
         Self::refresh_reward_screen(&mut screen);
         self.reward_screen = Some(screen);
+    }
+
+    fn generate_chest(&mut self) -> GeneratedChest {
+        // Re-verified: getRandomChest consumes one inclusive 0..99 roll, then
+        // the selected chest constructor consumes one correlated gold/tier
+        // roll. Gold amount is deferred until open.
+        // Java: AbstractDungeon.java::getRandomChest,
+        // AbstractChest.java::randomizeReward.
+        let size = match self.persistent_rngs.treasure.random_int(99) {
+            0..=49 => ChestSize::Small,
+            50..=82 => ChestSize::Medium,
+            _ => ChestSize::Large,
+        };
+        let reward_roll = self.persistent_rngs.treasure.random_int(99);
+        let (gold_reward, relic_tier) = match size {
+            ChestSize::Small => (
+                reward_roll < 50,
+                if reward_roll < 75 {
+                    RelicTier::Common
+                } else {
+                    RelicTier::Uncommon
+                },
+            ),
+            ChestSize::Medium => (
+                reward_roll < 35,
+                if reward_roll < 35 {
+                    RelicTier::Common
+                } else if reward_roll < 85 {
+                    RelicTier::Uncommon
+                } else {
+                    RelicTier::Rare
+                },
+            ),
+            ChestSize::Large => (
+                reward_roll < 50,
+                if reward_roll < 75 {
+                    RelicTier::Uncommon
+                } else {
+                    RelicTier::Rare
+                },
+            ),
+        };
+        GeneratedChest {
+            size,
+            gold_reward,
+            relic_tier,
+        }
     }
 
     // =======================================================================
@@ -5911,7 +6409,10 @@ impl RunEngine {
                 active: false,
                 skip_allowed: true,
                 skip_label: Some("Skip".to_string()),
-                choices: self.generate_card_reward_choices(choice_count),
+                choices: self.generate_card_reward_choices(
+                    choice_count,
+                    CardRewardContext::Shop,
+                ),
             })
             .collect::<Vec<_>>();
         let mut screen = RewardScreen {
@@ -6563,8 +7064,18 @@ impl RunEngine {
         })
     }
 
-    fn roll_reward_relic_id(&mut self) -> String {
-        self.roll_reward_relic_id_with_shop_exclusions(false)
+    fn roll_relic_tier(&mut self) -> RelicTier {
+        let roll = self.persistent_rngs.relic.random_int(99);
+        if self.run_state.act == 4 {
+            return RelicTier::Uncommon;
+        }
+        if roll < 50 {
+            RelicTier::Common
+        } else if roll < 83 {
+            RelicTier::Uncommon
+        } else {
+            RelicTier::Rare
+        }
     }
 
     fn campfire_relic_count(&self) -> usize {
@@ -6575,516 +7086,269 @@ impl RunEngine {
             .count()
     }
 
-    fn roll_shop_reward_relic_id(&mut self) -> String {
-        self.roll_reward_relic_id_with_shop_exclusions(true)
+    fn roll_shop_relic_tier(&mut self) -> RelicTier {
+        let roll = self.persistent_rngs.merchant.random_int(99);
+        if roll < 48 {
+            RelicTier::Common
+        } else if roll < 82 {
+            RelicTier::Uncommon
+        } else {
+            RelicTier::Rare
+        }
     }
 
-    fn roll_reward_relic_id_with_shop_exclusions(&mut self, in_shop: bool) -> String {
-        const RELIC_REWARD_POOL: &[&str] = &[
-            // RelicLibrary.java registers Ancient Tea Set at COMMON tier;
-            // AncientTeaSet.java::canSpawn excludes floors after 48.
-            "Ancient Tea Set",
-            // RelicLibrary.java registers Art of War, whose constructor in
-            // relics/ArtOfWar.java assigns it to the COMMON tier.
-            "Art of War",
-            // RelicLibrary.java registers Akabeko, whose constructor in
-            // relics/Akabeko.java assigns it to the COMMON tier.
-            "Akabeko",
-            "Vajra",
-            "Anchor",
-            // BagOfMarbles.java uses the canonical ID "Bag of Marbles" and
-            // assigns the relic to the COMMON tier.
-            "Bag of Marbles",
-            // BagOfPreparation.java uses this canonical ID and COMMON tier.
-            "Bag of Preparation",
-            // BirdFacedUrn.java uses this canonical ID and RARE tier.
-            "Bird Faced Urn",
-            // DeadBranch.java uses canonical ID "Dead Branch" and RARE tier.
-            "Dead Branch",
-            // GamblingChip.java uses canonical ID "Gambling Chip" and RARE tier.
-            "Gambling Chip",
-            // BloodVial.java uses this canonical ID and COMMON tier.
-            "Blood Vial",
-            // BlueCandle.java uses this canonical ID and UNCOMMON tier.
-            "Blue Candle",
-            // HornCleat.java uses canonical ID "HornCleat" and UNCOMMON tier.
-            "HornCleat",
-            // GremlinHorn.java uses canonical ID "Gremlin Horn" and UNCOMMON tier.
-            "Gremlin Horn",
-            // Boot.java uses canonical ID "Boot" and COMMON tier.
-            "Boot",
-            // ToyOrnithopter.java uses canonical ID "Toy Ornithopter" and
-            // COMMON tier.
-            "Toy Ornithopter",
-            // BottledFlame.java uses this canonical ID and UNCOMMON tier.
-            "Bottled Flame",
-            // BottledLightning.java uses this canonical ID and UNCOMMON tier.
-            "Bottled Lightning",
-            // BottledTornado.java uses this canonical ID and UNCOMMON tier.
-            "Bottled Tornado",
-            // BronzeScales.java uses this canonical ID and COMMON tier.
-            "Bronze Scales",
-            // Calipers.java uses this canonical ID and RARE tier.
-            "Calipers",
-            // CentennialPuzzle.java uses this canonical ID and COMMON tier.
-            "Centennial Puzzle",
-            // CeramicFish.java uses canonical ID "CeramicFish", COMMON tier,
-            // and canSpawn excludes non-endless runs after floor 48.
-            "CeramicFish",
-            // DarkstonePeriapt.java uses this canonical ID, UNCOMMON tier, and
-            // canSpawn excludes non-endless runs after floor 48.
-            "Darkstone Periapt",
-            // DreamCatcher.java uses this canonical ID, COMMON tier, and
-            // canSpawn excludes non-endless runs after floor 48.
-            "Dream Catcher",
-            // DuVuDoll.java uses this canonical ID and RARE tier.
-            "Du-Vu Doll",
-            // EternalFeather.java uses this canonical ID and UNCOMMON tier.
-            "Eternal Feather",
-            // Ginger.java uses this canonical ID and RARE tier.
-            "Ginger",
-            // FossilizedHelix.java uses canonical ID "FossilizedHelix" and RARE tier.
-            "FossilizedHelix",
-            // IceCream.java uses canonical ID "Ice Cream" and RARE tier.
-            "Ice Cream",
-            // IncenseBurner.java uses canonical ID "Incense Burner" and RARE tier.
-            "Incense Burner",
-            // InkBottle.java uses canonical ID "InkBottle" and UNCOMMON tier.
-            "InkBottle",
-            // Kunai.java uses canonical ID "Kunai" and UNCOMMON tier.
-            "Kunai",
-            // Lantern.java uses canonical ID "Lantern" and COMMON tier.
-            "Lantern",
-            // LetterOpener.java uses canonical ID "Letter Opener" and UNCOMMON tier.
-            "Letter Opener",
-            // LizardTail.java uses canonical ID "Lizard Tail" and RARE tier.
-            "Lizard Tail",
-            // MagicFlower.java uses canonical ID "Magic Flower" and RARE tier.
-            "Magic Flower",
-            // Mango.java uses canonical ID "Mango" and RARE tier.
-            "Mango",
-            // OldCoin.java uses canonical ID "Old Coin", RARE tier, and
-            // canSpawn excludes non-endless runs after floor 48.
-            "Old Coin",
-            // SmilingMask.java uses canonical ID "Smiling Mask", COMMON tier,
-            // and canSpawn excludes non-endless runs after floor 48.
-            "Smiling Mask",
-            // TinyChest.java uses canonical ID "Tiny Chest", COMMON tier, and
-            // canSpawn permits non-endless runs through floor 35.
-            "Tiny Chest",
-            // PeacePipe.java uses canonical ID "Peace Pipe", RARE tier, and
-            // canSpawn requires floor < 48 and fewer than two campfire relics.
-            "Peace Pipe",
-            // Girya.java uses canonical ID "Girya", RARE tier, and the same
-            // floor and campfire-relic-count spawn gates as Peace Pipe.
-            "Girya",
-            // Shovel.java uses canonical ID "Shovel", RARE tier, and the same
-            // floor and campfire-relic-count spawn gates as Peace Pipe.
-            "Shovel",
-            // Pocketwatch.java uses canonical ID "Pocketwatch" and RARE tier.
-            "Pocketwatch",
-            // StoneCalendar.java uses canonical ID "StoneCalendar" and RARE tier.
-            "StoneCalendar",
-            // Tingsha.java uses canonical ID "Tingsha" and RARE tier.
-            "Tingsha",
-            // Torii.java uses canonical ID "Torii" and RARE tier.
-            "Torii",
-            // Turnip.java uses canonical ID "Turnip" and RARE tier.
-            "Turnip",
-            // UnceasingTop.java uses canonical ID "Unceasing Top" and RARE tier.
-            "Unceasing Top",
-            // ToughBandages.java uses canonical ID "Tough Bandages" and RARE tier.
-            "Tough Bandages",
-            // TungstenRod.java uses canonical ID "TungstenRod" and RARE tier.
-            "TungstenRod",
-            // Matryoshka.java uses canonical ID "Matryoshka", UNCOMMON tier,
-            // and canSpawn excludes non-endless runs after floor 40.
-            "Matryoshka",
-            // WingBoots.java declares canonical ID WingedGreaves at RARE tier
-            // and canSpawn excludes non-endless runs after floor 40.
-            "WingedGreaves",
-            // Courier.java declares canonical ID "The Courier", UNCOMMON
-            // tier, and excludes floors after 48 plus the current shop room.
-            "The Courier",
-            // MawBank.java uses canonical ID "MawBank", COMMON tier, and
-            // canSpawn excludes floors after 48 and the current shop room.
-            "MawBank",
-            // MealTicket.java uses canonical ID "MealTicket", COMMON tier,
-            // and canSpawn excludes non-endless runs after floor 48.
-            "MealTicket",
-            // MeatOnTheBone.java uses canonical ID "Meat on the Bone",
-            // UNCOMMON tier, and a floor-48 spawn cutoff.
-            "Meat on the Bone",
-            // HappyFlower.java uses canonical ID "Happy Flower" and COMMON tier.
-            "Happy Flower",
-            // JuzuBracelet.java uses canonical ID "Juzu Bracelet", COMMON tier,
-            // and canSpawn excludes non-endless runs after floor 48.
-            "Juzu Bracelet",
-            // MercuryHourglass.java uses canonical ID "Mercury Hourglass" and
-            // UNCOMMON tier.
-            "Mercury Hourglass",
-            // MummifiedHand.java uses canonical ID "Mummified Hand" and
-            // UNCOMMON tier.
-            "Mummified Hand",
-            // Nunchaku.java uses canonical ID "Nunchaku" and COMMON tier.
-            "Nunchaku",
-            // Omamori.java uses canonical ID "Omamori", COMMON tier, and
-            // canSpawn excludes non-endless runs after floor 48.
-            "Omamori",
-            // OddlySmoothStone.java uses canonical ID "Oddly Smooth Stone"
-            // and COMMON tier.
-            "Oddly Smooth Stone",
-            // Orichalcum.java uses canonical ID "Orichalcum" and COMMON tier.
-            "Orichalcum",
-            // OrnamentalFan.java uses canonical ID "Ornamental Fan" and
-            // UNCOMMON tier.
-            "Ornamental Fan",
-            // Pantograph.java uses canonical ID "Pantograph" and UNCOMMON tier.
-            "Pantograph",
-            // Shuriken.java uses canonical ID "Shuriken" and UNCOMMON tier.
-            "Shuriken",
-            // Sundial.java uses canonical ID "Sundial" and UNCOMMON tier.
-            "Sundial",
-            // Duality.java declares canonical ID "Yang" and UNCOMMON tier.
-            "Yang",
-            // WhiteBeast.java declares canonical ID "White Beast Statue" at
-            // UNCOMMON tier; AbstractRoom forces potion chance to 100.
-            "White Beast Statue",
-            // PenNib.java uses canonical ID "Pen Nib" and COMMON tier.
-            "Pen Nib",
-            // Pear.java uses canonical ID "Pear" and UNCOMMON tier.
-            "Pear",
-            // QuestionCard.java uses canonical ID "Question Card", UNCOMMON
-            // tier, and canSpawn excludes non-endless runs after floor 48.
-            "Question Card",
-            // PrayerWheel.java uses canonical ID "Prayer Wheel", RARE tier,
-            // and canSpawn excludes non-endless runs after floor 48.
-            "Prayer Wheel",
-            // PotionBelt.java uses canonical ID "Potion Belt", COMMON tier,
-            // and canSpawn excludes non-endless runs after floor 48.
-            "Potion Belt",
-            // PreservedInsect.java uses canonical ID "PreservedInsect",
-            // COMMON tier, and canSpawn excludes non-endless runs after 52.
-            "PreservedInsect",
-            // RegalPillow.java uses canonical ID "Regal Pillow", COMMON tier,
-            // and canSpawn excludes non-endless runs after floor 48.
-            "Regal Pillow",
-            // SingingBowl.java uses canonical ID "Singing Bowl", UNCOMMON
-            // tier, and canSpawn excludes non-endless runs after floor 48.
-            "Singing Bowl",
-            // Strawberry.java uses canonical ID "Strawberry" and COMMON tier.
-            "Strawberry",
-            // ThreadAndNeedle.java uses canonical ID "Thread and Needle" and
-            // RARE tier.
-            "Thread and Needle",
-            // Whetstone.java uses canonical ID "Whetstone" and COMMON tier.
-            "Whetstone",
-            // WarPaint.java uses canonical ID "War Paint" and COMMON tier.
-            "War Paint",
-            // FrozenEgg2.java, MoltenEgg2.java, and ToxicEgg2.java use spaced
-            // canonical IDs, UNCOMMON tier, and a floor-48 spawn cutoff.
-            "Frozen Egg 2",
-            "Molten Egg 2",
-            "Toxic Egg 2",
-        ];
-
-        let mut candidates: Vec<&str> = RELIC_REWARD_POOL
-            .iter()
-            .copied()
-            .filter(|relic| *relic != "Ancient Tea Set" || self.run_state.floor <= 48)
-            .filter(|relic| *relic != "CeramicFish" || self.run_state.floor <= 48)
-            .filter(|relic| *relic != "Darkstone Periapt" || self.run_state.floor <= 48)
-            .filter(|relic| *relic != "Dream Catcher" || self.run_state.floor <= 48)
-            .filter(|relic| *relic != "Matryoshka" || self.run_state.floor <= 40)
-            .filter(|relic| *relic != "WingedGreaves" || self.run_state.floor <= 40)
-            .filter(|relic| *relic != "The Courier" || self.run_state.floor <= 48)
-            .filter(|relic| *relic != "MawBank" || self.run_state.floor <= 48)
-            .filter(|relic| *relic != "MealTicket" || self.run_state.floor <= 48)
-            .filter(|relic| *relic != "Meat on the Bone" || self.run_state.floor <= 48)
-            .filter(|relic| *relic != "Old Coin" || self.run_state.floor <= 48)
-            .filter(|relic| *relic != "Omamori" || self.run_state.floor <= 48)
-            .filter(|relic| *relic != "Smiling Mask" || self.run_state.floor <= 48)
-            .filter(|relic| *relic != "Tiny Chest" || self.run_state.floor <= 35)
-            .filter(|relic| {
-                *relic != "Peace Pipe"
-                    || (self.run_state.floor < 48 && self.campfire_relic_count() < 2)
-            })
-            .filter(|relic| {
-                *relic != "Girya"
-                    || (self.run_state.floor < 48 && self.campfire_relic_count() < 2)
-            })
-            .filter(|relic| {
-                *relic != "Shovel"
-                    || (self.run_state.floor < 48 && self.campfire_relic_count() < 2)
-            })
-            .filter(|relic| {
-                !in_shop || !matches!(*relic, "Old Coin" | "Smiling Mask" | "The Courier")
-            })
-            .filter(|relic| *relic != "Juzu Bracelet" || self.run_state.floor <= 48)
-            .filter(|relic| *relic != "Question Card" || self.run_state.floor <= 48)
-            .filter(|relic| *relic != "Prayer Wheel" || self.run_state.floor <= 48)
-            .filter(|relic| *relic != "Potion Belt" || self.run_state.floor <= 48)
-            .filter(|relic| *relic != "PreservedInsect" || self.run_state.floor <= 52)
-            .filter(|relic| *relic != "Regal Pillow" || self.run_state.floor <= 48)
-            .filter(|relic| *relic != "Singing Bowl" || self.run_state.floor <= 48)
-            .filter(|relic| {
-                !matches!(*relic, "Frozen Egg 2" | "Molten Egg 2" | "Toxic Egg 2")
-                    || self.run_state.floor <= 48
-            })
-            .filter(|relic| *relic != "Bottled Flame" || self.can_spawn_bottled_flame())
-            .filter(|relic| {
-                *relic != "Bottled Lightning" || self.can_spawn_bottled_lightning()
-            })
-            .filter(|relic| *relic != "Bottled Tornado" || self.can_spawn_bottled_tornado())
-            .filter(|relic| !self.run_state.relics.iter().any(|owned| owned == relic))
-            .collect();
-        if candidates.is_empty() {
-            candidates.extend(
-                RELIC_REWARD_POOL
-                    .iter()
-                    .copied()
-                    .filter(|relic| *relic != "Ancient Tea Set" || self.run_state.floor <= 48)
-                    .filter(|relic| *relic != "CeramicFish" || self.run_state.floor <= 48)
-                    .filter(|relic| *relic != "Darkstone Periapt" || self.run_state.floor <= 48)
-                    .filter(|relic| *relic != "Dream Catcher" || self.run_state.floor <= 48)
-                    .filter(|relic| *relic != "Matryoshka" || self.run_state.floor <= 40)
-                    .filter(|relic| *relic != "WingedGreaves" || self.run_state.floor <= 40)
-                    .filter(|relic| *relic != "The Courier" || self.run_state.floor <= 48)
-                    .filter(|relic| *relic != "MawBank" || self.run_state.floor <= 48)
-                    .filter(|relic| *relic != "MealTicket" || self.run_state.floor <= 48)
-                    .filter(|relic| *relic != "Meat on the Bone" || self.run_state.floor <= 48)
-                    .filter(|relic| *relic != "Old Coin" || self.run_state.floor <= 48)
-                    .filter(|relic| *relic != "Omamori" || self.run_state.floor <= 48)
-                    .filter(|relic| *relic != "Smiling Mask" || self.run_state.floor <= 48)
-                    .filter(|relic| *relic != "Tiny Chest" || self.run_state.floor <= 35)
-                    .filter(|relic| {
-                        *relic != "Peace Pipe"
-                            || (self.run_state.floor < 48
-                                && self.campfire_relic_count() < 2)
-                    })
-                    .filter(|relic| {
-                        *relic != "Girya"
-                            || (self.run_state.floor < 48
-                                && self.campfire_relic_count() < 2)
-                    })
-                    .filter(|relic| {
-                        *relic != "Shovel"
-                            || (self.run_state.floor < 48
-                                && self.campfire_relic_count() < 2)
-                    })
-                    .filter(|relic| {
-                        !in_shop || !matches!(*relic, "Old Coin" | "Smiling Mask" | "The Courier")
-                    })
-                    .filter(|relic| *relic != "Juzu Bracelet" || self.run_state.floor <= 48)
-                    .filter(|relic| *relic != "Question Card" || self.run_state.floor <= 48)
-                    .filter(|relic| *relic != "Prayer Wheel" || self.run_state.floor <= 48)
-                    .filter(|relic| *relic != "Potion Belt" || self.run_state.floor <= 48)
-                    .filter(|relic| *relic != "PreservedInsect" || self.run_state.floor <= 52)
-                    .filter(|relic| *relic != "Regal Pillow" || self.run_state.floor <= 48)
-                    .filter(|relic| *relic != "Singing Bowl" || self.run_state.floor <= 48)
-                    .filter(|relic| {
-                        !matches!(*relic, "Frozen Egg 2" | "Molten Egg 2" | "Toxic Egg 2")
-                            || self.run_state.floor <= 48
-                    })
-                    .filter(|relic| *relic != "Bottled Flame" || self.can_spawn_bottled_flame())
-                    .filter(|relic| {
-                        *relic != "Bottled Lightning" || self.can_spawn_bottled_lightning()
-                    })
-                    .filter(|relic| {
-                        *relic != "Bottled Tornado" || self.can_spawn_bottled_tornado()
-                    }),
-            );
+    fn relic_can_spawn(&self, relic_id: &str, in_shop: bool) -> bool {
+        let floor = self.run_state.floor;
+        if matches!(
+            relic_id,
+            "Ancient Tea Set"
+                | "CeramicFish"
+                | "Dream Catcher"
+                | "Juzu Bracelet"
+                | "MealTicket"
+                | "Omamori"
+                | "Potion Belt"
+                | "Regal Pillow"
+                | "MawBank"
+                | "Smiling Mask"
+                | "Darkstone Periapt"
+                | "The Courier"
+                | "Frozen Egg 2"
+                | "Meat on the Bone"
+                | "Molten Egg 2"
+                | "Question Card"
+                | "Singing Bowl"
+                | "Toxic Egg 2"
+                | "Prayer Wheel"
+        ) && floor > 48
+        {
+            return false;
         }
+        if relic_id == "PreservedInsect" && floor > 52 {
+            return false;
+        }
+        if relic_id == "Tiny Chest" && floor > 35 {
+            return false;
+        }
+        if matches!(relic_id, "Matryoshka" | "WingedGreaves") && floor > 40 {
+            return false;
+        }
+        if in_shop
+            && matches!(
+                relic_id,
+                "MawBank" | "Smiling Mask" | "The Courier" | "Old Coin"
+            )
+        {
+            return false;
+        }
+        if relic_id == "Old Coin" && floor > 48 {
+            return false;
+        }
+        if matches!(relic_id, "Girya" | "Peace Pipe" | "Shovel")
+            && (floor >= 48 || self.campfire_relic_count() >= 2)
+        {
+            return false;
+        }
+        if relic_id == "Bottled Flame" && !self.can_spawn_bottled_flame() {
+            return false;
+        }
+        if relic_id == "Bottled Lightning" && !self.can_spawn_bottled_lightning() {
+            return false;
+        }
+        if relic_id == "Bottled Tornado" && !self.can_spawn_bottled_tornado() {
+            return false;
+        }
+        if relic_id == "Ectoplasm" && self.run_state.act > 1 {
+            return false;
+        }
+        if relic_id == "HolyWater"
+            && !self.run_state.relics.iter().any(|relic| relic == "PureWater")
+        {
+            return false;
+        }
+        true
+    }
 
-        let idx = self.persistent_rngs.relic.random_index(candidates.len());
-        candidates[idx].to_string()
+    fn pop_relic_candidate(&mut self, tier: RelicTier, from_end: bool) -> String {
+        let candidate = {
+            let pool = self.relic_pools.pool_mut(tier);
+            if pool.is_empty() {
+                None
+            } else if tier == RelicTier::Boss || !from_end {
+                Some(pool.remove(0))
+            } else {
+                pool.pop()
+            }
+        };
+        if let Some(candidate) = candidate {
+            return candidate;
+        }
+        match tier {
+            RelicTier::Common => self.pop_relic_candidate(RelicTier::Uncommon, false),
+            RelicTier::Uncommon => self.pop_relic_candidate(RelicTier::Rare, false),
+            RelicTier::Shop => self.pop_relic_candidate(RelicTier::Uncommon, false),
+            RelicTier::Rare => "Circlet".to_string(),
+            RelicTier::Boss => "Red Circlet".to_string(),
+        }
+    }
+
+    fn draw_relic_from_pool(
+        &mut self,
+        tier: RelicTier,
+        from_end: bool,
+        in_shop: bool,
+    ) -> String {
+        let mut use_end = from_end;
+        loop {
+            let candidate = self.pop_relic_candidate(tier, use_end);
+            if matches!(candidate.as_str(), "Circlet" | "Red Circlet")
+                || self.relic_can_spawn(&candidate, in_shop)
+            {
+                return candidate;
+            }
+            // Both Java entry points retry through returnEndRandomRelicKey
+            // after permanently discarding a failed canSpawn candidate.
+            use_end = true;
+        }
+    }
+
+    fn roll_reward_relic_id(&mut self) -> String {
+        let tier = self.roll_relic_tier();
+        self.draw_relic_from_pool(tier, false, false)
+    }
+
+    fn roll_shop_reward_relic_id(&mut self) -> String {
+        let tier = self.roll_shop_relic_tier();
+        self.draw_relic_from_pool(tier, true, true)
     }
 
     fn roll_matryoshka_relic_id(&mut self) -> String {
-        // Matryoshka.java::onChestOpen consumes the 75% tier roll before the
-        // tier-specific reward is generated. RunEngine currently uses one
-        // shared run RNG, so this preserves semantic tiering and call order.
-        const COMMON: &[&str] = &[
-            "Akabeko", "Anchor", "Ancient Tea Set", "Art of War",
-            "Bag of Marbles", "Bag of Preparation", "Blood Vial", "Boot",
-            "Bronze Scales", "CeramicFish", "Dream Catcher", "Lantern", "Omamori", "Vajra",
-        ];
-        const UNCOMMON: &[&str] = &[
-            "Blue Candle", "Bottled Flame", "Bottled Lightning", "Bottled Tornado",
-            "Darkstone Periapt", "Eternal Feather", "Frozen Egg 2", "InkBottle",
-            "Kunai", "Letter Opener", "Matryoshka", "Molten Egg 2",
-            "Ornamental Fan", "Toxic Egg 2", "White Beast Statue",
-        ];
-
-        let pool = if self.persistent_rngs.relic.random_bool_chance(0.75) { COMMON } else { UNCOMMON };
-        let registry = gameplay_registry();
-        let candidates: Vec<&str> = pool
-            .iter()
-            .copied()
-            .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
-            .filter(|id| *id != "Omamori" || self.run_state.floor <= 48)
-            .filter(|id| !self.run_state.relics.iter().any(|owned| owned == id))
-            .collect();
-        if candidates.is_empty() {
-            return "Circlet".to_string();
-        }
-        candidates[self.persistent_rngs.relic.random_index(candidates.len())].to_string()
+        // Matryoshka consumes one 75% tier roll, then uses the ordinary
+        // front-removal path without screenless/non-campfire exclusions.
+        // Java: Matryoshka.java::onChestOpen.
+        let tier = if self.persistent_rngs.relic.random_bool_chance(0.75) {
+            RelicTier::Common
+        } else {
+            RelicTier::Uncommon
+        };
+        self.draw_relic_from_pool(tier, false, false)
     }
 
     fn roll_reward_potion_id(&mut self) -> String {
-        const POTION_REWARD_POOL: &[&str] = &[
-            "Block Potion",
-            "Dexterity Potion",
-            "Energy Potion",
-            "Fire Potion",
-            "Fear Potion",
-            "Strength Potion",
-            "Swift Potion",
-            "Weak Potion",
-            "Ambrosia",
-            "BottledMiracle",
-            "StancePotion",
-            "Ancient Potion",
-            "BlessingOfTheForge",
-            "ColorlessPotion",
-            "CultistPotion",
-            "DistilledChaos",
-            "DuplicationPotion",
-            "EntropicBrew",
-            "EssenceOfSteel",
-            "Explosive Potion",
-            "FairyPotion",
-            "FruitJuice",
-            "GamblersBrew",
-            "LiquidBronze",
-            "LiquidMemories",
-            "Regen Potion",
-            "SmokeBomb",
-            "SneckoOil",
-            "SpeedPotion",
-            "SteroidPotion",
-            "PowerPotion",
-            "SkillPotion",
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        enum PotionRarity {
+            Common,
+            Uncommon,
+            Rare,
+        }
+
+        // PotionHelper.getPotions(WATCHER, false) is the exact candidate
+        // order. Selection samples this full list repeatedly until the result
+        // matches the independently rolled rarity; duplicates are allowed.
+        // Java: PotionHelper.java::getPotions,
+        // AbstractDungeon.java::returnRandomPotion.
+        const POTION_REWARD_POOL: &[(&str, PotionRarity)] = &[
+            ("BottledMiracle", PotionRarity::Common),
+            ("StancePotion", PotionRarity::Uncommon),
+            ("Ambrosia", PotionRarity::Rare),
+            ("Block Potion", PotionRarity::Common),
+            ("Dexterity Potion", PotionRarity::Common),
+            ("Energy Potion", PotionRarity::Common),
+            ("Explosive Potion", PotionRarity::Common),
+            ("Fire Potion", PotionRarity::Common),
+            ("Strength Potion", PotionRarity::Common),
+            ("Swift Potion", PotionRarity::Common),
+            ("Weak Potion", PotionRarity::Common),
+            ("FearPotion", PotionRarity::Common),
+            ("AttackPotion", PotionRarity::Common),
+            ("SkillPotion", PotionRarity::Common),
+            ("PowerPotion", PotionRarity::Common),
+            ("ColorlessPotion", PotionRarity::Common),
+            ("SteroidPotion", PotionRarity::Common),
+            ("SpeedPotion", PotionRarity::Common),
+            ("BlessingOfTheForge", PotionRarity::Common),
+            ("Regen Potion", PotionRarity::Uncommon),
+            ("Ancient Potion", PotionRarity::Uncommon),
+            ("LiquidBronze", PotionRarity::Uncommon),
+            ("GamblersBrew", PotionRarity::Uncommon),
+            ("EssenceOfSteel", PotionRarity::Uncommon),
+            ("DuplicationPotion", PotionRarity::Uncommon),
+            ("DistilledChaos", PotionRarity::Uncommon),
+            ("LiquidMemories", PotionRarity::Uncommon),
+            ("CultistPotion", PotionRarity::Rare),
+            ("Fruit Juice", PotionRarity::Rare),
+            ("SneckoOil", PotionRarity::Rare),
+            ("FairyPotion", PotionRarity::Rare),
+            ("SmokeBomb", PotionRarity::Rare),
+            ("EntropicBrew", PotionRarity::Rare),
         ];
 
-        let registry = gameplay_registry();
-        let candidates: Vec<&str> = POTION_REWARD_POOL
-            .iter()
-            .copied()
-            .filter(|id| {
-                registry.get(GameplayDomain::Potion, id).is_some()
-                    || crate::potions::defs::potion_def_by_runtime_id(id).is_some()
-            })
-            .collect();
-        if candidates.is_empty() {
-            return "Block Potion".to_string();
+        let rarity_roll = self.persistent_rngs.potion.random_int(99);
+        let rarity = if rarity_roll < 65 {
+            PotionRarity::Common
+        } else if rarity_roll < 90 {
+            PotionRarity::Uncommon
+        } else {
+            PotionRarity::Rare
+        };
+        loop {
+            let index = self
+                .persistent_rngs
+                .potion
+                .random_index(POTION_REWARD_POOL.len());
+            let (id, candidate_rarity) = POTION_REWARD_POOL[index];
+            if candidate_rarity == rarity {
+                return id.to_string();
+            }
         }
-        let idx = self.persistent_rngs.potion.random_index(candidates.len());
-        candidates[idx].to_string()
     }
 
     fn roll_boss_relic_choices(&mut self, count: usize) -> Vec<String> {
-        const BOSS_RELIC_POOL: &[&str] = &[
-            "Busted Crown",
-            "Calling Bell",
-            "Coffee Dripper",
-            "Cursed Key",
-            "Ectoplasm",
-            "Fusion Hammer",
-            "Philosopher's Stone",
-            // RunicDome.java constructs canonical ID "Runic Dome" at BOSS
-            // tier and increments energyMaster on equip.
-            "Runic Dome",
-            // RunicPyramid.java constructs canonical ID "Runic Pyramid" at
-            // BOSS tier; DiscardAtEndOfTurnAction.java supplies its behavior.
-            "Runic Pyramid",
-            // SacredBark.java constructs canonical ID "SacredBark" at BOSS
-            // tier and reinitializes all currently owned potion data on equip.
-            "SacredBark",
-            "Velvet Choker",
-            "Snecko Eye",
-            // Sozu.java constructs canonical ID "Sozu" at BOSS tier and
-            // increments energyMaster on equip.
-            "Sozu",
-            // TinyHouse.java constructs canonical ID "Tiny House" at BOSS
-            // tier and opens its own follow-up reward screen on equip.
-            "Tiny House",
-            // EmptyCage.java constructs canonical ID "Empty Cage" at BOSS
-            // tier and opens an exact two-card purge selection when needed.
-            "Empty Cage",
-            "HolyWater",
-            "VioletLotus",
-            "Astrolabe",
-            "Black Star",
-            // PandorasBox.java constructs canonical ID "Pandora's Box" at
-            // BOSS tier and replaces starter-tagged Strikes and Defends.
-            "Pandora's Box",
-            // SlaversCollar.java constructs canonical ID SlaversCollar at
-            // BOSS tier and changes energyMaster only in elite/boss combats.
-            "SlaversCollar",
-        ];
-
-        let registry = gameplay_registry();
-        // HolyWater.java canSpawn() requires PureWater. Java's boss-relic
-        // selection therefore cannot offer the Watcher upgrade after its
-        // starter relic has already been replaced.
-        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/HolyWater.java
-        let has_pure_water = self
-            .run_state
-            .relics
-            .iter()
-            .any(|owned| owned == "PureWater");
-        let act = self.run_state.act;
-        let can_spawn = |id: &&str| {
-            (*id != "HolyWater" || has_pure_water)
-                && (*id != "Ectoplasm" || act <= 1)
-        };
-        let mut candidates: Vec<&str> = BOSS_RELIC_POOL
-            .iter()
-            .copied()
-            .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
-            .filter(|id| !self.run_state.relics.iter().any(|owned| owned == id))
-            .filter(can_spawn)
-            .collect();
-        if candidates.len() < count {
-            candidates = BOSS_RELIC_POOL
-                .iter()
-                .copied()
-                .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
-                .filter(can_spawn)
-                .collect();
-        }
-        if candidates.is_empty() {
-            return Vec::new();
-        }
-
-        let mut picks = Vec::new();
-        while !candidates.is_empty() && picks.len() < count {
-            let idx = self.persistent_rngs.relic.random_index(candidates.len());
-            picks.push(candidates.swap_remove(idx).to_string());
-        }
-        picks
+        // BossChest removes three consecutive entries from the persistent boss
+        // pool. It consumes no relic RNG after the startup shuffle.
+        // Java: BossChest.java::<init>, AbstractDungeon.returnRandomRelicKey.
+        (0..count)
+            .map(|_| self.draw_relic_from_pool(RelicTier::Boss, false, false))
+            .collect()
     }
 
-    fn should_offer_potion_reward(&mut self, room_type: RoomType) -> bool {
-        if room_type == RoomType::Boss {
-            return false;
-        }
+    fn should_offer_potion_reward(
+        &mut self,
+        room_type: RoomType,
+        pre_potion_reward_count: usize,
+    ) -> bool {
         // AbstractRoom.addPotionToRewards rolls independently of Sozu and
         // available inventory slots. RewardItem handles both at claim time.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/rooms/AbstractRoom.java
-        let chance = if self
+        let mut chance = 40 + self.run_state.potion_blizz_randomizer;
+        if self
             .run_state
             .relic_flags
             .has(crate::relic_flags::flag::WHITE_BEAST)
-            || room_type == RoomType::Elite {
-            100
-        } else {
-            40
-        };
+        {
+            chance = 100;
+        }
+        // Black Star plus the Emerald Key can fill four pre-potion reward
+        // slots. Java forces chance zero but still consumes the chance draw.
+        if pre_potion_reward_count >= 4 {
+            chance = 0;
+        }
+        // Standard MonsterRoom, MonsterRoomElite, Act 1/2 MonsterRoomBoss, and
+        // EventRoom all use the same base chance. The room parameter remains
+        // explicit because Act 3/4 boss flow skips reward construction.
+        debug_assert!(matches!(
+            room_type,
+            RoomType::Monster | RoomType::Elite | RoomType::Boss | RoomType::Event
+        ));
         // Java always consumes this roll, including the 0% and 100% cases.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/rooms/AbstractRoom.java:592-619
-        self.persistent_rngs.potion.random_int(99) < chance
+        let offered = self.persistent_rngs.potion.random_int(99) < chance;
+        if offered {
+            self.run_state.potion_blizz_randomizer -= 10;
+        } else {
+            self.run_state.potion_blizz_randomizer += 10;
+        }
+        offered
     }
 
     fn can_enter_final_act(&self) -> bool {
@@ -7271,54 +7535,109 @@ impl RunEngine {
         price
     }
 
+    fn roll_shop_card_rarity(&mut self) -> EventCardRarity {
+        // ShopRoom disables reward alternation but still uses the persistent
+        // Blizzard offset: 9% rare, then 37% uncommon. Shop generation does
+        // not mutate the offset.
+        // Java: AbstractDungeon.java::rollRarity,
+        // ShopRoom.java::{constructor,getCardRarity}.
+        let roll = self.persistent_rngs.card.random_int(99)
+            + self.run_state.card_blizz_randomizer;
+        if roll < 9 {
+            EventCardRarity::Rare
+        } else if roll < 46 {
+            EventCardRarity::Uncommon
+        } else {
+            EventCardRarity::Common
+        }
+    }
+
+    fn shop_rarity_fallbacks(
+        rarity: EventCardRarity,
+        card_type: crate::cards::CardType,
+    ) -> &'static [EventCardRarity] {
+        use crate::cards::CardType;
+        use EventCardRarity::{Common, Rare, Uncommon};
+        match (rarity, card_type) {
+            (Rare, _) => &[Rare, Uncommon, Common],
+            (Uncommon, CardType::Power) => &[Uncommon, Rare],
+            (Uncommon, _) => &[Uncommon, Common],
+            (Common, CardType::Power) => &[Common, Uncommon, Rare],
+            (Common, _) => &[Common],
+            _ => &[],
+        }
+    }
+
+    fn roll_shop_colored_card_with_source(
+        &mut self,
+        card_type: crate::cards::CardType,
+        use_card_rng: bool,
+    ) -> (String, EventCardRarity) {
+        let rolled_rarity = self.roll_shop_card_rarity();
+        let registry = crate::cards::global_registry();
+        for &rarity in Self::shop_rarity_fallbacks(rolled_rarity, card_type) {
+            let mut candidates = self
+                .card_pools
+                .working(rarity)
+                .iter()
+                .filter(|id| {
+                    registry
+                        .get(id)
+                        .is_some_and(|card| card.card_type == card_type)
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            if candidates.is_empty() {
+                continue;
+            }
+            // CardGroup.getRandomCard(type, ...) sorts by cardID for both the
+            // counted cardRng path and the ambient MathUtils path.
+            candidates.sort();
+            let index = if use_card_rng {
+                self.persistent_rngs.card.random_index(candidates.len())
+            } else {
+                self.ambient_math_rng
+                    .random_int(candidates.len() as i32 - 1) as usize
+            };
+            return (candidates[index].clone(), rarity);
+        }
+        ("Scrawl".to_string(), EventCardRarity::Rare)
+    }
+
     fn roll_shop_colored_card(
         &mut self,
         card_type: crate::cards::CardType,
-        exclude: Option<&str>,
-    ) -> (String, i32) {
-        // ShopRoom disables reward alternation: 3% rare, 37% uncommon, 60%
-        // common. getCardFromPool falls through when a rarity has no card of
-        // the requested type (notably Watcher common powers).
-        // Java: decompiled/java-src/com/megacrit/cardcrawl/rooms/ShopRoom.java
-        let roll = self.persistent_rngs.card.random_int(99);
-        let ordered: [(&[&str], i32); 3] = if roll < 3 {
-            [(WATCHER_RARE_CARDS, 150), (WATCHER_UNCOMMON_CARDS, 75), (WATCHER_COMMON_CARDS, 50)]
-        } else if roll < 40 {
-            [(WATCHER_UNCOMMON_CARDS, 75), (WATCHER_RARE_CARDS, 150), (WATCHER_COMMON_CARDS, 50)]
-        } else {
-            [(WATCHER_COMMON_CARDS, 50), (WATCHER_UNCOMMON_CARDS, 75), (WATCHER_RARE_CARDS, 150)]
-        };
-        let registry = crate::cards::global_registry();
-        for (pool, base_price) in ordered {
-            let candidates: Vec<&str> = pool.iter().copied()
-                .filter(|id| exclude != Some(*id))
-                .filter(|id| registry.get(id).is_some_and(|card| card.card_type == card_type))
-                .collect();
-            if !candidates.is_empty() {
-                let card = candidates[self.persistent_rngs.card.random_index(candidates.len())];
-                let price = ((base_price as f32)
-                    * self.persistent_rngs.merchant.random_f32_range(0.9, 1.1))
-                    as i32;
-                return (card.to_string(), price);
-            }
-        }
-        ("Scrawl".to_string(),
-            (150.0 * self.persistent_rngs.merchant.random_f32_range(0.9, 1.1)) as i32,
-        )
+    ) -> (String, EventCardRarity) {
+        self.roll_shop_colored_card_with_source(card_type, true)
     }
 
-    fn roll_shop_colorless_card(&mut self, rare: bool) -> (String, i32) {
-        let (pool, base_price) = if rare {
-            (SHOP_COLORLESS_RARE_CARDS, 150)
+    fn roll_shop_colorless_card(&mut self, rare: bool) -> (String, EventCardRarity) {
+        let (pool, rarity) = if rare {
+            (SHOP_COLORLESS_RARE_CARDS, EventCardRarity::Rare)
         } else {
-            (SHOP_COLORLESS_UNCOMMON_CARDS, 75)
+            (SHOP_COLORLESS_UNCOMMON_CARDS, EventCardRarity::Uncommon)
         };
-        let card = pool[self.persistent_rngs.card.random_index(pool.len())];
-        // ShopScreen.initCards multiplies colorless prices by 1.2 before the
-        // float-to-int truncation.
-        let price = ((base_price as f32) * self.persistent_rngs.merchant.random_f32_range(0.9, 1.1)
-            * 1.2) as i32;
-        (card.to_string(), price)
+        let mut candidates = pool.to_vec();
+        candidates.sort();
+        let card = candidates[self.persistent_rngs.card.random_index(candidates.len())];
+        (card.to_string(), rarity)
+    }
+
+    fn roll_shop_card_price(&mut self, rarity: EventCardRarity, colorless: bool) -> i32 {
+        self.roll_shop_card_price_raw(rarity, colorless) as i32
+    }
+
+    fn roll_shop_card_price_raw(&mut self, rarity: EventCardRarity, colorless: bool) -> f32 {
+        let base_price = match rarity {
+            EventCardRarity::Common => 50,
+            EventCardRarity::Uncommon => 75,
+            EventCardRarity::Rare => 150,
+            _ => unreachable!("shop cards use standard rarities"),
+        };
+        let colorless_multiplier = if colorless { 1.2 } else { 1.0 };
+        (base_price as f32)
+            * self.persistent_rngs.merchant.random_f32_range(0.9, 1.1)
+            * colorless_multiplier
     }
 
     fn is_shop_colorless_card(card_id: &str) -> bool {
@@ -7328,16 +7647,19 @@ impl RunEngine {
     }
 
     fn roll_courier_replacement_card(&mut self, purchased: &str) -> (String, i32) {
-        let (card, raw_price) = if Self::is_shop_colorless_card(purchased) {
+        let (card, rarity, colorless) = if Self::is_shop_colorless_card(purchased) {
             let rare = self.persistent_rngs.merchant.random_f32() < 0.3;
-            self.roll_shop_colorless_card(rare)
+            let (card, rarity) = self.roll_shop_colorless_card(rare);
+            (card, rarity, true)
         } else {
             let base_id = purchased.strip_suffix('+').unwrap_or(purchased);
             let card_type = crate::cards::global_registry().get(base_id)
                 .map(|card| card.card_type)
                 .unwrap_or(crate::cards::CardType::Skill);
-            self.roll_shop_colored_card(card_type, None)
+            let (card, rarity) = self.roll_shop_colored_card_with_source(card_type, false);
+            (card, rarity, false)
         };
+        let raw_price = self.roll_shop_card_price_raw(rarity, colorless);
         // ShopScreen.setPrice applies all card multipliers in float and then
         // truncates once, unlike relic/potion refill rounding.
         let mut multiplier = 1.0;
@@ -7347,7 +7669,7 @@ impl RunEngine {
         if self.run_state.relic_flags.has(crate::relic_flags::flag::MEMBERSHIP_CARD) {
             multiplier *= 0.5;
         }
-        (self.upgrade_reward_card_if_needed(&card), ((raw_price as f32) * multiplier) as i32)
+        (self.upgrade_reward_card_if_needed(&card), (raw_price * multiplier) as i32)
     }
 
     fn potion_base_shop_price(potion_id: &str) -> i32 {
@@ -7379,7 +7701,8 @@ impl RunEngine {
             | "Frozen Egg 2" | "InkBottle" | "Kunai" | "Letter Opener" | "Matryoshka"
             | "Meat on the Bone" | "Mercury Hourglass" | "Molten Egg 2" | "Mummified Hand"
             | "Ornamental Fan" | "Pantograph" | "Pear" | "Question Card" | "Shuriken"
-            | "Singing Bowl" | "Sundial" | "Toxic Egg 2" | "White Beast Statue") {
+            | "Singing Bowl" | "Sundial" | "Toxic Egg 2" | "White Beast Statue"
+            | "StrikeDummy" | "TeardropLocket") {
             250
         } else if matches!(relic_id,
             "Bird Faced Urn" | "Calipers" | "Du-Vu Doll" | "FossilizedHelix" | "Ginger"
@@ -7387,7 +7710,7 @@ impl RunEngine {
             | "Mango" | "Old Coin" | "Peace Pipe" | "Pocketwatch" | "Prayer Wheel"
             | "Shovel" | "StoneCalendar" | "Thread and Needle" | "Tingsha" | "Torii"
             | "Tough Bandages" | "TungstenRod" | "Turnip" | "Unceasing Top"
-            | "WingedGreaves") {
+            | "WingedGreaves" | "CaptainsWheel" | "CloakClasp" | "GoldenEye") {
             300
         } else {
             150
@@ -7414,17 +7737,41 @@ impl RunEngine {
         // uncommon and one rare colorless card. ShopScreen chooses one of the
         // five colored cards for the half-price sale before global discounts.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/shop/Merchant.java
-        let mut cards = Vec::new();
-        let first_attack = self.roll_shop_colored_card(crate::cards::CardType::Attack, None);
-        let second_attack = self.roll_shop_colored_card(crate::cards::CardType::Attack, Some(first_attack.0.as_str()));
-        let first_skill = self.roll_shop_colored_card(crate::cards::CardType::Skill, None);
-        let second_skill = self.roll_shop_colored_card(crate::cards::CardType::Skill, Some(first_skill.0.as_str()));
-        cards.extend([first_attack, second_attack, first_skill, second_skill]);
-        cards.push(self.roll_shop_colored_card(crate::cards::CardType::Power, None));
+        let mut generated_cards = Vec::new();
+        let first_attack = self.roll_shop_colored_card(crate::cards::CardType::Attack);
+        let second_attack = loop {
+            let candidate = self.roll_shop_colored_card(crate::cards::CardType::Attack);
+            if candidate.0 != first_attack.0 {
+                break candidate;
+            }
+        };
+        let first_skill = self.roll_shop_colored_card(crate::cards::CardType::Skill);
+        let second_skill = loop {
+            let candidate = self.roll_shop_colored_card(crate::cards::CardType::Skill);
+            if candidate.0 != first_skill.0 {
+                break candidate;
+            }
+        };
+        generated_cards.extend([first_attack, second_attack, first_skill, second_skill]);
+        generated_cards.push(self.roll_shop_colored_card(crate::cards::CardType::Power));
+        generated_cards.push(self.roll_shop_colorless_card(false));
+        generated_cards.push(self.roll_shop_colorless_card(true));
+
+        // Merchant generates every card before ShopScreen prices the five
+        // colored cards, then the two colorless cards, then rolls the sale.
+        // Rejected duplicate generation attempts therefore consume no
+        // merchantRng draws.
+        // Java: Merchant.java::<init>, ShopScreen.java::initCards.
+        let mut cards = generated_cards
+            .into_iter()
+            .enumerate()
+            .map(|(index, (card, rarity))| {
+                let price = self.roll_shop_card_price(rarity, index >= 5);
+                (card, price)
+            })
+            .collect::<Vec<_>>();
         let sale_idx = self.persistent_rngs.merchant.random_int(4) as usize;
         cards[sale_idx].1 /= 2;
-        cards.push(self.roll_shop_colorless_card(false));
-        cards.push(self.roll_shop_colorless_card(true));
         for (card, price) in &mut cards {
             *card = self.upgrade_reward_card_if_needed(card);
             *price = self.apply_shop_entry_discounts(*price);
@@ -7432,9 +7779,9 @@ impl RunEngine {
 
         let remove_price = self.compute_shop_remove_price();
 
-        // ShopScreen.java::initRelics creates two ordinary tier rolls followed
-        // by one guaranteed SHOP-tier relic. The run RNG is still shared, but
-        // the visible slot semantics and purchase path match Java.
+        // ShopScreen.java::initRelics creates two merchantRng tier rolls
+        // followed by one guaranteed SHOP-tier relic. All identities are
+        // removed from the ends of the persistent relic pools.
         let mut relics = Vec::new();
         for _ in 0..2 {
             let relic = self.roll_shop_reward_relic_id();
@@ -7442,30 +7789,14 @@ impl RunEngine {
             let final_price = self.apply_shop_entry_discounts(price);
             relics.push((relic, final_price));
         }
-        const SHOP_RELICS: &[&str] = &[
-            "TheAbacus", "Cauldron", "Chemical X", "ClockworkSouvenir", "DollysMirror", "Frozen Eye", "HandDrill", "Lee's Waffle", "Medical Kit", "Melange", "Orrery",
-            "Membership Card",
-            "OrangePellets", "Sling", "Strange Spoon",
-            "PrismaticShard", "Toolbox",
-        ];
-        let registry = gameplay_registry();
-        let candidates: Vec<&str> = SHOP_RELICS
-            .iter()
-            .copied()
-            .filter(|id| registry.get(GameplayDomain::Relic, id).is_some())
-            .filter(|id| !self.run_state.relics.iter().any(|owned| owned == id))
-            .collect();
-        let shop_relic = if candidates.is_empty() {
-            "Circlet"
-        } else {
-            candidates[self.persistent_rngs.relic.random_index(candidates.len())]
-        };
+        let shop_relic =
+            self.draw_relic_from_pool(RelicTier::Shop, true, true);
         // AbstractRelic.java::getPrice returns 150 for SHOP tier; StoreRelic
         // applies merchantRng.random(0.95f, 1.05f).
         let shop_price =
             (150.0 * self.persistent_rngs.merchant.random_f32_range(0.95, 1.05)).round() as i32;
         let shop_price = self.apply_shop_entry_discounts(shop_price);
-        relics.push((shop_relic.to_string(), shop_price));
+        relics.push((shop_relic, shop_price));
 
         let potions = (0..3).map(|_| {
             let (potion, price) = self.roll_shop_potion();
@@ -8036,16 +8367,138 @@ impl RunEngine {
         }
     }
 
+    fn deck_contains_curse(&self) -> bool {
+        let registry = crate::cards::global_registry();
+        self.run_state.deck.iter().any(|card_id| {
+            let base_id = card_id.trim_end_matches('+');
+            !matches!(base_id, "Necronomicurse" | "CurseOfTheBell" | "AscendersBane")
+                && registry
+                .get(card_id)
+                .is_some_and(|def| def.card_type == crate::cards::CardType::Curse)
+        })
+    }
+
+    fn regular_event_is_eligible(&self, event_name: &str) -> bool {
+        match event_name {
+            "Dead Adventurer" | "Mushrooms" => self.run_state.floor > 6,
+            "The Moai Head" => {
+                self.run_state.relics.iter().any(|id| id == "Golden Idol")
+                    || (self.run_state.current_hp as f32 / self.run_state.max_hp as f32) <= 0.5
+            }
+            "The Cleric" => self.run_state.gold >= 35,
+            "Beggar" => self.run_state.gold >= 75,
+            "Colosseum" => self.run_state.map_y > (self.map.rows.len() / 2) as i32,
+            _ => true,
+        }
+    }
+
+    fn one_time_shrine_is_eligible(&self, event_name: &str) -> bool {
+        match event_name {
+            "Fountain of Cleansing" => self.deck_contains_curse(),
+            "Designer" => matches!(self.run_state.act, 2 | 3) && self.run_state.gold >= 75,
+            "Duplicator" => matches!(self.run_state.act, 2 | 3),
+            "FaceTrader" => matches!(self.run_state.act, 1 | 2),
+            "Knowing Skull" => self.run_state.act == 2 && self.run_state.current_hp > 12,
+            // The duplicated city comparison in N'loth.java/getShrine still
+            // reduces to Act 2 plus at least two owned relics.
+            "N'loth" => self.run_state.act == 2 && self.run_state.relics.len() >= 2,
+            "The Joust" => self.run_state.act == 2 && self.run_state.gold >= 50,
+            "The Woman in Blue" => self.run_state.gold >= 50,
+            "SecretPortal" => {
+                self.run_state.act == 3 && self.run_state.playtime_seconds >= 800.0
+            }
+            _ => true,
+        }
+    }
+
+    fn take_regular_event(&mut self, rng: &mut crate::seed::StsRandom) -> Option<String> {
+        let eligible: Vec<String> = self
+            .event_pools
+            .regular
+            .iter()
+            .filter(|event_name| self.regular_event_is_eligible(event_name))
+            .cloned()
+            .collect();
+        if eligible.is_empty() {
+            return None;
+        }
+        let selected = eligible[rng.random_index(eligible.len())].clone();
+        if let Some(index) = self
+            .event_pools
+            .regular
+            .iter()
+            .position(|event_name| event_name == &selected)
+        {
+            self.event_pools.regular.remove(index);
+        }
+        Some(selected)
+    }
+
+    fn take_shrine_event(&mut self, rng: &mut crate::seed::StsRandom) -> Option<String> {
+        let mut eligible = self.event_pools.shrines.clone();
+        eligible.extend(
+            self.event_pools
+                .one_time_shrines
+                .iter()
+                .filter(|event_name| self.one_time_shrine_is_eligible(event_name))
+                .cloned(),
+        );
+        if eligible.is_empty() {
+            return None;
+        }
+        let selected = eligible[rng.random_index(eligible.len())].clone();
+        self.event_pools
+            .shrines
+            .retain(|event_name| event_name != &selected);
+        self.event_pools
+            .one_time_shrines
+            .retain(|event_name| event_name != &selected);
+        Some(selected)
+    }
+
+    fn take_event_key(&mut self, rng: &mut crate::seed::StsRandom) -> Option<String> {
+        // Re-verified: generateEvent always consumes random(1.0f) before it
+        // checks pool availability; getEvent/getShrine then consume exactly one
+        // inclusive index draw. The EventRoom duplicate is discarded afterward.
+        let choose_shrine = rng.random_f32_range(0.0, 1.0) < 0.25;
+        if choose_shrine {
+            if !self.event_pools.shrines.is_empty()
+                || !self.event_pools.one_time_shrines.is_empty()
+            {
+                return self.take_shrine_event(rng);
+            }
+            return self.take_regular_event(rng);
+        }
+        self.take_regular_event(rng)
+            .or_else(|| self.take_shrine_event(rng))
+    }
+
+    fn typed_event_for_pool_key(event_name: &str) -> Option<TypedEventDef> {
+        let display_name = match event_name {
+            "Ghosts" => "Council of Ghosts",
+            "MindBloom" => "Mind Bloom",
+            "SensoryStone" => "Sensory Stone",
+            "SecretPortal" => "Secret Portal",
+            other => other,
+        };
+        (1..=3)
+            .flat_map(typed_events_for_act)
+            .chain(crate::events::typed_shrine_events())
+            .find(|event| event.name == display_name)
+    }
+
     fn enter_event(&mut self) {
-        let events = typed_events_for_act(self.run_state.act);
         // EventRoom.onPlayerEntry uses another seed+counter duplicate for event
         // selection and deliberately does not commit it to AbstractDungeon.eventRng.
         let mut duplicate = crate::seed::StsRandom::with_counter(
             self.seed,
             self.persistent_rngs.event.counter,
         );
-        let idx = duplicate.random_index(events.len());
-        let mut event = events[idx].clone();
+        let event_name = self
+            .take_event_key(&mut duplicate)
+            .expect("Java event pools must contain an eligible event or shrine");
+        let mut event = Self::typed_event_for_pool_key(&event_name)
+            .unwrap_or_else(|| panic!("missing typed event for Java pool key {event_name}"));
         self.normalize_event_runtime_state(&mut event);
         self.current_event = Some(event);
         self.initialize_dynamic_event_state();
@@ -8742,7 +9195,10 @@ impl RunEngine {
                         active: false,
                         skip_allowed: false,
                         skip_label: None,
-                        choices: self.generate_card_reward_choices(3),
+                        choices: self.generate_card_reward_choices(
+                            3,
+                            CardRewardContext::Standard,
+                        ),
                     });
                 }
             }
@@ -9366,9 +9822,32 @@ struct EventCardCatalogEntry {
     color: EventCardColor,
 }
 
+fn generated_card_definition_blocks() -> Vec<String> {
+    let mut blocks = Vec::new();
+    let mut current = None::<String>;
+    for line in include_str!("../content/generated-cards.txt").lines() {
+        if current.is_none()
+            && line.contains("= Card(")
+            && !line.trim_start().starts_with('#')
+        {
+            current = Some(format!("{line}\n"));
+            continue;
+        }
+        let Some(block) = current.as_mut() else {
+            continue;
+        };
+        block.push_str(line);
+        block.push('\n');
+        if line.trim() == ")" {
+            blocks.push(current.take().expect("active card definition"));
+        }
+    }
+    blocks
+}
+
 fn parse_event_card_catalog() -> Vec<EventCardCatalogEntry> {
-    include_str!("../content/generated-cards.txt")
-        .split("\n)\n")
+    generated_card_definition_blocks()
+        .into_iter()
         .filter_map(|block| {
             let Some((_, id_rest)) = block.split_once("id=\"") else {
                 return None;
@@ -9427,6 +9906,47 @@ fn parse_event_card_catalog() -> Vec<EventCardCatalogEntry> {
         .collect()
 }
 
+fn runtime_card_id_for_java_id(java_id: &str) -> &str {
+    match java_id {
+        "Cloak And Dagger" => "Cloak and Dagger",
+        "PiercingWail" => "Piercing Wail",
+        "Underhanded Strike" => "Sneaky Strike",
+        "Crippling Poison" => "Crippling Cloud",
+        "Venomology" => "Alchemize",
+        _ => java_id,
+    }
+}
+
+fn prismatic_reward_candidates(rarity: EventCardRarity) -> Vec<String> {
+    let registry = crate::cards::global_registry();
+    let mut candidates = parse_event_card_catalog()
+        .into_iter()
+        .filter(|entry| {
+            let runtime_id = runtime_card_id_for_java_id(&entry.id);
+            let def = registry.get(runtime_id);
+            entry.rarity == rarity
+                && matches!(
+                    entry.color,
+                    EventCardColor::Red
+                        | EventCardColor::Green
+                        | EventCardColor::Blue
+                        | EventCardColor::Purple
+                        | EventCardColor::Colorless
+                )
+                && !entry.id.ends_with('+')
+                && def.is_some_and(|card| {
+                    !matches!(
+                        card.card_type,
+                        crate::cards::CardType::Status | crate::cards::CardType::Curse
+                    )
+                })
+        })
+        .map(|entry| entry.id)
+        .collect::<Vec<_>>();
+    candidates.sort();
+    candidates
+}
+
 fn build_event_card_rarity_map() -> HashMap<String, EventCardRarity> {
     let mut map = HashMap::new();
     for entry in parse_event_card_catalog() {
@@ -9481,6 +10001,300 @@ fn matching_event_cards(color: EventCardColor, rarity: EventCardRarity) -> Vec<S
 mod tests {
     use super::*;
     use crate::events::{EventDef, EventEffect, EventOption};
+
+    fn card_choice_ids(choices: &[RewardChoice]) -> Vec<&str> {
+        choices
+            .iter()
+            .map(|choice| match choice {
+                RewardChoice::Card { card_id, .. } => card_id.as_str(),
+                _ => panic!("expected only card reward choices"),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn card_reward_sequences_match_java_working_pools_and_blizzard_state() {
+        // AbstractDungeon.getRewardCards rolls rarity and selection for every
+        // card before the natural-upgrade pass. Common results decrement the
+        // persistent Blizzard offset; uncommon leaves it unchanged.
+        // Re-verified: Act 1's 0% upgrade chance still consumes randomBoolean
+        // once for every non-rare preview.
+        // Java: AbstractDungeon.java:1413-1468, AbstractRoom.java:148-185.
+        for (seed, context, expected, expected_counter, expected_blizzard) in [
+            (
+                42,
+                CardRewardContext::Standard,
+                vec!["Swivel", "JustLucky", "CutThroughFate"],
+                9,
+                3,
+            ),
+            (
+                73,
+                CardRewardContext::Standard,
+                vec!["CarveReality", "SashWhip", "SandsOfTime"],
+                9,
+                4,
+            ),
+            (
+                73,
+                CardRewardContext::Elite,
+                vec!["DevaForm", "SashWhip", "SandsOfTime"],
+                8,
+                4,
+            ),
+        ] {
+            let mut engine = RunEngine::new(seed, 0);
+            let choices = engine.generate_card_reward_choices(3, context);
+            assert_eq!(card_choice_ids(&choices), expected, "seed {seed}");
+            assert_eq!(engine.persistent_rngs.card.counter, expected_counter, "seed {seed}");
+            assert_eq!(engine.run_state.card_blizz_randomizer, expected_blizzard, "seed {seed}");
+        }
+    }
+
+    #[test]
+    fn watcher_working_and_source_card_pools_match_java_order() {
+        // CardLibrary.addPurpleCards iterates the registered HashMap order into
+        // the working pools. AbstractDungeon then copies each working pool into
+        // its source pool through CardGroup.addToBottom, which inserts at zero.
+        // Java: CardLibrary.java::addPurpleCards,
+        // AbstractDungeon.java::initializeCardPools, CardGroup.java::addToBottom.
+        let pools = CardPools::watcher_all_unlocked();
+
+        assert_eq!(pools.common.len(), 19);
+        assert_eq!(pools.uncommon.len(), 35);
+        assert_eq!(pools.rare.len(), 17);
+        assert_eq!(
+            pools.source_common,
+            pools.common.iter().rev().cloned().collect::<Vec<_>>()
+        );
+        assert_eq!(
+            pools.source_uncommon,
+            pools.uncommon.iter().rev().cloned().collect::<Vec<_>>()
+        );
+        assert_eq!(
+            pools.source_rare,
+            pools.rare.iter().rev().cloned().collect::<Vec<_>>()
+        );
+        assert_eq!(pools.common.first().map(String::as_str), Some("Consecrate"));
+        assert_eq!(pools.common.last().map(String::as_str), Some("EmptyFist"));
+        assert_eq!(pools.uncommon.first().map(String::as_str), Some("WheelKick"));
+        assert_eq!(pools.uncommon.last().map(String::as_str), Some("Pray"));
+        assert_eq!(pools.rare.first().map(String::as_str), Some("DeusExMachina"));
+        assert_eq!(pools.rare.last().map(String::as_str), Some("Judgement"));
+    }
+
+    #[test]
+    fn watcher_relic_pools_shuffle_once_and_persist() {
+        // RelicLibrary supplies 33/30/27/17/21 all-unlocked Watcher entries,
+        // then initializeRelicList consumes exactly five randomLong calls in
+        // common/uncommon/rare/shop/boss order.
+        // Java: RelicLibrary.java::populateRelicPool,
+        // AbstractDungeon.java::initializeRelicList.
+        assert_eq!(WATCHER_COMMON_RELICS.len(), 33);
+        assert_eq!(WATCHER_UNCOMMON_RELICS.len(), 30);
+        assert_eq!(WATCHER_RARE_RELICS.len(), 27);
+        assert_eq!(WATCHER_SHOP_RELICS.len(), 17);
+        assert_eq!(WATCHER_BOSS_RELICS.len(), 21);
+
+        let first = RunEngine::new(42, 0);
+        let second = RunEngine::new(42, 0);
+        assert_eq!(first.persistent_rngs.relic.counter, 5);
+        assert_eq!(first.relic_pools, second.relic_pools);
+        assert_eq!(first.relic_pools.common.len(), 33);
+        assert_eq!(first.relic_pools.uncommon.len(), 30);
+        assert_eq!(first.relic_pools.rare.len(), 27);
+        assert_eq!(first.relic_pools.shop.len(), 17);
+        assert_eq!(first.relic_pools.boss.len(), 21);
+    }
+
+    #[test]
+    fn relic_retry_discards_failed_front_then_draws_from_the_back() {
+        // A failed canSpawn item is permanently removed. Both Java draw entry
+        // points then retry through returnEndRandomRelicKey, so this injected
+        // [bad, A, C] pool returns C and leaves only A without an RNG draw.
+        // Java: AbstractDungeon.java::{returnRandomRelicKey,returnEndRandomRelicKey}.
+        let mut engine = RunEngine::new(42, 0);
+        engine.run_state.floor = 36;
+        engine.relic_pools.common = vec![
+            "Tiny Chest".to_string(),
+            "Anchor".to_string(),
+            "Vajra".to_string(),
+        ];
+        let counter_before = engine.persistent_rngs.relic.counter;
+
+        let relic = engine.draw_relic_from_pool(RelicTier::Common, false, false);
+
+        assert_eq!(relic, "Vajra");
+        assert_eq!(engine.relic_pools.common, vec!["Anchor"]);
+        assert_eq!(engine.persistent_rngs.relic.counter, counter_before);
+    }
+
+    #[test]
+    fn card_reward_duplicate_retry_and_nloths_gift_match_java() {
+        // Duplicate reward IDs retry only the pool-selection draw. N'loth's
+        // Gift triples the room's base rare integer (3 -> 9 in a normal room),
+        // not a global floating-point probability.
+        // Re-verified: the rejected seed-3 duplicate consumes an extra cardRng
+        // selection tick but no extra rarity or natural-upgrade tick.
+        // Java: AbstractDungeon.java:1424-1468, NlothsGift.java:22-24.
+        let mut duplicate = RunEngine::new(3, 0);
+        let choices = duplicate.generate_card_reward_choices(3, CardRewardContext::Standard);
+        assert_eq!(
+            card_choice_ids(&choices),
+            vec!["FlurryOfBlows", "PathToVictory", "Protect"],
+        );
+        assert_eq!(duplicate.persistent_rngs.card.counter, 10);
+
+        let mut gift = RunEngine::new(73, 0);
+        gift.run_state.relics.push("Nloth's Gift".to_string());
+        gift.run_state.relic_flags.rebuild(&gift.run_state.relics);
+        let choices = gift.generate_card_reward_choices(3, CardRewardContext::Standard);
+        assert_eq!(
+            card_choice_ids(&choices),
+            vec!["DevaForm", "SashWhip", "SandsOfTime"],
+        );
+        assert_eq!(gift.persistent_rngs.card.counter, 8);
+        assert_eq!(gift.run_state.card_blizz_randomizer, 4);
+    }
+
+    #[test]
+    fn act_two_natural_upgrade_and_prismatic_paths_match_java() {
+        // Act 2 A0 uses a 25% natural upgrade chance. Prismatic Shard includes
+        // colorless cards and consumes randomLong for a Java shuffle before
+        // the sorted-card-ID selection draw on every attempt.
+        // Re-verified: rare previews skip randomBoolean entirely, while a
+        // non-rare 0%/25% preview always consumes it before relic callbacks.
+        // Java: TheCity.java:72-85, CardLibrary.java:1064-1082,
+        // CardGroup.java:491-505,554-556.
+        let mut act_two = RunEngine::new(0, 0);
+        act_two.run_state.act = 2;
+        let choices =
+            act_two.generate_card_reward_choices(3, CardRewardContext::Standard);
+        assert_eq!(
+            card_choice_ids(&choices),
+            vec!["FlyingSleeves", "JustLucky", "SignatureMove+"],
+        );
+        assert_eq!(act_two.persistent_rngs.card.counter, 9);
+
+        let mut prismatic = RunEngine::new(42, 0);
+        prismatic.run_state.relics.push("PrismaticShard".to_string());
+        prismatic.run_state.relic_flags.rebuild(&prismatic.run_state.relics);
+        let choices =
+            prismatic.generate_card_reward_choices(3, CardRewardContext::Standard);
+        assert_eq!(
+            card_choice_ids(&choices),
+            vec!["Masterful Stab", "Evaluate", "Calculated Gamble"],
+        );
+        assert_eq!(prismatic.persistent_rngs.card.counter, 12);
+        assert_eq!(prismatic.run_state.card_blizz_randomizer, 4);
+    }
+
+    #[test]
+    fn prismatic_all_unlocked_candidate_membership_matches_java() {
+        // CardLibrary.getAnyColorCard includes every registered non-status,
+        // non-curse card of the rolled rarity and sorts by Java cardID. Keep
+        // these counts and alias-sensitive members explicit because bounded
+        // selection changes when even one candidate is missing.
+        // Java: CardLibrary.java::getAnyColorCard,
+        // CardGroup.java::getRandomCard(boolean, rarity).
+        let common = prismatic_reward_candidates(EventCardRarity::Common);
+        let uncommon = prismatic_reward_candidates(EventCardRarity::Uncommon);
+        let rare = prismatic_reward_candidates(EventCardRarity::Rare);
+        assert_eq!(common.len(), 76);
+        assert_eq!(uncommon.len(), 160);
+        assert_eq!(rare.len(), 84);
+        for id in ["Cloak And Dagger", "PiercingWail", "Underhanded Strike"] {
+            assert!(common.iter().any(|candidate| candidate == id), "{id}");
+        }
+        for id in ["Capacitor", "Crippling Poison", "Fasting2"] {
+            assert!(uncommon.iter().any(|candidate| candidate == id), "{id}");
+        }
+        for id in ["Vault", "Venomology"] {
+            assert!(rare.iter().any(|candidate| candidate == id), "{id}");
+        }
+    }
+
+    #[test]
+    fn rare_reward_resets_blizzard_offset_for_later_screens() {
+        // A rare resets cardBlizzRandomizer to 5 after rarity resolution, and
+        // the state persists between reward screens.
+        // Re-verified: the reset happens before card selection, not after the
+        // later natural-upgrade pass.
+        // Java: AbstractDungeon.java:1424-1440.
+        let mut engine = RunEngine::new(42, 0);
+        let mut sixth = Vec::new();
+        for reward_index in 0..6 {
+            let choices =
+                engine.generate_card_reward_choices(3, CardRewardContext::Standard);
+            if reward_index == 5 {
+                sixth = card_choice_ids(&choices)
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect();
+            }
+        }
+        assert_eq!(sixth, vec!["JustLucky", "Vault", "Adaptation"]);
+        assert_eq!(engine.persistent_rngs.card.counter, 53);
+        assert_eq!(engine.run_state.card_blizz_randomizer, 5);
+    }
+
+    #[test]
+    fn dream_catcher_disables_nloths_gift_rarity_alternation() {
+        // RestRoom.getCardRarity calls the non-alternating overload. The
+        // Blizzard-adjusted roll still applies, but N'loth's Gift cannot turn
+        // this roll of eight from uncommon into rare.
+        // Java: RestRoom.java::getCardRarity,
+        // AbstractRoom.java::getCardRarity(int, boolean).
+        let card_seed = (0_u64..10_000)
+            .find(|seed| crate::seed::StsRandom::new(*seed).random_int(99) == 3)
+            .expect("fixture seed for Blizzard-adjusted roll eight");
+
+        let mut combat_reward = RunEngine::new(42, 0);
+        combat_reward.persistent_rngs.card = crate::seed::StsRandom::new(card_seed);
+        combat_reward.run_state.relics.push("Nloth's Gift".to_string());
+        let standard = combat_reward.generate_card_reward_choices(
+            1,
+            CardRewardContext::Standard,
+        );
+        let standard_id = card_choice_ids(&standard).remove(0);
+        assert_eq!(event_card_rarity(&standard_id), Some(EventCardRarity::Rare));
+
+        let mut rest_reward = RunEngine::new(42, 0);
+        rest_reward.persistent_rngs.card = crate::seed::StsRandom::new(card_seed);
+        rest_reward.run_state.relics.push("Nloth's Gift".to_string());
+        let rest = rest_reward.generate_card_reward_choices(1, CardRewardContext::Rest);
+        let rest_id = card_choice_ids(&rest).remove(0);
+        assert_eq!(event_card_rarity(&rest_id), Some(EventCardRarity::Uncommon));
+    }
+
+    #[test]
+    fn potion_pity_moves_by_ten_and_consumes_every_chance_roll() {
+        // A roll equal to the current chance fails (`<`, not `<=`), raising
+        // the next chance by ten. A later success lowers it by ten again.
+        // Java: AbstractRoom.java::addPotionToRewards.
+        let mut engine = RunEngine::new(42, 0);
+        engine.persistent_rngs.potion = crate::seed::StsRandom::new(18_448);
+
+        assert!(!engine.should_offer_potion_reward(RoomType::Monster, 0));
+        assert_eq!(engine.run_state.potion_blizz_randomizer, 10);
+        assert!(engine.should_offer_potion_reward(RoomType::Monster, 0));
+        assert_eq!(engine.run_state.potion_blizz_randomizer, 0);
+        assert_eq!(engine.persistent_rngs.potion.counter, 2);
+    }
+
+    #[test]
+    fn potion_rarity_rejection_uses_the_full_watcher_pool() {
+        // Rarity 64 is Common. Candidate index one is Stance Potion
+        // (Uncommon), so Java rejects it and consumes another full-pool draw;
+        // index zero then accepts Bottled Miracle.
+        // Java: AbstractDungeon.java::returnRandomPotion,
+        // PotionHelper.java::getPotions.
+        let mut engine = RunEngine::new(42, 0);
+        engine.persistent_rngs.potion = crate::seed::StsRandom::new(52_510);
+
+        assert_eq!(engine.roll_reward_potion_id(), "BottledMiracle");
+        assert_eq!(engine.persistent_rngs.potion.counter, 3);
+    }
 
     fn resolve_opening_neow(engine: &mut RunEngine) {
         if engine.current_phase() == RunPhase::Neow {
@@ -9662,7 +10476,7 @@ mod tests {
         // AbstractDungeon.java:1755 and rooms/EventRoom.java:26.
         let mut engine = RunEngine::new(42, 0);
         let misc_before = engine.floor_rngs.misc.state_tuple();
-        let events = typed_events_for_act(engine.run_state.act);
+        let expected_events = ["Big Fish", "Lab"];
 
         for prior_counter in 0..2 {
             let mut room_duplicate = crate::seed::StsRandom::with_counter(42, prior_counter);
@@ -9671,13 +10485,10 @@ mod tests {
             assert_eq!(engine.persistent_rngs.event, room_duplicate);
 
             let committed = engine.persistent_rngs.event.clone();
-            let mut selection_duplicate =
-                crate::seed::StsRandom::with_counter(42, prior_counter + 1);
-            let expected_event = &events[selection_duplicate.random_index(events.len())];
             engine.enter_event();
             assert_eq!(
                 engine.current_event.as_ref().expect("event selected").name,
-                expected_event.name,
+                expected_events[prior_counter as usize],
             );
             assert_eq!(
                 engine.persistent_rngs.event, committed,
@@ -9686,6 +10497,100 @@ mod tests {
         }
 
         assert_eq!(engine.floor_rngs.misc.state_tuple(), misc_before);
+    }
+
+    #[test]
+    fn watcher_a0_event_pools_match_java_order_and_lifecycle() {
+        // Re-verified: each dungeon constructor clears/rebuilds only eventList
+        // and shrineList; specialOneTimeEventList is passed to the next act.
+        // Java: AbstractDungeon.java:2552-2568, CardCrawlGame.java:1121-1127,
+        // and each dungeon's initializeEventList/initializeShrineList.
+        let mut pools = EventPools::watcher(0, 20, false);
+        assert_eq!(pools.regular, ACT_ONE_EVENTS);
+        assert_eq!(pools.shrines, ACT_ONE_SHRINES);
+        assert_eq!(pools.one_time_shrines, ONE_TIME_SHRINES);
+
+        pools.one_time_shrines.retain(|event| event != "Lab");
+        pools.reset_for_act(2);
+        assert_eq!(pools.regular, ACT_TWO_EVENTS);
+        assert_eq!(pools.shrines, LATER_ACT_SHRINES);
+        assert!(!pools.one_time_shrines.iter().any(|event| event == "Lab"));
+
+        let daily = EventPools::watcher(0, 20, true);
+        assert!(!daily
+            .one_time_shrines
+            .iter()
+            .any(|event| event == "NoteForYourself"));
+
+        pools.reset_for_act(3);
+        assert_eq!(pools.regular, ACT_THREE_EVENTS);
+        assert_eq!(pools.shrines, LATER_ACT_SHRINES);
+        assert!(!pools.one_time_shrines.iter().any(|event| event == "Lab"));
+    }
+
+    #[test]
+    fn event_selection_removes_only_the_selected_java_pool_key() {
+        // Seed 42's discarded EventRoom duplicate selects Big Fish, then Lab
+        // after the next room-type tick. Lab is one-time; Big Fish is regular.
+        // Re-verified: getEvent/getShrine remove the selected key from its
+        // owning persistent pool, while ineligible keys are not removed.
+        // Java: AbstractDungeon.java:1854-1978.
+        let mut engine = RunEngine::new(42, 0);
+
+        engine.next_event_roll_100();
+        engine.enter_event();
+        assert_eq!(engine.current_event.as_ref().unwrap().name, "Big Fish");
+        assert!(!engine.event_pools.regular.iter().any(|event| event == "Big Fish"));
+        assert_eq!(engine.event_pools.one_time_shrines.len(), ONE_TIME_SHRINES.len());
+
+        engine.next_event_roll_100();
+        engine.enter_event();
+        assert_eq!(engine.current_event.as_ref().unwrap().name, "Lab");
+        assert!(!engine.event_pools.one_time_shrines.iter().any(|event| event == "Lab"));
+        assert!(engine.event_pools.shrines.iter().any(|event| event == "Golden Shrine"));
+    }
+
+    #[test]
+    fn java_event_eligibility_uses_run_state_without_removing_failed_candidates() {
+        // Re-verified: getEvent/getShrine build an eligible temporary list and
+        // remove only the selected key from the source pool.
+        // Java: AbstractDungeon.java:1871-1978.
+        let mut engine = RunEngine::new(7, 0);
+        assert!(!engine.regular_event_is_eligible("Dead Adventurer"));
+        assert!(!engine.one_time_shrine_is_eligible("Fountain of Cleansing"));
+        assert!(!engine.one_time_shrine_is_eligible("SecretPortal"));
+
+        engine.run_state.floor = 7;
+        engine.run_state.deck.push("Regret".to_string());
+        engine.run_state.act = 3;
+        engine.run_state.playtime_seconds = 800.0;
+        assert!(engine.regular_event_is_eligible("Dead Adventurer"));
+        assert!(engine.one_time_shrine_is_eligible("Fountain of Cleansing"));
+        assert!(engine.one_time_shrine_is_eligible("SecretPortal"));
+        assert!(engine
+            .event_pools
+            .one_time_shrines
+            .iter()
+            .any(|event| event == "Fountain of Cleansing"));
+    }
+
+    #[test]
+    fn fountain_ignores_java_special_unremovable_curses() {
+        // AbstractPlayer.isCursed excludes these three Curse-typed cards from
+        // Fountain eligibility by ID comparison.
+        // Java: AbstractPlayer.java:739-746.
+        let mut engine = RunEngine::new(7, 0);
+        engine.run_state.deck = vec![
+            "Necronomicurse".to_string(),
+            "CurseOfTheBell".to_string(),
+            "AscendersBane".to_string(),
+        ];
+        assert!(!engine.deck_contains_curse());
+        assert!(!engine.one_time_shrine_is_eligible("Fountain of Cleansing"));
+
+        engine.run_state.deck.push("Regret".to_string());
+        assert!(engine.deck_contains_curse());
+        assert!(engine.one_time_shrine_is_eligible("Fountain of Cleansing"));
     }
 
     #[test]
@@ -9815,6 +10720,193 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn encounter_queue_peeks_until_the_next_accepted_map_transition() {
+        // Room creation reads index zero without removal. Java removes that
+        // encounter only in nextRoomTransition, after combat and rewards, when
+        // the player actually leaves the room.
+        // Java: AbstractDungeon.java::getMonsterForRoomCreation,
+        // AbstractDungeon.java::nextRoomTransition.
+        let mut engine = RunEngine::new(42, 0);
+        let expected = engine
+            .monster_encounter_queue
+            .front()
+            .cloned()
+            .expect("act one hallway queue");
+        let initial_len = engine.monster_encounter_queue.len();
+
+        engine.enter_combat(false, false);
+        assert_eq!(engine.active_encounter_queue, Some(EncounterQueueKind::Hallway));
+        assert_eq!(engine.monster_encounter_queue.front(), Some(&expected));
+        assert_eq!(engine.monster_encounter_queue.len(), initial_len);
+
+        // Simulate a resolved room. An illegal map action cannot retire the
+        // encounter; the first accepted transition does so exactly once.
+        engine.combat_engine = None;
+        engine.phase = RunPhase::MapChoice;
+        engine.step_map(&RunAction::ChoosePath(usize::MAX));
+        assert_eq!(engine.monster_encounter_queue.len(), initial_len);
+        assert_eq!(engine.active_encounter_queue, Some(EncounterQueueKind::Hallway));
+
+        engine.step_map(&RunAction::ChoosePath(0));
+        assert_eq!(engine.monster_encounter_queue.len(), initial_len - 1);
+        assert_ne!(engine.monster_encounter_queue.front(), Some(&expected));
+    }
+
+    #[test]
+    fn mystery_monster_uses_the_same_persistent_hallway_queue() {
+        // EventRoom replaces itself with a real MonsterRoom after a monster
+        // roll, so Java's ordinary hallway queue remains authoritative.
+        // Java: EventRoom.java::onPlayerEntry,
+        // AbstractDungeon.java::nextRoomTransition.
+        let mut engine = RunEngine::new(73, 0);
+        let expected = engine
+            .monster_encounter_queue
+            .front()
+            .cloned()
+            .expect("act one hallway queue");
+        let initial_len = engine.monster_encounter_queue.len();
+        engine.debug_force_event_rolls(&[0]);
+
+        engine.enter_mystery_room();
+
+        assert_eq!(engine.active_encounter_queue, Some(EncounterQueueKind::Hallway));
+        assert_eq!(engine.monster_encounter_queue.front(), Some(&expected));
+        assert_eq!(engine.monster_encounter_queue.len(), initial_len);
+        assert_eq!(engine.phase, RunPhase::Combat);
+    }
+
+    #[test]
+    fn boss_sequence_persists_until_boss_room_entry() {
+        // The all-bosses-seen branch shuffles all three IDs once, stores the
+        // full list, and removes index zero only when MonsterRoomBoss is
+        // entered. Keeping the tail is required for saves and A20's second
+        // Act 3 boss.
+        // Java: Exordium.java::initializeBoss,
+        // MonsterRoomBoss.java::onPlayerEntry.
+        let mut engine = RunEngine::new(42, 0);
+        let initial = engine.boss_sequence.clone();
+        assert_eq!(initial.len(), 3);
+        assert_eq!(initial.front(), Some(&engine.boss_id));
+
+        engine.enter_combat(false, true);
+
+        assert_eq!(engine.boss_sequence.len(), 2);
+        assert_eq!(
+            engine.boss_sequence,
+            initial.into_iter().skip(1).collect::<VecDeque<_>>()
+        );
+        assert!(engine.active_combat_is_boss);
+    }
+
+    #[test]
+    fn courier_colored_refill_uses_ambient_math_rng_only_for_identity() {
+        // ShopScreen asks rollRarity() to consume one cardRng draw, then calls
+        // getCardFromPool(..., false), whose sorted identity selection uses
+        // MathUtils.random. Price variance remains on merchantRng.
+        // Java: ShopScreen.java::purchaseCard,
+        // CardGroup.java::getRandomCard(type, useRng).
+        let mut ambient_zero = RunEngine::new_with_ambient_seed(42, 0, 0);
+        let mut ambient_one = RunEngine::new_with_ambient_seed(42, 0, 1);
+        for engine in [&mut ambient_zero, &mut ambient_one] {
+            engine.persistent_rngs.card = crate::seed::StsRandom::new(0);
+            engine.persistent_rngs.merchant = crate::seed::StsRandom::new(73);
+        }
+
+        let zero_named_before = (
+            ambient_zero.persistent_rngs.card.clone(),
+            ambient_zero.persistent_rngs.merchant.clone(),
+        );
+        let one_named_before = (
+            ambient_one.persistent_rngs.card.clone(),
+            ambient_one.persistent_rngs.merchant.clone(),
+        );
+        assert_eq!(zero_named_before, one_named_before);
+
+        let zero = ambient_zero.roll_courier_replacement_card("Strike_P");
+        let one = ambient_one.roll_courier_replacement_card("Strike_P");
+
+        assert_eq!(zero.0, "CrushJoints");
+        assert_eq!(one.0, "FlurryOfBlows");
+        assert_eq!(ambient_zero.persistent_rngs.card.counter, 1);
+        assert_eq!(ambient_one.persistent_rngs.card.counter, 1);
+        assert_eq!(ambient_zero.persistent_rngs.merchant.counter, 1);
+        assert_eq!(ambient_one.persistent_rngs.merchant.counter, 1);
+        assert_eq!(ambient_zero.persistent_rngs.card, ambient_one.persistent_rngs.card);
+        assert_eq!(
+            ambient_zero.persistent_rngs.merchant,
+            ambient_one.persistent_rngs.merchant
+        );
+        assert_ne!(
+            ambient_zero.ambient_math_rng.state_tuple(),
+            ambient_one.ambient_math_rng.state_tuple()
+        );
+    }
+
+    #[test]
+    fn courier_card_refill_truncates_once_after_all_float_discounts() {
+        // Re-verified: ShopScreen.setPrice keeps tmpPrice as a float through
+        // the Courier and Membership Card multipliers, then casts once.
+        // Java: ShopScreen.java:657-668.
+        let mut found_rounding_boundary = false;
+        for merchant_seed in 0..256 {
+            let mut engine = RunEngine::new_with_ambient_seed(42, 0, 0);
+            engine.run_state.relics.extend([
+                "The Courier".to_string(),
+                "Membership Card".to_string(),
+            ]);
+            engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+            engine.persistent_rngs.card = crate::seed::StsRandom::new(0);
+            engine.persistent_rngs.merchant = crate::seed::StsRandom::new(merchant_seed);
+
+            let mut oracle = engine.persistent_rngs.merchant.clone();
+            let (card, actual_price) = engine.roll_courier_replacement_card("Strike_P");
+            let base_id = card.strip_suffix('+').unwrap_or(&card);
+            let base_price = if WATCHER_COMMON_CARDS.contains(&base_id) {
+                50.0
+            } else if WATCHER_UNCOMMON_CARDS.contains(&base_id) {
+                75.0
+            } else {
+                150.0
+            };
+            let rolled_price = base_price * oracle.random_f32_range(0.9, 1.1);
+            let java_price = (rolled_price * 0.8 * 0.5) as i32;
+            let stale_two_stage_price = ((rolled_price as i32 as f32) * 0.8 * 0.5) as i32;
+            assert_eq!(actual_price, java_price);
+            assert_eq!(engine.persistent_rngs.merchant, oracle);
+
+            if java_price != stale_two_stage_price {
+                found_rounding_boundary = true;
+                break;
+            }
+        }
+        assert!(found_rounding_boundary, "fixture range must expose the old truncation bug");
+    }
+
+    #[test]
+    fn initial_shop_stream_order_matches_java_minimum_fixture() {
+        // Merchant generates all seven cards first. ShopScreen then consumes
+        // seven card prices, one sale index, two ordinary relic tier rolls,
+        // three relic prices, and three potion prices. Relic identities come
+        // from persistent queues and consume no relic RNG.
+        // Java: Merchant.java::<init>, ShopScreen.java::{initCards,initRelics,initPotions}.
+        let mut engine = RunEngine::new(4, 0);
+        let before = (
+            engine.persistent_rngs.card.counter,
+            engine.persistent_rngs.merchant.counter,
+            engine.persistent_rngs.potion.counter,
+            engine.persistent_rngs.relic.counter,
+        );
+        engine.enter_shop();
+        let delta = (
+            engine.persistent_rngs.card.counter - before.0,
+            engine.persistent_rngs.merchant.counter - before.1,
+            engine.persistent_rngs.potion.counter - before.2,
+            engine.persistent_rngs.relic.counter - before.3,
+        );
+        assert_eq!(delta, (12, 16, 6, 0));
     }
 
     #[test]
@@ -14914,6 +16006,94 @@ mod tests {
 
         let a13_boss = resolve_gold(79, 13, RoomType::Boss, false);
         assert!((71..=79).contains(&a13_boss));
+    }
+
+    #[test]
+    fn boss_gold_roll_is_one_misc_tick_even_when_the_value_is_hidden() {
+        // Act 3/4 suppress the reward item only after AbstractRoom constructs
+        // it. This focused primitive proof complements the Act 3 engine-path
+        // test, whose transition immediately replaces the floor RNG stream.
+        // Re-verified: AbstractRoom.java:286-331.
+        let mut engine = RunEngine::new(44, 0);
+        let mut oracle = engine.floor_rngs.misc.clone();
+        let expected = 100 + oracle.random_int_range(-5, 5);
+        assert_eq!(engine.roll_boss_gold_reward(), expected);
+        assert_eq!(engine.floor_rngs.misc, oracle);
+    }
+
+    #[test]
+    fn chest_type_and_reward_share_java_treasure_stream_order() {
+        // Re-verified: chest type is 50/33/17 from one inclusive draw; the
+        // constructor's second draw jointly chooses optional gold and tier.
+        // Java: AbstractDungeon.java:489-498 and rewards/chests/*.java.
+        let mut saw = [false; 3];
+        for seed in 0..512 {
+            let mut engine = RunEngine::new(44, 0);
+            engine.persistent_rngs.treasure = crate::seed::StsRandom::new(seed);
+            let mut oracle = engine.persistent_rngs.treasure.clone();
+            let size_roll = oracle.random_int(99);
+            let reward_roll = oracle.random_int(99);
+            let expected = if size_roll < 50 {
+                saw[0] = true;
+                GeneratedChest {
+                    size: ChestSize::Small,
+                    gold_reward: reward_roll < 50,
+                    relic_tier: if reward_roll < 75 {
+                        RelicTier::Common
+                    } else {
+                        RelicTier::Uncommon
+                    },
+                }
+            } else if size_roll < 83 {
+                saw[1] = true;
+                GeneratedChest {
+                    size: ChestSize::Medium,
+                    gold_reward: reward_roll < 35,
+                    relic_tier: if reward_roll < 35 {
+                        RelicTier::Common
+                    } else if reward_roll < 85 {
+                        RelicTier::Uncommon
+                    } else {
+                        RelicTier::Rare
+                    },
+                }
+            } else {
+                saw[2] = true;
+                GeneratedChest {
+                    size: ChestSize::Large,
+                    gold_reward: reward_roll < 50,
+                    relic_tier: if reward_roll < 75 {
+                        RelicTier::Uncommon
+                    } else {
+                        RelicTier::Rare
+                    },
+                }
+            };
+            assert_eq!(engine.generate_chest(), expected);
+            assert_eq!(engine.persistent_rngs.treasure, oracle);
+        }
+        assert_eq!(saw, [true, true, true]);
+    }
+
+    #[test]
+    fn cursed_key_uses_java_hashmap_curse_order_on_the_card_stream() {
+        // Re-verified: CardLibrary.getCurse iterates the Java 8 curses HashMap,
+        // excludes four non-random curses, then indexes this exact ten-card
+        // order with cardRng.random(0, 9).
+        // Java: CardLibrary.java:1012-1019, CursedKey.java:47.
+        for (seed, expected) in [(0, "Shame"), (2, "Clumsy")] {
+            let mut engine = RunEngine::new(44, 0);
+            engine.run_state.relics.push("Cursed Key".to_string());
+            engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+            engine.persistent_rngs.card = crate::seed::StsRandom::new(seed);
+            let before = engine.run_state.deck.len();
+
+            engine.build_treasure_reward_screen();
+
+            assert_eq!(engine.run_state.deck.len(), before + 1);
+            assert_eq!(engine.run_state.deck.last().map(String::as_str), Some(expected));
+            assert_eq!(engine.persistent_rngs.card.counter, 1);
+        }
     }
 
     #[test]

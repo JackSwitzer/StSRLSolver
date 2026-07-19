@@ -1441,9 +1441,10 @@ fn lizard_tail_is_reachable_from_watcher_relic_rewards() {
 }
 
 #[test]
-fn magic_flower_is_reachable_from_watcher_relic_rewards() {
-    // RelicLibrary.java registers MagicFlower; MagicFlower.java constructs the
-    // shared relic at RARE tier under canonical ID "Magic Flower".
+fn magic_flower_is_excluded_from_watcher_relic_rewards() {
+    // RelicLibrary.addRed registers Magic Flower only in the Ironclad map, so
+    // populateRelicPool(WATCHER) must never include it.
+    // Java: RelicLibrary.java::initialize.
     let offered = (0..1024).any(|seed| {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
@@ -1453,7 +1454,7 @@ fn magic_flower_is_reachable_from_watcher_relic_rewards() {
             })
         })
     });
-    assert!(offered);
+    assert!(!offered);
 }
 
 #[test]
@@ -2258,9 +2259,9 @@ fn tiny_chest_forces_every_fourth_mystery_room_to_treasure_and_resets() {
 }
 
 #[test]
-fn tough_bandages_is_reachable_from_rare_watcher_relic_rewards() {
-    // ToughBandages.java constructs the shared relic at RARE tier under
-    // canonical ID "Tough Bandages".
+fn tough_bandages_is_excluded_from_watcher_relic_rewards() {
+    // RelicLibrary.addGreen registers Tough Bandages only in the Silent map.
+    // Java: RelicLibrary.java::initialize.
     let offered = (0..2048).any(|seed| {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
@@ -2270,13 +2271,13 @@ fn tough_bandages_is_reachable_from_rare_watcher_relic_rewards() {
             })
         })
     });
-    assert!(offered);
+    assert!(!offered);
 }
 
 #[test]
-fn tingsha_is_reachable_from_rare_watcher_relic_rewards() {
-    // Tingsha.java constructs the shared relic at RARE tier under canonical ID
-    // "Tingsha".
+fn tingsha_is_excluded_from_watcher_relic_rewards() {
+    // RelicLibrary.addGreen registers Tingsha only in the Silent map.
+    // Java: RelicLibrary.java::initialize.
     let offered = (0..2048).any(|seed| {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
@@ -2286,7 +2287,7 @@ fn tingsha_is_reachable_from_rare_watcher_relic_rewards() {
             })
         })
     });
-    assert!(offered);
+    assert!(!offered);
 }
 
 #[test]
@@ -4393,7 +4394,7 @@ fn fruit_juice_is_reachable_from_watcher_potion_rewards() {
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
             screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "FruitJuice"
+                item.kind == RewardItemKind::Potion && item.label == "Fruit Juice"
             })
         })
     });
@@ -4699,7 +4700,7 @@ fn energy_potion_is_reachable_from_watcher_potion_rewards() {
 fn entropic_brew_is_reachable_from_watcher_potion_rewards() {
     // PotionHelper.getPotions appends EntropicBrew to the shared pool.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/PotionHelper.java
-    let offered = (0..128).any(|seed| {
+    let offered = (0..4096).any(|seed| {
         let mut engine = RunEngine::new(seed, 0);
         engine
             .run_state
@@ -4793,7 +4794,7 @@ fn fear_potion_is_reachable_from_watcher_potion_rewards() {
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
             screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "Fear Potion"
+                item.kind == RewardItemKind::Potion && item.label == "FearPotion"
             })
         })
     });
@@ -5474,6 +5475,10 @@ fn empty_cage_auto_removes_small_pools_and_otherwise_requires_two_rl_choices() {
 
 #[test]
 fn claiming_matryoshka_mutates_next_two_chests_then_expires() {
+    // Matryoshka contributes one extra relic to each of the next two chests.
+    // Chest gold is independently optional, and setCounter(-2) marks the
+    // relic used up after the second trigger.
+    // Java: Matryoshka.java:25-47, AbstractChest.java:54-63.
     let mut engine = RunEngine::new(321, 20);
     engine.debug_set_reward_screen(single_relic_reward_screen("Matryoshka"));
     let claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
@@ -5487,7 +5492,10 @@ fn claiming_matryoshka_mutates_next_two_chests_then_expires() {
     let first = engine
         .current_reward_screen()
         .expect("first treasure reward screen should exist");
-    assert_eq!(first.items.len(), 3);
+    assert_eq!(
+        first.items.iter().filter(|item| item.kind == RewardItemKind::Relic).count(),
+        2
+    );
     assert_eq!(
         engine.run_state.relic_flags.counters[crate::relic_flags::counter::MATRYOSHKA_USES],
         1
@@ -5497,19 +5505,25 @@ fn claiming_matryoshka_mutates_next_two_chests_then_expires() {
     let second = engine
         .current_reward_screen()
         .expect("second treasure reward screen should exist");
-    assert_eq!(second.items.len(), 3);
+    assert_eq!(
+        second.items.iter().filter(|item| item.kind == RewardItemKind::Relic).count(),
+        2
+    );
     assert_eq!(
         engine.run_state.relic_flags.counters[crate::relic_flags::counter::MATRYOSHKA_USES],
-        0
+        -2
     );
 
     engine.debug_build_treasure_reward_screen();
     let third = engine
         .current_reward_screen()
         .expect("third treasure reward screen should exist");
-    assert_eq!(third.items.len(), 2);
+    assert_eq!(
+        third.items.iter().filter(|item| item.kind == RewardItemKind::Relic).count(),
+        1
+    );
     assert_eq!(
         engine.run_state.relic_flags.counters[crate::relic_flags::counter::MATRYOSHKA_USES],
-        0
+        -2
     );
 }

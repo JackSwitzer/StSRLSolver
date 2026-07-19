@@ -2,9 +2,12 @@
 //!
 //! Generates a 15-row x 7-column dungeon map with paths and room types.
 //! Floor 0 = first row (always monster), floor 8 = treasure, floor 14 = rest.
-//! Boss fight is floor 15 (off-map).
+//! Terminal nodes point at Java's off-map boss destination `(3, 16)`.
 
 use serde::{Deserialize, Serialize};
+
+const STANDARD_BOSS_X: usize = 3;
+const STANDARD_BOSS_Y: usize = 16;
 
 // ---------------------------------------------------------------------------
 // Room types
@@ -119,16 +122,13 @@ impl DungeonMap {
         let node = &self.rows[y][x];
         node.edges
             .iter()
-            .map(|&(ex, ey)| &self.rows[ey][ex])
+            .filter_map(|&(ex, ey)| self.rows.get(ey).and_then(|row| row.get(ex)))
             .collect()
     }
 
     /// Get starting nodes (row 0 nodes that have edges).
     pub fn get_start_nodes(&self) -> Vec<&MapNode> {
-        self.rows[0]
-            .iter()
-            .filter(|n| n.has_edges)
-            .collect()
+        self.rows[0].iter().filter(|n| n.has_edges).collect()
     }
 
     /// Get all connected nodes at a given floor.
@@ -295,7 +295,11 @@ fn create_single_path(map: &mut DungeonMap, start_x: usize, rng: &mut MapRng) {
             let target_x = next_x as i32;
             let rerolled = if target_x > cx {
                 let candidate = cx + rng.rand_range(-1, 0);
-                if candidate < 0 { cx } else { candidate }
+                if candidate < 0 {
+                    cx
+                } else {
+                    candidate
+                }
             } else if target_x == cx {
                 let candidate = cx + rng.rand_range(-1, 1);
                 if candidate > row_end {
@@ -307,7 +311,11 @@ fn create_single_path(map: &mut DungeonMap, start_x: usize, rng: &mut MapRng) {
                 }
             } else {
                 let candidate = cx + rng.rand_range(0, 1);
-                if candidate > row_end { cx } else { candidate }
+                if candidate > row_end {
+                    cx
+                } else {
+                    candidate
+                }
             };
             next_x = rerolled as usize;
         }
@@ -327,7 +335,12 @@ fn create_single_path(map: &mut DungeonMap, start_x: usize, rng: &mut MapRng) {
         if current_x < map.width - 1 {
             let right = &map.rows[y][current_x + 1];
             if !right.edges.is_empty() {
-                let min_edge_x = right.edges.iter().map(|e| e.0).min().unwrap_or(map.width - 1);
+                let min_edge_x = right
+                    .edges
+                    .iter()
+                    .map(|e| e.0)
+                    .min()
+                    .unwrap_or(map.width - 1);
                 if min_edge_x < next_x {
                     next_x = min_edge_x;
                 }
@@ -347,6 +360,12 @@ fn create_single_path(map: &mut DungeonMap, start_x: usize, rng: &mut MapRng) {
 
         current_x = next_x;
     }
+
+    // MapGenerator adds a terminal edge from every row-14 endpoint to the
+    // off-map boss destination. The destination is intentionally not a node
+    // in the 15-row dungeon map.
+    // Java: MapGenerator.java::_createPaths.
+    map.rows[map.height - 1][current_x].add_edge(STANDARD_BOSS_X, STANDARD_BOSS_Y);
 
     // Mark the starting node as connected
     map.rows[0][start_x].has_edges = true;
@@ -411,135 +430,126 @@ fn filter_redundant_row0(map: &mut DungeonMap) {
 // Room type assignment (port of Java RoomTypeAssigner)
 // ---------------------------------------------------------------------------
 
-fn assign_room_types(map: &mut DungeonMap, ascension: i32, rng: &mut MapRng) {
-    // Fixed rows:
-    // Row 0 = always Monster
-    // Row 8 = always Treasure
-    // Row 14 (last) = always Rest (before boss)
-    for x in 0..map.width {
-        if map.rows[0][x].has_edges {
-            map.rows[0][x].room_type = RoomType::Monster;
-        }
-    }
-    for x in 0..map.width {
-        // Row 8 = treasure for connected nodes
-        let has_parent = !map.rows[8][x].parents.is_empty();
-        let has_edge = map.rows[8][x].has_edges;
-        if has_parent || has_edge {
-            map.rows[8][x].room_type = RoomType::Treasure;
-        }
-    }
-    for x in 0..map.width {
-        let has_parent = !map.rows[14][x].parents.is_empty();
-        let has_edge = map.rows[14][x].has_edges;
-        if has_parent || has_edge {
-            map.rows[14][x].room_type = RoomType::Rest;
-        }
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct RoomRequestCounts {
+    shop: usize,
+    rest: usize,
+    elite: usize,
+    event: usize,
+}
 
-    // Count assignable nodes (connected but not yet assigned, excluding row 14 top)
-    let mut assignable = 0;
-    for y in 1..map.height {
+fn generation_room_count(map: &DungeonMap) -> usize {
+    // AbstractDungeon.generateMap counts outgoing-edge nodes before assigning
+    // the three fixed rows, but excludes row 13 from the ratio base.
+    // Java: AbstractDungeon.java::generateMap.
+    map.rows
+        .iter()
+        .flat_map(|row| row.iter())
+        .filter(|node| node.has_edges && node.y != map.height - 2)
+        .count()
+}
+
+fn requested_room_counts(available_room_count: usize, ascension: i32) -> RoomRequestCounts {
+    let shop = (available_room_count as f32 * 0.05_f32).round() as usize;
+    let rest = (available_room_count as f32 * 0.12_f32).round() as usize;
+    let elite = if ascension >= 1 {
+        (available_room_count as f32 * 0.08_f32 * 1.6_f32).round() as usize
+    } else {
+        (available_room_count as f32 * 0.08_f32).round() as usize
+    };
+    let event = (available_room_count as f32 * 0.22_f32).round() as usize;
+
+    RoomRequestCounts {
+        shop,
+        rest,
+        elite,
+        event,
+    }
+}
+
+fn assign_fixed_rows(map: &mut DungeonMap) {
+    // AbstractDungeon assigns every node in these rows, including nodes that
+    // are not part of a generated path.
+    // Java: AbstractDungeon.java::generateMap and
+    // RoomTypeAssigner.java::assignRowAsRoomType.
+    for node in &mut map.rows[map.height - 1] {
+        node.room_type = RoomType::Rest;
+    }
+    for node in &mut map.rows[0] {
+        node.room_type = RoomType::Monster;
+    }
+    for node in &mut map.rows[8] {
+        node.room_type = RoomType::Treasure;
+    }
+}
+
+fn distributable_room_count(map: &DungeonMap) -> usize {
+    map.rows
+        .iter()
+        .flat_map(|row| row.iter())
+        .filter(|node| node.has_edges && node.room_type == RoomType::None)
+        .count()
+}
+
+fn assign_rooms_to_nodes(map: &mut DungeonMap, room_list: &mut Vec<RoomType>) {
+    for y in 0..map.height {
         for x in 0..map.width {
-            let node = &map.rows[y][x];
-            if (node.has_edges || !node.parents.is_empty()) && node.room_type == RoomType::None {
-                assignable += 1;
+            if !map.rows[y][x].has_edges || map.rows[y][x].room_type != RoomType::None {
+                continue;
             }
+
+            // getNextRoomTypeAccordingToRules iterates from list index zero
+            // independently for every node. Removing the selected element is
+            // the only cursor-like mutation.
+            // Java: RoomTypeAssigner.java::getNextRoomTypeAccordingToRules.
+            let Some(room_idx) = room_list
+                .iter()
+                .position(|&candidate| is_valid_room_placement(map, x, y, candidate))
+            else {
+                continue;
+            };
+            map.rows[y][x].room_type = room_list.remove(room_idx);
         }
     }
+}
 
-    // Generate room list using Exordium ratios
-    let shop_chance: f32 = 0.05;
-    let rest_chance: f32 = 0.12;
-    let event_chance: f32 = 0.22;
-    let elite_chance: f32 = 0.08;
+fn assign_room_types(map: &mut DungeonMap, ascension: i32, rng: &mut MapRng) {
+    let available_room_count = generation_room_count(map);
+    let requested = requested_room_counts(available_room_count, ascension);
 
-    let shop_count = (assignable as f32 * shop_chance).round() as usize;
-    let rest_count = (assignable as f32 * rest_chance).round() as usize;
-    let elite_count = if ascension >= 1 {
-        (assignable as f32 * elite_chance * 1.6).round() as usize
-    } else {
-        (assignable as f32 * elite_chance).round() as usize
-    };
-    let event_count = (assignable as f32 * event_chance).round() as usize;
-    // Remainder = monsters
-    let special_total = shop_count + rest_count + elite_count + event_count;
-    let monster_count = if assignable > special_total {
-        assignable - special_total
-    } else {
-        0
-    };
+    // Java fixes these rows only after deriving the requested room counts.
+    assign_fixed_rows(map);
+    let distributable = distributable_room_count(map);
 
     // Build shuffled room list
-    let mut room_list: Vec<RoomType> = Vec::with_capacity(assignable);
-    for _ in 0..shop_count {
+    let mut room_list: Vec<RoomType> = Vec::with_capacity(distributable);
+    for _ in 0..requested.shop {
         room_list.push(RoomType::Shop);
     }
-    for _ in 0..rest_count {
+    for _ in 0..requested.rest {
         room_list.push(RoomType::Rest);
     }
-    for _ in 0..elite_count {
+    for _ in 0..requested.elite {
         room_list.push(RoomType::Elite);
     }
-    for _ in 0..event_count {
+    for _ in 0..requested.event {
         room_list.push(RoomType::Event);
     }
-    for _ in 0..monster_count {
-        room_list.push(RoomType::Monster);
-    }
-    // Pad with monsters if needed
-    while room_list.len() < assignable {
+
+    // distributeRoomsAcrossMap pads against the post-fix connected-node
+    // count, not the earlier ratio base.
+    while room_list.len() < distributable {
         room_list.push(RoomType::Monster);
     }
 
     rng.shuffle_room_assignments(&mut room_list);
-
-    // Assign rooms respecting rules
-    let mut room_idx = 0;
-    for y in 1..map.height {
-        for x in 0..map.width {
-            if map.rows[y][x].room_type != RoomType::None {
-                continue;
-            }
-            let connected = map.rows[y][x].has_edges || !map.rows[y][x].parents.is_empty();
-            if !connected {
-                continue;
-            }
-
-            // Find a valid room from the list
-            let start_idx = room_idx;
-            loop {
-                if room_idx >= room_list.len() {
-                    // Fallback: monster
-                    map.rows[y][x].room_type = RoomType::Monster;
-                    break;
-                }
-
-                let candidate = room_list[room_idx];
-                if is_valid_room_placement(map, x, y, candidate) {
-                    map.rows[y][x].room_type = candidate;
-                    room_list.remove(room_idx);
-                    break;
-                }
-
-                room_idx += 1;
-                if room_idx >= room_list.len() {
-                    room_idx = 0;
-                }
-                if room_idx == start_idx {
-                    // No valid room found, use monster
-                    map.rows[y][x].room_type = RoomType::Monster;
-                    break;
-                }
-            }
-        }
-    }
+    assign_rooms_to_nodes(map, &mut room_list);
 
     // Last minute check: any connected node without a room gets Monster
     for y in 0..map.height {
         for x in 0..map.width {
             let node = &map.rows[y][x];
-            if (node.has_edges || !node.parents.is_empty()) && node.room_type == RoomType::None {
+            if node.has_edges && node.room_type == RoomType::None {
                 map.rows[y][x].room_type = RoomType::Monster;
             }
         }
@@ -625,7 +635,11 @@ mod tests {
 
         // Row 0 should have at least 2 connected nodes (path_density=6)
         let starts = map.get_start_nodes();
-        assert!(starts.len() >= 2, "Expected at least 2 start nodes, got {}", starts.len());
+        assert!(
+            starts.len() >= 2,
+            "Expected at least 2 start nodes, got {}",
+            starts.len()
+        );
 
         // All start nodes should be monsters
         for node in &starts {
@@ -710,7 +724,77 @@ mod tests {
                 }
             }
         }
-        assert!(differences > 0, "Different seeds should produce different maps");
+        assert!(
+            differences > 0,
+            "Different seeds should produce different maps"
+        );
+    }
+
+    #[test]
+    fn smoke_seed_room_request_counts_match_java() {
+        // AbstractDungeon derives ratios from every outgoing-edge node except
+        // row 13 before assigning the fixed rows. For this known map seed,
+        // Java reports N=57 and requests 3/7/5/13 special rooms at A0.
+        // Sources:
+        // - decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+        // - decompiled/java-src/com/megacrit/cardcrawl/map/RoomTypeAssigner.java
+        let map = generate_map(57_554_006_467, 0);
+        let available = generation_room_count(&map);
+
+        assert_eq!(available, 57);
+        assert_eq!(
+            requested_room_counts(available, 0),
+            RoomRequestCounts {
+                shop: 3,
+                rest: 7,
+                elite: 5,
+                event: 13,
+            }
+        );
+    }
+
+    #[test]
+    fn room_assignment_restarts_scan_at_head() {
+        // The first node cannot take Rest and therefore removes Event from
+        // index one. Java restarts the next node at index zero, allowing it to
+        // take the remaining Rest rather than falling back to Monster.
+        // Java: RoomTypeAssigner.java::getNextRoomTypeAccordingToRules.
+        let height = 6;
+        let width = 1;
+        let mut map = DungeonMap {
+            rows: (0..height)
+                .map(|y| (0..width).map(|x| MapNode::new(x, y)).collect())
+                .collect(),
+            height,
+            width,
+        };
+        map.rows[1][0].add_edge(0, 2);
+        map.rows[5][0].add_edge(STANDARD_BOSS_X, STANDARD_BOSS_Y);
+        let mut room_list = vec![RoomType::Rest, RoomType::Event];
+
+        assign_rooms_to_nodes(&mut map, &mut room_list);
+
+        assert_eq!(map.rows[1][0].room_type, RoomType::Event);
+        assert_eq!(map.rows[5][0].room_type, RoomType::Rest);
+        assert!(room_list.is_empty());
+    }
+
+    #[test]
+    fn standard_map_terminal_edges_match_java() {
+        // MapGenerator terminates every generated path with an edge from row
+        // 14 to the off-map boss destination `(3, 16)`.
+        // Java: MapGenerator.java::_createPaths.
+        let map = generate_map(57_554_006_467, 0);
+        let terminal_nodes: Vec<&MapNode> = map.rows[14]
+            .iter()
+            .filter(|node| !node.parents.is_empty())
+            .collect();
+
+        assert!(!terminal_nodes.is_empty());
+        for node in terminal_nodes {
+            assert_eq!(node.edges, vec![(STANDARD_BOSS_X, STANDARD_BOSS_Y)]);
+            assert!(map.get_next_nodes(node.x, node.y).is_empty());
+        }
     }
 
     #[test]
