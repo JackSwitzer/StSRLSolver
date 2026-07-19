@@ -41,7 +41,7 @@ fn hook(
     }
     let selected = engine
         .card_random_rng
-        .random_range(0, (candidates.len() - 1) as i32) as usize;
+        .random_int_range(0, (candidates.len() - 1) as i32) as usize;
     let idx = candidates[selected];
     engine.state.hand[idx].cost = 0;
 }

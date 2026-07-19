@@ -4,7 +4,6 @@
 //! shops, campfires, and combat via the existing CombatEngine.
 //! Exposes step(action) -> (obs, reward, done, info) RL interface.
 
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::OnceLock;
@@ -335,7 +334,7 @@ fn roll_weighted_encounter(
     let mut sorted = encounters.to_vec();
     sorted.sort_by(|left, right| left.1.total_cmp(&right.1));
     let total = sorted.iter().fold(0.0_f32, |sum, entry| sum + entry.1);
-    let roll = rng.random_float();
+    let roll = rng.random_f32();
     let mut current = 0.0_f32;
     for (name, weight) in sorted {
         current += weight / total;
@@ -925,19 +924,9 @@ pub struct RunEngine {
     pub seed: u64,
     profile: ProfileSnapshot,
     profile_updates: Vec<ProfileUpdate>,
-    rng: crate::seed::StsRandom,
+    persistent_rngs: crate::seed::PersistentRngs,
+    floor_rngs: crate::seed::FloorRngs,
     neow_rng: crate::seed::StsRandom,
-    monster_rng: crate::seed::StsRandom,
-    event_rng: crate::seed::StsRandom,
-    relic_rng: crate::seed::StsRandom,
-    treasure_rng: crate::seed::StsRandom,
-    merchant_rng: crate::seed::StsRandom,
-    monster_hp_rng: crate::seed::StsRandom,
-    ai_rng: crate::seed::StsRandom,
-    shuffle_rng: crate::seed::StsRandom,
-    card_random_rng: crate::seed::StsRandom,
-    potion_rng: crate::seed::StsRandom,
-    combat_misc_rng: crate::seed::StsRandom,
     map_rng: crate::seed::StsRandom,
 
     // Active combat (when in Combat phase)
@@ -1025,19 +1014,18 @@ impl RunEngine {
         // Exordium seeds mapRng with Settings.seed + actNum.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/Exordium.java:56
         let (map, map_rng) = generate_map_with_rng(seed.wrapping_add(1), ascension);
-        let rng = crate::seed::StsRandom::new(seed.wrapping_add(1));
-        let mut relic_rng = crate::seed::StsRandom::new(seed);
+        let mut persistent_rngs = crate::seed::PersistentRngs::new(seed);
         // AbstractDungeon.initializeRelicList shuffles five tier pools through
         // five relicRng.randomLong calls before Neow is resolved.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:1227-1231
         for _ in 0..5 {
-            relic_rng.random_long();
+            persistent_rngs.relic.random_long_unbounded();
         }
-        let mut combat_misc_rng = crate::seed::StsRandom::new(seed);
+        let mut floor_rngs = crate::seed::FloorRngs::new(seed);
         // Initial dungeon music selection consumes one miscRng draw. This is
         // reset on the first room transition, but remains visible after Neow.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/audio/MainMusic.java:61-83
-        combat_misc_rng.random(1);
+        floor_rngs.misc.random_int(1);
 
         let mut engine = Self {
             run_state: RunState::new(ascension),
@@ -1046,19 +1034,9 @@ impl RunEngine {
             seed,
             profile,
             profile_updates: Vec::new(),
-            rng,
+            persistent_rngs,
+            floor_rngs,
             neow_rng: crate::seed::StsRandom::new(seed),
-            monster_rng: crate::seed::StsRandom::new(seed),
-            event_rng: crate::seed::StsRandom::new(seed),
-            relic_rng,
-            treasure_rng: crate::seed::StsRandom::new(seed),
-            merchant_rng: crate::seed::StsRandom::new(seed),
-            monster_hp_rng: crate::seed::StsRandom::new(seed),
-            ai_rng: crate::seed::StsRandom::new(seed),
-            shuffle_rng: crate::seed::StsRandom::new(seed),
-            card_random_rng: crate::seed::StsRandom::new(seed),
-            potion_rng: crate::seed::StsRandom::new(seed),
-            combat_misc_rng,
             map_rng,
             combat_engine: None,
             reward_screen: None,
@@ -1142,19 +1120,20 @@ impl RunEngine {
         match act {
             2 => self.seed.wrapping_add((act as u64) * 100),
             3 => self.seed.wrapping_add((act as u64) * 200),
+            4 => self.seed.wrapping_add((act as u64) * 300),
             _ => self.seed.wrapping_add(act as u64),
         }
     }
 
     fn advance_card_rng_for_act_transition(&mut self) {
-        let target = match self.rng.counter {
+        let target = match self.persistent_rngs.card.counter {
             1..=249 => 250,
             251..=499 => 500,
             501..=749 => 750,
             _ => return,
         };
-        while self.rng.counter < target {
-            self.rng.random_boolean();
+        while self.persistent_rngs.card.counter < target {
+            self.persistent_rngs.card.random_bool();
         }
     }
 
@@ -1162,11 +1141,10 @@ impl RunEngine {
         let next_act = self.run_state.act + 1;
         debug_assert!(matches!(next_act, 2 | 3));
 
-        // TreasureRoomBoss occupies the floor after the boss, then
-        // dungeonTransitionSetup increments the act and heals the player.
+        // TreasureRoomBoss already advanced floorNum through nextRoomTransition;
+        // dungeonTransitionSetup only increments the act and heals the player.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/buttons/ProceedButton.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:2552-2584
-        self.run_state.floor += 1;
         self.advance_card_rng_for_act_transition();
         self.run_state.act = next_act;
         self.run_state.map_x = -1;
@@ -1192,6 +1170,10 @@ impl RunEngine {
         self.map_rng = map_rng;
         self.generate_encounter_queues(next_act);
         self.roll_boss_sequence_for_act(next_act);
+        // MainMusic selects one of two dungeon tracks on Act 2/3 entry using
+        // the still-live miscRng; the next room transition replaces this stream.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/audio/MainMusic.java:61-83
+        self.floor_rngs.misc.random_int(1);
 
         self.current_event = None;
         self.pending_event_combat = None;
@@ -1216,6 +1198,24 @@ impl RunEngine {
         self.combat_engine = None;
         self.active_combat_is_boss = false;
         self.phase = RunPhase::Event;
+    }
+
+    fn reset_floor_rngs(&mut self) {
+        // AbstractDungeon.nextRoomTransition rebuilds these five room-scoped
+        // streams from Settings.seed + floorNum. potionRng remains persistent.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:1737-1741
+        let floor_seed = self.seed.wrapping_add(self.run_state.floor as u64);
+        self.floor_rngs = crate::seed::FloorRngs::new(floor_seed);
+    }
+
+    fn enter_boss_treasure_room(&mut self) {
+        // ProceedButton routes the defeated boss room to TreasureRoomBoss via
+        // nextRoomTransition before TreasureRoomBoss creates its BossChest.
+        // Boss relic choices and onEquip effects therefore see seed + new floor.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/buttons/ProceedButton.java:179-186
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/rooms/TreasureRoomBoss.java:57-65
+        self.run_state.floor += 1;
+        self.reset_floor_rngs();
     }
 
     fn build_neow_options(&mut self) -> Vec<NeowChoiceOption> {
@@ -1257,7 +1257,7 @@ impl RunEngine {
             1 => (self.roll_neow_reward(CATEGORY_ONE), NeowDrawback::None),
             2 => {
                 let drawback =
-                    DRAWBACKS[self.neow_rng.random(DRAWBACKS.len() as i32 - 1) as usize];
+                    DRAWBACKS[self.neow_rng.random_int(DRAWBACKS.len() as i32 - 1) as usize];
                 let mut rewards = vec![NeowReward::RandomColorlessRare];
                 if drawback != NeowDrawback::Curse {
                     rewards.push(NeowReward::RemoveTwo);
@@ -1290,7 +1290,7 @@ impl RunEngine {
     }
 
     fn roll_neow_reward(&mut self, rewards: &[NeowReward]) -> NeowReward {
-        rewards[self.neow_rng.random(rewards.len() as i32 - 1) as usize]
+        rewards[self.neow_rng.random_int(rewards.len() as i32 - 1) as usize]
     }
 
     fn neow_option_label(
@@ -1355,7 +1355,9 @@ impl RunEngine {
         self.apply_neow_reward(choice.reward);
         if deferred_curse {
             let curse = RANDOM_OBTAINABLE_CURSES
-                [self.rng.random(RANDOM_OBTAINABLE_CURSES.len() as i32 - 1) as usize];
+                [self.persistent_rngs
+                .card
+                .random_int(RANDOM_OBTAINABLE_CURSES.len() as i32 - 1) as usize];
             obtain_master_deck_card_state(&mut self.run_state, curse.to_string());
         }
     }
@@ -1440,7 +1442,7 @@ impl RunEngine {
             // NeowReward rolls rarity even when rareOnly subsequently forces
             // RARE, so each displayed card consumes the same two Neow RNG
             // calls: rarity, then pool index.
-            let rolled_uncommon = self.neow_rng.random_float() < 0.33;
+            let rolled_uncommon = self.neow_rng.random_f32() < 0.33;
             let pool = if colorless {
                 if rare_only {
                     SHOP_COLORLESS_RARE_CARDS
@@ -1473,7 +1475,7 @@ impl RunEngine {
     }
 
     fn roll_neow_card(&mut self, pool: &[&str]) -> String {
-        pool[self.neow_rng.random(pool.len() as i32 - 1) as usize].to_string()
+        pool[self.neow_rng.random_int(pool.len() as i32 - 1) as usize].to_string()
     }
 
     fn build_neow_card_reward_screen(&mut self, choices: Vec<RewardChoice>) {
@@ -1555,7 +1557,9 @@ impl RunEngine {
             "PowerPotion",
             "SkillPotion",
         ];
-        POTIONS[self.potion_rng.random(POTIONS.len() as i32 - 1) as usize].to_string()
+        POTIONS[self.persistent_rngs
+            .potion
+            .random_int(POTIONS.len() as i32 - 1) as usize].to_string()
     }
 
     fn start_neow_deck_selection(
@@ -1642,7 +1646,7 @@ impl RunEngine {
         };
         candidates.retain(|candidate| candidate != base);
         (!candidates.is_empty()).then(|| {
-            candidates[self.neow_rng.random(candidates.len() as i32 - 1) as usize].clone()
+            candidates[self.neow_rng.random_int(candidates.len() as i32 - 1) as usize].clone()
         })
     }
 
@@ -2361,6 +2365,7 @@ impl RunEngine {
         self.run_state.map_x = next_x as i32;
         self.run_state.map_y = next_y as i32;
         self.run_state.floor += 1;
+        self.reset_floor_rngs();
 
         // Enter the room
         match room_type {
@@ -2446,7 +2451,7 @@ impl RunEngine {
             weak,
             weak_count,
             false,
-            &mut self.monster_rng,
+            &mut self.persistent_rngs.monster,
         );
 
         let previous = self
@@ -2456,7 +2461,7 @@ impl RunEngine {
             .unwrap_or_default();
         let exclusions = first_strong_exclusions(act, &previous);
         loop {
-            let candidate = roll_weighted_encounter(strong, &mut self.monster_rng);
+            let candidate = roll_weighted_encounter(strong, &mut self.persistent_rngs.monster);
             if !exclusions.contains(&candidate) {
                 self.monster_encounter_queue
                     .push_back(candidate.to_string());
@@ -2469,14 +2474,14 @@ impl RunEngine {
             strong,
             12,
             false,
-            &mut self.monster_rng,
+            &mut self.persistent_rngs.monster,
         );
         populate_encounter_queue(
             &mut self.elite_encounter_queue,
             elites,
             10,
             true,
-            &mut self.monster_rng,
+            &mut self.persistent_rngs.monster,
         );
     }
 
@@ -2494,7 +2499,7 @@ impl RunEngine {
             3 => ACT3_BOSSES.to_vec(),
             _ => ACT1_BOSSES.to_vec(),
         };
-        let shuffle_seed = self.monster_rng.random_long();
+        let shuffle_seed = self.persistent_rngs.monster.random_long_unbounded();
         crate::seed::java_util_shuffle(&mut bosses, shuffle_seed);
         self.boss_id = bosses[0].to_string();
         self.pending_act_three_boss_id =
@@ -2525,7 +2530,7 @@ impl RunEngine {
                         elites,
                         10,
                         true,
-                        &mut self.monster_rng,
+                        &mut self.persistent_rngs.monster,
                     );
                 }
             }
@@ -2546,7 +2551,7 @@ impl RunEngine {
                         strong,
                         12,
                         false,
-                        &mut self.monster_rng,
+                        &mut self.persistent_rngs.monster,
                     );
                 }
             }
@@ -2555,19 +2560,26 @@ impl RunEngine {
                 .pop_front()
                 .expect("monster encounter queue was refilled")]
         };
-        self.enter_specific_combat_with_kind(encounter, is_boss);
+        self.start_specific_combat(encounter, is_boss);
     }
 
     fn random_louse_id(&mut self) -> String {
-        if self.combat_misc_rng.random_boolean() {
+        if self.floor_rngs.misc.random_bool() {
             "FuzzyLouseNormal".to_string()
         } else {
             "FuzzyLouseDefensive".to_string()
         }
     }
 
+    fn construct_random_louse(&mut self) -> EnemyCombatState {
+        // MonsterHelper.getLouse chooses the type and immediately runs that
+        // constructor before the next array element is evaluated.
+        let id = self.random_louse_id();
+        self.construct_enemy_for_run(&id)
+    }
+
     fn random_slaver_id(&mut self) -> String {
-        if self.combat_misc_rng.random_boolean() {
+        if self.floor_rngs.misc.random_bool() {
             "RedSlaver".to_string()
         } else {
             "BlueSlaver".to_string()
@@ -2575,81 +2587,90 @@ impl RunEngine {
     }
 
     fn random_ancient_shape_id(&mut self) -> String {
-        match self.combat_misc_rng.random(2) {
+        match self.floor_rngs.misc.random_int(2) {
             0 => "Spiker".to_string(),
             1 => "Repulsor".to_string(),
             _ => "Exploder".to_string(),
         }
     }
 
-    fn random_weak_wildlife_id(&mut self) -> String {
-        // MonsterHelper constructs the louse candidate before rolling among
-        // louse / Spike Slime M / Acid Slime M, so the louse boolean is
-        // consumed even when another candidate wins.
-        let candidates = [
-            self.random_louse_id(),
-            "SpikeSlime_M".to_string(),
-            "AcidSlime_M".to_string(),
+    fn construct_random_weak_wildlife(&mut self) -> EnemyCombatState {
+        // bottomGetWeakWildlife constructs all three candidates before the
+        // miscRng selection. Discarded candidates still consume constructor
+        // monsterHpRng draws; only the chosen Louse later receives Curl Up.
+        // Java: helpers/MonsterHelper.java::bottomGetWeakWildlife.
+        let louse_id = self.random_louse_id();
+        let mut candidates = vec![
+            self.construct_enemy_for_run(&louse_id),
+            self.construct_enemy_for_run("SpikeSlime_M"),
+            self.construct_enemy_for_run("AcidSlime_M"),
         ];
-        let index = self.combat_misc_rng.random(2) as usize;
-        candidates[index].clone()
+        let index = self.floor_rngs.misc.random_int(2) as usize;
+        candidates.remove(index)
     }
 
-    fn random_strong_humanoid_id(&mut self) -> String {
-        // As with the Java helper, constructing the slaver candidate consumes
-        // its color boolean before the outer three-way selection.
-        let candidates = [
-            "Cultist".to_string(),
-            self.random_slaver_id(),
-            "Looter".to_string(),
-        ];
-        let index = self.combat_misc_rng.random(2) as usize;
-        candidates[index].clone()
+    fn construct_random_strong_humanoid(&mut self) -> EnemyCombatState {
+        // Java constructs Cultist, the color-selected Slaver, and Looter in
+        // that order before choosing which fully constructed instance survives.
+        // Java: helpers/MonsterHelper.java::bottomGetStrongHumanoid.
+        let cultist = self.construct_enemy_for_run("Cultist");
+        let slaver_id = self.random_slaver_id();
+        let slaver = self.construct_enemy_for_run(&slaver_id);
+        let looter = self.construct_enemy_for_run("Looter");
+        let mut candidates = vec![cultist, slaver, looter];
+        let index = self.floor_rngs.misc.random_int(2) as usize;
+        candidates.remove(index)
     }
 
-    fn random_strong_wildlife_id(&mut self) -> String {
-        if self.combat_misc_rng.random_boolean() {
-            "JawWorm".to_string()
-        } else {
-            "FungiBeast".to_string()
-        }
+    fn construct_random_strong_wildlife(&mut self) -> EnemyCombatState {
+        // bottomGetStrongWildlife constructs both candidates, then selects by
+        // miscRng.random(0, 1), which is not the randomBoolean overload.
+        // Java: helpers/MonsterHelper.java::bottomGetStrongWildlife.
+        let mut candidates = vec![
+            self.construct_enemy_for_run("FungiBeast"),
+            self.construct_enemy_for_run("JawWorm"),
+        ];
+        let index = self.floor_rngs.misc.random_int(1) as usize;
+        candidates.remove(index)
     }
 
     fn enter_specific_combat(&mut self, encounter: Vec<String>) {
-        self.enter_specific_combat_with_kind(encounter, false);
+        self.reset_floor_rngs();
+        self.start_specific_combat(encounter, false);
     }
 
-    fn enter_specific_boss_combat(&mut self, encounter: Vec<String>) {
-        self.enter_specific_combat_with_kind(encounter, true);
+    fn start_event_combat(&mut self, encounter: Vec<String>) {
+        // Event combats stay in the current EventRoom. AbstractEvent.enterCombat
+        // and AbstractImageEvent.enterCombatFromImage initialize monsters and
+        // combat state without calling nextRoomTransition, so all five floor
+        // streams retain event-side consumption.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/events/AbstractEvent.java:85-93
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/events/AbstractImageEvent.java:76-88
+        self.start_specific_combat(encounter, false);
     }
 
-    fn enter_specific_combat_with_kind(&mut self, encounter: Vec<String>, is_boss: bool) {
+    fn start_specific_combat(&mut self, encounter: Vec<String>, is_boss: bool) {
         self.active_combat_is_boss = is_boss;
-        // AbstractDungeon.nextRoomTransition resets these room-scoped streams
-        // from Settings.seed + floorNum. potionRng intentionally is not reset.
-        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:1737-1741
-        let floor_seed = self.seed.wrapping_add(self.run_state.floor as u64);
-        self.monster_hp_rng = crate::seed::StsRandom::new(floor_seed);
-        self.ai_rng = crate::seed::StsRandom::new(floor_seed);
-        self.shuffle_rng = crate::seed::StsRandom::new(floor_seed);
-        self.card_random_rng = crate::seed::StsRandom::new(floor_seed);
-        self.combat_misc_rng = crate::seed::StsRandom::new(floor_seed);
 
         // Expand composite encounters. MonsterHelper constructs Gremlin Leader
         // with two independent weighted miscRng gremlins before the Leader.
         // Source: decompiled/java-src/com/megacrit/cardcrawl/helpers/MonsterHelper.java.
         let mut expanded = Vec::new();
+        let mut preconstructed = HashMap::<usize, EnemyCombatState>::new();
         for id in &encounter {
             match id.as_str() {
                 "Jaw Worm" => expanded.push("JawWorm".to_string()),
                 "2 Louse" | "3 Louse" => {
                     let count = if id == "2 Louse" { 2 } else { 3 };
                     for _ in 0..count {
-                        expanded.push(self.random_louse_id());
+                        let louse = self.construct_random_louse();
+                        let index = expanded.len();
+                        expanded.push(louse.id.clone());
+                        preconstructed.insert(index, louse);
                     }
                 }
                 "Small Slimes" => {
-                    if self.combat_misc_rng.random_boolean() {
+                    if self.floor_rngs.misc.random_bool() {
                         expanded.push("SpikeSlime_S".to_string());
                         expanded.push("AcidSlime_M".to_string());
                     } else {
@@ -2667,13 +2688,13 @@ impl RunEngine {
                         "GremlinTsundere", "GremlinWizard",
                     ];
                     for _ in 0..4 {
-                        let index = self.combat_misc_rng.random((pool.len() - 1) as i32)
+                        let index = self.floor_rngs.misc.random_int((pool.len() - 1) as i32)
                             as usize;
                         expanded.push(pool.remove(index).to_string());
                     }
                 }
                 "Large Slime" => {
-                    expanded.push(if self.combat_misc_rng.random_boolean() {
+                    expanded.push(if self.floor_rngs.misc.random_bool() {
                         "AcidSlime_L".to_string()
                     } else {
                         "SpikeSlime_L".to_string()
@@ -2685,18 +2706,32 @@ impl RunEngine {
                         "AcidSlime_S", "AcidSlime_S",
                     ];
                     while !pool.is_empty() {
-                        let index = self.combat_misc_rng.random((pool.len() - 1) as i32)
+                        let index = self.floor_rngs.misc.random_int((pool.len() - 1) as i32)
                             as usize;
                         expanded.push(pool.remove(index).to_string());
                     }
                 }
                 "Exordium Thugs" => {
-                    expanded.push(self.random_weak_wildlife_id());
-                    expanded.push(self.random_strong_humanoid_id());
+                    let weak = self.construct_random_weak_wildlife();
+                    let weak_index = expanded.len();
+                    expanded.push(weak.id.clone());
+                    preconstructed.insert(weak_index, weak);
+
+                    let strong = self.construct_random_strong_humanoid();
+                    let strong_index = expanded.len();
+                    expanded.push(strong.id.clone());
+                    preconstructed.insert(strong_index, strong);
                 }
                 "Exordium Wildlife" => {
-                    expanded.push(self.random_strong_wildlife_id());
-                    expanded.push(self.random_weak_wildlife_id());
+                    let strong = self.construct_random_strong_wildlife();
+                    let strong_index = expanded.len();
+                    expanded.push(strong.id.clone());
+                    preconstructed.insert(strong_index, strong);
+
+                    let weak = self.construct_random_weak_wildlife();
+                    let weak_index = expanded.len();
+                    expanded.push(weak.id.clone());
+                    preconstructed.insert(weak_index, weak);
                 }
                 "2 Fungi Beasts" => {
                     expanded.push("FungiBeast".to_string());
@@ -2765,8 +2800,13 @@ impl RunEngine {
                     expanded.push("SpireSpear".to_string());
                 }
                 "DonuAndDeca" => {
-                    expanded.push("Donu".to_string());
                     expanded.push("Deca".to_string());
+                    expanded.push("Donu".to_string());
+                }
+                "AwakenedOne" | "Awakened One" => {
+                    expanded.push("Cultist".to_string());
+                    expanded.push("Cultist".to_string());
+                    expanded.push("AwakenedOne".to_string());
                 }
                 "GremlinLeader" | "Gremlin Leader" => {
                     const GREMLIN_POOL: [&str; 8] = [
@@ -2777,10 +2817,14 @@ impl RunEngine {
                     ];
                     for _ in 0..2 {
                         let index = self
-                            .combat_misc_rng
-                            .random((GREMLIN_POOL.len() - 1) as i32)
+                            .floor_rngs
+                            .misc
+                            .random_int((GREMLIN_POOL.len() - 1) as i32)
                             as usize;
-                        expanded.push(GREMLIN_POOL[index].to_string());
+                        let gremlin = self.construct_enemy_for_run(GREMLIN_POOL[index]);
+                        let expanded_index = expanded.len();
+                        expanded.push(gremlin.id.clone());
+                        preconstructed.insert(expanded_index, gremlin);
                     }
                     expanded.push("GremlinLeader".to_string());
                 }
@@ -2802,7 +2846,7 @@ impl RunEngine {
                         "Spiker", "Spiker",
                     ];
                     for _ in 0..count {
-                        let index = self.combat_misc_rng.random((pool.len() - 1) as i32)
+                        let index = self.floor_rngs.misc.random_int((pool.len() - 1) as i32)
                             as usize;
                         expanded.push(pool.remove(index).to_string());
                     }
@@ -2812,13 +2856,13 @@ impl RunEngine {
         }
 
         // Create enemies
-        let mut enemy_states: Vec<EnemyCombatState> = expanded
-            .iter()
-            .map(|id| {
-                let (hp, max_hp) = self.roll_enemy_hp(id);
-                enemies::create_enemy(id, hp, max_hp)
-            })
-            .collect();
+        let mut enemy_states = Vec::with_capacity(expanded.len());
+        for (index, id) in expanded.iter().enumerate() {
+            let enemy = preconstructed
+                .remove(&index)
+                .unwrap_or_else(|| self.construct_enemy_for_run(id));
+            enemy_states.push(enemy);
+        }
 
         if enemy_states.iter().any(|enemy| enemy.id == "GremlinLeader") {
             for enemy in enemy_states.iter_mut().filter(|enemy| matches!(enemy.id.as_str(),
@@ -2883,24 +2927,24 @@ impl RunEngine {
         }
 
         // Sources: reference/extracted/methods/monster/LouseNormal.java and
-        // LouseDefensive.java. HP is rolled separately below; constructor Bite
-        // and pre-battle Curl Up also use inclusive monsterHpRng ranges.
+        // LouseDefensive.java. HP and Bite were consumed together by
+        // construct_enemy_for_run. Store the pre-battle Curl Up lower bound;
+        // CombatEngine draws it only after every monster's init() AI roll.
         for enemy in enemy_states.iter_mut().filter(|e| matches!(e.id.as_str(),
             "FuzzyLouseNormal" | "RedLouse" | "FuzzyLouseDefensive" | "GreenLouse")) {
-            let bite_base = if self.run_state.ascension >= 2 { 6 } else { 5 };
-            let bite_damage = bite_base + self.monster_hp_rng.random(2);
-            let (curl_base, curl_width) = if self.run_state.ascension >= 17 {
-                (9, 3)
+            let bite_damage = enemy.entity.status(crate::status_ids::sid::STARTING_DMG);
+            let curl_min = if self.run_state.ascension >= 17 {
+                9
             } else if self.run_state.ascension >= 7 {
-                (4, 4)
+                4
             } else {
-                (3, 4)
+                3
             };
-            let curl_up = curl_base + self.monster_hp_rng.random(curl_width);
             enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, bite_damage);
             enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
                 if self.run_state.ascension >= 17 { 4 } else { 3 });
-            enemy.entity.set_status(crate::status_ids::sid::CURL_UP, curl_up);
+            enemy.entity.set_status(crate::status_ids::sid::BLOCK_AMT, curl_min);
+            enemy.entity.set_status(crate::status_ids::sid::CURL_UP, 0);
             enemy.set_move(crate::enemies::move_ids::LOUSE_BITE, bite_damage, 1, 0);
         }
 
@@ -3169,16 +3213,13 @@ impl RunEngine {
         }
 
         // Source: reference/extracted/methods/monster/Darkling.java.
-        // HP is rolled separately; Nip has its own inclusive monsterHpRng
-        // roll, and Chomp/Harden change at independent ascension thresholds.
+        // HP and Nip were consumed together by construct_enemy_for_run;
+        // Chomp/Harden change at independent ascension thresholds.
         for (index, enemy) in enemy_states.iter_mut().enumerate()
             .filter(|(_, enemy)| enemy.id == "Darkling")
         {
             enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG,
                 if self.run_state.ascension >= 2 { 9 } else { 8 });
-            let nip_base = if self.run_state.ascension >= 2 { 9 } else { 7 };
-            enemy.entity.set_status(crate::status_ids::sid::STR_AMT,
-                nip_base + self.monster_hp_rng.random(4));
             enemy.entity.set_status(crate::status_ids::sid::HIGH_ASCENSION_AI,
                 if self.run_state.ascension >= 17 { 1 } else { 0 });
             enemy.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 1);
@@ -3626,19 +3667,32 @@ impl RunEngine {
             enemy.add_effect(crate::combat_types::mfx::ENRAGE, enrage as i16);
         }
 
-        // Source: reference/extracted/methods/monster/Lagavulin.java.
-        for enemy in enemy_states.iter_mut().filter(|e| e.id == "Lagavulin") {
+        // Source: reference/extracted/methods/monster/Lagavulin.java and
+        // helpers/MonsterHelper.java (`Lagavulin Event` -> Lagavulin(false)).
+        for (index, enemy) in enemy_states.iter_mut().enumerate()
+            .filter(|(_, enemy)| enemy.id == "Lagavulin")
+        {
             let damage = if self.run_state.ascension >= 3 { 20 } else { 18 };
             let debuff = if self.run_state.ascension >= 18 { 2 } else { 1 };
-            enemy.entity.block = 8;
             enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, damage);
             enemy.entity.set_status(crate::status_ids::sid::STR_AMT, debuff);
-            enemy.entity.set_status(crate::status_ids::sid::IS_FIRST_MOVE, 0);
             enemy.entity.set_status(crate::status_ids::sid::COUNT, 0);
             enemy.entity.set_status(crate::status_ids::sid::ATTACK_COUNT, 0);
-            enemy.entity.set_status(crate::status_ids::sid::SLEEP_TURNS, 1);
-            enemy.entity.set_status(crate::status_ids::sid::METALLICIZE, 8);
-            enemy.set_move(crate::enemies::move_ids::LAGA_SLEEP, 0, 0, 0);
+            if expanded[index] == "Lagavulin Event" {
+                enemy.entity.block = 0;
+                enemy.entity.set_status(crate::status_ids::sid::IS_FIRST_MOVE, 1);
+                enemy.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 1);
+                enemy.entity.set_status(crate::status_ids::sid::SLEEP_TURNS, 0);
+                enemy.entity.set_status(crate::status_ids::sid::METALLICIZE, 0);
+                enemy.set_move(crate::enemies::move_ids::LAGA_SIPHON, 0, 0, 0);
+            } else {
+                enemy.entity.block = 8;
+                enemy.entity.set_status(crate::status_ids::sid::IS_FIRST_MOVE, 0);
+                enemy.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 0);
+                enemy.entity.set_status(crate::status_ids::sid::SLEEP_TURNS, 1);
+                enemy.entity.set_status(crate::status_ids::sid::METALLICIZE, 8);
+                enemy.set_move(crate::enemies::move_ids::LAGA_SLEEP, 0, 0, 0);
+            }
         }
 
         // Source: reference/extracted/methods/monster/Sentry.java.
@@ -3723,6 +3777,7 @@ impl RunEngine {
         if self.run_state.ascension >= 2 {
             let ritual = if self.run_state.ascension >= 17 { 5 } else { 4 };
             for enemy in enemy_states.iter_mut().filter(|e| e.id == "Cultist") {
+                enemy.entity.set_status(crate::status_ids::sid::STR_AMT, ritual as i32);
                 enemy.add_effect(crate::combat_types::mfx::RITUAL, ritual);
             }
         }
@@ -3882,11 +3937,7 @@ impl RunEngine {
 
         let mut engine = CombatEngine::new_with_rng_streams(
             combat_state,
-            self.shuffle_rng.clone(),
-            self.card_random_rng.clone(),
-            self.potion_rng.clone(),
-            self.combat_misc_rng.clone(),
-            self.ai_rng.clone(),
+            self.floor_rngs.combat_snapshot(&self.persistent_rngs),
         );
         engine.load_persisted_effects(self.run_state.persisted_effect_states.clone());
         engine.start_combat();
@@ -3896,6 +3947,42 @@ impl RunEngine {
         self.refresh_decision_stack();
     }
 
+    fn construct_enemy_for_run(&mut self, enemy_id: &str) -> EnemyCombatState {
+        let canonical_id = match enemy_id {
+            // MonsterHelper maps the Dead Adventurer event key to the normal
+            // Lagavulin constructor with the asleep flag disabled.
+            // Java: helpers/MonsterHelper.java (`Lagavulin Event`).
+            "Lagavulin Event" => "Lagavulin",
+            other => other,
+        };
+        let (hp, max_hp) = self.roll_enemy_hp(canonical_id);
+        let mut enemy = enemies::create_enemy(canonical_id, hp, max_hp);
+
+        // These values are constructor-owned and therefore interleave with HP
+        // member-by-member. Later pre-battle draws such as Curl Up remain in
+        // the encounter setup phase after every constructor has completed.
+        if matches!(canonical_id,
+            "FuzzyLouseNormal" | "RedLouse" | "FuzzyLouseDefensive" | "GreenLouse")
+        {
+            let bite_base = if self.run_state.ascension >= 2 { 6 } else { 5 };
+            let bite_damage = bite_base + self.floor_rngs.monster_hp.random_int(2);
+            enemy.entity.set_status(crate::status_ids::sid::STARTING_DMG, bite_damage);
+        } else if canonical_id == "Darkling" {
+            let nip_base = if self.run_state.ascension >= 2 { 9 } else { 7 };
+            let nip_damage = nip_base + self.floor_rngs.monster_hp.random_int(4);
+            enemy.entity.set_status(crate::status_ids::sid::STR_AMT, nip_damage);
+        }
+
+        enemy
+    }
+
+    fn roll_fixed_set_hp(&mut self, hp: i32) -> (i32, i32) {
+        // AbstractMonster.setHp(hp) delegates to setHp(hp, hp), and the latter
+        // always calls monsterHpRng.random(min, max), including width one.
+        let rolled = self.floor_rngs.monster_hp.random_int_range(hp, hp);
+        (rolled, rolled)
+    }
+
     fn roll_enemy_hp(&mut self, enemy_id: &str) -> (i32, i32) {
         let a20 = self.run_state.ascension >= 7;
         match enemy_id {
@@ -3903,7 +3990,7 @@ impl RunEngine {
                 // Source: reference/extracted/methods/monster/JawWorm.java:
                 // setHp(40,44), or setHp(42,46) at ascension 7+ (inclusive).
                 let base = if a20 { 42 } else { 40 };
-                let hp = base + self.monster_hp_rng.random(4);
+                let hp = base + self.floor_rngs.monster_hp.random_int(4);
                 (hp, hp)
             }
             "Cultist" => {
@@ -3911,117 +3998,117 @@ impl RunEngine {
                 // setHp(48, 54) below — a uniform inclusive roll, not a fixed
                 // value (AbstractMonster.setHp -> monsterHpRng.random(min, max)).
                 let base = if a20 { 50 } else { 48 };
-                let hp = base + self.monster_hp_rng.random(6);
+                let hp = base + self.floor_rngs.monster_hp.random_int(6);
                 (hp, hp)
             }
             "FuzzyLouseNormal" | "RedLouse" => {
                 let base = if a20 { 11 } else { 10 };
-                let hp = base + self.monster_hp_rng.random(5);
+                let hp = base + self.floor_rngs.monster_hp.random_int(5);
                 (hp, hp)
             }
             "FuzzyLouseDefensive" | "GreenLouse" => {
                 let base = if a20 { 12 } else { 11 };
-                let hp = base + self.monster_hp_rng.random(6);
+                let hp = base + self.floor_rngs.monster_hp.random_int(6);
                 (hp, hp)
             }
             "AcidSlime_S" => {
                 let base = if a20 { 9 } else { 8 };
-                let hp = base + self.monster_hp_rng.random(4);
+                let hp = base + self.floor_rngs.monster_hp.random_int(4);
                 (hp, hp)
             }
             "AcidSlime_M" => {
                 let base = if a20 { 29 } else { 28 };
                 let width = if a20 { 5 } else { 4 };
-                let hp = base + self.monster_hp_rng.random(width);
+                let hp = base + self.floor_rngs.monster_hp.random_int(width);
                 (hp, hp)
             }
             "AcidSlime_L" => {
                 let base = if a20 { 68 } else { 65 };
-                let hp = base + self.monster_hp_rng.random(4);
+                let hp = base + self.floor_rngs.monster_hp.random_int(4);
                 (hp, hp)
             }
             "SpikeSlime_S" => {
                 let base = if a20 { 11 } else { 10 };
-                let hp = base + self.monster_hp_rng.random(4);
+                let hp = base + self.floor_rngs.monster_hp.random_int(4);
                 (hp, hp)
             }
             "SpikeSlime_M" => {
                 let base = if a20 { 29 } else { 28 };
                 let width = if a20 { 5 } else { 4 };
-                let hp = base + self.monster_hp_rng.random(width);
+                let hp = base + self.floor_rngs.monster_hp.random_int(width);
                 (hp, hp)
             }
             "SpikeSlime_L" => {
                 let base = if a20 { 67 } else { 64 };
-                let hp = base + self.monster_hp_rng.random(6);
+                let hp = base + self.floor_rngs.monster_hp.random_int(6);
                 (hp, hp)
             }
             "Looter" => {
                 let base = if a20 { 46 } else { 44 };
-                let hp = base + self.monster_hp_rng.random(4);
+                let hp = base + self.floor_rngs.monster_hp.random_int(4);
                 (hp, hp)
             }
             "Mugger" => {
                 // Source: reference/extracted/methods/monster/Mugger.java:
                 // inclusive 48..52, or 50..54 at ascension 7.
                 let base = if a20 { 50 } else { 48 };
-                let hp = base + self.monster_hp_rng.random(4);
+                let hp = base + self.floor_rngs.monster_hp.random_int(4);
                 (hp, hp)
             }
             "GremlinFat" => {
                 let base = if a20 { 14 } else { 13 };
-                let hp = base + self.monster_hp_rng.random(4);
+                let hp = base + self.floor_rngs.monster_hp.random_int(4);
                 (hp, hp)
             }
             "GremlinThief" => {
                 let base = if a20 { 11 } else { 10 };
-                let hp = base + self.monster_hp_rng.random(4);
+                let hp = base + self.floor_rngs.monster_hp.random_int(4);
                 (hp, hp)
             }
             "GremlinWarrior" => {
                 let base = if a20 { 21 } else { 20 };
-                let hp = base + self.monster_hp_rng.random(4);
+                let hp = base + self.floor_rngs.monster_hp.random_int(4);
                 (hp, hp)
             }
             "GremlinWizard" => {
                 let base = if a20 { 22 } else { 21 };
-                let hp = base + self.monster_hp_rng.random(4);
+                let hp = base + self.floor_rngs.monster_hp.random_int(4);
                 (hp, hp)
             }
             "GremlinTsundere" => {
                 let (base, width) = if a20 { (13, 4) } else { (12, 3) };
-                let hp = base + self.monster_hp_rng.random(width);
+                let hp = base + self.floor_rngs.monster_hp.random_int(width);
                 (hp, hp)
             }
             "FungiBeast" => {
                 // Source: reference/extracted/methods/monster/FungiBeast.java:
                 // setHp(22,28), or setHp(24,28) at ascension 7+ (inclusive).
                 let base = if a20 { 24 } else { 22 };
-                let hp = base + self.monster_hp_rng.random(28 - base);
+                let hp = base + self.floor_rngs.monster_hp.random_int(28 - base);
                 (hp, hp)
             }
             "BlueSlaver" | "SlaverBlue" => {
                 let base = if a20 { 48 } else { 46 };
-                let hp = base + self.monster_hp_rng.random(4);
+                let hp = base + self.floor_rngs.monster_hp.random_int(4);
                 (hp, hp)
             }
             "RedSlaver" | "SlaverRed" => {
                 let base = if a20 { 48 } else { 46 };
-                let hp = base + self.monster_hp_rng.random(4);
+                let hp = base + self.floor_rngs.monster_hp.random_int(4);
                 (hp, hp)
             }
             "BanditBear" | "Bear" => {
                 let base = if a20 { 40 } else { 38 };
-                let hp = base + self.monster_hp_rng.random(4);
+                let hp = base + self.floor_rngs.monster_hp.random_int(4);
                 (hp, hp)
             }
             "BanditChild" | "BanditPointy" | "Pointy" => {
                 let hp = if a20 { 34 } else { 30 };
-                (hp, hp)
+                self.roll_fixed_set_hp(hp)
             }
             "BanditLeader" => {
                 let base = if a20 { 37 } else { 35 };
-                let hp = base + self.monster_hp_rng.random(4);
+                let hp = base + self.floor_rngs.monster_hp.random_int(4);
                 (hp, hp)
             }
             "GremlinNob" => {
@@ -4030,7 +4117,7 @@ impl RunEngine {
                 } else {
                     (82, 4)
                 };
-                let hp = base + self.monster_hp_rng.random(width);
+                let hp = base + self.floor_rngs.monster_hp.random_int(width);
                 (hp, hp)
             }
             "Lagavulin" => {
@@ -4039,7 +4126,7 @@ impl RunEngine {
                 } else {
                     (109, 2)
                 };
-                let hp = base + self.monster_hp_rng.random(width);
+                let hp = base + self.floor_rngs.monster_hp.random_int(width);
                 (hp, hp)
             }
             "Sentry" => {
@@ -4048,28 +4135,28 @@ impl RunEngine {
                 } else {
                     (38, 4)
                 };
-                let hp = base + self.monster_hp_rng.random(width);
+                let hp = base + self.floor_rngs.monster_hp.random_int(width);
                 (hp, hp)
             }
             "TheGuardian" => {
                 // Source: TheGuardian.java constructor: HP changes at A9,
                 // independently of the ordinary-enemy A7 HP threshold.
                 let hp = if self.run_state.ascension >= 9 { 250 } else { 240 };
-                (hp, hp)
+                self.roll_fixed_set_hp(hp)
             }
             "Hexaghost" => {
                 // Source: Hexaghost.java constructor: HP changes at A9.
                 let hp = if self.run_state.ascension >= 9 { 264 } else { 250 };
-                (hp, hp)
+                self.roll_fixed_set_hp(hp)
             }
             "SlimeBoss" => {
                 // Source: SlimeBoss.java constructor: HP changes at A9.
                 let hp = if self.run_state.ascension >= 9 { 150 } else { 140 };
-                (hp, hp)
+                self.roll_fixed_set_hp(hp)
             }
             "Apology Slime" | "ApologySlime" => {
                 // Source: ApologySlime.java constructor: monsterHpRng.random(8, 12).
-                let hp = self.monster_hp_rng.random_range(8, 12);
+                let hp = self.floor_rngs.monster_hp.random_int_range(8, 12);
                 (hp, hp)
             }
             // Act 2 enemies
@@ -4077,14 +4164,14 @@ impl RunEngine {
                 // Source: reference/extracted/methods/monster/Byrd.java:
                 // setHp(25,31), or setHp(26,33) at ascension 7+.
                 let (base, width) = if a20 { (26, 7) } else { (25, 6) };
-                let hp = base + self.monster_hp_rng.random(width);
+                let hp = base + self.floor_rngs.monster_hp.random_int(width);
                 (hp, hp)
             }
             "Chosen" => {
                 // Source: Chosen.java constructor: inclusive setHp(95,99),
                 // or setHp(98,103) at ascension 7+.
                 let (base, width) = if a20 { (98, 5) } else { (95, 4) };
-                let hp = base + self.monster_hp_rng.random(width);
+                let hp = base + self.floor_rngs.monster_hp.random_int(width);
                 (hp, hp)
             }
             "Shelled Parasite" | "ShelledParasite" => {
@@ -4095,28 +4182,28 @@ impl RunEngine {
                 } else {
                     (68, 4)
                 };
-                let hp = base + self.monster_hp_rng.random(width);
+                let hp = base + self.floor_rngs.monster_hp.random_int(width);
                 (hp, hp)
             }
             "SnakePlant" => {
                 // Source: reference/extracted/methods/monster/SnakePlant.java:
                 // inclusive 75..79, or 78..82 at ascension 7+.
                 let base = if a20 { 78 } else { 75 };
-                let hp = base + self.monster_hp_rng.random(4);
+                let hp = base + self.floor_rngs.monster_hp.random_int(4);
                 (hp, hp)
             }
             "Centurion" => {
                 // Source: reference/extracted/methods/monster/Centurion.java:
                 // setHp(76,80), or setHp(78,83) at ascension 7+.
                 let (base, width) = if a20 { (78, 5) } else { (76, 4) };
-                let hp = base + self.monster_hp_rng.random(width);
+                let hp = base + self.floor_rngs.monster_hp.random_int(width);
                 (hp, hp)
             }
             "Healer" | "Mystic" => {
                 // Source: reference/extracted/methods/monster/Healer.java:
                 // inclusive 48..56, or 50..58 at ascension 7.
                 let base = if self.run_state.ascension >= 7 { 50 } else { 48 };
-                let hp = base + self.monster_hp_rng.random(8);
+                let hp = base + self.floor_rngs.monster_hp.random_int(8);
                 (hp, hp)
             }
             "GremlinLeader" => {
@@ -4127,22 +4214,29 @@ impl RunEngine {
                 } else {
                     (140, 8)
                 };
-                let hp = base + self.monster_hp_rng.random(width);
+                let hp = base + self.floor_rngs.monster_hp.random_int(width);
                 (hp, hp)
             }
             "BookOfStabbing" => {
                 let base = if self.run_state.ascension >= 8 { 168 } else { 160 };
-                let hp = base + self.monster_hp_rng.random(4);
+                let hp = base + self.floor_rngs.monster_hp.random_int(4);
                 (hp, hp)
             }
             "SlaverBoss" | "TaskMaster" | "Taskmaster" => {
-                // Source: Taskmaster.java: inclusive 54..60, or 57..64 at A8.
+                // Taskmaster's constructor rolls 54..60 for `super`, then
+                // `setHp` immediately replaces it with the ascension range.
+                // Both calls consume monsterHpRng even below A8.
+                // Source: decompiled/.../monsters/city/Taskmaster.java.
+                let _discarded_constructor_hp = self
+                    .floor_rngs
+                    .monster_hp
+                    .random_int_range(54, 60);
                 let (base, width) = if self.run_state.ascension >= 8 {
                     (57, 7)
                 } else {
                     (54, 6)
                 };
-                let hp = base + self.monster_hp_rng.random(width);
+                let hp = base + self.floor_rngs.monster_hp.random_int(width);
                 (hp, hp)
             }
             "Snecko" => {
@@ -4153,7 +4247,7 @@ impl RunEngine {
                 } else {
                     (114, 6)
                 };
-                let hp = base + self.monster_hp_rng.random(width);
+                let hp = base + self.floor_rngs.monster_hp.random_int(width);
                 (hp, hp)
             }
             "SphericGuardian" | "Spheric Guardian" => {
@@ -4163,52 +4257,68 @@ impl RunEngine {
             }
             "BronzeAutomaton" => {
                 let hp = if self.run_state.ascension >= 9 { 320 } else { 300 };
-                (hp, hp)
+                self.roll_fixed_set_hp(hp)
             }
             "BronzeOrb" | "Bronze Orb" => {
+                // BronzeOrb rolls once for `super`, then again in `setHp`.
+                // Source: decompiled/.../monsters/city/BronzeOrb.java.
+                let _discarded_constructor_hp = self
+                    .floor_rngs
+                    .monster_hp
+                    .random_int_range(52, 58);
                 let base = if self.run_state.ascension >= 9 { 54 } else { 52 };
-                let hp = base + self.monster_hp_rng.random(6);
+                let hp = base + self.floor_rngs.monster_hp.random_int(6);
                 (hp, hp)
             }
             "TorchHead" | "Torch Head" => {
                 // Source: reference/extracted/methods/monster/TorchHead.java:
-                // inclusive 38..40, raised to inclusive 40..45 at A9.
+                // `super` consumes 38..40 before `setHp` consumes the final
+                // inclusive 38..40, raised to 40..45 at A9.
+                let _discarded_constructor_hp = self
+                    .floor_rngs
+                    .monster_hp
+                    .random_int_range(38, 40);
                 let (base, width) = if self.run_state.ascension >= 9 {
                     (40, 5)
                 } else {
                     (38, 2)
                 };
-                let hp = base + self.monster_hp_rng.random(width);
+                let hp = base + self.floor_rngs.monster_hp.random_int(width);
                 (hp, hp)
             }
             "TheCollector" => {
                 // Source: reference/extracted/methods/monster/TheCollector.java:
                 // fixed 282 HP, raised to fixed 300 at ascension 9.
                 let hp = if self.run_state.ascension >= 9 { 300 } else { 282 };
-                (hp, hp)
+                self.roll_fixed_set_hp(hp)
             }
             "Champ" | "TheChamp" => {
                 // Source: Champ.java changes boss HP at A9, not the ordinary
                 // monster A7 threshold represented by `a20` above.
                 let hp = if self.run_state.ascension >= 9 { 440 } else { 420 };
-                (hp, hp)
+                self.roll_fixed_set_hp(hp)
             }
             // Act 3 enemies
             "Darkling" => {
                 // Source: Darkling.java uses inclusive 48..56 / 50..59 rolls.
                 let (base, width) = if a20 { (50, 9) } else { (48, 8) };
-                let hp = base + self.monster_hp_rng.random(width);
+                let hp = base + self.floor_rngs.monster_hp.random_int(width);
                 (hp, hp)
             }
             "OrbWalker" | "Orb Walker" => {
                 // Source: reference/extracted/methods/monster/OrbWalker.java:
+                // `super` consumes 90..96 before `setHp` consumes the final
                 // inclusive 90..96, or 92..102 at ascension 7.
+                let _discarded_constructor_hp = self
+                    .floor_rngs
+                    .monster_hp
+                    .random_int_range(90, 96);
                 let (base, width) = if self.run_state.ascension >= 7 {
                     (92, 10)
                 } else {
                     (90, 6)
                 };
-                let hp = base + self.monster_hp_rng.random(width);
+                let hp = base + self.floor_rngs.monster_hp.random_int(width);
                 (hp, hp)
             }
             "Repulsor" => {
@@ -4219,7 +4329,7 @@ impl RunEngine {
                 } else {
                     (29, 6)
                 };
-                let hp = base + self.monster_hp_rng.random(width);
+                let hp = base + self.floor_rngs.monster_hp.random_int(width);
                 (hp, hp)
             }
             "Spiker" => {
@@ -4230,47 +4340,51 @@ impl RunEngine {
                 } else {
                     (42, 14)
                 };
-                let hp = base + self.monster_hp_rng.random(width);
+                let hp = base + self.floor_rngs.monster_hp.random_int(width);
                 (hp, hp)
             }
             "Exploder" => {
                 // Source: reference/extracted/methods/monster/Exploder.java.
-                // A7 changes fixed 30 HP to an inclusive 30..35 roll.
-                let hp = if self.run_state.ascension >= 7 {
-                    30 + self.monster_hp_rng.random(5)
+                // setHp always consumes one draw, including A0's 30..30.
+                if self.run_state.ascension >= 7 {
+                    let hp = self.floor_rngs.monster_hp.random_int_range(30, 35);
+                    (hp, hp)
                 } else {
-                    30
-                };
-                (hp, hp)
+                    self.roll_fixed_set_hp(30)
+                }
             }
             "WrithingMass" => {
                 // Source: WrithingMass.java uses fixed 160, raised at A7.
                 let hp = if self.run_state.ascension >= 7 { 175 } else { 160 };
-                (hp, hp)
+                self.roll_fixed_set_hp(hp)
             }
             "GiantHead" => {
                 // Source: reference/extracted/methods/monster/GiantHead.java:
                 // the fixed HP increase is at ascension 8.
                 let hp = if self.run_state.ascension >= 8 { 520 } else { 500 };
-                (hp, hp)
+                self.roll_fixed_set_hp(hp)
             }
             "Nemesis" => {
                 // Source: reference/extracted/methods/monster/Nemesis.java:
                 // fixed HP changes at ascension 8, not ascension 7.
                 let hp = if self.run_state.ascension >= 8 { 200 } else { 185 };
-                (hp, hp)
+                self.roll_fixed_set_hp(hp)
             }
             "Reptomancer" => {
                 // Source: Reptomancer.java: inclusive 180..190, or 190..200
-                // at ascension 8. The constructor's earlier roll is a
-                // run-stream detail; semantic HP uses the final setHp range.
+                // at ascension 8. The constructor's earlier 180..190 roll is
+                // overwritten by `setHp`, but still consumes monsterHpRng.
+                let _discarded_constructor_hp = self
+                    .floor_rngs
+                    .monster_hp
+                    .random_int_range(180, 190);
                 let base = if self.run_state.ascension >= 8 { 190 } else { 180 };
-                let hp = base + self.monster_hp_rng.random(10);
+                let hp = base + self.floor_rngs.monster_hp.random_int(10);
                 (hp, hp)
             }
             "SnakeDagger" | "Snake Dagger" => {
                 // Source: reference/extracted/methods/monster/SnakeDagger.java.
-                let hp = 20 + self.monster_hp_rng.random(5);
+                let hp = 20 + self.floor_rngs.monster_hp.random_int(5);
                 (hp, hp)
             }
             "Transient" => {
@@ -4286,40 +4400,40 @@ impl RunEngine {
             "Serpent" | "SpireGrowth" | "Spire Growth" => {
                 // Source: SpireGrowth.java: fixed 170 HP, or 190 at A7.
                 let hp = if self.run_state.ascension >= 7 { 190 } else { 170 };
-                (hp, hp)
+                self.roll_fixed_set_hp(hp)
             }
-            "AwakenedOne" => {
+            "AwakenedOne" | "Awakened One" => {
                 let hp = if self.run_state.ascension >= 9 { 320 } else { 300 };
-                (hp, hp)
+                self.roll_fixed_set_hp(hp)
             }
             "TimeEater" => {
                 // Source: reference/extracted/methods/monster/TimeEater.java:
                 // fixed 456 HP, raised to fixed 480 at ascension 9.
                 let hp = if self.run_state.ascension >= 9 { 480 } else { 456 };
-                (hp, hp)
+                self.roll_fixed_set_hp(hp)
             }
             "DonuAndDeca" | "Donu" | "Deca" => {
                 // Source: Deca.java (and Donu.java) changes HP at A9.
                 let hp = if self.run_state.ascension >= 9 { 265 } else { 250 };
-                (hp, hp)
+                self.roll_fixed_set_hp(hp)
             }
             // Act 4 enemies
             "SpireShield" | "Spire Shield" => {
                 // Source: reference/extracted/methods/monster/SpireShield.java:
                 // fixed 110 HP, raised to fixed 125 at ascension 8.
                 let hp = if self.run_state.ascension >= 8 { 125 } else { 110 };
-                (hp, hp)
+                self.roll_fixed_set_hp(hp)
             }
             "SpireSpear" | "Spire Spear" => {
                 // Source: reference/extracted/methods/monster/SpireSpear.java:
                 // fixed 160 HP, raised to fixed 180 at ascension 8.
                 let hp = if self.run_state.ascension >= 8 { 180 } else { 160 };
-                (hp, hp)
+                self.roll_fixed_set_hp(hp)
             }
             "CorruptHeart" => {
                 // Source: CorruptHeart.java changes max HP at A9.
                 let hp = if self.run_state.ascension >= 9 { 800 } else { 750 };
-                (hp, hp)
+                self.roll_fixed_set_hp(hp)
             }
             _ => (40, 40),
         }
@@ -4356,14 +4470,11 @@ impl RunEngine {
         engine.clear_event_log();
         let hp_before = engine.state.player.hp;
         engine.execute_action(&combat_action);
-        // potionRng is dungeon-owned in Java and is not reset by room
-        // transitions, so keep the run copy synchronized with combat use.
+        // cardRng and potionRng remain persistent; the other five streams are
+        // floor-owned. Return the complete combat snapshot atomically.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:397,422,1737-1741
-        self.potion_rng = engine.potion_rng.clone();
-        self.ai_rng = engine.ai_rng.clone();
-        self.shuffle_rng = engine.rng.clone();
-        self.card_random_rng = engine.card_random_rng.clone();
-        self.combat_misc_rng = engine.misc_rng.clone();
+        let combat_rngs = engine.rng_snapshot();
+        combat_rngs.absorb_into(&mut self.persistent_rngs, &mut self.floor_rngs);
         self.run_state.gold = engine.state.run_gold;
 
         let mut reward = 0.0;
@@ -4477,13 +4588,13 @@ impl RunEngine {
                         self.current_event = None;
                         let resolved_enemies = self.resolve_event_combat_enemies(&branch.enemies);
                         self.pending_event_combat = Some(branch);
-                        self.enter_specific_combat(resolved_enemies);
+                        self.start_event_combat(resolved_enemies);
                     } else if start_boss_combat {
                         self.current_event = None;
                         self.pending_event_combat = None;
-                        self.run_state.floor =
-                            Self::boss_floor_for_act(self.run_state.act);
-                        self.enter_specific_boss_combat(vec![self.boss_id.clone()]);
+                        self.run_state.floor += 1;
+                        self.reset_floor_rngs();
+                        self.start_specific_combat(vec![self.boss_id.clone()], true);
                     } else if start_final_act {
                         self.current_event = None;
                         self.pending_event_combat = None;
@@ -4517,9 +4628,10 @@ impl RunEngine {
                         self.run_state.bosses_killed += 1;
                         reward += 5.0;
                         self.run_state.floor += 1;
+                        self.reset_floor_rngs();
                         self.boss_id = second_boss.clone();
                         self.combat_engine = None;
-                        self.enter_specific_boss_combat(vec![second_boss]);
+                        self.start_specific_combat(vec![second_boss], true);
                         self.refresh_decision_stack();
                         return reward;
                     }
@@ -4531,6 +4643,7 @@ impl RunEngine {
                     self.run_state.bosses_killed += 1;
                     reward += 5.0;
                     self.run_state.floor += 1;
+                    self.reset_floor_rngs();
                     self.enter_spire_heart_event();
                     self.refresh_decision_stack();
                     return reward;
@@ -4545,16 +4658,16 @@ impl RunEngine {
                 // Java: decompiled/java-src/com/megacrit/cardcrawl/rewards/RewardItem.java
                 if !is_final_heart {
                     let base_gold = if is_boss {
-                        let rolled = self.rng.gen_range(95..=105);
+                        let rolled = 100 + self.floor_rngs.misc.random_int_range(-5, 5);
                         if self.run_state.ascension >= 13 {
                             ((rolled as f32) * 0.75).round() as i32
                         } else {
                             rolled
                         }
                     } else if room_type == RoomType::Elite {
-                        self.rng.gen_range(25..=35)
+                        self.persistent_rngs.treasure.random_int_range(25, 35)
                     } else {
-                        self.rng.gen_range(10..=20)
+                        self.persistent_rngs.treasure.random_int_range(10, 20)
                     };
                     let gold = golden_idol_combat_gold(
                         base_gold,
@@ -4577,6 +4690,9 @@ impl RunEngine {
                         self.combat_engine = None;
                         self.resolve_terminal_run_victory();
                         return reward;
+                    }
+                    if matches!(self.run_state.act, 1 | 2) {
+                        self.enter_boss_treasure_room();
                     }
                     self.build_boss_reward_screen();
                     self.combat_engine = None;
@@ -4641,7 +4757,7 @@ impl RunEngine {
         let uncommon_chance = 0.33;
         let common_chance = 1.0 - uncommon_chance - rare_chance;
         for choice_index in 0..count {
-            let roll: f32 = self.rng.gen();
+            let roll = self.persistent_rngs.card.random_f32();
             let rarity = if roll < common_chance {
                 EventCardRarity::Common
             } else if roll < common_chance + uncommon_chance {
@@ -4672,7 +4788,7 @@ impl RunEngine {
                 if candidates.is_empty() {
                     candidates = matching_event_cards(EventCardColor::Purple, rarity);
                 }
-                candidates[self.rng.gen_range(0..candidates.len())].clone()
+                candidates[self.persistent_rngs.card.random_index(candidates.len())].clone()
             } else {
                 let pool = match rarity {
                     EventCardRarity::Common => WATCHER_COMMON_CARDS,
@@ -4680,7 +4796,7 @@ impl RunEngine {
                     EventCardRarity::Rare => WATCHER_RARE_CARDS,
                     _ => unreachable!("reward rarity is common, uncommon, or rare"),
                 };
-                pool[self.rng.gen_range(0..pool.len())].to_string()
+                pool[self.persistent_rngs.card.random_index(pool.len())].to_string()
             };
             cards.push(RewardChoice::Card {
                 index: choice_index,
@@ -4787,7 +4903,7 @@ impl RunEngine {
             "Ginger", "Ice Cream", "Incense Burner", "Old Coin",
             "Thread and Needle", "Tough Bandages", "TungstenRod",
         ];
-        let roll = self.rng.gen_range(0..100);
+        let roll = self.persistent_rngs.relic.random_int(99);
         let pool = if roll < 50 {
             COMMON
         } else if roll < 83 {
@@ -4807,7 +4923,7 @@ impl RunEngine {
         if candidates.is_empty() {
             "Circlet".to_string()
         } else {
-            candidates[self.rng.gen_range(0..candidates.len())].to_string()
+            candidates[self.persistent_rngs.relic.random_index(candidates.len())].to_string()
         }
     }
 
@@ -4952,11 +5068,13 @@ impl RunEngine {
             .has(crate::relic_flags::flag::CURSED_KEY)
         {
             let curse = RANDOM_OBTAINABLE_CURSES
-                [self.rng.gen_range(0..RANDOM_OBTAINABLE_CURSES.len())]
+                [self.persistent_rngs
+                .card
+                .random_index(RANDOM_OBTAINABLE_CURSES.len())]
                 .to_string();
             obtain_master_deck_card_state(&mut self.run_state, curse);
         }
-        let gold = self.rng.gen_range(50..=80);
+        let gold = self.persistent_rngs.treasure.random_int_range(50, 80);
         let extra_relic = self.run_state.relic_flags.counters
             [crate::relic_flags::counter::MATRYOSHKA_USES]
             > 0;
@@ -5092,6 +5210,7 @@ impl RunEngine {
             if self.run_state.map_y >= 0 && self.run_state.map_y as usize >= self.map.height - 1 {
                 // Boss fight next
                 self.run_state.floor += 1;
+                self.reset_floor_rngs();
                 self.enter_combat(false, true);
                 self.refresh_decision_stack();
                 return 0.0;
@@ -5826,7 +5945,7 @@ impl RunEngine {
             + WATCHER_UNCOMMON_CARDS.len()
             + WATCHER_RARE_CARDS.len();
         for _ in 0..count {
-            let idx = self.rng.gen_range(0..pool_len);
+            let idx = self.floor_rngs.card_random.random_index(pool_len);
             let card = if idx < WATCHER_COMMON_CARDS.len() {
                 WATCHER_COMMON_CARDS[idx]
             } else if idx < WATCHER_COMMON_CARDS.len() + WATCHER_UNCOMMON_CARDS.len() {
@@ -5877,7 +5996,7 @@ impl RunEngine {
             if candidates.is_empty() {
                 continue;
             }
-            let transformed = &candidates[self.rng.gen_range(0..candidates.len())];
+            let transformed = &candidates[self.floor_rngs.misc.random_index(candidates.len())];
             let upgraded = format!("{transformed}+");
             obtain_master_deck_card_state(&mut self.run_state, if registry.get(&upgraded).is_some() {
                 upgraded
@@ -6108,7 +6227,7 @@ impl RunEngine {
         if candidates.is_empty() {
             return "Circlet".to_string();
         }
-        candidates[self.rng.gen_range(0..candidates.len())].to_string()
+        candidates[self.persistent_rngs.relic.random_index(candidates.len())].to_string()
     }
 
     fn build_calling_bell_reward_screen(&mut self) {
@@ -6355,12 +6474,13 @@ impl RunEngine {
             })
             .collect();
 
-        for _ in 0..count {
-            if eligible.is_empty() {
-                break;
-            }
-            let pick = self.rng.gen_range(0..eligible.len());
-            let deck_idx = eligible.swap_remove(pick);
+        // Whetstone and War Paint seed java.util.Random from exactly one
+        // miscRng.randomLong(), then upgrade the first two shuffled cards.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Whetstone.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/WarPaint.java
+        let seed = self.floor_rngs.misc.random_long_unbounded();
+        crate::seed::java_util_shuffle(&mut eligible, seed);
+        for deck_idx in eligible.into_iter().take(count) {
             let Some((original, upgraded)) = self.run_state.upgrade_deck_card(deck_idx) else {
                 continue;
             };
@@ -6383,7 +6503,7 @@ impl RunEngine {
 
     fn upgrade_one_random_master_deck_card(&mut self) {
         let registry = crate::cards::global_registry();
-        let eligible: Vec<usize> = self
+        let mut eligible: Vec<usize> = self
             .run_state
             .deck
             .iter()
@@ -6396,10 +6516,12 @@ impl RunEngine {
             return;
         }
 
-        // TinyHouse.java consumes miscRng.randomLong() to seed a shuffle and
-        // upgrades the first result. RunEngine's shared run stream preserves
-        // the semantic random choice until run-level streams are split.
-        let deck_idx = eligible[self.rng.gen_range(0..eligible.len())];
+        // TinyHouse.java consumes one miscRng.randomLong(), shuffles through
+        // java.util.Random, and upgrades the first result.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/TinyHouse.java
+        let seed = self.floor_rngs.misc.random_long_unbounded();
+        crate::seed::java_util_shuffle(&mut eligible, seed);
+        let deck_idx = eligible[0];
         let Some((original, upgraded)) = self.run_state.upgrade_deck_card(deck_idx) else {
             return;
         };
@@ -6774,7 +6896,7 @@ impl RunEngine {
             );
         }
 
-        let idx = self.rng.gen_range(0..candidates.len());
+        let idx = self.persistent_rngs.relic.random_index(candidates.len());
         candidates[idx].to_string()
     }
 
@@ -6794,7 +6916,7 @@ impl RunEngine {
             "Ornamental Fan", "Toxic Egg 2", "White Beast Statue",
         ];
 
-        let pool = if self.rng.gen_bool(0.75) { COMMON } else { UNCOMMON };
+        let pool = if self.persistent_rngs.relic.random_bool_chance(0.75) { COMMON } else { UNCOMMON };
         let registry = gameplay_registry();
         let candidates: Vec<&str> = pool
             .iter()
@@ -6806,7 +6928,7 @@ impl RunEngine {
         if candidates.is_empty() {
             return "Circlet".to_string();
         }
-        candidates[self.rng.gen_range(0..candidates.len())].to_string()
+        candidates[self.persistent_rngs.relic.random_index(candidates.len())].to_string()
     }
 
     fn roll_reward_potion_id(&mut self) -> String {
@@ -6857,7 +6979,7 @@ impl RunEngine {
         if candidates.is_empty() {
             return "Block Potion".to_string();
         }
-        let idx = self.rng.gen_range(0..candidates.len());
+        let idx = self.persistent_rngs.potion.random_index(candidates.len());
         candidates[idx].to_string()
     }
 
@@ -6938,7 +7060,7 @@ impl RunEngine {
 
         let mut picks = Vec::new();
         while !candidates.is_empty() && picks.len() < count {
-            let idx = self.rng.gen_range(0..candidates.len());
+            let idx = self.persistent_rngs.relic.random_index(candidates.len());
             picks.push(candidates.swap_remove(idx).to_string());
         }
         picks
@@ -6951,17 +7073,18 @@ impl RunEngine {
         // AbstractRoom.addPotionToRewards rolls independently of Sozu and
         // available inventory slots. RewardItem handles both at claim time.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/rooms/AbstractRoom.java
-        if self
+        let chance = if self
             .run_state
             .relic_flags
             .has(crate::relic_flags::flag::WHITE_BEAST)
-        {
-            return true;
-        }
-        if room_type == RoomType::Elite {
-            return true;
-        }
-        self.rng.gen_bool(0.4)
+            || room_type == RoomType::Elite {
+            100
+        } else {
+            40
+        };
+        // Java always consumes this roll, including the 0% and 100% cases.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/rooms/AbstractRoom.java:592-619
+        self.persistent_rngs.potion.random_int(99) < chance
     }
 
     fn can_enter_final_act(&self) -> bool {
@@ -7100,6 +7223,7 @@ impl RunEngine {
         // Check if at last row — enter boss
         if self.run_state.map_y >= 0 && self.run_state.map_y as usize >= self.map.height - 1 {
             self.run_state.floor += 1;
+            self.reset_floor_rngs();
             self.enter_combat(false, true);
             self.refresh_decision_stack();
             return 0.0;
@@ -7156,7 +7280,7 @@ impl RunEngine {
         // common. getCardFromPool falls through when a rarity has no card of
         // the requested type (notably Watcher common powers).
         // Java: decompiled/java-src/com/megacrit/cardcrawl/rooms/ShopRoom.java
-        let roll = self.rng.gen_range(0..100);
+        let roll = self.persistent_rngs.card.random_int(99);
         let ordered: [(&[&str], i32); 3] = if roll < 3 {
             [(WATCHER_RARE_CARDS, 150), (WATCHER_UNCOMMON_CARDS, 75), (WATCHER_COMMON_CARDS, 50)]
         } else if roll < 40 {
@@ -7171,12 +7295,16 @@ impl RunEngine {
                 .filter(|id| registry.get(id).is_some_and(|card| card.card_type == card_type))
                 .collect();
             if !candidates.is_empty() {
-                let card = candidates[self.rng.gen_range(0..candidates.len())];
-                let price = self.rng.gen_range((base_price * 9 / 10)..=(base_price * 11 / 10));
+                let card = candidates[self.persistent_rngs.card.random_index(candidates.len())];
+                let price = ((base_price as f32)
+                    * self.persistent_rngs.merchant.random_f32_range(0.9, 1.1))
+                    as i32;
                 return (card.to_string(), price);
             }
         }
-        ("Scrawl".to_string(), self.rng.gen_range(135..=165))
+        ("Scrawl".to_string(),
+            (150.0 * self.persistent_rngs.merchant.random_f32_range(0.9, 1.1)) as i32,
+        )
     }
 
     fn roll_shop_colorless_card(&mut self, rare: bool) -> (String, i32) {
@@ -7185,12 +7313,12 @@ impl RunEngine {
         } else {
             (SHOP_COLORLESS_UNCOMMON_CARDS, 75)
         };
-        let card = pool[self.rng.gen_range(0..pool.len())];
+        let card = pool[self.persistent_rngs.card.random_index(pool.len())];
         // ShopScreen.initCards multiplies colorless prices by 1.2 before the
         // float-to-int truncation.
-        let min = ((base_price as f32) * 0.9 * 1.2) as i32;
-        let max = ((base_price as f32) * 1.1 * 1.2) as i32;
-        (card.to_string(), self.rng.gen_range(min..=max))
+        let price = ((base_price as f32) * self.persistent_rngs.merchant.random_f32_range(0.9, 1.1)
+            * 1.2) as i32;
+        (card.to_string(), price)
     }
 
     fn is_shop_colorless_card(card_id: &str) -> bool {
@@ -7201,7 +7329,7 @@ impl RunEngine {
 
     fn roll_courier_replacement_card(&mut self, purchased: &str) -> (String, i32) {
         let (card, raw_price) = if Self::is_shop_colorless_card(purchased) {
-            let rare = self.rng.gen_bool(0.3);
+            let rare = self.persistent_rngs.merchant.random_f32() < 0.3;
             self.roll_shop_colorless_card(rare)
         } else {
             let base_id = purchased.strip_suffix('+').unwrap_or(purchased);
@@ -7237,9 +7365,9 @@ impl RunEngine {
     fn roll_shop_potion(&mut self) -> (String, i32) {
         let potion = self.roll_reward_potion_id();
         let base = Self::potion_base_shop_price(&potion);
-        let min = ((base as f32) * 0.95).round() as i32;
-        let max = ((base as f32) * 1.05).round() as i32;
-        (potion, self.rng.gen_range(min..=max))
+        let price = ((base as f32) * self.persistent_rngs.merchant.random_f32_range(0.95, 1.05))
+            .round() as i32;
+        (potion, price)
     }
 
     fn relic_base_shop_price(relic_id: &str) -> i32 {
@@ -7268,9 +7396,7 @@ impl RunEngine {
 
     fn roll_relic_merchant_price(&mut self, relic_id: &str) -> i32 {
         let base = Self::relic_base_shop_price(relic_id);
-        let min = ((base as f32) * 0.95).round() as i32;
-        let max = ((base as f32) * 1.05).round() as i32;
-        self.rng.gen_range(min..=max)
+        ((base as f32) * self.persistent_rngs.merchant.random_f32_range(0.95, 1.05)).round() as i32
     }
 
     fn roll_courier_replacement_relic(&mut self) -> (String, i32) {
@@ -7295,7 +7421,7 @@ impl RunEngine {
         let second_skill = self.roll_shop_colored_card(crate::cards::CardType::Skill, Some(first_skill.0.as_str()));
         cards.extend([first_attack, second_attack, first_skill, second_skill]);
         cards.push(self.roll_shop_colored_card(crate::cards::CardType::Power, None));
-        let sale_idx = self.rng.gen_range(0..5);
+        let sale_idx = self.persistent_rngs.merchant.random_int(4) as usize;
         cards[sale_idx].1 /= 2;
         cards.push(self.roll_shop_colorless_card(false));
         cards.push(self.roll_shop_colorless_card(true));
@@ -7332,11 +7458,12 @@ impl RunEngine {
         let shop_relic = if candidates.is_empty() {
             "Circlet"
         } else {
-            candidates[self.rng.gen_range(0..candidates.len())]
+            candidates[self.persistent_rngs.relic.random_index(candidates.len())]
         };
         // AbstractRelic.java::getPrice returns 150 for SHOP tier; StoreRelic
         // applies merchantRng.random(0.95f, 1.05f).
-        let shop_price = self.rng.gen_range(143..=158);
+        let shop_price =
+            (150.0 * self.persistent_rngs.merchant.random_f32_range(0.95, 1.05)).round() as i32;
         let shop_price = self.apply_shop_entry_discounts(shop_price);
         relics.push((shop_relic.to_string(), shop_price));
 
@@ -7525,9 +7652,8 @@ impl RunEngine {
             event.options[0].text = format!("Touch (take {damage} damage, gain {gold} gold)");
         } else if event.name == "N'loth" && event.options.len() == 3 {
             // Nloth.java copies and shuffles the player's relic list, then
-            // offers the first two entries. RunEngine's shared run RNG cannot
-            // reproduce miscRng tick counts, but preserves the semantic random
-            // sample without replacement required by the event.
+            // offers the first two entries after one miscRng-seeded Java
+            // shuffle.
             // Java: decompiled/java-src/com/megacrit/cardcrawl/events/shrines/Nloth.java
             let mut candidates = self.run_state.relics.clone();
             if candidates.len() < 2 {
@@ -7538,10 +7664,10 @@ impl RunEngine {
                 }
                 return;
             }
-            let first_index = self.rng.gen_range(0..candidates.len());
-            let first = candidates.remove(first_index);
-            let second_index = self.rng.gen_range(0..candidates.len());
-            let second = candidates.remove(second_index);
+            let seed = self.floor_rngs.misc.random_long_unbounded();
+            crate::seed::java_util_shuffle(&mut candidates, seed);
+            let first = candidates[0].clone();
+            let second = candidates[1].clone();
             let already_has_gift = self
                 .run_state
                 .relics
@@ -7577,10 +7703,11 @@ impl RunEngine {
 
         let mut board = unique_cards.clone();
         board.extend(unique_cards);
-        for idx in (1..board.len()).rev() {
-            let swap_idx = self.rng.gen_range(0..=idx);
-            board.swap(idx, swap_idx);
-        }
+        // GremlinMatchGame consumes one miscRng.randomLong() and delegates the
+        // permutation to java.util.Random/Collections.shuffle.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/events/shrines/GremlinMatchGame.java:56
+        let seed = self.floor_rngs.misc.random_long_unbounded();
+        crate::seed::java_util_shuffle(&mut board, seed);
         board
     }
 
@@ -7678,12 +7805,14 @@ impl RunEngine {
                 _ => vec![self.match_and_keep_starter_card(color).to_string()],
             };
         }
-        let idx = self.rng.gen_range(0..candidates.len());
+        let idx = self.persistent_rngs.card.random_index(candidates.len());
         candidates[idx].clone()
     }
 
     fn random_match_and_keep_curse(&mut self) -> String {
-        let idx = self.rng.gen_range(0..MATCH_AND_KEEP_CURSES.len());
+        let idx = self.persistent_rngs
+            .card
+            .random_index(MATCH_AND_KEEP_CURSES.len());
         MATCH_AND_KEEP_CURSES[idx].to_string()
     }
 
@@ -7777,7 +7906,15 @@ impl RunEngine {
         if !self.forced_event_rolls.is_empty() {
             return self.forced_event_rolls.remove(0).min(99);
         }
-        self.rng.gen_range(0..100)
+        // AbstractDungeon.nextRoomTransition reconstructs a seed+counter
+        // duplicate, rolls the mystery-room type, then commits that duplicate.
+        let mut duplicate = crate::seed::StsRandom::with_counter(
+            self.seed,
+            self.persistent_rngs.event.counter,
+        );
+        let roll = (duplicate.random_f32() * 100.0) as usize;
+        self.persistent_rngs.event = duplicate;
+        roll
     }
 
     fn initialize_dynamic_event_state(&mut self) {
@@ -7901,7 +8038,13 @@ impl RunEngine {
 
     fn enter_event(&mut self) {
         let events = typed_events_for_act(self.run_state.act);
-        let idx = self.rng.gen_range(0..events.len());
+        // EventRoom.onPlayerEntry uses another seed+counter duplicate for event
+        // selection and deliberately does not commit it to AbstractDungeon.eventRng.
+        let mut duplicate = crate::seed::StsRandom::with_counter(
+            self.seed,
+            self.persistent_rngs.event.counter,
+        );
+        let idx = duplicate.random_index(events.len());
         let mut event = events[idx].clone();
         self.normalize_event_runtime_state(&mut event);
         self.current_event = Some(event);
@@ -8098,7 +8241,7 @@ impl RunEngine {
             self.current_event = None;
             let resolved_enemies = self.resolve_event_combat_enemies(&branch.enemies);
             self.pending_event_combat = Some(branch.clone());
-            self.enter_specific_combat(resolved_enemies);
+            self.start_event_combat(resolved_enemies);
             self.refresh_decision_stack();
             return 0.0;
         }
@@ -8114,8 +8257,12 @@ impl RunEngine {
         if start_boss_combat {
             self.current_event = None;
             self.pending_event_combat = None;
-            self.run_state.floor = Self::boss_floor_for_act(self.run_state.act);
-            self.enter_specific_boss_combat(vec![self.boss_id.clone()]);
+            // SecretPortal replaces the next room node with the Act 3 boss;
+            // nextRoomTransition still advances floorNum by exactly one.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/events/beyond/SecretPortal.java:43
+            self.run_state.floor += 1;
+            self.reset_floor_rngs();
+            self.start_specific_combat(vec![self.boss_id.clone()], true);
             self.refresh_decision_stack();
             return 0.0;
         }
@@ -8179,7 +8326,7 @@ impl RunEngine {
                 if outcomes.is_empty() {
                     return EventProgramFlow::Continue;
                 }
-                let idx = self.rng.gen_range(0..outcomes.len());
+                let idx = self.floor_rngs.misc.random_index(outcomes.len());
                 self.apply_event_program(&outcomes[idx], reward_items)
             }
             EventProgramOp::DeckSelection { label } => {
@@ -8367,7 +8514,7 @@ impl RunEngine {
             }
             EventProgramOp::ResolveJoustBet { bet_on_owner } => {
                 self.adjust_run_gold(-50);
-                let owner_wins = self.rng.gen_bool(0.3);
+                let owner_wins = self.floor_rngs.misc.random_bool_chance(0.3);
                 if (*bet_on_owner && owner_wins) || (!*bet_on_owner && !owner_wins) {
                     let payout = if *bet_on_owner { 250 } else { 100 };
                     self.adjust_run_gold(payout);
@@ -8400,7 +8547,7 @@ impl RunEngine {
                     "NlothsMask",
                     "SsserpentHead",
                 ];
-                let candidates = FACE_IDS
+                let mut candidates = FACE_IDS
                     .iter()
                     .copied()
                     .filter(|face| !self.run_state.relics.iter().any(|owned| owned == face))
@@ -8408,7 +8555,9 @@ impl RunEngine {
                 let face = if candidates.is_empty() {
                     "Circlet"
                 } else {
-                    candidates[self.rng.gen_range(0..candidates.len())]
+                    let seed = self.floor_rngs.misc.random_long_unbounded();
+                    crate::seed::java_util_shuffle(&mut candidates, seed);
+                    candidates[0]
                 };
                 self.add_relic_reward(face);
                 EventProgramFlow::Continue
@@ -8461,7 +8610,9 @@ impl RunEngine {
         match mutation {
             EventDeckMutation::GainCard { count } => {
                 for _ in 0..*count {
-                    let idx = self.rng.gen_range(0..WATCHER_COMMON_CARDS.len());
+                    let idx = self.floor_rngs
+                        .card_random
+                        .random_index(WATCHER_COMMON_CARDS.len());
                     obtain_master_deck_card_state(
                         &mut self.run_state,
                         WATCHER_COMMON_CARDS[idx].to_string(),
@@ -8471,7 +8622,7 @@ impl RunEngine {
             EventDeckMutation::RemoveCard { count } => {
                 for _ in 0..*count {
                     if self.run_state.deck.len() > 5 {
-                        let idx = self.rng.gen_range(0..self.run_state.deck.len());
+                        let idx = self.floor_rngs.misc.random_index(self.run_state.deck.len());
                         self.remove_master_deck_card(idx);
                     }
                 }
@@ -8479,10 +8630,12 @@ impl RunEngine {
             EventDeckMutation::TransformCard { count } => {
                 for _ in 0..*count {
                     if self.run_state.deck.len() > 5 {
-                        let idx = self.rng.gen_range(0..self.run_state.deck.len());
+                        let idx = self.floor_rngs.misc.random_index(self.run_state.deck.len());
                         self.remove_master_deck_card(idx);
                     }
-                    let card_idx = self.rng.gen_range(0..WATCHER_COMMON_CARDS.len());
+                    let card_idx = self.floor_rngs
+                        .card_random
+                        .random_index(WATCHER_COMMON_CARDS.len());
                     obtain_master_deck_card_state(
                         &mut self.run_state,
                         WATCHER_COMMON_CARDS[card_idx].to_string(),
@@ -8492,7 +8645,7 @@ impl RunEngine {
             EventDeckMutation::DuplicateCard { count } => {
                 for _ in 0..*count {
                     if !self.run_state.deck.is_empty() {
-                        let idx = self.rng.gen_range(0..self.run_state.deck.len());
+                        let idx = self.floor_rngs.misc.random_index(self.run_state.deck.len());
                         let card = self.run_state.deck[idx].clone();
                         obtain_master_deck_card_state(&mut self.run_state, card);
                     }
@@ -8638,8 +8791,10 @@ impl RunEngine {
     fn resolve_event_combat_enemies(&mut self, enemies: &[String]) -> Vec<String> {
         if enemies.len() == 1 && enemies[0] == "MindBloomAct1Boss" {
             const ACT1_BOSS_POOL: &[&str] = &["TheGuardian", "Hexaghost", "SlimeBoss"];
-            let idx = self.rng.gen_range(0..ACT1_BOSS_POOL.len());
-            return vec![ACT1_BOSS_POOL[idx].to_string()];
+            let mut bosses = ACT1_BOSS_POOL.to_vec();
+            let seed = self.floor_rngs.misc.random_long_unbounded();
+            crate::seed::java_util_shuffle(&mut bosses, seed);
+            return vec![bosses[0].to_string()];
         }
 
         enemies.to_vec()
@@ -8690,7 +8845,7 @@ impl RunEngine {
             return self.roll_reward_relic_id();
         }
 
-        let idx = self.rng.gen_range(0..candidates.len());
+        let idx = self.persistent_rngs.relic.random_index(candidates.len());
         candidates[idx].to_string()
     }
 
@@ -8725,7 +8880,7 @@ impl RunEngine {
             return self.roll_reward_relic_id();
         }
 
-        let idx = self.rng.gen_range(0..candidates.len());
+        let idx = self.persistent_rngs.relic.random_index(candidates.len());
         candidates[idx].to_string()
     }
 
@@ -8746,7 +8901,7 @@ impl RunEngine {
             return "Circlet".to_string();
         }
 
-        let idx = self.rng.gen_range(0..candidates.len());
+        let idx = self.floor_rngs.misc.random_index(candidates.len());
         candidates[idx].to_string()
     }
 
@@ -8839,34 +8994,47 @@ impl RunEngine {
     /// every action so a missing stream can never hide a parity divergence.
     ///
     /// Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:388-401,1737-1741
-    pub fn rng_counters(&self) -> HashMap<String, u64> {
+    pub fn rng_counters(&self) -> HashMap<String, i64> {
         let mut counters = HashMap::with_capacity(13);
-        counters.insert("card".to_string(), self.rng.counter as u64);
-        counters.insert("monster".to_string(), self.monster_rng.counter as u64);
-        counters.insert("event".to_string(), self.event_rng.counter as u64);
-        counters.insert("relic".to_string(), self.relic_rng.counter as u64);
-        counters.insert("treasure".to_string(), self.treasure_rng.counter as u64);
-        counters.insert("potion".to_string(), self.potion_rng.counter as u64);
-        counters.insert("merchant".to_string(), self.merchant_rng.counter as u64);
-        counters.insert("monsterHp".to_string(), self.monster_hp_rng.counter as u64);
-        counters.insert("ai".to_string(), self.ai_rng.counter as u64);
-        counters.insert("shuffle".to_string(), self.shuffle_rng.counter as u64);
+        counters.insert("card".to_string(), i64::from(self.persistent_rngs.card.counter));
+        counters.insert("monster".to_string(), i64::from(self.persistent_rngs.monster.counter),
+        );
+        counters.insert("event".to_string(), i64::from(self.persistent_rngs.event.counter),
+        );
+        counters.insert("relic".to_string(), i64::from(self.persistent_rngs.relic.counter),
+        );
+        counters.insert("treasure".to_string(), i64::from(self.persistent_rngs.treasure.counter),
+        );
+        counters.insert("potion".to_string(), i64::from(self.persistent_rngs.potion.counter),
+        );
+        counters.insert("merchant".to_string(), i64::from(self.persistent_rngs.merchant.counter),
+        );
+        counters.insert("monsterHp".to_string(), i64::from(self.floor_rngs.monster_hp.counter),
+        );
+        counters.insert("ai".to_string(), i64::from(self.floor_rngs.ai.counter));
+        counters.insert("shuffle".to_string(), i64::from(self.floor_rngs.shuffle.counter),
+        );
         counters.insert(
             "cardRandom".to_string(),
-            self.card_random_rng.counter as u64,
+            i64::from(self.floor_rngs.card_random.counter),
         );
-        counters.insert("misc".to_string(), self.combat_misc_rng.counter as u64);
-        counters.insert("map".to_string(), self.map_rng.counter as u64);
+        counters.insert("misc".to_string(), i64::from(self.floor_rngs.misc.counter));
+        counters.insert("map".to_string(), i64::from(self.map_rng.counter));
 
         if let Some(combat) = &self.combat_engine {
-            counters.insert("potion".to_string(), combat.potion_rng.counter as u64);
-            counters.insert("ai".to_string(), combat.ai_rng.counter as u64);
-            counters.insert("shuffle".to_string(), combat.rng.counter as u64);
+            counters.insert("card".to_string(), i64::from(combat.card_rng.counter));
+            counters.insert(
+                "monsterHp".to_string(),
+                i64::from(combat.monster_hp_rng.counter),
+            );
+            counters.insert("potion".to_string(), i64::from(combat.potion_rng.counter));
+            counters.insert("ai".to_string(), i64::from(combat.ai_rng.counter));
+            counters.insert("shuffle".to_string(), i64::from(combat.shuffle_rng.counter));
             counters.insert(
                 "cardRandom".to_string(),
-                combat.card_random_rng.counter as u64,
+                i64::from(combat.card_random_rng.counter),
             );
-            counters.insert("misc".to_string(), combat.misc_rng.counter as u64);
+            counters.insert("misc".to_string(), i64::from(combat.misc_rng.counter));
         }
         counters
     }
@@ -8974,6 +9142,9 @@ impl RunEngine {
 
     #[cfg(test)]
     pub(crate) fn debug_set_reward_screen(&mut self, mut screen: RewardScreen) {
+        if matches!(&screen.source, RewardScreenSource::BossCombat) {
+            self.enter_boss_treasure_room();
+        }
         Self::refresh_reward_screen(&mut screen);
         self.reward_screen = Some(screen);
         self.phase = RunPhase::CardReward;
@@ -8989,6 +9160,7 @@ impl RunEngine {
 
     #[cfg(test)]
     pub(crate) fn debug_build_boss_reward_screen(&mut self) {
+        self.enter_boss_treasure_room();
         self.build_boss_reward_screen();
         self.phase = RunPhase::CardReward;
         self.refresh_decision_stack();
@@ -9128,6 +9300,31 @@ impl RunEngine {
         self.combat_engine
             .as_mut()
             .expect("expected active combat engine")
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_set_floor_rng_counters(&mut self, counters: [i32; 5]) {
+        let seed = self.seed.wrapping_add(self.run_state.floor as u64);
+        self.floor_rngs.monster_hp = crate::seed::StsRandom::with_counter(seed, counters[0]);
+        self.floor_rngs.ai = crate::seed::StsRandom::with_counter(seed, counters[1]);
+        self.floor_rngs.shuffle = crate::seed::StsRandom::with_counter(seed, counters[2]);
+        self.floor_rngs.card_random = crate::seed::StsRandom::with_counter(seed, counters[3]);
+        self.floor_rngs.misc = crate::seed::StsRandom::with_counter(seed, counters[4]);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_floor_rng_states(&self) -> [(u64, u64, i32); 5] {
+        let rngs = self.combat_engine
+            .as_ref()
+            .map(CombatEngine::rng_snapshot)
+            .unwrap_or_else(|| self.floor_rngs.combat_snapshot(&self.persistent_rngs));
+        [
+            rngs.monster_hp.state_tuple(),
+            rngs.ai.state_tuple(),
+            rngs.shuffle.state_tuple(),
+            rngs.card_random.state_tuple(),
+            rngs.misc.state_tuple(),
+        ]
     }
 
     #[cfg(test)]
@@ -9338,6 +9535,190 @@ mod tests {
     }
 
     #[test]
+    fn secret_portal_uses_normal_floor_and_room_rng_transitions() {
+        // Re-verified against SecretPortal.java and
+        // AbstractDungeon.nextRoomTransition: redirecting the node does not
+        // rewrite floorNum to the canonical boss floor.
+        let mut engine = RunEngine::new(73, 0);
+        engine.run_state.act = 3;
+        engine.run_state.floor = 42;
+        let portal = typed_events_for_act(3)
+            .into_iter()
+            .find(|event| event.name == "Secret Portal")
+            .expect("Secret Portal must be registered");
+        engine.debug_set_typed_event_state(portal);
+
+        assert!(
+            engine
+                .step_with_result(&RunAction::EventChoice(0))
+                .action_accepted
+        );
+        assert_eq!(engine.phase, RunPhase::Combat);
+        assert_eq!(engine.run_state.floor, 43);
+
+        engine.debug_force_current_combat_outcome(true);
+        engine.debug_resolve_current_combat_outcome();
+        assert_eq!(engine.phase, RunPhase::Event);
+        assert_eq!(engine.run_state.floor, 44);
+
+        let room_state = crate::seed::StsRandom::new(117).state_tuple();
+        assert_eq!(engine.floor_rngs.monster_hp.state_tuple(), room_state);
+        assert_eq!(engine.floor_rngs.ai.state_tuple(), room_state);
+        assert_eq!(engine.floor_rngs.shuffle.state_tuple(), room_state);
+        assert_eq!(engine.floor_rngs.card_random.state_tuple(), room_state);
+        assert_eq!(engine.floor_rngs.misc.state_tuple(), room_state);
+        assert_eq!(
+            engine.persistent_rngs.potion.state_tuple(),
+            crate::seed::StsRandom::new(73).state_tuple()
+        );
+    }
+
+    #[test]
+    fn noncombat_room_entry_resets_every_floor_rng() {
+        // Re-verified against AbstractDungeon.nextRoomTransition: reset happens
+        // for every room type, not only when a combat engine is constructed.
+        let mut engine = RunEngine::new(73, 0);
+        resolve_opening_neow(&mut engine);
+        let (x, y, _, _) = engine.available_map_destinations()[0];
+        engine.map.rows[y][x].room_type = RoomType::Rest;
+
+        engine.floor_rngs.monster_hp.random_int(9);
+        engine.floor_rngs.ai.random_int(9);
+        engine.floor_rngs.shuffle.random_int(9);
+        engine.floor_rngs.card_random.random_int(9);
+        engine.floor_rngs.misc.random_int(9);
+
+        assert!(
+            engine
+                .step_with_result(&RunAction::ChoosePath(0))
+                .action_accepted
+        );
+        assert_eq!(engine.phase, RunPhase::Campfire);
+        assert_eq!(engine.run_state.floor, 1);
+
+        let expected = crate::seed::StsRandom::new(74).state_tuple();
+        assert_eq!(engine.floor_rngs.monster_hp.state_tuple(), expected);
+        assert_eq!(engine.floor_rngs.ai.state_tuple(), expected);
+        assert_eq!(engine.floor_rngs.shuffle.state_tuple(), expected);
+        assert_eq!(engine.floor_rngs.card_random.state_tuple(), expected);
+        assert_eq!(engine.floor_rngs.misc.state_tuple(), expected);
+    }
+
+    #[test]
+    fn combat_absorb_returns_persistent_card_rng_without_touching_shuffle_rng() {
+        // ForeignInfluenceAction consumes cardRandomRng twice and persistent
+        // cardRng once per candidate attempt. CardGroup's library shuffle is
+        // seeded from cardRandomRng, so floor-local shuffleRng stays untouched.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/ForeignInfluenceAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java:1054-1061
+        let mut engine = RunEngine::new(73, 0);
+        engine.debug_enter_specific_combat(&["JawWorm"]);
+        let combat = engine.combat_engine.as_mut().expect("combat");
+        combat.state.hand = vec![combat.card_registry.make_card("ForeignInfluence")];
+        combat.state.energy = 3;
+
+        let card_before = engine.persistent_rngs.card.counter;
+        let card_random_before = combat.card_random_rng.counter;
+        let shuffle_before = combat.shuffle_rng.state_tuple();
+        assert!(
+            engine
+                .step_with_result(&RunAction::CombatAction(crate::actions::Action::PlayCard {
+                    card_idx: 0,
+                    target_idx: -1,
+                }))
+                .action_accepted
+        );
+
+        let attempts = engine.persistent_rngs.card.counter - card_before;
+        assert!(attempts >= 3);
+        assert_eq!(
+            engine.floor_rngs.card_random.counter - card_random_before,
+            attempts * 2,
+        );
+        assert_eq!(engine.floor_rngs.shuffle.state_tuple(), shuffle_before);
+        let combat = engine.combat_engine.as_ref().expect("combat remains active");
+        assert_eq!(combat.card_rng.state_tuple(), engine.persistent_rngs.card.state_tuple());
+    }
+
+    #[test]
+    fn rng_counter_exports_preserve_java_signed_int_overflow() {
+        let mut engine = RunEngine::new(42, 0);
+        engine.persistent_rngs.card.counter = i32::MAX;
+        engine.persistent_rngs.card.random_int(0);
+        assert_eq!(engine.rng_counters()["card"], i64::from(i32::MIN));
+
+        engine.debug_enter_specific_combat(&["JawWorm"]);
+        engine.combat_engine.as_mut().unwrap().ai_rng.counter = i32::MIN;
+        assert_eq!(engine.rng_counters()["ai"], i64::from(i32::MIN));
+    }
+
+    #[test]
+    fn mystery_room_type_roll_commits_only_the_event_stream() {
+        // EventHelper.roll(Random) consumes one unit float. The duplicate is
+        // committed to AbstractDungeon.eventRng after room-type generation.
+        // EventRoom then selects through another seed+counter duplicate and
+        // deliberately leaves the committed stream unchanged.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/
+        // AbstractDungeon.java:1755 and rooms/EventRoom.java:26.
+        let mut engine = RunEngine::new(42, 0);
+        let misc_before = engine.floor_rngs.misc.state_tuple();
+        let events = typed_events_for_act(engine.run_state.act);
+
+        for prior_counter in 0..2 {
+            let mut room_duplicate = crate::seed::StsRandom::with_counter(42, prior_counter);
+            let expected_roll = (room_duplicate.random_f32() * 100.0) as usize;
+            assert_eq!(engine.next_event_roll_100(), expected_roll);
+            assert_eq!(engine.persistent_rngs.event, room_duplicate);
+
+            let committed = engine.persistent_rngs.event.clone();
+            let mut selection_duplicate =
+                crate::seed::StsRandom::with_counter(42, prior_counter + 1);
+            let expected_event = &events[selection_duplicate.random_index(events.len())];
+            engine.enter_event();
+            assert_eq!(
+                engine.current_event.as_ref().expect("event selected").name,
+                expected_event.name,
+            );
+            assert_eq!(
+                engine.persistent_rngs.event, committed,
+                "EventRoom selection must discard its duplicate RNG",
+            );
+        }
+
+        assert_eq!(engine.floor_rngs.misc.state_tuple(), misc_before);
+    }
+
+    #[test]
+    fn act_transition_uses_java_card_counter_buckets_and_music_tick() {
+        // AbstractDungeon.dungeonTransitionSetup advances open card-counter
+        // intervals to 250/500/750; MainMusic consumes one misc draw afterward.
+        let cases = [
+            (0, 0),
+            (1, 250),
+            (249, 250),
+            (250, 250),
+            (251, 500),
+            (499, 500),
+            (500, 500),
+            (501, 750),
+            (749, 750),
+            (750, 750),
+        ];
+        for (start, expected) in cases {
+            let mut engine = RunEngine::new(42, 0);
+            engine.persistent_rngs.card = crate::seed::StsRandom::with_counter(42, start);
+            engine.floor_rngs.misc = crate::seed::StsRandom::new(99);
+            engine.transition_to_next_act();
+            assert_eq!(
+                engine.persistent_rngs.card.counter, expected,
+                "start {start}"
+            );
+            assert_eq!(engine.floor_rngs.misc.counter, 1, "start {start}");
+            assert_eq!(engine.run_state.act, 2);
+        }
+    }
+
+    #[test]
     fn neow_remove_is_an_agent_choice_and_can_be_cancelled() {
         // REMOVE_CARD opens the purgeable master-deck grid with canCancel=true;
         // choosing the Neow option itself must not silently remove a card.
@@ -9399,7 +9780,7 @@ mod tests {
         let mut engine = RunEngine::new(0, 0);
         for act in 1..=3 {
             for seed in 0..64 {
-                engine.monster_rng = crate::seed::StsRandom::new(seed);
+                engine.persistent_rngs.monster = crate::seed::StsRandom::new(seed);
                 engine.generate_encounter_queues(act);
 
                 let expected_monsters = if act == 1 { 16 } else { 15 };
@@ -10069,6 +10450,137 @@ mod tests {
     }
 
     #[test]
+    fn overwritten_monster_constructor_hp_rolls_preserve_java_rng_state() {
+        // Each constructor below passes a random HP to `super`, then replaces
+        // it with `setHp`. The discarded first draw is still observable in
+        // every later monsterHpRng result.
+        // Sources: Taskmaster.java, BronzeOrb.java, TorchHead.java,
+        // OrbWalker.java, and Reptomancer.java.
+        let cases = [
+            ("SlaverBoss", 8, (54, 60), (57, 64)),
+            ("BronzeOrb", 9, (52, 58), (54, 60)),
+            ("TorchHead", 9, (38, 40), (40, 45)),
+            ("Orb Walker", 7, (90, 96), (92, 102)),
+            ("Reptomancer", 8, (180, 190), (190, 200)),
+        ];
+
+        for (enemy_id, ascension, constructor_range, final_range) in cases {
+            let mut run = RunEngine::new(42, ascension);
+            let mut oracle = run.floor_rngs.monster_hp.copy();
+            let before = run.floor_rngs.monster_hp.counter;
+            let _ = oracle.random_int_range(constructor_range.0, constructor_range.1);
+            let expected_hp = oracle.random_int_range(final_range.0, final_range.1);
+
+            assert_eq!(run.roll_enemy_hp(enemy_id), (expected_hp, expected_hp));
+            assert_eq!(run.floor_rngs.monster_hp.counter, before + 2, "{enemy_id}");
+            assert_eq!(run.floor_rngs.monster_hp.state_tuple(), oracle.state_tuple(), "{enemy_id}");
+        }
+    }
+
+    #[test]
+    fn fixed_set_hp_constructors_consume_one_java_monster_hp_draw() {
+        // AbstractMonster.setHp(int) delegates to setHp(int, int), whose
+        // width-one random call still advances monsterHpRng.
+        // Java: monsters/AbstractMonster.java::setHp.
+        let cases = [
+            ("BanditPointy", 0, 30),
+            ("TheGuardian", 0, 240),
+            ("Hexaghost", 0, 250),
+            ("SlimeBoss", 0, 140),
+            ("BronzeAutomaton", 0, 300),
+            ("TheCollector", 0, 282),
+            ("TheChamp", 0, 420),
+            ("Exploder", 0, 30),
+            ("WrithingMass", 0, 160),
+            ("GiantHead", 0, 500),
+            ("Nemesis", 0, 185),
+            ("SpireGrowth", 0, 170),
+            ("AwakenedOne", 0, 300),
+            ("TimeEater", 0, 456),
+            ("Deca", 0, 250),
+            ("Donu", 0, 250),
+            ("SpireShield", 0, 110),
+            ("SpireSpear", 0, 160),
+            ("CorruptHeart", 0, 750),
+        ];
+
+        for (enemy_id, ascension, hp) in cases {
+            let mut run = RunEngine::new(42, ascension);
+            let mut oracle = run.floor_rngs.monster_hp.copy();
+            let expected = oracle.random_int_range(hp, hp);
+
+            assert_eq!(run.roll_enemy_hp(enemy_id), (expected, expected), "{enemy_id}");
+            assert_eq!(run.floor_rngs.monster_hp.state_tuple(), oracle.state_tuple(), "{enemy_id}");
+            assert_eq!(run.floor_rngs.monster_hp.counter, 1, "{enemy_id}");
+        }
+
+        for enemy_id in ["SphericGuardian", "Transient", "Maw"] {
+            let mut run = RunEngine::new(42, 0);
+            let before = run.floor_rngs.monster_hp.state_tuple();
+            let _ = run.roll_enemy_hp(enemy_id);
+            assert_eq!(run.floor_rngs.monster_hp.state_tuple(), before, "{enemy_id}");
+        }
+    }
+
+    #[test]
+    fn louse_and_darkling_constructor_subdraws_are_member_interleaved() {
+        // Java constructors consume HP then Bite/Nip for each member before
+        // moving to the next instance. Louse Curl Up is a later pre-battle pass.
+        // Java: LouseNormal.java, LouseDefensive.java, and Darkling.java.
+        let mut louse_run = RunEngine::new(42, 0);
+        let mut louse_misc = crate::seed::StsRandom::new(42);
+        let louse_ids: Vec<&str> = (0..3)
+            .map(|_| if louse_misc.random_bool() {
+                "FuzzyLouseNormal"
+            } else {
+                "FuzzyLouseDefensive"
+            })
+            .collect();
+        let mut louse_hp = louse_run.floor_rngs.monster_hp.copy();
+        let mut expected_louse = Vec::new();
+        for id in &louse_ids {
+            let hp = if *id == "FuzzyLouseNormal" {
+                louse_hp.random_int_range(10, 15)
+            } else {
+                louse_hp.random_int_range(11, 17)
+            };
+            let bite = louse_hp.random_int_range(5, 7);
+            expected_louse.push((hp, bite));
+        }
+        let curls: Vec<i32> = (0..3)
+            .map(|_| louse_hp.random_int_range(3, 7))
+            .collect();
+
+        louse_run.enter_specific_combat(vec!["3 Louse".to_string()]);
+        let louse_combat = louse_run.combat_engine.as_ref().unwrap();
+        assert_eq!(louse_combat.misc_rng.state_tuple(), louse_misc.state_tuple());
+        assert_eq!(louse_combat.monster_hp_rng.state_tuple(), louse_hp.state_tuple());
+        for (index, enemy) in louse_combat.state.enemies.iter().enumerate() {
+            assert_eq!(enemy.id, louse_ids[index]);
+            assert_eq!(enemy.entity.hp, expected_louse[index].0);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG),
+                expected_louse[index].1);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::CURL_UP), curls[index]);
+        }
+
+        let mut darkling_run = RunEngine::new(42, 0);
+        let mut darkling_hp = darkling_run.floor_rngs.monster_hp.copy();
+        let expected_darklings: Vec<(i32, i32)> = (0..3)
+            .map(|_| (
+                darkling_hp.random_int_range(48, 56),
+                darkling_hp.random_int_range(7, 11),
+            ))
+            .collect();
+        darkling_run.enter_specific_combat(vec!["3 Darklings".to_string()]);
+        let darkling_combat = darkling_run.combat_engine.as_ref().unwrap();
+        assert_eq!(darkling_combat.monster_hp_rng.state_tuple(), darkling_hp.state_tuple());
+        for (enemy, (hp, nip)) in darkling_combat.state.enemies.iter().zip(expected_darklings) {
+            assert_eq!(enemy.entity.hp, hp);
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), nip);
+        }
+    }
+
+    #[test]
     fn snake_plant_stats_ai_spores_malleable_and_ticks_match_java() {
         // Source: reference/extracted/methods/monster/SnakePlant.java.
         // HP is uniformly inclusive, Chomp changes at A2, its AI changes at
@@ -10676,7 +11188,7 @@ mod tests {
 
         let middle_seed = (1..10_000).find(|&seed| {
             let mut rng = crate::seed::StsRandom::new(seed);
-            (20..60).contains(&rng.random(99))
+            (20..60).contains(&rng.random_int(99))
         }).unwrap();
         combat.ai_rng = crate::seed::StsRandom::new(middle_seed);
         combat.state.player.hp = 500;
@@ -11038,7 +11550,7 @@ mod tests {
 
         let no_boolean_seed = (1..10_000).find(|&seed| {
             let mut rng = crate::seed::StsRandom::new(seed);
-            (30..65).contains(&rng.random(99))
+            (30..65).contains(&rng.random_int(99))
         }).unwrap();
         let mut run = RunEngine::new(42, 18);
         run.enter_specific_combat(vec!["Nemesis".to_string()]);
@@ -11681,7 +12193,7 @@ mod tests {
 
         let seed_for = |expected: bool| (1..10_000).find(|&seed| {
             let mut rng = crate::seed::StsRandom::new(seed);
-            rng.random_boolean() == expected
+            rng.random_bool() == expected
         }).unwrap();
         for (boolean, first_attack) in [
             (true, crate::enemies::move_ids::HEART_BLOOD_SHOTS),
@@ -11975,7 +12487,7 @@ mod tests {
 
         let seed_for_range = |low: i32, high: i32| (1..10_000).find(|&seed| {
             let mut rng = crate::seed::StsRandom::new(seed);
-            (low..=high).contains(&rng.random_range(40, 99))
+            (low..=high).contains(&rng.random_int_range(40, 99))
         }).unwrap();
         let mut odd = crate::enemies::create_enemy("Darkling", 48, 48);
         odd.entity.set_status(crate::status_ids::sid::COUNT, 1);
@@ -11989,7 +12501,7 @@ mod tests {
 
         let seed_for_full = (1..10_000).find(|&seed| {
             let mut rng = crate::seed::StsRandom::new(seed);
-            (40..=69).contains(&rng.random(99))
+            (40..=69).contains(&rng.random_int(99))
         }).unwrap();
         let mut repeated_nip = crate::enemies::create_enemy("Darkling", 48, 48);
         repeated_nip.entity.set_status(crate::status_ids::sid::FIRST_MOVE, 0);
@@ -12114,11 +12626,11 @@ mod tests {
         let combat = high.combat_engine.as_mut().unwrap();
         combat.state.player.hp = 500;
         combat.state.player.max_hp = 500;
-        combat.state.enemies[1].set_move(
+        combat.state.enemies[0].set_move(
             crate::enemies::move_ids::DECA_SQUARE, 0, 0, 16);
-        combat.state.enemies[1].add_effect(
+        combat.state.enemies[0].add_effect(
             crate::combat_types::mfx::BLOCK_ALL_ALLIES, 16);
-        combat.state.enemies[1].add_effect(
+        combat.state.enemies[0].add_effect(
             crate::combat_types::mfx::PLATED_ARMOR_ALL, 3);
         crate::combat_hooks::do_enemy_turns(combat);
         for enemy in &combat.state.enemies {
@@ -12135,11 +12647,11 @@ mod tests {
             crate::status_ids::sid::PLATED_ARMOR), 2,
             "unblocked NORMAL damage removes one Plated Armor");
 
-        combat.state.enemies[1].set_move(
+        combat.state.enemies[0].set_move(
             crate::enemies::move_ids::DECA_SQUARE, 0, 0, 16);
-        combat.state.enemies[1].add_effect(
+        combat.state.enemies[0].add_effect(
             crate::combat_types::mfx::BLOCK_ALL_ALLIES, 16);
-        combat.state.enemies[1].add_effect(
+        combat.state.enemies[0].add_effect(
             crate::combat_types::mfx::PLATED_ARMOR_ALL, 3);
         crate::combat_hooks::do_enemy_turns(combat);
         assert_eq!(combat.state.enemies[0].entity.status(
@@ -12180,30 +12692,32 @@ mod tests {
         combat.state.discard_pile.clear();
         assert_eq!(combat.ai_rng.counter, 2,
             "Donu and Deca each consume one initialization roll");
+        assert_eq!(combat.state.enemies.iter().map(|enemy| enemy.id.as_str()).collect::<Vec<_>>(),
+            vec!["Deca", "Donu"]);
 
         crate::combat_hooks::do_enemy_turns(combat);
-        assert_eq!(combat.state.player.hp, 474,
-            "Donu's Circle Strength modifies Deca's later Beam in group order");
+        assert_eq!(combat.state.player.hp, 480,
+            "Deca's opening Beam resolves before Donu's Circle in Java group order");
         for enemy in &combat.state.enemies {
             assert_eq!(enemy.entity.status(crate::status_ids::sid::STRENGTH), 3);
         }
         assert_eq!(combat.state.enemies[0].move_id,
-            crate::enemies::move_ids::DONU_BEAM);
-        assert_eq!(combat.state.enemies[1].move_id,
             crate::enemies::move_ids::DECA_SQUARE);
+        assert_eq!(combat.state.enemies[1].move_id,
+            crate::enemies::move_ids::DONU_BEAM);
         assert_eq!(combat.ai_rng.counter, 4);
 
         crate::combat_hooks::do_enemy_turns(combat);
-        assert_eq!(combat.state.player.hp, 448);
+        assert_eq!(combat.state.player.hp, 454);
         assert!(combat.state.enemies.iter().all(|enemy| enemy.entity.block == 16));
         assert_eq!(combat.state.enemies[0].move_id,
-            crate::enemies::move_ids::DONU_CIRCLE);
-        assert_eq!(combat.state.enemies[1].move_id,
             crate::enemies::move_ids::DECA_BEAM);
+        assert_eq!(combat.state.enemies[1].move_id,
+            crate::enemies::move_ids::DONU_CIRCLE);
         assert_eq!(combat.ai_rng.counter, 6);
 
         crate::combat_hooks::do_enemy_turns(combat);
-        assert_eq!(combat.state.player.hp, 416);
+        assert_eq!(combat.state.player.hp, 428);
         for enemy in &combat.state.enemies {
             assert_eq!(enemy.entity.status(crate::status_ids::sid::STRENGTH), 6);
         }
@@ -12368,12 +12882,12 @@ mod tests {
         // Tackle with Java's conditional 0.4 draw.
         let seed = (1..10_000).find(|&seed| {
             let mut rng = crate::seed::StsRandom::new(seed);
-            let num = rng.random(99);
+            let num = rng.random_int(99);
             (30..70).contains(&num)
         }).unwrap();
         let mut probe = crate::seed::StsRandom::new(seed);
-        let _ = probe.random(99);
-        let expected_wound = probe.random_float() < 0.4;
+        let _ = probe.random_int(99);
+        let expected_wound = probe.random_f32() < 0.4;
 
         let mut engine = RunEngine::new(42, 0);
         engine.enter_specific_combat(vec!["AcidSlime_M".to_string()]);
@@ -12630,8 +13144,8 @@ mod tests {
 
         let seed = (1..10_000).find(|&seed| {
             let mut rng = crate::seed::StsRandom::new(seed);
-            let _ = rng.random_float();
-            rng.random_float() < 0.5
+            let _ = rng.random_f32();
+            rng.random_f32() < 0.5
         }).unwrap();
         let mut engine = RunEngine::new(42, 0);
         engine.enter_specific_combat(vec!["Looter".to_string()]);
@@ -12715,10 +13229,10 @@ mod tests {
 
         let smoke_seed = (1..10_000).find(|&seed| {
             let mut rng = crate::seed::StsRandom::new(seed);
-            let _ = rng.random(2); // first Mug voice
-            let _ = rng.random(2); // second Mug voice
-            let _ = rng.random_float(); // second-Mug dialogue
-            rng.random_float() < 0.5 // Smoke Bomb branch
+            let _ = rng.random_int(2); // first Mug voice
+            let _ = rng.random_int(2); // second Mug voice
+            let _ = rng.random_f32(); // second-Mug dialogue
+            rng.random_f32() < 0.5 // Smoke Bomb branch
         }).unwrap();
         let mut engine = RunEngine::new(42, 0);
         engine.enter_specific_combat(vec!["Mugger".to_string()]);
@@ -12732,7 +13246,8 @@ mod tests {
                 crate::enemies::move_ids::MUGGER_MUG);
             assert_eq!(combat.state.enemies[0].entity.status(crate::status_ids::sid::COUNT), 15);
             assert_eq!(combat.ai_rng.counter, 1,
-                "first Mug consumes only playSfx's aiRng.random(2)");
+                "first Mug consumes only playSfx's aiRng.random_int(2)"
+            );
         }
 
         engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
@@ -12759,10 +13274,10 @@ mod tests {
 
         let big_seed = (1..10_000).find(|&seed| {
             let mut rng = crate::seed::StsRandom::new(seed);
-            let _ = rng.random(2);
-            let _ = rng.random(2);
-            let _ = rng.random_float();
-            rng.random_float() >= 0.5
+            let _ = rng.random_int(2);
+            let _ = rng.random_int(2);
+            let _ = rng.random_f32();
+            rng.random_f32() >= 0.5
         }).unwrap();
         let mut big = crate::enemies::create_enemy("Mugger", 52, 52);
         let mut big_rng = crate::seed::StsRandom::new(big_seed);
@@ -13840,7 +14355,7 @@ mod tests {
             if actions.is_empty() {
                 break;
             }
-            let idx = rng.gen_range(0..actions.len());
+            let idx = rng.random_index(actions.len());
             engine.step(&actions[idx]);
             steps += 1;
         }

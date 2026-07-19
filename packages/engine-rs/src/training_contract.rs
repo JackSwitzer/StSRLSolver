@@ -660,7 +660,7 @@ pub fn combat_training_state_from_run(
 }
 
 pub fn combat_snapshot_from_combat(engine: &CombatEngine) -> CombatSnapshotV1 {
-    let (rng_seed0, rng_seed1, rng_counter) = engine.rng.state_tuple();
+    let (rng_seed0, rng_seed1, rng_counter) = engine.shuffle_rng.state_tuple();
     let state = &engine.state;
     CombatSnapshotV1 {
         schema_version: COMBAT_SNAPSHOT_SCHEMA_VERSION,
@@ -795,7 +795,7 @@ pub fn combat_engine_from_snapshot(snapshot: &CombatSnapshotV1) -> CombatEngine 
     }
 
     let mut engine = CombatEngine::new(state, 0);
-    engine.rng = crate::seed::StsRandom::from_state(
+    engine.shuffle_rng = crate::seed::StsRandom::from_state(
         snapshot.rng_seed0,
         snapshot.rng_seed1,
         snapshot.rng_counter,

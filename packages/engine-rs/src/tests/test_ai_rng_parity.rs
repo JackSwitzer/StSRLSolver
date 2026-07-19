@@ -19,8 +19,102 @@
 mod ai_rng_parity_tests {
     use crate::enemies::{create_enemy, move_ids, roll_next_move, roll_next_move_with_num,
         roll_next_move_with_num_and_rng};
+    use crate::run::RunEngine;
     use crate::seed::StsRandom;
     use crate::state::EnemyCombatState;
+    use crate::status_ids::sid;
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    struct ConstructedEnemy {
+        id: &'static str,
+        hp: i32,
+        bite: Option<i32>,
+    }
+
+    fn construct_louse(misc: &mut StsRandom, monster_hp: &mut StsRandom) -> ConstructedEnemy {
+        // MonsterHelper.getLouse chooses the class first; that constructor then
+        // consumes HP followed immediately by Bite damage.
+        // Java: helpers/MonsterHelper.java, LouseNormal.java, LouseDefensive.java.
+        let (id, hp) = if misc.random_bool() {
+            ("FuzzyLouseNormal", monster_hp.random_int_range(10, 15))
+        } else {
+            ("FuzzyLouseDefensive", monster_hp.random_int_range(11, 17))
+        };
+        ConstructedEnemy {
+            id,
+            hp,
+            bite: Some(monster_hp.random_int_range(5, 7)),
+        }
+    }
+
+    fn construct_weak_wildlife(
+        misc: &mut StsRandom,
+        monster_hp: &mut StsRandom,
+    ) -> ConstructedEnemy {
+        // Java constructs all candidates before selecting one. The unselected
+        // Louse, Spike Slime, and Acid Slime still consume constructor draws.
+        // Java: MonsterHelper.java::bottomGetWeakWildlife.
+        let candidates = [
+            construct_louse(misc, monster_hp),
+            ConstructedEnemy {
+                id: "SpikeSlime_M",
+                hp: monster_hp.random_int_range(28, 32),
+                bite: None,
+            },
+            ConstructedEnemy {
+                id: "AcidSlime_M",
+                hp: monster_hp.random_int_range(28, 32),
+                bite: None,
+            },
+        ];
+        candidates[misc.random_int_range(0, 2) as usize].clone()
+    }
+
+    fn construct_strong_humanoid(
+        misc: &mut StsRandom,
+        monster_hp: &mut StsRandom,
+    ) -> ConstructedEnemy {
+        // Java constructs Cultist, one color-selected Slaver, and Looter before
+        // selecting the surviving candidate.
+        // Java: MonsterHelper.java::bottomGetStrongHumanoid/getSlaver.
+        let cultist = ConstructedEnemy {
+            id: "Cultist",
+            hp: monster_hp.random_int_range(48, 54),
+            bite: None,
+        };
+        let slaver = ConstructedEnemy {
+            id: if misc.random_bool() { "RedSlaver" } else { "BlueSlaver" },
+            hp: monster_hp.random_int_range(46, 50),
+            bite: None,
+        };
+        let looter = ConstructedEnemy {
+            id: "Looter",
+            hp: monster_hp.random_int_range(44, 48),
+            bite: None,
+        };
+        [cultist, slaver, looter][misc.random_int_range(0, 2) as usize].clone()
+    }
+
+    fn construct_strong_wildlife(
+        misc: &mut StsRandom,
+        monster_hp: &mut StsRandom,
+    ) -> ConstructedEnemy {
+        // Java constructs both candidates before the miscRng selection.
+        // Java: MonsterHelper.java::bottomGetStrongWildlife.
+        let candidates = [
+            ConstructedEnemy {
+                id: "FungiBeast",
+                hp: monster_hp.random_int_range(22, 28),
+                bite: None,
+            },
+            ConstructedEnemy {
+                id: "JawWorm",
+                hp: monster_hp.random_int_range(40, 44),
+                bite: None,
+            },
+        ];
+        candidates[misc.random_int_range(0, 1) as usize].clone()
+    }
 
     // Source-derived from reference/extracted/methods/monster/JawWorm.java.
     // The three num windows depend on history; three cases consume another
@@ -28,7 +122,7 @@ mod ai_rng_parity_tests {
     fn seed_for_float(predicate: fn(f32) -> bool) -> u64 {
         (1..10_000).find(|&seed| {
             let mut rng = StsRandom::new(seed);
-            predicate(rng.random_float())
+            predicate(rng.random_f32())
         }).expect("seed satisfying probability branch")
     }
 
@@ -109,12 +203,12 @@ mod ai_rng_parity_tests {
         for _ in 0..10 {
             let mut e = create_enemy("Cultist", 50, 50);
             roll_next_move(&mut e, &mut rng_via_roll);
-            let _ = rng_manual.random(99);
+            let _ = rng_manual.random_int(99);
             // Both rngs should have consumed the same number of values; the next
             // draw from each must match.
             assert_eq!(
-                rng_via_roll.random(99),
-                rng_manual.random(99),
+                rng_via_roll.random_int(99),
+                rng_manual.random_int(99),
                 "ai_rng stream desync after roll_next_move"
             );
         }
@@ -169,15 +263,15 @@ mod ai_rng_parity_tests {
         let mut rng = StsRandom::new(42);
         let baseline_after_one_draw = {
             let mut probe = StsRandom::new(42);
-            let _ = probe.random(99);
-            probe.random(99)
+            let _ = probe.random_int(99);
+            probe.random_int(99)
         };
 
         let mut e = create_enemy("Cultist", 50, 50);
         roll_next_move(&mut e, &mut rng);
         assert_eq!(e.move_id, move_ids::CULT_DARK_STRIKE);
 
-        let next_from_engine_rng = rng.random(99);
+        let next_from_engine_rng = rng.random_int(99);
         assert_eq!(
             next_from_engine_rng, baseline_after_one_draw,
             "deterministic enemy roll_next_move must still advance ai_rng by one"
@@ -191,12 +285,253 @@ mod ai_rng_parity_tests {
         let mut rng_before = StsRandom::new(1234);
         let snapshot_value = {
             let mut probe = StsRandom::new(1234);
-            probe.random(99)
+            probe.random_int(99)
         };
 
         let mut e: EnemyCombatState = create_enemy("JawWorm", 44, 44);
         roll_next_move_with_num(&mut e, 50);
         // rng_before still untouched.
-        assert_eq!(rng_before.random(99), snapshot_value);
+        assert_eq!(rng_before.random_int(99), snapshot_value);
+    }
+
+    #[test]
+    fn fixed_set_hp_calls_consume_monster_hp_rng_even_when_bounds_are_equal() {
+        // AbstractMonster.setHp(int) delegates to setHp(hp, hp), which still
+        // calls monsterHpRng.random(hp, hp).
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/AbstractMonster.java
+        for (id, hp) in [
+            ("TheGuardian", 240),
+            ("BronzeAutomaton", 300),
+            ("TimeEater", 456),
+            ("CorruptHeart", 750),
+        ] {
+            let mut oracle = StsRandom::new(42);
+            assert_eq!(oracle.random_int_range(hp, hp), hp);
+
+            let mut run = RunEngine::new(42, 0);
+            run.debug_enter_specific_combat(&[id]);
+            let combat = run.get_combat_engine().expect("specific combat");
+            assert_eq!(combat.state.enemies[0].entity.hp, hp, "{id}");
+            assert_eq!(run.debug_floor_rng_states()[0], oracle.state_tuple(), "{id}");
+        }
+    }
+
+    #[test]
+    fn overwritten_set_hp_constructors_consume_both_java_draws() {
+        // Each constructor passes a random HP to super, then overwrites it via
+        // setHp. Both monsterHpRng calls are observable stream consumption.
+        // Java: Taskmaster.java, BronzeOrb.java, TorchHead.java, OrbWalker.java.
+        for (id, initial, final_range) in [
+            ("Taskmaster", (54, 60), (54, 60)),
+            ("BronzeOrb", (52, 58), (52, 58)),
+            ("TorchHead", (38, 40), (38, 40)),
+            ("OrbWalker", (90, 96), (90, 96)),
+        ] {
+            let mut oracle = StsRandom::new(42);
+            let _discarded = oracle.random_int_range(initial.0, initial.1);
+            let expected_hp = oracle.random_int_range(final_range.0, final_range.1);
+
+            let mut run = RunEngine::new(42, 0);
+            run.debug_enter_specific_combat(&[id]);
+            let combat = run.get_combat_engine().expect("specific combat");
+            assert_eq!(combat.state.enemies[0].entity.hp, expected_hp, "{id}");
+            assert_eq!(run.debug_floor_rng_states()[0], oracle.state_tuple(), "{id}");
+        }
+    }
+
+    #[test]
+    fn reptomancer_group_preserves_constructor_draw_order() {
+        // MonsterHelper constructs left Dagger, Reptomancer, then right Dagger.
+        // Reptomancer consumes an overwritten super HP draw plus its final HP.
+        // Java: MonsterHelper.java, Reptomancer.java, SnakeDagger.java.
+        let mut oracle = StsRandom::new(42);
+        let left_hp = oracle.random_int_range(20, 25);
+        let _discarded_reptomancer_hp = oracle.random_int_range(180, 190);
+        let reptomancer_hp = oracle.random_int_range(180, 190);
+        let right_hp = oracle.random_int_range(20, 25);
+
+        let mut run = RunEngine::new(42, 0);
+        run.debug_enter_specific_combat(&["Reptomancer"]);
+        let combat = run.get_combat_engine().expect("Reptomancer combat");
+        assert_eq!(
+            combat.state.enemies.iter().map(|enemy| enemy.id.as_str()).collect::<Vec<_>>(),
+            ["SnakeDagger", "Reptomancer", "SnakeDagger"]
+        );
+        assert_eq!(
+            combat.state.enemies.iter().map(|enemy| enemy.entity.hp).collect::<Vec<_>>(),
+            [left_hp, reptomancer_hp, right_hp]
+        );
+        assert_eq!(run.debug_floor_rng_states()[0], oracle.state_tuple());
+    }
+
+    #[test]
+    fn dead_adventurer_lagavulin_event_starts_awake() {
+        // DeadAdventurer.getMonster returns `Lagavulin Event`, which
+        // MonsterHelper maps to new Lagavulin(false). Its pre-battle action
+        // starts on Siphon Soul with no sleeping block or Metallicize.
+        // Java: events/exordium/DeadAdventurer.java, helpers/MonsterHelper.java,
+        // monsters/exordium/Lagavulin.java.
+        let mut run = RunEngine::new(42, 0);
+        run.debug_enter_specific_combat(&["Lagavulin Event"]);
+        let combat = run.get_combat_engine().expect("Dead Adventurer combat");
+        let enemy = &combat.state.enemies[0];
+
+        assert_eq!(enemy.id, "Lagavulin");
+        assert_eq!(enemy.move_id, move_ids::LAGA_SIPHON);
+        assert_eq!(enemy.entity.block, 0);
+        assert_eq!(enemy.entity.status(sid::METALLICIZE), 0);
+        assert_eq!(enemy.entity.status(sid::SLEEP_TURNS), 0);
+    }
+
+    #[test]
+    fn three_louse_constructor_and_prebattle_draws_are_member_ordered() {
+        // Java selects and constructs each Louse as HP then Bite. Once all
+        // constructors finish, AbstractRoom.update first initializes every
+        // monster's move, then Louse pre-battle actions roll Curl Up in order.
+        // Java: MonsterHelper.java, LouseNormal.java, LouseDefensive.java.
+        let mut misc_oracle = StsRandom::new(42);
+        let mut hp_oracle = StsRandom::new(42);
+        let expected = (0..3)
+            .map(|_| construct_louse(&mut misc_oracle, &mut hp_oracle))
+            .collect::<Vec<_>>();
+        let curls = (0..3)
+            .map(|_| hp_oracle.random_int_range(3, 7))
+            .collect::<Vec<_>>();
+
+        let mut run = RunEngine::new(42, 0);
+        run.debug_enter_specific_combat(&["3 Louse"]);
+        let combat = run.get_combat_engine().expect("three Louse combat");
+        for (index, enemy) in combat.state.enemies.iter().enumerate() {
+            assert_eq!(enemy.id, expected[index].id, "member {index}");
+            assert_eq!(enemy.entity.hp, expected[index].hp, "member {index}");
+            assert_eq!(
+                enemy.entity.status(sid::STARTING_DMG),
+                expected[index].bite.expect("Louse Bite"),
+                "member {index}"
+            );
+            assert_eq!(enemy.entity.status(sid::CURL_UP), curls[index], "member {index}");
+        }
+        let states = run.debug_floor_rng_states();
+        assert_eq!(states[0], hp_oracle.state_tuple());
+        assert_eq!(states[4], misc_oracle.state_tuple());
+    }
+
+    #[test]
+    fn gremlin_leader_encounter_interleaves_type_selection_and_construction() {
+        // MonsterHelper selects and immediately constructs each of the two
+        // Gremlin Leader minions. The Leader is constructed afterward, and
+        // only then does room initialization consume one aiRng draw per member.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/
+        // MonsterHelper.java and monsters/city/GremlinLeader.java.
+        let mut misc_oracle = StsRandom::new(42);
+        let mut hp_oracle = StsRandom::new(42);
+        let mut expected = Vec::with_capacity(2);
+        for _ in 0..2 {
+            let id = match misc_oracle.random_int(7) {
+                0 | 1 => "GremlinWarrior",
+                2 | 3 => "GremlinThief",
+                4 | 5 => "GremlinFat",
+                6 => "GremlinTsundere",
+                _ => "GremlinWizard",
+            };
+            let hp = match id {
+                "GremlinFat" => hp_oracle.random_int_range(13, 17),
+                "GremlinThief" => hp_oracle.random_int_range(10, 14),
+                "GremlinWarrior" => hp_oracle.random_int_range(20, 24),
+                "GremlinWizard" => hp_oracle.random_int_range(21, 25),
+                _ => hp_oracle.random_int_range(12, 15),
+            };
+            expected.push((id, hp));
+        }
+        let leader_hp = hp_oracle.random_int_range(140, 148);
+        let mut ai_oracle = StsRandom::new(42);
+        for _ in 0..3 {
+            ai_oracle.random_int(99);
+        }
+
+        let mut run = RunEngine::new(42, 0);
+        run.debug_enter_specific_combat(&["GremlinLeader"]);
+        let combat = run.get_combat_engine().expect("Gremlin Leader combat");
+        assert_eq!(
+            combat.state.enemies[..2]
+                .iter()
+                .map(|enemy| (enemy.id.as_str(), enemy.entity.hp))
+                .collect::<Vec<_>>(),
+            expected,
+        );
+        assert_eq!(combat.state.enemies[2].id, "GremlinLeader");
+        assert_eq!(combat.state.enemies[2].entity.hp, leader_hp);
+        let states = run.debug_floor_rng_states();
+        assert_eq!(states[0], hp_oracle.state_tuple());
+        assert_eq!(states[1], ai_oracle.state_tuple());
+        assert_eq!(states[4], misc_oracle.state_tuple());
+        assert_eq!(run.rng_counters()["monsterHp"], 3);
+        assert_eq!(run.rng_counters()["ai"], 3);
+        assert_eq!(run.rng_counters()["misc"], 2);
+    }
+
+    #[test]
+    fn three_darklings_interleave_hp_and_nip_constructor_draws() {
+        // Every Darkling constructor consumes HP followed by Nip before the
+        // next array element is constructed.
+        // Java: MonsterHelper.java, monsters/beyond/Darkling.java.
+        let mut oracle = StsRandom::new(42);
+        let expected = (0..3)
+            .map(|_| {
+                let hp = oracle.random_int_range(48, 56);
+                let nip = oracle.random_int_range(7, 11);
+                (hp, nip)
+            })
+            .collect::<Vec<_>>();
+
+        let mut run = RunEngine::new(42, 0);
+        run.debug_enter_specific_combat(&["3 Darklings"]);
+        let combat = run.get_combat_engine().expect("three Darklings combat");
+        for (index, enemy) in combat.state.enemies.iter().enumerate() {
+            assert_eq!(enemy.id, "Darkling", "member {index}");
+            assert_eq!(enemy.entity.hp, expected[index].0, "member {index}");
+            assert_eq!(enemy.entity.status(sid::STR_AMT), expected[index].1, "member {index}");
+        }
+        assert_eq!(run.debug_floor_rng_states()[0], oracle.state_tuple());
+    }
+
+    #[test]
+    fn exordium_candidate_groups_consume_discarded_constructor_draws() {
+        // bottomHumanoid/bottomWildlife construct every candidate before
+        // selecting one. This test protects both final members and all discarded
+        // constructor draws, which influence every later room RNG result.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/MonsterHelper.java.
+        for encounter in ["Exordium Thugs", "Exordium Wildlife"] {
+            let mut misc_oracle = StsRandom::new(42);
+            let mut hp_oracle = StsRandom::new(42);
+            let expected = if encounter == "Exordium Thugs" {
+                vec![
+                    construct_weak_wildlife(&mut misc_oracle, &mut hp_oracle),
+                    construct_strong_humanoid(&mut misc_oracle, &mut hp_oracle),
+                ]
+            } else {
+                vec![
+                    construct_strong_wildlife(&mut misc_oracle, &mut hp_oracle),
+                    construct_weak_wildlife(&mut misc_oracle, &mut hp_oracle),
+                ]
+            };
+            for enemy in &expected {
+                if enemy.bite.is_some() {
+                    let _curl_up = hp_oracle.random_int_range(3, 7);
+                }
+            }
+
+            let mut run = RunEngine::new(42, 0);
+            run.debug_enter_specific_combat(&[encounter]);
+            let combat = run.get_combat_engine().expect("Exordium group combat");
+            assert_eq!(combat.state.enemies.len(), expected.len());
+            for (index, enemy) in combat.state.enemies.iter().enumerate() {
+                assert_eq!(enemy.id, expected[index].id, "{encounter} member {index}");
+                assert_eq!(enemy.entity.hp, expected[index].hp, "{encounter} member {index}");
+            }
+            let states = run.debug_floor_rng_states();
+            assert_eq!(states[0], hp_oracle.state_tuple(), "{encounter} monsterHpRng");
+            assert_eq!(states[4], misc_oracle.state_tuple(), "{encounter} miscRng");
+        }
     }
 }

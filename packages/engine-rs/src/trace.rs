@@ -15,7 +15,7 @@
 //! Slay the Spire has **13 independent RNG streams**
 //! (`docs/vault/rng-system-analysis.md`, corroborated by
 //! `docs/vault/rng-parity-audit.md` § 5). [`PostState::rng`] is a
-//! `BTreeMap<String, u64>` — rather than a fixed struct — so the schema
+//! `BTreeMap<String, i64>` — rather than a fixed struct — so the schema
 //! tolerates streams being added/renamed without a version bump, and so
 //! JSON key order is deterministic (`BTreeMap` sorts, which also gives
 //! stable diffing/golden-fixture output). The canonical key set (vault
@@ -205,7 +205,7 @@ pub struct PostState {
     /// (`card`, `ai`, `shuffle`, ... — see module docs). `BTreeMap` so the
     /// key set can grow without a schema version bump and so serialized
     /// key order is deterministic.
-    pub rng: BTreeMap<String, u64>,
+    pub rng: BTreeMap<String, i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -371,8 +371,8 @@ pub struct FirstDivergence {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RngSnapshotPair {
-    pub java: BTreeMap<String, u64>,
-    pub rust: BTreeMap<String, u64>,
+    pub java: BTreeMap<String, i64>,
+    pub rust: BTreeMap<String, i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -922,7 +922,7 @@ fn combat_relic_counter(
 /// from; a minimal but well-formed `PostState` is built from `RunState` so
 /// every record still round-trips through the schema.
 pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
-    let rng: BTreeMap<String, u64> = engine.rng_counters().into_iter().collect();
+    let rng: BTreeMap<String, i64> = engine.rng_counters().into_iter().collect();
 
     let Some(combat) = engine.get_combat_engine() else {
         return PostState {

@@ -278,7 +278,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     {
         // Source: reference/extracted/methods/monster/GremlinLeader.java
         // (`getEncourageQuote` is visible in the full source).
-        engine.ai_rng.random_range(0, 2);
+        engine.ai_rng.random_int_range(0, 2);
     }
 
     if engine.state.enemies[enemy_idx].id == "TheGuardian"
@@ -629,7 +629,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             if engine.state.draw_pile.is_empty() {
                 engine.state.draw_pile.push(card);
             } else {
-                let idx = engine.card_random_rng.random_range(
+                let idx = engine.card_random_rng.random_int_range(
                     0,
                     (engine.state.draw_pile.len() - 1) as i32,
                 ) as usize;
@@ -702,7 +702,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             if engine.state.draw_pile.is_empty() {
                 engine.state.draw_pile.push(card);
             } else {
-                let idx = engine.card_random_rng.random_range(
+                let idx = engine.card_random_rng.random_int_range(
                     0,
                     (engine.state.draw_pile.len() - 1) as i32,
                 ) as usize;
@@ -726,7 +726,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 if engine.state.draw_pile.is_empty() {
                     engine.state.draw_pile.push(burn);
                 } else {
-                    let idx = engine.card_random_rng.random_range(
+                    let idx = engine.card_random_rng.random_int_range(
                         0,
                         (engine.state.draw_pile.len() - 1) as i32,
                     ) as usize;
@@ -746,7 +746,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             if engine.state.draw_pile.is_empty() {
                 engine.state.draw_pile.push(draw_burn);
             } else {
-                let idx = engine.card_random_rng.random(
+                let idx = engine.card_random_rng.random_int(
                     engine.state.draw_pile.len() as i32 - 1) as usize;
                 engine.state.draw_pile.insert(idx, draw_burn);
             }
@@ -916,7 +916,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 candidates.sort_by_key(|idx|
                     engine.card_registry.card_def_by_id(zone[*idx].def_id).id);
             }
-            let pick = engine.card_random_rng.random(candidates.len() as i32 - 1) as usize;
+            let pick = engine.card_random_rng.random_int(candidates.len() as i32 - 1) as usize;
             let zone_idx = candidates[pick];
             let card = if use_draw {
                 engine.state.draw_pile.remove(zone_idx)
@@ -942,7 +942,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         // (`takeTurn`, BASH). The boolean is consumed only when at least one
         // orb is occupied; either negative power is blocked by Artifact.
         let focus_down = engine.state.orb_slots.occupied_count() > 0
-            && engine.ai_rng.random_boolean();
+            && engine.ai_rng.random_bool();
         let status = if focus_down { sid::FOCUS } else { sid::STRENGTH };
         powers::apply_debuff_from_enemy(&mut engine.state.player, status, -1);
     }
@@ -970,7 +970,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 // to CardGroup.addToRandomSpot and consumes cardRandomRng.
                 // Java: reference/extracted/methods/monster/AwakenedOne.java
                 // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
-                let idx = engine.card_random_rng.random_range(
+                let idx = engine.card_random_rng.random_int_range(
                     0,
                     (engine.state.draw_pile.len() - 1) as i32,
                 ) as usize;
@@ -1052,7 +1052,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         let target = if valid.is_empty() {
             enemy_idx
         } else {
-            valid[engine.ai_rng.random(valid.len() as i32 - 1) as usize]
+            valid[engine.ai_rng.random_int(valid.len() as i32 - 1) as usize]
         };
         engine.state.enemies[target].entity.block += amt as i32;
     }
@@ -1074,14 +1074,22 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 // MinionPower before Collector's own RollMoveAction.
                 let high_hp = engine.state.enemies[enemy_idx]
                     .entity.status(sid::BLOCK_AMT) >= 18;
+                let mut torches = Vec::with_capacity(2);
                 for _ in 0..2 {
-                    // TorchHead.java finalizes HP with an inclusive range.
-                    // Rust's run streams are not split yet, so use the shared
-                    // semantic stream here; combat aiRng remains untouched.
-                    let (base, width) = if high_hp { (40, 5) } else { (38, 2) };
-                    let hp = base + engine.rng.random_range(0, width);
+                    // TorchHead's super call rolls 38..40 before setHp replaces
+                    // it with a second roll. Both inclusive draws advance Java's
+                    // monsterHpRng even though only the latter HP survives.
+                    let _ = engine.monster_hp_rng.random_int_range(38, 40);
+                    let hp = if high_hp {
+                        engine.monster_hp_rng.random_int_range(40, 45)
+                    } else {
+                        engine.monster_hp_rng.random_int_range(38, 40)
+                    };
                     let mut torch = enemies::create_enemy("TorchHead", hp, hp);
                     torch.is_minion = true;
+                    torches.push(torch);
+                }
+                for mut torch in torches {
                     enemies::roll_initial_move(&mut torch, &mut engine.ai_rng);
                     engine.add_spawned_enemy(torch);
                 }
@@ -1094,34 +1102,56 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                         "TorchHead" | "Torch Head") && !enemy.is_alive())
                     .map(|(idx, _)| idx)
                     .collect();
+                let mut replacements = Vec::with_capacity(dead_slots.len());
                 for idx in dead_slots {
-                    // Source: reference/extracted/methods/monster/TorchHead.java.
-                    let (base, width) = if high_hp { (40, 5) } else { (38, 2) };
-                    let hp = base + engine.rng.random_range(0, width);
+                    // Source: reference/extracted/methods/monster/TorchHead.java
+                    // and AbstractMonster.java (`setHp`). Constructor and final
+                    // HP rolls are separate inclusive monsterHpRng draws.
+                    let _ = engine.monster_hp_rng.random_int_range(38, 40);
+                    let hp = if high_hp {
+                        engine.monster_hp_rng.random_int_range(40, 45)
+                    } else {
+                        engine.monster_hp_rng.random_int_range(38, 40)
+                    };
                     let mut torch = enemies::create_enemy("TorchHead", hp, hp);
                     torch.is_minion = true;
-                    enemies::roll_initial_move(&mut torch, &mut engine.ai_rng);
                     if engine.state.has_relic("Philosopher's Stone")
                         || engine.state.has_relic("PhilosopherStone")
                     {
                         torch.entity.add_status(sid::STRENGTH, 1);
                     }
+                    replacements.push((idx, torch));
+                }
+                for (idx, mut torch) in replacements {
+                    enemies::roll_initial_move(&mut torch, &mut engine.ai_rng);
                     engine.state.enemies[idx] = torch;
                 }
             }
             ("BronzeAutomaton" | "Bronze Automaton", x) if x == move_ids::BA_SPAWN_ORBS => {
-                // SpawnMonsterAction calls init() on each new minion before the
-                // Automaton's queued RollMoveAction. Thus aiRng order is Orb 0,
-                // Orb 1, Automaton. Run-level monsterHp streams are not split
-                // yet, so choose an in-range HP semantically.
-                // Java: reference/extracted/methods/monster/BronzeAutomaton.java
-                // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/SpawnMonsterAction.java
+                // BronzeAutomaton.takeTurn constructs both BronzeOrb instances
+                // while enqueueing SpawnMonsterAction. Each constructor first
+                // rolls 52..58 for super(), then setHp replaces that value with
+                // the ascension-specific second roll. Only when the queued spawn
+                // actions run do the Orbs consume their init() AI rolls, followed
+                // by the Automaton's queued RollMoveAction below.
+                // Sources: decompiled/java-src/com/megacrit/cardcrawl/monsters/
+                // city/{BronzeAutomaton,BronzeOrb}.java and actions/common/
+                // SpawnMonsterAction.java.
                 let high_hp = engine.state.enemies[enemy_idx].entity.max_hp >= 320;
+                let mut orbs = Vec::with_capacity(2);
                 for count in 0..2 {
-                    let hp = if high_hp { 54 } else { 52 };
+                    let _ = engine.monster_hp_rng.random_int_range(52, 58);
+                    let hp = if high_hp {
+                        engine.monster_hp_rng.random_int_range(54, 60)
+                    } else {
+                        engine.monster_hp_rng.random_int_range(52, 58)
+                    };
                     let mut orb = enemies::create_enemy("BronzeOrb", hp, hp);
                     orb.is_minion = true;
                     orb.entity.set_status(sid::COUNT, count);
+                    orbs.push(orb);
+                }
+                for mut orb in orbs {
                     enemies::roll_initial_move(&mut orb, &mut engine.ai_rng);
                     engine.add_spawned_enemy(orb);
                 }
@@ -1136,15 +1166,18 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 let per_spawn = engine.state.enemies[enemy_idx]
                     .entity.status(sid::BLOCK_AMT).max(1) as usize;
                 let spawn_count = (4usize.saturating_sub(alive_daggers)).min(per_spawn);
+                let mut daggers = Vec::with_capacity(spawn_count);
                 for _ in 0..spawn_count {
                     // SpawnMonsterAction.init consumes one aiRng num before
                     // SnakeDagger.getMove selects its forced first move.
-                    // HP uses an in-range semantic value until run-level RNG
-                    // streams are split.
                     // Java: reference/extracted/methods/monster/SnakeDagger.java
                     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/SpawnMonsterAction.java
-                    let mut minion = enemies::create_enemy("SnakeDagger", 22, 22);
+                    let hp = engine.monster_hp_rng.random_int_range(20, 25);
+                    let mut minion = enemies::create_enemy("SnakeDagger", hp, hp);
                     minion.is_minion = true;
+                    daggers.push(minion);
+                }
+                for mut minion in daggers {
                     enemies::roll_initial_move(&mut minion, &mut engine.ai_rng);
                     engine.add_spawned_enemy(minion);
                 }
@@ -1153,31 +1186,47 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 // Sources: reference/extracted/methods/monster/GremlinLeader.java
                 // and decompiled/java-src/com/megacrit/cardcrawl/actions/unique/
                 // SummonGremlinAction.java.
-                // Each of the two queued actions fills one of three slots,
-                // draws from the weighted pool, then init consumes an AI roll.
+                // Each SummonGremlinAction constructor immediately selects a
+                // weighted type and constructs it, consuming monsterHpRng in
+                // setHp(). The queued update() calls later initialize minion 0
+                // then minion 1; only after both does Gremlin Leader roll below.
                 let alive_others = engine.state.enemies.iter().enumerate()
                     .filter(|(idx, enemy)| *idx != enemy_idx && enemy.is_alive())
                     .count();
                 let spawn_count = (3usize.saturating_sub(alive_others)).min(2);
                 let ascension = engine.state.enemies[enemy_idx]
                     .entity.status(sid::STARTING_DMG);
+                let high_hp = ascension >= 7;
+                let mut minions = Vec::with_capacity(spawn_count);
                 for _ in 0..spawn_count {
-                    let gremlin_id = match engine.ai_rng.random_range(0, 7) {
+                    let gremlin_id = match engine.ai_rng.random_int_range(0, 7) {
                         0 | 1 => "GremlinWarrior",
                         2 | 3 => "GremlinThief",
                         4 | 5 => "GremlinFat",
                         6 => "GremlinTsundere",
                         _ => "GremlinWizard",
                     };
-                    // Monster HP uses a separate run-level stream in Java;
-                    // choose the lower source-valid endpoint semantically.
-                    let high_hp = ascension >= 7;
                     let hp = match gremlin_id {
-                        "GremlinFat" => if high_hp { 14 } else { 13 },
-                        "GremlinThief" => if high_hp { 11 } else { 10 },
-                        "GremlinWarrior" => if high_hp { 21 } else { 20 },
-                        "GremlinWizard" => if high_hp { 22 } else { 21 },
-                        _ => if high_hp { 13 } else { 12 },
+                        "GremlinFat" => engine.monster_hp_rng.random_int_range(
+                            if high_hp { 14 } else { 13 },
+                            if high_hp { 18 } else { 17 },
+                        ),
+                        "GremlinThief" => engine.monster_hp_rng.random_int_range(
+                            if high_hp { 11 } else { 10 },
+                            if high_hp { 15 } else { 14 },
+                        ),
+                        "GremlinWarrior" => engine.monster_hp_rng.random_int_range(
+                            if high_hp { 21 } else { 20 },
+                            if high_hp { 25 } else { 24 },
+                        ),
+                        "GremlinWizard" => engine.monster_hp_rng.random_int_range(
+                            if high_hp { 22 } else { 21 },
+                            if high_hp { 26 } else { 25 },
+                        ),
+                        _ => engine.monster_hp_rng.random_int_range(
+                            if high_hp { 13 } else { 12 },
+                            if high_hp { 17 } else { 15 },
+                        ),
                     };
                     let mut minion = enemies::create_enemy(gremlin_id, hp, hp);
                     minion.is_minion = true;
@@ -1213,6 +1262,9 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                                 else if ascension >= 7 { 8 } else { 7 });
                         }
                     }
+                    minions.push(minion);
+                }
+                for mut minion in minions {
                     enemies::roll_initial_move(&mut minion, &mut engine.ai_rng);
                     engine.add_spawned_enemy(minion);
                 }

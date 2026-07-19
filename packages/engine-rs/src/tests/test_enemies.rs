@@ -325,7 +325,7 @@ mod enemy_tests {
         // Source: reference/extracted/methods/monster/AcidSlime_S.java.
         let seed_for = |expected: bool| (1..10_000).find(|&seed| {
             let mut rng = crate::seed::StsRandom::new(seed);
-            rng.random_boolean() == expected
+            rng.random_bool() == expected
         }).unwrap();
         for (value, move_id) in [(true, AS_S_TACKLE), (false, AS_S_LICK)] {
             let mut e = create_enemy("AcidSlime_S", 10, 10);
@@ -381,7 +381,7 @@ mod enemy_tests {
     #[test] fn acid_m_repeated_wound_uses_secondary_boolean_draw() {
         let seed_for = |expected: bool| (1..10_000).find(|&seed| {
             let mut rng = crate::seed::StsRandom::new(seed);
-            rng.random_boolean() == expected
+            rng.random_bool() == expected
         }).unwrap();
         for (value, expected) in [(true, AS_TACKLE), (false, AS_LICK)] {
             let mut e = create_enemy("AcidSlime_M", 28, 28);
@@ -397,7 +397,7 @@ mod enemy_tests {
     #[test] fn acid_m_probability_guards_consume_one_float_draw() {
         let seed_for = |below: f32, expected: bool| (1..10_000).find(|&seed| {
             let mut rng = crate::seed::StsRandom::new(seed);
-            (rng.random_float() < below) == expected
+            (rng.random_f32() < below) == expected
         }).unwrap();
         for (value, expected) in [(true, AS_CORROSIVE_SPIT), (false, AS_LICK)] {
             let mut e = create_enemy("AcidSlime_M", 28, 28);
@@ -438,7 +438,7 @@ mod enemy_tests {
     #[test] fn acid_l_a17_repeated_wound_uses_point_six_draw() {
         let seed_for = |expected: bool| (1..10_000).find(|&seed| {
             let mut rng = crate::seed::StsRandom::new(seed);
-            (rng.random_float() < 0.6) == expected
+            (rng.random_f32() < 0.6) == expected
         }).unwrap();
         for (value, expected) in [(true, AS_TACKLE), (false, AS_LICK)] {
             let mut e = create_enemy("AcidSlime_L", 65, 65);

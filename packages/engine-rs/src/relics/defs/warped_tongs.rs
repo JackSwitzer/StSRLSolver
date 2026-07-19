@@ -31,7 +31,7 @@ fn hook(
 
     // CardGroup.shuffle seeds java.util.Random with one shuffleRng.randomLong.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
-    crate::seed::card_group_shuffle(&mut upgradeable, &mut engine.rng);
+    crate::seed::card_group_shuffle(&mut upgradeable, &mut engine.shuffle_rng);
     engine
         .card_registry
         .upgrade_card(&mut engine.state.hand[upgradeable[0]]);

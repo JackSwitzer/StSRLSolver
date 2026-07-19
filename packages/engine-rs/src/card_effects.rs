@@ -51,7 +51,7 @@ fn pick_random_living_enemy(engine: &mut CombatEngine) -> Option<usize> {
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/AttackDamageRandomEnemyAction.java
         let selected = engine
             .card_random_rng
-            .random_range(0, (living.len() - 1) as i32) as usize;
+            .random_int_range(0, (living.len() - 1) as i32) as usize;
         Some(living[selected])
     }
 }

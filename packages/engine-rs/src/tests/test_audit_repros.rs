@@ -145,10 +145,10 @@ fn eda_004_run_combat_ai_rng_must_use_the_java_per_floor_seed() {
     let consumed = actual.counter;
     let mut expected = crate::seed::StsRandom::new(seed + floor as u64);
     for _ in 0..consumed {
-        expected.random(99);
+        expected.random_int(99);
     }
 
-    assert_eq!(actual.random(99), expected.random(99));
+    assert_eq!(actual.random_int(99), expected.random_int(99));
 }
 
 #[test]
@@ -173,16 +173,19 @@ fn eda_004_room_reset_streams_and_persistent_potion_rng_follow_java() {
     let mut expected_hp = crate::seed::StsRandom::new(floor_seed);
     assert_eq!(
         combat.state.enemies[0].entity.max_hp,
-        expected_hp.random_range(40, 44),
+        expected_hp.random_int_range(40, 44),
     );
 
     let mut expected_shuffle = crate::seed::StsRandom::new(floor_seed);
-    expected_shuffle.random_long();
-    assert_eq!(combat.rng.state_tuple(), expected_shuffle.state_tuple());
+    expected_shuffle.random_long_unbounded();
+    assert_eq!(
+        combat.shuffle_rng.state_tuple(),
+        expected_shuffle.state_tuple(),
+    );
 
     let mut expected_ai = crate::seed::StsRandom::new(floor_seed);
     for _ in 0..combat.ai_rng.counter {
-        expected_ai.random(99);
+        expected_ai.random_int(99);
     }
     assert_eq!(combat.ai_rng.state_tuple(), expected_ai.state_tuple());
     assert_eq!(
@@ -220,7 +223,7 @@ fn eda_004_room_reset_streams_and_persistent_potion_rng_follow_java() {
     run.run_state.floor += 1;
     run.debug_enter_specific_combat(&["JawWorm"]);
     assert_eq!(
-        run.debug_combat_engine_mut().potion_rng.counter as u64,
+        i64::from(run.debug_combat_engine_mut().potion_rng.counter),
         potion_counter,
     );
 }
@@ -495,18 +498,18 @@ fn eda_012_combat_card_group_shuffle_matches_java_order_and_one_outer_tick() {
     for &card_ids in cases {
         let mut engine =
             engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
-        engine.rng = crate::seed::StsRandom::new(73);
+        engine.shuffle_rng = crate::seed::StsRandom::new(73);
         engine.state.draw_pile = make_deck(card_ids);
 
         let mut expected = engine.state.draw_pile.clone();
         let mut expected_rng = crate::seed::StsRandom::new(73);
-        let java_seed = expected_rng.random_long();
+        let java_seed = expected_rng.random_long_unbounded();
         crate::seed::java_util_shuffle(&mut expected, java_seed);
 
         engine.shuffle_draw_pile();
 
         assert_eq!(engine.state.draw_pile, expected, "case: {card_ids:?}");
-        assert_eq!(engine.rng.counter, 1, "case: {card_ids:?}");
+        assert_eq!(engine.shuffle_rng.counter, 1, "case: {card_ids:?}");
     }
 }
 
@@ -522,7 +525,7 @@ fn eda_012_opening_draw_and_empty_deck_reshuffle_share_the_java_contract() {
 
     let mut expected_opening = cards.clone();
     let mut expected_opening_rng = crate::seed::StsRandom::new(91);
-    let opening_seed = expected_opening_rng.random_long();
+    let opening_seed = expected_opening_rng.random_long_unbounded();
     crate::seed::java_util_shuffle(&mut expected_opening, opening_seed);
     let expected_opening_hand = (0..5)
         .map(|_| expected_opening.pop().expect("six-card opening deck"))
@@ -537,11 +540,11 @@ fn eda_012_opening_draw_and_empty_deck_reshuffle_share_the_java_contract() {
     opening.start_combat();
     assert_eq!(opening.state.hand, expected_opening_hand);
     assert_eq!(opening.state.draw_pile, expected_opening);
-    assert_eq!(opening.rng.counter, 1);
+    assert_eq!(opening.shuffle_rng.counter, 1);
 
     let mut expected_reshuffle = cards.clone();
     let mut expected_reshuffle_rng = crate::seed::StsRandom::new(91);
-    let reshuffle_seed = expected_reshuffle_rng.random_long();
+    let reshuffle_seed = expected_reshuffle_rng.random_long_unbounded();
     crate::seed::java_util_shuffle(&mut expected_reshuffle, reshuffle_seed);
     let expected_reshuffle_hand = (0..3)
         .map(|_| expected_reshuffle.pop().expect("six-card discard pile"))
@@ -550,14 +553,14 @@ fn eda_012_opening_draw_and_empty_deck_reshuffle_share_the_java_contract() {
     let mut reshuffle =
         engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut reshuffle);
-    reshuffle.rng = crate::seed::StsRandom::new(91);
+    reshuffle.shuffle_rng = crate::seed::StsRandom::new(91);
     reshuffle.state.hand.clear();
     reshuffle.state.draw_pile.clear();
     reshuffle.state.discard_pile = cards;
     reshuffle.draw_cards(3);
     assert_eq!(reshuffle.state.hand, expected_reshuffle_hand);
     assert_eq!(reshuffle.state.draw_pile, expected_reshuffle);
-    assert_eq!(reshuffle.rng.counter, 1);
+    assert_eq!(reshuffle.shuffle_rng.counter, 1);
 }
 
 #[test]

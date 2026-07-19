@@ -46,7 +46,7 @@ fn snecko_oil_hook(
         if permanent_cost < 0 {
             continue;
         }
-        let new_cost = engine.card_random_rng.random(3) as i8;
+        let new_cost = engine.card_random_rng.random_int(3) as i8;
         if permanent_cost != new_cost as i32 {
             engine.state.hand[idx].set_permanent_cost(new_cost);
         }

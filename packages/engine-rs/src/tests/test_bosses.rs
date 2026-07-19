@@ -478,6 +478,8 @@ mod boss_java_parity_tests {
     fn awakened_one_run_spawn_uses_independent_a4_a9_and_a19_thresholds() {
         // AwakenedOne's constructor changes HP at A9; usePreBattleAction adds
         // 2 Strength at A4 and changes Curiosity/Regenerate only at A19.
+        // MonsterHelper constructs both Cultists before Awakened One.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/MonsterHelper.java
         // Java: reference/extracted/methods/monster/AwakenedOne.java
         for (ascension, hp, strength, curiosity, regen) in [
             (0, 300, 0, 1, 10),
@@ -488,13 +490,18 @@ mod boss_java_parity_tests {
             let mut run = RunEngine::new(42, ascension);
             run.debug_enter_specific_combat(&["AwakenedOne"]);
             let combat = run.get_combat_engine().expect("Awakened One combat");
-            let enemy = &combat.state.enemies[0];
+            assert_eq!(
+                combat.state.enemies.iter().map(|enemy| enemy.id.as_str()).collect::<Vec<_>>(),
+                ["Cultist", "Cultist", "AwakenedOne"],
+                "A{ascension} must preserve MonsterHelper's construction order"
+            );
+            let enemy = &combat.state.enemies[2];
             assert_eq!(enemy.entity.hp, hp, "A{ascension}");
             assert_eq!(enemy.entity.max_hp, hp, "A{ascension}");
             assert_eq!(enemy.entity.status(sid::STRENGTH), strength, "A{ascension}");
             assert_eq!(enemy.entity.status(sid::CURIOSITY), curiosity, "A{ascension}");
             assert_eq!(enemy.entity.status(sid::REGENERATION), regen, "A{ascension}");
-            assert_eq!(combat.rng_counters()["ai"], 1, "opening roll at A{ascension}");
+            assert_eq!(combat.rng_counters()["ai"], 3, "three opening rolls at A{ascension}");
             assert_eq!(enemy.move_id, move_ids::AO_SLASH);
         }
     }
@@ -539,7 +546,7 @@ mod boss_java_parity_tests {
         engine.state.enemies[0].set_move(move_ids::AO_SLUDGE, 18, 1, 0);
         engine.state.enemies[0].add_effect(mfx::VOID, 1);
         let mut oracle = engine.card_random_rng.clone();
-        let expected_idx = oracle.random_range(0, 2) as usize;
+        let expected_idx = oracle.random_int_range(0, 2) as usize;
 
         do_enemy_turns(&mut engine);
 
@@ -607,6 +614,24 @@ mod boss_java_parity_tests {
         assert_eq!(enemy.entity.max_hp, 265);
         assert_eq!(enemy.entity.status(sid::ARTIFACT), 2);
         assert_eq!(enemy.move_damage(), 10);
+    }
+
+    #[test]
+    fn donu_and_deca_run_group_preserves_java_deca_then_donu_order() {
+        // MonsterHelper.java constructs `new Deca()` before `new Donu()`.
+        // This order controls both target indices and opening aiRng draws.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/MonsterHelper.java
+        let mut run = RunEngine::new(42, 0);
+        run.debug_enter_specific_combat(&["DonuAndDeca"]);
+        let combat = run.get_combat_engine().expect("Donu and Deca combat");
+
+        assert_eq!(
+            combat.state.enemies.iter().map(|enemy| enemy.id.as_str()).collect::<Vec<_>>(),
+            ["Deca", "Donu"]
+        );
+        assert_eq!(combat.state.enemies[0].move_id, move_ids::DECA_BEAM);
+        assert_eq!(combat.state.enemies[1].move_id, move_ids::DONU_CIRCLE);
+        assert_eq!(combat.rng_counters()["ai"], 2);
     }
 
     #[test]

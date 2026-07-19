@@ -4,7 +4,6 @@
 //! Floor 0 = first row (always monster), floor 8 = treasure, floor 14 = rest.
 //! Boss fight is floor 15 (off-map).
 
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
@@ -204,7 +203,7 @@ pub(crate) fn generate_map_with_rng_for_run(
     (map, rng.into_inner())
 }
 
-/// Simple RNG wrapper matching Java's Random.random(range) behavior.
+/// Simple RNG wrapper matching Java's `Random.random(range)` behavior.
 struct MapRng {
     rng: crate::seed::StsRandom,
 }
@@ -224,17 +223,15 @@ impl MapRng {
         // MapGenerator.randRange calls Random.random(max - min) + min, so
         // path-generation draws advance the public mapRng counter.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/map/MapGenerator.java
-        self.rng.random(max - min) + min
+        self.rng.random_int(max - min) + min
     }
 
     /// Shuffle a slice in place.
-    fn shuffle<T>(&mut self, slice: &mut [T]) {
-        // Fisher-Yates shuffle
-        let len = slice.len();
-        for i in (1..len).rev() {
-            let j = self.rng.gen_range(0..=i);
-            slice.swap(i, j);
-        }
+    fn shuffle_room_assignments<T>(&mut self, slice: &mut [T]) {
+        // RoomTypeAssigner passes the wrapped RandomXS128 directly to
+        // Collections.shuffle, bypassing the public wrapper counter.
+        // Java: RoomTypeAssigner.java:127-136.
+        self.rng.shuffle_with_inner(slice);
     }
 
     fn into_inner(self) -> crate::seed::StsRandom {
@@ -495,7 +492,7 @@ fn assign_room_types(map: &mut DungeonMap, ascension: i32, rng: &mut MapRng) {
         room_list.push(RoomType::Monster);
     }
 
-    rng.shuffle(&mut room_list);
+    rng.shuffle_room_assignments(&mut room_list);
 
     // Assign rooms respecting rules
     let mut room_idx = 0;

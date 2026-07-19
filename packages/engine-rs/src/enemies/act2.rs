@@ -74,13 +74,13 @@ pub fn advance_mugger_after_turn(
     match current {
         move_ids::MUGGER_MUG => {
             let slash_count = enemy.entity.status(sid::ATTACK_COUNT);
-            let _ = ai_rng.random(2); // playSfx
+            let _ = ai_rng.random_int(2); // playSfx
             if slash_count == 1 {
-                let _ = ai_rng.random_float() < 0.6; // optional dialogue
+                let _ = ai_rng.random_f32() < 0.6; // optional dialogue
             }
             enemy.entity.set_status(sid::ATTACK_COUNT, slash_count + 1);
             if slash_count + 1 == 2 {
-                if ai_rng.random_float() < 0.5 {
+                if ai_rng.random_f32() < 0.5 {
                     enemy.set_move(move_ids::MUGGER_SMOKE_BOMB, 0, 0, escape_block);
                 } else {
                     enemy.set_move(move_ids::MUGGER_BIG_SWIPE, big_swipe, 1, 0);
@@ -90,7 +90,7 @@ pub fn advance_mugger_after_turn(
             }
         }
         move_ids::MUGGER_BIG_SWIPE => {
-            let _ = ai_rng.random(2); // playSfx
+            let _ = ai_rng.random_int(2); // playSfx
             enemy.entity.add_status(sid::ATTACK_COUNT, 1);
             enemy.set_move(move_ids::MUGGER_SMOKE_BOMB, 0, 0, escape_block);
         }
@@ -131,7 +131,7 @@ pub(super) fn roll_byrd(
     // The opening roll ignores `num` but consumes a conditional 37.5% draw.
     if enemy.entity.status(sid::FIRST_MOVE) > 0 {
         enemy.entity.set_status(sid::FIRST_MOVE, 0);
-        if ai_rng.random_float() < 0.375 {
+        if ai_rng.random_f32() < 0.375 {
             caw(enemy);
         } else {
             peck(enemy);
@@ -143,7 +143,7 @@ pub(super) fn roll_byrd(
         enemy.set_move(move_ids::BYRD_HEADBUTT, headbutt_damage, 1, 0);
     } else if num < 50 {
         if last_two_moves(enemy, move_ids::BYRD_PECK) {
-            if ai_rng.random_float() < 0.4 {
+            if ai_rng.random_f32() < 0.4 {
                 swoop(enemy);
             } else {
                 caw(enemy);
@@ -153,7 +153,7 @@ pub(super) fn roll_byrd(
         }
     } else if num < 70 {
         if last_move(enemy, move_ids::BYRD_SWOOP) {
-            if ai_rng.random_float() < 0.375 {
+            if ai_rng.random_f32() < 0.375 {
                 caw(enemy);
             } else {
                 peck(enemy);
@@ -162,7 +162,7 @@ pub(super) fn roll_byrd(
             swoop(enemy);
         }
     } else if last_move(enemy, move_ids::BYRD_CAW) {
-        if ai_rng.random_float() < 0.2857 {
+        if ai_rng.random_f32() < 0.2857 {
             swoop(enemy);
         } else {
             peck(enemy);
@@ -208,7 +208,7 @@ pub(super) fn roll_shelled_parasite(
         enemy.entity.set_status(sid::FIRST_MOVE, 0);
         if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
             fell(enemy);
-        } else if ai_rng.random_boolean() {
+        } else if ai_rng.random_bool() {
             double_strike(enemy);
         } else {
             life_suck(enemy);
@@ -223,7 +223,7 @@ pub(super) fn roll_shelled_parasite(
                 fell(enemy);
                 return;
             }
-            roll = ai_rng.random_range(20, 99);
+            roll = ai_rng.random_int_range(20, 99);
         } else if roll < 60 {
             if !last_two_moves(enemy, move_ids::SP_DOUBLE_STRIKE) {
                 double_strike(enemy);
@@ -390,7 +390,7 @@ pub(super) fn roll_gremlin_leader(
             if !last_move(enemy, move_ids::GL_RALLY) {
                 rally(enemy);
             } else {
-                let retry = ai_rng.random_range(50, 99);
+                let retry = ai_rng.random_int_range(50, 99);
                 roll_gremlin_leader(enemy, retry, ai_rng);
             }
         } else if num < 80 {
@@ -398,7 +398,7 @@ pub(super) fn roll_gremlin_leader(
         } else if !last_move(enemy, move_ids::GL_STAB) {
             stab(enemy);
         } else {
-            let retry = ai_rng.random_range(0, 80);
+            let retry = ai_rng.random_int_range(0, 80);
             roll_gremlin_leader(enemy, retry, ai_rng);
         }
     } else if num < 66 {

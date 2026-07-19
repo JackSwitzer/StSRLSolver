@@ -333,7 +333,7 @@ fn reboot_moves_remaining_hand_and_discard_into_draw_then_draws_and_exhausts() {
     reboot.state.draw_pile = make_deck(&["Zap"]);
     reboot.state.discard_pile = make_deck(&["Dualcast", "Cold Snap", "Gash"]);
     reboot.clear_event_log();
-    let shuffle_before = reboot.rng.counter;
+    let shuffle_before = reboot.shuffle_rng.counter;
     let card_random_before = reboot.card_random_rng.counter;
 
     assert!(play_self(&mut reboot, "Reboot+"));
@@ -348,7 +348,7 @@ fn reboot_moves_remaining_hand_and_discard_into_draw_then_draws_and_exhausts() {
         hand_names,
         vec!["Defend", "Strike", "Zap", "Cold Snap", "Dualcast", "Gash"]
     );
-    assert_eq!(reboot.rng.counter, shuffle_before + 2);
+    assert_eq!(reboot.shuffle_rng.counter, shuffle_before + 2);
     assert_eq!(reboot.card_random_rng.counter, card_random_before + 2);
     assert_eq!(reboot.state.player.status(sid::DISCARDED_THIS_TURN), 0);
     assert_eq!(
@@ -387,7 +387,7 @@ fn reboot_waits_for_melange_scry_before_gathering_and_shuffling_piles() {
     reboot.state.hand = make_deck(&["Reboot+", "Strike"]);
     reboot.state.draw_pile = make_deck(&["Zap", "Dualcast", "Cold Snap", "Weave"]);
     reboot.state.discard_pile = make_deck(&["Bash"]);
-    let shuffle_before = reboot.rng.counter;
+    let shuffle_before = reboot.shuffle_rng.counter;
     let card_random_before = reboot.card_random_rng.counter;
 
     assert!(play_self(&mut reboot, "Reboot+"));
@@ -396,7 +396,7 @@ fn reboot_waits_for_melange_scry_before_gathering_and_shuffling_piles() {
     assert_eq!(reboot.state.hand.len(), 1, "ShuffleAllAction is still queued");
     assert_eq!(reboot.state.draw_pile.len(), 1, "Melange exposed three cards");
     assert_eq!(reboot.state.discard_pile.len(), 1);
-    assert_eq!(reboot.rng.counter, shuffle_before);
+    assert_eq!(reboot.shuffle_rng.counter, shuffle_before);
     assert_eq!(reboot.card_random_rng.counter, card_random_before);
     assert_eq!(
         reboot
@@ -415,7 +415,7 @@ fn reboot_waits_for_melange_scry_before_gathering_and_shuffling_piles() {
     assert_eq!(reboot.state.hand.len(), 6);
     assert!(reboot.state.draw_pile.is_empty());
     assert!(reboot.state.discard_pile.is_empty());
-    assert_eq!(reboot.rng.counter, shuffle_before + 2);
+    assert_eq!(reboot.shuffle_rng.counter, shuffle_before + 2);
     assert_eq!(reboot.card_random_rng.counter, card_random_before + 1);
     assert_eq!(reboot.state.exhaust_pile.len(), 1);
     assert_eq!(

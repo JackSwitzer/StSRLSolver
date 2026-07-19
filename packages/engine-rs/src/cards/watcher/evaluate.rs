@@ -11,7 +11,7 @@ fn add_insight_to_random_non_top_draw_position(
     } else {
         // CardGroup.addToRandomSpot uses cardRandomRng.random(size - 1), so
         // it consumes one tick and never inserts above the existing top card.
-        let index = engine.card_random_rng.random((len - 1) as i32) as usize;
+        let index = engine.card_random_rng.random_int((len - 1) as i32) as usize;
         engine.state.draw_pile.insert(index, insight);
     }
 }

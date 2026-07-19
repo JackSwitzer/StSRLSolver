@@ -143,10 +143,10 @@ mod silent_wave4 {
             let mut oracle = engine.card_random_rng.clone();
             let mut expected_hits = [0; 3];
             for _ in 0..bounces {
-                let selected = oracle.random_range(0, 2) as usize;
+                let selected = oracle.random_int_range(0, 2) as usize;
                 expected_hits[selected] += 1;
             }
-            let card_before = engine.rng_counters()["card"];
+            let card_before = engine.rng_counters()["shuffle"];
 
             assert!(play_self(&mut engine, card_id));
 
@@ -154,7 +154,7 @@ mod silent_wave4 {
                 assert_eq!(enemy.entity.status(sid::POISON), hits * 3, "{card_id}");
             }
             assert_eq!(engine.card_random_rng.counter, oracle.counter, "{card_id}");
-            assert_eq!(engine.rng_counters()["card"], card_before, "{card_id}");
+            assert_eq!(engine.rng_counters()["shuffle"], card_before, "{card_id}");
             assert_eq!(engine.state.energy, 1, "{card_id}");
         }
     }

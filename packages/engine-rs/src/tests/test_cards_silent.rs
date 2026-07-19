@@ -1552,16 +1552,16 @@ mod silent_card_java_parity_tests {
         engine.state.discard_pile.clear();
         engine.state.energy = 1;
         let mut oracle = engine.card_random_rng.clone();
-        let expected_index = oracle.random(2) as usize;
+        let expected_index = oracle.random_int(2) as usize;
         let expected_discard = ["Tactician", "Strike", "Defend"][expected_index];
         let card_random_before = engine.rng_counters()["cardRandom"];
-        let card_before = engine.rng_counters()["card"];
+        let card_before = engine.rng_counters()["shuffle"];
 
         assert!(play_self(&mut engine, "All Out Attack"));
         assert_eq!(engine.state.enemies[0].entity.hp, 40);
         assert_eq!(engine.state.enemies[1].entity.hp, 40);
         assert_eq!(engine.rng_counters()["cardRandom"], card_random_before + 1);
-        assert_eq!(engine.rng_counters()["card"], card_before);
+        assert_eq!(engine.rng_counters()["shuffle"], card_before);
         assert!(engine.state.discard_pile.iter().any(|card| {
             engine.card_registry.card_name(card.def_id) == expected_discard
         }));

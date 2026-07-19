@@ -354,12 +354,12 @@ fn attack_potion_uses_watcher_pool_and_card_random_rng_tick_for_tick() {
     engine.state.hand.clear();
     engine.state.potions[0] = "AttackPotion".to_string();
     let card_random_before = engine.card_random_rng.counter;
-    let general_before = engine.rng.counter;
+    let general_before = engine.shuffle_rng.counter;
     let attack_pool = super::generated_card_pool(&engine, super::GeneratedCardPool::Attack);
     let mut card_random_oracle = engine.card_random_rng.clone();
     let mut oracle_seen = std::collections::HashSet::new();
     while oracle_seen.len() < 3 {
-        let idx = card_random_oracle.random((attack_pool.len() - 1) as i32) as usize;
+        let idx = card_random_oracle.random_int((attack_pool.len() - 1) as i32) as usize;
         oracle_seen.insert(attack_pool[idx]);
     }
 
@@ -380,7 +380,7 @@ fn attack_potion_uses_watcher_pool_and_card_random_rng_tick_for_tick() {
     // draws for this seed; the old four-draw expectation used a 31-bit RNG.
     assert_eq!(card_random_oracle.counter, card_random_before + 3);
     assert_eq!(engine.card_random_rng.counter, card_random_oracle.counter);
-    assert_eq!(engine.rng.counter, general_before);
+    assert_eq!(engine.shuffle_rng.counter, general_before);
 }
 
 #[test]
@@ -407,7 +407,7 @@ fn power_potion_uses_watcher_power_pool_rng_and_bark_copy_count() {
     let mut oracle = engine.card_random_rng.clone();
     let mut seen = std::collections::HashSet::new();
     while seen.len() < 3 {
-        let idx = oracle.random((pool.len() - 1) as i32) as usize;
+        let idx = oracle.random_int((pool.len() - 1) as i32) as usize;
         seen.insert(pool[idx]);
     }
 
@@ -465,7 +465,7 @@ fn skill_potion_uses_watcher_skill_pool_rng_and_bark_copy_count() {
     let mut oracle = engine.card_random_rng.clone();
     let mut seen = std::collections::HashSet::new();
     while seen.len() < 3 {
-        let idx = oracle.random((pool.len() - 1) as i32) as usize;
+        let idx = oracle.random_int((pool.len() - 1) as i32) as usize;
         seen.insert(pool[idx]);
     }
 
@@ -518,10 +518,10 @@ fn colorless_potion_uses_normal_pool_base_previews_and_exact_card_rng() {
     let mut card_random_oracle = engine.card_random_rng.clone();
     let mut oracle_seen = std::collections::HashSet::new();
     while oracle_seen.len() < 3 {
-        let idx = card_random_oracle.random((pool.len() - 1) as i32) as usize;
+        let idx = card_random_oracle.random_int((pool.len() - 1) as i32) as usize;
         oracle_seen.insert(pool[idx]);
     }
-    let general_before = engine.rng.counter;
+    let general_before = engine.shuffle_rng.counter;
 
     use_potion(&mut engine, 0, -1);
 
@@ -540,7 +540,7 @@ fn colorless_potion_uses_normal_pool_base_previews_and_exact_card_rng() {
         .collect();
     assert!(names.iter().all(|name| COLORLESS_POTION_CHOICES.contains(name)));
     assert_eq!(engine.card_random_rng.counter, card_random_oracle.counter);
-    assert_eq!(engine.rng.counter, general_before);
+    assert_eq!(engine.shuffle_rng.counter, general_before);
 
     engine.execute_action(&Action::Choose(0));
     assert_eq!(engine.state.hand.len(), 2);

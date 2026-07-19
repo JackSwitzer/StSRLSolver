@@ -22,7 +22,7 @@ pub(super) fn roll_spire_shield(
 
     match mc % 3 {
         0 => {
-            if ai_rng.random_boolean() {
+            if ai_rng.random_bool() {
                 enemy.set_move(move_ids::SHIELD_FORTIFY, 0, 0, 30);
                 enemy.add_effect(mfx::BLOCK_ALL_ALLIES, 30);
             } else {
@@ -93,7 +93,7 @@ pub(super) fn roll_spire_spear(
             enemy.set_move(move_ids::SPEAR_SKEWER, 10, skewer_count, 0);
         }
         _ => {
-            if ai_rng.random_boolean() {
+            if ai_rng.random_bool() {
                 enemy.set_move(move_ids::SPEAR_PIERCER, 0, 0, 0);
                 enemy.add_effect(mfx::STRENGTH, 2);
                 enemy.add_effect(mfx::STRENGTH_ALL_ALLIES, 2);
@@ -136,7 +136,7 @@ pub(super) fn roll_corrupt_heart(
 
     match mc % 3 {
         0 => {
-            if ai_rng.random_boolean() {
+            if ai_rng.random_bool() {
                 enemy.set_move(move_ids::HEART_BLOOD_SHOTS, 2, blood_count, 0);
             } else {
                 enemy.set_move(move_ids::HEART_ECHO, echo_dmg, 1, 0);

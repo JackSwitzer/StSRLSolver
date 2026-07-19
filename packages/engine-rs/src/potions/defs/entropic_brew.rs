@@ -58,7 +58,7 @@ pub(crate) fn roll_limited_watcher_potion(engine: &mut CombatEngine) -> &'static
     // overload deliberately discards its first pool draw and retries until it
     // finds that rarity and a non-Fruit-Juice potion.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
-    let rarity_roll = engine.potion_rng.random(99);
+    let rarity_roll = engine.potion_rng.random_int(99);
     let wanted_rarity = if rarity_roll < 65 {
         0
     } else if rarity_roll < 90 {
@@ -69,11 +69,11 @@ pub(crate) fn roll_limited_watcher_potion(engine: &mut CombatEngine) -> &'static
 
     let _forced_discard = engine
         .potion_rng
-        .random((WATCHER_POTION_POOL.len() - 1) as i32);
+        .random_int((WATCHER_POTION_POOL.len() - 1) as i32);
     loop {
         let idx = engine
             .potion_rng
-            .random((WATCHER_POTION_POOL.len() - 1) as i32)
+            .random_int((WATCHER_POTION_POOL.len() - 1) as i32)
             as usize;
         let (id, rarity) = WATCHER_POTION_POOL[idx];
         if rarity == wanted_rarity && id != "FruitJuice" {

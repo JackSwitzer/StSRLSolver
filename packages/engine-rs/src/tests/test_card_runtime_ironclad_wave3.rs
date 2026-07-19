@@ -292,8 +292,8 @@ mod ironclad_wave3_card_runtime_tests {
         force_player_turn(&mut base);
         base.state.hand = make_deck(&["True Grit", "Strike", "Defend"]);
         let mut oracle = base.card_random_rng.clone();
-        let expected = ["Strike", "Defend"][oracle.random(1) as usize];
-        let generic_before = base.rng.counter;
+        let expected = ["Strike", "Defend"][oracle.random_int(1) as usize];
+        let generic_before = base.shuffle_rng.counter;
 
         assert!(play_self(&mut base, "True Grit"));
 
@@ -305,7 +305,7 @@ mod ironclad_wave3_card_runtime_tests {
             expected
         );
         assert_eq!(base.card_random_rng.counter, oracle.counter);
-        assert_eq!(base.rng.counter, generic_before);
+        assert_eq!(base.shuffle_rng.counter, generic_before);
 
         let mut singleton = engine_without_start(
             Vec::new(),

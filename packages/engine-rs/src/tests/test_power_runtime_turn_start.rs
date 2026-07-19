@@ -50,7 +50,7 @@ fn hello_world_hook_rolls_every_stack_and_spills_past_hand_limit() {
     ]);
     let mut oracle = engine.card_random_rng.clone();
     let expected: Vec<&str> = (0..3)
-        .map(|_| DEFECT_COMMON_POOL[oracle.random((DEFECT_COMMON_POOL.len() - 1) as i32) as usize])
+        .map(|_| DEFECT_COMMON_POOL[oracle.random_int((DEFECT_COMMON_POOL.len() - 1) as i32) as usize])
         .collect();
 
     let mut runtime_state = EffectState::default();
@@ -86,7 +86,7 @@ fn magnetism_hook_rolls_one_colorless_per_stack_and_spills_past_hand_limit() {
     ]);
     let mut oracle = engine.card_random_rng.clone();
     let expected: Vec<&str> = (0..3)
-        .map(|_| COLORLESS_POOL[oracle.random((COLORLESS_POOL.len() - 1) as i32) as usize])
+        .map(|_| COLORLESS_POOL[oracle.random_int((COLORLESS_POOL.len() - 1) as i32) as usize])
         .collect();
 
     let mut runtime_state = EffectState::default();
@@ -122,7 +122,7 @@ fn creative_ai_hook_rolls_every_stack_and_spills_past_hand_limit() {
     ]);
     let mut oracle = engine.card_random_rng.clone();
     let expected: Vec<&str> = (0..3)
-        .map(|_| DEFECT_POWER_POOL[oracle.random((DEFECT_POWER_POOL.len() - 1) as i32) as usize])
+        .map(|_| DEFECT_POWER_POOL[oracle.random_int((DEFECT_POWER_POOL.len() - 1) as i32) as usize])
         .collect();
 
     let mut runtime_state = EffectState::default();

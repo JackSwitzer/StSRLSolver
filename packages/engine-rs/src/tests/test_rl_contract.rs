@@ -60,6 +60,13 @@ fn invalid_run_actions_are_rejected_by_step_result() {
     let mut engine = RunEngine::new(42, 20);
     enter_test_combat(&mut engine);
 
+    let mut untouched = engine.clone();
+    let rng_before = engine
+        .get_combat_engine()
+        .expect("combat should be active")
+        .rng_snapshot();
+    let state_before = crate::trace::build_post_state(&engine);
+
     let hp_before = engine
         .get_combat_engine()
         .expect("combat should be active")
@@ -83,6 +90,40 @@ fn invalid_run_actions_are_rejected_by_step_result() {
         hp_before
     );
     assert_eq!(result.phase, RunPhase::Combat);
+    assert_eq!(
+        engine
+            .get_combat_engine()
+            .expect("combat should remain active")
+            .rng_snapshot(),
+        rng_before,
+        "rejecting an illegal action must preserve every raw combat RNG state",
+    );
+    assert_eq!(
+        crate::trace::build_post_state(&engine),
+        state_before,
+        "rejecting an illegal action must preserve observable combat state",
+    );
+
+    let legal = engine
+        .get_legal_actions()
+        .into_iter()
+        .next()
+        .expect("combat should expose a legal continuation");
+    let accepted = engine.step_with_result(&legal);
+    let control = untouched.step_with_result(&legal);
+    assert!(accepted.action_accepted && control.action_accepted);
+    assert_eq!(
+        engine.get_combat_engine().map(|combat| combat.rng_snapshot()),
+        untouched
+            .get_combat_engine()
+            .map(|combat| combat.rng_snapshot()),
+        "the next legal action must continue from the untouched RNG state",
+    );
+    assert_eq!(
+        crate::trace::build_post_state(&engine),
+        crate::trace::build_post_state(&untouched),
+        "illegal-action rejection must not perturb deterministic continuation",
+    );
 }
 
 #[test]

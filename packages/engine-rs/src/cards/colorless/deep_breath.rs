@@ -16,13 +16,16 @@ fn shuffle_discard_twice_then_draw(
             crate::effects::trigger::Trigger::OnShuffle,
         ));
 
-        crate::seed::card_group_shuffle(&mut engine.state.discard_pile, &mut engine.rng);
+        crate::seed::card_group_shuffle(
+            &mut engine.state.discard_pile,
+            &mut engine.shuffle_rng,
+        );
         engine
             .state
             .draw_pile
             .append(&mut engine.state.discard_pile);
 
-        crate::seed::card_group_shuffle(&mut engine.state.draw_pile, &mut engine.rng);
+        crate::seed::card_group_shuffle(&mut engine.state.draw_pile, &mut engine.shuffle_rng);
     }
     engine.draw_cards(ctx.card.base_magic);
 }

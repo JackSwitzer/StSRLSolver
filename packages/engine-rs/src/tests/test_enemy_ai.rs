@@ -294,8 +294,8 @@ mod enemy_ai_java_parity_tests {
         let mut e = make("Looter", 44);
         let seed = (1..10_000).find(|&seed| {
             let mut rng = crate::seed::StsRandom::new(seed);
-            let _ = rng.random_float();
-            rng.random_float() < 0.5
+            let _ = rng.random_f32();
+            rng.random_f32() < 0.5
         }).unwrap();
         let mut rng = crate::seed::StsRandom::new(seed);
         act1::advance_looter_after_turn(&mut e, &mut rng);
@@ -473,10 +473,10 @@ mod enemy_ai_java_parity_tests {
         let mut e = make("Mugger", 48);
         let smoke_seed = (1..10_000).find(|&seed| {
             let mut rng = crate::seed::StsRandom::new(seed);
-            let _ = rng.random(2);
-            let _ = rng.random(2);
-            let _ = rng.random_float();
-            rng.random_float() < 0.5
+            let _ = rng.random_int(2);
+            let _ = rng.random_int(2);
+            let _ = rng.random_f32();
+            rng.random_f32() < 0.5
         }).unwrap();
         let mut mugger_rng = crate::seed::StsRandom::new(smoke_seed);
         act2::advance_mugger_after_turn(&mut e, &mut mugger_rng);
@@ -502,7 +502,7 @@ mod enemy_ai_java_parity_tests {
 
         // Source: reference/extracted/methods/monster/ShelledParasite.java.
         let true_seed = (1..10_000).find(|&seed|
-            crate::seed::StsRandom::new(seed).random_boolean()).unwrap();
+            crate::seed::StsRandom::new(seed).random_bool()).unwrap();
         let mut e = make("Shelled Parasite", 68);
         let mut true_rng = crate::seed::StsRandom::new(true_seed);
         roll_initial_move_with_num_and_rng(&mut e, 99, &mut true_rng);
@@ -511,7 +511,7 @@ mod enemy_ai_java_parity_tests {
             "pre-A17 opener consumes aiRng.randomBoolean after rollMove num");
 
         let false_seed = (1..10_000).find(|&seed|
-            !crate::seed::StsRandom::new(seed).random_boolean()).unwrap();
+            !crate::seed::StsRandom::new(seed).random_bool()).unwrap();
         let mut life = make("Shelled Parasite", 68);
         let mut false_rng = crate::seed::StsRandom::new(false_seed);
         roll_initial_move_with_num_and_rng(&mut life, 0, &mut false_rng);
@@ -528,7 +528,7 @@ mod enemy_ai_java_parity_tests {
             "A17 forced Fell consumes no conditional boolean");
 
         let reroll_seed = (1..10_000).find(|&seed| {
-            let roll = crate::seed::StsRandom::new(seed).random_range(20, 99);
+            let roll = crate::seed::StsRandom::new(seed).random_int_range(20, 99);
             roll < 60
         }).unwrap();
         a17.move_id = move_ids::SP_FELL;
@@ -537,7 +537,7 @@ mod enemy_ai_java_parity_tests {
         roll_next_move_with_num_and_rng(&mut a17, 0, &mut reroll_rng);
         expect_move(&a17, move_ids::SP_DOUBLE_STRIKE, 6, 2, 0, &[]);
         assert_eq!(reroll_rng.counter, 1,
-            "repeated Fell rerolls with aiRng.random(20, 99)");
+            "repeated Fell rerolls with aiRng.random_int(20, 99)");
 
         a17.move_id = move_ids::SP_DOUBLE_STRIKE;
         a17.move_history = vec![move_ids::SP_DOUBLE_STRIKE];
@@ -1254,7 +1254,7 @@ mod enemy_ai_java_parity_tests {
         expect_status(&e, sid::SCYTHE_COOLDOWN, 2);
 
         let true_seed = (1..10_000).find(|&seed| {
-            crate::seed::StsRandom::new(seed).random_boolean()
+            crate::seed::StsRandom::new(seed).random_bool()
         }).unwrap();
         let mut true_rng = crate::seed::StsRandom::new(true_seed);
         crate::enemies::roll_next_move_with_num_and_rng(&mut e, 29, &mut true_rng);
@@ -1263,7 +1263,7 @@ mod enemy_ai_java_parity_tests {
             "low window after Scythe consumes its conditional randomBoolean");
 
         let false_seed = (1..10_000).find(|&seed| {
-            !crate::seed::StsRandom::new(seed).random_boolean()
+            !crate::seed::StsRandom::new(seed).random_bool()
         }).unwrap();
         let mut middle = make("Nemesis", 185);
         middle.entity.set_status(sid::FIRST_MOVE, 0);
@@ -1288,14 +1288,14 @@ mod enemy_ai_java_parity_tests {
 
         let middle_seed = (1..10_000).find(|&seed| {
             (33..66).contains(
-                &crate::seed::StsRandom::new(seed).random_range(33, 99))
+                &crate::seed::StsRandom::new(seed).random_int_range(33, 99))
         }).unwrap();
         let mut middle_rng = crate::seed::StsRandom::new(middle_seed);
         e.entity.set_status(sid::COUNT, 2);
         roll_next_move_with_num_and_rng(&mut e, 0, &mut middle_rng);
         expect_move(&e, move_ids::REPTO_SPAWN, 0, 0, 0, &[]);
         assert_eq!(middle_rng.counter, 1,
-            "repeated low Snake Strike rerolls with aiRng.random(33, 99)");
+            "repeated low Snake Strike rerolls with aiRng.random_int(33, 99)");
 
         e.move_id = move_ids::REPTO_SPAWN;
         e.move_history = vec![move_ids::REPTO_SPAWN];
@@ -1312,13 +1312,13 @@ mod enemy_ai_java_parity_tests {
         e.move_history.clear();
         e.entity.set_status(sid::COUNT, 2);
         let low_seed = (1..10_000).find(|&seed| {
-            crate::seed::StsRandom::new(seed).random(65) < 33
+            crate::seed::StsRandom::new(seed).random_int(65) < 33
         }).unwrap();
         let mut low_rng = crate::seed::StsRandom::new(low_seed);
         roll_next_move_with_num_and_rng(&mut e, 99, &mut low_rng);
         expect_move(&e, move_ids::REPTO_SNAKE_STRIKE, 13, 2, 0, &[(mfx::WEAK, 1)]);
         assert_eq!(low_rng.counter, 1,
-            "repeated Big Bite rerolls with aiRng.random(65)");
+            "repeated Big Bite rerolls with aiRng.random_int(65)");
 
         let mut e = make("SnakeDagger", 20);
         crate::enemies::roll_initial_move(
@@ -1408,7 +1408,7 @@ mod enemy_ai_java_parity_tests {
         // (`getMove`). Slot zero consumes one conditional boolean, slot one
         // selects the other opening move, and slot two is always Smash.
         let false_seed = (1..10_000).find(|&seed|
-            !crate::seed::StsRandom::new(seed).random_boolean()).unwrap();
+            !crate::seed::StsRandom::new(seed).random_bool()).unwrap();
         let mut rng = crate::seed::StsRandom::new(false_seed);
         roll_initial_move_with_num_and_rng(&mut e, 99, &mut rng);
         expect_move(&e, move_ids::SHIELD_BASH, 12, 1, 0, &[]);
@@ -1423,7 +1423,7 @@ mod enemy_ai_java_parity_tests {
 
         e.entity.set_status(sid::MOVE_COUNT, 0);
         let true_seed = (1..10_000).find(|&seed|
-            crate::seed::StsRandom::new(seed).random_boolean()).unwrap();
+            crate::seed::StsRandom::new(seed).random_bool()).unwrap();
         let mut rng = crate::seed::StsRandom::new(true_seed);
         roll_initial_move_with_num_and_rng(&mut e, 0, &mut rng);
         expect_move(&e, move_ids::SHIELD_FORTIFY, 0, 0, 30,
@@ -1493,7 +1493,7 @@ mod enemy_ai_java_parity_tests {
         // With an occupied orb Bash conditionally consumes one aiRng boolean
         // and applies -1 Focus. Artifact blocks the selected negative power.
         let focus_seed = (1..10_000).find(|&seed|
-            crate::seed::StsRandom::new(seed).random_boolean()).unwrap();
+            crate::seed::StsRandom::new(seed).random_bool()).unwrap();
         let mut bash = run_engine(44, 0);
         bash.debug_enter_specific_combat(&["SpireShield", "SpireSpear"]);
         let combat = bash.debug_combat_engine_mut();

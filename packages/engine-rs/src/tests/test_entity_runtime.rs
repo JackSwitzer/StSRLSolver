@@ -701,7 +701,7 @@ fn mummified_hand_filters_free_cards_and_consumes_card_random_for_one_candidate(
     }).expect("remaining valid card");
     assert_eq!(eruption.cost, 0);
     assert_eq!(engine.rng_counters()["cardRandom"], before["cardRandom"] + 1);
-    assert_eq!(engine.rng_counters()["card"], before["card"]);
+    assert_eq!(engine.rng_counters()["shuffle"], before["shuffle"]);
 }
 
 #[test]
@@ -1159,7 +1159,7 @@ fn snake_skull_buffs_specimen_transfer_and_artifact_blocks_the_application() {
         applied.rng_counters()["cardRandom"],
         counters_before["cardRandom"] + 1
     );
-    assert_eq!(applied.rng_counters()["card"], counters_before["card"]);
+    assert_eq!(applied.rng_counters()["shuffle"], counters_before["shuffle"]);
 
     let mut blocked = make(1);
     blocked.finalize_enemy_death(0);

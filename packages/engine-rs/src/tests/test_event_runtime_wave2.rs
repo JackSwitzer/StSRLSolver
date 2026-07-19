@@ -157,6 +157,8 @@ fn woman_in_blue_routes_potion_rewards_through_ordered_event_screen() {
 #[test]
 fn supported_map_or_combat_event_branches_open_real_runtime_flows() {
     let mut portal_engine = RunEngine::new(23, 20);
+    portal_engine.run_state.act = 3;
+    portal_engine.run_state.floor = 42;
     let portal = typed_event(3, "Secret Portal");
     assert!(matches!(
         portal.options[0].status,
@@ -169,7 +171,7 @@ fn supported_map_or_combat_event_branches_open_real_runtime_flows() {
     assert!(step.action_accepted);
     assert_eq!(portal_engine.current_phase(), RunPhase::Combat);
     assert!(portal_engine.current_reward_screen().is_none());
-    assert_eq!(portal_engine.run_state.floor, 16);
+    assert_eq!(portal_engine.run_state.floor, 43);
     assert_ne!(portal_engine.run_state.floor, floor_before);
     assert!(portal_engine.get_combat_engine().is_some());
 
