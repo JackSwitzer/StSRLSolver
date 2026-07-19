@@ -263,8 +263,33 @@ public class RecordPatches {
         }
     }
 
-    // Boss relic commit = instantObtain inside BossRelicSelectScreen.update
-    // (decompiled BossRelicSelectScreen.java:200).
+    // Boss relic has TWO commit points that both need instrumenting:
+    //  1. instantObtain inside BossRelicSelectScreen.update, for the 4 relics
+    //     that skip the normal obtain() call (Black Blood, Ring of the
+    //     Serpent, FrozenCore, HolyWater — decompiled
+    //     BossRelicSelectScreen.java:199-201, relicObtainLogic).
+    //  2. AbstractRelic.bossObtainLogic() for every OTHER relic (e.g. Empty
+    //     Cage) — the mouse-confirm path: AbstractRelic.update() calls
+    //     `this.bossObtainLogic()` directly on hb.clicked when not on a
+    //     touchscreen (decompiled AbstractRelic.java:355-365), and
+    //     bossObtainLogic() itself calls `this.obtain()` for anything not in
+    //     the special-4 set (decompiled AbstractRelic.java:387-394). The
+    //     touch-confirm path (BossRelicSelectScreen.updateConfirmButton ->
+    //     touchRelic.bossObtainLogic(), decompiled
+    //     BossRelicSelectScreen.java:225-235) calls the exact same method,
+    //     so patching bossObtainLogic covers both. The prior instrument only
+    //     rewrote `instantObtain` calls textually present in
+    //     BossRelicSelectScreen.update()'s own bytecode; r.update() (and the
+    //     bossObtainLogic() it calls) is a different method's bytecode
+    //     entirely, so it was never touched — that's the Empty Cage gap
+    //     (pilot sitting 2, idx 67->68, no BOSS_RELIC action).
+    //
+    // For the special 4, BOTH hooks fire on the same frame (r.update() runs
+    // bossObtainLogic() first, which still executes even though it skips
+    // obtain(); relicObtainLogic's instantObtain call follows immediately in
+    // the same BossRelicSelectScreen.update() iteration) — onBossRelic
+    // dedupes by relic instance identity so only one BOSS_RELIC commit lands
+    // per pick, regardless of which hook observes it first.
     @SpirePatch(clz = BossRelicSelectScreen.class, method = "update")
     public static class BossRelicPick {
         public static ExprEditor Instrument() {
@@ -279,10 +304,21 @@ public class RecordPatches {
         }
     }
 
-    public static void onBossRelic(Object relicObj) {
-        if (Recorder.active() && relicObj instanceof AbstractRelic) {
-            Recorder.commit("BOSS_RELIC", "relic_id", ((AbstractRelic) relicObj).relicId);
+    @SpirePatch(clz = AbstractRelic.class, method = "bossObtainLogic")
+    public static class BossRelicObtain {
+        public static void Postfix(AbstractRelic __instance) {
+            onBossRelic(__instance);
         }
+    }
+
+    private static Object lastBossRelicCommitted = null;
+
+    public static void onBossRelic(Object relicObj) {
+        if (!Recorder.active() || !(relicObj instanceof AbstractRelic) || relicObj == lastBossRelicCommitted) {
+            return;
+        }
+        lastBossRelicCommitted = relicObj;
+        Recorder.commit("BOSS_RELIC", "relic_id", ((AbstractRelic) relicObj).relicId);
     }
 
     // decompiled AbstractChest.java:61.
