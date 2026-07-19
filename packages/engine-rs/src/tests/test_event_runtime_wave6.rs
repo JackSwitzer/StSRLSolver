@@ -2,7 +2,7 @@
 mod event_runtime_wave6_tests {
     use crate::decision::{RewardItemKind, RewardScreenSource};
     use crate::events::{typed_events_for_act, EventRuntimeStatus, TypedEventDef};
-    use crate::run::{RunAction, RunEngine, RunPhase};
+    use crate::run::{GameAction, RunEngine, RunPhase};
     use crate::status_ids::sid;
 
     fn typed_event(act: i32, name: &str) -> TypedEventDef {
@@ -23,8 +23,8 @@ mod event_runtime_wave6_tests {
         ));
         engine.debug_set_typed_event_state(mushrooms);
 
-        let start = engine.step_with_result(&RunAction::EventChoice(0));
-        assert!(start.action_accepted);
+        let start = engine.step_game(&GameAction::EventChoice(0));
+        assert!(start.accepted());
         assert_eq!(engine.current_phase(), RunPhase::Combat);
         let combat = engine.get_combat_engine().expect("event combat");
         assert_eq!(combat.state.enemies.len(), 3);
@@ -41,8 +41,8 @@ mod event_runtime_wave6_tests {
         assert_eq!(screen.items[0].kind, RewardItemKind::Relic);
         assert_eq!(screen.items[0].label, "Odd Mushroom");
 
-        let claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
-        assert!(claim.action_accepted);
+        let claim = engine.step_game(&GameAction::SelectRewardItem(0));
+        assert!(claim.accepted());
         assert_eq!(engine.current_phase(), RunPhase::MapChoice);
         assert!(engine.run_state.relics.iter().any(|relic| relic == "Odd Mushroom"));
     }
@@ -56,13 +56,13 @@ mod event_runtime_wave6_tests {
         let mut engine = RunEngine::new(71, 20);
         engine.debug_set_typed_event_state(mushrooms.clone());
         assert!(engine
-            .step_with_result(&RunAction::EventChoice(0))
-            .action_accepted);
+            .step_game(&GameAction::EventChoice(0))
+            .accepted());
         engine.debug_force_current_combat_outcome(true);
         engine.debug_resolve_current_combat_outcome();
         assert!(engine
-            .step_with_result(&RunAction::SelectRewardItem(0))
-            .action_accepted);
+            .step_game(&GameAction::SelectRewardItem(0))
+            .accepted());
 
         engine.debug_enter_specific_combat(&["JawWorm"]);
         let combat = engine.debug_combat_engine_mut();
@@ -76,8 +76,8 @@ mod event_runtime_wave6_tests {
         duplicate.run_state.relics.push("Odd Mushroom".to_string());
         duplicate.debug_set_typed_event_state(mushrooms);
         assert!(duplicate
-            .step_with_result(&RunAction::EventChoice(0))
-            .action_accepted);
+            .step_game(&GameAction::EventChoice(0))
+            .accepted());
         duplicate.debug_force_current_combat_outcome(true);
         duplicate.debug_resolve_current_combat_outcome();
         let screen = duplicate.current_reward_screen().expect("duplicate reward");
@@ -94,8 +94,8 @@ mod event_runtime_wave6_tests {
         ));
         engine.debug_set_typed_event_state(sphere);
 
-        let start = engine.step_with_result(&RunAction::EventChoice(0));
-        assert!(start.action_accepted);
+        let start = engine.step_game(&GameAction::EventChoice(0));
+        assert!(start.accepted());
         assert_eq!(engine.current_phase(), RunPhase::Combat);
         let combat = engine.get_combat_engine().expect("event combat");
         assert_eq!(combat.state.enemies.len(), 2);

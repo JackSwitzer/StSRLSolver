@@ -125,7 +125,7 @@ impl TraceRecord {
 }
 
 // ===========================================================================
-// T2 — Action vocabulary (tagged enum, matches script file + RunAction 1:1)
+// T2 — Action vocabulary (tagged enum, matches script file + GameAction 1:1)
 // ===========================================================================
 
 /// The canonical action vocabulary shared by action scripts (T2) and trace
@@ -719,7 +719,7 @@ pub const CANONICAL_RNG_KEYS: &[&str] = &[
 ];
 
 // ===========================================================================
-// Replay support — TraceAction -> RunAction, and RunEngine -> PostState.
+// Replay support — TraceAction -> GameAction, and RunEngine -> PostState.
 //
 // Shared by `bin/trace_replay.rs` (against a real Java golden, T3/T4) and
 // `tests/test_trace_oracle.rs` (in-process synthetic fixture, T5), so the
@@ -729,30 +729,30 @@ pub const CANONICAL_RNG_KEYS: &[&str] = &[
 // architecture target — core sim never depends back on `trace`).
 // ===========================================================================
 
-/// Map a script `TraceAction` to the engine's `RunAction`.
+/// Map a script `TraceAction` to the engine's `GameAction`.
 ///
 /// Implemented today: `PLAY_CARD`, `END_TURN`, `USE_POTION` (combat), plus
 /// `NEOW` and `PATH` (straightforward 1:1 index mappings off `run.rs`'s
-/// `RunAction::ChooseNeowOption`/`ChoosePath`). Anything else is a hard
+/// `GameAction::ChooseNeowOption`/`ChoosePath`). Anything else is a hard
 /// error naming the unsupported action type — per T3, the differ must
 /// never guess semantics for an action it doesn't recognize.
 pub fn map_action(
     engine: &crate::run::RunEngine,
     action: &TraceAction,
-) -> Result<crate::run::RunAction, String> {
+) -> Result<crate::run::GameAction, String> {
     use crate::actions::Action;
-    use crate::run::RunAction;
+    use crate::run::GameAction;
 
     match action {
         TraceAction::PlayCard { hand_idx, target, .. } => {
-            Ok(RunAction::CombatAction(Action::PlayCard { card_idx: *hand_idx, target_idx: *target }))
+            Ok(GameAction::CombatAction(Action::PlayCard { card_idx: *hand_idx, target_idx: *target }))
         }
-        TraceAction::EndTurn => Ok(RunAction::CombatAction(Action::EndTurn)),
+        TraceAction::EndTurn => Ok(GameAction::CombatAction(Action::EndTurn)),
         TraceAction::UsePotion { idx, target } => {
-            Ok(RunAction::CombatAction(Action::UsePotion { potion_idx: *idx, target_idx: *target }))
+            Ok(GameAction::CombatAction(Action::UsePotion { potion_idx: *idx, target_idx: *target }))
         }
-        TraceAction::Neow { choice } => Ok(RunAction::ChooseNeowOption(*choice)),
-        TraceAction::Path { choice } => Ok(RunAction::ChoosePath(*choice)),
+        TraceAction::Neow { choice } => Ok(GameAction::ChooseNeowOption(*choice)),
+        TraceAction::Path { choice } => Ok(GameAction::ChoosePath(*choice)),
         unsupported => Err(format!(
             "unsupported action type for trace_replay (engine phase={:?}): {unsupported:?}. \
              RunEngine mapping for this action type is not implemented yet; see \
@@ -1073,7 +1073,7 @@ pub fn replay_script(script: &ActionScript) -> Result<Vec<TraceRecord>, String> 
                 engine.current_phase()
             ));
         }
-        engine.step(&run_action);
+        engine.step_game(&run_action);
         records.push(build_trace_record(&engine, idx as u64, action.clone()));
 
         if let Some(max_floor) = script.stop.max_floor {

@@ -4,8 +4,7 @@ use crate::actions::Action;
 use crate::effects::runtime::{EffectExecutionPhase, EffectOwner, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerContext};
 use crate::orbs::OrbType;
-use crate::obs;
-use crate::run::{RunAction, RunEngine};
+use crate::run::{GameAction, RunEngine};
 use crate::status_ids::sid;
 
 use super::support::{
@@ -319,26 +318,25 @@ fn envenom_uses_runtime_damage_resolved_path_on_real_attack_hits() {
 }
 
 #[test]
-fn step_result_exposes_events_and_v2_observation() {
+fn step_outcome_exposes_events_and_next_decision() {
     let mut engine = RunEngine::new(42, 20);
     resolve_opening_neow(&mut engine);
     let map_action = engine.get_legal_actions()[0].clone();
-    let _ = engine.step_with_result(&map_action);
+    let _ = engine.step_game(&map_action);
     assert_eq!(engine.current_phase(), crate::run::RunPhase::Combat);
 
     let end_turn = engine
         .get_legal_actions()
         .into_iter()
-        .find(|action| matches!(action, RunAction::CombatAction(Action::EndTurn)))
+        .find(|action| matches!(action, GameAction::CombatAction(Action::EndTurn)))
         .expect("combat should always offer EndTurn");
 
-    let result = engine.step_with_result(&end_turn);
+    let result = engine.step_game(&end_turn);
 
-    assert_eq!(result.combat_obs_version, obs::COMBAT_OBS_VERSION);
-    assert_eq!(result.combat_obs_v2.as_ref().map(Vec::len), Some(obs::COMBAT_V2_DIM));
-    assert!(!result.legal_actions.is_empty());
-    assert!(!result.combat_events.is_empty());
-    assert_eq!(engine.last_combat_events(), result.combat_events.as_slice());
+    assert!(result.accepted());
+    assert!(!result.next_decision.legal_actions.is_empty());
+    assert!(!result.events.is_empty());
+    assert_eq!(engine.last_combat_events(), result.events.as_slice());
 }
 
 #[test]

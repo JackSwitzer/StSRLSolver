@@ -1,6 +1,6 @@
-use crate::decision::{DecisionAction, RewardChoice, RewardItemKind, RewardScreenSource};
+use crate::decision::{RewardChoice, RewardItemKind, RewardScreenSource};
 use crate::events::{typed_events_for_act, typed_shrine_events, EventRuntimeStatus};
-use crate::run::{RunAction, RunEngine, RunPhase};
+use crate::run::{GameAction, RunEngine, RunPhase};
 use crate::status_ids::sid;
 use crate::tests::support::{ensure_in_hand, play_on_enemy};
 
@@ -37,8 +37,8 @@ fn library_read_has_nested_choice_without_fake_skip() {
     ));
     engine.debug_set_typed_event_state(library);
 
-    let open_screen = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(open_screen.action_accepted);
+    let open_screen = engine.step_game(&GameAction::EventChoice(0));
+    assert!(open_screen.accepted());
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
 
     let screen = engine.current_reward_screen().expect("library reward screen");
@@ -48,23 +48,14 @@ fn library_read_has_nested_choice_without_fake_skip() {
     assert!(screen.items[0].claimable);
     assert!(!screen.items[0].skip_allowed);
 
-    let open_choice = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(open_choice.action_accepted);
+    let open_choice = engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(open_choice.accepted());
     assert_eq!(
-        open_choice.legal_decision_actions,
+        open_choice.next_decision.legal_actions,
         vec![
-            DecisionAction::PickRewardChoice {
-                item_index: 0,
-                choice_index: 0,
-            },
-            DecisionAction::PickRewardChoice {
-                item_index: 0,
-                choice_index: 1,
-            },
-            DecisionAction::PickRewardChoice {
-                item_index: 0,
-                choice_index: 2,
-            },
+            GameAction::ChooseRewardOption { item_index: 0, choice_index: 0, },
+            GameAction::ChooseRewardOption { item_index: 0, choice_index: 1, },
+            GameAction::ChooseRewardOption { item_index: 0, choice_index: 2, },
         ]
     );
 }
@@ -79,34 +70,34 @@ fn drug_dealer_all_three_supported_branches_use_canonical_runtime_paths() {
 
     let mut jax_engine = RunEngine::new(17, 20);
     jax_engine.debug_set_typed_event_state(dealer.clone());
-    let jax_step = jax_engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(jax_step.action_accepted);
+    let jax_step = jax_engine.step_game(&GameAction::EventChoice(0));
+    assert!(jax_step.accepted());
     assert_eq!(jax_engine.current_phase(), RunPhase::CardReward);
     let jax_screen = jax_engine.current_reward_screen().expect("jax reward screen");
     assert_eq!(jax_screen.items.len(), 1);
     assert_eq!(jax_screen.items[0].kind, RewardItemKind::CardChoice);
     assert_eq!(jax_screen.items[0].choices.len(), 1);
-    let open_jax = jax_engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(open_jax.action_accepted);
-    let choose_jax = jax_engine.step_with_result(&RunAction::ChooseRewardOption {
+    let open_jax = jax_engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(open_jax.accepted());
+    let choose_jax = jax_engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index: 0,
     });
-    assert!(choose_jax.action_accepted);
+    assert!(choose_jax.accepted());
     assert!(jax_engine.run_state.deck.iter().any(|card| card == "J.A.X."));
 
     let mut transform_engine = RunEngine::new(23, 20);
     let deck_before = transform_engine.run_state.deck.len();
     transform_engine.debug_set_typed_event_state(dealer.clone());
-    let transform_step = transform_engine.step_with_result(&RunAction::EventChoice(1));
-    assert!(transform_step.action_accepted);
+    let transform_step = transform_engine.step_game(&GameAction::EventChoice(1));
+    assert!(transform_step.accepted());
     assert_eq!(transform_engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(transform_engine.run_state.deck.len(), deck_before);
 
     let mut relic_engine = RunEngine::new(31, 20);
     relic_engine.debug_set_typed_event_state(dealer);
-    let relic_step = relic_engine.step_with_result(&RunAction::EventChoice(2));
-    assert!(relic_step.action_accepted);
+    let relic_step = relic_engine.step_game(&GameAction::EventChoice(2));
+    assert!(relic_step.accepted());
     // DrugDealer.java::buttonEffect uses spawnRelicAndObtain during the event;
     // no additional reward-screen action exists.
     assert_eq!(relic_engine.current_phase(), RunPhase::MapChoice);
@@ -127,8 +118,8 @@ fn drug_dealer_mutagenic_strength_uses_canonical_id_and_next_combat_effect() {
     engine.debug_set_typed_event_state(dealer.clone());
 
     assert!(engine
-        .step_with_result(&RunAction::EventChoice(2))
-        .action_accepted);
+        .step_game(&GameAction::EventChoice(2))
+        .accepted());
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     engine.debug_enter_specific_combat(&["JawWorm"]);
     let combat = engine.debug_combat_engine_mut();
@@ -142,8 +133,8 @@ fn drug_dealer_mutagenic_strength_uses_canonical_id_and_next_combat_effect() {
         .push("MutagenicStrength".to_string());
     duplicate.debug_set_typed_event_state(dealer);
     assert!(duplicate
-        .step_with_result(&RunAction::EventChoice(2))
-        .action_accepted);
+        .step_game(&GameAction::EventChoice(2))
+        .accepted());
     assert_eq!(
         duplicate
             .run_state
@@ -171,12 +162,12 @@ fn face_trader_stages_touch_values_and_never_grants_a_face_on_touch() {
     let gold_before = a0.run_state.gold;
     let relics_before = a0.run_state.relics.clone();
     a0.debug_set_typed_event_state(event.clone());
-    assert!(a0.step_with_result(&RunAction::EventChoice(0)).action_accepted);
+    assert!(a0.step_game(&GameAction::EventChoice(0)).accepted());
     assert_eq!(a0.current_phase(), RunPhase::Event);
     let main = a0.debug_current_event().expect("Face Trader main screen");
     assert_eq!(main.options.len(), 3);
     assert_eq!(main.options[0].text, "Touch (take 7 damage, gain 75 gold)");
-    assert!(a0.step_with_result(&RunAction::EventChoice(0)).action_accepted);
+    assert!(a0.step_game(&GameAction::EventChoice(0)).accepted());
     assert_eq!(a0.current_phase(), RunPhase::MapChoice);
     assert_eq!(a0.run_state.current_hp, 65);
     assert_eq!(a0.run_state.gold, gold_before + 75);
@@ -187,8 +178,8 @@ fn face_trader_stages_touch_values_and_never_grants_a_face_on_touch() {
     a15.run_state.current_hp = 100;
     let gold_before = a15.run_state.gold;
     a15.debug_set_typed_event_state(event);
-    a15.step(&RunAction::EventChoice(0));
-    a15.step(&RunAction::EventChoice(0));
+    a15.step_game(&GameAction::EventChoice(0));
+    a15.step_game(&GameAction::EventChoice(0));
     assert_eq!(a15.run_state.current_hp, 90);
     assert_eq!(a15.run_state.gold, gold_before + 50);
 }
@@ -207,8 +198,8 @@ fn face_of_cleric_trade_reaches_next_victory_and_obeys_healing_rules() {
         .extend(other_faces.iter().map(|face| (*face).to_string()));
     engine.run_state.current_hp = 40;
     engine.debug_set_typed_event_state(event.clone());
-    engine.step(&RunAction::EventChoice(0));
-    assert!(engine.step_with_result(&RunAction::EventChoice(1)).action_accepted);
+    engine.step_game(&GameAction::EventChoice(0));
+    assert!(engine.step_game(&GameAction::EventChoice(1)).accepted());
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert!(engine
         .run_state
@@ -257,8 +248,8 @@ fn gremlin_mask_trade_applies_one_artifact_aware_weak_in_next_combat() {
             .map(|face| (*face).to_string()),
     );
     engine.debug_set_typed_event_state(shrine_event("FaceTrader"));
-    engine.step(&RunAction::EventChoice(0));
-    assert!(engine.step_with_result(&RunAction::EventChoice(1)).action_accepted);
+    engine.step_game(&GameAction::EventChoice(0));
+    assert!(engine.step_game(&GameAction::EventChoice(1)).accepted());
     assert!(engine
         .run_state
         .relics
@@ -296,8 +287,8 @@ fn cultist_mask_trade_is_naturally_reachable_and_gameplay_inert() {
             .map(|face| (*face).to_string()),
     );
     engine.debug_set_typed_event_state(shrine_event("FaceTrader"));
-    engine.step(&RunAction::EventChoice(0));
-    assert!(engine.step_with_result(&RunAction::EventChoice(1)).action_accepted);
+    engine.step_game(&GameAction::EventChoice(0));
+    assert!(engine.step_game(&GameAction::EventChoice(1)).accepted());
     assert!(engine
         .run_state
         .relics
@@ -331,8 +322,8 @@ fn ssserpent_head_trade_pays_on_every_mystery_entry_through_gain_gold() {
             .map(|face| (*face).to_string()),
     );
     engine.debug_set_typed_event_state(shrine_event("FaceTrader"));
-    engine.step(&RunAction::EventChoice(0));
-    assert!(engine.step_with_result(&RunAction::EventChoice(1)).action_accepted);
+    engine.step_game(&GameAction::EventChoice(0));
+    assert!(engine.step_game(&GameAction::EventChoice(1)).accepted());
     assert!(engine
         .run_state
         .relics
@@ -390,8 +381,8 @@ fn nloths_mask_trade_removes_one_nonboss_chest_relic_then_expires() {
             .map(|face| (*face).to_string()),
     );
     engine.debug_set_typed_event_state(shrine_event("FaceTrader"));
-    engine.step(&RunAction::EventChoice(0));
-    assert!(engine.step_with_result(&RunAction::EventChoice(1)).action_accepted);
+    engine.step_game(&GameAction::EventChoice(0));
+    assert!(engine.step_game(&GameAction::EventChoice(1)).accepted());
     assert!(engine
         .run_state
         .relics
@@ -439,7 +430,7 @@ fn nloths_gift_trade_sacrifices_an_offer_and_triples_rare_rewards() {
         .extend(["Anchor".to_string(), "Lantern".to_string()]);
     let relics_before = engine.run_state.relics.clone();
     engine.debug_set_typed_event_state(event.clone());
-    assert!(engine.step_with_result(&RunAction::EventChoice(0)).action_accepted);
+    assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
     assert_eq!(engine.current_phase(), RunPhase::Event);
     assert_eq!(engine.run_state.relics.len(), relics_before.len());
     assert!(engine
@@ -454,7 +445,7 @@ fn nloths_gift_trade_sacrifices_an_offer_and_triples_rare_rewards() {
             .count(),
         1
     );
-    assert!(engine.step_with_result(&RunAction::EventChoice(0)).action_accepted);
+    assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
 
     let mut duplicate = RunEngine::new(73, 0);
@@ -465,7 +456,7 @@ fn nloths_gift_trade_sacrifices_an_offer_and_triples_rare_rewards() {
     ]);
     let relics_before = duplicate.run_state.relics.clone();
     duplicate.debug_set_typed_event_state(event);
-    assert!(duplicate.step_with_result(&RunAction::EventChoice(0)).action_accepted);
+    assert!(duplicate.step_game(&GameAction::EventChoice(0)).accepted());
     assert!(relics_before
         .iter()
         .all(|relic| duplicate.run_state.relics.contains(relic)));
@@ -522,8 +513,8 @@ fn repeated_face_fallbacks_create_separate_gameplay_inert_circlets() {
     );
     for _ in 0..2 {
         engine.debug_set_typed_event_state(shrine_event("FaceTrader"));
-        engine.step(&RunAction::EventChoice(0));
-        assert!(engine.step_with_result(&RunAction::EventChoice(1)).action_accepted);
+        engine.step_game(&GameAction::EventChoice(0));
+        assert!(engine.step_game(&GameAction::EventChoice(1)).accepted());
     }
     assert_eq!(
         engine
@@ -558,28 +549,28 @@ fn nest_branches_cover_direct_gold_and_specific_card_reward() {
     let mut gold_engine = RunEngine::new(37, 20);
     let gold_before = gold_engine.run_state.gold;
     gold_engine.debug_set_typed_event_state(nest.clone());
-    let steal = gold_engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(steal.action_accepted);
+    let steal = gold_engine.step_game(&GameAction::EventChoice(0));
+    assert!(steal.accepted());
     assert_eq!(gold_engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(gold_engine.run_state.gold, gold_before + 99);
 
     let mut dagger_engine = RunEngine::new(41, 20);
     let hp_before = dagger_engine.run_state.current_hp;
     dagger_engine.debug_set_typed_event_state(nest);
-    let join = dagger_engine.step_with_result(&RunAction::EventChoice(1));
-    assert!(join.action_accepted);
+    let join = dagger_engine.step_game(&GameAction::EventChoice(1));
+    assert!(join.accepted());
     assert_eq!(dagger_engine.current_phase(), RunPhase::CardReward);
     assert_eq!(dagger_engine.run_state.current_hp, hp_before - 6);
     let screen = dagger_engine.current_reward_screen().expect("ritual dagger screen");
     assert_eq!(screen.items[0].kind, RewardItemKind::CardChoice);
     assert_eq!(screen.items[0].choices.len(), 1);
-    let open = dagger_engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(open.action_accepted);
-    let choose = dagger_engine.step_with_result(&RunAction::ChooseRewardOption {
+    let open = dagger_engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(open.accepted());
+    let choose = dagger_engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index: 0,
     });
-    assert!(choose.action_accepted);
+    assert!(choose.accepted());
     assert!(dagger_engine
         .run_state
         .deck
@@ -591,8 +582,8 @@ fn nest_branches_cover_direct_gold_and_specific_card_reward() {
 fn sensory_stone_focus_and_tomb_of_lord_red_mask_flow_through_event_rewards() {
     let mut sensory_engine = RunEngine::new(43, 20);
     sensory_engine.debug_set_typed_event_state(typed_event(3, "Sensory Stone"));
-    let sensory = sensory_engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(sensory.action_accepted);
+    let sensory = sensory_engine.step_game(&GameAction::EventChoice(0));
+    assert!(sensory.accepted());
     assert_eq!(sensory_engine.current_phase(), RunPhase::CardReward);
     let sensory_screen = sensory_engine.current_reward_screen().expect("sensory screen");
     assert_eq!(sensory_screen.source, RewardScreenSource::Event);
@@ -600,8 +591,8 @@ fn sensory_stone_focus_and_tomb_of_lord_red_mask_flow_through_event_rewards() {
 
     let mut tomb_engine = RunEngine::new(47, 20);
     tomb_engine.debug_set_typed_event_state(typed_event(3, "Tomb of Lord Red Mask"));
-    let tomb = tomb_engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(tomb.action_accepted);
+    let tomb = tomb_engine.step_game(&GameAction::EventChoice(0));
+    assert!(tomb.accepted());
     assert_eq!(tomb_engine.current_phase(), RunPhase::CardReward);
     let tomb_screen = tomb_engine.current_reward_screen().expect("tomb screen");
     assert_eq!(tomb_screen.source, RewardScreenSource::Event);
@@ -617,11 +608,11 @@ fn tomb_of_lord_red_mask_reward_is_claimable_into_run_state() {
     let mut engine = RunEngine::new(49, 20);
     engine.debug_set_typed_event_state(typed_event(3, "Tomb of Lord Red Mask"));
     assert!(engine
-        .step_with_result(&RunAction::EventChoice(0))
-        .action_accepted);
+        .step_game(&GameAction::EventChoice(0))
+        .accepted());
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(engine
         .run_state
         .relics
@@ -640,8 +631,8 @@ fn mushrooms_eat_branch_is_now_supported_heal_plus_curse() {
     engine.run_state.current_hp = 25;
     engine.debug_set_typed_event_state(mushrooms);
 
-    let step = engine.step_with_result(&RunAction::EventChoice(1));
-    assert!(step.action_accepted);
+    let step = engine.step_game(&GameAction::EventChoice(1));
+    assert!(step.accepted());
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert!(engine.run_state.current_hp > 25);
     assert!(engine.run_state.deck.iter().any(|card| card == "Parasite"));
@@ -655,8 +646,8 @@ fn big_fish_banana_branch_applies_direct_max_hp_gain() {
     let hp_before = engine.run_state.current_hp;
     engine.debug_set_typed_event_state(big_fish);
 
-    let step = engine.step_with_result(&RunAction::EventChoice(1));
-    assert!(step.action_accepted);
+    let step = engine.step_game(&GameAction::EventChoice(1));
+    assert!(step.accepted());
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(engine.run_state.max_hp, max_hp_before + 2);
     assert_eq!(engine.run_state.current_hp, hp_before + 2);

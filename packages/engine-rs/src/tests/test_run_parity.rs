@@ -11,7 +11,7 @@ mod run_java_parity_tests {
     use crate::map::RoomType;
     use crate::run::{
         ActionStatus, BossSeenId, BossSeenSnapshot, GameAction, ProfileSnapshot, ProfileUpdate,
-        RunAction, RunEngine, RunPhase,
+        RunEngine, RunPhase,
     };
 
     fn set_first_reachable_room(engine: &mut RunEngine, room_type: RoomType) {
@@ -22,27 +22,27 @@ mod run_java_parity_tests {
 
     fn resolve_opening_neow(engine: &mut RunEngine) {
         if engine.current_phase() == RunPhase::Neow {
-            let (reward, done) = engine.step(&RunAction::ChooseNeowOption(1));
-            assert_eq!(reward, 0.0);
-            assert!(!done);
+            let outcome = engine.step_game(&GameAction::ChooseNeowOption(1));
+            assert!(outcome.accepted());
+            assert!(!outcome.is_terminal());
             while engine.current_phase() == RunPhase::CardReward {
                 let actions = engine.get_legal_actions();
                 let action = actions
                     .iter()
-                    .find(|action| matches!(action, RunAction::SkipRewardItem(_)))
+                    .find(|action| matches!(action, GameAction::SkipRewardItem(_)))
                     .or_else(|| {
                         actions
                             .iter()
-                            .find(|action| matches!(action, RunAction::SelectRewardItem(_)))
+                            .find(|action| matches!(action, GameAction::SelectRewardItem(_)))
                     })
                     .or_else(|| {
                         actions.iter().find(|action| {
-                            matches!(action, RunAction::ChooseRewardOption { .. })
+                            matches!(action, GameAction::ChooseRewardOption { .. })
                         })
                     })
                     .cloned()
                     .expect("Neow follow-up must expose a reward action");
-                engine.step(&action);
+                engine.step_game(&action);
             }
             assert_eq!(engine.current_phase(), RunPhase::MapChoice);
         }
@@ -70,7 +70,7 @@ mod run_java_parity_tests {
         let mut engine = RunEngine::new(42, 0);
         resolve_opening_neow(&mut engine);
         let actions = engine.get_legal_actions();
-        engine.step(&actions[0]);
+        engine.step_game(&actions[0]);
         assert_eq!(engine.run_state.floor, 1);
     }
 
@@ -93,7 +93,7 @@ mod run_java_parity_tests {
         set_first_reachable_room(&mut engine, RoomType::Treasure);
 
         let deck_before = engine.run_state.deck.len();
-        engine.step(&engine.get_legal_actions()[0].clone());
+        engine.step_game(&engine.get_legal_actions()[0].clone());
 
         assert_eq!(engine.phase, RunPhase::Chest);
         assert_eq!(engine.rng_counters()["treasure"], 2);
@@ -105,11 +105,11 @@ mod run_java_parity_tests {
         );
         assert_eq!(
             engine.get_legal_actions(),
-            vec![RunAction::OpenChest, RunAction::LeaveChest]
+            vec![GameAction::OpenChest, GameAction::LeaveChest]
         );
 
-        let result = engine.step_with_result(&RunAction::OpenChest);
-        assert!(result.action_accepted);
+        let result = engine.step_game(&GameAction::OpenChest);
+        assert!(result.accepted());
         assert_eq!(engine.phase, RunPhase::CardReward);
         let screen = engine.current_reward_screen().expect("treasure rewards");
         assert_eq!(screen.source, crate::decision::RewardScreenSource::Treasure);
@@ -148,12 +148,12 @@ mod run_java_parity_tests {
         set_first_reachable_room(&mut engine, RoomType::Treasure);
 
         let deck_before = engine.run_state.deck.clone();
-        engine.step(&engine.get_legal_actions()[0].clone());
+        engine.step_game(&engine.get_legal_actions()[0].clone());
         let counters_after_entry = engine.rng_counters();
         let relic_pool_before = engine.debug_relic_pool_lengths();
 
-        let result = engine.step_with_result(&RunAction::LeaveChest);
-        assert!(result.action_accepted);
+        let result = engine.step_game(&GameAction::LeaveChest);
+        assert!(result.accepted());
         assert_eq!(engine.phase, RunPhase::MapChoice);
         assert_eq!(engine.rng_counters(), counters_after_entry);
         assert_eq!(engine.debug_relic_pool_lengths(), relic_pool_before);
@@ -193,8 +193,8 @@ mod run_java_parity_tests {
         };
 
         assert!(take_key
-            .step_with_result(&RunAction::SelectRewardItem(key_index))
-            .action_accepted);
+            .step_game(&GameAction::SelectRewardItem(key_index))
+            .accepted());
         assert!(take_key.run_state.has_sapphire_key);
         let screen = take_key.current_reward_screen().expect("reward screen stays open");
         assert_eq!(screen.items[key_index].state, crate::decision::RewardItemState::Claimed);
@@ -222,8 +222,8 @@ mod run_java_parity_tests {
             _ => panic!("sapphire key must link its chest relic"),
         };
         assert!(take_relic
-            .step_with_result(&RunAction::SelectRewardItem(linked_relic))
-            .action_accepted);
+            .step_game(&GameAction::SelectRewardItem(linked_relic))
+            .accepted());
         assert!(!take_relic.run_state.has_sapphire_key);
         let screen = take_relic.current_reward_screen().expect("reward screen stays open");
         assert_eq!(screen.items[linked_relic].state, crate::decision::RewardItemState::Claimed);
@@ -245,16 +245,16 @@ mod run_java_parity_tests {
         assert_eq!(engine.run_state.gold, gold_before);
         assert!(engine
             .get_legal_actions()
-            .contains(&RunAction::LeaveRewards));
+            .contains(&GameAction::LeaveRewards));
 
         assert!(engine
-            .step_with_result(&RunAction::SelectRewardItem(0))
-            .action_accepted);
+            .step_game(&GameAction::SelectRewardItem(0))
+            .accepted());
         assert_eq!(engine.run_state.gold, gold_before + gold_amount);
         assert_eq!(engine.phase, RunPhase::CardReward);
         assert!(engine
-            .step_with_result(&RunAction::LeaveRewards)
-            .action_accepted);
+            .step_game(&GameAction::LeaveRewards)
+            .accepted());
         assert_eq!(engine.phase, RunPhase::MapChoice);
     }
 
@@ -273,17 +273,17 @@ mod run_java_parity_tests {
         );
 
         assert!(engine
-            .step_with_result(&RunAction::LeaveRewards)
-            .action_accepted);
+            .step_game(&GameAction::LeaveRewards)
+            .accepted());
         assert_eq!(engine.phase, RunPhase::Chest);
         assert_eq!(
             engine.get_legal_actions(),
-            vec![RunAction::OpenChest, RunAction::LeaveChest]
+            vec![GameAction::OpenChest, GameAction::LeaveChest]
         );
 
         assert!(engine
-            .step_with_result(&RunAction::OpenChest)
-            .action_accepted);
+            .step_game(&GameAction::OpenChest)
+            .accepted());
         let first_choices = engine
             .current_reward_screen()
             .expect("boss relic screen")
@@ -292,16 +292,16 @@ mod run_java_parity_tests {
             .clone();
         assert_eq!(first_choices.len(), 3);
         assert!(engine
-            .step_with_result(&RunAction::SelectRewardItem(0))
-            .action_accepted);
+            .step_game(&GameAction::SelectRewardItem(0))
+            .accepted());
         assert!(engine
-            .step_with_result(&RunAction::SkipRewardItem(0))
-            .action_accepted);
+            .step_game(&GameAction::SkipRewardItem(0))
+            .accepted());
         assert_eq!(engine.phase, RunPhase::Chest);
 
         assert!(engine
-            .step_with_result(&RunAction::OpenChest)
-            .action_accepted);
+            .step_game(&GameAction::OpenChest)
+            .accepted());
         assert_eq!(
             engine
                 .current_reward_screen()
@@ -331,14 +331,14 @@ mod run_java_parity_tests {
         unavailable.phase = RunPhase::Campfire;
         assert!(!unavailable
             .get_legal_actions()
-            .contains(&RunAction::CampfireRecall));
+            .contains(&GameAction::CampfireRecall));
 
         let mut available = RunEngine::new(42, 0);
         available.phase = RunPhase::Campfire;
         let rng_before = available.rng_counters();
         assert!(available
-            .step_with_result(&RunAction::CampfireRecall)
-            .action_accepted);
+            .step_game(&GameAction::CampfireRecall)
+            .accepted());
         assert!(available.run_state.has_ruby_key);
         assert_eq!(available.rng_counters(), rng_before);
         assert_eq!(available.phase, RunPhase::MapChoice);
@@ -394,16 +394,16 @@ mod run_java_parity_tests {
         assert_eq!(starts[0].room_type, RoomType::Rest);
 
         assert!(engine
-            .step_with_result(&RunAction::ChoosePath(0))
-            .action_accepted);
+            .step_game(&GameAction::ChoosePath(0))
+            .accepted());
         assert_eq!(engine.run_state.floor, 52);
         assert_eq!(engine.phase, RunPhase::Campfire);
         assert!(engine
-            .step_with_result(&RunAction::CampfireRest)
-            .action_accepted);
+            .step_game(&GameAction::CampfireRest)
+            .accepted());
         assert!(engine
-            .step_with_result(&RunAction::ChoosePath(0))
-            .action_accepted);
+            .step_game(&GameAction::ChoosePath(0))
+            .accepted());
         assert_eq!(engine.run_state.floor, 53);
         assert_eq!(engine.phase, RunPhase::Shop);
     }
@@ -423,8 +423,8 @@ mod run_java_parity_tests {
         let map_counter_before = engine.rng_counters()["map"];
 
         assert!(engine
-            .step_with_result(&RunAction::ChoosePath(0))
-            .action_accepted);
+            .step_game(&GameAction::ChoosePath(0))
+            .accepted());
         assert_eq!(engine.rng_counters()["map"], map_counter_before + 1);
         let combat = engine.get_combat_engine().expect("burning elite combat");
         for enemy in &combat.state.enemies {
@@ -465,12 +465,12 @@ mod run_java_parity_tests {
                 }
             ))
             .expect("emerald key");
-        rewards.step_with_result(&RunAction::SelectRewardItem(relic_index));
+        rewards.step_game(&GameAction::SelectRewardItem(relic_index));
         assert_eq!(
             rewards.current_reward_screen().expect("elite rewards").items[key_index].state,
             crate::decision::RewardItemState::Available
         );
-        rewards.step_with_result(&RunAction::SelectRewardItem(key_index));
+        rewards.step_game(&GameAction::SelectRewardItem(key_index));
         assert!(rewards.run_state.has_emerald_key);
     }
 
@@ -517,7 +517,7 @@ mod run_java_parity_tests {
         set_first_reachable_room(&mut engine, RoomType::Shop);
         resolve_opening_neow(&mut engine);
         let actions = engine.get_legal_actions();
-        engine.step(&actions[0]);
+        engine.step_game(&actions[0]);
         let shop = engine.get_shop().expect("shop should exist");
         assert_eq!(shop.cards.len(), 7);
         assert_eq!(shop.potions.len(), 3);
@@ -531,7 +531,7 @@ mod run_java_parity_tests {
         set_first_reachable_room(&mut engine, RoomType::Shop);
         resolve_opening_neow(&mut engine);
         let actions = engine.get_legal_actions();
-        engine.step(&actions[0]);
+        engine.step_game(&actions[0]);
         let shop = engine.get_shop().expect("shop should exist");
         assert_eq!(shop.remove_price, 75);
     }
@@ -543,12 +543,12 @@ mod run_java_parity_tests {
         engine.run_state.gold = 999;
         set_first_reachable_room(&mut engine, RoomType::Shop);
         let actions = engine.get_legal_actions();
-        engine.step(&actions[0]);
+        engine.step_game(&actions[0]);
 
         assert_eq!(engine.get_shop().expect("shop should exist").remove_price, 75);
-        engine.step(&RunAction::ShopRemoveCard(0));
+        engine.step_game(&GameAction::ShopRemoveCard(0));
         assert_eq!(engine.run_state.purge_cost, 100);
-        engine.step(&RunAction::ShopLeave);
+        engine.step_game(&GameAction::ShopLeave);
 
         engine.run_state.relics.push("The Courier".to_string());
         engine.run_state.relics.push("Membership Card".to_string());
@@ -568,13 +568,13 @@ mod run_java_parity_tests {
         engine.run_state.gold = 999;
         set_first_reachable_room(&mut engine, RoomType::Shop);
         let actions = engine.get_legal_actions();
-        engine.step(&actions[0]);
+        engine.step_game(&actions[0]);
 
         let shop = engine.get_shop().expect("shop should exist");
         let (card, price) = shop.cards[0].clone();
         let deck_before = engine.run_state.deck.len();
 
-        engine.step(&RunAction::ShopBuyCard(0));
+        engine.step_game(&GameAction::ShopBuyCard(0));
 
         assert_eq!(engine.run_state.deck.len(), deck_before + 1);
         assert_eq!(engine.run_state.deck.last(), Some(&card));
@@ -591,12 +591,12 @@ mod run_java_parity_tests {
         engine.run_state.deck.push("Tantrum".to_string());
         set_first_reachable_room(&mut engine, RoomType::Shop);
         let actions = engine.get_legal_actions();
-        engine.step(&actions[0]);
+        engine.step_game(&actions[0]);
 
         let remove_price = engine.get_shop().expect("shop should exist").remove_price;
         let deck_before = engine.run_state.deck.len();
 
-        engine.step(&RunAction::ShopRemoveCard(0));
+        engine.step_game(&GameAction::ShopRemoveCard(0));
 
         assert_eq!(engine.run_state.deck.len(), deck_before - 1);
         assert_eq!(engine.run_state.gold, 999 - remove_price);
@@ -606,7 +606,7 @@ mod run_java_parity_tests {
             !engine
                 .get_legal_actions()
                 .iter()
-                .any(|action| matches!(action, RunAction::ShopRemoveCard(_)))
+                .any(|action| matches!(action, GameAction::ShopRemoveCard(_)))
         );
     }
 
@@ -623,11 +623,11 @@ mod run_java_parity_tests {
         engine.run_state.current_hp = 40;
         set_first_reachable_room(&mut engine, RoomType::Shop);
         let actions = engine.get_legal_actions();
-        engine.step(&actions[0]);
+        engine.step_game(&actions[0]);
 
         let remove_price = engine.get_shop().expect("shop should exist").remove_price;
 
-        engine.step(&RunAction::ShopRemoveCard(0));
+        engine.step_game(&GameAction::ShopRemoveCard(0));
 
         assert_eq!(engine.run_state.max_hp, 37);
         assert_eq!(engine.run_state.current_hp, 37);
@@ -645,12 +645,12 @@ mod run_java_parity_tests {
         engine.run_state.deck = vec!["Strike".to_string()];
         set_first_reachable_room(&mut engine, RoomType::Shop);
         let actions = engine.get_legal_actions();
-        engine.step(&actions[0]);
+        engine.step_game(&actions[0]);
 
         let legal = engine.get_legal_actions();
-        assert!(legal.contains(&RunAction::ShopRemoveCard(0)));
+        assert!(legal.contains(&GameAction::ShopRemoveCard(0)));
 
-        engine.step(&RunAction::ShopRemoveCard(0));
+        engine.step_game(&GameAction::ShopRemoveCard(0));
         assert!(engine.run_state.deck.is_empty());
         assert!(engine.get_shop().expect("shop stays open").removal_used);
     }
@@ -663,13 +663,13 @@ mod run_java_parity_tests {
         engine.run_state.deck = vec!["AscendersBane".to_string(), "Strike".to_string()];
         set_first_reachable_room(&mut engine, RoomType::Shop);
         let actions = engine.get_legal_actions();
-        engine.step(&actions[0]);
+        engine.step_game(&actions[0]);
 
         let legal = engine.get_legal_actions();
-        assert!(!legal.contains(&RunAction::ShopRemoveCard(0)));
-        assert!(legal.contains(&RunAction::ShopRemoveCard(1)));
+        assert!(!legal.contains(&GameAction::ShopRemoveCard(0)));
+        assert!(legal.contains(&GameAction::ShopRemoveCard(1)));
 
-        engine.step(&RunAction::ShopRemoveCard(1));
+        engine.step_game(&GameAction::ShopRemoveCard(1));
         assert_eq!(engine.run_state.deck, vec!["AscendersBane".to_string()]);
     }
 
@@ -679,7 +679,7 @@ mod run_java_parity_tests {
         resolve_opening_neow(&mut engine);
         set_first_reachable_room(&mut engine, RoomType::Event);
         let actions = engine.get_legal_actions();
-        engine.step(&actions[0]);
+        engine.step_game(&actions[0]);
         assert_eq!(engine.phase, RunPhase::Event);
         assert!(engine.event_option_count() >= 1);
     }
@@ -690,11 +690,11 @@ mod run_java_parity_tests {
         resolve_opening_neow(&mut engine);
         set_first_reachable_room(&mut engine, RoomType::Event);
         let actions = engine.get_legal_actions();
-        engine.step(&actions[0]);
+        engine.step_game(&actions[0]);
 
         let before_hp = engine.run_state.current_hp;
         let before_gold = engine.run_state.gold;
-        engine.step(&RunAction::EventChoice(0));
+        engine.step_game(&GameAction::EventChoice(0));
 
         assert_eq!(engine.phase, RunPhase::MapChoice);
         assert!(engine.run_state.current_hp >= 0);
@@ -709,7 +709,7 @@ mod run_java_parity_tests {
         engine.phase = RunPhase::Campfire;
         engine.run_state.max_hp = 72;
         engine.run_state.current_hp = 40;
-        engine.step(&RunAction::CampfireRest);
+        engine.step_game(&GameAction::CampfireRest);
         assert_eq!(engine.run_state.current_hp, 61);
     }
 
@@ -723,7 +723,7 @@ mod run_java_parity_tests {
         engine.run_state.current_hp = 20;
         engine.run_state.relics.push("Regal Pillow".to_string());
         engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
-        engine.step(&RunAction::CampfireRest);
+        engine.step_game(&GameAction::CampfireRest);
         assert_eq!(engine.run_state.current_hp, 56);
     }
 
@@ -732,7 +732,7 @@ mod run_java_parity_tests {
         let mut engine = RunEngine::new(42, 0);
         engine.phase = RunPhase::Campfire;
         engine.run_state.deck = vec!["Strike".to_string(), "Eruption".to_string()];
-        engine.step(&RunAction::CampfireUpgrade(1));
+        engine.step_game(&GameAction::CampfireUpgrade(1));
         assert_eq!(engine.run_state.deck[1], "Eruption+");
     }
 
@@ -742,8 +742,8 @@ mod run_java_parity_tests {
         resolve_opening_neow(&mut engine);
         set_first_reachable_room(&mut engine, RoomType::Shop);
         let actions = engine.get_legal_actions();
-        engine.step(&actions[0]);
-        engine.step(&RunAction::ShopLeave);
+        engine.step_game(&actions[0]);
+        engine.step_game(&GameAction::ShopLeave);
         assert_eq!(engine.phase, RunPhase::MapChoice);
     }
 
@@ -753,7 +753,7 @@ mod run_java_parity_tests {
         resolve_opening_neow(&mut engine);
         set_first_reachable_room(&mut engine, RoomType::Monster);
         let actions = engine.get_legal_actions();
-        engine.step(&actions[0]);
+        engine.step_game(&actions[0]);
         assert_eq!(engine.phase, RunPhase::Combat);
         assert_eq!(engine.current_room_type(), "monster");
         assert!(engine.get_combat_engine().is_some());
@@ -771,7 +771,7 @@ mod run_java_parity_tests {
         resolve_opening_neow(&mut engine);
         set_first_reachable_room(&mut engine, RoomType::Shop);
         let actions = engine.get_legal_actions();
-        engine.step(&actions[0]);
+        engine.step_game(&actions[0]);
         assert_eq!(engine.current_room_type(), "shop");
     }
 
@@ -801,7 +801,7 @@ mod run_java_parity_tests {
         set_first_reachable_room(&mut engine, RoomType::Monster);
 
         let actions = engine.get_legal_actions();
-        engine.step(&actions[0]);
+        engine.step_game(&actions[0]);
 
         let gold_before = engine.run_state.gold;
         let combat = engine.get_combat_engine().expect("combat should be active");
@@ -811,11 +811,11 @@ mod run_java_parity_tests {
             .iter()
             .position(|card| combat.card_registry.card_name(card.def_id) == "Wish+")
             .expect("opening hand should contain Wish+");
-        engine.step(&RunAction::CombatAction(Action::PlayCard {
+        engine.step_game(&GameAction::CombatAction(Action::PlayCard {
             card_idx: wish_idx,
             target_idx: -1,
         }));
-        engine.step(&RunAction::CombatAction(Action::Choose(1)));
+        engine.step_game(&GameAction::CombatAction(Action::Choose(1)));
         assert_eq!(
             engine
                 .get_combat_engine()
@@ -849,7 +849,7 @@ mod run_java_parity_tests {
         resolve_opening_neow(&mut engine);
         set_first_reachable_room(&mut engine, RoomType::Monster);
         let action = engine.get_legal_actions()[0].clone();
-        engine.step(&action);
+        engine.step_game(&action);
 
         {
             let combat = engine.debug_combat_engine_mut();
@@ -871,7 +871,7 @@ mod run_java_parity_tests {
                     == "LessonLearned+"
             })
             .expect("Lesson Learned+ drawn");
-        engine.step(&RunAction::CombatAction(Action::PlayCard {
+        engine.step_game(&GameAction::CombatAction(Action::PlayCard {
             card_idx: lesson_idx,
             target_idx: 0,
         }));
@@ -892,7 +892,7 @@ mod run_java_parity_tests {
         resolve_opening_neow(&mut engine);
         set_first_reachable_room(&mut engine, RoomType::Monster);
         let path = engine.get_legal_actions()[0].clone();
-        engine.step(&path);
+        engine.step_game(&path);
 
         let genetic_idx = engine
             .get_combat_engine()
@@ -909,7 +909,7 @@ mod run_java_parity_tests {
                     == "Genetic Algorithm"
             })
             .expect("Genetic Algorithm drawn");
-        engine.step(&RunAction::CombatAction(Action::PlayCard {
+        engine.step_game(&GameAction::CombatAction(Action::PlayCard {
             card_idx: genetic_idx,
             target_idx: -1,
         }));
@@ -1048,7 +1048,7 @@ mod run_java_parity_tests {
         engine.debug_resolve_current_combat_outcome();
 
         assert_eq!(engine.current_phase(), RunPhase::Transition);
-        assert!(engine.step_with_result(&RunAction::Proceed).action_accepted);
+        assert!(engine.step_game(&GameAction::Proceed).accepted());
         assert_eq!(engine.current_phase(), RunPhase::Event);
         assert!(engine.debug_current_enemy_ids().is_empty());
         assert_eq!(engine.run_state.bosses_killed, 1);
@@ -1081,8 +1081,8 @@ mod run_java_parity_tests {
         engine.debug_set_typed_event_state(portal);
 
         assert!(engine
-            .step_with_result(&RunAction::EventChoice(0))
-            .action_accepted);
+            .step_game(&GameAction::EventChoice(0))
+            .accepted());
 
         assert_eq!(engine.current_phase(), RunPhase::Combat);
         // The Awakened One encounter expands to two Cultists plus the boss;

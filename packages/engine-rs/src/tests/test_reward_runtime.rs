@@ -1,10 +1,10 @@
 use crate::decision::{
-    DecisionAction, RewardChoice, RewardItem, RewardItemKind, RewardItemState, RewardKeyColor,
-    RewardScreen, RewardScreenSource,
+    RewardChoice, RewardItem, RewardItemKind, RewardItemState, RewardKeyColor, RewardScreen,
+    RewardScreenSource,
 };
 use crate::events::{EventDef, EventEffect, EventOption};
 use crate::map::RoomType;
-use crate::run::{RunAction, RunEngine};
+use crate::run::{GameAction, RunEngine};
 use crate::tests::support::resolve_opening_neow;
 
 fn assert_floor_rngs(engine: &RunEngine, seed: u64, floor: i32, counters: [i32; 5]) {
@@ -53,8 +53,8 @@ fn enter_elite(
     let map_counter = engine.rng_counters()["map"];
     assert!(
         engine
-            .step_with_result(&RunAction::ChoosePath(0))
-            .action_accepted
+            .step_game(&GameAction::ChoosePath(0))
+            .accepted()
     );
     (engine, map_counter)
 }
@@ -330,8 +330,8 @@ fn black_star_emerald_reward_order_is_exact_and_the_key_is_independent() {
 
     assert!(
         engine
-            .step_with_result(&RunAction::SelectRewardItem(3))
-            .action_accepted
+            .step_game(&GameAction::SelectRewardItem(3))
+            .accepted()
     );
     let after_key = engine.current_reward_screen().expect("rewards remain open");
     assert_eq!(after_key.items[3].state, RewardItemState::Claimed);
@@ -386,8 +386,8 @@ fn elite_reward_screen_exposes_java_reward_order_without_forcing_claim_order() {
     assert_eq!(screen.items[3].kind, RewardItemKind::CardChoice);
     assert!(screen.items.iter().all(|item| item.claimable));
     assert!(engine
-        .get_legal_decision_actions()
-        .contains(&DecisionAction::LeaveRewards));
+        .get_legal_actions()
+        .contains(&GameAction::LeaveRewards));
 }
 
 #[test]
@@ -400,28 +400,19 @@ fn reward_screen_requires_claim_before_card_choice() {
     ]);
 
     assert_eq!(
-        engine.get_legal_decision_actions(),
-        vec![DecisionAction::ClaimRewardItem { item_index: 0 }]
+        engine.get_legal_actions(),
+        vec![GameAction::SelectRewardItem(0 )]
     );
 
-    let step = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(step.action_accepted);
+    let step = engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(step.accepted());
     assert_eq!(
-        step.legal_decision_actions,
+        step.next_decision.legal_actions,
         vec![
-            DecisionAction::PickRewardChoice {
-                item_index: 0,
-                choice_index: 0,
-            },
-            DecisionAction::PickRewardChoice {
-                item_index: 0,
-                choice_index: 1,
-            },
-            DecisionAction::PickRewardChoice {
-                item_index: 0,
-                choice_index: 2,
-            },
-            DecisionAction::SkipRewardItem { item_index: 0 },
+            GameAction::ChooseRewardOption { item_index: 0, choice_index: 0, },
+            GameAction::ChooseRewardOption { item_index: 0, choice_index: 1, },
+            GameAction::ChooseRewardOption { item_index: 0, choice_index: 2, },
+            GameAction::SkipRewardItem(0 ),
         ]
     );
 }
@@ -500,8 +491,8 @@ fn claiming_egg_relic_upgrades_later_card_reward_choice() {
         ],
     });
 
-    let claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(claim.action_accepted);
+    let claim = engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(claim.accepted());
     assert!(engine
         .run_state
         .relic_flags
@@ -518,17 +509,17 @@ fn claiming_egg_relic_upgrades_later_card_reward_choice() {
         RewardChoice::Card { card_id, .. } if card_id == "Scrawl"
     ));
     assert_eq!(
-        claim.legal_decision_actions,
-        vec![DecisionAction::ClaimRewardItem { item_index: 1 }]
+        claim.next_decision.legal_actions,
+        vec![GameAction::SelectRewardItem(1 )]
     );
 
-    let open = engine.step_with_result(&RunAction::SelectRewardItem(1));
-    assert!(open.action_accepted);
-    let choose = engine.step_with_result(&RunAction::ChooseRewardOption {
+    let open = engine.step_game(&GameAction::SelectRewardItem(1));
+    assert!(open.accepted());
+    let choose = engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 1,
         choice_index: 0,
     });
-    assert!(choose.action_accepted);
+    assert!(choose.accepted());
     assert_eq!(
         engine.run_state.deck.last().map(String::as_str),
         Some("Wallop+")
@@ -551,11 +542,11 @@ fn singing_bowl_keeps_skip_separate_from_its_max_hp_choice() {
 
     assert!(
         engine
-            .step_with_result(&RunAction::SelectRewardItem(0))
-            .action_accepted
+            .step_game(&GameAction::SelectRewardItem(0))
+            .accepted()
     );
-    let step = engine.step_with_result(&RunAction::SkipRewardItem(0));
-    assert!(step.action_accepted);
+    let step = engine.step_game(&GameAction::SkipRewardItem(0));
+    assert!(step.accepted());
     assert_eq!(engine.run_state.max_hp, max_hp_before);
     assert_eq!(engine.run_state.current_hp, hp_before);
 }
@@ -584,27 +575,27 @@ fn white_beast_adds_potion_reward_item_before_card_choice() {
     assert!(screen.items[2].claimable);
 
     let offered_potion = screen.items[1].label.clone();
-    let claim_potion = engine.step_with_result(&RunAction::SelectRewardItem(1));
-    assert!(claim_potion.action_accepted);
+    let claim_potion = engine.step_game(&GameAction::SelectRewardItem(1));
+    assert!(claim_potion.accepted());
     assert!(engine
         .run_state
         .potions
         .iter()
         .any(|p| p == &offered_potion));
     let mut expected_actions = vec![
-        DecisionAction::ClaimRewardItem { item_index: 0 },
-        DecisionAction::ClaimRewardItem { item_index: 2 },
-        DecisionAction::LeaveRewards,
+        GameAction::SelectRewardItem(0 ),
+        GameAction::SelectRewardItem(2 ),
+        GameAction::LeaveRewards,
     ];
     // FruitJuice.canUse permits use on non-combat reward screens.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FruitJuice.java
     if matches!(offered_potion.as_str(), "FruitJuice" | "Fruit Juice") {
-        expected_actions.push(DecisionAction::UsePotion(0));
+        expected_actions.push(GameAction::UsePotion(0));
     }
     // AbstractPotion.canDiscard keeps the occupied top-panel slot available
     // while the reward screen is open.
-    expected_actions.push(DecisionAction::DiscardPotion(0));
-    assert_eq!(claim_potion.legal_decision_actions, expected_actions);
+    expected_actions.push(GameAction::DiscardPotion(0));
+    assert_eq!(claim_potion.next_decision.legal_actions, expected_actions);
 }
 
 #[test]
@@ -632,16 +623,16 @@ fn sozu_keeps_potion_reward_claimable_but_obtains_nothing() {
     let before = engine.run_state.potions.clone();
     assert!(
         engine
-            .step_with_result(&RunAction::SelectRewardItem(1))
-            .action_accepted
+            .step_game(&GameAction::SelectRewardItem(1))
+            .accepted()
     );
     assert_eq!(engine.run_state.potions, before);
     assert_eq!(
-        engine.get_legal_decision_actions(),
+        engine.get_legal_actions(),
         vec![
-            DecisionAction::ClaimRewardItem { item_index: 0 },
-            DecisionAction::ClaimRewardItem { item_index: 2 },
-            DecisionAction::LeaveRewards,
+            GameAction::SelectRewardItem(0 ),
+            GameAction::SelectRewardItem(2 ),
+            GameAction::LeaveRewards,
         ]
     );
 }
@@ -676,8 +667,8 @@ fn full_inventory_leaves_a_potion_reward_unclaimed_without_sozu() {
     let before = engine.run_state.potions.clone();
     assert!(
         engine
-            .step_with_result(&RunAction::SelectRewardItem(0))
-            .action_accepted
+            .step_game(&GameAction::SelectRewardItem(0))
+            .accepted()
     );
     assert_eq!(engine.run_state.potions, before);
     assert_eq!(
@@ -721,39 +712,30 @@ fn boss_reward_screen_requires_relic_choice_and_transitions_to_act_two() {
         other => panic!("expected named boss relic choice, got {other:?}"),
     };
 
-    let open = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(open.action_accepted);
+    let open = engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(open.accepted());
     assert_eq!(
-        open.decision_context
+        open.next_decision.context
             .reward_screen
             .as_ref()
             .and_then(|s| s.active_item),
         Some(0)
     );
     assert_eq!(
-        open.legal_decision_actions,
+        open.next_decision.legal_actions,
         vec![
-            DecisionAction::PickRewardChoice {
-                item_index: 0,
-                choice_index: 0,
-            },
-            DecisionAction::PickRewardChoice {
-                item_index: 0,
-                choice_index: 1,
-            },
-            DecisionAction::PickRewardChoice {
-                item_index: 0,
-                choice_index: 2,
-            },
-            DecisionAction::SkipRewardItem { item_index: 0 },
+            GameAction::ChooseRewardOption { item_index: 0, choice_index: 0, },
+            GameAction::ChooseRewardOption { item_index: 0, choice_index: 1, },
+            GameAction::ChooseRewardOption { item_index: 0, choice_index: 2, },
+            GameAction::SkipRewardItem(0 ),
         ]
     );
 
-    let choose = engine.step_with_result(&RunAction::ChooseRewardOption {
+    let choose = engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index,
     });
-    assert!(choose.action_accepted);
+    assert!(choose.accepted());
     assert!(engine
         .run_state
         .relics
@@ -762,7 +744,7 @@ fn boss_reward_screen_requires_relic_choice_and_transitions_to_act_two() {
     assert_eq!(engine.current_phase(), crate::run::RunPhase::Transition);
     assert_eq!(engine.run_state.act, 1);
     assert_eq!(engine.run_state.current_hp, 20);
-    assert!(engine.step_with_result(&RunAction::Proceed).action_accepted);
+    assert!(engine.step_game(&GameAction::Proceed).accepted());
     assert_eq!(engine.run_state.act, 2);
     assert_eq!(engine.run_state.floor, 17);
     assert_eq!(engine.run_state.current_hp, 56);
@@ -814,16 +796,16 @@ fn act_one_and_two_boss_chests_reset_floor_rngs_before_astrolabe_effects() {
         );
         assert!(
             engine
-                .step_with_result(&RunAction::LeaveRewards)
-                .action_accepted
+                .step_game(&GameAction::LeaveRewards)
+                .accepted()
         );
         assert_eq!(engine.run_state.floor, chest_floor);
         assert_eq!(engine.current_phase(), crate::run::RunPhase::Chest);
         assert_floor_rngs(&engine, seed, chest_floor, [0, 0, 0, 0, 0]);
         assert!(
             engine
-                .step_with_result(&RunAction::OpenChest)
-                .action_accepted
+                .step_game(&GameAction::OpenChest)
+                .accepted()
         );
         assert_eq!(engine.current_phase(), crate::run::RunPhase::CardReward);
 
@@ -839,38 +821,38 @@ fn act_one_and_two_boss_chests_reset_floor_rngs_before_astrolabe_effects() {
             .expect("seeded boss chest should expose Astrolabe");
         assert!(
             engine
-                .step_with_result(&RunAction::SelectRewardItem(0))
-                .action_accepted
+                .step_game(&GameAction::SelectRewardItem(0))
+                .accepted()
         );
         assert!(
             engine
-                .step_with_result(&RunAction::ChooseRewardOption {
+                .step_game(&GameAction::ChooseRewardOption {
                     item_index: 0,
                     choice_index: astrolabe_index,
                 })
-                .action_accepted
+                .accepted()
         );
         assert_floor_rngs(&engine, seed, chest_floor, [0, 0, 0, 0, 0]);
 
         for _ in 0..3 {
             assert!(
                 engine
-                    .step_with_result(&RunAction::SelectRewardItem(0))
-                    .action_accepted
+                    .step_game(&GameAction::SelectRewardItem(0))
+                    .accepted()
             );
             assert!(
                 engine
-                    .step_with_result(&RunAction::ChooseRewardOption {
+                    .step_game(&GameAction::ChooseRewardOption {
                         item_index: 0,
                         choice_index: 0,
                     })
-                    .action_accepted
+                    .accepted()
             );
         }
 
         assert_eq!(engine.current_phase(), crate::run::RunPhase::Transition);
         assert_eq!(engine.run_state.act, act);
-        assert!(engine.step_with_result(&RunAction::Proceed).action_accepted);
+        assert!(engine.step_game(&GameAction::Proceed).accepted());
         assert_eq!(engine.run_state.act, act + 1);
         assert_eq!(engine.run_state.floor, chest_floor);
         assert_floor_rngs(&engine, seed, chest_floor, [0, 0, 0, 0, 4]);
@@ -906,7 +888,7 @@ fn second_boss_relic_transitions_to_act_three_with_a_fresh_map() {
     engine.run_state.current_hp = 1;
     engine.debug_build_boss_reward_screen();
 
-    engine.step(&RunAction::SelectRewardItem(0));
+    engine.step_game(&GameAction::SelectRewardItem(0));
     let screen = engine
         .current_reward_screen()
         .expect("boss relic choices should remain active");
@@ -918,14 +900,14 @@ fn second_boss_relic_transitions_to_act_three_with_a_fresh_map() {
                 if label != "Astrolabe" && label != "Calling Bell")
         })
         .expect("boss screen should include a direct relic choice");
-    engine.step(&RunAction::ChooseRewardOption {
+    engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index,
     });
 
     assert_eq!(engine.current_phase(), crate::run::RunPhase::Transition);
     assert_eq!(engine.run_state.act, 2);
-    assert!(engine.step_with_result(&RunAction::Proceed).action_accepted);
+    assert!(engine.step_game(&GameAction::Proceed).accepted());
     assert_eq!(engine.run_state.act, 3);
     assert_eq!(engine.run_state.floor, 34);
     assert_eq!(engine.run_state.current_hp, engine.run_state.max_hp);
@@ -959,7 +941,7 @@ fn act_three_boss_routes_to_spire_heart_without_a_boss_relic() {
 
     assert_eq!(engine.run_state.floor, 50);
     assert_eq!(engine.current_phase(), crate::run::RunPhase::Transition);
-    assert!(engine.step_with_result(&RunAction::Proceed).action_accepted);
+    assert!(engine.step_game(&GameAction::Proceed).accepted());
     assert_eq!(engine.run_state.floor, 51);
     assert_eq!(engine.current_phase(), crate::run::RunPhase::Event);
     assert_eq!(
@@ -987,7 +969,7 @@ fn ascension_twenty_runs_the_second_act_three_boss_before_spire_heart() {
     engine.run_state.map_y = 14;
     engine.debug_build_boss_reward_screen();
 
-    engine.step(&RunAction::SelectRewardItem(0));
+    engine.step_game(&GameAction::SelectRewardItem(0));
     let choice_index = engine
         .current_reward_screen()
         .expect("Act 2 boss relic choices should remain active")
@@ -999,13 +981,13 @@ fn ascension_twenty_runs_the_second_act_three_boss_before_spire_heart() {
                 if label != "Astrolabe" && label != "Calling Bell")
         })
         .expect("boss screen should include a direct relic choice");
-    engine.step(&RunAction::ChooseRewardOption {
+    engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index,
     });
 
     assert_eq!(engine.current_phase(), crate::run::RunPhase::Transition);
-    assert!(engine.step_with_result(&RunAction::Proceed).action_accepted);
+    assert!(engine.step_game(&GameAction::Proceed).accepted());
     assert_eq!(engine.run_state.act, 3);
     let first_boss = engine.boss_name().to_string();
     let gold_before_bosses = engine.run_state.gold;
@@ -1018,7 +1000,7 @@ fn ascension_twenty_runs_the_second_act_three_boss_before_spire_heart() {
 
     assert_eq!(engine.current_phase(), crate::run::RunPhase::Transition);
     assert_eq!(engine.run_state.floor, 50);
-    assert!(engine.step_with_result(&RunAction::Proceed).action_accepted);
+    assert!(engine.step_game(&GameAction::Proceed).accepted());
     let second_boss = engine.boss_name().to_string();
     assert_ne!(second_boss, first_boss);
     assert_eq!(engine.current_phase(), crate::run::RunPhase::Combat);
@@ -1032,7 +1014,7 @@ fn ascension_twenty_runs_the_second_act_three_boss_before_spire_heart() {
 
     assert_eq!(engine.current_phase(), crate::run::RunPhase::Transition);
     assert_eq!(engine.run_state.floor, 51);
-    assert!(engine.step_with_result(&RunAction::Proceed).action_accepted);
+    assert!(engine.step_game(&GameAction::Proceed).accepted());
     assert_eq!(engine.run_state.floor, 52);
     assert_eq!(engine.run_state.bosses_killed, 2);
     assert_eq!(engine.run_state.gold, gold_before_bosses);
@@ -1065,8 +1047,8 @@ fn event_reward_items_flow_through_ordered_reward_screen() {
         ],
     });
 
-    let step = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(step.action_accepted);
+    let step = engine.step_game(&GameAction::EventChoice(0));
+    assert!(step.accepted());
     assert_eq!(engine.current_phase(), crate::run::RunPhase::CardReward);
     let screen = engine
         .current_reward_screen()
@@ -1077,8 +1059,8 @@ fn event_reward_items_flow_through_ordered_reward_screen() {
     assert!(screen.items[0].claimable);
 
     let relic_id = screen.items[0].label.clone();
-    let claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(claim.action_accepted);
+    let claim = engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(claim.accepted());
     assert_eq!(engine.current_phase(), crate::run::RunPhase::MapChoice);
     assert!(engine
         .run_state
@@ -1125,14 +1107,14 @@ fn deck_selection_purge_reward_removes_the_selected_card() {
         }],
     });
 
-    let open = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(open.action_accepted);
+    let open = engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(open.accepted());
 
-    let choose = engine.step_with_result(&RunAction::ChooseRewardOption {
+    let choose = engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index: 1,
     });
-    assert!(choose.action_accepted);
+    assert!(choose.accepted());
     assert!(!engine.run_state.deck.iter().any(|card| card == "Wallop"));
     assert_eq!(engine.run_state.deck.len(), 2);
     assert_eq!(engine.current_phase(), crate::run::RunPhase::MapChoice);

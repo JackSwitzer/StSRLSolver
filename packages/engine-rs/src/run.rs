@@ -1,8 +1,8 @@
-//! Run state management — full Act 1 run simulation.
+//! Run state management for complete seeded simulations.
 //!
 //! Manages floor progression, deck building, card rewards, events,
 //! shops, campfires, and combat via the existing CombatEngine.
-//! Exposes step(action) -> (obs, reward, done, info) RL interface.
+//! Exposes one canonical `GameAction` and training-neutral `StepOutcome` API.
 
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
@@ -10,7 +10,7 @@ use std::sync::OnceLock;
 
 use crate::decision::{
     build_combat_context, build_shop_context, CampfireDecisionContext, ChestDecisionContext, CombatContext,
-    DecisionAction, DecisionContext, DecisionFrame, DecisionKind, DecisionStack, DecisionState,
+    DecisionContext, DecisionFrame, DecisionKind, DecisionStack, DecisionState,
     EventDecisionContext, EventOptionContext, MapDecisionContext, MapPathContext, NeowDecisionContext,
     NeowOptionContext, PotionSlotContext, RewardChoice,
     RewardChoiceFrame, RewardItem, RewardItemKind, RewardItemState, RewardKeyColor, RewardScreen,
@@ -83,10 +83,6 @@ pub enum GameAction {
     /// Discard an occupied potion slot without using the potion.
     DiscardPotion(usize),
 }
-
-/// Temporary source-compatibility name for consumers removed by the pure-core
-/// stack layer. Runtime semantics are owned exclusively by `GameAction`.
-pub type RunAction = GameAction;
 
 impl GameAction {
     /// Stable ordering for deterministic replay, search frontiers, and action
@@ -1332,22 +1328,6 @@ impl RunState {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct EngineStepResult {
-    pub reward: f32,
-    pub done: bool,
-    pub phase: RunPhase,
-    pub action_accepted: bool,
-    pub legal_actions: Vec<RunAction>,
-    pub decision_state: DecisionState,
-    pub decision_context: DecisionContext,
-    pub legal_decision_actions: Vec<DecisionAction>,
-    pub combat_events: Vec<crate::effects::runtime::GameEventRecord>,
-    pub combat_obs_v2: Option<Vec<f32>>,
-    pub combat_obs_version: u32,
-    pub combat_context: Option<CombatContext>,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ActionStatus {
     Accepted,
@@ -1374,6 +1354,16 @@ pub struct StepOutcome {
     pub terminal: Option<RunOutcome>,
     pub next_decision: DecisionSnapshot,
     pub events: Vec<crate::effects::runtime::GameEventRecord>,
+}
+
+impl StepOutcome {
+    pub fn accepted(&self) -> bool {
+        self.status == ActionStatus::Accepted
+    }
+
+    pub fn is_terminal(&self) -> bool {
+        self.terminal.is_some()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -1592,7 +1582,6 @@ pub struct RunEngine {
     active_encounter_queue: Option<EncounterQueueKind>,
 
     // Reward tracking
-    pub total_reward: f32,
     #[serde(skip, default)]
     last_combat_events: Vec<crate::effects::runtime::GameEventRecord>,
 
@@ -1863,7 +1852,6 @@ impl RunEngine {
             monster_encounter_queue: VecDeque::new(),
             elite_encounter_queue: VecDeque::new(),
             active_encounter_queue: None,
-            total_reward: 0.0,
             last_combat_events: Vec::new(),
             neow_options: Vec::new(),
         };
@@ -1953,12 +1941,12 @@ impl RunEngine {
         self.phase = RunPhase::Transition;
     }
 
-    fn step_transition(&mut self, action: &GameAction) -> f32 {
+    fn step_transition(&mut self, action: &GameAction) {
         if !matches!(action, GameAction::Proceed) {
-            return 0.0;
+            return;
         }
         let Some(continuation) = self.pending_continuation.take() else {
-            return 0.0;
+            return;
         };
         match continuation {
             RunContinuation::MapBoss | RunContinuation::ActThreeSecondBoss => {
@@ -1985,7 +1973,7 @@ impl RunEngine {
                 self.resolve_terminal_run_victory();
             }
         }
-        0.0
+        ()
     }
 
     fn transition_to_next_act(&mut self) {
@@ -2590,17 +2578,17 @@ impl RunEngine {
     // =======================================================================
 
     /// Get all legal actions in the current phase.
-    pub fn get_legal_actions(&self) -> Vec<RunAction> {
+    pub fn get_legal_actions(&self) -> Vec<GameAction> {
         let mut actions = match self.phase {
             RunPhase::Neow => self.get_neow_actions(),
             RunPhase::MapChoice => self.get_map_actions(),
-            RunPhase::Chest => vec![RunAction::OpenChest, RunAction::LeaveChest],
+            RunPhase::Chest => vec![GameAction::OpenChest, GameAction::LeaveChest],
             RunPhase::Combat => self.get_combat_actions(),
             RunPhase::CardReward => self.get_card_reward_actions(),
             RunPhase::Campfire => self.get_campfire_actions(),
             RunPhase::Shop => self.get_shop_actions(),
             RunPhase::Event => self.get_event_actions(),
-            RunPhase::Transition => vec![RunAction::Proceed],
+            RunPhase::Transition => vec![GameAction::Proceed],
             RunPhase::GameOver => Vec::new(),
         };
         if !matches!(self.phase, RunPhase::Combat | RunPhase::GameOver) {
@@ -2608,13 +2596,6 @@ impl RunEngine {
         }
         actions.extend(self.get_potion_discard_actions());
         actions
-    }
-
-    pub fn get_legal_decision_actions(&self) -> Vec<DecisionAction> {
-        self.get_legal_actions()
-            .iter()
-            .map(|action| DecisionAction::from_run_action(action, self.phase))
-            .collect()
     }
 
     pub fn current_decision_state(&self) -> DecisionState {
@@ -2874,11 +2855,11 @@ impl RunEngine {
         }
     }
 
-    fn get_map_actions(&self) -> Vec<RunAction> {
+    fn get_map_actions(&self) -> Vec<GameAction> {
         self.available_map_destinations()
             .iter()
             .enumerate()
-            .map(|(i, _)| RunAction::ChoosePath(i))
+            .map(|(i, _)| GameAction::ChoosePath(i))
             .collect()
     }
 
@@ -2948,27 +2929,27 @@ impl RunEngine {
         destinations
     }
 
-    fn get_neow_actions(&self) -> Vec<RunAction> {
+    fn get_neow_actions(&self) -> Vec<GameAction> {
         self.neow_options
             .iter()
             .enumerate()
-            .map(|(i, _)| RunAction::ChooseNeowOption(i))
+            .map(|(i, _)| GameAction::ChooseNeowOption(i))
             .collect()
     }
 
-    fn get_combat_actions(&self) -> Vec<RunAction> {
+    fn get_combat_actions(&self) -> Vec<GameAction> {
         if let Some(ref engine) = self.combat_engine {
             engine
                 .get_legal_actions()
                 .into_iter()
-                .map(RunAction::CombatAction)
+                .map(GameAction::CombatAction)
                 .collect()
         } else {
             Vec::new()
         }
     }
 
-    fn get_card_reward_actions(&self) -> Vec<RunAction> {
+    fn get_card_reward_actions(&self) -> Vec<GameAction> {
         let Some(screen) = self.reward_screen.as_ref() else {
             return Vec::new();
         };
@@ -2977,17 +2958,17 @@ impl RunEngine {
             let Some(item) = screen.items.get(choice_frame.item_index) else {
                 return Vec::new();
             };
-            let mut actions: Vec<RunAction> = choice_frame
+            let mut actions: Vec<GameAction> = choice_frame
                 .choices
                 .iter()
                 .enumerate()
-                .map(|(choice_index, _)| RunAction::ChooseRewardOption {
+                .map(|(choice_index, _)| GameAction::ChooseRewardOption {
                     item_index: item.index,
                     choice_index,
                 })
                 .collect();
             if choice_frame.skip_allowed {
-                actions.push(RunAction::SkipRewardItem(item.index));
+                actions.push(GameAction::SkipRewardItem(item.index));
             }
             return actions;
         }
@@ -2995,22 +2976,22 @@ impl RunEngine {
         let mut actions = Vec::new();
         for item in &screen.items {
             if item.claimable {
-                actions.push(RunAction::SelectRewardItem(item.index));
+                actions.push(GameAction::SelectRewardItem(item.index));
             }
         }
         if !screen.ordered {
-            actions.push(RunAction::LeaveRewards);
+            actions.push(GameAction::LeaveRewards);
         }
         actions
     }
 
-    fn get_campfire_actions(&self) -> Vec<RunAction> {
+    fn get_campfire_actions(&self) -> Vec<GameAction> {
         let mut actions = Vec::new();
 
         // CoffeeDripper.java::canUseCampfireOption disables the exact
         // RestOption class while leaving other campfire options available.
         if !self.run_state.relic_flags.has(crate::relic_flags::flag::COFFEE_DRIPPER) {
-            actions.push(RunAction::CampfireRest);
+            actions.push(GameAction::CampfireRest);
         }
 
         // FusionHammer.java::canUseCampfireOption disables the exact
@@ -3018,41 +2999,41 @@ impl RunEngine {
         if !self.run_state.relic_flags.has(crate::relic_flags::flag::FUSION_HAMMER) {
             for (i, card) in self.run_state.deck.iter().enumerate() {
                 if crate::cards::global_registry().can_upgrade_name(card) {
-                    actions.push(RunAction::CampfireUpgrade(i));
+                    actions.push(GameAction::CampfireUpgrade(i));
                 }
             }
         }
 
         if !self.peace_pipe_removable_indices().is_empty() {
-            actions.push(RunAction::CampfireToke);
+            actions.push(GameAction::CampfireToke);
         }
 
         if self.can_lift_girya() {
-            actions.push(RunAction::CampfireLift);
+            actions.push(GameAction::CampfireLift);
         }
 
         if self.has_shovel() {
-            actions.push(RunAction::CampfireDig);
+            actions.push(GameAction::CampfireDig);
         }
 
         if self.can_recall_at_campfire() {
-            actions.push(RunAction::CampfireRecall);
+            actions.push(GameAction::CampfireRecall);
         }
 
         actions
     }
 
-    fn get_shop_actions(&self) -> Vec<RunAction> {
+    fn get_shop_actions(&self) -> Vec<GameAction> {
         let mut actions = Vec::new();
         if let Some(ref shop) = self.current_shop {
             for (i, (_, price)) in shop.cards.iter().enumerate() {
                 if self.run_state.gold >= *price {
-                    actions.push(RunAction::ShopBuyCard(i));
+                    actions.push(GameAction::ShopBuyCard(i));
                 }
             }
             for (i, (_, price)) in shop.relics.iter().enumerate() {
                 if self.run_state.gold >= *price {
-                    actions.push(RunAction::ShopBuyRelic(i));
+                    actions.push(GameAction::ShopBuyRelic(i));
                 }
             }
             let can_obtain_potion = !self.run_state.relic_flags.has(crate::relic_flags::flag::SOZU)
@@ -3060,19 +3041,19 @@ impl RunEngine {
             if can_obtain_potion {
                 for (i, (_, price)) in shop.potions.iter().enumerate() {
                     if self.run_state.gold >= *price {
-                        actions.push(RunAction::ShopBuyPotion(i));
+                        actions.push(GameAction::ShopBuyPotion(i));
                     }
                 }
             }
             if !shop.removal_used && self.run_state.gold >= shop.remove_price {
                 for i in 0..self.run_state.deck.len() {
                     if self.is_removable_master_deck_index(i) {
-                        actions.push(RunAction::ShopRemoveCard(i));
+                        actions.push(GameAction::ShopRemoveCard(i));
                     }
                 }
             }
         }
-        actions.push(RunAction::ShopLeave);
+        actions.push(GameAction::ShopLeave);
         actions
     }
 
@@ -3127,12 +3108,12 @@ impl RunEngine {
         self.profile.final_act_available && !self.run_state.has_ruby_key
     }
 
-    fn get_event_actions(&self) -> Vec<RunAction> {
+    fn get_event_actions(&self) -> Vec<GameAction> {
         if let Some(state) = &self.match_and_keep_state {
             if matches!(state.screen, MatchAndKeepScreen::Play) {
                 return (0..state.board.len())
                     .filter(|idx| Some(*idx) != state.first_pick)
-                    .map(RunAction::EventChoice)
+                    .map(GameAction::EventChoice)
                     .collect();
             }
         }
@@ -3141,14 +3122,14 @@ impl RunEngine {
                 .options
                 .iter()
                 .enumerate()
-                .map(|(i, _)| RunAction::EventChoice(i))
+                .map(|(i, _)| GameAction::EventChoice(i))
                 .collect()
         } else {
             Vec::new()
         }
     }
 
-    fn get_noncombat_potion_actions(&self) -> Vec<RunAction> {
+    fn get_noncombat_potion_actions(&self) -> Vec<GameAction> {
         // Fruit Juice, Blood Potion, and Entropic Brew override canUse so they
         // are available outside combat except during WeMeetAgain.
         if self.potion_overlay_blocked() {
@@ -3164,7 +3145,7 @@ impl RunEngine {
                     potion.as_str(),
                     "Fruit Juice" | "FruitJuice" | "BloodPotion" | "Blood Potion" | "EntropicBrew" | "Entropic Brew"
                 )
-                .then_some(RunAction::UsePotion(idx))
+                .then_some(GameAction::UsePotion(idx))
             })
             .collect()
     }
@@ -3178,7 +3159,7 @@ impl RunEngine {
                     .is_some_and(|event| event.name == "WeMeetAgain"))
     }
 
-    fn get_potion_discard_actions(&self) -> Vec<RunAction> {
+    fn get_potion_discard_actions(&self) -> Vec<GameAction> {
         if self.potion_overlay_blocked() {
             return Vec::new();
         }
@@ -3192,26 +3173,19 @@ impl RunEngine {
             .iter()
             .enumerate()
             .filter_map(|(slot, potion)| {
-                (!potion.is_empty()).then_some(RunAction::DiscardPotion(slot))
+                (!potion.is_empty()).then_some(GameAction::DiscardPotion(slot))
             })
             .collect()
     }
 
     // =======================================================================
-    // Step — execute an action and return (reward, done)
+    // Step — execute one canonical action
     // =======================================================================
-
-    /// Execute an action and return (reward, done).
-    pub fn step(&mut self, action: &RunAction) -> (f32, bool) {
-        let result = self.step_with_result(action);
-        (result.reward, result.done)
-    }
 
     /// Execute one canonical action without observations, search metadata, or
     /// shaped training rewards.
     pub fn step_game(&mut self, action: &GameAction) -> StepOutcome {
-        let applied = self.apply_game_action(action);
-        let accepted = applied.is_some();
+        let accepted = self.apply_game_action(action);
         StepOutcome {
             status: if accepted {
                 ActionStatus::Accepted
@@ -3236,57 +3210,16 @@ impl RunEngine {
         }
     }
 
-    /// Execute an action and return the stable post-step RL contract.
-    pub fn step_with_result(&mut self, action: &RunAction) -> EngineStepResult {
-        let applied = self.apply_game_action(action);
-        let action_accepted = applied.is_some();
-        let reward = applied.unwrap_or(0.0);
-        if action_accepted {
-            self.total_reward += reward;
-        }
-        let combat_obs_v2 = if self.phase == RunPhase::Combat {
-            Some(crate::obs::encode_combat_state_v2(self).to_vec())
-        } else {
-            None
-        };
-        let combat_context = if self.phase == RunPhase::Combat {
-            self.current_combat_context()
-        } else {
-            None
-        };
-        let decision_state = self.current_decision_state();
-        let decision_context = self.current_decision_context();
-        EngineStepResult {
-            reward,
-            done: self.run_state.run_over,
-            phase: self.phase,
-            action_accepted,
-            legal_actions: self.get_legal_actions(),
-            decision_state,
-            decision_context,
-            legal_decision_actions: self.get_legal_decision_actions(),
-            combat_events: if action_accepted {
-                self.last_combat_events.clone()
-            } else {
-                Vec::new()
-            },
-            combat_obs_v2,
-            combat_obs_version: crate::obs::COMBAT_OBS_VERSION,
-            combat_context,
-        }
-    }
-
-    fn apply_game_action(&mut self, action: &GameAction) -> Option<f32> {
+    fn apply_game_action(&mut self, action: &GameAction) -> bool {
         if !self.get_legal_actions().contains(action) {
-            return None;
+            return false;
         }
 
         self.last_combat_events.clear();
-        let reward = match action {
+        match action {
             GameAction::UsePotion(potion_idx) => self.step_noncombat_potion(*potion_idx),
             GameAction::DiscardPotion(potion_idx) => {
                 self.step_discard_potion(*potion_idx);
-                0.0
             }
             _ => match self.phase {
                 RunPhase::Neow => self.step_neow(action),
@@ -3298,16 +3231,16 @@ impl RunEngine {
                 RunPhase::Shop => self.step_shop(action),
                 RunPhase::Event => self.step_event(action),
                 RunPhase::Transition => self.step_transition(action),
-                RunPhase::GameOver => 0.0,
+                RunPhase::GameOver => {}
             },
-        };
+        }
         self.refresh_decision_stack();
-        Some(reward)
+        true
     }
 
-    fn step_noncombat_potion(&mut self, potion_idx: usize) -> f32 {
+    fn step_noncombat_potion(&mut self, potion_idx: usize) {
         let Some(potion_id) = self.run_state.potions.get(potion_idx).cloned() else {
-            return 0.0;
+            return;
         };
         match potion_id.as_str() {
             "Fruit Juice" | "FruitJuice" => {
@@ -3359,7 +3292,6 @@ impl RunEngine {
             }
             _ => {}
         }
-        0.0
     }
 
     fn trigger_noncombat_potion_used_relics(&mut self) {
@@ -3391,17 +3323,17 @@ impl RunEngine {
     // Map step
     // =======================================================================
 
-    fn step_map(&mut self, action: &RunAction) -> f32 {
+    fn step_map(&mut self, action: &GameAction) {
         let path_idx = match action {
-            RunAction::ChoosePath(idx) => *idx,
-            _ => return 0.0,
+            GameAction::ChoosePath(idx) => *idx,
+            _ => return,
         };
 
         let destinations = self.available_map_destinations();
         let Some(&(next_x, next_y, room_type, used_winged_greaves)) =
             destinations.get(path_idx)
         else {
-            return 0.0;
+            return;
         };
 
         if used_winged_greaves {
@@ -3458,18 +3390,15 @@ impl RunEngine {
             self.adjust_run_gold(12);
         }
 
-        // Floor milestone reward
-        let floor_reward = self.run_state.floor as f32 / 55.0;
-        floor_reward
     }
 
-    fn step_neow(&mut self, action: &RunAction) -> f32 {
+    fn step_neow(&mut self, action: &GameAction) {
         let choice_idx = match action {
-            RunAction::ChooseNeowOption(idx) => *idx,
-            _ => return 0.0,
+            GameAction::ChooseNeowOption(idx) => *idx,
+            _ => return,
         };
         let Some(choice) = self.neow_options.get(choice_idx).cloned() else {
-            return 0.0;
+            return;
         };
 
         self.apply_neow_choice(choice);
@@ -3478,7 +3407,7 @@ impl RunEngine {
             self.phase = RunPhase::MapChoice;
         }
         self.refresh_decision_stack();
-        0.0
+        ()
     }
 
     // =======================================================================
@@ -5590,15 +5519,15 @@ impl RunEngine {
         }
     }
 
-    fn step_combat(&mut self, action: &RunAction) -> f32 {
+    fn step_combat(&mut self, action: &GameAction) {
         let combat_action = match action {
-            RunAction::CombatAction(a) => a.clone(),
-            _ => return 0.0,
+            GameAction::CombatAction(a) => a.clone(),
+            _ => return,
         };
 
         let engine = match self.combat_engine.as_mut() {
             Some(e) => e,
-            None => return 0.0,
+            None => return,
         };
 
         let combat_enemy_ids: Vec<String> = engine
@@ -5619,7 +5548,6 @@ impl RunEngine {
         );
 
         engine.clear_event_log();
-        let hp_before = engine.state.player.hp;
         engine.execute_action(&combat_action);
         // cardRng and potionRng remain persistent; the other five streams are
         // floor-owned. Return the complete combat snapshot atomically.
@@ -5628,8 +5556,6 @@ impl RunEngine {
         self.java_collections_rng =
             combat_rngs.absorb_into(&mut self.persistent_rngs, &mut self.floor_rngs);
         self.run_state.gold = engine.state.run_gold;
-
-        let mut reward = 0.0;
 
         if engine.is_combat_over() {
             if escaped_with_smoke_bomb {
@@ -5660,12 +5586,9 @@ impl RunEngine {
                 self.combat_engine = None;
                 self.phase = RunPhase::MapChoice;
                 self.refresh_decision_stack();
-                return reward;
+                return;
             }
             if engine.state.player_won {
-                // Combat win reward
-                reward += 1.0;
-
                 // Update run state from combat result
                 self.run_state.current_hp = engine.state.player.hp;
                 self.run_state.max_hp = engine.state.player.max_hp;
@@ -5731,7 +5654,6 @@ impl RunEngine {
                     if run_won {
                         self.resolve_terminal_run_victory();
                     } else if died {
-                        reward -= 1.0;
                         self.run_state.current_hp = 0;
                         self.run_state.run_over = true;
                         self.phase = RunPhase::GameOver;
@@ -5760,7 +5682,7 @@ impl RunEngine {
                         self.phase = RunPhase::MapChoice;
                     }
                     self.refresh_decision_stack();
-                    return reward;
+                    return;
                 }
 
                 let room_type = if self.run_state.map_y >= 0 {
@@ -5783,7 +5705,6 @@ impl RunEngine {
 
                 if is_boss && self.run_state.act == 3 {
                     self.run_state.bosses_killed += 1;
-                    reward += 5.0;
                     let continuation = if self.run_state.ascension >= 20
                         && self.boss_sequence.len() == 2
                     {
@@ -5797,7 +5718,7 @@ impl RunEngine {
                     self.combat_engine = None;
                     self.wait_for_continuation(continuation);
                     self.refresh_decision_stack();
-                    return reward;
+                    return;
                 }
 
                 if room_type == RoomType::Elite {
@@ -5807,16 +5728,15 @@ impl RunEngine {
                 // Check if boss
                 if is_boss {
                     self.run_state.bosses_killed += 1;
-                    reward += 5.0; // Boss kill bonus
                     if is_final_heart {
                         self.combat_engine = None;
                         self.wait_for_continuation(RunContinuation::TrueVictory);
-                        return reward;
+                        return;
                     }
                     self.build_combat_reward_screen(RoomType::Boss);
                     self.combat_engine = None;
                     self.phase = RunPhase::CardReward;
-                    return reward;
+                    return;
                 }
 
                 // Build the ordered post-combat reward screen.
@@ -5825,7 +5745,6 @@ impl RunEngine {
                 self.phase = RunPhase::CardReward;
             } else {
                 // Player died
-                reward -= 1.0;
                 self.run_state.current_hp = 0;
                 self.run_state.lizard_tail_used = engine
                     .state
@@ -5840,16 +5759,8 @@ impl RunEngine {
                 self.phase = RunPhase::GameOver;
             }
         } else {
-            // HP-based damage signal
-            let hp_after = engine.state.player.hp;
-            if hp_after < hp_before {
-                let damage_ratio = (hp_before - hp_after) as f32 / self.run_state.max_hp as f32;
-                reward -= damage_ratio * 0.5;
-            }
             self.last_combat_events = engine.take_event_log();
         }
-
-        reward
     }
 
     fn generate_card_reward_choices(
@@ -6283,11 +6194,11 @@ impl RunEngine {
         self.phase = RunPhase::Chest;
     }
 
-    fn step_chest(&mut self, action: &RunAction) -> f32 {
+    fn step_chest(&mut self, action: &GameAction) {
         match action {
-            RunAction::OpenChest => {
+            GameAction::OpenChest => {
                 let Some(chest) = self.pending_chest.clone() else {
-                    return 0.0;
+                    return;
                 };
                 match chest {
                     PendingChest::Treasure(chest) => {
@@ -6300,7 +6211,7 @@ impl RunEngine {
                 }
                 self.phase = RunPhase::CardReward;
             }
-            RunAction::LeaveChest => {
+            GameAction::LeaveChest => {
                 let pending = self.pending_chest.take();
                 self.reward_screen = None;
                 if matches!(pending, Some(PendingChest::Boss { .. })) {
@@ -6315,7 +6226,7 @@ impl RunEngine {
             }
             _ => {}
         }
-        0.0
+        ()
     }
 
     #[cfg(test)]
@@ -6540,16 +6451,16 @@ impl RunEngine {
     // Card reward step
     // =======================================================================
 
-    fn step_card_reward(&mut self, action: &RunAction) -> f32 {
-        let leave_requested = matches!(action, RunAction::LeaveRewards);
+    fn step_card_reward(&mut self, action: &GameAction) {
+        let leave_requested = matches!(action, GameAction::LeaveRewards);
         match action {
-            RunAction::SelectRewardItem(item_index) => self.select_reward_item(*item_index),
-            RunAction::ChooseRewardOption {
+            GameAction::SelectRewardItem(item_index) => self.select_reward_item(*item_index),
+            GameAction::ChooseRewardOption {
                 item_index,
                 choice_index,
             } => self.choose_reward_option(*item_index, *choice_index),
-            RunAction::SkipRewardItem(item_index) => self.skip_reward_item(*item_index),
-            RunAction::LeaveRewards => {
+            GameAction::SkipRewardItem(item_index) => self.skip_reward_item(*item_index),
+            GameAction::LeaveRewards => {
                 if let Some(screen) = self.reward_screen.as_mut() {
                     for item in &mut screen.items {
                         if item.state == RewardItemState::Available {
@@ -6563,7 +6474,7 @@ impl RunEngine {
 
         if self.phase != RunPhase::CardReward {
             self.refresh_decision_stack();
-            return 0.0;
+            return;
         }
 
         let reward_complete = self.reward_screen.as_ref().is_none_or(|screen| {
@@ -6586,7 +6497,7 @@ impl RunEngine {
                 self.enter_boss_treasure_room();
                 self.enter_boss_chest();
                 self.refresh_decision_stack();
-                return 0.0;
+                return;
             }
 
             if source == RewardScreenSource::BossRelic {
@@ -6597,13 +6508,13 @@ impl RunEngine {
                     self.wait_for_continuation(RunContinuation::SpireHeart);
                 }
                 self.refresh_decision_stack();
-                return 0.0;
+                return;
             }
 
             if source == RewardScreenSource::Shop {
                 self.phase = RunPhase::Shop;
                 self.refresh_decision_stack();
-                return 0.0;
+                return;
             }
 
             // Check if at last row (floor 15) — enter boss
@@ -6612,13 +6523,13 @@ impl RunEngine {
                 // owns the floor increment and floor-RNG reset.
                 self.wait_for_continuation(RunContinuation::MapBoss);
                 self.refresh_decision_stack();
-                return 0.0;
+                return;
             }
 
             self.phase = RunPhase::MapChoice;
         }
         self.refresh_decision_stack();
-        0.0
+        ()
     }
 
     fn select_reward_item(&mut self, item_index: usize) {
@@ -8387,9 +8298,9 @@ impl RunEngine {
         self.phase = RunPhase::Campfire;
     }
 
-    fn step_campfire(&mut self, action: &RunAction) -> f32 {
+    fn step_campfire(&mut self, action: &GameAction) {
         match action {
-            RunAction::CampfireRest => {
+            GameAction::CampfireRest => {
                 if !self.run_state.relic_flags.has(crate::relic_flags::flag::MARK_OF_BLOOM) {
                     // Source: CampfireSleepEffect.java truncates maxHealth *
                     // 0.3f to int, then adds Regal Pillow's exact 15.
@@ -8409,19 +8320,19 @@ impl RunEngine {
                     self.build_dream_catcher_reward_screen();
                     self.phase = RunPhase::CardReward;
                     self.refresh_decision_stack();
-                    return 0.0;
+                    return;
                 }
             }
-            RunAction::CampfireUpgrade(idx) => {
+            GameAction::CampfireUpgrade(idx) => {
                 self.run_state.upgrade_deck_card(*idx);
             }
-            RunAction::CampfireToke => {
+            GameAction::CampfireToke => {
                 self.build_peace_pipe_selection_screen();
                 self.phase = RunPhase::CardReward;
                 self.refresh_decision_stack();
-                return 0.0;
+                return;
             }
-            RunAction::CampfireLift => {
+            GameAction::CampfireLift => {
                 // CampfireLiftEffect increments Girya.counter exactly once;
                 // LiftOption is usable only while the counter is below three.
                 // Java: decompiled/java-src/com/megacrit/cardcrawl/vfx/campfire/CampfireLiftEffect.java
@@ -8429,13 +8340,13 @@ impl RunEngine {
                     [crate::relic_flags::counter::GIRYA];
                 *counter = (*counter + 1).min(3);
             }
-            RunAction::CampfireDig => {
+            GameAction::CampfireDig => {
                 self.build_shovel_reward_screen();
                 self.phase = RunPhase::CardReward;
                 self.refresh_decision_stack();
-                return 0.0;
+                return;
             }
-            RunAction::CampfireRecall => {
+            GameAction::CampfireRecall => {
                 self.run_state.has_ruby_key = true;
             }
             _ => {}
@@ -8447,12 +8358,12 @@ impl RunEngine {
             self.reset_floor_rngs();
             self.enter_combat(false, true);
             self.refresh_decision_stack();
-            return 0.0;
+            return;
         }
 
         self.phase = RunPhase::MapChoice;
         self.refresh_decision_stack();
-        0.0
+        ()
     }
 
     // =======================================================================
@@ -8780,9 +8691,9 @@ impl RunEngine {
         }
     }
 
-    fn step_shop(&mut self, action: &RunAction) -> f32 {
+    fn step_shop(&mut self, action: &GameAction) {
         match action {
-            RunAction::ShopBuyCard(idx) => {
+            GameAction::ShopBuyCard(idx) => {
                 let purchase = self.current_shop.as_ref().and_then(|shop| {
                     shop.cards.get(*idx).cloned()
                         .filter(|(_, price)| self.run_state.gold >= *price)
@@ -8801,9 +8712,9 @@ impl RunEngine {
                     }
                 }
                 // Stay in shop for more purchases
-                return 0.0;
+                return;
             }
-            RunAction::ShopBuyRelic(idx) => {
+            GameAction::ShopBuyRelic(idx) => {
                 let purchase = self.current_shop.as_ref().and_then(|shop| {
                     shop.relics.get(*idx).cloned().filter(|(_, price)| {
                         self.run_state.gold >= *price
@@ -8820,9 +8731,9 @@ impl RunEngine {
                         else { shop.relics.remove(*idx); }
                     }
                 }
-                return 0.0;
+                return;
             }
-            RunAction::ShopBuyPotion(idx) => {
+            GameAction::ShopBuyPotion(idx) => {
                 let purchase = self.current_shop.as_ref().and_then(|shop| {
                     shop.potions.get(*idx).cloned().filter(|(_, price)| {
                         self.run_state.gold >= *price
@@ -8846,9 +8757,9 @@ impl RunEngine {
                         else { shop.potions.remove(*idx); }
                     }
                 }
-                return 0.0;
+                return;
             }
-            RunAction::ShopRemoveCard(idx) => {
+            GameAction::ShopRemoveCard(idx) => {
                 let remove_price = self.current_shop.as_ref().and_then(|shop| {
                     if !shop.removal_used
                         && *idx < self.run_state.deck.len()
@@ -8875,16 +8786,16 @@ impl RunEngine {
                     }
                 }
                 // Stay in shop
-                return 0.0;
+                return;
             }
-            RunAction::ShopLeave => {}
+            GameAction::ShopLeave => {}
             _ => {}
         }
 
         self.current_shop = None;
         self.phase = RunPhase::MapChoice;
         self.refresh_decision_stack();
-        0.0
+        ()
     }
 
     // =======================================================================
@@ -9462,9 +9373,9 @@ impl RunEngine {
         self.refresh_decision_stack();
     }
 
-    fn step_match_and_keep(&mut self, choice_idx: usize) -> f32 {
+    fn step_match_and_keep(&mut self, choice_idx: usize) {
         let Some(state) = self.match_and_keep_state.as_mut() else {
-            return 0.0;
+            return;
         };
 
         match state.screen {
@@ -9473,19 +9384,19 @@ impl RunEngine {
                 self.sync_match_and_keep_event();
                 self.phase = RunPhase::Event;
                 self.refresh_decision_stack();
-                0.0
+                ()
             }
             MatchAndKeepScreen::RuleExplanation => {
                 state.screen = MatchAndKeepScreen::Play;
                 self.sync_match_and_keep_event();
                 self.phase = RunPhase::Event;
                 self.refresh_decision_stack();
-                0.0
+                ()
             }
             MatchAndKeepScreen::Play => {
                 if choice_idx >= state.board.len() || state.first_pick == Some(choice_idx) {
                     self.refresh_decision_stack();
-                    return 0.0;
+                    return;
                 }
 
                 if let Some(first_idx) = state.first_pick.take() {
@@ -9512,21 +9423,21 @@ impl RunEngine {
                 self.sync_match_and_keep_event();
                 self.phase = RunPhase::Event;
                 self.refresh_decision_stack();
-                0.0
+                ()
             }
             MatchAndKeepScreen::Complete => {
                 self.current_event = None;
                 self.match_and_keep_state = None;
                 self.phase = RunPhase::MapChoice;
                 self.refresh_decision_stack();
-                0.0
+                ()
             }
         }
     }
 
-    fn step_scrap_ooze(&mut self, choice_idx: usize) -> f32 {
+    fn step_scrap_ooze(&mut self, choice_idx: usize) {
         let Some(state_snapshot) = self.scrap_ooze_state.clone() else {
-            return 0.0;
+            return;
         };
 
         if state_snapshot.leave_only {
@@ -9534,7 +9445,7 @@ impl RunEngine {
             self.scrap_ooze_state = None;
             self.phase = RunPhase::MapChoice;
             self.refresh_decision_stack();
-            return 0.0;
+            return;
         }
 
         match choice_idx {
@@ -9546,7 +9457,7 @@ impl RunEngine {
                     self.run_state.run_over = true;
                     self.phase = RunPhase::GameOver;
                     self.refresh_decision_stack();
-                    return -1.0;
+                    return;
                 }
 
                 let threshold = 100usize.saturating_sub(state_snapshot.relic_chance.min(100));
@@ -9571,7 +9482,7 @@ impl RunEngine {
                     self.phase = RunPhase::Event;
                 }
                 self.refresh_decision_stack();
-                0.0
+                ()
             }
             1 => {
                 self.scrap_ooze_state = Some(ScrapOozeState {
@@ -9582,15 +9493,15 @@ impl RunEngine {
                 self.sync_scrap_ooze_event();
                 self.phase = RunPhase::Event;
                 self.refresh_decision_stack();
-                0.0
+                ()
             }
-            _ => 0.0,
+            _ => (),
         }
     }
 
-    fn step_event(&mut self, action: &RunAction) -> f32 {
+    fn step_event(&mut self, action: &GameAction) {
         let choice_idx = match action {
-            RunAction::EventChoice(idx) => *idx,
+            GameAction::EventChoice(idx) => *idx,
             _ => 0,
         };
 
@@ -9604,13 +9515,13 @@ impl RunEngine {
         let Some(event) = self.current_event.clone() else {
             self.phase = RunPhase::MapChoice;
             self.refresh_decision_stack();
-            return 0.0;
+            return;
         };
         let Some(option) = event.options.get(choice_idx).cloned() else {
             self.current_event = None;
             self.phase = RunPhase::MapChoice;
             self.refresh_decision_stack();
-            return 0.0;
+            return;
         };
 
         let mut reward_items = Vec::new();
@@ -9652,7 +9563,7 @@ impl RunEngine {
             self.pending_event_combat = Some(branch.clone());
             self.start_event_combat(resolved_enemies);
             self.refresh_decision_stack();
-            return 0.0;
+            return;
         }
 
         if let Some(mut event) = next_event {
@@ -9660,7 +9571,7 @@ impl RunEngine {
             self.current_event = Some(event);
             self.phase = RunPhase::Event;
             self.refresh_decision_stack();
-            return 0.0;
+            return;
         }
 
         if start_boss_combat {
@@ -9673,7 +9584,7 @@ impl RunEngine {
             self.reset_floor_rngs();
             self.enter_combat(false, true);
             self.refresh_decision_stack();
-            return 0.0;
+            return;
         }
 
         if start_final_act {
@@ -9681,7 +9592,7 @@ impl RunEngine {
             self.pending_event_combat = None;
             self.start_final_act();
             self.refresh_decision_stack();
-            return 0.0;
+            return;
         }
 
         self.current_event = None;
@@ -9689,13 +9600,13 @@ impl RunEngine {
             self.run_state.run_over = true;
             self.phase = RunPhase::GameOver;
             self.refresh_decision_stack();
-            return -1.0;
+            return;
         }
 
         if run_won {
             self.resolve_terminal_run_victory();
             self.refresh_decision_stack();
-            return 0.0;
+            return;
         }
 
         if !reward_items.is_empty() {
@@ -9705,7 +9616,7 @@ impl RunEngine {
             self.phase = RunPhase::MapChoice;
         }
         self.refresh_decision_stack();
-        0.0
+        ()
     }
 
     fn apply_event_program_op(
@@ -10474,6 +10385,7 @@ impl RunEngine {
         self.decision_stack.depth()
     }
 
+    #[cfg(test)]
     pub(crate) fn pending_event_combat_summary(&self) -> Option<String> {
         self.pending_event_combat
             .as_ref()
@@ -10576,7 +10488,7 @@ impl RunEngine {
     pub(crate) fn debug_build_boss_reward_screen(&mut self) {
         self.enter_boss_treasure_room();
         self.enter_boss_chest();
-        self.step_chest(&RunAction::OpenChest);
+        self.step_chest(&GameAction::OpenChest);
         self.refresh_decision_stack();
     }
 
@@ -10801,8 +10713,8 @@ impl RunEngine {
     }
 
     #[cfg(test)]
-    pub(crate) fn debug_resolve_current_combat_outcome(&mut self) -> f32 {
-        self.step_combat(&RunAction::CombatAction(crate::actions::Action::EndTurn))
+    pub(crate) fn debug_resolve_current_combat_outcome(&mut self) {
+        self.step_combat(&GameAction::CombatAction(crate::actions::Action::EndTurn))
     }
 
     #[cfg(test)]
@@ -11315,27 +11227,27 @@ mod tests {
 
     fn resolve_opening_neow(engine: &mut RunEngine) {
         if engine.current_phase() == RunPhase::Neow {
-            let (reward, done) = engine.step(&RunAction::ChooseNeowOption(1));
-            assert_eq!(reward, 0.0);
-            assert!(!done);
+            let outcome = engine.step_game(&GameAction::ChooseNeowOption(1));
+            assert!(outcome.accepted());
+            assert!(!outcome.is_terminal());
             while engine.current_phase() == RunPhase::CardReward {
                 let actions = engine.get_legal_actions();
                 let action = actions
                     .iter()
-                    .find(|action| matches!(action, RunAction::SkipRewardItem(_)))
+                    .find(|action| matches!(action, GameAction::SkipRewardItem(_)))
                     .or_else(|| {
                         actions
                             .iter()
-                            .find(|action| matches!(action, RunAction::SelectRewardItem(_)))
+                            .find(|action| matches!(action, GameAction::SelectRewardItem(_)))
                     })
                     .or_else(|| {
                         actions.iter().find(|action| {
-                            matches!(action, RunAction::ChooseRewardOption { .. })
+                            matches!(action, GameAction::ChooseRewardOption { .. })
                         })
                     })
                     .cloned()
                     .expect("Neow follow-up must expose a reward action");
-                engine.step(&action);
+                engine.step_game(&action);
             }
             assert_eq!(engine.current_phase(), RunPhase::MapChoice);
         }
@@ -11381,8 +11293,8 @@ mod tests {
 
         assert!(
             engine
-                .step_with_result(&RunAction::EventChoice(0))
-                .action_accepted
+                .step_game(&GameAction::EventChoice(0))
+                .accepted()
         );
         assert_eq!(engine.phase, RunPhase::Combat);
         assert_eq!(engine.run_state.floor, 43);
@@ -11391,7 +11303,7 @@ mod tests {
         engine.debug_resolve_current_combat_outcome();
         assert_eq!(engine.phase, RunPhase::Transition);
         assert_eq!(engine.run_state.floor, 43);
-        assert!(engine.step_with_result(&RunAction::Proceed).action_accepted);
+        assert!(engine.step_game(&GameAction::Proceed).accepted());
         assert_eq!(engine.phase, RunPhase::Event);
         assert_eq!(engine.run_state.floor, 44);
 
@@ -11424,8 +11336,8 @@ mod tests {
 
         assert!(
             engine
-                .step_with_result(&RunAction::ChoosePath(0))
-                .action_accepted
+                .step_game(&GameAction::ChoosePath(0))
+                .accepted()
         );
         assert_eq!(engine.phase, RunPhase::Campfire);
         assert_eq!(engine.run_state.floor, 1);
@@ -11456,11 +11368,11 @@ mod tests {
         let shuffle_before = combat.shuffle_rng.state_tuple();
         assert!(
             engine
-                .step_with_result(&RunAction::CombatAction(crate::actions::Action::PlayCard {
+                .step_game(&GameAction::CombatAction(crate::actions::Action::PlayCard {
                     card_idx: 0,
                     target_idx: -1,
                 }))
-                .action_accepted
+                .accepted()
         );
 
         let attempts = engine.persistent_rngs.card.counter - card_before;
@@ -11651,12 +11563,12 @@ mod tests {
         let seed = 57_554_006_466;
         let mut chosen = RunEngine::new(seed, 0);
         let deck_before = chosen.run_state.deck.clone();
-        chosen.step(&RunAction::ChooseNeowOption(0));
+        chosen.step_game(&GameAction::ChooseNeowOption(0));
         assert_eq!(chosen.current_phase(), RunPhase::CardReward);
         assert_eq!(chosen.run_state.deck, deck_before);
 
-        chosen.step(&RunAction::SelectRewardItem(0));
-        chosen.step(&RunAction::ChooseRewardOption {
+        chosen.step_game(&GameAction::SelectRewardItem(0));
+        chosen.step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         });
@@ -11664,11 +11576,11 @@ mod tests {
         assert_eq!(chosen.run_state.deck.len(), deck_before.len() - 1);
 
         let mut cancelled = RunEngine::new(seed, 0);
-        cancelled.step(&RunAction::ChooseNeowOption(0));
+        cancelled.step_game(&GameAction::ChooseNeowOption(0));
         // The screen-level action opens the grid; Skip belongs to that nested
         // cancellable grid, not to the parent reward row.
-        cancelled.step(&RunAction::SelectRewardItem(0));
-        cancelled.step(&RunAction::SkipRewardItem(0));
+        cancelled.step_game(&GameAction::SelectRewardItem(0));
+        cancelled.step_game(&GameAction::SkipRewardItem(0));
         assert_eq!(cancelled.current_phase(), RunPhase::MapChoice);
         assert_eq!(cancelled.run_state.deck, deck_before);
     }
@@ -11686,9 +11598,9 @@ mod tests {
             .expect("category zero must reach TRANSFORM_CARD");
         let mut engine = RunEngine::new(seed, 0);
         let deck_before = engine.run_state.deck.clone();
-        engine.step(&RunAction::ChooseNeowOption(0));
-        engine.step(&RunAction::SelectRewardItem(0));
-        engine.step(&RunAction::ChooseRewardOption {
+        engine.step_game(&GameAction::ChooseNeowOption(0));
+        engine.step_game(&GameAction::SelectRewardItem(0));
+        engine.step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         });
@@ -11769,11 +11681,11 @@ mod tests {
         // encounter; the first accepted transition does so exactly once.
         engine.combat_engine = None;
         engine.phase = RunPhase::MapChoice;
-        engine.step_map(&RunAction::ChoosePath(usize::MAX));
+        engine.step_map(&GameAction::ChoosePath(usize::MAX));
         assert_eq!(engine.monster_encounter_queue.len(), initial_len);
         assert_eq!(engine.active_encounter_queue, Some(EncounterQueueKind::Hallway));
 
-        engine.step_map(&RunAction::ChoosePath(0));
+        engine.step_map(&GameAction::ChoosePath(0));
         assert_eq!(engine.monster_encounter_queue.len(), initial_len - 1);
         assert_ne!(engine.monster_encounter_queue.front(), Some(&expected));
     }
@@ -12050,10 +11962,10 @@ mod tests {
 
         assert!(engine
             .get_legal_actions()
-            .contains(&RunAction::UsePotion(0)));
-        let result = engine.step_with_result(&RunAction::UsePotion(0));
+            .contains(&GameAction::UsePotion(0)));
+        let result = engine.step_game(&GameAction::UsePotion(0));
 
-        assert!(result.action_accepted);
+        assert!(result.accepted());
         assert_eq!(engine.run_state.max_hp, 90);
         assert_eq!(engine.run_state.current_hp, 50);
         assert!(engine.run_state.potions[0].is_empty());
@@ -12069,7 +11981,7 @@ mod tests {
         });
         assert!(!engine
             .get_legal_actions()
-            .contains(&RunAction::UsePotion(0)));
+            .contains(&GameAction::UsePotion(0)));
     }
 
     #[test]
@@ -12086,19 +11998,19 @@ mod tests {
         engine.run_state.potions[1] = "SmokeBomb".to_string();
         engine.enter_specific_combat(vec!["JawWorm".to_string()]);
 
-        let fruit = RunAction::CombatAction(crate::actions::Action::UsePotion {
+        let fruit = GameAction::CombatAction(crate::actions::Action::UsePotion {
             potion_idx: 0,
             target_idx: -1,
         });
-        assert!(engine.step_with_result(&fruit).action_accepted);
-        let smoke = RunAction::CombatAction(crate::actions::Action::UsePotion {
+        assert!(engine.step_game(&fruit).accepted());
+        let smoke = GameAction::CombatAction(crate::actions::Action::UsePotion {
             potion_idx: 1,
             target_idx: -1,
         });
-        let result = engine.step_with_result(&smoke);
+        let result = engine.step_game(&smoke);
 
-        assert!(result.action_accepted);
-        assert_eq!(result.reward, 0.0);
+        assert!(result.accepted());
+        assert!(!result.is_terminal());
         assert_eq!(engine.current_phase(), RunPhase::MapChoice);
         assert!(!engine.run_state.run_over);
         assert_eq!(engine.run_state.combats_won, 0);
@@ -13674,7 +13586,7 @@ mod tests {
         combat.state.enemies[0].move_effects.clear();
         combat.state.enemies[0].add_effect(crate::combat_types::mfx::BURN, 5);
         combat.ai_rng = crate::seed::StsRandom::new(no_boolean_seed);
-        run.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        run.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         let combat = run.combat_engine.as_ref().unwrap();
         assert_eq!(combat.state.discard_pile.iter().filter(|card|
             combat.card_registry.card_name(card.def_id) == "Burn").count(), 5);
@@ -13756,7 +13668,7 @@ mod tests {
         combat.state.draw_pile.push(filler);
         let ai_before = combat.ai_rng.counter;
         let card_random_before = combat.card_random_rng.counter;
-        run.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        run.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         let combat = run.combat_engine.as_ref().unwrap();
         let draw_burns = combat.state.draw_pile.iter().filter(|card|
             combat.card_registry.card_name(card.def_id) == "Burn").count();
@@ -13775,7 +13687,7 @@ mod tests {
         combat.state.hand.retain(|card| card.def_id != burn_id);
         combat.state.enemies[0].set_move(crate::enemies::move_ids::OW_CLAW, 16, 1, 0);
         combat.state.enemies[0].move_effects.clear();
-        run.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        run.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         let combat = run.combat_engine.as_ref().unwrap();
         assert_eq!(combat.state.player.hp, player_hp - 21,
             "Claw uses the five Strength gained after the previous round");
@@ -14953,7 +14865,7 @@ mod tests {
                 crate::status_ids::sid::STARTING_DMG), damage);
             assert_eq!(combat.ai_rng.counter, initial_ticks);
 
-            engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+            engine.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
             let combat = engine.combat_engine.as_ref().unwrap();
             let expected = if initial == crate::enemies::move_ids::AS_S_TACKLE {
                 crate::enemies::move_ids::AS_S_LICK
@@ -15014,7 +14926,7 @@ mod tests {
             enemy.move_effects.clear();
             combat.ai_rng = crate::seed::StsRandom::new(seed);
         }
-        engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        engine.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         let combat = engine.combat_engine.as_ref().unwrap();
         assert_eq!(combat.ai_rng.counter, 2);
         assert_eq!(combat.state.enemies[0].move_id, if expected_wound {
@@ -15064,7 +14976,7 @@ mod tests {
                 crate::enemies::move_ids::AS_SPLIT);
             (half, ticks)
         };
-        engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        engine.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         let combat = engine.combat_engine.as_ref().unwrap();
         assert_eq!(combat.state.enemies[0].entity.hp, 0);
         assert_eq!(combat.state.enemies.len(), 3);
@@ -15102,7 +15014,7 @@ mod tests {
             assert_eq!(combat.state.enemies[0].move_damage(), damage);
             assert_eq!(combat.ai_rng.counter, 1);
 
-            engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+            engine.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
             let combat = engine.combat_engine.as_ref().unwrap();
             assert_eq!(combat.state.enemies[0].move_id,
                 crate::enemies::move_ids::SS_TACKLE);
@@ -15148,7 +15060,7 @@ mod tests {
             enemy.add_effect(crate::combat_types::mfx::SLIMED, 1);
             combat.ai_rng.counter
         };
-        engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        engine.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         let combat = engine.combat_engine.as_ref().unwrap();
         assert_eq!(combat.ai_rng.counter, ticks_before + 1,
             "RollMoveAction consumes one aiRng draw after Tackle");
@@ -15195,7 +15107,7 @@ mod tests {
             enemy.add_effect(crate::combat_types::mfx::SLIMED, 2);
             combat.ai_rng.counter
         };
-        engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        engine.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         let combat = engine.combat_engine.as_ref().unwrap();
         assert_eq!(combat.ai_rng.counter, ticks_before + 1);
         assert_eq!(combat.state.discard_pile.iter().filter(|card|
@@ -15214,7 +15126,7 @@ mod tests {
                 crate::enemies::move_ids::SS_SPLIT);
             (half, ticks)
         };
-        engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        engine.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         let combat = engine.combat_engine.as_ref().unwrap();
         assert_eq!(combat.state.enemies[0].entity.hp, 0);
         assert_eq!(combat.state.enemies.len(), 3);
@@ -15266,7 +15178,7 @@ mod tests {
         engine.enter_specific_combat(vec!["Looter".to_string()]);
         engine.combat_engine.as_mut().unwrap().ai_rng = crate::seed::StsRandom::new(seed);
 
-        engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        engine.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         assert_eq!(engine.run_state.gold, 84);
         {
             let combat = engine.combat_engine.as_ref().unwrap();
@@ -15277,7 +15189,7 @@ mod tests {
                 "first Mug consumes only its 0.6 dialogue boolean");
         }
 
-        engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        engine.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         assert_eq!(engine.run_state.gold, 69);
         {
             let combat = engine.combat_engine.as_ref().unwrap();
@@ -15288,7 +15200,7 @@ mod tests {
                 "second Mug consumes only its 0.5 branch boolean");
         }
 
-        engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        engine.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         let combat = engine.combat_engine.as_ref().unwrap();
         assert_eq!(combat.state.enemies[0].entity.block, 6);
         assert_eq!(combat.state.enemies[0].move_id,
@@ -15299,12 +15211,12 @@ mod tests {
 
         let mut refund = RunEngine::new(42, 0);
         refund.enter_specific_combat(vec!["Looter".to_string()]);
-        refund.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        refund.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         refund.combat_engine.as_mut().unwrap().state.enemies[0].entity.hp = 0;
-        refund.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        refund.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         assert_eq!(refund.run_state.gold, 99,
             "death returns stolen gold before room rewards are claimed");
-        refund.step(&RunAction::SelectRewardItem(0));
+        refund.step_game(&GameAction::SelectRewardItem(0));
         assert!((109..=119).contains(&refund.run_state.gold));
     }
 
@@ -15355,7 +15267,7 @@ mod tests {
         engine.enter_specific_combat(vec!["Mugger".to_string()]);
         engine.combat_engine.as_mut().unwrap().ai_rng = crate::seed::StsRandom::new(smoke_seed);
 
-        engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        engine.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         assert_eq!(engine.run_state.gold, 84);
         {
             let combat = engine.combat_engine.as_ref().unwrap();
@@ -15367,7 +15279,7 @@ mod tests {
             );
         }
 
-        engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        engine.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         assert_eq!(engine.run_state.gold, 69);
         {
             let combat = engine.combat_engine.as_ref().unwrap();
@@ -15378,7 +15290,7 @@ mod tests {
                 "second Mug consumes voice, dialogue, and route booleans");
         }
 
-        engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        engine.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         {
             let combat = engine.combat_engine.as_ref().unwrap();
             assert_eq!(combat.state.enemies[0].entity.block, 11);
@@ -15427,12 +15339,12 @@ mod tests {
 
         let mut refund = RunEngine::new(42, 0);
         refund.enter_specific_combat(vec!["Mugger".to_string()]);
-        refund.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        refund.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         refund.combat_engine.as_mut().unwrap().state.enemies[0].entity.hp = 0;
-        refund.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        refund.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         assert_eq!(refund.run_state.gold, 99,
             "death returns stolen gold before room rewards are claimed");
-        refund.step(&RunAction::SelectRewardItem(0));
+        refund.step_game(&GameAction::SelectRewardItem(0));
         assert!((109..=119).contains(&refund.run_state.gold));
     }
 
@@ -15576,7 +15488,7 @@ mod tests {
 
         let mut a17 = RunEngine::new(42, 17);
         a17.enter_specific_combat(vec!["GremlinFat".to_string()]);
-        a17.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        a17.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         let combat = a17.combat_engine.as_ref().unwrap();
         assert_eq!(combat.state.player.status(crate::status_ids::sid::WEAKENED), 1);
         assert_eq!(combat.state.player.status(crate::status_ids::sid::FRAIL), 1);
@@ -15618,7 +15530,7 @@ mod tests {
             assert_eq!(combat.state.enemies[0].move_damage(), damage);
             assert_eq!(combat.ai_rng.counter, 1);
 
-            engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+            engine.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
             let combat = engine.combat_engine.as_ref().unwrap();
             assert_eq!(combat.state.enemies[0].move_id,
                 crate::enemies::move_ids::GREMLIN_ATTACK);
@@ -15669,7 +15581,7 @@ mod tests {
                     crate::status_ids::sid::STRENGTH), angry);
             }
 
-            engine.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+            engine.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
             let combat = engine.combat_engine.as_ref().unwrap();
             assert_eq!(combat.state.enemies[0].move_id,
                 crate::enemies::move_ids::GREMLIN_ATTACK);
@@ -15719,13 +15631,13 @@ mod tests {
 
         let mut low = RunEngine::new(42, 0);
         low.enter_specific_combat(vec!["GremlinWizard".to_string()]);
-        low.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        low.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         assert_eq!(low.combat_engine.as_ref().unwrap().state.enemies[0].move_id,
             crate::enemies::move_ids::GREMLIN_PROTECT);
-        low.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        low.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         assert_eq!(low.combat_engine.as_ref().unwrap().state.enemies[0].move_id,
             crate::enemies::move_ids::GREMLIN_ATTACK);
-        low.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        low.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         let combat = low.combat_engine.as_ref().unwrap();
         assert_eq!(combat.state.enemies[0].move_id,
             crate::enemies::move_ids::GREMLIN_PROTECT);
@@ -15735,9 +15647,9 @@ mod tests {
 
         let mut a17 = RunEngine::new(42, 17);
         a17.enter_specific_combat(vec!["GremlinWizard".to_string()]);
-        a17.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
-        a17.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
-        a17.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        a17.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
+        a17.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
+        a17.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         let combat = a17.combat_engine.as_ref().unwrap();
         assert_eq!(combat.state.enemies[0].move_id,
             crate::enemies::move_ids::GREMLIN_ATTACK,
@@ -15857,7 +15769,7 @@ mod tests {
 
         let mut a18 = RunEngine::new(42, 18);
         a18.enter_specific_combat(vec!["GremlinNob".to_string()]);
-        a18.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        a18.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         {
             let combat = a18.combat_engine.as_ref().unwrap();
             let enemy = &combat.state.enemies[0];
@@ -15876,7 +15788,7 @@ mod tests {
             combat.state.hand.push(defend);
             combat.state.energy = 3;
         }
-        a18.step(&RunAction::CombatAction(crate::actions::Action::PlayCard {
+        a18.step_game(&GameAction::CombatAction(crate::actions::Action::PlayCard {
             card_idx: 0,
             target_idx: -1,
         }));
@@ -15994,7 +15906,7 @@ mod tests {
 
         let mut single = RunEngine::new(42, 0);
         single.enter_specific_combat(vec!["Sentry".to_string()]);
-        single.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        single.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         let combat = single.combat_engine.as_ref().unwrap();
         assert_eq!(combat.state.discard_pile.iter().filter(|card|
             combat.card_registry.card_name(card.def_id) == "Dazed").count(), 2);
@@ -16017,7 +15929,7 @@ mod tests {
             assert_eq!(combat.ai_rng.counter, 3);
         }
         let hp_before = trio.combat_engine.as_ref().unwrap().state.player.hp;
-        trio.step(&RunAction::CombatAction(crate::actions::Action::EndTurn));
+        trio.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         let combat = trio.combat_engine.as_ref().unwrap();
         assert_eq!(combat.state.player.hp, hp_before - 10);
         assert_eq!(combat.state.discard_pile.iter().filter(|card|
@@ -16443,7 +16355,7 @@ mod tests {
         let actions = engine.get_legal_actions();
         assert!(!actions.is_empty(), "Should have map choice actions");
         for a in &actions {
-            assert!(matches!(a, RunAction::ChoosePath(_)));
+            assert!(matches!(a, GameAction::ChoosePath(_)));
         }
     }
 
@@ -16455,8 +16367,9 @@ mod tests {
         assert!(!actions.is_empty());
 
         // Take first path
-        let (_, done) = engine.step(&actions[0]);
-        assert!(!done);
+        let outcome = engine.step_game(&actions[0]);
+        assert!(outcome.accepted());
+        assert!(!outcome.is_terminal());
         assert_eq!(engine.phase, RunPhase::Combat);
         assert_eq!(engine.run_state.floor, 1);
     }
@@ -16475,7 +16388,7 @@ mod tests {
                 break;
             }
             let idx = rng.random_index(actions.len());
-            engine.step(&actions[idx]);
+            engine.step_game(&actions[idx]);
             steps += 1;
         }
 
@@ -16496,9 +16409,9 @@ mod tests {
         engine.phase = RunPhase::Campfire;
 
         let actions = engine.get_legal_actions();
-        assert!(actions.contains(&RunAction::CampfireRest));
+        assert!(actions.contains(&GameAction::CampfireRest));
 
-        engine.step(&RunAction::CampfireRest);
+        engine.step_game(&GameAction::CampfireRest);
         // Source: CampfireSleepEffect.java casts maxHealth * 0.3f to int,
         // so 72 max HP heals 21 rather than rounding 21.6 up to 22.
         assert_eq!(engine.run_state.current_hp, 71);
@@ -16513,7 +16426,7 @@ mod tests {
             "Eruption".to_string(),
         ];
 
-        engine.step(&RunAction::CampfireUpgrade(1));
+        engine.step_game(&GameAction::CampfireUpgrade(1));
         assert_eq!(engine.run_state.deck[1], "Eruption+");
     }
 
@@ -16529,8 +16442,8 @@ mod tests {
             engine.phase = RunPhase::Campfire;
             assert!(engine
                 .get_legal_actions()
-                .contains(&RunAction::CampfireUpgrade(0)));
-            engine.step(&RunAction::CampfireUpgrade(0));
+                .contains(&GameAction::CampfireUpgrade(0)));
+            engine.step_game(&GameAction::CampfireUpgrade(0));
             assert_eq!(engine.run_state.deck[0], "Searing Blow+");
             assert_eq!(engine.run_state.deck_card_states[0].misc, expected_level);
         }
@@ -16594,16 +16507,16 @@ mod tests {
         engine.phase = RunPhase::Event;
 
         assert!(engine
-            .step_with_result(&RunAction::EventChoice(0))
-            .action_accepted);
+            .step_game(&GameAction::EventChoice(0))
+            .accepted());
         assert!(!engine
             .run_state
             .relics
             .iter()
             .any(|relic| relic == "Golden Idol"));
         assert!(engine
-            .step_with_result(&RunAction::SelectRewardItem(0))
-            .action_accepted);
+            .step_game(&GameAction::SelectRewardItem(0))
+            .accepted());
         assert!(engine
             .run_state
             .relics
@@ -16855,7 +16768,7 @@ mod tests {
         ]);
         let deck_before = engine.run_state.deck.len();
 
-        engine.step(&RunAction::SelectRewardItem(0));
+        engine.step_game(&GameAction::SelectRewardItem(0));
         assert_eq!(
             engine.current_reward_screen().as_ref().and_then(|screen| screen.active_item),
             Some(0)
@@ -16863,8 +16776,8 @@ mod tests {
         assert!(engine
             .get_legal_actions()
             .iter()
-            .all(|action| matches!(action, RunAction::ChooseRewardOption { item_index: 0, .. } | RunAction::SkipRewardItem(0))));
-        engine.step(&RunAction::ChooseRewardOption {
+            .all(|action| matches!(action, GameAction::ChooseRewardOption { item_index: 0, .. } | GameAction::SkipRewardItem(0))));
+        engine.step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 1,
         });
@@ -16881,7 +16794,7 @@ mod tests {
         ]);
         let deck_before = engine.run_state.deck.len();
 
-        engine.step(&RunAction::SkipRewardItem(0));
+        engine.step_game(&GameAction::SkipRewardItem(0));
         assert_eq!(engine.run_state.deck.len(), deck_before);
     }
 
@@ -16893,7 +16806,7 @@ mod tests {
 
         let actions = engine.get_legal_actions();
         assert!(!actions.is_empty());
-        assert!(actions.iter().all(|a| matches!(a, RunAction::EventChoice(_))));
+        assert!(actions.iter().all(|a| matches!(a, GameAction::EventChoice(_))));
     }
 
     #[test]
@@ -16904,10 +16817,10 @@ mod tests {
         assert_eq!(engine.phase, RunPhase::Shop);
 
         let actions = engine.get_legal_actions();
-        assert!(actions.contains(&RunAction::ShopLeave));
+        assert!(actions.contains(&GameAction::ShopLeave));
 
         // Leave shop
-        engine.step(&RunAction::ShopLeave);
+        engine.step_game(&GameAction::ShopLeave);
         assert_eq!(engine.phase, RunPhase::MapChoice);
     }
 
@@ -16946,8 +16859,8 @@ mod tests {
         engine.debug_set_typed_event_state(event.clone());
 
         assert!(engine
-            .step_with_result(&RunAction::EventChoice(0))
-            .action_accepted);
+            .step_game(&GameAction::EventChoice(0))
+            .accepted());
         assert_eq!(engine.current_phase(), RunPhase::Event);
         assert_eq!(engine.run_state.current_hp, 72);
         assert_eq!(engine.run_state.gold, gold_before);
@@ -16963,8 +16876,8 @@ mod tests {
 
         let deck_before = engine.run_state.deck.len();
         assert!(engine
-            .step_with_result(&RunAction::EventChoice(0))
-            .action_accepted);
+            .step_game(&GameAction::EventChoice(0))
+            .accepted());
         assert_eq!(engine.current_phase(), RunPhase::MapChoice);
         assert_eq!(engine.run_state.deck.len(), deck_before + 1);
         assert_eq!(engine.run_state.deck.last().map(String::as_str), Some("Injury"));
@@ -16973,16 +16886,16 @@ mod tests {
         damage.run_state.max_hp = 72;
         damage.run_state.current_hp = 72;
         damage.debug_set_typed_event_state(event.clone());
-        damage.step(&RunAction::EventChoice(0));
-        damage.step(&RunAction::EventChoice(1));
+        damage.step_game(&GameAction::EventChoice(0));
+        damage.step_game(&GameAction::EventChoice(1));
         assert_eq!(damage.run_state.current_hp, 54);
 
         let mut asc15 = RunEngine::new(44, 15);
         asc15.run_state.max_hp = 100;
         asc15.run_state.current_hp = 100;
         asc15.debug_set_typed_event_state(event.clone());
-        asc15.step(&RunAction::EventChoice(0));
-        asc15.step(&RunAction::EventChoice(2));
+        asc15.step_game(&GameAction::EventChoice(0));
+        asc15.step_game(&GameAction::EventChoice(2));
         assert_eq!(asc15.run_state.max_hp, 90);
         assert_eq!(asc15.run_state.current_hp, 90);
 
@@ -16990,7 +16903,7 @@ mod tests {
         duplicate.run_state.relics.push("Golden Idol".to_string());
         duplicate.run_state.relic_flags.rebuild(&duplicate.run_state.relics);
         duplicate.debug_set_typed_event_state(event);
-        duplicate.step(&RunAction::EventChoice(0));
+        duplicate.step_game(&GameAction::EventChoice(0));
         assert_eq!(
             duplicate
                 .run_state
@@ -17022,7 +16935,7 @@ mod tests {
             engine.debug_enter_specific_combat(&["Cultist"]);
             engine.debug_force_current_combat_outcome(true);
             engine.debug_resolve_current_combat_outcome();
-            engine.step(&RunAction::SelectRewardItem(0));
+            engine.step_game(&GameAction::SelectRewardItem(0));
             engine.run_state.gold - gold_before
         }
 
@@ -17150,16 +17063,16 @@ mod tests {
 
         // Should have removal options available
         let actions = engine.get_legal_actions();
-        let has_remove = actions.iter().any(|a| matches!(a, RunAction::ShopRemoveCard(_)));
+        let has_remove = actions.iter().any(|a| matches!(a, GameAction::ShopRemoveCard(_)));
         assert!(has_remove, "Should offer card removal before first use");
 
         // Remove a card
-        engine.step(&RunAction::ShopRemoveCard(0));
+        engine.step_game(&GameAction::ShopRemoveCard(0));
         assert_eq!(engine.run_state.deck.len(), 9);
 
         // After removal, should NOT have removal options
         let actions_after = engine.get_legal_actions();
-        let has_remove_after = actions_after.iter().any(|a| matches!(a, RunAction::ShopRemoveCard(_)));
+        let has_remove_after = actions_after.iter().any(|a| matches!(a, GameAction::ShopRemoveCard(_)));
         assert!(!has_remove_after, "Should not offer card removal after first use");
     }
 

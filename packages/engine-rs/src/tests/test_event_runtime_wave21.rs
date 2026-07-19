@@ -2,7 +2,7 @@ use crate::decision::RewardChoice;
 use crate::decision::RewardScreenSource;
 use crate::events::{typed_shrine_events, TypedEventDef};
 use crate::run::{
-    ProfileSnapshot, ProfileUpdate, RunAction, RunEngine, RunPhase,
+    ProfileSnapshot, ProfileUpdate, GameAction, RunEngine, RunPhase,
 };
 
 // Java oracle:
@@ -19,12 +19,12 @@ fn typed_shrine_event(name: &str) -> TypedEventDef {
 fn advance_note_event_to_reward(engine: &mut RunEngine) {
     engine.debug_set_typed_event_state(typed_shrine_event("NoteForYourself"));
 
-    let intro = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(intro.action_accepted);
+    let intro = engine.step_game(&GameAction::EventChoice(0));
+    assert!(intro.accepted());
     assert_eq!(engine.current_phase(), RunPhase::Event);
 
-    let take = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(take.action_accepted);
+    let take = engine.step_game(&GameAction::EventChoice(0));
+    assert!(take.accepted());
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
 }
 
@@ -54,15 +54,15 @@ fn note_for_yourself_claims_stored_card_then_saves_selected_deck_card_for_future
         Some("IronWave+")
     );
 
-    engine.step(&RunAction::SelectRewardItem(0));
-    engine.step(&RunAction::ChooseRewardOption {
+    engine.step_game(&GameAction::SelectRewardItem(0));
+    engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index: 0,
     });
     assert!(engine.run_state.deck.iter().any(|card| card == "IronWave+"));
 
-    engine.step(&RunAction::SelectRewardItem(1));
-    engine.step(&RunAction::ChooseRewardOption {
+    engine.step_game(&GameAction::SelectRewardItem(1));
+    engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 1,
         choice_index: 0,
     });
@@ -90,8 +90,8 @@ fn note_for_yourself_claims_stored_card_then_saves_selected_deck_card_for_future
     }
     let mut next_run = RunEngine::new_with_profile(56, 20, next_profile);
     next_run.debug_set_typed_event_state(typed_shrine_event("NoteForYourself"));
-    next_run.step(&RunAction::EventChoice(0));
-    next_run.step(&RunAction::EventChoice(0));
+    next_run.step_game(&GameAction::EventChoice(0));
+    next_run.step_game(&GameAction::EventChoice(0));
     let next_screen = next_run
         .current_reward_screen()
         .expect("next run note reward screen should exist");
@@ -109,8 +109,8 @@ fn note_for_yourself_can_store_the_just_claimed_note_again() {
 
     advance_note_event_to_reward(&mut engine);
 
-    engine.step(&RunAction::SelectRewardItem(0));
-    engine.step(&RunAction::ChooseRewardOption {
+    engine.step_game(&GameAction::SelectRewardItem(0));
+    engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index: 0,
     });
@@ -124,8 +124,8 @@ fn note_for_yourself_can_store_the_just_claimed_note_again() {
         Some("IronWave+")
     );
 
-    engine.step(&RunAction::SelectRewardItem(1));
-    engine.step(&RunAction::ChooseRewardOption {
+    engine.step_game(&GameAction::SelectRewardItem(1));
+    engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 1,
         choice_index: note_choice_index,
     });

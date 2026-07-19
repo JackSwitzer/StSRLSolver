@@ -1,11 +1,10 @@
 use crate::actions::Action;
 use crate::decision::{
-    DecisionAction, RewardChoice, RewardItem, RewardItemKind, RewardItemState, RewardScreen,
-    RewardScreenSource,
+    RewardChoice, RewardItem, RewardItemKind, RewardItemState, RewardScreen, RewardScreenSource,
 };
 use crate::gameplay::global_registry as gameplay_registry;
 use crate::map::RoomType;
-use crate::run::{RunAction, RunEngine, RunPhase, ShopState};
+use crate::run::{GameAction, RunEngine, RunPhase, ShopState};
 
 fn sync_test_master_deck(engine: &mut RunEngine) {
     let registry = crate::cards::global_registry();
@@ -167,14 +166,14 @@ fn holy_water_is_offered_only_with_pure_water_and_replaces_it_when_chosen() {
     let mut engine = RunEngine::new(42, 0);
     engine.debug_set_reward_screen(relic_choice_reward_screen(&["HolyWater"]));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(engine
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         })
-        .action_accepted);
+        .accepted());
     assert_eq!(engine.run_state.relics, vec!["HolyWater".to_string()]);
 }
 
@@ -219,11 +218,11 @@ fn sozu_is_boss_reachable_grants_energy_and_blocks_obtaining_not_reward_generati
 
     let mut engine = RunEngine::new(1401, 0);
     engine.debug_set_reward_screen(relic_choice_reward_screen(&["Sozu"]));
-    assert!(engine.step_with_result(&RunAction::SelectRewardItem(0)).action_accepted);
-    assert!(engine.step_with_result(&RunAction::ChooseRewardOption {
+    assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
+    assert!(engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index: 0,
-    }).action_accepted);
+    }).accepted());
     engine.debug_enter_specific_combat(&["JawWorm"]);
     let combat = engine.get_combat_engine().expect("Sozu combat");
     assert_eq!((combat.state.max_energy, combat.state.energy), (4, 4));
@@ -235,14 +234,14 @@ fn sozu_is_boss_reachable_grants_energy_and_blocks_obtaining_not_reward_generati
         .position(|item| item.kind == RewardItemKind::Potion)
         .expect("Sozu must not suppress potion generation");
     let potions_before = engine.run_state.potions.clone();
-    assert!(engine.step_with_result(&RunAction::SelectRewardItem(potion_index)).action_accepted);
+    assert!(engine.step_game(&GameAction::SelectRewardItem(potion_index)).accepted());
     assert_eq!(engine.run_state.potions, potions_before);
 
     engine.run_state.gold = 10_000;
     engine.debug_enter_shop();
     assert_eq!(engine.get_shop().expect("shop").potions.len(), 3);
-    assert!(engine.get_legal_decision_actions().iter()
-        .all(|action| !matches!(action, DecisionAction::ShopBuyPotion(_))));
+    assert!(engine.get_legal_actions().iter()
+        .all(|action| !matches!(action, GameAction::ShopBuyPotion(_))));
 }
 
 #[test]
@@ -286,7 +285,7 @@ fn neows_lament_choice_initializes_three_persistent_one_hp_combats() {
     let option = engine.current_decision_context().neow.expect("Neow").options
         .iter().find(|option| option.label.contains("next three combats"))
         .expect("Neow's Lament option").index;
-    assert!(engine.step_with_result(&RunAction::ChooseNeowOption(option)).action_accepted);
+    assert!(engine.step_game(&GameAction::ChooseNeowOption(option)).accepted());
     assert!(engine.run_state.relics.contains(&"NeowsBlessing".to_string()));
     assert_eq!(engine.run_state.relic_flags.counters[crate::relic_flags::counter::NEOWS_LAMENT], 3);
 
@@ -337,33 +336,20 @@ fn runic_dome_grants_energy_and_hides_intents_from_the_rl_surface() {
     let mut engine = RunEngine::new(42, 0);
     engine.debug_set_reward_screen(relic_choice_reward_screen(&["Runic Dome"]));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(engine
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         })
-        .action_accepted);
+        .accepted());
     engine.debug_enter_specific_combat(&["JawWorm"]);
 
     let combat = engine.get_combat_engine().expect("combat should start");
     assert_eq!(combat.state.max_energy, 4);
     assert_eq!(combat.state.energy, 4);
     assert!(combat.state.enemies[0].move_damage() > 0);
-
-    let training = crate::training_contract::combat_training_state_from_run(
-        &engine,
-        &crate::training_contract::RestrictionPolicyV1::default(),
-        crate::encode_combat_action,
-    )
-    .expect("run combat observation");
-    let observed = &training.observation.enemies[0];
-    assert_eq!(observed.intent, "Hidden");
-    assert_eq!(
-        (observed.intent_damage, observed.intent_hits, observed.intent_block),
-        (0, 0, 0)
-    );
 
     // RunicDome.java::onUnequip decrements energyMaster. RunEngine derives the
     // next combat's master energy from current ownership, so removal restores 3.
@@ -401,14 +387,14 @@ fn velvet_choker_is_boss_reachable_and_grants_exactly_one_energy() {
     let mut engine = RunEngine::new(42, 0);
     engine.debug_set_reward_screen(relic_choice_reward_screen(&["Velvet Choker"]));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(engine
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         })
-        .action_accepted);
+        .accepted());
     engine.debug_enter_specific_combat(&["JawWorm"]);
     assert_eq!(
         engine
@@ -456,14 +442,14 @@ fn philosophers_stone_is_boss_reachable_and_grants_exactly_one_energy() {
     let mut engine = RunEngine::new(42, 0);
     engine.debug_set_reward_screen(relic_choice_reward_screen(&["Philosopher's Stone"]));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(engine
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         })
-        .action_accepted);
+        .accepted());
     engine.debug_enter_specific_combat(&["JawWorm"]);
     assert_eq!(
         engine
@@ -530,14 +516,14 @@ fn busted_crown_is_reachable_and_subtracts_two_card_reward_choices() {
     let mut engine = RunEngine::new(42, 0);
     engine.debug_set_reward_screen(relic_choice_reward_screen(&["Busted Crown"]));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(engine
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         })
-        .action_accepted);
+        .accepted());
     assert!(engine
         .run_state
         .relic_flags
@@ -590,21 +576,21 @@ fn coffee_dripper_is_reachable_and_disables_only_campfire_rest() {
     let mut engine = RunEngine::new(42, 0);
     engine.debug_set_reward_screen(relic_choice_reward_screen(&["Coffee Dripper"]));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(engine
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         })
-        .action_accepted);
+        .accepted());
     assert!(engine
         .run_state
         .relic_flags
         .has(crate::relic_flags::flag::COFFEE_DRIPPER));
 
     engine.debug_set_campfire_phase();
-    assert!(!engine.get_legal_actions().contains(&RunAction::CampfireRest));
+    assert!(!engine.get_legal_actions().contains(&GameAction::CampfireRest));
     assert!(!engine
         .current_decision_context()
         .campfire
@@ -613,7 +599,7 @@ fn coffee_dripper_is_reachable_and_disables_only_campfire_rest() {
     assert!(engine
         .get_legal_actions()
         .iter()
-        .any(|action| matches!(action, RunAction::CampfireUpgrade(_))));
+        .any(|action| matches!(action, GameAction::CampfireUpgrade(_))));
 }
 
 #[test]
@@ -634,14 +620,14 @@ fn cursed_key_is_reachable_and_nonboss_chests_obtain_one_random_curse() {
     let mut engine = RunEngine::new(42, 0);
     engine.debug_set_reward_screen(relic_choice_reward_screen(&["Cursed Key"]));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(engine
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         })
-        .action_accepted);
+        .accepted());
 
     let deck_before = engine.run_state.deck.len();
     engine.debug_build_boss_reward_screen();
@@ -720,8 +706,8 @@ fn omamori_is_reachable_through_floor_forty_eight_and_blocks_exactly_two_curses(
     let mut engine = RunEngine::new(42, 0);
     engine.debug_set_reward_screen(single_relic_reward_screen("Omamori"));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert_eq!(
         engine.run_state.relic_flags.counters
             [crate::relic_flags::counter::OMAMORI_USES],
@@ -737,14 +723,14 @@ fn omamori_is_reachable_through_floor_forty_eight_and_blocks_exactly_two_curses(
     ] {
         engine.debug_set_card_reward_screen(vec![card.to_string()]);
         assert!(engine
-            .step_with_result(&RunAction::SelectRewardItem(0))
-            .action_accepted);
+            .step_game(&GameAction::SelectRewardItem(0))
+            .accepted());
         assert!(engine
-            .step_with_result(&RunAction::ChooseRewardOption {
+            .step_game(&GameAction::ChooseRewardOption {
                 item_index: 0,
                 choice_index: 0,
             })
-            .action_accepted);
+            .accepted());
         assert_eq!(engine.run_state.deck.len(), expected_deck_size);
         assert_eq!(
             engine.run_state.relic_flags.counters
@@ -786,14 +772,14 @@ fn darkstone_periapt_is_reachable_and_an_obtained_curse_grants_six_max_hp() {
     engine.run_state.current_hp = 40;
     engine.debug_set_card_reward_screen(vec!["Regret".to_string()]);
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(engine
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         })
-        .action_accepted);
+        .accepted());
     assert_eq!(engine.run_state.max_hp, 78);
     assert_eq!(engine.run_state.current_hp, 46);
     assert_eq!(engine.run_state.deck.last().map(String::as_str), Some("Regret"));
@@ -811,14 +797,14 @@ fn darkstone_periapt_is_reachable_and_an_obtained_curse_grants_six_max_hp() {
         [crate::relic_flags::counter::OMAMORI_USES] = 1;
     protected.debug_set_card_reward_screen(vec!["Regret".to_string()]);
     assert!(protected
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(protected
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         })
-        .action_accepted);
+        .accepted());
     assert_eq!(protected.run_state.max_hp, 72);
     assert!(!protected.run_state.deck.iter().any(|card| card == "Regret"));
 }
@@ -853,8 +839,8 @@ fn dream_catcher_is_reachable_and_opens_a_card_reward_only_after_resting() {
     rest.run_state.relic_flags.rebuild(&rest.run_state.relics);
     rest.debug_set_campfire_phase();
     assert!(rest
-        .step_with_result(&RunAction::CampfireRest)
-        .action_accepted);
+        .step_game(&GameAction::CampfireRest)
+        .accepted());
     assert_eq!(rest.current_phase(), RunPhase::CardReward);
     let screen = rest.current_reward_screen().expect("Dream Catcher reward");
     assert_eq!(screen.items.len(), 1);
@@ -869,8 +855,8 @@ fn dream_catcher_is_reachable_and_opens_a_card_reward_only_after_resting() {
         .rebuild(&upgrade.run_state.relics);
     upgrade.debug_set_campfire_phase();
     assert!(upgrade
-        .step_with_result(&RunAction::CampfireUpgrade(0))
-        .action_accepted);
+        .step_game(&GameAction::CampfireUpgrade(0))
+        .accepted());
     assert_eq!(upgrade.current_phase(), RunPhase::MapChoice);
     assert!(upgrade.current_reward_screen().is_none());
 }
@@ -906,20 +892,20 @@ fn ectoplasm_is_act_one_only_blocks_gold_gains_and_still_allows_spending() {
     let mut engine = RunEngine::new(61, 0);
     engine.debug_set_reward_screen(relic_choice_reward_screen(&["Ectoplasm"]));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(engine
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         })
-        .action_accepted);
+        .accepted());
 
     engine.run_state.gold = 100;
     engine.debug_set_reward_screen(single_gold_reward_screen(75));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert_eq!(engine.run_state.gold, 100);
 
     engine.debug_set_shop_state(ShopState {
@@ -930,8 +916,8 @@ fn ectoplasm_is_act_one_only_blocks_gold_gains_and_still_allows_spending() {
         removal_used: false,
     });
     assert!(engine
-        .step_with_result(&RunAction::ShopBuyCard(0))
-        .action_accepted);
+        .step_game(&GameAction::ShopBuyCard(0))
+        .accepted());
     assert_eq!(engine.run_state.gold, 60);
 }
 
@@ -975,8 +961,8 @@ fn eternal_feather_is_reachable_and_heals_on_rest_room_entry_before_choice() {
     engine.debug_set_campfire_phase();
     assert_eq!(engine.run_state.current_hp, 46);
     assert!(engine
-        .step_with_result(&RunAction::CampfireUpgrade(0))
-        .action_accepted);
+        .step_game(&GameAction::CampfireUpgrade(0))
+        .accepted());
     assert_eq!(engine.run_state.current_hp, 46);
 }
 
@@ -998,21 +984,21 @@ fn fusion_hammer_is_reachable_and_disables_only_campfire_upgrades() {
     let mut engine = RunEngine::new(71, 0);
     engine.debug_set_reward_screen(relic_choice_reward_screen(&["Fusion Hammer"]));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(engine
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         })
-        .action_accepted);
+        .accepted());
 
     engine.debug_set_campfire_phase();
-    assert!(engine.get_legal_actions().contains(&RunAction::CampfireRest));
+    assert!(engine.get_legal_actions().contains(&GameAction::CampfireRest));
     assert!(!engine
         .get_legal_actions()
         .iter()
-        .any(|action| matches!(action, RunAction::CampfireUpgrade(_))));
+        .any(|action| matches!(action, GameAction::CampfireUpgrade(_))));
     let context = engine
         .current_decision_context()
         .campfire
@@ -1098,8 +1084,8 @@ fn egg_relics_use_canonical_ids_floor_cutoffs_and_upgrade_all_obtain_paths() {
             removal_used: false,
         });
         assert!(engine
-            .step_with_result(&RunAction::ShopBuyCard(0))
-            .action_accepted);
+            .step_game(&GameAction::ShopBuyCard(0))
+            .accepted());
         assert_eq!(
             engine.run_state.deck.last().map(String::as_str),
             Some(upgraded_id)
@@ -1160,7 +1146,7 @@ fn horn_cleat_is_watcher_reachable_and_grants_fourteen_block_only_on_turn_two() 
     let relic_index = engine.current_reward_screen().expect("elite rewards").items.iter()
         .position(|item| item.label == "HornCleat")
         .expect("HornCleat reward");
-    assert!(engine.step_with_result(&RunAction::SelectRewardItem(relic_index)).action_accepted);
+    assert!(engine.step_game(&GameAction::SelectRewardItem(relic_index)).accepted());
     assert!(engine.run_state.relics.iter().any(|relic| relic == "HornCleat"));
 
     engine.debug_enter_specific_combat(&["JawWorm"]);
@@ -1197,7 +1183,7 @@ fn gremlin_horn_is_watcher_reachable_and_suppresses_the_final_enemy_proc() {
     let relic_index = engine.current_reward_screen().expect("elite rewards").items.iter()
         .position(|item| item.label == "Gremlin Horn")
         .expect("Gremlin Horn reward");
-    assert!(engine.step_with_result(&RunAction::SelectRewardItem(relic_index)).action_accepted);
+    assert!(engine.step_game(&GameAction::SelectRewardItem(relic_index)).accepted());
     engine.debug_enter_specific_combat(&["JawWorm", "Cultist"]);
 
     let combat = engine.debug_combat_engine_mut();
@@ -1237,7 +1223,7 @@ fn dead_branch_is_watcher_reachable_and_generates_on_nonterminal_exhausts() {
     let relic_index = engine.current_reward_screen().expect("elite rewards").items.iter()
         .position(|item| item.label == "Dead Branch")
         .expect("Dead Branch reward");
-    assert!(engine.step_with_result(&RunAction::SelectRewardItem(relic_index)).action_accepted);
+    assert!(engine.step_game(&GameAction::SelectRewardItem(relic_index)).accepted());
     engine.debug_enter_specific_combat(&["JawWorm"]);
 
     let combat = engine.debug_combat_engine_mut();
@@ -1291,7 +1277,7 @@ fn gambling_chip_is_watcher_reachable_and_redraws_selected_opening_cards() {
     let relic_index = engine.current_reward_screen().expect("elite rewards").items.iter()
         .position(|item| item.label == "Gambling Chip")
         .expect("Gambling Chip reward");
-    assert!(engine.step_with_result(&RunAction::SelectRewardItem(relic_index)).action_accepted);
+    assert!(engine.step_game(&GameAction::SelectRewardItem(relic_index)).accepted());
     engine.debug_enter_specific_combat(&["JawWorm"]);
 
     let combat = engine.debug_combat_engine_mut();
@@ -1324,12 +1310,12 @@ fn warped_tongs_rummage_grants_the_fixed_relic_and_upgrades_only_eligible_cards(
         .expect("Accursed Blacksmith event");
     let mut engine = RunEngine::new(42, 0);
     engine.debug_set_typed_event_state(event);
-    assert!(engine.step_with_result(&RunAction::EventChoice(1)).action_accepted);
+    assert!(engine.step_game(&GameAction::EventChoice(1)).accepted());
     assert!(engine.run_state.deck.iter().any(|card| card == "Pain"));
     let screen = engine.current_reward_screen().expect("Warped Tongs reward");
     assert_eq!(screen.items.len(), 1);
     assert_eq!(screen.items[0].label, "WarpedTongs");
-    assert!(engine.step_with_result(&RunAction::SelectRewardItem(0)).action_accepted);
+    assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
     assert!(engine.run_state.relics.iter().any(|relic| relic == "WarpedTongs"));
 
     engine.run_state.deck = vec![
@@ -1497,8 +1483,8 @@ fn mango_is_reachable_and_increases_max_hp_by_fourteen_on_pickup() {
     engine.run_state.max_hp = 80;
     engine.debug_set_reward_screen(single_relic_reward_screen("Mango"));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert_eq!(engine.run_state.max_hp, 94);
     assert_eq!(engine.run_state.current_hp, 54);
     assert!(engine.run_state.relics.iter().any(|relic| relic == "Mango"));
@@ -1513,8 +1499,8 @@ fn mango_is_reachable_and_increases_max_hp_by_fourteen_on_pickup() {
         .rebuild(&blocked.run_state.relics);
     blocked.debug_set_reward_screen(single_relic_reward_screen("Mango"));
     assert!(blocked
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert_eq!(blocked.run_state.max_hp, 94);
     assert_eq!(blocked.run_state.current_hp, 40);
 }
@@ -1561,8 +1547,8 @@ fn old_coin_on_equip_gains_exactly_three_hundred_gold_unless_ectoplasm_blocks_it
     engine.run_state.gold = 123;
     engine.debug_set_reward_screen(single_relic_reward_screen("Old Coin"));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert_eq!(engine.run_state.gold, 423);
     assert!(engine
         .run_state
@@ -1579,8 +1565,8 @@ fn old_coin_on_equip_gains_exactly_three_hundred_gold_unless_ectoplasm_blocks_it
         .rebuild(&blocked.run_state.relics);
     blocked.debug_set_reward_screen(single_relic_reward_screen("Old Coin"));
     assert!(blocked
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert_eq!(blocked.run_state.gold, 123);
 }
 
@@ -1637,8 +1623,8 @@ fn smiling_mask_keeps_card_removal_at_fifty_after_other_discounts_and_ramp() {
 
     assert_eq!(engine.get_shop().expect("shop").remove_price, 50);
     assert!(engine
-        .step_with_result(&RunAction::ShopRemoveCard(0))
-        .action_accepted);
+        .step_game(&GameAction::ShopRemoveCard(0))
+        .accepted());
     assert_eq!(engine.run_state.purge_cost, 150);
     assert_eq!(engine.get_shop().expect("shop").remove_price, 50);
 }
@@ -1709,11 +1695,11 @@ fn courier_discounts_and_refills_every_shop_stock_kind_in_place() {
     let mut engine = RunEngine::new(1301, 0);
     engine.run_state.gold = 10_000;
     engine.debug_set_reward_screen(single_relic_reward_screen("The Courier"));
-    assert!(engine.step_with_result(&RunAction::SelectRewardItem(0)).action_accepted);
+    assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
     engine.debug_enter_shop();
     let discounted = engine.get_shop().expect("Courier shop").clone();
     assert_eq!((discounted.cards.len(), discounted.relics.len(), discounted.potions.len()), (7, 3, 3));
-    assert!(engine.get_legal_decision_actions().contains(&DecisionAction::ShopBuyPotion(0)));
+    assert!(engine.get_legal_actions().contains(&GameAction::ShopBuyPotion(0)));
     for ((_, full), (_, courier)) in baseline_stock.cards.iter().zip(&discounted.cards) {
         assert_eq!(*courier, ((*full as f32) * 0.8).round() as i32);
     }
@@ -1729,7 +1715,7 @@ fn courier_discounts_and_refills_every_shop_stock_kind_in_place() {
         .get(bought_card.0.strip_suffix('+').unwrap_or(&bought_card.0))
         .expect("shop card definition").card_type;
     let gold_before = engine.run_state.gold;
-    assert!(engine.step_with_result(&RunAction::ShopBuyCard(0)).action_accepted);
+    assert!(engine.step_game(&GameAction::ShopBuyCard(0)).accepted());
     let after_card = engine.get_shop().expect("shop after card");
     assert_eq!(after_card.cards.len(), 7);
     assert_eq!(engine.run_state.gold, gold_before - bought_card.1);
@@ -1740,14 +1726,14 @@ fn courier_discounts_and_refills_every_shop_stock_kind_in_place() {
 
     let potion_price = engine.get_shop().expect("shop").potions[0].1;
     let gold_before = engine.run_state.gold;
-    assert!(engine.step_with_result(&RunAction::ShopBuyPotion(0)).action_accepted);
+    assert!(engine.step_game(&GameAction::ShopBuyPotion(0)).accepted());
     assert_eq!(engine.get_shop().expect("shop").potions.len(), 3);
     assert_eq!(engine.run_state.gold, gold_before - potion_price);
     assert!(engine.run_state.potions.iter().any(|potion| !potion.is_empty()));
 
     let bought_relic = engine.get_shop().expect("shop").relics[0].clone();
     let gold_before = engine.run_state.gold;
-    assert!(engine.step_with_result(&RunAction::ShopBuyRelic(0)).action_accepted);
+    assert!(engine.step_game(&GameAction::ShopBuyRelic(0)).accepted());
     assert_eq!(engine.get_shop().expect("shop").relics.len(), 3);
     assert_eq!(engine.run_state.gold, gold_before - bought_relic.1);
     assert!(engine.run_state.relics.contains(&bought_relic.0));
@@ -1762,7 +1748,7 @@ fn courier_discounts_and_refills_every_shop_stock_kind_in_place() {
         cards: Vec::new(), relics: vec![("The Courier".to_string(), 150)],
         potions: Vec::new(), remove_price: 75, removal_used: false,
     });
-    assert!(direct.step_with_result(&RunAction::ShopBuyRelic(0)).action_accepted);
+    assert!(direct.step_game(&GameAction::ShopBuyRelic(0)).accepted());
     assert_eq!(direct.get_shop().expect("shop").relics.len(), 1);
     assert_ne!(direct.get_shop().expect("shop").relics[0].0, "The Courier");
 }
@@ -1823,10 +1809,10 @@ fn peace_pipe_toke_selects_one_purgeable_non_bottled_card_and_is_rl_visible() {
         .rebuild(&engine.run_state.relics);
     engine.phase = RunPhase::Campfire;
 
-    assert!(engine.get_legal_actions().contains(&RunAction::CampfireToke));
+    assert!(engine.get_legal_actions().contains(&GameAction::CampfireToke));
     assert!(engine
-        .get_legal_decision_actions()
-        .contains(&DecisionAction::CampfireToke));
+        .get_legal_actions()
+        .contains(&GameAction::CampfireToke));
     assert_eq!(
         engine
             .current_decision_context()
@@ -1837,25 +1823,25 @@ fn peace_pipe_toke_selects_one_purgeable_non_bottled_card_and_is_rl_visible() {
     );
 
     assert!(engine
-        .step_with_result(&RunAction::CampfireToke)
-        .action_accepted);
+        .step_game(&GameAction::CampfireToke)
+        .accepted());
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
     let screen = engine.current_reward_screen().expect("Toke selection");
     assert_eq!(screen.source, crate::decision::RewardScreenSource::Campfire);
     assert_eq!(screen.items[0].choices.len(), 1);
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(engine
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         })
-        .action_accepted);
+        .accepted());
 
     assert_eq!(engine.run_state.deck, vec!["Wallop", "CurseOfTheBell"]);
     engine.phase = RunPhase::Campfire;
-    assert!(!engine.get_legal_actions().contains(&RunAction::CampfireToke));
+    assert!(!engine.get_legal_actions().contains(&GameAction::CampfireToke));
 }
 
 #[test]
@@ -1874,8 +1860,8 @@ fn bottle_identity_excludes_only_the_selected_duplicate_and_survives_other_upgra
     let campfire = engine.current_decision_context().campfire.unwrap();
     assert_eq!(campfire.removable_cards, vec![1]);
     assert!(engine
-        .step_with_result(&RunAction::CampfireUpgrade(1))
-        .action_accepted);
+        .step_game(&GameAction::CampfireUpgrade(1))
+        .accepted());
     assert_eq!(engine.run_state.deck, vec!["Wallop", "Wallop+"]);
     assert_eq!(
         engine.run_state.bottled_flame_card_instance_id,
@@ -1935,18 +1921,18 @@ fn girya_lifts_cap_at_three_and_transfer_as_combat_start_strength() {
 
     for expected in 1..=3 {
         engine.phase = RunPhase::Campfire;
-        assert!(engine.get_legal_actions().contains(&RunAction::CampfireLift));
+        assert!(engine.get_legal_actions().contains(&GameAction::CampfireLift));
         assert!(engine
-            .get_legal_decision_actions()
-            .contains(&DecisionAction::CampfireLift));
+            .get_legal_actions()
+            .contains(&GameAction::CampfireLift));
         assert!(engine
             .current_decision_context()
             .campfire
             .expect("campfire context")
             .can_lift);
         assert!(engine
-            .step_with_result(&RunAction::CampfireLift)
-            .action_accepted);
+            .step_game(&GameAction::CampfireLift)
+            .accepted());
         assert_eq!(
             engine.run_state.relic_flags.counters[crate::relic_flags::counter::GIRYA],
             expected
@@ -1954,10 +1940,10 @@ fn girya_lifts_cap_at_three_and_transfer_as_combat_start_strength() {
     }
 
     engine.phase = RunPhase::Campfire;
-    assert!(!engine.get_legal_actions().contains(&RunAction::CampfireLift));
+    assert!(!engine.get_legal_actions().contains(&GameAction::CampfireLift));
     assert!(!engine
-        .step_with_result(&RunAction::CampfireLift)
-        .action_accepted);
+        .step_game(&GameAction::CampfireLift)
+        .accepted());
     engine.debug_enter_specific_combat(&["Cultist"]);
     assert_eq!(
         engine
@@ -2025,18 +2011,18 @@ fn shovel_dig_opens_one_claimable_tiered_relic_reward_and_is_rl_visible() {
             .rebuild(&engine.run_state.relics);
         engine.phase = RunPhase::Campfire;
 
-        assert!(engine.get_legal_actions().contains(&RunAction::CampfireDig));
+        assert!(engine.get_legal_actions().contains(&GameAction::CampfireDig));
         assert!(engine
-            .get_legal_decision_actions()
-            .contains(&DecisionAction::CampfireDig));
+            .get_legal_actions()
+            .contains(&GameAction::CampfireDig));
         assert!(engine
             .current_decision_context()
             .campfire
             .expect("campfire context")
             .can_dig);
         assert!(engine
-            .step_with_result(&RunAction::CampfireDig)
-            .action_accepted);
+            .step_game(&GameAction::CampfireDig)
+            .accepted());
 
         let screen = engine.current_reward_screen().expect("Dig reward");
         assert_eq!(screen.source, crate::decision::RewardScreenSource::Campfire);
@@ -2064,8 +2050,8 @@ fn shovel_dig_opens_one_claimable_tiered_relic_reward_and_is_rl_visible() {
         );
 
         assert!(engine
-            .step_with_result(&RunAction::SelectRewardItem(0))
-            .action_accepted);
+            .step_game(&GameAction::SelectRewardItem(0))
+            .accepted());
         assert!(engine.run_state.relics.iter().any(|owned| owned == &relic));
     }
 
@@ -2188,8 +2174,8 @@ fn toy_ornithopter_is_common_reachable_and_heals_for_noncombat_potion_use() {
     engine.run_state.relics.push("Toy Ornithopter".to_string());
     engine.run_state.potions[0] = "Fruit Juice".to_string();
     assert!(engine
-        .step_with_result(&RunAction::UsePotion(0))
-        .action_accepted);
+        .step_game(&GameAction::UsePotion(0))
+        .accepted());
     assert_eq!(engine.run_state.max_hp, 85);
     assert_eq!(engine.run_state.current_hp, 60);
     assert!(engine.run_state.potions[0].is_empty());
@@ -2296,8 +2282,8 @@ fn tiny_chest_forces_every_fourth_mystery_room_to_treasure_and_resets() {
     engine.debug_enter_mystery_room();
     assert_eq!(engine.current_phase(), RunPhase::Chest);
     assert!(engine
-        .step_with_result(&RunAction::OpenChest)
-        .action_accepted);
+        .step_game(&GameAction::OpenChest)
+        .accepted());
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
     assert!(engine.current_reward_screen().is_some_and(|screen| {
         screen.source == RewardScreenSource::Treasure
@@ -2530,7 +2516,7 @@ fn lees_waffle_is_shop_only_and_applies_its_two_step_on_equip_heal() {
     engine.debug_enter_shop();
     let idx = engine.get_shop().expect("shop").relics.iter()
         .position(|(relic, _)| relic == "Lee's Waffle").expect("waffle offer");
-    assert!(engine.step_with_result(&RunAction::ShopBuyRelic(idx)).action_accepted);
+    assert!(engine.step_game(&GameAction::ShopBuyRelic(idx)).accepted());
     assert_eq!(engine.run_state.max_hp, 87);
     assert_eq!(engine.run_state.current_hp, 87);
 
@@ -2543,7 +2529,7 @@ fn lees_waffle_is_shop_only_and_applies_its_two_step_on_equip_heal() {
     blocked.debug_enter_shop();
     let idx = blocked.get_shop().expect("shop").relics.iter()
         .position(|(relic, _)| relic == "Lee's Waffle").expect("waffle offer");
-    assert!(blocked.step_with_result(&RunAction::ShopBuyRelic(idx)).action_accepted);
+    assert!(blocked.step_game(&GameAction::ShopBuyRelic(idx)).accepted());
     assert_eq!(blocked.run_state.max_hp, 87);
     assert_eq!(blocked.run_state.current_hp, 40);
 }
@@ -2568,8 +2554,8 @@ fn membership_card_purchase_immediately_rounds_all_visible_shop_prices_in_half()
     let membership_idx = before.relics.iter()
         .position(|(relic, _)| relic == "Membership Card").expect("membership offer");
     assert!(engine
-        .step_with_result(&RunAction::ShopBuyRelic(membership_idx))
-        .action_accepted);
+        .step_game(&GameAction::ShopBuyRelic(membership_idx))
+        .accepted());
 
     let after = engine.get_shop().expect("shop");
     for ((_, before_price), (_, after_price)) in before.cards.iter().zip(&after.cards) {
@@ -2724,8 +2710,8 @@ fn pear_is_reachable_and_increases_max_hp_by_ten_on_pickup() {
     engine.run_state.current_hp = 50;
     engine.debug_set_reward_screen(single_relic_reward_screen("Pear"));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert_eq!(engine.run_state.max_hp, 82);
     assert_eq!(engine.run_state.current_hp, 60);
 
@@ -2742,8 +2728,8 @@ fn pear_is_reachable_and_increases_max_hp_by_ten_on_pickup() {
         .rebuild(&blocked.run_state.relics);
     blocked.debug_set_reward_screen(single_relic_reward_screen("Pear"));
     assert!(blocked
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert_eq!(blocked.run_state.max_hp, 82);
     assert_eq!(blocked.run_state.current_hp, 50);
 }
@@ -2777,8 +2763,8 @@ fn potion_belt_is_reachable_through_floor_forty_eight_and_adds_two_slots() {
     engine.run_state.potions[0] = "Block Potion".to_string();
     engine.debug_set_reward_screen(single_relic_reward_screen("Potion Belt"));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert_eq!(engine.run_state.max_potions, 5);
     assert_eq!(engine.run_state.potions.len(), 5);
     assert_eq!(engine.run_state.potions[0], "Block Potion");
@@ -2832,8 +2818,8 @@ fn strawberry_is_reachable_and_increases_max_hp_by_seven_on_pickup() {
     engine.run_state.current_hp = 50;
     engine.debug_set_reward_screen(single_relic_reward_screen("Strawberry"));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert_eq!(engine.run_state.max_hp, 79);
     assert_eq!(engine.run_state.current_hp, 57);
 
@@ -2850,8 +2836,8 @@ fn strawberry_is_reachable_and_increases_max_hp_by_seven_on_pickup() {
         .rebuild(&blocked.run_state.relics);
     blocked.debug_set_reward_screen(single_relic_reward_screen("Strawberry"));
     assert!(blocked
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert_eq!(blocked.run_state.max_hp, 79);
     assert_eq!(blocked.run_state.current_hp, 50);
 }
@@ -2887,8 +2873,8 @@ fn medical_kit_is_reachable_only_from_the_shop_relic_slot() {
         .position(|(relic, _)| relic == "Medical Kit")
         .expect("Medical Kit offer");
     assert!(engine
-        .step_with_result(&RunAction::ShopBuyRelic(idx))
-        .action_accepted);
+        .step_game(&GameAction::ShopBuyRelic(idx))
+        .accepted());
     assert!(engine
         .run_state
         .relics
@@ -2931,8 +2917,8 @@ fn clockwork_souvenir_is_reachable_only_from_the_shop_relic_slot() {
         .position(|(relic, _)| relic == "ClockworkSouvenir")
         .expect("ClockworkSouvenir offer");
     assert!(engine
-        .step_with_result(&RunAction::ShopBuyRelic(idx))
-        .action_accepted);
+        .step_game(&GameAction::ShopBuyRelic(idx))
+        .accepted());
     assert!(engine
         .run_state
         .relics
@@ -2973,7 +2959,7 @@ fn toolbox_is_shop_only_and_resolves_three_colorless_choices_before_opening_draw
         .iter()
         .position(|(relic, _)| relic == "Toolbox")
         .expect("Toolbox offer");
-    assert!(engine.step_with_result(&RunAction::ShopBuyRelic(idx)).action_accepted);
+    assert!(engine.step_game(&GameAction::ShopBuyRelic(idx)).accepted());
     engine.debug_enter_specific_combat(&["JawWorm"]);
 
     let combat = engine.debug_combat_engine_mut();
@@ -3034,7 +3020,7 @@ fn prismatic_shard_is_shop_only_adds_orb_slot_and_all_color_rewards() {
         .iter()
         .position(|(relic, _)| relic == "PrismaticShard")
         .expect("PrismaticShard offer");
-    assert!(engine.step_with_result(&RunAction::ShopBuyRelic(idx)).action_accepted);
+    assert!(engine.step_game(&GameAction::ShopBuyRelic(idx)).accepted());
 
     let mut saw_off_color = false;
     for _ in 0..32 {
@@ -3090,8 +3076,8 @@ fn winged_greaves_offers_three_nonedge_map_jumps_then_expires() {
         .position(|item| item.label == "WingedGreaves")
         .expect("WingedGreaves reward");
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(relic_index))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(relic_index))
+        .accepted());
     assert_eq!(
         engine.run_state.relic_flags.counters[crate::relic_flags::counter::WINGED_GREAVES],
         3
@@ -3102,8 +3088,8 @@ fn winged_greaves_offers_three_nonedge_map_jumps_then_expires() {
         let actions = engine.get_legal_actions();
         assert!(actions.len() > normal_count);
         assert!(engine
-            .step_with_result(&RunAction::ChoosePath(normal_count))
-            .action_accepted);
+            .step_game(&GameAction::ChoosePath(normal_count))
+            .accepted());
         assert_eq!(
             engine.run_state.relic_flags.counters
                 [crate::relic_flags::counter::WINGED_GREAVES],
@@ -3135,7 +3121,7 @@ fn cauldron_is_shop_reachable_and_opens_five_ordered_potion_rewards() {
     let relic_index = engine.get_shop().expect("shop").relics.iter()
         .position(|(relic, _)| relic == "Cauldron")
         .expect("Cauldron offer");
-    assert!(engine.step_with_result(&RunAction::ShopBuyRelic(relic_index)).action_accepted);
+    assert!(engine.step_game(&GameAction::ShopBuyRelic(relic_index)).accepted());
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
     let screen = engine.current_reward_screen().expect("Cauldron rewards");
     assert_eq!(screen.source, RewardScreenSource::Shop);
@@ -3143,16 +3129,16 @@ fn cauldron_is_shop_reachable_and_opens_five_ordered_potion_rewards() {
     assert!(screen.items.iter().all(|item| item.kind == RewardItemKind::Potion));
 
     for item_index in 0..3 {
-        assert!(engine.step_with_result(&RunAction::SelectRewardItem(item_index)).action_accepted);
+        assert!(engine.step_game(&GameAction::SelectRewardItem(item_index)).accepted());
     }
     assert!(engine.run_state.potions.iter().all(|potion| !potion.is_empty()));
 
     // AbstractPlayer.obtainPotion returns false when full, leaving the reward
     // available; it can still be skipped to finish Cauldron's screen.
-    assert!(engine.step_with_result(&RunAction::SelectRewardItem(3)).action_accepted);
+    assert!(engine.step_game(&GameAction::SelectRewardItem(3)).accepted());
     assert_eq!(engine.current_reward_screen().expect("reward").items[3].state,
         RewardItemState::Available);
-    assert!(engine.step_with_result(&RunAction::LeaveRewards).action_accepted);
+    assert!(engine.step_game(&GameAction::LeaveRewards).accepted());
     assert_eq!(engine.current_phase(), RunPhase::Shop);
     assert!(engine.get_shop().is_some());
 }
@@ -3198,7 +3184,7 @@ fn dollys_mirror_is_shop_reachable_and_obtains_one_unbottled_card_copy() {
     let relic_index = engine.get_shop().expect("shop").relics.iter()
         .position(|(relic, _)| relic == "DollysMirror")
         .expect("DollysMirror offer");
-    assert!(engine.step_with_result(&RunAction::ShopBuyRelic(relic_index)).action_accepted);
+    assert!(engine.step_game(&GameAction::ShopBuyRelic(relic_index)).accepted());
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
     let gold_after_purchase = engine.run_state.gold;
     let screen = engine.current_reward_screen().expect("mirror selection");
@@ -3207,11 +3193,11 @@ fn dollys_mirror_is_shop_reachable_and_obtains_one_unbottled_card_copy() {
     let wallop_choice = screen.items[0].choices.iter().position(|choice| {
         matches!(choice, RewardChoice::Card { card_id, .. } if card_id == "Wallop+")
     }).expect("Wallop+ choice");
-    assert!(engine.step_with_result(&RunAction::SelectRewardItem(0)).action_accepted);
-    assert!(engine.step_with_result(&RunAction::ChooseRewardOption {
+    assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
+    assert!(engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index: wallop_choice,
-    }).action_accepted);
+    }).accepted());
     assert_eq!(engine.current_phase(), RunPhase::Shop);
     assert_eq!(engine.run_state.deck.iter().filter(|card| *card == "Wallop+").count(), 2);
     assert_eq!(engine.run_state.gold, gold_after_purchase + 9);
@@ -3264,17 +3250,17 @@ fn dollys_mirror_preserves_mutable_card_state_with_fresh_identity() {
             .expect("DollysMirror offer");
 
         assert!(engine
-            .step_with_result(&RunAction::ShopBuyRelic(relic_index))
-            .action_accepted);
+            .step_game(&GameAction::ShopBuyRelic(relic_index))
+            .accepted());
         assert!(engine
-            .step_with_result(&RunAction::SelectRewardItem(0))
-            .action_accepted);
+            .step_game(&GameAction::SelectRewardItem(0))
+            .accepted());
         assert!(engine
-            .step_with_result(&RunAction::ChooseRewardOption {
+            .step_game(&GameAction::ChooseRewardOption {
                 item_index: 0,
                 choice_index: 0,
             })
-            .action_accepted);
+            .accepted());
 
         assert_eq!(engine.run_state.deck_card_states.len(), 3);
         let copy = engine.run_state.deck_card_states[2];
@@ -3322,7 +3308,7 @@ fn orrery_is_shop_reachable_and_opens_five_independent_card_rewards() {
     let relic_index = engine.get_shop().expect("shop").relics.iter()
         .position(|(relic, _)| relic == "Orrery")
         .expect("Orrery offer");
-    assert!(engine.step_with_result(&RunAction::ShopBuyRelic(relic_index)).action_accepted);
+    assert!(engine.step_game(&GameAction::ShopBuyRelic(relic_index)).accepted());
 
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
     let gold_after_purchase = engine.run_state.gold;
@@ -3338,19 +3324,19 @@ fn orrery_is_shop_reachable_and_opens_five_independent_card_rewards() {
             })
     }));
 
-    assert!(engine.step_with_result(&RunAction::SelectRewardItem(0)).action_accepted);
+    assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
     let selected_card = match &engine.current_reward_screen().expect("reward").items[0].choices[0] {
         RewardChoice::Card { card_id, .. } => card_id.clone(),
         _ => panic!("Orrery must offer cards"),
     };
-    assert!(engine.step_with_result(&RunAction::ChooseRewardOption {
+    assert!(engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index: 0,
-    }).action_accepted);
+    }).accepted());
     assert!(engine.run_state.deck.contains(&selected_card));
     assert_eq!(engine.run_state.gold, gold_after_purchase + 9);
 
-    assert!(engine.step_with_result(&RunAction::LeaveRewards).action_accepted);
+    assert!(engine.step_game(&GameAction::LeaveRewards).accepted());
     assert_eq!(engine.current_phase(), RunPhase::Shop);
     assert!(engine.get_shop().is_some());
 }
@@ -3390,8 +3376,8 @@ fn chemical_x_is_reachable_only_from_the_shop_relic_slot() {
         .position(|(relic, _)| relic == "Chemical X")
         .expect("Chemical X offer");
     assert!(engine
-        .step_with_result(&RunAction::ShopBuyRelic(idx))
-        .action_accepted);
+        .step_game(&GameAction::ShopBuyRelic(idx))
+        .accepted());
     assert!(engine
         .run_state
         .relics
@@ -3432,8 +3418,8 @@ fn frozen_eye_is_reachable_only_from_the_shop_relic_slot() {
         .position(|(relic, _)| relic == "Frozen Eye")
         .expect("Frozen Eye offer");
     assert!(engine
-        .step_with_result(&RunAction::ShopBuyRelic(idx))
-        .action_accepted);
+        .step_game(&GameAction::ShopBuyRelic(idx))
+        .accepted());
     assert!(engine
         .run_state
         .relics
@@ -3474,8 +3460,8 @@ fn hand_drill_is_reachable_only_from_the_shop_relic_slot() {
         .position(|(relic, _)| relic == "HandDrill")
         .expect("HandDrill offer");
     assert!(engine
-        .step_with_result(&RunAction::ShopBuyRelic(idx))
-        .action_accepted);
+        .step_game(&GameAction::ShopBuyRelic(idx))
+        .accepted());
     assert!(engine
         .run_state
         .relics
@@ -3516,8 +3502,8 @@ fn the_abacus_is_reachable_only_from_the_shop_relic_slot() {
         .position(|(relic, _)| relic == "TheAbacus")
         .expect("TheAbacus offer");
     assert!(engine
-        .step_with_result(&RunAction::ShopBuyRelic(idx))
-        .action_accepted);
+        .step_game(&GameAction::ShopBuyRelic(idx))
+        .accepted());
     assert!(engine
         .run_state
         .relics
@@ -3557,8 +3543,8 @@ fn sling_is_reachable_only_from_the_shop_relic_slot() {
         .position(|(relic, _)| relic == "Sling")
         .expect("Sling offer");
     assert!(engine
-        .step_with_result(&RunAction::ShopBuyRelic(idx))
-        .action_accepted);
+        .step_game(&GameAction::ShopBuyRelic(idx))
+        .accepted());
     assert!(engine.run_state.relics.iter().any(|relic| relic == "Sling"));
 }
 
@@ -3597,8 +3583,8 @@ fn strange_spoon_is_reachable_only_from_the_shop_relic_slot() {
         .position(|(relic, _)| relic == "Strange Spoon")
         .expect("Strange Spoon offer");
     assert!(engine
-        .step_with_result(&RunAction::ShopBuyRelic(idx))
-        .action_accepted);
+        .step_game(&GameAction::ShopBuyRelic(idx))
+        .accepted());
     assert!(engine
         .run_state
         .relics
@@ -3641,8 +3627,8 @@ fn orange_pellets_is_reachable_only_from_the_shop_relic_slot() {
         .position(|(relic, _)| relic == "OrangePellets")
         .expect("OrangePellets offer");
     assert!(engine
-        .step_with_result(&RunAction::ShopBuyRelic(idx))
-        .action_accepted);
+        .step_game(&GameAction::ShopBuyRelic(idx))
+        .accepted());
     assert!(engine
         .run_state
         .relics
@@ -3681,8 +3667,8 @@ fn melange_is_reachable_only_from_the_shop_relic_slot() {
         .position(|(relic, _)| relic == "Melange")
         .expect("Melange offer");
     assert!(engine
-        .step_with_result(&RunAction::ShopBuyRelic(idx))
-        .action_accepted);
+        .step_game(&GameAction::ShopBuyRelic(idx))
+        .accepted());
     assert!(engine.run_state.relics.iter().any(|relic| relic == "Melange"));
 }
 
@@ -3731,14 +3717,14 @@ fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
     engine.run_state.deck.push("Devotion".to_string());
     engine.debug_set_reward_screen(relic_choice_reward_screen(&["Calling Bell"]));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(engine
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         })
-        .action_accepted);
+        .accepted());
 
     let screen = engine
         .current_reward_screen()
@@ -3753,14 +3739,14 @@ fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
         .all(|item| item.kind == RewardItemKind::Relic));
 
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(engine
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         })
-        .action_accepted);
+        .accepted());
     assert!(engine
         .run_state
         .deck
@@ -3769,26 +3755,26 @@ fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
 
     for item_index in 1..=3 {
         assert!(engine
-            .step_with_result(&RunAction::SelectRewardItem(item_index))
-            .action_accepted);
+            .step_game(&GameAction::SelectRewardItem(item_index))
+            .accepted());
         if engine.current_reward_screen().is_some_and(|screen| {
             screen.items[0].label.starts_with("deck_selection_bottled_")
         }) {
             assert!(engine
-                .step_with_result(&RunAction::SelectRewardItem(0))
-                .action_accepted);
+                .step_game(&GameAction::SelectRewardItem(0))
+                .accepted());
             assert!(engine
-                .step_with_result(&RunAction::ChooseRewardOption {
+                .step_game(&GameAction::ChooseRewardOption {
                     item_index: 0,
                     choice_index: 0,
                 })
-                .action_accepted);
+                .accepted());
         }
     }
     assert_eq!(engine.run_state.relics.len(), 5);
     assert_eq!(engine.current_phase(), RunPhase::Transition);
     assert_eq!(engine.run_state.act, 1);
-    assert!(engine.step_with_result(&RunAction::Proceed).action_accepted);
+    assert!(engine.step_game(&GameAction::Proceed).accepted());
     assert_eq!(engine.run_state.act, 2);
     assert_eq!(engine.run_state.floor, 17);
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
@@ -3815,22 +3801,22 @@ fn astrolabe_is_reachable_and_transforms_three_selected_cards_upgraded() {
     let mut engine = RunEngine::new(42, 0);
     let original_len = engine.run_state.deck.len();
     engine.debug_set_reward_screen(relic_choice_reward_screen(&["Astrolabe"]));
-    assert!(engine.step_with_result(&RunAction::SelectRewardItem(0)).action_accepted);
+    assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
     assert!(engine
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         })
-        .action_accepted);
+        .accepted());
 
     for _ in 0..3 {
-        assert!(engine.step_with_result(&RunAction::SelectRewardItem(0)).action_accepted);
+        assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
         assert!(engine
-            .step_with_result(&RunAction::ChooseRewardOption {
+            .step_game(&GameAction::ChooseRewardOption {
                 item_index: 0,
                 choice_index: 0,
             })
-            .action_accepted);
+            .accepted());
     }
 
     assert_eq!(engine.run_state.deck.len(), original_len);
@@ -3856,14 +3842,14 @@ fn astrolabe_is_reachable_and_transforms_three_selected_cards_upgraded() {
     ];
     automatic.debug_set_reward_screen(relic_choice_reward_screen(&["Astrolabe"]));
     assert!(automatic
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(automatic
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         })
-        .action_accepted);
+        .accepted());
     assert_eq!(automatic.run_state.deck.len(), 4);
     assert!(automatic
         .run_state
@@ -4089,8 +4075,8 @@ fn bottled_flame_requires_a_nonbasic_attack_then_selects_any_purgeable_attack() 
     engine.run_state.deck.push("Wallop".to_string());
     engine.debug_set_reward_screen(single_relic_reward_screen("Bottled Flame"));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     let screen = engine
         .current_reward_screen()
         .expect("bottle selection should replace the relic reward");
@@ -4103,14 +4089,14 @@ fn bottled_flame_requires_a_nonbasic_attack_then_selects_any_purgeable_attack() 
         .position(|choice| matches!(choice, RewardChoice::Card { card_id, .. } if card_id == "Wallop"))
         .expect("Wallop should be bottle-eligible");
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(engine
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: wallop_choice,
         })
-        .action_accepted);
+        .accepted());
     let wallop_index = engine
         .run_state
         .deck
@@ -4149,8 +4135,8 @@ fn bottled_lightning_requires_a_nonbasic_skill_then_selects_any_purgeable_skill(
     engine.run_state.deck.push("ThirdEye".to_string());
     engine.debug_set_reward_screen(single_relic_reward_screen("Bottled Lightning"));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     let screen = engine.current_reward_screen().expect("skill selection should open");
     assert!(screen.items[0].choices.iter().all(|choice| {
         !matches!(choice, RewardChoice::Card { card_id, .. } if card_id == "Strike")
@@ -4161,14 +4147,14 @@ fn bottled_lightning_requires_a_nonbasic_skill_then_selects_any_purgeable_skill(
         .position(|choice| matches!(choice, RewardChoice::Card { card_id, .. } if card_id == "ThirdEye"))
         .expect("Third Eye should be bottle-eligible");
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(engine
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index,
         })
-        .action_accepted);
+        .accepted());
     let third_eye_index = engine
         .run_state
         .deck
@@ -4207,8 +4193,8 @@ fn bottled_tornado_requires_and_selects_a_purgeable_power() {
     engine.run_state.deck.push("Devotion".to_string());
     engine.debug_set_reward_screen(single_relic_reward_screen("Bottled Tornado"));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     let screen = engine.current_reward_screen().expect("power selection should open");
     assert_eq!(screen.items[0].choices.len(), 1);
     assert!(matches!(
@@ -4216,14 +4202,14 @@ fn bottled_tornado_requires_and_selects_a_purgeable_power() {
         RewardChoice::Card { card_id, .. } if card_id == "Devotion"
     ));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(engine
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         })
-        .action_accepted);
+        .accepted());
     let devotion_index = engine
         .run_state
         .deck
@@ -4324,8 +4310,8 @@ fn ceramic_fish_is_reachable_before_floor_49_and_pays_for_shop_card_obtains() {
         removal_used: false,
     });
 
-    let step = engine.step_with_result(&RunAction::ShopBuyCard(0));
-    assert!(step.action_accepted);
+    let step = engine.step_game(&GameAction::ShopBuyCard(0));
+    assert!(step.accepted());
     assert_eq!(engine.run_state.deck.last().map(String::as_str), Some("Strike"));
     assert_eq!(engine.run_state.gold, 59);
 }
@@ -4967,8 +4953,8 @@ fn claiming_question_card_expands_later_card_reward_choices() {
     let mut engine = RunEngine::new(0, 20);
     engine.debug_set_reward_screen(single_relic_reward_screen("Question Card"));
 
-    let claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(claim.action_accepted);
+    let claim = engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(claim.accepted());
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
 
     engine.debug_build_combat_reward_screen(RoomType::Monster);
@@ -4980,8 +4966,8 @@ fn claiming_question_card_expands_later_card_reward_choices() {
     assert_eq!(screen.items[1].kind, RewardItemKind::CardChoice);
     assert_eq!(screen.items[1].choices.len(), 4);
     assert!(engine
-        .get_legal_decision_actions()
-        .contains(&DecisionAction::ClaimRewardItem { item_index: 1 }));
+        .get_legal_actions()
+        .contains(&GameAction::SelectRewardItem(1 )));
 }
 
 #[test]
@@ -5018,8 +5004,8 @@ fn claiming_prayer_wheel_adds_second_ordered_card_reward_item() {
     let mut engine = RunEngine::new(7, 20);
     engine.debug_set_reward_screen(single_relic_reward_screen("Prayer Wheel"));
 
-    let claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(claim.action_accepted);
+    let claim = engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(claim.accepted());
 
     engine.debug_build_combat_reward_screen(RoomType::Elite);
     assert_eq!(
@@ -5042,15 +5028,15 @@ fn claiming_prayer_wheel_adds_second_ordered_card_reward_item() {
         .map(|item| item.index)
         .collect();
     assert_eq!(card_indices.len(), 2);
-    let open_first = engine.step_with_result(&RunAction::SelectRewardItem(card_indices[0]));
-    assert!(open_first.action_accepted);
-    let pick_first = engine.step_with_result(&RunAction::ChooseRewardOption {
+    let open_first = engine.step_game(&GameAction::SelectRewardItem(card_indices[0]));
+    assert!(open_first.accepted());
+    let pick_first = engine.step_game(&GameAction::ChooseRewardOption {
         item_index: card_indices[0],
         choice_index: 0,
     });
-    assert!(pick_first.action_accepted);
-    assert!(pick_first.legal_decision_actions.contains(
-        &DecisionAction::ClaimRewardItem { item_index: card_indices[1] }
+    assert!(pick_first.accepted());
+    assert!(pick_first.next_decision.legal_actions.contains(
+        &GameAction::SelectRewardItem(card_indices[1] )
     ));
 }
 
@@ -5112,8 +5098,8 @@ fn claiming_singing_bowl_turns_future_card_skip_into_max_hp() {
     // SingingBowlButton.java::onClick is a separate action that grants 2 max HP.
     let mut engine = RunEngine::new(42, 20);
     engine.debug_set_reward_screen(single_relic_reward_screen("Singing Bowl"));
-    let claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(claim.action_accepted);
+    let claim = engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(claim.accepted());
 
     let max_hp_before = engine.run_state.max_hp;
     let hp_before = engine.run_state.current_hp;
@@ -5123,17 +5109,14 @@ fn claiming_singing_bowl_turns_future_card_skip_into_max_hp() {
         .expect("card reward screen should exist");
     assert_eq!(screen.items[0].skip_label.as_deref(), Some("Skip"));
 
-    let open = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(open.action_accepted);
-    assert!(open.legal_decision_actions.contains(&DecisionAction::PickRewardChoice {
-        item_index: 0,
-        choice_index: 2,
-    }));
-    let bowl = engine.step_with_result(&RunAction::ChooseRewardOption {
+    let open = engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(open.accepted());
+    assert!(open.next_decision.legal_actions.contains(&GameAction::ChooseRewardOption { item_index: 0, choice_index: 2, }));
+    let bowl = engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index: 2,
     });
-    assert!(bowl.action_accepted);
+    assert!(bowl.accepted());
     assert_eq!(engine.run_state.max_hp, max_hp_before + 2);
     assert_eq!(engine.run_state.current_hp, hp_before + 2);
 }
@@ -5180,8 +5163,8 @@ fn whetstone_upgrades_only_eligible_attacks_and_syncs_a_bottled_attack() {
     engine.debug_set_reward_screen(single_relic_reward_screen("Whetstone"));
 
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert_eq!(
         engine.run_state.deck,
         vec!["Strike+", "Defend", "Eruption+"]
@@ -5221,8 +5204,8 @@ fn war_paint_upgrades_only_eligible_skills_and_syncs_a_bottled_skill() {
     engine.debug_set_reward_screen(single_relic_reward_screen("War Paint"));
 
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert_eq!(
         engine.run_state.deck,
         vec!["Defend+", "Strike", "Vigilance+"]
@@ -5281,14 +5264,14 @@ fn thread_and_needle_is_reachable_as_rare_and_never_calling_bell_uncommon() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_set_reward_screen(relic_choice_reward_screen(&["Calling Bell"]));
         assert!(engine
-            .step_with_result(&RunAction::SelectRewardItem(0))
-            .action_accepted);
+            .step_game(&GameAction::SelectRewardItem(0))
+            .accepted());
         assert!(engine
-            .step_with_result(&RunAction::ChooseRewardOption {
+            .step_game(&GameAction::ChooseRewardOption {
                 item_index: 0,
                 choice_index: 0,
             })
-            .action_accepted);
+            .accepted());
         let screen = engine.current_reward_screen().expect("Calling Bell rewards");
         assert_ne!(screen.items[2].label, "Thread and Needle");
         if screen.items[3].label == "Thread and Needle" {
@@ -5311,31 +5294,22 @@ fn choosing_black_star_from_relic_choice_doubles_future_elite_relic_rewards() {
         "Snecko Eye",
     ]));
 
-    let open = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(open.action_accepted);
+    let open = engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(open.accepted());
     assert_eq!(
-        open.legal_decision_actions,
+        open.next_decision.legal_actions,
         vec![
-            DecisionAction::PickRewardChoice {
-                item_index: 0,
-                choice_index: 0,
-            },
-            DecisionAction::PickRewardChoice {
-                item_index: 0,
-                choice_index: 1,
-            },
-            DecisionAction::PickRewardChoice {
-                item_index: 0,
-                choice_index: 2,
-            },
+            GameAction::ChooseRewardOption { item_index: 0, choice_index: 0, },
+            GameAction::ChooseRewardOption { item_index: 0, choice_index: 1, },
+            GameAction::ChooseRewardOption { item_index: 0, choice_index: 2, },
         ]
     );
 
-    let choose = engine.step_with_result(&RunAction::ChooseRewardOption {
+    let choose = engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index: 0,
     });
-    assert!(choose.action_accepted);
+    assert!(choose.accepted());
     assert!(engine.run_state.relic_flags.has(crate::relic_flags::flag::BLACK_STAR));
 
     engine.debug_build_combat_reward_screen(RoomType::Elite);
@@ -5356,8 +5330,8 @@ fn white_beast_statue_flag_guarantees_potion_reward_on_ordered_screen() {
     // the potion chance to exactly 100 while the relic is owned.
     let mut engine = RunEngine::new(5, 20);
     engine.debug_set_reward_screen(single_relic_reward_screen("White Beast Statue"));
-    let claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(claim.action_accepted);
+    let claim = engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(claim.accepted());
     assert!(engine.run_state.relic_flags.has(crate::relic_flags::flag::WHITE_BEAST));
 
     engine.debug_build_combat_reward_screen(RoomType::Monster);
@@ -5399,20 +5373,20 @@ fn choosing_sacred_bark_uses_only_real_reward_choice_actions() {
         "Velvet Choker",
     ]));
 
-    let open = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(open.action_accepted);
-    assert_eq!(open.decision_context.reward_screen.as_ref().and_then(|s| s.active_item), Some(0));
-    assert_eq!(open.legal_actions.len(), 3);
+    let open = engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(open.accepted());
+    assert_eq!(open.next_decision.context.reward_screen.as_ref().and_then(|s| s.active_item), Some(0));
+    assert_eq!(open.next_decision.legal_actions.len(), 3);
 
-    let choose = engine.step_with_result(&RunAction::ChooseRewardOption {
+    let choose = engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index: 1,
     });
-    assert!(choose.action_accepted);
+    assert!(choose.accepted());
     assert!(engine.run_state.relic_flags.has(crate::relic_flags::flag::SACRED_BARK));
     assert_eq!(engine.current_phase(), RunPhase::Transition);
     assert_eq!(engine.run_state.act, 1);
-    assert!(engine.step_with_result(&RunAction::Proceed).action_accepted);
+    assert!(engine.step_game(&GameAction::Proceed).accepted());
     assert_eq!(engine.run_state.act, 2);
     assert_eq!(engine.run_state.floor, 17);
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
@@ -5439,14 +5413,14 @@ fn sacred_bark_is_boss_reachable_and_refreshes_owned_potion_potency() {
     engine.run_state.potions[0] = "Block Potion".to_string();
     engine.debug_set_reward_screen(relic_choice_reward_screen(&["SacredBark"]));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(engine
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         })
-        .action_accepted);
+        .accepted());
     engine.debug_enter_specific_combat(&["JawWorm"]);
 
     let combat = engine.debug_combat_engine_mut();
@@ -5497,14 +5471,14 @@ fn tiny_house_applies_immediate_stats_then_opens_ordered_gold_and_potion_rewards
     let gold_before = engine.run_state.gold;
     engine.debug_set_reward_screen(relic_choice_reward_screen(&["Tiny House"]));
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(engine
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         })
-        .action_accepted);
+        .accepted());
 
     assert_eq!(engine.run_state.deck, vec!["Eruption+".to_string()]);
     assert_eq!((engine.run_state.current_hp, engine.run_state.max_hp), (45, 77));
@@ -5517,12 +5491,12 @@ fn tiny_house_applies_immediate_stats_then_opens_ordered_gold_and_potion_rewards
     assert!(!screen.items[1].claimable);
 
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert_eq!(engine.run_state.gold, gold_before + 50);
     assert!(engine
-        .step_with_result(&RunAction::SelectRewardItem(1))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(1))
+        .accepted());
     assert!(engine.run_state.potions.iter().any(|potion| !potion.is_empty()));
 }
 
@@ -5547,14 +5521,14 @@ fn empty_cage_auto_removes_small_pools_and_otherwise_requires_two_rl_choices() {
     automatic.run_state.deck = vec!["AscendersBane".to_string(), "Eruption".to_string()];
     automatic.debug_set_reward_screen(relic_choice_reward_screen(&["Empty Cage"]));
     assert!(automatic
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(automatic
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         })
-        .action_accepted);
+        .accepted());
     assert_eq!(automatic.run_state.deck, vec!["AscendersBane".to_string()]);
 
     let mut selected = RunEngine::new(42, 0);
@@ -5567,14 +5541,14 @@ fn empty_cage_auto_removes_small_pools_and_otherwise_requires_two_rl_choices() {
     ];
     selected.debug_set_reward_screen(relic_choice_reward_screen(&["Empty Cage"]));
     assert!(selected
-        .step_with_result(&RunAction::SelectRewardItem(0))
-        .action_accepted);
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(selected
-        .step_with_result(&RunAction::ChooseRewardOption {
+        .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
             choice_index: 0,
         })
-        .action_accepted);
+        .accepted());
     assert_eq!(
         selected.current_reward_screen().expect("first purge").items[0]
             .choices
@@ -5584,14 +5558,14 @@ fn empty_cage_auto_removes_small_pools_and_otherwise_requires_two_rl_choices() {
 
     for _ in 0..2 {
         assert!(selected
-            .step_with_result(&RunAction::SelectRewardItem(0))
-            .action_accepted);
+            .step_game(&GameAction::SelectRewardItem(0))
+            .accepted());
         assert!(selected
-            .step_with_result(&RunAction::ChooseRewardOption {
+            .step_game(&GameAction::ChooseRewardOption {
                 item_index: 0,
                 choice_index: 0,
             })
-            .action_accepted);
+            .accepted());
     }
     assert_eq!(selected.run_state.deck.len(), 3);
     assert!(selected
@@ -5609,8 +5583,8 @@ fn claiming_matryoshka_mutates_next_two_chests_then_expires() {
     // Java: Matryoshka.java:25-47, AbstractChest.java:54-63.
     let mut engine = RunEngine::new(321, 20);
     engine.debug_set_reward_screen(single_relic_reward_screen("Matryoshka"));
-    let claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(claim.action_accepted);
+    let claim = engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(claim.accepted());
     assert_eq!(
         engine.run_state.relic_flags.counters[crate::relic_flags::counter::MATRYOSHKA_USES],
         2

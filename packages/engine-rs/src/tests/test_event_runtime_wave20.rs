@@ -1,5 +1,5 @@
 use crate::events::{typed_events_for_act, EventRuntimeStatus, TypedEventDef};
-use crate::run::{RunAction, RunEngine, RunPhase};
+use crate::run::{GameAction, RunEngine, RunPhase};
 
 fn typed_event(act: i32, name: &str) -> TypedEventDef {
     typed_events_for_act(act)
@@ -28,8 +28,8 @@ fn scrap_ooze_retries_with_escalating_damage_and_relic_chance_before_rewarding_a
     engine.debug_set_typed_event_state(typed_event(1, "Scrap Ooze"));
     engine.debug_force_event_rolls(&[0, 99]);
 
-    let first = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(first.action_accepted);
+    let first = engine.step_game(&GameAction::EventChoice(0));
+    assert!(first.accepted());
     assert_eq!(engine.current_phase(), RunPhase::Event);
     assert_eq!(engine.run_state.current_hp, 75);
 
@@ -38,8 +38,8 @@ fn scrap_ooze_retries_with_escalating_damage_and_relic_chance_before_rewarding_a
     assert!(event.options[0].label.contains("6 dmg"));
     assert!(event.options[0].label.contains("35%"));
 
-    let second = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(second.action_accepted);
+    let second = engine.step_game(&GameAction::EventChoice(0));
+    assert!(second.accepted());
     assert_eq!(engine.current_phase(), RunPhase::Event);
     assert_eq!(engine.run_state.current_hp, 69);
     assert_eq!(engine.event_option_count(), 1);
@@ -58,8 +58,8 @@ fn scrap_ooze_retries_with_escalating_damage_and_relic_chance_before_rewarding_a
         .clone();
     assert!(engine.run_state.relics.iter().any(|relic| relic == &relic_id));
 
-    let leave = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(leave.action_accepted);
+    let leave = engine.step_game(&GameAction::EventChoice(0));
+    assert!(leave.accepted());
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
 }
 
@@ -70,14 +70,14 @@ fn scrap_ooze_leave_exits_without_damage_or_reward() {
     engine.run_state.current_hp = 80;
     engine.debug_set_typed_event_state(typed_event(1, "Scrap Ooze"));
 
-    let leave = engine.step_with_result(&RunAction::EventChoice(1));
-    assert!(leave.action_accepted);
+    let leave = engine.step_game(&GameAction::EventChoice(1));
+    assert!(leave.accepted());
     assert_eq!(engine.current_phase(), RunPhase::Event);
     assert_eq!(engine.event_option_count(), 1);
     assert!(engine.current_reward_screen().is_none());
     assert_eq!(engine.run_state.current_hp, 80);
 
-    let final_leave = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(final_leave.action_accepted);
+    let final_leave = engine.step_game(&GameAction::EventChoice(0));
+    assert!(final_leave.accepted());
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
 }

@@ -4,7 +4,7 @@ use crate::actions::Action;
 use crate::cards::CardDef;
 use crate::combat_types::CardInstance;
 use crate::engine::{CombatEngine, CombatPhase};
-use crate::run::{RunAction, RunEngine, RunPhase};
+use crate::run::{GameAction, RunEngine, RunPhase};
 use crate::state::{CombatState, EnemyCombatState, Stance};
 
 pub(crate) const TEST_SEED: u64 = 42;
@@ -121,32 +121,32 @@ pub(crate) fn run_engine(seed: u64, ascension: i32) -> RunEngine {
 
 pub(crate) fn resolve_opening_neow(engine: &mut RunEngine) {
     if engine.current_phase() == RunPhase::Neow {
-        let (reward, done) = engine.step(&RunAction::ChooseNeowOption(1));
-        assert_eq!(reward, 0.0);
-        assert!(!done);
+        let outcome = engine.step_game(&GameAction::ChooseNeowOption(1));
+        assert!(outcome.accepted());
+        assert!(!outcome.is_terminal());
         while engine.current_phase() == RunPhase::CardReward {
             let actions = engine.get_legal_actions();
             let action = actions
                 .iter()
-                .find(|action| matches!(action, RunAction::SkipRewardItem(_)))
+                .find(|action| matches!(action, GameAction::SkipRewardItem(_)))
                 .or_else(|| {
                     actions
                         .iter()
-                        .find(|action| matches!(action, RunAction::SelectRewardItem(_)))
+                        .find(|action| matches!(action, GameAction::SelectRewardItem(_)))
                 })
                 .or_else(|| {
                     actions.iter().find(|action| {
-                        matches!(action, RunAction::ChooseRewardOption { .. })
+                        matches!(action, GameAction::ChooseRewardOption { .. })
                     })
                 })
                 .or_else(|| {
                     actions
                         .iter()
-                        .find(|action| matches!(action, RunAction::LeaveRewards))
+                        .find(|action| matches!(action, GameAction::LeaveRewards))
                 })
                 .cloned()
                 .expect("Neow follow-up must expose a reward action");
-            engine.step(&action);
+            engine.step_game(&action);
         }
         assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     }

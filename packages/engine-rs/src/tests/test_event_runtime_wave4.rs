@@ -1,6 +1,6 @@
-use crate::decision::{DecisionAction, RewardItemKind, RewardScreenSource};
+use crate::decision::{RewardItemKind, RewardScreenSource};
 use crate::events::{typed_events_for_act, EventRuntimeStatus};
-use crate::run::{RunAction, RunEngine, RunPhase};
+use crate::run::{GameAction, RunEngine, RunPhase};
 
 fn typed_event(act: i32, name: &str) -> crate::events::TypedEventDef {
     typed_events_for_act(act)
@@ -21,8 +21,8 @@ fn test_event_runtime_wave4_golden_wing_feed_is_runtime_supported_and_removes_a_
     ));
 
     engine.debug_set_typed_event_state(golden_wing);
-    let step = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(step.action_accepted);
+    let step = engine.step_game(&GameAction::EventChoice(0));
+    assert!(step.accepted());
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(engine.run_state.current_hp, hp_before - 7);
     assert_eq!(engine.run_state.deck.len(), deck_before - 1);
@@ -38,13 +38,13 @@ fn test_event_runtime_wave4_the_joust_resolves_bets_through_typed_runtime_rng() 
     assert!(matches!(joust.options[1].status, EventRuntimeStatus::Supported));
 
     murderer_engine.debug_set_typed_event_state(joust.clone());
-    let murderer_step = murderer_engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(murderer_step.action_accepted);
+    let murderer_step = murderer_engine.step_game(&GameAction::EventChoice(0));
+    assert!(murderer_step.accepted());
     assert_eq!(murderer_engine.current_phase(), RunPhase::MapChoice);
 
     owner_engine.debug_set_typed_event_state(joust);
-    let owner_step = owner_engine.step_with_result(&RunAction::EventChoice(1));
-    assert!(owner_step.action_accepted);
+    let owner_step = owner_engine.step_game(&GameAction::EventChoice(1));
+    assert!(owner_step.accepted());
     assert_eq!(owner_engine.current_phase(), RunPhase::MapChoice);
 
     assert_eq!(murderer_engine.run_state.gold, gold_before - 50);
@@ -60,8 +60,8 @@ fn test_event_runtime_wave4_winding_halls_madness_uses_ordered_event_reward_flow
     assert!(matches!(halls.options[0].status, EventRuntimeStatus::Supported));
 
     engine.debug_set_typed_event_state(halls);
-    let step = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(step.action_accepted);
+    let step = engine.step_game(&GameAction::EventChoice(0));
+    assert!(step.accepted());
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
     assert_eq!(engine.run_state.current_hp, engine.run_state.max_hp - 12);
 
@@ -76,34 +76,31 @@ fn test_event_runtime_wave4_winding_halls_madness_uses_ordered_event_reward_flow
     assert_eq!(screen.items[0].choices.len(), 1);
     assert_eq!(screen.items[1].choices.len(), 1);
 
-    let open_first = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(open_first.action_accepted);
+    let open_first = engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(open_first.accepted());
     assert_eq!(
-        open_first.legal_decision_actions,
-        vec![DecisionAction::PickRewardChoice {
-            item_index: 0,
-            choice_index: 0,
-        }]
+        open_first.next_decision.legal_actions,
+        vec![GameAction::ChooseRewardOption { item_index: 0, choice_index: 0, }]
     );
 
-    let choose_first = engine.step_with_result(&RunAction::ChooseRewardOption {
+    let choose_first = engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index: 0,
     });
-    assert!(choose_first.action_accepted);
+    assert!(choose_first.accepted());
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
     assert_eq!(
-        engine.get_legal_decision_actions(),
-        vec![DecisionAction::ClaimRewardItem { item_index: 1 }]
+        engine.get_legal_actions(),
+        vec![GameAction::SelectRewardItem(1 )]
     );
 
-    let open_second = engine.step_with_result(&RunAction::SelectRewardItem(1));
-    assert!(open_second.action_accepted);
-    let choose_second = engine.step_with_result(&RunAction::ChooseRewardOption {
+    let open_second = engine.step_game(&GameAction::SelectRewardItem(1));
+    assert!(open_second.accepted());
+    let choose_second = engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 1,
         choice_index: 0,
     });
-    assert!(choose_second.action_accepted);
+    assert!(choose_second.accepted());
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(engine.run_state.deck.len(), deck_before + 2);
     assert_eq!(
@@ -123,8 +120,8 @@ fn test_event_runtime_wave4_winding_halls_retrace_and_press_on_use_percent_runti
     retrace_engine.run_state.current_hp = 10;
     let halls = typed_event(3, "Winding Halls");
     retrace_engine.debug_set_typed_event_state(halls.clone());
-    let retrace = retrace_engine.step_with_result(&RunAction::EventChoice(1));
-    assert!(retrace.action_accepted);
+    let retrace = retrace_engine.step_game(&GameAction::EventChoice(1));
+    assert!(retrace.accepted());
     assert_eq!(retrace_engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(retrace_engine.run_state.current_hp, 23);
     assert!(retrace_engine.run_state.deck.iter().any(|card| card == "Writhe"));
@@ -132,8 +129,8 @@ fn test_event_runtime_wave4_winding_halls_retrace_and_press_on_use_percent_runti
     let mut press_engine = RunEngine::new(17, 20);
     let max_hp_before = press_engine.run_state.max_hp;
     press_engine.debug_set_typed_event_state(halls);
-    let press = press_engine.step_with_result(&RunAction::EventChoice(2));
-    assert!(press.action_accepted);
+    let press = press_engine.step_game(&GameAction::EventChoice(2));
+    assert!(press.accepted());
     assert_eq!(press_engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(press_engine.run_state.max_hp, max_hp_before - 3);
     assert_eq!(press_engine.run_state.current_hp, press_engine.run_state.max_hp);

@@ -39,8 +39,8 @@ fn run_trace_exposes_every_java_rng_counter_before_and_during_combat() {
     assert!(before["monster"] > 0);
     assert!(before["map"] > 0);
 
-    run.step(&crate::run::RunAction::ChooseNeowOption(1));
-    run.step(&crate::run::RunAction::ChoosePath(0));
+    run.step_game(&crate::run::GameAction::ChooseNeowOption(1));
+    run.step_game(&crate::run::GameAction::ChoosePath(0));
     let combat = run.rng_counters();
     assert_eq!(
         combat.keys().map(String::as_str).collect::<std::collections::BTreeSet<_>>(),

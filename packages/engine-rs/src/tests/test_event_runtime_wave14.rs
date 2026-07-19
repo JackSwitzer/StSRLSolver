@@ -1,5 +1,5 @@
 use crate::events::{typed_events_for_act, EventRuntimeStatus, TypedEventDef};
-use crate::run::{RunAction, RunEngine, RunPhase};
+use crate::run::{GameAction, RunEngine, RunPhase};
 
 // Java oracle:
 // - decompiled/java-src/com/megacrit/cardcrawl/events/exordium/DeadAdventurer.java
@@ -35,8 +35,8 @@ fn golden_wing_branch_is_runtime_gated_by_attack_damage_in_the_deck() {
     blocked_engine.debug_set_typed_event_state(catalog.clone());
 
     let before = blocked_engine.run_state.gold;
-    let blocked_step = blocked_engine.step_with_result(&RunAction::EventChoice(1));
-    assert!(blocked_step.action_accepted);
+    let blocked_step = blocked_engine.step_game(&GameAction::EventChoice(1));
+    assert!(blocked_step.accepted());
     assert_eq!(blocked_engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(blocked_engine.run_state.gold, before);
     assert!(blocked_engine.current_reward_screen().is_none());
@@ -46,8 +46,8 @@ fn golden_wing_branch_is_runtime_gated_by_attack_damage_in_the_deck() {
     supported_engine.debug_set_typed_event_state(catalog);
 
     let before = supported_engine.run_state.gold;
-    let supported_step = supported_engine.step_with_result(&RunAction::EventChoice(1));
-    assert!(supported_step.action_accepted);
+    let supported_step = supported_engine.step_game(&GameAction::EventChoice(1));
+    assert!(supported_step.accepted());
     assert_eq!(supported_engine.current_phase(), RunPhase::MapChoice);
     let gain = supported_engine.run_state.gold - before;
     assert!(

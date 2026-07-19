@@ -942,8 +942,6 @@ mod bugfix_regression_tests {
     use crate::combat_types::CardInstance;
     use crate::engine::CombatEngine;
     use crate::state::{CombatState, EnemyCombatState};
-    use crate::run::RunAction;
-    use crate::{PyRunEngine, COMBAT_BASE};
     use crate::tests::support::{make_deck, make_deck_n};
 
     fn ensure_in_hand(engine: &mut CombatEngine, card_id: &str) {
@@ -984,54 +982,6 @@ mod bugfix_regression_tests {
         if let Some(idx) = e.state.hand.iter().position(|c| e.card_registry.card_name(c.def_id) == card) {
             e.execute_action(&Action::PlayCard { card_idx: idx, target_idx: -1 });
         }
-    }
-
-    // ===== P1: Action encoding roundtrip =====
-
-    #[test]
-    fn action_encode_decode_play_card_target_0() {
-        let engine = PyRunEngine::new_py(42, 20);
-        let action = RunAction::CombatAction(Action::PlayCard { card_idx: 2, target_idx: 0 });
-        let encoded = engine.encode_action(&action);
-        let decoded = engine.decode_action(encoded).unwrap();
-        assert_eq!(decoded, action, "PlayCard target_idx=0 must roundtrip");
-    }
-
-    #[test]
-    fn action_encode_decode_play_card_target_neg1() {
-        let engine = PyRunEngine::new_py(42, 20);
-        let action = RunAction::CombatAction(Action::PlayCard { card_idx: 1, target_idx: -1 });
-        let encoded = engine.encode_action(&action);
-        let decoded = engine.decode_action(encoded).unwrap();
-        assert_eq!(decoded, action, "PlayCard target_idx=-1 must roundtrip");
-    }
-
-    #[test]
-    fn action_encode_decode_play_card_target_2() {
-        let engine = PyRunEngine::new_py(42, 20);
-        let action = RunAction::CombatAction(Action::PlayCard { card_idx: 0, target_idx: 2 });
-        let encoded = engine.encode_action(&action);
-        let decoded = engine.decode_action(encoded).unwrap();
-        assert_eq!(decoded, action, "PlayCard target_idx=2 must roundtrip");
-    }
-
-    #[test]
-    fn action_encode_decode_potion_target_0() {
-        let engine = PyRunEngine::new_py(42, 20);
-        let action = RunAction::CombatAction(Action::UsePotion { potion_idx: 0, target_idx: 0 });
-        let encoded = engine.encode_action(&action);
-        let decoded = engine.decode_action(encoded).unwrap();
-        assert_eq!(decoded, action, "UsePotion target_idx=0 must roundtrip");
-    }
-
-    #[test]
-    fn action_encode_decode_end_turn() {
-        let engine = PyRunEngine::new_py(42, 20);
-        let action = RunAction::CombatAction(Action::EndTurn);
-        let encoded = engine.encode_action(&action);
-        assert_eq!(encoded, COMBAT_BASE);
-        let decoded = engine.decode_action(encoded).unwrap();
-        assert_eq!(decoded, action);
     }
 
     // ===== P1: Card pool uses registry IDs =====
