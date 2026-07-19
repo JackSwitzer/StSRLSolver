@@ -1,8 +1,5 @@
-use crate::actions::Action;
 use crate::engine::{ChoiceOption, ChoiceReason, CombatEngine};
-use crate::run::{
-    RunAction, RunPhase, ShopState,
-};
+use crate::run::{RunPhase, ShopState};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -354,119 +351,6 @@ impl DecisionStack {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum DecisionAction {
-    ChooseNeowOption(usize),
-    OpenChest,
-    LeaveChest,
-    ChooseMapPath(usize),
-    Combat(Action),
-    ClaimRewardItem {
-        item_index: usize,
-    },
-    PickRewardChoice {
-        item_index: usize,
-        choice_index: usize,
-    },
-    SkipRewardItem {
-        item_index: usize,
-    },
-    LeaveRewards,
-    Proceed,
-    CampfireRest,
-    CampfireUpgrade(usize),
-    CampfireToke,
-    CampfireLift,
-    CampfireDig,
-    CampfireRecall,
-    ShopBuyCard(usize),
-    ShopBuyRelic(usize),
-    ShopBuyPotion(usize),
-    ShopRemoveCard(usize),
-    ShopLeave,
-    EventChoice(usize),
-    UsePotion(usize),
-    DiscardPotion(usize),
-}
-
-impl DecisionAction {
-    pub fn to_run_action(&self) -> RunAction {
-        match self {
-            Self::ChooseNeowOption(idx) => RunAction::ChooseNeowOption(*idx),
-            Self::OpenChest => RunAction::OpenChest,
-            Self::LeaveChest => RunAction::LeaveChest,
-            Self::ChooseMapPath(idx) => RunAction::ChoosePath(*idx),
-            Self::Combat(action) => RunAction::CombatAction(action.clone()),
-            Self::ClaimRewardItem { item_index } => RunAction::SelectRewardItem(*item_index),
-            Self::PickRewardChoice {
-                item_index,
-                choice_index,
-            } => RunAction::ChooseRewardOption {
-                item_index: *item_index,
-                choice_index: *choice_index,
-            },
-            Self::SkipRewardItem { item_index } => RunAction::SkipRewardItem(*item_index),
-            Self::LeaveRewards => RunAction::LeaveRewards,
-            Self::Proceed => RunAction::Proceed,
-            Self::CampfireRest => RunAction::CampfireRest,
-            Self::CampfireUpgrade(idx) => RunAction::CampfireUpgrade(*idx),
-            Self::CampfireToke => RunAction::CampfireToke,
-            Self::CampfireLift => RunAction::CampfireLift,
-            Self::CampfireDig => RunAction::CampfireDig,
-            Self::CampfireRecall => RunAction::CampfireRecall,
-            Self::ShopBuyCard(idx) => RunAction::ShopBuyCard(*idx),
-            Self::ShopBuyRelic(idx) => RunAction::ShopBuyRelic(*idx),
-            Self::ShopBuyPotion(idx) => RunAction::ShopBuyPotion(*idx),
-            Self::ShopRemoveCard(idx) => RunAction::ShopRemoveCard(*idx),
-            Self::ShopLeave => RunAction::ShopLeave,
-            Self::EventChoice(idx) => RunAction::EventChoice(*idx),
-            Self::UsePotion(idx) => RunAction::UsePotion(*idx),
-            Self::DiscardPotion(idx) => RunAction::DiscardPotion(*idx),
-        }
-    }
-
-    pub fn from_run_action(action: &RunAction, phase: RunPhase) -> Self {
-        match action {
-            RunAction::ChooseNeowOption(idx) => Self::ChooseNeowOption(*idx),
-            RunAction::OpenChest => Self::OpenChest,
-            RunAction::LeaveChest => Self::LeaveChest,
-            RunAction::ChoosePath(idx) => Self::ChooseMapPath(*idx),
-            RunAction::SelectRewardItem(item_index) => Self::ClaimRewardItem {
-                item_index: *item_index,
-            },
-            RunAction::ChooseRewardOption {
-                item_index,
-                choice_index,
-            } => Self::PickRewardChoice {
-                item_index: *item_index,
-                choice_index: *choice_index,
-            },
-            RunAction::SkipRewardItem(item_index) => Self::SkipRewardItem {
-                item_index: *item_index,
-            },
-            RunAction::LeaveRewards => Self::LeaveRewards,
-            RunAction::Proceed => Self::Proceed,
-            RunAction::CampfireRest => Self::CampfireRest,
-            RunAction::CampfireUpgrade(idx) => Self::CampfireUpgrade(*idx),
-            RunAction::CampfireToke => Self::CampfireToke,
-            RunAction::CampfireLift => Self::CampfireLift,
-            RunAction::CampfireDig => Self::CampfireDig,
-            RunAction::CampfireRecall => Self::CampfireRecall,
-            RunAction::ShopBuyCard(idx) => Self::ShopBuyCard(*idx),
-            RunAction::ShopBuyRelic(idx) => Self::ShopBuyRelic(*idx),
-            RunAction::ShopBuyPotion(idx) => Self::ShopBuyPotion(*idx),
-            RunAction::ShopRemoveCard(idx) => Self::ShopRemoveCard(*idx),
-            RunAction::ShopLeave => Self::ShopLeave,
-            RunAction::EventChoice(idx) => Self::EventChoice(*idx),
-            RunAction::UsePotion(idx) => Self::UsePotion(*idx),
-            RunAction::DiscardPotion(idx) => Self::DiscardPotion(*idx),
-            RunAction::CombatAction(action) => {
-                let _ = phase;
-                Self::Combat(action.clone())
-            }
-        }
-    }
-}
 
 pub(crate) fn build_shop_context(shop: &ShopState, gold: i32, deck_len: usize) -> ShopDecisionContext {
     ShopDecisionContext {

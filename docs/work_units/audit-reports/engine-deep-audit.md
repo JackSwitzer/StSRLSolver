@@ -6,6 +6,20 @@
 
 **Register size:** 35 findings — 13 P0, 13 P1, 9 P2
 
+## Closure update — 2026-07-18
+
+This document is the historical derivation register. The five-layer RNG,
+generation, action, checkpoint, and pure-core stack has since closed its active
+P0 reproducers and architecture findings with source-derived tests. The live
+freeze result is [pure-sim-freeze.md](pure-sim-freeze.md): 3,011 passed, zero
+ignored, native Java RNG ownership, causal checkpoints, and no active
+obs/search/training/PyO3 dependency in the core.
+
+Do not use the old “2,883 + 11 ignored” snapshot below as current branch state.
+The remaining merge gate is oracle certification, including the still-open
+power/orb/move-history trace comparisons and expansion from one golden to the
+full Watcher A0 corpus.
+
 ## Ranked top 10
 
 | Rank | ID | Band | Finding | Why it is first | Effort |

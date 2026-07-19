@@ -60,9 +60,9 @@ fn eda_002_rampage_growth_must_preserve_java_int_range() {
 }
 
 #[test]
-fn eda_002_card_misc_round_trips_the_training_snapshot_at_java_int_width() {
+fn eda_002_card_misc_round_trips_the_core_state_at_java_int_width() {
     // AbstractCard.misc and CardSave.misc are Java ints. The structured
-    // training snapshot must preserve the same width when a combat is cloned.
+    // core serialization must preserve the same width when combat is restored.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/AbstractCard.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardSave.java
     let mut engine = engine_without_start(
@@ -72,10 +72,10 @@ fn eda_002_card_misc_round_trips_the_training_snapshot_at_java_int_width() {
     );
     engine.state.draw_pile[0].misc = 100_000;
 
-    let snapshot = crate::training_contract::combat_snapshot_from_combat(&engine);
-    let restored = crate::training_contract::combat_engine_from_snapshot(&snapshot);
+    let encoded = serde_json::to_vec(&engine).expect("serialize combat");
+    let restored: crate::engine::CombatEngine =
+        serde_json::from_slice(&encoded).expect("restore combat");
 
-    assert_eq!(snapshot.draw_pile[0].misc, 100_000);
     assert_eq!(restored.state.draw_pile[0].misc, 100_000);
 }
 
@@ -107,9 +107,9 @@ fn eda_003_catalyst_poison_must_preserve_java_int_range() {
 }
 
 #[test]
-fn eda_003_status_amounts_round_trip_the_training_snapshot_at_java_int_width() {
+fn eda_003_status_amounts_round_trip_core_state_at_java_int_width() {
     // AbstractPower.amount is a signed Java int. Both positive and negative
-    // amounts must survive the training snapshot without narrowing.
+    // amounts must survive core serialization without narrowing.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/AbstractPower.java:69
     let mut engine = engine_without_start(
         Vec::new(),
@@ -124,8 +124,9 @@ fn eda_003_status_amounts_round_trip_the_training_snapshot_at_java_int_width() {
         .entity
         .set_status(crate::status_ids::sid::POISON, 90_000);
 
-    let snapshot = crate::training_contract::combat_snapshot_from_combat(&engine);
-    let restored = crate::training_contract::combat_engine_from_snapshot(&snapshot);
+    let encoded = serde_json::to_vec(&engine).expect("serialize combat");
+    let restored: crate::engine::CombatEngine =
+        serde_json::from_slice(&encoded).expect("restore combat");
 
     assert_eq!(
         restored
@@ -212,23 +213,23 @@ fn eda_004_room_reset_streams_and_persistent_potion_rng_follow_java() {
         crate::seed::StsRandom::new(seed).state_tuple(),
     );
 
-    let result = run.step_with_result(&crate::run::RunAction::CombatAction(
+    let result = run.step_game(&crate::run::GameAction::CombatAction(
         crate::actions::Action::UsePotion {
             potion_idx: 0,
             target_idx: -1,
         },
     ));
-    assert!(result.action_accepted);
+    assert!(result.accepted());
     let potion_counter = run.rng_counters()["potion"];
     assert!(potion_counter > 0);
 
-    let result = run.step_with_result(&crate::run::RunAction::CombatAction(
+    let result = run.step_game(&crate::run::GameAction::CombatAction(
         crate::actions::Action::UsePotion {
             potion_idx: 1,
             target_idx: -1,
         },
     ));
-    assert!(result.action_accepted);
+    assert!(result.accepted());
     assert_eq!(run.current_phase(), crate::run::RunPhase::MapChoice);
 
     run.run_state.floor += 1;
@@ -250,12 +251,12 @@ fn eda_005_first_weak_encounter_must_follow_monster_rng() {
     // decompiled/java-src/com/megacrit/cardcrawl/monsters/MonsterInfo.java:27-47
     let mut run = crate::run::RunEngine::new(4, 0);
     assert!(
-        run.step_with_result(&crate::run::RunAction::ChooseNeowOption(1))
-            .action_accepted
+        run.step_game(&crate::run::GameAction::ChooseNeowOption(1))
+            .accepted()
     );
     assert!(
-        run.step_with_result(&crate::run::RunAction::ChoosePath(0))
-            .action_accepted
+        run.step_game(&crate::run::GameAction::ChoosePath(0))
+            .accepted()
     );
 
     assert_eq!(run.debug_current_enemy_ids(), vec!["JawWorm".to_string()]);
@@ -648,8 +649,8 @@ fn f4_neow_option_index_must_match_java_blessing_categories() {
         ]
     );
 
-    let result = run.step_with_result(&crate::run::RunAction::ChooseNeowOption(1));
-    assert!(result.action_accepted);
+    let result = run.step_game(&crate::run::GameAction::ChooseNeowOption(1));
+    assert!(result.accepted());
     assert_eq!(run.current_phase(), crate::run::RunPhase::MapChoice);
     assert_eq!(run.run_state.current_hp, 79);
     assert_eq!(run.run_state.max_hp, 79);

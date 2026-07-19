@@ -1,7 +1,7 @@
 use crate::actions::Action;
 use crate::cards::CardType;
 use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
-use crate::run::{RunAction, RunEngine, RunPhase, ShopState};
+use crate::run::{GameAction, RunEngine, RunPhase, ShopState};
 use crate::state::Stance;
 use crate::status_ids::sid;
 use crate::tests::support::{
@@ -70,14 +70,14 @@ const COLORLESS_CHOICES: &[&str] = &[
 
 fn has_discard_potion_action(engine: &RunEngine, slot: usize) -> bool {
     engine.get_legal_actions().iter().any(
-        |action| matches!(action, RunAction::DiscardPotion(action_slot) if *action_slot == slot),
+        |action| matches!(action, GameAction::DiscardPotion(action_slot) if *action_slot == slot),
     )
 }
 
 fn has_noncombat_use_potion_action(engine: &RunEngine, slot: usize) -> bool {
     engine
         .get_legal_actions()
-        .contains(&RunAction::UsePotion(slot))
+        .contains(&GameAction::UsePotion(slot))
 }
 
 #[test]
@@ -1063,13 +1063,13 @@ fn fairy_and_boss_blocked_smoke_bomb_remain_discardable() {
     assert!(!actions.iter().any(|action| {
         matches!(
             action,
-            RunAction::CombatAction(Action::UsePotion { potion_idx: 0, .. })
+            GameAction::CombatAction(Action::UsePotion { potion_idx: 0, .. })
         )
     }));
     assert!(!actions.iter().any(|action| {
         matches!(
             action,
-            RunAction::CombatAction(Action::UsePotion { potion_idx: 1, .. })
+            GameAction::CombatAction(Action::UsePotion { potion_idx: 1, .. })
         )
     }));
     assert!(has_discard_potion_action(&run, 0));
@@ -1109,9 +1109,9 @@ fn discard_potion_only_destroys_the_slot_and_preserves_callbacks_and_rng() {
         .expect("active combat")
         .java_collections_rng_state();
 
-    let result = run.step_with_result(&RunAction::DiscardPotion(1));
+    let result = run.step_game(&GameAction::DiscardPotion(1));
 
-    assert!(result.action_accepted);
+    assert!(result.accepted());
     assert_eq!(run.rng_counters(), rng_before);
     assert_eq!(run.ambient_math_rng_state(), ambient_before);
     let combat = run

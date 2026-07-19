@@ -1,6 +1,6 @@
 use crate::decision::{RewardItemKind, RewardScreenSource};
 use crate::events::{typed_events_for_act, typed_shrine_events, EventRuntimeStatus, TypedEventDef};
-use crate::run::{RunAction, RunEngine, RunPhase};
+use crate::run::{GameAction, RunEngine, RunPhase};
 use crate::actions::Action;
 use crate::cards::CardType;
 use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
@@ -50,16 +50,16 @@ fn colosseum_is_supported_and_uses_event_continuation_plus_two_combats() {
     engine.debug_set_typed_event_state(colosseum);
     assert_floor_rngs(&engine, seed, floor, event_room_counters);
 
-    let intro = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(intro.action_accepted);
+    let intro = engine.step_game(&GameAction::EventChoice(0));
+    assert!(intro.accepted());
     assert_eq!(engine.current_phase(), RunPhase::Event);
     let intro_ctx = engine.current_decision_context().event.expect("colosseum follow-up event");
     assert_eq!(intro_ctx.name, "Colosseum");
     assert_eq!(intro_ctx.options.len(), 1);
     assert_floor_rngs(&engine, seed, floor, event_room_counters);
 
-    let first_fight = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(first_fight.action_accepted);
+    let first_fight = engine.step_game(&GameAction::EventChoice(0));
+    assert!(first_fight.accepted());
     assert_eq!(engine.current_phase(), RunPhase::Combat);
     let combat = engine.get_combat_engine().expect("slavers combat");
     assert_eq!(combat.state.enemies.len(), 2);
@@ -76,8 +76,8 @@ fn colosseum_is_supported_and_uses_event_continuation_plus_two_combats() {
     assert_eq!(post_ctx.options.len(), 2);
     assert_floor_rngs(&engine, seed, floor, first_combat_counters);
 
-    let second_fight = engine.step_with_result(&RunAction::EventChoice(1));
-    assert!(second_fight.action_accepted);
+    let second_fight = engine.step_game(&GameAction::EventChoice(1));
+    assert!(second_fight.accepted());
     assert_eq!(engine.current_phase(), RunPhase::Combat);
     let combat = engine.get_combat_engine().expect("nobs combat");
     assert_eq!(combat.state.enemies.len(), 2);
@@ -114,24 +114,24 @@ fn cursed_tome_progresses_page_by_page_and_opens_book_reward_on_take() {
     ));
     engine.debug_set_typed_event_state(cursed_tome);
 
-    assert!(engine.step_with_result(&RunAction::EventChoice(0)).action_accepted);
+    assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
     assert_eq!(engine.current_phase(), RunPhase::Event);
     assert_eq!(engine.run_state.current_hp, 80);
 
-    assert!(engine.step_with_result(&RunAction::EventChoice(0)).action_accepted);
+    assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
     assert_eq!(engine.current_phase(), RunPhase::Event);
     assert_eq!(engine.run_state.current_hp, 79);
 
-    assert!(engine.step_with_result(&RunAction::EventChoice(0)).action_accepted);
+    assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
     assert_eq!(engine.current_phase(), RunPhase::Event);
     assert_eq!(engine.run_state.current_hp, 77);
 
-    assert!(engine.step_with_result(&RunAction::EventChoice(0)).action_accepted);
+    assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
     assert_eq!(engine.current_phase(), RunPhase::Event);
     assert_eq!(engine.run_state.current_hp, 74);
 
-    let take = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(take.action_accepted);
+    let take = engine.step_game(&GameAction::EventChoice(0));
+    assert!(take.accepted());
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
     assert_eq!(engine.run_state.current_hp, 59);
 
@@ -152,13 +152,13 @@ fn cursed_tome_stop_reading_takes_three_and_returns_to_map_without_reward() {
     engine.run_state.current_hp = 80;
     engine.debug_set_typed_event_state(typed_event(2, "Cursed Tome"));
 
-    engine.step_with_result(&RunAction::EventChoice(0));
-    engine.step_with_result(&RunAction::EventChoice(0));
-    engine.step_with_result(&RunAction::EventChoice(0));
-    engine.step_with_result(&RunAction::EventChoice(0));
-    let stop = engine.step_with_result(&RunAction::EventChoice(1));
+    engine.step_game(&GameAction::EventChoice(0));
+    engine.step_game(&GameAction::EventChoice(0));
+    engine.step_game(&GameAction::EventChoice(0));
+    engine.step_game(&GameAction::EventChoice(0));
+    let stop = engine.step_game(&GameAction::EventChoice(1));
 
-    assert!(stop.action_accepted);
+    assert!(stop.accepted());
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(engine.run_state.current_hp, 71);
     assert!(engine.current_reward_screen().is_none());
@@ -177,12 +177,12 @@ fn cursed_tome_enchiridion_adds_one_zero_cost_watcher_power_prebattle() {
     ]);
     engine.debug_set_typed_event_state(typed_event(2, "Cursed Tome"));
     for _ in 0..4 {
-        assert!(engine.step_with_result(&RunAction::EventChoice(0)).action_accepted);
+        assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
     }
-    assert!(engine.step_with_result(&RunAction::EventChoice(0)).action_accepted);
+    assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
     let screen = engine.current_reward_screen().expect("forced Enchiridion reward");
     assert_eq!(screen.items[0].label, "Enchiridion");
-    assert!(engine.step_with_result(&RunAction::SelectRewardItem(0)).action_accepted);
+    assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
     assert!(engine.run_state.relics.iter().any(|relic| relic == "Enchiridion"));
 
     engine.debug_enter_specific_combat(&["JawWorm"]);
@@ -218,11 +218,11 @@ fn cursed_tome_necronomicon_obtains_curse_and_replays_normal_and_x_attacks_once(
     ]);
     engine.debug_set_typed_event_state(typed_event(2, "Cursed Tome"));
     for _ in 0..5 {
-        assert!(engine.step_with_result(&RunAction::EventChoice(0)).action_accepted);
+        assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
     }
     let screen = engine.current_reward_screen().expect("forced Necronomicon reward");
     assert_eq!(screen.items[0].label, "Necronomicon");
-    assert!(engine.step_with_result(&RunAction::SelectRewardItem(0)).action_accepted);
+    assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
     assert!(engine.run_state.relics.iter().any(|relic| relic == "Necronomicon"));
     assert_eq!(
         engine
@@ -279,8 +279,8 @@ fn cursed_tome_necronomicon_obtains_curse_and_replays_normal_and_x_attacks_once(
         .position(|option| option.text.contains("Necronomicon"))
         .expect("Necronomicon trade option");
     assert!(traded
-        .step_with_result(&RunAction::EventChoice(trade_index))
-        .action_accepted);
+        .step_game(&GameAction::EventChoice(trade_index))
+        .accepted());
     assert!(!traded.run_state.relics.iter().any(|relic| relic == "Necronomicon"));
     assert!(!traded.run_state.deck.iter().any(|card| card == "Necronomicurse"));
 }
@@ -298,11 +298,11 @@ fn cursed_tome_nilrys_codex_pauses_end_turn_for_three_card_draw_pile_choice() {
     ]);
     engine.debug_set_typed_event_state(typed_event(2, "Cursed Tome"));
     for _ in 0..5 {
-        assert!(engine.step_with_result(&RunAction::EventChoice(0)).action_accepted);
+        assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
     }
     let screen = engine.current_reward_screen().expect("forced Codex reward");
     assert_eq!(screen.items[0].label, "Nilry's Codex");
-    assert!(engine.step_with_result(&RunAction::SelectRewardItem(0)).action_accepted);
+    assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
 
     engine.debug_enter_specific_combat(&["JawWorm"]);
     let combat = engine.debug_combat_engine_mut();

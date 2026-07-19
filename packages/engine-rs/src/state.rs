@@ -3,8 +3,6 @@
 //! Design: all state is owned, Clone for MCTS tree copies. Statuses use a flat
 //! fixed array indexed by StatusId for O(1) access and fast cloning.
 
-use pyo3::prelude::*;
-use pyo3::types::PyDict;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
@@ -514,90 +512,4 @@ fn take_card_instance_id(next: &mut u64) -> u32 {
         .expect("card instance identity space exhausted");
     *next = current + 1;
     instance_id
-}
-
-// ---------------------------------------------------------------------------
-// PyO3 wrapper for CombatState — returned to Python as a dict
-// ---------------------------------------------------------------------------
-
-#[pyclass(name = "CombatState")]
-#[derive(Clone)]
-pub struct PyCombatState {
-    pub inner: CombatState,
-}
-
-#[pymethods]
-impl PyCombatState {
-    /// Convert the state to a Python dict for inspection.
-    fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let registry = crate::cards::global_registry();
-        let dict = PyDict::new_bound(py);
-        dict.set_item("player_hp", self.inner.player.hp)?;
-        dict.set_item("player_max_hp", self.inner.player.max_hp)?;
-        dict.set_item("player_block", self.inner.player.block)?;
-        dict.set_item("energy", self.inner.energy)?;
-        dict.set_item("max_energy", self.inner.max_energy)?;
-        dict.set_item("stance", self.inner.stance.as_str())?;
-        dict.set_item("turn", self.inner.turn)?;
-        dict.set_item("combat_over", self.inner.combat_over)?;
-        dict.set_item("player_won", self.inner.player_won)?;
-
-        // Hand
-        let hand: Vec<String> = self.inner.hand.iter()
-            .map(|c| registry.card_name(c.def_id).to_string())
-            .collect();
-        dict.set_item("hand", hand)?;
-
-        // Draw/discard sizes
-        dict.set_item("draw_pile_size", self.inner.draw_pile.len())?;
-        dict.set_item("discard_pile_size", self.inner.discard_pile.len())?;
-        dict.set_item("exhaust_pile_size", self.inner.exhaust_pile.len())?;
-
-        // Enemies
-        let enemies: Vec<_> = self
-            .inner
-            .enemies
-            .iter()
-            .map(|e| {
-                format!(
-                    "{}(hp={}/{}, move_dmg={}, move_hits={})",
-                    e.id, e.entity.hp, e.entity.max_hp, e.move_damage(), e.move_hits()
-                )
-            })
-            .collect();
-        dict.set_item("enemies", enemies)?;
-
-        // Player statuses
-        let statuses = PyDict::new_bound(py);
-        for (i, &val) in self.inner.player.statuses.iter().enumerate() {
-            if val != 0 {
-                let name = crate::status_ids::status_name(crate::ids::StatusId(i as u16));
-                statuses.set_item(name, val as i32)?;
-            }
-        }
-        dict.set_item("player_statuses", statuses)?;
-
-        // Stats
-        dict.set_item("total_damage_dealt", self.inner.total_damage_dealt)?;
-        dict.set_item("total_damage_taken", self.inner.total_damage_taken)?;
-        dict.set_item("total_cards_played", self.inner.total_cards_played)?;
-        dict.set_item(
-            "power_cards_played_this_combat",
-            self.inner.power_cards_played_this_combat,
-        )?;
-
-        Ok(dict)
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "CombatState(hp={}/{}, energy={}, turn={}, hand={}, enemies={})",
-            self.inner.player.hp,
-            self.inner.player.max_hp,
-            self.inner.energy,
-            self.inner.turn,
-            self.inner.hand.len(),
-            self.inner.enemies.len(),
-        )
-    }
 }

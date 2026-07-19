@@ -18,17 +18,26 @@ a fight is active. Counters are signed so Java `int` overflow remains traceable.
 
 The 2026-04-17 audit §1.1 "enemies use no RNG, all deterministic" is **stale**. Commit `f0a0bfd4` added `enemies::roll_next_move(enemy, ai_rng)` (consumes `ai_rng.random(99)`), dispatched per-enemy across all 4 acts (`enemies/act1..4`), and it's wired in `combat_hooks.rs:516,568`. So U08 is *verify per-enemy roll parity against decompiled getMove* (F1-style), not *add RNG threading*. Update the audit reference when closing U08.
 
-## F4 — Neow option index maps to a different blessing than Java
+## F4 — INTENTIONAL DEVIATION; oracle remint required: Neow always exposes four choices
 
-smoke-neow-floor1 (seed 57554006466, choice 1): Java → maxHP 79, gold 99; Rust → maxHP 72, gold 199. Rust's `NEOW` action index does not select the same blessing Java's option 1 does. Either the option ordering differs or the Rust Neow model doesn't apply the maxHP-boost blessing. Cross-ref the existing intentional-deviation register (Neow exposes 4 options) before deciding fix vs mask. This is U09.
+The simulator intentionally exposes all four seeded Neow choices on every run,
+while Java progression can expose only two. The old smoke golden therefore
+cannot establish an index mapping by position alone. New traces must carry the
+selected option payload and the deviation must remain explicit; the underlying
+four category constructors and RNG consumption are source-tested.
 
-## F5 — Potion empty-slot representation differs (cosmetic)
+## F5 — RESOLVED: potion empty-slot representation matches Java
 
-Java emits `"Potion Slot"` for an empty potion slot; Rust emits `""`. Normalize one side (recommend Rust emit the same placeholder, or the differ treat both as empty) so it stops appearing as a divergence. Trivial; do with F2.
+Rust trace emission now serializes empty slots as Java's stable `"Potion Slot"`
+ID both outside and during combat, with source-derived regression coverage.
 
-## F6 — Differ blind spots: powers, move_history, relic counters not compared
+## F6 — PARTIALLY RESOLVED: relic counters compare; powers/orbs/history remain
 
-`trace.rs` `record_field_diffs` compares rng/player scalars/enemy scalars+intent/piles/relic *ids*/potions — but **not** `player.powers`, `enemies[].powers`, `enemies[].move_history`, `player.orbs`, or `relics[].counter` (GOAL DoD 1 explicitly names relic counters). A divergence confined to those fields reports `match`. Both sides already emit the data (TraceWriter.java + `build_post_state`), so this is compare-side only. Two pre-requisites before enabling: (a) Rust `build_post_state` hardcodes `counter: -1` for every relic — engine relic-counter tracking must land first or every counting relic diverges on noise; (b) power id vocabularies must be reconciled (Java `AbstractPower.ID` e.g. `"Vigor"` vs Rust `status_name`). Enable field-by-field as each becomes clean, rng-first order preserved.
+`trace.rs::record_field_diffs` now compares real relic counters, and negative
+fixtures prove counter-only corruption diverges. It still does not compare
+`player.powers`, `player.orbs`, `enemies[].powers`, or
+`enemies[].move_history`, although both post-state producers expose them. This
+is the first task in the oracle-closure PR; RNG-first ordering must remain.
 
 ## F7 — Java/Rust harness contract nits (flagged, not yet biting)
 

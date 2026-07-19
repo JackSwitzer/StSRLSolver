@@ -6,6 +6,19 @@
 
 **Behavioral authority:** decompiled Java first; frozen real-game traces are the integration oracle
 
+## 2026-07-18 stack update
+
+Layers 1-3 and the pure-core portion of Layer 6 have landed in the RNG through
+pure-sim stack. Current proof is 3,011 passing tests, zero ignored, native Java
+RNG/stream ownership, canonical full-run actions, causal checkpoints, and no
+active Python/observation/search/training dependency in `engine-rs`.
+
+The detailed tables below preserve the 2026-07-15 derivation and should not be
+read as current source descriptions. The live remaining gate is Layer 5:
+complete the trace differ's power/orb/move-history comparisons, remint the
+human-attended Watcher corpus, and burn down first divergences. See
+[`pure-sim-freeze.md`](audit-reports/pure-sim-freeze.md).
+
 This is the execution map from the completed 667-row source-verification sweep to a finished Watcher simulator. It is deliberately not a claim that “667 verified” means parity is complete. The ledger currently proves source-derived coverage for four item kinds; the corpus, run RNG topology, missing content domains, and consumer boundaries are still open. Known oracle findings F1-F8 remain owned by [`docs/goal/FINDINGS.md`](../goal/FINDINGS.md) and are referenced here rather than re-derived.
 
 Effort estimates include implementation and engine-path tests, but not queue time for a human-attended game session:

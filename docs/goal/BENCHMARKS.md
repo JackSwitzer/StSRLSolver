@@ -2,7 +2,7 @@
 
 Six levels, B0→B5. Each level is a command (or short command set) that exits 0, so "where are we" is never a judgment call. Levels B1+ are fully offline — any agent can run them; only B0 minting needs the real game (human-attended). `docs/goal/GOAL.md` Definition of Done = B3+B4+B5 held simultaneously.
 
-**Current level: B0 achieved, B1 in progress** (2026-07-06 — full seeded run Neow→map→JawWorm combat→END_TURN traces byte-identically across runs; `trace_diff.sh` produces honest divergence reports. First real gaps catalogued in `docs/goal/FINDINGS.md`: enemy roll logic F1, rng-counter exposure F2, Neow mapping F4. Next: fix F2 so combat RNG parity is visible, then work F1 to reach B1.)
+**Current level: B0 achieved, B1 awaiting reminted oracle data** (2026-07-18). The native RNG, run generation, full-run action, checkpoint, and pure-core stack is locally green at 3,011 tests with zero ignored. The existing corpus remains only one script/golden, and the differ still needs power/orb/move-history comparisons before a broad `match` can certify full state. See `docs/work_units/audit-reports/pure-sim-freeze.md`.
 
 ## B0 — Oracle online (infra proof, game-side)
 
@@ -36,9 +36,9 @@ Zero `unverified` ledger rows on the Watcher-reachable set: every Watcher-reacha
 The whole ladder is enforced inside the offline suite, so it can never silently regress:
 
 ```bash
-./scripts/test_engine_rs.sh test --lib     # 2251+ green, includes test_trace_oracle over all committed goldens
+./scripts/test_engine_rs.sh test --lib     # 3011+ green, includes test_trace_oracle over committed goldens
 scripts/goal.sh check-arch                 # sim-core dependency direction holds (future tool — U03/U07)
-uv run pytest tests/training -q            # training stack untouched
+# rebuilt consumer suites run in their own branch/crate
 ```
 
 Already partially live: `test_trace_oracle.rs` runs synthetic fixtures today and auto-picks up real goldens as they land in `data/traces/java/`.

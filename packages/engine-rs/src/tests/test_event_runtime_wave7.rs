@@ -1,6 +1,6 @@
 use crate::decision::{RewardItemKind, RewardScreenSource};
 use crate::events::{typed_events_for_act, EventRuntimeStatus};
-use crate::run::{RunAction, RunEngine, RunPhase};
+use crate::run::{GameAction, RunEngine, RunPhase};
 
 fn typed_event(act: i32, name: &str) -> crate::events::TypedEventDef {
     typed_events_for_act(act)
@@ -19,8 +19,8 @@ fn test_event_runtime_wave7_mind_bloom_war_enters_scripted_boss_combat_and_opens
     ));
 
     engine.debug_set_typed_event_state(mind_bloom);
-    let start = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(start.action_accepted);
+    let start = engine.step_game(&GameAction::EventChoice(0));
+    assert!(start.accepted());
     assert_eq!(engine.current_phase(), RunPhase::Combat);
 
     let combat = engine.get_combat_engine().expect("mind bloom combat");
@@ -40,8 +40,8 @@ fn test_event_runtime_wave7_mind_bloom_war_enters_scripted_boss_combat_and_opens
     assert_ne!(screen.items[0].label, "rare relic");
 
     let relic_before = engine.run_state.relics.len();
-    let claim = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(claim.action_accepted);
+    let claim = engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(claim.accepted());
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(engine.run_state.relics.len(), relic_before + 1);
 }
