@@ -71,7 +71,7 @@ A human runs `scripts/trace_java.sh`; agents never launch the game.
 ## Verify commands
 
 ```bash
-./scripts/test_engine_rs.sh test --lib          # 3,081 pass, 0 ignored (2026-07-20)
+./scripts/test_engine_rs.sh test --lib          # 3,110 pass, 0 ignored (2026-07-21)
 scripts/trace_diff.sh data/traces/scripts/<s>.json
 scripts/ledger.sh status                        # 667 verified, 0 unverified
 uv run pytest tests/training -q                 # only for authorized training changes

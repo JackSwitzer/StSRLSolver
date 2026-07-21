@@ -101,6 +101,11 @@ to zero.
   order; the draw-pile front is the next card Java will draw.
 - Enemy `idx`, relic order, potion slots, powers, orbs, and move history remain
   ordered. Consumers must not sort these arrays before comparison.
+- Power entries use exact Java `AbstractPower.ID` strings and Java-visible
+  amounts. Status-backed powers preserve serialized insertion order and are
+  stably ordered by Java priority for `ApplyPowerAction` semantics. Rust must
+  not infer an exact match for direct `powers.add`/`addPower` call sites or
+  dynamic power instances until F16 is closed.
 - Empty potion slots use Java's stable `Potion Slot` ID.
 - Stance names are `Neutral`, `Wrath`, `Calm`, or `Divinity`.
 - Phase values are `NEOW`, `MAP`, `CHEST`, `COMBAT`, `REWARD`, `CAMPFIRE`,
@@ -169,6 +174,14 @@ absent from `meta.json`. Bundle replay therefore reports the missing values as
 unverified leaves; strict canonical-v2 intake rejects them rather than guessing
 seed zero.
 
+The Rust projection maps common static status-backed powers to Java IDs,
+filters private counters, derives compound amounts, and distinguishes green
+`Energized` from blue `EnergizedBlue`. It suppresses the lossy aggregate Bomb
+status rather than emitting a false Java power. Exact direct-add order and
+dynamic or non-status instances (including independent The Bomb IDs, Minion,
+BackAttack, Stasis, and Pen Nib) remain an explicit F16 boundary; those fields
+must not be credited as Java-certified when encountered.
+
 ## Legacy Recording-Bundle Adapter
 
 `trace_replay --bundle <dir> --diff <report.json>` reads the current
@@ -210,3 +223,10 @@ The recorder currently omits card-reward skip/leave actions, Neow grid card
 identity, Smith and shop-removal card identity, several run-level grid choices,
 and lossless boss-relic staging. These are hard action-mapping divergences, not
 implicit policy choices.
+
+A bundle report is `match` only when initialization is authoritative and every
+action has its own complete semantic checkpoint. Missing profile state,
+inferred or unverified actions, coupled checkpoints, ignored recorder
+callbacks, or skipped fields produce the explicit `uncertified` status. The CLI
+writes that report and exits as an evidence error rather than returning a false
+match.

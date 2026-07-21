@@ -57,7 +57,12 @@ omits nested selections and leave/skip actions, and sometimes captures before
 the action queue settles. Those omissions are reported as action-mapping or
 coupled-checkpoint gaps, never matches. The current operator handoff is
 `data/traces/requests/wave3-recorder-needs.md`; no agent may manufacture or
-write the protected Java corpus.
+write the protected Java corpus. The strongest current legacy-bundle prefix is
+`51/607`; it stops at a relic-pool identity that cannot be certified without
+the missing profile/unlock snapshot. Because all readable legacy bundles lack
+that initialization witness, their strict Java-certified prefix is `0`. Four
+other A0 terminal bundles have a two-action comparable prefix and then stop on
+omitted Neow grid-card identity.
 
 ## F10 — OPEN ORACLE INPUT: process-global ambient RNG state and draw witness
 
@@ -126,6 +131,50 @@ Queued proof: `watcher_a0_v2_neow_to_heart_replays_deterministically`, using a
 complete semantic recorder script after F9 is fulfilled. It must replay twice
 to byte-identical transition envelopes and may not use debug state injection or
 forced combat outcomes.
+
+## F16 — OPEN PARITY: exact Java power-list mutation and dynamic identity
+
+**Area:** parity / architecture
+**Severity:** critical
+**Confidence:** high
+**Scope:** merge-gating for Java-clean trace and continuation parity
+
+**Evidence:** `AbstractCreature.powers` is an ordered list. Java
+`ApplyPowerAction` appends a new power and stable-sorts by `priority`, while
+`AbstractCreature.addPower` and direct `powers.add` append without sorting.
+Rust now preserves a required canonical power order, validates it in
+checkpoints, maps the common static Java IDs/amounts, and rebuilds runtime
+handlers from that order. `set_status` implements stable priority-sorted
+`ApplyPowerAction`; `set_status_direct` implements unsorted direct append. The
+Java-audited Watcher A0 direct-add sites for large slimes, Slime Boss,
+Philosopher's Stone, spawned enemies, and battle-start Red Skull are migrated
+and source-tested.
+
+**Problem:** cross-relic combat-start ordering still flattens Java's
+`addToTop`, `addToBot`, and direct-add queue distinctions. Dynamic or non-status
+power instances are also incomplete in the language-neutral projection:
+independent The Bomb IDs use Java's process-global `bombIdOffset`, while Minion,
+BackAttack, Stasis, and Pen Nib are not canonical status-backed entries. Rust
+suppresses the incorrect aggregate Bomb projection rather than emitting false
+evidence, but a trace can still have the right combat scalar state and an
+incomplete or wrongly ordered power list.
+
+**Recommended fix:** add typed queue placement to combat-start relic effects so
+top, bottom, and immediate operations resolve in Java action-manager order.
+Represent dynamic power instances with serialized identity and order, and
+capture the initial/per-checkpoint Bomb ID offset in the Java witness rather
+than guessing it.
+
+**Test mapping:** sorted-apply/direct-add trace and runtime tests, the six
+source-confirmed Watcher A0 callsite proofs, and Bomb suppression/checkpoint
+tests are landed. Extend `test_trace_oracle` with relic-slot/addToTop ordering,
+multiple exact Bomb identities, Minion, BackAttack, Stasis, and Pen Nib
+projection; extend `test_core_checkpoint` with dynamic-power identity
+continuation tests.
+
+**Worker slice:** `powers-order-and-dynamic-trace` across `state.rs`,
+`effects/runtime.rs`, `trace.rs`, relic combat-start definitions, and the two
+owning test suites.
 
 ## F8 — April 2026 parity stack: unmerged fix quarry (tag `april-2026-parity-stack`)
 

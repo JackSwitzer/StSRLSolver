@@ -4,7 +4,7 @@ Everything below already exists. Read before building anything new; most "new" n
 
 ## Rust engine — USE (the product)
 
-- `packages/engine-rs/` — 3,081/3,081 lib tests green, zero ignored. The current rubric-backed engine-side readiness estimate is 94%; corpus certification is reported as the deepest comparable prefix (17/607), not as a misleading percentage.
+- `packages/engine-rs/` — 3,110/3,110 lib tests green, zero ignored. The current rubric-backed engine-side readiness estimate is 90%; the deepest comparable legacy prefix is 51/607, while the strict Java-certified prefix remains 0 because profile initialization is absent.
   - `src/run.rs` — `RunEngine::new(seed, ascension)` + `step_game(&GameAction)`: canonical full-run surface (Neow/path/combat/rewards/shop/event/campfire/Act 4).
   - `src/seed.rs` — native libGDX `RandomXS128`, counted StS `Random`, Java-util LCG/shuffle, and typed persistent/floor/combat stream ownership.
   - `src/engine.rs`, `src/state.rs`, `src/combat_hooks.rs`, `src/card_effects.rs` — combat core; state structs already serde-derive.
