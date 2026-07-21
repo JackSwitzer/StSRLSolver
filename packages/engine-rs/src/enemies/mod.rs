@@ -4,10 +4,9 @@
 //! order, including deterministic move patterns whose ignored roll is still
 //! observable in `aiRng`.
 
-use crate::state::EnemyCombatState;
 use crate::combat_types::{fx, mfx, Intent};
+use crate::state::EnemyCombatState;
 use crate::status_ids::sid;
-
 
 pub mod act1;
 pub mod act2;
@@ -141,6 +140,129 @@ pub fn canonical_enemy_id(enemy_id: &str) -> Option<&'static str> {
         .iter()
         .find_map(|(canonical, _)| (*canonical == enemy_id).then_some(*canonical))
         .or_else(|| resolve_enemy_alias(enemy_id))
+}
+
+/// Deterministic libGDX draws performed synchronously by Java monster
+/// constructors. Values are presentation-only, but their shared raw RNG state
+/// can affect later gameplay-significant ambient draws.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum ConstructorAmbientDraw {
+    UnitFloat,
+    FloatRange { start: f32, end: f32 },
+}
+
+const BASE_CONSTRUCTOR_DRAWS: &[ConstructorAmbientDraw] = &[ConstructorAmbientDraw::UnitFloat];
+const BASE_AND_UNIT_FLOAT_CONSTRUCTOR_DRAWS: &[ConstructorAmbientDraw] = &[
+    ConstructorAmbientDraw::UnitFloat,
+    ConstructorAmbientDraw::UnitFloat,
+];
+const FUNGI_CONSTRUCTOR_DRAWS: &[ConstructorAmbientDraw] = &[
+    ConstructorAmbientDraw::UnitFloat,
+    ConstructorAmbientDraw::UnitFloat,
+    ConstructorAmbientDraw::FloatRange {
+        start: 0.7,
+        end: 1.0,
+    },
+];
+const DARKLING_CONSTRUCTOR_DRAWS: &[ConstructorAmbientDraw] = &[
+    ConstructorAmbientDraw::UnitFloat,
+    ConstructorAmbientDraw::UnitFloat,
+    ConstructorAmbientDraw::FloatRange {
+        start: 0.75,
+        end: 1.0,
+    },
+];
+const HEXAGHOST_CONSTRUCTOR_DRAWS: &[ConstructorAmbientDraw] = &[
+    ConstructorAmbientDraw::UnitFloat,
+    ConstructorAmbientDraw::FloatRange {
+        start: -10.0,
+        end: 10.0,
+    },
+    ConstructorAmbientDraw::FloatRange {
+        start: -10.0,
+        end: 10.0,
+    },
+    ConstructorAmbientDraw::FloatRange {
+        start: -10.0,
+        end: 10.0,
+    },
+    ConstructorAmbientDraw::FloatRange {
+        start: -10.0,
+        end: 10.0,
+    },
+    ConstructorAmbientDraw::FloatRange {
+        start: -10.0,
+        end: 10.0,
+    },
+    ConstructorAmbientDraw::FloatRange {
+        start: -10.0,
+        end: 10.0,
+    },
+    ConstructorAmbientDraw::FloatRange {
+        start: -10.0,
+        end: 10.0,
+    },
+    ConstructorAmbientDraw::FloatRange {
+        start: -10.0,
+        end: 10.0,
+    },
+    ConstructorAmbientDraw::FloatRange {
+        start: -10.0,
+        end: 10.0,
+    },
+    ConstructorAmbientDraw::FloatRange {
+        start: -10.0,
+        end: 10.0,
+    },
+    ConstructorAmbientDraw::FloatRange {
+        start: -10.0,
+        end: 10.0,
+    },
+    ConstructorAmbientDraw::FloatRange {
+        start: -10.0,
+        end: 10.0,
+    },
+];
+
+pub(crate) fn constructor_ambient_sequence(
+    enemy_id: &str,
+) -> Option<&'static [ConstructorAmbientDraw]> {
+    let canonical = canonical_enemy_id(enemy_id)?;
+    Some(match canonical {
+        // AbstractMonster constructs BobEffect before the subclass constructor;
+        // BobEffect's timer initializer consumes one MathUtils float draw.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/AbstractMonster.java:110
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/vfx/BobEffect.java:18
+        // These subclasses add no synchronous constructor draw of their own.
+        "BronzeOrb" | "CorruptHeart" | "TheGuardian" => BASE_CONSTRUCTOR_DRAWS,
+        "FungiBeast" => FUNGI_CONSTRUCTOR_DRAWS,
+        "Darkling" => DARKLING_CONSTRUCTOR_DRAWS,
+        // Six HexaghostOrb constructors each choose x then y offsets.
+        // Java: Hexaghost.java:96, HexaghostOrb.java:40.
+        "Hexaghost" => HEXAGHOST_CONSTRUCTOR_DRAWS,
+        _ => BASE_AND_UNIT_FLOAT_CONSTRUCTOR_DRAWS,
+    })
+}
+
+pub(crate) fn create_enemy_with_ambient(
+    enemy_id: &str,
+    hp: i32,
+    max_hp: i32,
+    ambient_rng: &mut crate::seed::AmbientMathRng,
+) -> EnemyCombatState {
+    let sequence = constructor_ambient_sequence(enemy_id)
+        .unwrap_or_else(|| panic!("unknown enemy id: {enemy_id}"));
+    for draw in sequence {
+        match *draw {
+            ConstructorAmbientDraw::UnitFloat => {
+                let _ = ambient_rng.random_f32();
+            }
+            ConstructorAmbientDraw::FloatRange { start, end } => {
+                let _ = ambient_rng.random_f32_range(start, end);
+            }
+        }
+    }
+    create_enemy(enemy_id, hp, max_hp)
 }
 
 pub fn gameplay_def(enemy_id: &str) -> Option<&'static crate::gameplay::GameplayDef> {
@@ -490,8 +612,8 @@ pub mod move_ids {
 }
 
 pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
-    let canonical_id = canonical_enemy_id(enemy_id)
-        .unwrap_or_else(|| panic!("unknown enemy id: {enemy_id}"));
+    let canonical_id =
+        canonical_enemy_id(enemy_id).unwrap_or_else(|| panic!("unknown enemy id: {enemy_id}"));
     let mut enemy = EnemyCombatState::new(canonical_id, hp, max_hp);
 
     match canonical_id {
@@ -560,6 +682,9 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.add_effect(mfx::SLIMED, 1);
         }
         "AcidSlime_L" => {
+            // Java constructor directly appends SplitPower before animation.
+            // Java: monsters/exordium/AcidSlime_L.java:93.
+            enemy.entity.set_status_direct(sid::SPLIT_POWER, 1);
             enemy.entity.set_status(sid::STARTING_DMG, 11);
             enemy.entity.set_status(sid::STR_AMT, 16);
             enemy.entity.set_status(sid::BLOCK_AMT, 0);
@@ -577,6 +702,9 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.add_effect(mfx::SLIMED, 1);
         }
         "SpikeSlime_L" => {
+            // Java constructor directly appends SplitPower before animation.
+            // Java: monsters/exordium/SpikeSlime_L.java:85.
+            enemy.entity.set_status_direct(sid::SPLIT_POWER, 1);
             enemy.entity.set_status(sid::STARTING_DMG, 16);
             enemy.entity.set_status(sid::STR_AMT, 2);
             enemy.entity.set_status(sid::BLOCK_AMT, 0);
@@ -641,7 +769,9 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::STARTING_DMG, 9);
             enemy.entity.set_status(sid::STR_AMT, 2);
             enemy.entity.set_status(sid::FIRST_MOVE, 0);
-            enemy.entity.set_status(sid::IS_FIRST_MOVE, move_ids::SENTRY_BOLT);
+            enemy
+                .entity
+                .set_status(sid::IS_FIRST_MOVE, move_ids::SENTRY_BOLT);
             enemy.entity.set_status(sid::ARTIFACT, 1);
             enemy.set_move(move_ids::SENTRY_BOLT, 0, 0, 0);
             enemy.add_effect(mfx::DAZE, 2);
@@ -668,6 +798,8 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::HEX_ACTIVATE, 0, 0, 0);
         }
         "SlimeBoss" => {
+            // SlimeBoss.java directly appends SplitPower in its constructor.
+            enemy.entity.set_status_direct(sid::SPLIT_POWER, 1);
             enemy.entity.set_status(sid::IS_FIRST_MOVE, 0);
             enemy.entity.set_status(sid::FIRE_TACKLE_DMG, 9);
             enemy.entity.set_status(sid::SLAP_DMG, 35);
@@ -870,8 +1002,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // A0 constructor values. Independent A4/A9/A19 thresholds are
             // patched at the run spawn site.
             // Java: reference/extracted/methods/monster/Champ.java.
-            let (slash_dmg, slap_dmg, str_amt, forge_amt, block_amt) =
-                (16, 12, 2, 5, 15);
+            let (slash_dmg, slap_dmg, str_amt, forge_amt, block_amt) = (16, 12, 2, 5, 15);
             enemy.set_move(move_ids::CHAMP_FACE_SLAP, slap_dmg, 1, 0);
             enemy.add_effect(mfx::FRAIL, 2);
             enemy.add_effect(mfx::VULNERABLE, 2);
@@ -994,9 +1125,9 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::TRANSIENT_ATTACK, 30, 1, 0);
             enemy.entity.set_status(sid::ATTACK_COUNT, 0);
             enemy.entity.set_status(sid::STARTING_DMG, 30);
-            enemy.entity.set_status(sid::SHIFTING, 1);
             // Base factory represents A0; RunEngine applies ascension thresholds.
             enemy.entity.set_status(sid::FADING, 5);
+            enemy.entity.set_status(sid::SHIFTING, 1);
         }
         "GiantHead" => {
             // Countdown to It Is Time. Glare/Count cycle. Count starts at 5 (A18: 4).
@@ -1038,8 +1169,9 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::AO_SLASH, 20, 1, 0);
             enemy.entity.set_status(sid::PHASE, 1);
             enemy.entity.set_status(sid::FIRST_TURN, 0);
-            enemy.entity.set_status(sid::CURIOSITY, 1);
             enemy.entity.set_status(sid::REGENERATION, 10);
+            enemy.entity.set_status(sid::CURIOSITY, 1);
+            enemy.entity.set_status(sid::UNAWAKENED, 1);
         }
         "Donu" => {
             // Source: reference/extracted/methods/monster/Donu.java. These are
@@ -1129,6 +1261,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         _ => unreachable!("canonical enemy catalog and factory arms must stay in sync"),
     }
 
+    enemy.needs_initial_move_roll = true;
     enemy
 }
 
@@ -1150,6 +1283,7 @@ pub fn roll_next_move(enemy: &mut EnemyCombatState, ai_rng: &mut crate::seed::St
 pub fn roll_initial_move(enemy: &mut EnemyCombatState, ai_rng: &mut crate::seed::StsRandom) {
     let num = ai_rng.random_int(99);
     roll_initial_move_with_num_and_rng(enemy, num, ai_rng);
+    enemy.needs_initial_move_roll = false;
 }
 
 pub fn roll_initial_move_with_num_and_rng(
@@ -1161,6 +1295,8 @@ pub fn roll_initial_move_with_num_and_rng(
     enemy.move_effects.clear();
     if enemy.id == "Cultist" {
         act1::roll_cultist_initial(enemy);
+    } else if enemy.id == "JawWorm" {
+        act1::roll_jaw_worm_initial(enemy);
     } else {
         select_move(enemy, num, ai_rng);
     }
@@ -1187,11 +1323,7 @@ pub fn roll_next_move_with_num_and_rng(
     select_move(enemy, num, ai_rng);
 }
 
-fn select_move(
-    enemy: &mut EnemyCombatState,
-    num: i32,
-    ai_rng: &mut crate::seed::StsRandom,
-) {
+fn select_move(enemy: &mut EnemyCombatState, num: i32, ai_rng: &mut crate::seed::StsRandom) {
     match enemy.id.as_str() {
         // Act 1
         "JawWorm" => act1::roll_jaw_worm(enemy, num, ai_rng),
@@ -1224,26 +1356,18 @@ fn select_move(
         "Chosen" => act2::roll_chosen(enemy, num),
         "Mugger" => act2::roll_mugger(enemy, num),
         "Byrd" => act2::roll_byrd(enemy, num, ai_rng),
-        "Shelled Parasite" => {
-            act2::roll_shelled_parasite(enemy, num, ai_rng)
-        }
+        "Shelled Parasite" => act2::roll_shelled_parasite(enemy, num, ai_rng),
         "SnakePlant" => act2::roll_snake_plant(enemy, num),
         "Centurion" => act2::roll_centurion(enemy, num),
         "Healer" => act2::roll_healer(enemy, num),
         "BookOfStabbing" => act2::roll_book_of_stabbing(enemy, num),
-        "GremlinLeader" => {
-            act2::roll_gremlin_leader(enemy, num, ai_rng)
-        }
-        "SlaverBoss" => {
-            act2::roll_taskmaster(enemy, num)
-        }
+        "GremlinLeader" => act2::roll_gremlin_leader(enemy, num, ai_rng),
+        "SlaverBoss" => act2::roll_taskmaster(enemy, num),
         "SphericGuardian" => act2::roll_spheric_guardian(enemy),
         "Snecko" => act2::roll_snecko(enemy, num),
         "BanditBear" => act2::roll_bear(enemy, num),
         "BanditLeader" => act2::roll_bandit_leader(enemy, num),
-        "BanditChild" => {
-            act2::roll_bandit_pointy(enemy, num)
-        }
+        "BanditChild" => act2::roll_bandit_pointy(enemy, num),
         "BronzeAutomaton" => act2::roll_bronze_automaton(enemy, num),
         "BronzeOrb" => act2::roll_bronze_orb(enemy, num),
         "TorchHead" => { /* Always Tackle 7 */ }
@@ -1255,12 +1379,8 @@ fn select_move(
         "Spiker" => act3::roll_spiker(enemy, num),
         "Repulsor" => act3::roll_repulsor(enemy, num),
         "Exploder" => act3::roll_exploder(enemy, num),
-        "WrithingMass" => {
-            act3::roll_writhing_mass(enemy, num, ai_rng)
-        }
-        "Serpent" => {
-            act3::roll_spire_growth(enemy, num)
-        }
+        "WrithingMass" => act3::roll_writhing_mass(enemy, num, ai_rng),
+        "Serpent" => act3::roll_spire_growth(enemy, num),
         "Maw" => act3::roll_maw(enemy, num),
         "Transient" => act3::roll_transient(enemy, num),
         "GiantHead" => act3::roll_giant_head(enemy, num),
@@ -1289,18 +1409,20 @@ pub(crate) fn last_move(enemy: &EnemyCombatState, move_id: i32) -> bool {
 
 pub(crate) fn last_two_moves(enemy: &EnemyCombatState, move_id: i32) -> bool {
     let len = enemy.move_history.len();
-    if len < 2 { return false; }
+    if len < 2 {
+        return false;
+    }
     enemy.move_history[len - 1] == move_id && enemy.move_history[len - 2] == move_id
 }
 
 // Re-exports of pub functions from act modules
-pub use act3::awakened_one_rebirth;
+pub(crate) use act1::advance_acid_slime_s_after_turn;
 pub use act1::guardian_check_mode_shift;
 pub use act1::guardian_switch_to_offensive;
-pub(crate) use act1::advance_acid_slime_s_after_turn;
 pub use act1::hexaghost_set_divider;
 pub use act1::lagavulin_wake_up;
 pub use act1::slime_boss_should_split;
+pub use act3::awakened_one_rebirth;
 pub use act3::writhing_mass_reactive_reroll;
 
 // =========================================================================
@@ -1310,6 +1432,154 @@ pub use act3::writhing_mass_reactive_reroll;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const SINGLE_SUBCLASS_DRAW_CONSTRUCTORS: &[&str] = &[
+        "AcidSlime_L",
+        "AcidSlime_M",
+        "AcidSlime_S",
+        "Apology Slime",
+        "AwakenedOne",
+        "BanditBear",
+        "BanditChild",
+        "BanditLeader",
+        "BookOfStabbing",
+        "BronzeAutomaton",
+        "Byrd",
+        "Centurion",
+        "Champ",
+        "Chosen",
+        "Cultist",
+        "Dagger",
+        "Deca",
+        "Donu",
+        "Exploder",
+        "FuzzyLouseDefensive",
+        "FuzzyLouseNormal",
+        "GiantHead",
+        "GremlinFat",
+        "GremlinLeader",
+        "GremlinNob",
+        "GremlinThief",
+        "GremlinTsundere",
+        "GremlinWarrior",
+        "GremlinWizard",
+        "Healer",
+        "JawWorm",
+        "Lagavulin",
+        "Looter",
+        "Maw",
+        "Mugger",
+        "Nemesis",
+        "Orb Walker",
+        "Reptomancer",
+        "Repulsor",
+        "Sentry",
+        "Serpent",
+        "Shelled Parasite",
+        "SlaverBlue",
+        "SlaverBoss",
+        "SlaverRed",
+        "SlimeBoss",
+        "SnakePlant",
+        "Snecko",
+        "SphericGuardian",
+        "SpikeSlime_L",
+        "SpikeSlime_M",
+        "SpikeSlime_S",
+        "Spiker",
+        "SpireShield",
+        "SpireSpear",
+        "TheCollector",
+        "TimeEater",
+        "TorchHead",
+        "Transient",
+        "WrithingMass",
+    ];
+
+    #[test]
+    fn constructor_ambient_sequence_table_is_complete() {
+        // Every AbstractMonster first constructs BobEffect, whose timer field
+        // consumes one MathUtils float draw. SnakeDagger's subclass call is
+        // transitive through initializeAnimation; Hexaghost's twelve subclass
+        // calls are the six HexaghostOrb x/y constructor pairs.
+        // Java: AbstractMonster.java:110, BobEffect.java:18,
+        // SnakeDagger.java:43, Hexaghost.java:96, HexaghostOrb.java:40, and each
+        // class under monsters/{exordium,city,beyond,ending} listed above.
+        let mut classified = std::collections::BTreeSet::new();
+        for id in ["BronzeOrb", "CorruptHeart", "TheGuardian"] {
+            assert_eq!(
+                constructor_ambient_sequence(id),
+                Some(BASE_CONSTRUCTOR_DRAWS)
+            );
+            assert!(classified.insert(id));
+        }
+        for id in SINGLE_SUBCLASS_DRAW_CONSTRUCTORS {
+            assert_eq!(
+                constructor_ambient_sequence(id),
+                Some(BASE_AND_UNIT_FLOAT_CONSTRUCTOR_DRAWS)
+            );
+            assert!(classified.insert(*id));
+        }
+        for (id, expected) in [
+            ("FungiBeast", FUNGI_CONSTRUCTOR_DRAWS),
+            ("Darkling", DARKLING_CONSTRUCTOR_DRAWS),
+            ("Hexaghost", HEXAGHOST_CONSTRUCTOR_DRAWS),
+        ] {
+            assert_eq!(constructor_ambient_sequence(id), Some(expected));
+            assert!(classified.insert(id));
+        }
+        let canonical = CANONICAL_ENEMIES
+            .iter()
+            .map(|(id, _)| *id)
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(classified, canonical);
+        for (id, _) in CANONICAL_ENEMIES {
+            assert_eq!(
+                constructor_ambient_sequence(id).unwrap().first(),
+                Some(&ConstructorAmbientDraw::UnitFloat),
+                "{id} skipped AbstractMonster's BobEffect draw"
+            );
+        }
+        assert_eq!(
+            CANONICAL_ENEMIES
+                .iter()
+                .map(|(id, _)| constructor_ambient_sequence(id).unwrap().len())
+                .sum::<usize>(),
+            142
+        );
+    }
+
+    #[test]
+    fn constructor_ambient_aliases_match_canonical() {
+        for (alias, canonical) in ENEMY_ID_ALIASES {
+            assert_eq!(
+                constructor_ambient_sequence(alias),
+                constructor_ambient_sequence(canonical),
+                "ambient constructor policy drifted for alias {alias}"
+            );
+        }
+    }
+
+    #[test]
+    fn constructor_ambient_consumer_advances_exact_raw_state() {
+        for (id, _) in CANONICAL_ENEMIES {
+            let mut actual = crate::seed::AmbientMathRng::new(0x5eed);
+            let mut expected = actual.clone();
+            for draw in constructor_ambient_sequence(id).unwrap() {
+                match *draw {
+                    ConstructorAmbientDraw::UnitFloat => {
+                        let _ = expected.random_f32();
+                    }
+                    ConstructorAmbientDraw::FloatRange { start, end } => {
+                        let _ = expected.random_f32_range(start, end);
+                    }
+                }
+            }
+            let enemy = create_enemy_with_ambient(id, 1, 1, &mut actual);
+            assert_eq!(actual.state_tuple(), expected.state_tuple(), "{id}");
+            assert!(enemy.needs_initial_move_roll, "{id}");
+        }
+    }
 
     // ----- Act 1 -----
 
@@ -1381,8 +1651,7 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::SENTRY_BOLT);
         assert_eq!(enemy.effect(mfx::DAZE), Some(2));
 
-        roll_initial_move_with_num_and_rng(
-            &mut enemy, 0, &mut crate::seed::StsRandom::new(1));
+        roll_initial_move_with_num_and_rng(&mut enemy, 0, &mut crate::seed::StsRandom::new(1));
         roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SENTRY_BEAM);
         assert_eq!(enemy.move_damage(), 9);
@@ -1498,8 +1767,7 @@ mod tests {
     fn test_blue_slaver_pattern() {
         let mut enemy = create_enemy("SlaverBlue", 48, 48);
         // Source: reference/extracted/methods/monster/SlaverBlue.java.
-        roll_initial_move_with_num_and_rng(
-            &mut enemy, 40, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut enemy, 40, &mut crate::seed::StsRandom::new(0));
         roll_next_move_with_num(&mut enemy, 40);
         assert_eq!(enemy.move_id, move_ids::BS_STAB);
 
@@ -1512,8 +1780,7 @@ mod tests {
     fn test_red_slaver_pattern() {
         let mut enemy = create_enemy("SlaverRed", 48, 48);
         // Source: reference/extracted/methods/monster/SlaverRed.java.
-        roll_initial_move_with_num_and_rng(
-            &mut enemy, 0, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut enemy, 0, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::RS_STAB);
         assert_eq!(enemy.move_damage(), 13);
 
@@ -1522,9 +1789,7 @@ mod tests {
         assert_eq!(enemy.effect(mfx::ENTANGLE), Some(1));
 
         roll_next_move_with_num(&mut enemy, 60);
-        assert!(
-            enemy.move_id == move_ids::RS_SCRAPE || enemy.move_id == move_ids::RS_STAB
-        );
+        assert!(enemy.move_id == move_ids::RS_SCRAPE || enemy.move_id == move_ids::RS_STAB);
     }
 
     #[test]
@@ -1580,11 +1845,13 @@ mod tests {
         // Source: reference/extracted/methods/monster/Looter.java (`takeTurn`).
         let mut enemy = create_enemy("Looter", 44, 44);
         assert_eq!(enemy.move_id, move_ids::LOOTER_MUG);
-        let seed = (1..10_000).find(|&seed| {
-            let mut rng = crate::seed::StsRandom::new(seed);
-            let _ = rng.random_f32();
-            rng.random_f32() < 0.5
-        }).unwrap();
+        let seed = (1..10_000)
+            .find(|&seed| {
+                let mut rng = crate::seed::StsRandom::new(seed);
+                let _ = rng.random_f32();
+                rng.random_f32() < 0.5
+            })
+            .unwrap();
         let mut rng = crate::seed::StsRandom::new(seed);
 
         act1::advance_looter_after_turn(&mut enemy, &mut rng);
@@ -1602,11 +1869,13 @@ mod tests {
         assert!(enemy.is_escaping);
         assert_eq!(enemy.entity.hp, 0);
 
-        let lunge_seed = (1..10_000).find(|&seed| {
-            let mut rng = crate::seed::StsRandom::new(seed);
-            let _ = rng.random_f32();
-            rng.random_f32() >= 0.5
-        }).unwrap();
+        let lunge_seed = (1..10_000)
+            .find(|&seed| {
+                let mut rng = crate::seed::StsRandom::new(seed);
+                let _ = rng.random_f32();
+                rng.random_f32() >= 0.5
+            })
+            .unwrap();
         let mut lunge = create_enemy("Looter", 44, 44);
         let mut rng = crate::seed::StsRandom::new(lunge_seed);
         act1::advance_looter_after_turn(&mut lunge, &mut rng);
@@ -1627,8 +1896,7 @@ mod tests {
         assert_eq!(enemy.move_damage(), 5);
         assert_eq!(enemy.move_hits(), 2);
 
-        roll_initial_move_with_num_and_rng(
-            &mut enemy, 99, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut enemy, 99, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::CHOSEN_POKE);
 
         // After Poke: Hex.
@@ -1654,15 +1922,16 @@ mod tests {
         assert_eq!(enemy.entity.status(sid::FLIGHT), 3);
         assert_eq!(enemy.entity.status(sid::FIRST_MOVE), 1);
 
-        let seed_for = |chance: f32, expected: bool| (1..10_000).find(|&seed| {
-            let mut rng = crate::seed::StsRandom::new(seed);
-            (rng.random_f32() < chance) == expected
-        }).unwrap();
+        let seed_for = |chance: f32, expected: bool| {
+            (1..10_000)
+                .find(|&seed| {
+                    let mut rng = crate::seed::StsRandom::new(seed);
+                    (rng.random_f32() < chance) == expected
+                })
+                .unwrap()
+        };
 
-        for (caws, expected) in [
-            (true, move_ids::BYRD_CAW),
-            (false, move_ids::BYRD_PECK),
-        ] {
+        for (caws, expected) in [(true, move_ids::BYRD_CAW), (false, move_ids::BYRD_PECK)] {
             let mut opening = create_enemy("Byrd", 28, 28);
             let mut rng = crate::seed::StsRandom::new(seed_for(0.375, caws));
             roll_initial_move_with_num_and_rng(&mut opening, 99, &mut rng);
@@ -1677,10 +1946,7 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::BYRD_SWOOP);
         assert_eq!(enemy.move_damage(), 12);
 
-        for (swoops, expected) in [
-            (true, move_ids::BYRD_SWOOP),
-            (false, move_ids::BYRD_CAW),
-        ] {
+        for (swoops, expected) in [(true, move_ids::BYRD_SWOOP), (false, move_ids::BYRD_CAW)] {
             let mut repeated_peck = create_enemy("Byrd", 28, 28);
             repeated_peck.entity.set_status(sid::FIRST_MOVE, 0);
             repeated_peck.move_history.push(move_ids::BYRD_PECK);
@@ -1707,8 +1973,7 @@ mod tests {
         assert_eq!(enemy.move_hits(), 3);
         assert_eq!(enemy.entity.status(sid::MALLEABLE), 3);
 
-        roll_initial_move_with_num_and_rng(
-            &mut enemy, 64, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut enemy, 64, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SNAKE_CHOMP);
 
         roll_next_move_with_num(&mut enemy, 64);
@@ -1723,8 +1988,7 @@ mod tests {
     fn test_book_of_stabbing_escalation() {
         let mut enemy = create_enemy("BookOfStabbing", 162, 162);
         // Source: reference/extracted/methods/monster/BookOfStabbing.java.
-        roll_initial_move_with_num_and_rng(
-            &mut enemy, 99, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut enemy, 99, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::BOOK_STAB);
         assert_eq!(enemy.move_hits(), 1);
         roll_next_move_with_num(&mut enemy, 99);
@@ -1736,8 +2000,7 @@ mod tests {
     fn test_bronze_automaton_boss_pattern() {
         let mut enemy = create_enemy("BronzeAutomaton", 300, 300);
         // Source: reference/extracted/methods/monster/BronzeAutomaton.java.
-        roll_initial_move_with_num_and_rng(
-            &mut enemy, 0, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut enemy, 0, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::BA_SPAWN_ORBS);
 
         // After spawn: Flail
@@ -1757,8 +2020,7 @@ mod tests {
         assert_eq!(enemy.effect(mfx::FRAIL), Some(2));
         assert_eq!(enemy.effect(mfx::VULNERABLE), Some(2));
 
-        roll_initial_move_with_num_and_rng(
-            &mut enemy, 99, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut enemy, 99, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::CHAMP_HEAVY_SLASH);
         assert_eq!(enemy.move_damage(), 16);
 
@@ -1857,25 +2119,21 @@ mod tests {
         assert_eq!(enemy.move_damage(), 7);
         assert_eq!(enemy.move_hits(), 3);
 
-        roll_initial_move_with_num_and_rng(
-            &mut enemy, 44, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut enemy, 44, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::TE_REVERBERATE);
 
-        roll_initial_move_with_num_and_rng(
-            &mut enemy, 45, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut enemy, 45, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::TE_HEAD_SLAM);
         assert_eq!(enemy.move_damage(), 26);
         assert_eq!(enemy.effect(mfx::DRAW_REDUCTION), Some(1));
 
-        roll_initial_move_with_num_and_rng(
-            &mut enemy, 80, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut enemy, 80, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::TE_RIPPLE);
         assert_eq!(enemy.move_block(), 20);
 
         enemy.entity.hp = 227;
         enemy.entity.set_status(sid::USED_HASTE, 0);
-        roll_initial_move_with_num_and_rng(
-            &mut enemy, 0, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut enemy, 0, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::TE_HASTE);
         assert_eq!(enemy.entity.status(sid::USED_HASTE), 1);
     }
@@ -1932,7 +2190,10 @@ mod tests {
         roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         // Should eventually use Scythe
         let has_scythe = enemy.move_id == move_ids::NEM_SCYTHE
-            || enemy.move_history.iter().any(|&m| m == move_ids::NEM_SCYTHE);
+            || enemy
+                .move_history
+                .iter()
+                .any(|&m| m == move_ids::NEM_SCYTHE);
         assert!(has_scythe || enemy.move_history.len() <= 3);
     }
 
@@ -1943,19 +2204,16 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::REPTO_SPAWN);
         assert!(matches!(enemy.intent, crate::combat_types::Intent::Unknown));
 
-        roll_initial_move_with_num_and_rng(
-            &mut enemy, 99, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut enemy, 99, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::REPTO_SPAWN);
 
-        roll_next_move_with_num_and_rng(
-            &mut enemy, 0, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num_and_rng(&mut enemy, 0, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::REPTO_SNAKE_STRIKE);
         assert_eq!(enemy.move_damage(), 13);
         assert_eq!(enemy.move_hits(), 2);
         assert_eq!(enemy.effect(crate::combat_types::mfx::WEAK), Some(1));
 
-        roll_next_move_with_num_and_rng(
-            &mut enemy, 66, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num_and_rng(&mut enemy, 66, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::REPTO_BIG_BITE);
         assert_eq!(enemy.move_damage(), 30);
     }
@@ -1994,14 +2252,19 @@ mod tests {
 
         roll_next_move(&mut enemy, &mut rng);
         let first_attack = enemy.move_id;
-        assert!(matches!(first_attack,
-            move_ids::HEART_BLOOD_SHOTS | move_ids::HEART_ECHO));
+        assert!(matches!(
+            first_attack,
+            move_ids::HEART_BLOOD_SHOTS | move_ids::HEART_ECHO
+        ));
         roll_next_move(&mut enemy, &mut rng);
-        assert_eq!(enemy.move_id, if first_attack == move_ids::HEART_ECHO {
-            move_ids::HEART_BLOOD_SHOTS
-        } else {
-            move_ids::HEART_ECHO
-        });
+        assert_eq!(
+            enemy.move_id,
+            if first_attack == move_ids::HEART_ECHO {
+                move_ids::HEART_BLOOD_SHOTS
+            } else {
+                move_ids::HEART_ECHO
+            }
+        );
 
         roll_next_move(&mut enemy, &mut rng);
         assert_eq!(enemy.move_id, move_ids::HEART_BUFF);
@@ -2016,8 +2279,9 @@ mod tests {
         assert_eq!(enemy.move_damage(), 12);
         assert_eq!(enemy.entity.status(sid::ARTIFACT), 1);
 
-        let false_seed = (1..10_000).find(|&seed|
-            !crate::seed::StsRandom::new(seed).random_bool()).unwrap();
+        let false_seed = (1..10_000)
+            .find(|&seed| !crate::seed::StsRandom::new(seed).random_bool())
+            .unwrap();
         let mut rng = crate::seed::StsRandom::new(false_seed);
         roll_initial_move_with_num_and_rng(&mut enemy, 0, &mut rng);
         assert_eq!(enemy.move_id, move_ids::SHIELD_BASH);
@@ -2044,8 +2308,9 @@ mod tests {
 
         // Source: reference/extracted/methods/monster/SpireSpear.java. The
         // empty-history opener is Burn Strike, then Skewer, then a boolean.
-        let true_seed = (1..10_000).find(|&seed|
-            crate::seed::StsRandom::new(seed).random_bool()).unwrap();
+        let true_seed = (1..10_000)
+            .find(|&seed| crate::seed::StsRandom::new(seed).random_bool())
+            .unwrap();
         let mut rng = crate::seed::StsRandom::new(true_seed);
         roll_initial_move_with_num_and_rng(&mut enemy, 0, &mut rng);
         assert_eq!(enemy.move_id, move_ids::SPEAR_BURN_STRIKE);

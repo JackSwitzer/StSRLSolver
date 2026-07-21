@@ -87,6 +87,228 @@ fn trace_preserves_java_potion_slot_placeholders_outside_and_during_combat() {
 }
 
 #[test]
+fn trace_powers_keep_java_application_order_and_hide_ai_counters_after_restore() {
+    // ApplyPowerAction appends a new power and Collections.sort uses
+    // AbstractPower.priority only. Java's stable sort therefore preserves
+    // application order for equal-priority Spore Cloud and Strength.
+    // Sources: ApplyPowerAction.java:163-165, AbstractPower.java:370-372,
+    // SporeCloudPower.java:16, StrengthPower.java:17.
+    let mut run = crate::run::RunEngine::new(4, 0);
+    run.debug_enter_specific_combat(&["JawWorm"]);
+    {
+        let enemy = &mut run.debug_combat_engine_mut().state.enemies[0];
+        enemy
+            .entity
+            .set_status(crate::status_ids::sid::SPORE_CLOUD, 2);
+        enemy
+            .entity
+            .set_status(crate::status_ids::sid::STRENGTH, 3);
+        assert!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG) != 0);
+    }
+
+    let before = crate::trace::build_post_state(&run);
+    assert_eq!(
+        before.enemies[0]
+            .powers
+            .iter()
+            .map(|power| (power.id.as_str(), power.amt))
+            .collect::<Vec<_>>(),
+        [("Spore Cloud", 2), ("Strength", 3)]
+    );
+
+    let encoded = crate::checkpoint::CoreCheckpoint::capture(&run)
+        .unwrap()
+        .to_json()
+        .unwrap();
+    let restored = crate::checkpoint::CoreCheckpoint::from_json(&encoded)
+        .unwrap()
+        .restore()
+        .unwrap();
+    assert_eq!(crate::trace::build_post_state(&restored), before);
+}
+
+#[test]
+fn power_order_distinguishes_sorted_apply_from_unsorted_direct_add() {
+    // ApplyPowerAction appends and stable-sorts by priority, while
+    // AbstractCreature.addPower/powers.add append without sorting.
+    // Sources: ApplyPowerAction.java:137-165; AbstractCreature.java:511-513.
+    let mut run = crate::run::RunEngine::new(4, 0);
+    run.debug_enter_specific_combat(&["JawWorm"]);
+    {
+        let enemy = &mut run.debug_combat_engine_mut().state.enemies[0].entity;
+        enemy.set_status_direct(crate::status_ids::sid::REACTIVE, 1);
+        enemy.set_status_direct(crate::status_ids::sid::MALLEABLE, 3);
+    }
+    let direct = crate::trace::build_post_state(&run);
+    assert_eq!(
+        direct.enemies[0]
+            .powers
+            .iter()
+            .map(|power| power.id.as_str())
+            .collect::<Vec<_>>(),
+        ["Compulsive", "Malleable"]
+    );
+
+    run.debug_combat_engine_mut()
+        .state
+        .enemies[0]
+        .entity
+        .set_status(crate::status_ids::sid::STRENGTH, 2);
+    let sorted = crate::trace::build_post_state(&run);
+    assert_eq!(
+        sorted.enemies[0]
+            .powers
+            .iter()
+            .map(|power| power.id.as_str())
+            .collect::<Vec<_>>(),
+        ["Malleable", "Strength", "Compulsive"]
+    );
+}
+
+#[test]
+fn trace_power_projection_uses_java_ids_priorities_and_compound_amounts() {
+    // Sources: ConfusionPower.java, WraithFormPower.java, TimeWarpPower.java,
+    // InvinciblePower.java, and AbstractPower.compareTo.
+    let mut run = crate::run::RunEngine::new(4, 0);
+    run.debug_enter_specific_combat(&["JawWorm"]);
+    {
+        let combat = run.debug_combat_engine_mut();
+        combat
+            .state
+            .player
+            .set_status(crate::status_ids::sid::WRAITH_FORM, 2);
+        combat
+            .state
+            .player
+            .set_status(crate::status_ids::sid::CONFUSION, 1);
+        combat
+            .state
+            .player
+            .set_status(crate::status_ids::sid::ENERGIZED, 2);
+        combat
+            .state
+            .player
+            .set_status(crate::status_ids::sid::ENERGIZED_BLUE, 3);
+
+        let enemy = &mut combat.state.enemies[0].entity;
+        enemy.set_status(crate::status_ids::sid::INVINCIBLE, 200);
+        enemy.set_status(crate::status_ids::sid::INVINCIBLE_DAMAGE_TAKEN, 37);
+        enemy.set_status(crate::status_ids::sid::TIME_WARP_ACTIVE, 1);
+        enemy.set_status(crate::status_ids::sid::TIME_WARP, 0);
+        enemy.set_status(crate::status_ids::sid::FIRST_MOVE, 1);
+    }
+
+    let post = crate::trace::build_post_state(&run);
+    assert_eq!(
+        post.player
+            .powers
+            .iter()
+            .map(|power| (power.id.as_str(), power.amt))
+            .collect::<Vec<_>>(),
+        [
+            ("Confusion", -1),
+            ("Wraith Form v2", -2),
+            ("Energized", 2),
+            ("EnergizedBlue", 3),
+        ]
+    );
+    assert_eq!(
+        post.enemies[0]
+            .powers
+            .iter()
+            .map(|power| (power.id.as_str(), power.amt))
+            .collect::<Vec<_>>(),
+        [("Time Warp", 0), ("Invincible", 163)]
+    );
+}
+
+#[test]
+fn trace_suppresses_the_bomb_until_dynamic_java_ids_are_checkpoint_causal() {
+    // Each TheBombPower exposes turns as amount and owns a process-global ID
+    // suffix. The aggregate Rust status stores damage, so projecting it as one
+    // `TheBomb` entry would be false evidence.
+    // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/TheBombPower.java:23-31.
+    let mut run = crate::run::RunEngine::new(4, 0);
+    run.debug_enter_specific_combat(&["JawWorm"]);
+    {
+        let combat = run.debug_combat_engine_mut();
+        combat.schedule_the_bomb(3, 40);
+        combat.schedule_the_bomb(2, 50);
+        assert_eq!(combat.state.pending_bombs.as_slice(), &[(3, 40), (2, 50)]);
+    }
+
+    let post = crate::trace::build_post_state(&run);
+    assert!(post.player.powers.iter().all(|power| !power.id.starts_with("TheBomb")));
+
+    let encoded = crate::checkpoint::CoreCheckpoint::capture(&run)
+        .unwrap()
+        .to_json()
+        .unwrap();
+    let mut restored = crate::checkpoint::CoreCheckpoint::from_json(&encoded)
+        .unwrap()
+        .restore()
+        .unwrap();
+    assert_eq!(
+        restored
+            .debug_combat_engine_mut()
+            .state
+            .pending_bombs
+            .as_slice(),
+        &[(3, 40), (2, 50)]
+    );
+    assert_eq!(crate::trace::build_post_state(&restored), post);
+}
+
+#[test]
+fn trace_projects_constructor_and_prebattle_power_order_for_watcher_enemies() {
+    // Sources: AcidSlime_L.java:93, SpikeSlime_L.java:85,
+    // SlimeBoss.java:99, Transient.java:62-68, and AwakenedOne.java:138-150.
+    let cases = [
+        (
+            "AcidSlime_L",
+            "AcidSlime_L",
+            vec![("Split", -1)],
+        ),
+        (
+            "SpikeSlime_L",
+            "SpikeSlime_L",
+            vec![("Split", -1)],
+        ),
+        ("SlimeBoss", "SlimeBoss", vec![("Split", -1)]),
+        (
+            "Transient",
+            "Transient",
+            vec![("Fading", 5), ("Shifting", -1)],
+        ),
+        (
+            "AwakenedOne",
+            "AwakenedOne",
+            vec![("Regenerate", 10), ("Curiosity", 1), ("Unawakened", -1)],
+        ),
+    ];
+
+    for (encounter_id, enemy_id, expected) in cases {
+        let mut run = crate::run::RunEngine::new(4, 0);
+        run.debug_enter_specific_combat(&[encounter_id]);
+        let post = crate::trace::build_post_state(&run);
+        let enemy = post
+            .enemies
+            .iter()
+            .find(|enemy| enemy.id == enemy_id)
+            .unwrap();
+        assert_eq!(
+            enemy
+                .powers
+                .iter()
+                .map(|power| (power.id.as_str(), power.amt))
+                .collect::<Vec<_>>(),
+            expected,
+            "{enemy_id}"
+        );
+    }
+}
+
+#[test]
 fn trace_emits_real_relic_counters_from_run_and_combat_runtime_state() {
     // TraceWriter serializes AbstractRelic.counter directly. These fixtures
     // cover the run-owned, runtime-owned, sentinel, and non-counter paths.

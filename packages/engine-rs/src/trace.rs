@@ -42,15 +42,109 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+pub mod bundle;
+pub mod oracle_v2;
 /// Additive trace-v2 schema types. The existing definitions in this file stay
 /// frozen as the read-only v1 contract.
 pub mod v2;
-pub mod oracle_v2;
-pub mod bundle;
 
 /// Current trace schema version. Every header/record carries `v` so a
 /// consumer can immediately detect drift instead of silently misparsing.
 pub const TRACE_SCHEMA_VERSION: u32 = 1;
+
+/// Version of the optional profile snapshot embedded in recording metadata.
+pub const PROFILE_SNAPSHOT_SCHEMA_VERSION: u32 = 1;
+
+/// Authoritative cross-run inputs needed to reproduce profile-sensitive run
+/// initialization. Unlike [`crate::run::ProfileSnapshot`], `locked_cards` and
+/// `locked_relics` are required on this wire DTO: recorder bundles must never
+/// turn an omitted unlock state into an inferred all-unlocked profile.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TraceProfileSnapshot {
+    pub v: u32,
+    pub note_for_yourself_card: String,
+    pub highest_unlocked_ascension: i32,
+    pub is_daily_run: bool,
+    pub final_act_available: bool,
+    /// Java profile preference IDs (`GUARDIAN`, `GHOST`, ...), not Rust enum
+    /// variant names.
+    pub bosses_seen: Vec<String>,
+    pub locked_cards: Vec<String>,
+    pub locked_relics: Vec<String>,
+}
+
+impl TraceProfileSnapshot {
+    pub fn check_version(&self) -> Result<(), String> {
+        if self.v != PROFILE_SNAPSHOT_SCHEMA_VERSION {
+            return Err(format!(
+                "unsupported profile snapshot version {} (expected {})",
+                self.v, PROFILE_SNAPSHOT_SCHEMA_VERSION
+            ));
+        }
+        for (field, ids) in [
+            ("locked_cards", &self.locked_cards),
+            ("locked_relics", &self.locked_relics),
+        ] {
+            if ids.iter().any(|id| id.is_empty()) {
+                return Err(format!("profile snapshot {field} contains an empty id"));
+            }
+            let mut unique = std::collections::BTreeSet::new();
+            if let Some(duplicate) = ids.iter().find(|id| !unique.insert(id.as_str())) {
+                return Err(format!(
+                    "profile snapshot {field} contains duplicate id {duplicate:?}"
+                ));
+            }
+        }
+        let mut unique_bosses = std::collections::BTreeSet::new();
+        for boss_id in &self.bosses_seen {
+            parse_boss_seen_id(boss_id)?;
+            if !unique_bosses.insert(boss_id.as_str()) {
+                return Err(format!(
+                    "profile snapshot bosses_seen contains duplicate id {boss_id:?}"
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn to_engine_profile(&self) -> Result<crate::run::ProfileSnapshot, String> {
+        let mut profile = crate::run::ProfileSnapshot {
+            note_for_yourself_card: self.note_for_yourself_card.clone(),
+            highest_unlocked_ascension: self.highest_unlocked_ascension,
+            is_daily_run: self.is_daily_run,
+            final_act_available: self.final_act_available,
+            bosses_seen: crate::run::BossSeenSnapshot::fresh(),
+            locked_cards: self.locked_cards.clone(),
+            locked_relics: self.locked_relics.clone(),
+        };
+        for boss_id in &self.bosses_seen {
+            profile.apply_update(&crate::run::ProfileUpdate::MarkBossSeen {
+                boss: parse_boss_seen_id(boss_id)?,
+            });
+        }
+        Ok(profile)
+    }
+}
+
+fn parse_boss_seen_id(id: &str) -> Result<crate::run::BossSeenId, String> {
+    use crate::run::BossSeenId;
+
+    match id {
+        "GUARDIAN" => Ok(BossSeenId::Guardian),
+        "GHOST" => Ok(BossSeenId::Ghost),
+        "SLIME" => Ok(BossSeenId::Slime),
+        "CHAMP" => Ok(BossSeenId::Champ),
+        "AUTOMATON" => Ok(BossSeenId::Automaton),
+        "COLLECTOR" => Ok(BossSeenId::Collector),
+        "CROW" => Ok(BossSeenId::Crow),
+        "DONUT" => Ok(BossSeenId::Donut),
+        "WIZARD" => Ok(BossSeenId::Wizard),
+        other => Err(format!(
+            "profile snapshot bosses_seen contains unknown Java id {other:?}"
+        )),
+    }
+}
 
 /// Reject anything other than [`TRACE_SCHEMA_VERSION`] with a clear message.
 ///
@@ -518,7 +612,11 @@ pub fn diff_records(
                 });
                 record_diverged = true;
             } else if secondary.len() < MAX_SECONDARY_DIFFS {
-                secondary.push(FieldDiff { path, java: jv, rust: rv });
+                secondary.push(FieldDiff {
+                    path,
+                    java: jv,
+                    rust: rv,
+                });
             }
         }
 
@@ -534,7 +632,11 @@ pub fn diff_records(
     // silently reported as "match".
     if first_divergence.is_none() && java.len() != rust.len() {
         let java_ended = java.len() < rust.len();
-        let cutoff = if java_ended { &rust[matched_actions as usize] } else { &java[matched_actions as usize] };
+        let cutoff = if java_ended {
+            &rust[matched_actions as usize]
+        } else {
+            &java[matched_actions as usize]
+        };
         let absent = serde_json::json!("absent (trace ended)");
         let present = serde_json::json!(cutoff.post.rng.clone());
         first_divergence = Some(FirstDivergence {
@@ -542,11 +644,23 @@ pub fn diff_records(
             floor: cutoff.floor,
             turn: cutoff.turn,
             path: "post".to_string(),
-            java: if java_ended { absent.clone() } else { present.clone() },
+            java: if java_ended {
+                absent.clone()
+            } else {
+                present.clone()
+            },
             rust: if java_ended { present } else { absent },
             rng_at_divergence: RngSnapshotPair {
-                java: if java_ended { BTreeMap::new() } else { cutoff.post.rng.clone() },
-                rust: if java_ended { cutoff.post.rng.clone() } else { BTreeMap::new() },
+                java: if java_ended {
+                    BTreeMap::new()
+                } else {
+                    cutoff.post.rng.clone()
+                },
+                rust: if java_ended {
+                    cutoff.post.rng.clone()
+                } else {
+                    BTreeMap::new()
+                },
             },
         });
     }
@@ -592,7 +706,11 @@ fn record_field_diffs(
         let jv = java.post.rng.get(key).copied();
         let rv = rust.post.rng.get(key).copied();
         if jv != rv {
-            diffs.push((format!("post.rng.{key}"), serde_json::json!(jv), serde_json::json!(rv)));
+            diffs.push((
+                format!("post.rng.{key}"),
+                serde_json::json!(jv),
+                serde_json::json!(rv),
+            ));
         }
     }
 
@@ -604,12 +722,42 @@ fn record_field_diffs(
     push_diff(&mut diffs, "action", &java.action, &rust.action);
 
     // 3. Player.
-    push_diff(&mut diffs, "post.player.hp", java.post.player.hp, rust.post.player.hp);
-    push_diff(&mut diffs, "post.player.max_hp", java.post.player.max_hp, rust.post.player.max_hp);
-    push_diff(&mut diffs, "post.player.block", java.post.player.block, rust.post.player.block);
-    push_diff(&mut diffs, "post.player.energy", java.post.player.energy, rust.post.player.energy);
-    push_diff_str(&mut diffs, "post.player.stance", &java.post.player.stance, &rust.post.player.stance);
-    push_diff(&mut diffs, "post.player.gold", java.post.player.gold, rust.post.player.gold);
+    push_diff(
+        &mut diffs,
+        "post.player.hp",
+        java.post.player.hp,
+        rust.post.player.hp,
+    );
+    push_diff(
+        &mut diffs,
+        "post.player.max_hp",
+        java.post.player.max_hp,
+        rust.post.player.max_hp,
+    );
+    push_diff(
+        &mut diffs,
+        "post.player.block",
+        java.post.player.block,
+        rust.post.player.block,
+    );
+    push_diff(
+        &mut diffs,
+        "post.player.energy",
+        java.post.player.energy,
+        rust.post.player.energy,
+    );
+    push_diff_str(
+        &mut diffs,
+        "post.player.stance",
+        &java.post.player.stance,
+        &rust.post.player.stance,
+    );
+    push_diff(
+        &mut diffs,
+        "post.player.gold",
+        java.post.player.gold,
+        rust.post.player.gold,
+    );
     push_power_diffs(
         &mut diffs,
         "post.player.powers",
@@ -634,10 +782,30 @@ fn record_field_diffs(
                 push_diff(&mut diffs, &format!("{base}.hp"), je.hp, re.hp);
                 push_diff(&mut diffs, &format!("{base}.max_hp"), je.max_hp, re.max_hp);
                 push_diff(&mut diffs, &format!("{base}.block"), je.block, re.block);
-                push_diff(&mut diffs, &format!("{base}.intent.move_id"), je.intent.move_id, re.intent.move_id);
-                push_diff_str(&mut diffs, &format!("{base}.intent.name"), &je.intent.name, &re.intent.name);
-                push_diff(&mut diffs, &format!("{base}.intent.dmg"), je.intent.dmg, re.intent.dmg);
-                push_diff(&mut diffs, &format!("{base}.intent.hits"), je.intent.hits, re.intent.hits);
+                push_diff(
+                    &mut diffs,
+                    &format!("{base}.intent.move_id"),
+                    je.intent.move_id,
+                    re.intent.move_id,
+                );
+                push_diff_str(
+                    &mut diffs,
+                    &format!("{base}.intent.name"),
+                    &je.intent.name,
+                    &re.intent.name,
+                );
+                push_diff(
+                    &mut diffs,
+                    &format!("{base}.intent.dmg"),
+                    je.intent.dmg,
+                    re.intent.dmg,
+                );
+                push_diff(
+                    &mut diffs,
+                    &format!("{base}.intent.hits"),
+                    je.intent.hits,
+                    re.intent.hits,
+                );
                 push_power_diffs(
                     &mut diffs,
                     &format!("{base}.powers"),
@@ -651,26 +819,45 @@ fn record_field_diffs(
                     &re.move_history,
                 );
             }
-            (Some(_), None) => {
-                diffs.push((base, serde_json::json!("present"), serde_json::json!("absent")))
-            }
-            (None, Some(_)) => {
-                diffs.push((base, serde_json::json!("absent"), serde_json::json!("present")))
-            }
+            (Some(_), None) => diffs.push((
+                base,
+                serde_json::json!("present"),
+                serde_json::json!("absent"),
+            )),
+            (None, Some(_)) => diffs.push((
+                base,
+                serde_json::json!("absent"),
+                serde_json::json!("present"),
+            )),
             (None, None) => {}
         }
     }
 
     // 5. Piles.
-    push_diff_vec(&mut diffs, "post.piles.hand", &java.post.piles.hand, &rust.post.piles.hand);
+    push_diff_vec(
+        &mut diffs,
+        "post.piles.hand",
+        &java.post.piles.hand,
+        &rust.post.piles.hand,
+    );
     push_diff_vec(
         &mut diffs,
         "post.piles.draw_ordered",
         &java.post.piles.draw_ordered,
         &rust.post.piles.draw_ordered,
     );
-    push_diff_vec(&mut diffs, "post.piles.discard", &java.post.piles.discard, &rust.post.piles.discard);
-    push_diff_vec(&mut diffs, "post.piles.exhaust", &java.post.piles.exhaust, &rust.post.piles.exhaust);
+    push_diff_vec(
+        &mut diffs,
+        "post.piles.discard",
+        &java.post.piles.discard,
+        &rust.post.piles.discard,
+    );
+    push_diff_vec(
+        &mut diffs,
+        "post.piles.exhaust",
+        &java.post.piles.exhaust,
+        &rust.post.piles.exhaust,
+    );
 
     // 6. Relics + potions.
     let relic_count = java.post.relics.len().max(rust.post.relics.len());
@@ -679,18 +866,32 @@ fn record_field_diffs(
         match (java.post.relics.get(idx), rust.post.relics.get(idx)) {
             (Some(jr), Some(rr)) => {
                 push_diff_str(&mut diffs, &format!("{base}.id"), &jr.id, &rr.id);
-                push_diff(&mut diffs, &format!("{base}.counter"), jr.counter, rr.counter);
+                push_diff(
+                    &mut diffs,
+                    &format!("{base}.counter"),
+                    jr.counter,
+                    rr.counter,
+                );
             }
-            (Some(_), None) => {
-                diffs.push((base, serde_json::json!("present"), serde_json::json!("absent")))
-            }
-            (None, Some(_)) => {
-                diffs.push((base, serde_json::json!("absent"), serde_json::json!("present")))
-            }
+            (Some(_), None) => diffs.push((
+                base,
+                serde_json::json!("present"),
+                serde_json::json!("absent"),
+            )),
+            (None, Some(_)) => diffs.push((
+                base,
+                serde_json::json!("absent"),
+                serde_json::json!("present"),
+            )),
             (None, None) => {}
         }
     }
-    push_diff_vec(&mut diffs, "post.potions", &java.post.potions, &rust.post.potions);
+    push_diff_vec(
+        &mut diffs,
+        "post.potions",
+        &java.post.potions,
+        &rust.post.potions,
+    );
 
     diffs
 }
@@ -771,7 +972,11 @@ fn push_diff<T: PartialEq + serde::Serialize>(
     rust: T,
 ) {
     if java != rust {
-        diffs.push((path.to_string(), serde_json::json!(java), serde_json::json!(rust)));
+        diffs.push((
+            path.to_string(),
+            serde_json::json!(java),
+            serde_json::json!(rust),
+        ));
     }
 }
 
@@ -782,7 +987,11 @@ fn push_diff_str(
     rust: &str,
 ) {
     if java != rust {
-        diffs.push((path.to_string(), serde_json::json!(java), serde_json::json!(rust)));
+        diffs.push((
+            path.to_string(),
+            serde_json::json!(java),
+            serde_json::json!(rust),
+        ));
     }
 }
 
@@ -793,7 +1002,11 @@ fn push_diff_vec(
     rust: &[String],
 ) {
     if java != rust {
-        diffs.push((path.to_string(), serde_json::json!(java), serde_json::json!(rust)));
+        diffs.push((
+            path.to_string(),
+            serde_json::json!(java),
+            serde_json::json!(rust),
+        ));
     }
 }
 
@@ -848,13 +1061,17 @@ pub fn map_action(
     use crate::run::GameAction;
 
     match action {
-        TraceAction::PlayCard { hand_idx, target, .. } => {
-            Ok(GameAction::CombatAction(Action::PlayCard { card_idx: *hand_idx, target_idx: *target }))
-        }
+        TraceAction::PlayCard {
+            hand_idx, target, ..
+        } => Ok(GameAction::CombatAction(Action::PlayCard {
+            card_idx: *hand_idx,
+            target_idx: *target,
+        })),
         TraceAction::EndTurn => Ok(GameAction::CombatAction(Action::EndTurn)),
-        TraceAction::UsePotion { idx, target } => {
-            Ok(GameAction::CombatAction(Action::UsePotion { potion_idx: *idx, target_idx: *target }))
-        }
+        TraceAction::UsePotion { idx, target } => Ok(GameAction::CombatAction(Action::UsePotion {
+            potion_idx: *idx,
+            target_idx: *target,
+        })),
         TraceAction::Neow { choice } => Ok(GameAction::ChooseNeowOption(*choice)),
         TraceAction::Path { choice } => Ok(GameAction::ChoosePath(*choice)),
         unsupported => Err(format!(
@@ -883,10 +1100,17 @@ fn phase_label(phase: crate::run::RunPhase) -> &'static str {
 }
 
 /// Build a [`TraceRecord`] from the engine's *current* (post-step) state.
-pub fn build_trace_record(engine: &crate::run::RunEngine, idx: u64, action: TraceAction) -> TraceRecord {
+pub fn build_trace_record(
+    engine: &crate::run::RunEngine,
+    idx: u64,
+    action: TraceAction,
+) -> TraceRecord {
     let floor = engine.run_state.floor;
     let phase = engine.current_phase();
-    let turn = engine.get_combat_engine().map(|c| c.state.turn).unwrap_or(0);
+    let turn = engine
+        .get_combat_engine()
+        .map(|c| c.state.turn)
+        .unwrap_or(0);
 
     TraceRecord {
         v: 1,
@@ -910,17 +1134,31 @@ fn trace_potion_id(potion_id: &str) -> String {
     }
 }
 
-fn run_relic_counter(relic_id: &str, counters: &[i16; crate::relic_flags::counter::NUM_COUNTERS]) -> Option<i32> {
+fn run_relic_counter(
+    relic_id: &str,
+    counters: &[i16; crate::relic_flags::counter::NUM_COUNTERS],
+) -> Option<i32> {
     use crate::relic_flags::counter;
 
     let (index, normalize): (usize, fn(i16) -> i32) = match relic_id {
-        "MawBank" | "Maw Bank" => (counter::MAW_BANK_GOLD, |value| if value == -2 { -2 } else { -1 }),
-        "Omamori" => (counter::OMAMORI_USES, |value| value as i32),
-        "Matryoshka" => (counter::MATRYOSHKA_USES, |value| if value <= 0 { -2 } else { value as i32 }),
-        "Ancient Tea Set" | "AncientTeaSet" => (
-            counter::ANCIENT_TEA_SET,
-            |value| if value > 0 { -2 } else { -1 },
+        "MawBank" | "Maw Bank" => (
+            counter::MAW_BANK_GOLD,
+            |value| if value == -2 { -2 } else { -1 },
         ),
+        "Omamori" => (counter::OMAMORI_USES, |value| value as i32),
+        "Matryoshka" => (counter::MATRYOSHKA_USES, |value| {
+            if value <= 0 {
+                -2
+            } else {
+                value as i32
+            }
+        }),
+        "Ancient Tea Set" | "AncientTeaSet" => {
+            (
+                counter::ANCIENT_TEA_SET,
+                |value| if value > 0 { -2 } else { -1 },
+            )
+        }
         "Girya" => (counter::GIRYA, |value| value as i32),
         "Tiny Chest" | "TinyChest" => (counter::TINY_CHEST, |value| value as i32),
         "NlothsMask" => (counter::NLOTHS_MASK, |value| value as i32),
@@ -972,7 +1210,13 @@ fn outside_combat_relic_counter(engine: &crate::run::RunEngine, relic_id: &str) 
         return counter;
     }
     match relic_id {
-        "Lizard Tail" => return if engine.run_state.lizard_tail_used { -2 } else { -1 },
+        "Lizard Tail" => {
+            return if engine.run_state.lizard_tail_used {
+                -2
+            } else {
+                -1
+            }
+        }
         "Circlet" => return 1,
         "Du-Vu Doll" => {
             let registry = crate::cards::global_registry();
@@ -1012,7 +1256,13 @@ fn combat_relic_counter(
         return counter;
     }
     match relic_id {
-        "Lizard Tail" => return if engine.run_state.lizard_tail_used { -2 } else { -1 },
+        "Lizard Tail" => {
+            return if engine.run_state.lizard_tail_used {
+                -2
+            } else {
+                -1
+            }
+        }
         "Circlet" => return 1,
         _ => {}
     }
@@ -1047,7 +1297,12 @@ pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
                 orbs: vec![],
             },
             enemies: vec![],
-            piles: PilePostState { hand: vec![], draw_ordered: vec![], discard: vec![], exhaust: vec![] },
+            piles: PilePostState {
+                hand: vec![],
+                draw_ordered: vec![],
+                discard: vec![],
+                exhaust: vec![],
+            },
             relics: engine
                 .run_state
                 .relics
@@ -1078,27 +1333,83 @@ pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
         name
     };
 
-    let powers_from_statuses = |statuses: &[i32; crate::status_ids::sid::MAX_STATUS_ID]| -> Vec<PowerPostState> {
-        statuses
-            .iter()
-            .enumerate()
-            .filter(|(index, &amt)| {
-                amt != 0
-                    && !matches!(
-                        *index as u16,
-                        value if value == crate::status_ids::sid::STARTING_DMG.0
-                            || value == crate::status_ids::sid::STR_AMT.0
-                            || value == crate::status_ids::sid::HIGH_ASCENSION_AI.0
-                    )
-            })
-            .map(|(i, &amt)| PowerPostState {
-                id: trace_power_id(crate::status_ids::status_name(crate::ids::StatusId(
-                    i as u16,
-                )))
-                .to_string(),
-                amt,
-            })
-            .collect()
+    let powers_from_entity =
+        |entity: &crate::state::EntityState, is_player: bool| -> Vec<PowerPostState> {
+            let mut powers = Vec::new();
+            for ordered_status in entity.ordered_status_ids() {
+                let status = if ordered_status == crate::status_ids::sid::TIME_WARP_ACTIVE {
+                    crate::status_ids::sid::TIME_WARP
+                } else {
+                    ordered_status
+                };
+                if status == crate::status_ids::sid::TIME_WARP
+                    && ordered_status != crate::status_ids::sid::TIME_WARP_ACTIVE
+                {
+                    continue;
+                }
+                if status == crate::status_ids::sid::MODE_SHIFT
+                    && entity.status(crate::status_ids::sid::PHASE) != 0
+                {
+                    continue;
+                }
+                if status == crate::status_ids::sid::DOPPELGANGER_DRAW
+                    && entity.status(crate::status_ids::sid::DRAW_CARD) != 0
+                {
+                    continue;
+                }
+                if status == crate::status_ids::sid::DOPPELGANGER_ENERGY
+                    && entity.status(crate::status_ids::sid::ENERGIZED) != 0
+                {
+                    continue;
+                }
+
+                let Some(spec) = crate::powers::registry::trace_power_spec(status) else {
+                    continue;
+                };
+                let id = match status {
+                    crate::status_ids::sid::INTANGIBLE if is_player => "IntangiblePlayer",
+                    crate::status_ids::sid::REGENERATION if !is_player => "Regenerate",
+                    _ => spec.java_id,
+                };
+                let stored = entity.status(status);
+                let amt = match status {
+                    crate::status_ids::sid::INVINCIBLE => stored
+                        .saturating_sub(
+                            entity.status(crate::status_ids::sid::INVINCIBLE_DAMAGE_TAKEN),
+                        )
+                        .max(0),
+                    crate::status_ids::sid::MODE_SHIFT => stored
+                        .saturating_sub(
+                            entity.status(crate::status_ids::sid::DAMAGE_TAKEN_THIS_MODE),
+                        )
+                        .max(0),
+                    crate::status_ids::sid::SLOW => stored - 1,
+                    crate::status_ids::sid::TIME_WARP => {
+                        entity.status(crate::status_ids::sid::TIME_WARP)
+                    }
+                    crate::status_ids::sid::PANACHE => {
+                        5 - entity.status(crate::status_ids::sid::PANACHE_COUNT)
+                    }
+                    crate::status_ids::sid::DRAW_CARD
+                    | crate::status_ids::sid::DOPPELGANGER_DRAW => {
+                        entity.status(crate::status_ids::sid::DRAW_CARD)
+                            + entity.status(crate::status_ids::sid::DOPPELGANGER_DRAW)
+                    }
+                    crate::status_ids::sid::ENERGIZED
+                    | crate::status_ids::sid::DOPPELGANGER_ENERGY => {
+                        entity.status(crate::status_ids::sid::ENERGIZED)
+                            + entity.status(crate::status_ids::sid::DOPPELGANGER_ENERGY)
+                    }
+                    crate::status_ids::sid::DISCIPLINE => -1,
+                    _ => match spec.amount {
+                        crate::powers::registry::TracePowerAmount::Stored => stored,
+                        crate::powers::registry::TracePowerAmount::Marker => -1,
+                        crate::powers::registry::TracePowerAmount::Negated => -stored,
+                    },
+                };
+                powers.push(PowerPostState { id: id.to_string(), amt });
+            }
+            powers
     };
 
     let enemies: Vec<EnemyPostState> = state
@@ -1124,7 +1435,7 @@ pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
                     1
                 },
             },
-            powers: powers_from_statuses(&enemy.entity.statuses),
+            powers: powers_from_entity(&enemy.entity, false),
             // Rust keeps completed moves in history and the selected current
             // move in `move_id`; Java appends current in setMove().
             move_history: enemy
@@ -1156,7 +1467,7 @@ pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
             energy: state.energy,
             stance: state.stance.as_str().to_string(),
             gold: engine.run_state.gold,
-            powers: powers_from_statuses(&state.player.statuses),
+            powers: powers_from_entity(&state.player, true),
             orbs,
         },
         enemies,
@@ -1191,6 +1502,7 @@ fn trace_intent_name(intent: crate::combat_types::Intent) -> &'static str {
         Intent::Block { .. } => "DEFEND",
         Intent::Buff { .. } => "BUFF",
         Intent::Debuff { .. } => "DEBUFF",
+        Intent::StrongDebuff { .. } => "STRONG_DEBUFF",
         Intent::AttackBlock { .. } => "ATTACK_DEFEND",
         Intent::AttackBuff { .. } => "ATTACK_BUFF",
         Intent::AttackDebuff { .. } => "ATTACK_DEBUFF",
@@ -1199,14 +1511,6 @@ fn trace_intent_name(intent: crate::combat_types::Intent) -> &'static str {
         Intent::Sleep => "SLEEP",
         Intent::Stun => "STUN",
         Intent::Spawn | Intent::Unknown => "UNKNOWN",
-    }
-}
-
-fn trace_power_id(runtime_id: &str) -> &str {
-    match runtime_id {
-        // CurlUpPower.java declares `POWER_ID = "Curl Up"`.
-        "CurlUp" => "Curl Up",
-        _ => runtime_id,
     }
 }
 
@@ -1241,7 +1545,13 @@ fn trace_intent_damage(
     if enemy.back_attack {
         damage = (damage * 1.5) as i32 as f32;
     }
-    if combat.state.player.status(crate::status_ids::sid::INTANGIBLE) > 0 && damage > 1.0 {
+    if combat
+        .state
+        .player
+        .status(crate::status_ids::sid::INTANGIBLE)
+        > 0
+        && damage > 1.0
+    {
         damage = 1.0;
     }
     damage.floor().max(0.0) as i32

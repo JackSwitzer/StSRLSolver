@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod enemy_tests {
     use crate::enemies::*;
-    use crate::combat_types::mfx;
+    use crate::combat_types::{fx, mfx, Intent};
     use crate::status_ids::sid;
     use crate::enemies::move_ids::*;
     use std::collections::BTreeSet;
@@ -618,8 +618,13 @@ mod enemy_tests {
     // ========== Sentry ==========
 
     #[test] fn sentry_first_bolt() {
-        let e = create_enemy("Sentry", 38, 38);
+        // Source: reference/extracted/methods/monster/Sentry.java (`getMove`
+        // and `takeTurn`): Bolt is DEBUFF and adds Dazed to the discard pile.
+        let mut e = create_enemy("Sentry", 38, 38);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 0, &mut crate::seed::StsRandom::new(1));
         assert_eq!(e.move_id, SENTRY_BOLT);
+        assert_eq!(e.intent, Intent::Debuff { effects: fx::DAZE });
         assert_eq!(e.move_damage(), 0);
         assert_eq!(e.effect(mfx::DAZE), Some(2));
     }
@@ -632,6 +637,7 @@ mod enemy_tests {
         assert_eq!(e.move_damage(), 9);
         roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, SENTRY_BOLT);
+        assert_eq!(e.intent, Intent::Debuff { effects: fx::DAZE });
         assert_eq!(e.effect(mfx::DAZE), Some(2));
         roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, SENTRY_BEAM);
@@ -757,19 +763,37 @@ mod enemy_tests {
     // ========== Slime Boss ==========
 
     #[test] fn sb_first_sticky() {
-        let e = create_enemy("SlimeBoss", 140, 140);
+        // Source: reference/extracted/methods/monster/SlimeBoss.java
+        // (`getMove`): Sticky is STRONG_DEBUFF and adds Slimed.
+        let mut e = create_enemy("SlimeBoss", 140, 140);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 0, &mut crate::seed::StsRandom::new(1));
         assert_eq!(e.move_id, SB_STICKY);
+        assert_eq!(e.intent, Intent::StrongDebuff { effects: fx::SLIMED });
         assert_eq!(e.effect(mfx::SLIMED).unwrap(), 3);
     }
     #[test] fn sb_full_cycle() {
+        // Source: reference/extracted/methods/monster/SlimeBoss.java
+        // (`takeTurn`): Prep Slam is UNKNOWN and Slam returns to Sticky.
         let mut e = create_enemy("SlimeBoss", 140, 140);
         crate::enemies::act1::advance_slime_boss_after_turn(&mut e); // Prep
         assert_eq!(e.move_id, SB_PREP_SLAM);
+        assert_eq!(e.intent, Intent::Unknown);
         crate::enemies::act1::advance_slime_boss_after_turn(&mut e); // Slam
         assert_eq!(e.move_id, SB_SLAM);
         assert_eq!(e.move_damage(), 35);
         crate::enemies::act1::advance_slime_boss_after_turn(&mut e); // Sticky
         assert_eq!(e.move_id, SB_STICKY);
+        assert_eq!(e.intent, Intent::StrongDebuff { effects: fx::SLIMED });
+    }
+    #[test] fn sb_split_intent_is_unknown() {
+        // Source: reference/extracted/methods/monster/SlimeBoss.java (`damage`
+        // and `takeTurn` case 3): both Split assignments use UNKNOWN.
+        let mut e = create_enemy("SlimeBoss", 70, 140);
+        crate::enemies::act1::set_slime_boss_split(&mut e);
+        assert_eq!(e.move_id, SB_SPLIT);
+        assert_eq!(e.intent, Intent::Unknown);
+        assert!(e.move_effects.is_empty());
     }
     #[test] fn sb_split_at_50pct() {
         let mut e = create_enemy("SlimeBoss", 140, 140);

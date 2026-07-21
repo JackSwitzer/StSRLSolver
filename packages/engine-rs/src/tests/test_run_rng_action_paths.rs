@@ -183,16 +183,18 @@ fn tiny_house_boss_choice_upgrades_exact_duplicate_instance_and_orders_rewards()
 
 #[test]
 fn ambient_monster_constructor_cursor_matches_java_and_survives_combat_transfer() {
-    // Constructor order is encounter order. Cultist and Jaw Worm each consume
-    // one MathUtils.random() animation-time draw; Fungi Beast consumes one for
-    // time and one for time scale. These presentation draws share the global
-    // cursor later used by gameplay-facing ambient selections.
+    // Constructor order is encounter order. Every AbstractMonster first
+    // constructs a BobEffect, then Cultist and Jaw Worm each consume one
+    // animation-time draw while Fungi Beast consumes time and time-scale draws.
+    // These presentation draws share the global MathUtils cursor.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/AbstractMonster.java:110
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/vfx/BobEffect.java:18
     // Java: Cultist.java:73, JawWorm.java:106, FungiBeast.java:68-69.
     let initial = crate::seed::AmbientMathRng::new(42).state_tuple();
     let mut expected = crate::seed::AmbientMathRng::from_state(initial.0, initial.1);
-    let _ = expected.random_f32();
-    let _ = expected.random_f32();
-    let _ = expected.random_f32();
+    for _ in 0..6 {
+        let _ = expected.random_f32();
+    }
     let _ = expected.random_f32_range(0.7, 1.0);
 
     let mut engine = RunEngine::new_with_ambient_states(877, 0, initial, 0x1234_5678_9ABC);
@@ -208,4 +210,71 @@ fn ambient_monster_constructor_cursor_matches_java_and_survives_combat_transfer(
         .step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn))
         .accepted());
     assert_eq!(engine.ambient_math_rng_state(), restored);
+}
+
+#[test]
+fn spawned_monsters_consume_base_bob_effect_draw_before_subclass_draws() {
+    // Bronze Automaton consumes BobEffect then its animation draw. Its opening
+    // move constructs two Bronze Orbs; each Orb has no subclass draw, but still
+    // inherits the base BobEffect draw before SpawnMonsterAction initializes it.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/AbstractMonster.java:110
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/vfx/BobEffect.java:18
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/city/BronzeAutomaton.java
+    let initial = crate::seed::AmbientMathRng::new(43).state_tuple();
+    let mut expected = crate::seed::AmbientMathRng::from_state(initial.0, initial.1);
+    for _ in 0..2 {
+        let _ = expected.random_f32();
+    }
+
+    let mut engine = RunEngine::new_with_ambient_states(878, 0, initial, 0x1234_5678_9ABC);
+    engine.debug_enter_specific_combat(&["BronzeAutomaton"]);
+    assert_eq!(engine.ambient_math_rng_state(), expected.state_tuple());
+
+    for _ in 0..2 {
+        let _ = expected.random_f32();
+    }
+    assert!(engine
+        .step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn))
+        .accepted());
+    assert_eq!(engine.ambient_math_rng_state(), expected.state_tuple());
+    assert_eq!(
+        engine
+            .get_combat_engine()
+            .expect("combat must remain active")
+            .state
+            .enemies
+            .iter()
+            .filter(|enemy| enemy.id == "BronzeOrb")
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn every_targetable_monster_consumes_java_initial_ai_roll() {
+    // AbstractMonster.init invokes rollMove for every monster. Deterministic
+    // openers still consume aiRng.random(99) before ignoring the sampled value.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/AbstractMonster.java
+    for &(enemy_id, _) in crate::enemies::known_enemy_ids() {
+        let mut engine = RunEngine::new(91, 0);
+        engine.debug_enter_specific_combat(&[enemy_id]);
+        let counter = engine
+            .get_combat_engine()
+            .expect("combat must start")
+            .ai_rng
+            .counter;
+        assert!(counter >= 1, "{enemy_id} skipped AbstractMonster.rollMove");
+    }
+}
+
+#[test]
+fn jaw_worm_fixed_opener_still_consumes_one_ai_roll() {
+    // JawWorm.getMove ignores the first sampled value and always chooses Chomp,
+    // but AbstractMonster.rollMove has already advanced aiRng once.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/exordium/JawWorm.java
+    let mut engine = RunEngine::new(91, 0);
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    let combat = engine.get_combat_engine().expect("combat must start");
+    assert_eq!(combat.ai_rng.counter, 1);
+    assert_eq!(combat.state.enemies[0].move_id, 1);
 }

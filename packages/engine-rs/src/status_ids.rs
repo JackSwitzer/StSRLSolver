@@ -341,8 +341,15 @@ pub mod sid {
     // the application round before the turn-based power begins decrementing.
     pub const DRAW_REDUCTION_JUST_APPLIED: StatusId = StatusId(260);
 
+    // Real Java powers appended after the original numeric-state migration.
+    // Keeping these distinct from PHASE/threshold backing state makes power
+    // identity and ordering causal instead of creature-name-derived.
+    pub const UNAWAKENED: StatusId = StatusId(261);
+    pub const SPLIT_POWER: StatusId = StatusId(262);
+    pub const ENERGIZED_BLUE: StatusId = StatusId(263);
+
     /// Total number of defined status IDs (exclusive upper bound).
-    pub const NUM_IDS: usize = 261;
+    pub const NUM_IDS: usize = 264;
 
     /// Array sizing constant (power of 2 for cache-friendly indexing).
     pub const MAX_STATUS_ID: usize = 512;
@@ -640,6 +647,9 @@ static STATUS_NAMES: &[&str] = &[
     "PainfulStabs",        // 258
     "HighAscensionAi",     // 259
     "DrawReductionJustApplied", // 260
+    "Unawakened",        // 261
+    "Split",             // 262
+    "EnergizedBlue",     // 263
 ];
 
 #[cfg(test)]

@@ -656,19 +656,22 @@ mod defect_card_java_parity_tests {
 
         assert!(play_self(&mut e, "Conserve Battery+"));
         assert_eq!(e.state.player.block, 10);
-        assert_eq!(e.state.player.status(sid::ENERGIZED), 1);
+        assert_eq!(e.state.player.status(sid::ENERGIZED_BLUE), 1);
         assert_eq!(e.state.energy, 2);
 
         end_turn(&mut e);
 
         assert_eq!(e.state.energy, 4);
-        assert_eq!(e.state.player.status(sid::ENERGIZED), 0);
+        assert_eq!(e.state.player.status(sid::ENERGIZED_BLUE), 0);
 
         let mut capped = bare_engine(&["Conserve Battery"], vec![enemy("JawWorm", 50, 0)]);
-        capped.state.player.set_status(sid::ENERGIZED, 999);
+        capped
+            .state
+            .player
+            .set_status(sid::ENERGIZED_BLUE, 999);
         ensure_in_hand(&mut capped, "Conserve Battery");
         assert!(play_self(&mut capped, "Conserve Battery"));
-        assert_eq!(capped.state.player.status(sid::ENERGIZED), 999);
+        assert_eq!(capped.state.player.status(sid::ENERGIZED_BLUE), 999);
     });
 
     defect_test!(consume_reduces_orb_slots_and_gains_focus, {

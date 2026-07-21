@@ -57,6 +57,7 @@ pub enum RewardItemKind {
     CardChoice,
     Relic,
     Gold,
+    StolenGold,
     Potion,
     Key {
         color: RewardKeyColor,
@@ -69,14 +70,8 @@ pub enum RewardItemKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RewardChoice {
-    Card {
-        index: usize,
-        card_id: String,
-    },
-    Named {
-        index: usize,
-        label: String,
-    },
+    Card { index: usize, card_id: String },
+    Named { index: usize, label: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -358,8 +353,11 @@ impl DecisionStack {
     }
 }
 
-
-pub(crate) fn build_shop_context(shop: &ShopState, gold: i32, deck_len: usize) -> ShopDecisionContext {
+pub(crate) fn build_shop_context(
+    shop: &ShopState,
+    gold: i32,
+    deck_len: usize,
+) -> ShopDecisionContext {
     ShopDecisionContext {
         offers: shop
             .cards
@@ -383,13 +381,24 @@ pub(crate) fn build_shop_context(shop: &ShopState, gold: i32, deck_len: usize) -
                 affordable: gold >= *price,
             })
             .collect(),
-        potion_offers: shop.potions.iter().enumerate()
+        potion_offers: shop
+            .potions
+            .iter()
+            .enumerate()
             .map(|(index, (potion_id, price))| ShopPotionOfferContext {
-                index, potion_id: potion_id.clone(), price: *price, affordable: gold >= *price,
-            }).collect(),
+                index,
+                potion_id: potion_id.clone(),
+                price: *price,
+                affordable: gold >= *price,
+            })
+            .collect(),
         remove_price: shop.remove_price,
         removal_used: shop.removal_used,
-        removable_cards: if !shop.removal_used && deck_len > 5 { deck_len } else { 0 },
+        removable_cards: if !shop.removal_used && deck_len > 5 {
+            deck_len
+        } else {
+            0
+        },
     }
 }
 

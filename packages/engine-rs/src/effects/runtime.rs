@@ -429,21 +429,22 @@ impl EffectRuntime {
             }
         }
 
-        for def in crate::powers::defs::RUNTIME_PLAYER_POWER_DEFS
+        let mut player_power_defs = crate::powers::defs::RUNTIME_PLAYER_POWER_DEFS
             .iter()
             .copied()
             .chain([
                 &crate::powers::defs::DEF_ENVENOM,
                 &crate::powers::defs::DEF_ELECTRODYNAMICS,
             ])
-        {
-            if let Some(guard) = def.status_guard {
-                if state.player.status(guard) <= 0 {
-                    continue;
-                }
-            } else {
-                continue;
-            }
+            .filter(|def| {
+                def.status_guard
+                    .is_some_and(|guard| state.player.status(guard) > 0)
+            })
+            .collect::<Vec<_>>();
+        player_power_defs.sort_by_key(|def| {
+            power_runtime_order_index(&state.player, def.status_guard.expect("filtered guard"))
+        });
+        for def in player_power_defs {
             let owner = EffectOwner::PlayerPower;
             let effect_state = take_or_default_state(
                 &mut old_instances,
@@ -461,14 +462,19 @@ impl EffectRuntime {
         }
 
         for (enemy_idx, enemy) in state.enemies.iter().enumerate() {
-            for def in crate::powers::defs::RUNTIME_ENEMY_POWER_DEFS
+            let mut enemy_power_defs = crate::powers::defs::RUNTIME_ENEMY_POWER_DEFS
                 .iter()
                 .copied()
                 .chain(std::iter::once(&crate::powers::defs::DEF_TIME_WARP))
-            {
-                if !enemy_power_is_active(def, enemy) {
-                    continue;
-                }
+                .filter(|def| enemy_power_is_active(def, enemy))
+                .collect::<Vec<_>>();
+            enemy_power_defs.sort_by_key(|def| {
+                power_runtime_order_index(
+                    &enemy.entity,
+                    def.status_guard.expect("enemy runtime power has a guard"),
+                )
+            });
+            for def in enemy_power_defs {
                 let owner = EffectOwner::EnemyPower {
                     enemy_idx: enemy_idx as u16,
                 };
@@ -1901,6 +1907,14 @@ impl EffectRuntime {
     }
 }
 
+fn power_runtime_order_index(entity: &crate::state::EntityState, status: StatusId) -> usize {
+    entity
+        .status_order
+        .iter()
+        .position(|candidate| *candidate == status)
+        .unwrap_or(usize::MAX)
+}
+
 fn take_or_default_state(
     old_instances: &mut Vec<EntityInstance>,
     owner: EffectOwner,
@@ -2144,6 +2158,56 @@ mod serde_tests {
         };
         runtime.rebuild_dispatch();
         runtime
+    }
+
+    #[test]
+    fn rebuild_orders_runtime_powers_by_java_priority_then_application_order() {
+        // ApplyPowerAction appends then performs a stable priority sort.
+        // Java: ApplyPowerAction.java:163-165, AbstractPower.java:370-372.
+        let mut state = crate::state::CombatState::new(80, 80, vec![], vec![], 3);
+        state
+            .player
+            .set_status(sid::TOOLS_OF_THE_TRADE, 1); // priority 25
+        state.player.set_status(sid::DEMON_FORM, 2); // priority 5
+        state
+            .player
+            .set_status(sid::DOPPELGANGER_DRAW, 3); // priority 20
+
+        let mut runtime = EffectRuntime::default();
+        runtime.rebuild_from_state(&state);
+        assert_eq!(
+            runtime
+                .instances
+                .iter()
+                .filter(|instance| instance.owner == EffectOwner::PlayerPower)
+                .map(|instance| instance.def.id)
+                .collect::<Vec<_>>(),
+            ["demon_form", "doppelganger_draw", "tools_of_the_trade"]
+        );
+    }
+
+    #[test]
+    fn rebuild_preserves_unsorted_direct_power_add_order() {
+        // AbstractCreature.addPower appends without sorting, so runtime
+        // dispatch must consume the canonical list rather than re-sort it.
+        // Java: AbstractCreature.java:511-513.
+        let mut state = crate::state::CombatState::new(80, 80, vec![], vec![], 3);
+        state
+            .player
+            .set_status_direct(sid::TOOLS_OF_THE_TRADE, 1);
+        state.player.set_status_direct(sid::DEMON_FORM, 2);
+
+        let mut runtime = EffectRuntime::default();
+        runtime.rebuild_from_state(&state);
+        assert_eq!(
+            runtime
+                .instances
+                .iter()
+                .filter(|instance| instance.owner == EffectOwner::PlayerPower)
+                .map(|instance| instance.def.id)
+                .collect::<Vec<_>>(),
+            ["tools_of_the_trade", "demon_form"]
+        );
     }
 
     #[test]

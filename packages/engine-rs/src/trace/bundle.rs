@@ -16,7 +16,8 @@ use crate::actions::Action;
 use crate::decision::{RewardChoice, RewardItemKind, RewardKeyColor};
 use crate::run::{ActionStatus, GameAction, RunEngine, RunPhase};
 
-use super::oracle_v2::{diff_partial_oracle_state, project_oracle_state};
+use super::oracle_v2::{diff_partial_oracle_state, project_oracle_state, OracleStateFieldDiff};
+use super::TraceProfileSnapshot;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecordingMeta {
@@ -31,6 +32,10 @@ pub struct RecordingMeta {
     pub records: usize,
     #[serde(default)]
     pub sittings: Vec<String>,
+    /// Authoritative recorder-captured profile inputs. Legacy bundles omit
+    /// this additive field and remain replayable but initialization-uncertified.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<TraceProfileSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -108,6 +113,8 @@ impl RecordedTraceRecord {
                 }
                 if path_combat_entry && is_transient_debug {
                     intent.remove("name");
+                    intent.remove("dmg");
+                    intent.remove("hits");
                 }
             }
         }
@@ -136,6 +143,7 @@ pub struct RecordingBundle {
 #[serde(rename_all = "snake_case")]
 pub enum BundleComparisonStatus {
     Match,
+    Uncertified,
     Diverged,
     NoActions,
 }
@@ -148,6 +156,36 @@ pub struct BundleFirstDivergence {
     pub expected: Value,
     pub actual: Value,
     pub detail: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub differences: Vec<OracleStateFieldDiff>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BundleInferredAction {
+    /// Recorder action that could not be reached without this omitted action.
+    pub before_idx: usize,
+    pub action: GameAction,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BundleIgnoredRecorderAction {
+    pub idx: usize,
+    pub action: Value,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BundleUnverifiedAction {
+    pub idx: usize,
+    pub action: Value,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BundleInitializationQuarantine {
+    pub kind: String,
+    pub reason: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -157,19 +195,44 @@ pub struct BundleComparisonReport {
     pub seed: i64,
     pub ascension: i32,
     pub outcome: String,
+    /// Present when the replay had to use compatibility defaults for missing
+    /// authoritative run-start inputs. Such a report is never certifiable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initialization_quarantine: Option<BundleInitializationQuarantine>,
+    /// Recorder actions with their own directly compared checkpoint.
     pub matched_actions: usize,
+    /// Longest comparable action prefix, including coupled callbacks whose
+    /// shared settled state was checked by the next direct checkpoint.
+    pub comparable_actions: usize,
     /// Checkpoints that directly compared at least one recorded state field.
     pub matched_checkpoints: usize,
     /// Actions whose recorder state is coupled to the following checkpoint.
     pub coupled_actions: usize,
     /// Legacy actions whose effect was compared but semantic identity was absent.
     pub unverified_action_semantics: usize,
+    /// Recorder actions whose resulting state can be checked but whose omitted
+    /// identity prevents full semantic certification.
+    pub unverified_actions: Vec<BundleUnverifiedAction>,
+    /// Canonical actions absent from the recorder but uniquely forced by the
+    /// following recorded transition. These are replay aids, not certification.
+    pub inferred_actions: Vec<BundleInferredAction>,
+    /// UI callbacks that Java recorded although its settled state proves the
+    /// attempted action had no gameplay effect.
+    pub ignored_recorder_actions: Vec<BundleIgnoredRecorderAction>,
     pub total_actions: usize,
     pub replayed_actions: usize,
     pub skipped_fields_total: u64,
     pub skipped_fields_by_path: BTreeMap<String, u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub first_divergence: Option<BundleFirstDivergence>,
+}
+
+impl BundleComparisonReport {
+    fn mark_uncertified(&mut self) {
+        if self.status == BundleComparisonStatus::Match {
+            self.status = BundleComparisonStatus::Uncertified;
+        }
+    }
 }
 
 pub fn load_recording_meta(path: impl AsRef<Path>) -> Result<RecordingMeta, String> {
@@ -191,6 +254,14 @@ pub fn load_recording_meta(path: impl AsRef<Path>) -> Result<RecordingMeta, Stri
             "recording {} uses unsupported character {}",
             meta.run_id, meta.character
         ));
+    }
+    if let Some(profile) = &meta.profile {
+        profile.check_version().map_err(|error| {
+            format!(
+                "recording {} has invalid profile snapshot: {error}",
+                meta.run_id
+            )
+        })?;
     }
     Ok(meta)
 }
@@ -362,6 +433,8 @@ pub fn compare_recording_bundle(
     let mut report = BundleComparisonReport {
         status: if bundle.records.is_empty() {
             BundleComparisonStatus::NoActions
+        } else if bundle.meta.profile.is_none() {
+            BundleComparisonStatus::Uncertified
         } else {
             BundleComparisonStatus::Match
         },
@@ -369,10 +442,21 @@ pub fn compare_recording_bundle(
         seed: bundle.meta.seed_long,
         ascension: bundle.meta.ascension,
         outcome: bundle.meta.status.clone(),
+        initialization_quarantine: bundle.meta.profile.is_none().then(|| {
+            BundleInitializationQuarantine {
+                kind: "missing_profile_snapshot".to_string(),
+                reason: "legacy recording omitted authoritative profile/unlock state; replay uses the ordinary API's all-unlocked compatibility default and cannot certify relic-pool initialization"
+                    .to_string(),
+            }
+        }),
         matched_actions: 0,
+        comparable_actions: 0,
         matched_checkpoints: 0,
         coupled_actions: 0,
         unverified_action_semantics: 0,
+        unverified_actions: Vec::new(),
+        inferred_actions: Vec::new(),
+        ignored_recorder_actions: Vec::new(),
         total_actions: bundle.records.len(),
         replayed_actions: 0,
         skipped_fields_total: 0,
@@ -383,12 +467,27 @@ pub fn compare_recording_bundle(
         return Ok(report);
     }
 
-    let mut engine = RunEngine::new(bundle.meta.seed_long as u64, bundle.meta.ascension);
+    let mut engine = match &bundle.meta.profile {
+        Some(profile) => {
+            profile.check_version()?;
+            RunEngine::new_with_profile(
+                bundle.meta.seed_long as u64,
+                bundle.meta.ascension,
+                profile.to_engine_profile()?,
+            )
+        }
+        None => RunEngine::new(bundle.meta.seed_long as u64, bundle.meta.ascension),
+    };
     let mut adapter = RecorderActionAdapter::default();
     let mut pending_coupled_actions = 0usize;
     for (position, (action, record)) in bundle.actions.iter().zip(&bundle.records).enumerate() {
-        let mapped = match adapter.map(&engine, action, record) {
-            Ok(mapped) => mapped,
+        match infer_missing_prerequisites(&mut engine, action) {
+            Ok(inferred) => {
+                if !inferred.is_empty() {
+                    report.mark_uncertified();
+                }
+                report.inferred_actions.extend(inferred);
+            }
             Err(detail) => {
                 report.status = BundleComparisonStatus::Diverged;
                 report.first_divergence = Some(BundleFirstDivergence {
@@ -399,41 +498,109 @@ pub fn compare_recording_bundle(
                     actual: serde_json::to_value(engine.get_legal_actions())
                         .unwrap_or_else(|_| json!("unserializable legal actions")),
                     detail,
+                    differences: Vec::new(),
                 });
                 return Ok(report);
             }
+        }
+        let recorder_only_distilled_chaos_callback =
+            is_distilled_chaos_recorder_only_callback(&bundle.actions, &bundle.records, position);
+        let mapped = if recorder_only_distilled_chaos_callback {
+            report.mark_uncertified();
+            report.unverified_action_semantics += 1;
+            report
+                .ignored_recorder_actions
+                .push(BundleIgnoredRecorderAction {
+                    idx: action.idx,
+                    action: action.raw.clone(),
+                    reason: "recorder emitted a Distilled Chaos internal PLAY_CARD callback after the potion's settled checkpoint; hand_idx is -1 and the entire callback chain has identical recorded state"
+                        .to_string(),
+                });
+            None
+        } else {
+            match adapter.map(&engine, action, record, bundle.records.get(position + 1)) {
+                Ok(mapped) => mapped,
+                Err(detail) => {
+                    report.status = BundleComparisonStatus::Diverged;
+                    report.first_divergence = Some(BundleFirstDivergence {
+                        idx: action.idx,
+                        kind: "action_mapping".to_string(),
+                        path: "action".to_string(),
+                        expected: action.raw.clone(),
+                        actual: serde_json::to_value(engine.get_legal_actions())
+                            .unwrap_or_else(|_| json!("unserializable legal actions")),
+                        detail,
+                        differences: Vec::new(),
+                    });
+                    return Ok(report);
+                }
+            }
         };
         let semantic_neow_selection = matches!(&mapped, Some(GameAction::ChooseNeowOption(_)));
+        let mapping_unverified = adapter.take_last_mapping_unverified();
+        let mapping_coupled_to_following = adapter.take_last_mapping_coupled_to_following();
         if semantic_neow_selection {
+            report.mark_uncertified();
             report.unverified_action_semantics += 1;
+            report.unverified_actions.push(BundleUnverifiedAction {
+                idx: action.idx,
+                action: action.raw.clone(),
+                reason:
+                    "recorder stores only the selected Neow index, not the generated option payload"
+                        .to_string(),
+            });
+        }
+        if let Some(reason) = mapping_unverified {
+            report.mark_uncertified();
+            report.unverified_action_semantics += 1;
+            report.unverified_actions.push(BundleUnverifiedAction {
+                idx: action.idx,
+                action: action.raw.clone(),
+                reason,
+            });
         }
         if let Some(game_action) = mapped {
             let outcome = engine.step_game(&game_action);
             if outcome.status != ActionStatus::Accepted {
-                report.status = BundleComparisonStatus::Diverged;
-                report.first_divergence = Some(BundleFirstDivergence {
-                    idx: action.idx,
-                    kind: "action_rejected".to_string(),
-                    path: "action".to_string(),
-                    expected: action.raw.clone(),
-                    actual: serde_json::to_value(outcome.next_decision.legal_actions)
-                        .unwrap_or_else(|_| json!("unserializable legal actions")),
-                    detail: format!("canonical action {game_action:?} was rejected"),
-                });
-                return Ok(report);
+                let previous_record = position
+                    .checked_sub(1)
+                    .and_then(|previous| bundle.records.get(previous));
+                if is_unavailable_sapphire_click(action, previous_record, record) {
+                    report.mark_uncertified();
+                    report.unverified_action_semantics += 1;
+                    report
+                        .ignored_recorder_actions
+                        .push(BundleIgnoredRecorderAction {
+                            idx: action.idx,
+                            action: action.raw.clone(),
+                            reason: "recorder logged the unavailable Sapphire Key after its linked relic was claimed; Java state is unchanged"
+                                .to_string(),
+                        });
+                } else {
+                    report.status = BundleComparisonStatus::Diverged;
+                    report.first_divergence = Some(BundleFirstDivergence {
+                        idx: action.idx,
+                        kind: "action_rejected".to_string(),
+                        path: "action".to_string(),
+                        expected: action.raw.clone(),
+                        actual: serde_json::to_value(outcome.next_decision.legal_actions)
+                            .unwrap_or_else(|_| json!("unserializable legal actions")),
+                        detail: format!("canonical action {game_action:?} was rejected"),
+                        differences: Vec::new(),
+                    });
+                    return Ok(report);
+                }
+            } else {
+                report.replayed_actions += 1;
             }
-            report.replayed_actions += 1;
         }
 
         let actual = project_oracle_state(&engine)?;
-        // Rust resolves the selected Neow reward and leaves the phase in one
-        // canonical action; Java requires a separate UI continue click.
-        let state_shifted_into_end_turn = action.action_type == "PLAY_CARD"
-            && bundle
-                .actions
-                .get(position + 1)
-                .is_some_and(|next| next.action_type == "END_TURN")
-            && bundle
+        // The recorder can attach one settled state to several adjacent action
+        // callbacks. Defer comparison across the complete identical-state block
+        // rather than pretending each callback has its own causal checkpoint.
+        let state_coupled_to_following = mapping_coupled_to_following
+            || bundle
                 .records
                 .get(position + 1)
                 .is_some_and(|next| same_recorded_state(record, next));
@@ -444,10 +611,9 @@ pub fn compare_recording_bundle(
                     .actions
                     .get(position + 1)
                     .is_some_and(|next| next.action_type == "REWARD_TAKE");
-        let mut expected = if state_shifted_into_end_turn {
-            // The recorder committed this card only after the immediately
-            // following End Turn had settled, then emitted that same state
-            // again for End Turn. There is no card-only oracle checkpoint.
+        let mut expected = if state_coupled_to_following {
+            // There is no independent oracle checkpoint for this action. The
+            // final record in the identical-state block owns the comparison.
             json!({})
         } else {
             record.partial_oracle_state(!semantic_neow_selection)?
@@ -460,17 +626,29 @@ pub fn compare_recording_bundle(
             }
         }
         let partial = diff_partial_oracle_state(&expected, &actual);
-        report.skipped_fields_total += partial.skipped_fields_total();
+        let skipped_fields = partial.skipped_fields_total();
+        if skipped_fields != 0 {
+            report.mark_uncertified();
+        }
+        report.skipped_fields_total += skipped_fields;
         merge_counts(
             &mut report.skipped_fields_by_path,
             partial.skipped_fields_by_path,
         );
-        if state_shifted_into_end_turn {
+        if state_coupled_to_following {
+            report.mark_uncertified();
             report.coupled_actions += 1;
             pending_coupled_actions += 1;
             continue;
         }
         if let Some(first) = partial.diffs.first() {
+            let differing_paths = partial
+                .diffs
+                .iter()
+                .take(12)
+                .map(|diff| diff.path.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
             report.status = BundleComparisonStatus::Diverged;
             report.first_divergence = Some(BundleFirstDivergence {
                 idx: action.idx,
@@ -479,18 +657,189 @@ pub fn compare_recording_bundle(
                 expected: first.expected.clone(),
                 actual: first.actual.clone(),
                 detail: format!(
-                    "first of {} state differences after recorder action {}",
+                    "first of {} state differences after recorder action {}; paths: {}",
                     partial.diffs.len(),
-                    action.action_type
+                    action.action_type,
+                    differing_paths,
                 ),
+                differences: partial.diffs.clone(),
             });
             return Ok(report);
         }
         report.matched_checkpoints += 1;
-        report.matched_actions += 1 + pending_coupled_actions;
+        report.matched_actions += 1;
+        report.comparable_actions += 1 + pending_coupled_actions;
         pending_coupled_actions = 0;
     }
     Ok(report)
+}
+
+fn is_unavailable_sapphire_click(
+    action: &RecorderAction,
+    previous_record: Option<&RecordedTraceRecord>,
+    record: &RecordedTraceRecord,
+) -> bool {
+    action.action_type == "REWARD_TAKE"
+        && action.raw.get("reward_type").and_then(Value::as_str) == Some("SAPPHIRE_KEY")
+        && previous_record.is_some_and(|previous| same_recorded_state(previous, record))
+}
+
+/// Bridge recorder UI omissions only when the next recorded action proves a
+/// unique canonical route. The bridge is serialized in the report and never
+/// counted as a matched recorder action.
+fn infer_missing_prerequisites(
+    engine: &mut RunEngine,
+    action: &RecorderAction,
+) -> Result<Vec<BundleInferredAction>, String> {
+    if action.action_type == "EVENT_CHOICE" && engine.current_phase() == RunPhase::CardReward {
+        let legal = engine.get_legal_actions();
+        let mut item_opens = legal.iter().filter_map(|candidate| match candidate {
+            GameAction::SelectRewardItem(item_index) => Some(*item_index),
+            _ => None,
+        });
+        let first = item_opens.next();
+        if item_opens.next().is_some() {
+            return Err(format!(
+                "recorder event-grid click omitted an ambiguous selection stage at action {}",
+                action.idx
+            ));
+        }
+        if let Some(item_index) = first {
+            let game_action = GameAction::SelectRewardItem(item_index);
+            let outcome = engine.step_game(&game_action);
+            if outcome.status != ActionStatus::Accepted {
+                return Err(format!(
+                    "canonical grid-open action {game_action:?} was rejected before recorder action {}",
+                    action.idx
+                ));
+            }
+            return Ok(vec![BundleInferredAction {
+                before_idx: action.idx,
+                action: game_action,
+                reason:
+                    "the recorder combines the event grid click with Rust's typed selection staging"
+                        .to_string(),
+            }]);
+        }
+    }
+
+    if action.action_type != "PATH" {
+        return Ok(Vec::new());
+    }
+
+    let mut inferred = Vec::new();
+    if engine.current_phase() == RunPhase::Shop {
+        let legal = engine.get_legal_actions();
+        if legal.contains(&GameAction::ShopLeave) {
+            let game_action = GameAction::ShopLeave;
+            let outcome = engine.step_game(&game_action);
+            if outcome.status != ActionStatus::Accepted {
+                return Err(format!(
+                    "canonical inferred action {game_action:?} was rejected before recorder action {}",
+                    action.idx
+                ));
+            }
+            inferred.push(BundleInferredAction {
+                before_idx: action.idx,
+                action: game_action,
+                reason: "PATH proves the recorder left the active shop".to_string(),
+            });
+        }
+    }
+    while engine.current_phase() != RunPhase::MapChoice && engine.current_reward_screen().is_some()
+    {
+        let legal = engine.get_legal_actions();
+        let mut skips = legal.iter().filter_map(|candidate| match candidate {
+            GameAction::SkipRewardItem(item_index) => Some(*item_index),
+            _ => None,
+        });
+        let first_skip = skips.next();
+        if skips.next().is_some() {
+            return Err(format!(
+                "recorder omitted an ambiguous reward skip before PATH at action {}",
+                action.idx
+            ));
+        }
+
+        let (game_action, reason) = if let Some(item_index) = first_skip {
+            (
+                GameAction::SkipRewardItem(item_index),
+                "PATH proves the recorder skipped the open card-reward choice",
+            )
+        } else if legal.contains(&GameAction::LeaveRewards) {
+            (
+                GameAction::LeaveRewards,
+                "PATH proves the recorder left the completed reward screen",
+            )
+        } else {
+            break;
+        };
+
+        let outcome = engine.step_game(&game_action);
+        if outcome.status != ActionStatus::Accepted {
+            return Err(format!(
+                "canonical inferred action {game_action:?} was rejected before recorder action {}",
+                action.idx
+            ));
+        }
+        inferred.push(BundleInferredAction {
+            before_idx: action.idx,
+            action: game_action,
+            reason: reason.to_string(),
+        });
+    }
+    Ok(inferred)
+}
+
+/// Distilled Chaos resolves its internal card plays inside the canonical
+/// potion action. The legacy recorder logs those internal callbacks afterward,
+/// so they are non-actions only when the complete causal witness is present.
+pub(crate) fn is_distilled_chaos_recorder_only_callback(
+    actions: &[RecorderAction],
+    records: &[RecordedTraceRecord],
+    position: usize,
+) -> bool {
+    let (Some(action), Some(record)) = (actions.get(position), records.get(position)) else {
+        return false;
+    };
+    if !is_internal_card_play_callback(action) || position == 0 {
+        return false;
+    }
+
+    let mut cursor = position;
+    let mut preceding_internal_callbacks = 0usize;
+    while cursor > 0 {
+        cursor -= 1;
+        let (Some(previous_action), Some(previous_record)) =
+            (actions.get(cursor), records.get(cursor))
+        else {
+            return false;
+        };
+        if !same_recorded_state(previous_record, record) {
+            return false;
+        }
+        if is_distilled_chaos_use(previous_action) {
+            return preceding_internal_callbacks < 3;
+        }
+        if !is_internal_card_play_callback(previous_action) {
+            return false;
+        }
+        preceding_internal_callbacks += 1;
+        if preceding_internal_callbacks >= 3 {
+            return false;
+        }
+    }
+    false
+}
+
+fn is_internal_card_play_callback(action: &RecorderAction) -> bool {
+    action.action_type == "PLAY_CARD"
+        && action.raw.get("hand_idx").and_then(Value::as_i64) == Some(-1)
+}
+
+fn is_distilled_chaos_use(action: &RecorderAction) -> bool {
+    action.action_type == "USE_POTION"
+        && action.raw.get("potion_id").and_then(Value::as_str) == Some("DistilledChaos")
 }
 
 fn same_recorded_state(left: &RecordedTraceRecord, right: &RecordedTraceRecord) -> bool {
@@ -538,15 +887,28 @@ fn merge_counts(target: &mut BTreeMap<String, u64>, source: BTreeMap<String, u64
 struct RecorderActionAdapter {
     neow_commits: usize,
     neow_grid_followup: bool,
+    last_mapping_unverified: Option<String>,
+    last_mapping_coupled_to_following: bool,
 }
 
 impl RecorderActionAdapter {
+    fn take_last_mapping_unverified(&mut self) -> Option<String> {
+        std::mem::take(&mut self.last_mapping_unverified)
+    }
+
+    fn take_last_mapping_coupled_to_following(&mut self) -> bool {
+        std::mem::take(&mut self.last_mapping_coupled_to_following)
+    }
+
     fn map(
         &mut self,
         engine: &RunEngine,
         action: &RecorderAction,
         record: &RecordedTraceRecord,
+        next_record: Option<&RecordedTraceRecord>,
     ) -> Result<Option<GameAction>, String> {
+        self.last_mapping_unverified = None;
+        self.last_mapping_coupled_to_following = false;
         let raw = &action.raw;
         match action.action_type.as_str() {
             "NEOW" => {
@@ -614,6 +976,16 @@ impl RecorderActionAdapter {
                 }
             }
             "DISCARD_POTION" => Ok(Some(GameAction::DiscardPotion(value_usize(raw, "slot")?))),
+            "EVENT_CHOICE" if engine.current_phase() == RunPhase::CardReward => {
+                let (mapped, identity_verified) = map_recorded_event_grid_choice(engine, record)?;
+                if !identity_verified {
+                    self.last_mapping_unverified = Some(
+                        "recorder grid result does not distinguish duplicate deck-card instances"
+                            .to_string(),
+                    );
+                }
+                Ok(Some(mapped))
+            }
             "EVENT_CHOICE" => Ok(Some(GameAction::EventChoice(value_usize(raw, "choice")?))),
             "CHEST_OPEN" => Ok(Some(GameAction::OpenChest)),
             "CAMPFIRE" => match value_str(raw, "choice")? {
@@ -623,7 +995,17 @@ impl RecorderActionAdapter {
                 "DIG" => Ok(Some(GameAction::CampfireDig)),
                 "TOKE" => Ok(Some(GameAction::CampfireToke)),
                 "SMITH" => {
-                    Err("recorder CAMPFIRE/SMITH omits the selected deck-card identity".to_string())
+                    let next_record = next_record.ok_or_else(|| {
+                        "recorder CAMPFIRE/SMITH ends before the upgraded deck is visible"
+                            .to_string()
+                    })?;
+                    let mapped = map_recorded_campfire_upgrade(engine, next_record)?;
+                    self.last_mapping_unverified = Some(
+                        "recorder SMITH action omits the selected deck-card identity; the next ordered deck determines the upgrade"
+                            .to_string(),
+                    );
+                    self.last_mapping_coupled_to_following = true;
+                    Ok(Some(mapped))
                 }
                 other => Err(format!("unknown campfire choice {other:?}")),
             },
@@ -671,7 +1053,19 @@ impl RecorderActionAdapter {
                 Ok(Some(GameAction::ShopBuyPotion(offer.index)))
             }
             "SHOP_REMOVE" => {
-                Err("recorder SHOP_REMOVE omits the selected deck-card identity".to_string())
+                let next_record = next_record.ok_or_else(|| {
+                    "recorder SHOP_REMOVE ends before the selected deck state is visible"
+                        .to_string()
+                })?;
+                let (mapped, identity_verified) = map_recorded_shop_removal(engine, next_record)?;
+                if !identity_verified {
+                    self.last_mapping_unverified = Some(
+                        "recorder SHOP_REMOVE result does not distinguish duplicate deck-card instances"
+                            .to_string(),
+                    );
+                }
+                self.last_mapping_coupled_to_following = true;
+                Ok(Some(mapped))
             }
             "REWARD_TAKE" => Ok(Some(map_reward_take(engine, raw)?)),
             "CARD_REWARD" => Ok(Some(map_reward_choice(engine, raw, "card_id")?)),
@@ -682,6 +1076,211 @@ impl RecorderActionAdapter {
             other => Err(format!("unsupported recorder action type {other:?}")),
         }
     }
+}
+
+fn map_recorded_shop_removal(
+    engine: &RunEngine,
+    next_record: &RecordedTraceRecord,
+) -> Result<(GameAction, bool), String> {
+    let expected_deck = recorded_ordered_deck(next_record, "shop removal")?;
+    let mut candidates = engine
+        .get_legal_actions()
+        .into_iter()
+        .filter_map(|action| match action {
+            GameAction::ShopRemoveCard(deck_index) => {
+                let mut projected = engine.run_state.deck.clone();
+                (deck_index < projected.len()).then(|| {
+                    projected.remove(deck_index);
+                    (deck_index, projected)
+                })
+            }
+            _ => None,
+        })
+        .filter_map(|candidate| (candidate.1 == expected_deck).then_some(candidate.0))
+        .collect::<Vec<_>>();
+    candidates.sort_unstable();
+    let Some(&first_deck_index) = candidates.first() else {
+        return Err("recorded deck does not identify any legal shop removal".to_string());
+    };
+    let identity_verified = candidates.len() == 1;
+    if !identity_verified && !removal_candidates_are_equivalent(engine, &candidates) {
+        return Err(format!(
+            "recorded deck leaves {} semantically distinct shop removals",
+            candidates.len()
+        ));
+    }
+    Ok((
+        GameAction::ShopRemoveCard(first_deck_index),
+        identity_verified,
+    ))
+}
+
+fn map_recorded_campfire_upgrade(
+    engine: &RunEngine,
+    next_record: &RecordedTraceRecord,
+) -> Result<GameAction, String> {
+    let expected_deck = recorded_ordered_deck(next_record, "campfire smith")?;
+    let mut candidates = Vec::new();
+    for action in engine.get_legal_actions() {
+        if !matches!(action, GameAction::CampfireUpgrade(_)) {
+            continue;
+        }
+        let mut projected = engine.clone();
+        if projected.step_game(&action).status == ActionStatus::Accepted
+            && projected.run_state.deck == expected_deck
+        {
+            candidates.push(action);
+        }
+    }
+    unique_candidate(
+        candidates,
+        "campfire upgrade matching the recorded ordered deck",
+    )
+}
+
+fn recorded_ordered_deck(
+    record: &RecordedTraceRecord,
+    context: &str,
+) -> Result<Vec<String>, String> {
+    record
+        .deck
+        .as_array()
+        .ok_or_else(|| format!("{context} trace omitted the resulting ordered deck"))?
+        .iter()
+        .map(|card| {
+            card.as_str()
+                .map(str::to_string)
+                .ok_or_else(|| format!("{context} trace deck contains a non-string card"))
+        })
+        .collect()
+}
+
+fn removal_candidates_are_equivalent(engine: &RunEngine, candidates: &[usize]) -> bool {
+    let Some(first) = candidates
+        .first()
+        .and_then(|index| engine.run_state.deck_card_states.get(*index))
+    else {
+        return false;
+    };
+    !is_bottled_instance(engine, first.instance_id)
+        && candidates.iter().all(|index| {
+            engine
+                .run_state
+                .deck_card_states
+                .get(*index)
+                .is_some_and(|state| {
+                    !is_bottled_instance(engine, state.instance_id)
+                        && same_card_semantics_ignoring_identity(first, state)
+                })
+        })
+}
+
+fn map_recorded_event_grid_choice(
+    engine: &RunEngine,
+    record: &RecordedTraceRecord,
+) -> Result<(GameAction, bool), String> {
+    let expected_deck = recorded_ordered_deck(record, "event grid")?;
+    let screen = engine
+        .current_reward_screen()
+        .ok_or_else(|| "event grid selection has no canonical selection screen".to_string())?;
+    let item_index = screen
+        .active_item
+        .ok_or_else(|| "event grid selection item was not opened".to_string())?;
+    let item = screen
+        .items
+        .iter()
+        .find(|item| item.index == item_index)
+        .ok_or_else(|| format!("active event grid item {item_index} is absent"))?;
+    if !matches!(
+        item.label.as_str(),
+        "deck_selection_purge"
+            | "deck_selection_peace_pipe"
+            | "deck_selection_event_remove"
+            | "deck_selection_bonfire_offer"
+    ) {
+        return Err(format!(
+            "recorder omitted semantic payload for unsupported event grid {:?}",
+            item.label
+        ));
+    }
+
+    let mut candidates = Vec::new();
+    for (choice_index, choice) in item.choices.iter().enumerate() {
+        let RewardChoice::Card {
+            index: deck_index,
+            card_id,
+        } = choice
+        else {
+            continue;
+        };
+        if *deck_index >= engine.run_state.deck.len() {
+            continue;
+        }
+        let mut projected = engine.run_state.deck.clone();
+        projected.remove(*deck_index);
+        if projected == expected_deck {
+            candidates.push((choice_index, *deck_index, card_id));
+        }
+    }
+    let Some(&(choice_index, first_deck_index, first_card_id)) = candidates.first() else {
+        return Err(format!(
+            "recorded deck does not identify any canonical choice for event grid {:?}",
+            item.label
+        ));
+    };
+
+    let identity_verified = candidates.len() == 1;
+    if !identity_verified {
+        let first_state = engine
+            .run_state
+            .deck_card_states
+            .get(first_deck_index)
+            .ok_or_else(|| "event grid canonical deck state is not reconciled".to_string())?;
+        let first_is_bottled = is_bottled_instance(engine, first_state.instance_id);
+        let equivalent = candidates.iter().all(|(_, deck_index, card_id)| {
+            let Some(state) = engine.run_state.deck_card_states.get(*deck_index) else {
+                return false;
+            };
+            *card_id == first_card_id
+                && !first_is_bottled
+                && !is_bottled_instance(engine, state.instance_id)
+                && same_card_semantics_ignoring_identity(first_state, state)
+        });
+        if !equivalent {
+            return Err(format!(
+                "recorded deck leaves {} semantically distinct event-grid candidates",
+                candidates.len()
+            ));
+        }
+    }
+
+    Ok((
+        GameAction::ChooseRewardOption {
+            item_index,
+            choice_index,
+        },
+        identity_verified,
+    ))
+}
+
+fn same_card_semantics_ignoring_identity(
+    left: &crate::combat_types::CardInstance,
+    right: &crate::combat_types::CardInstance,
+) -> bool {
+    left.def_id == right.def_id
+        && left.cost == right.cost
+        && left.base_cost == right.base_cost
+        && left.misc == right.misc
+        && left.flags == right.flags
+}
+
+fn is_bottled_instance(engine: &RunEngine, instance_id: u32) -> bool {
+    [
+        engine.run_state.bottled_flame_card_instance_id,
+        engine.run_state.bottled_lightning_card_instance_id,
+        engine.run_state.bottled_tornado_card_instance_id,
+    ]
+    .contains(&Some(instance_id))
 }
 
 fn validate_recorded_hand_card(engine: &RunEngine, raw: &Value) -> Result<usize, String> {
@@ -734,6 +1333,7 @@ fn map_reward_take(engine: &RunEngine, raw: &Value) -> Result<GameAction, String
         "CARD" => RewardItemKind::CardChoice,
         "RELIC" => RewardItemKind::Relic,
         "GOLD" => RewardItemKind::Gold,
+        "STOLEN_GOLD" => RewardItemKind::StolenGold,
         "POTION" => RewardItemKind::Potion,
         "RUBY_KEY" => RewardItemKind::Key {
             color: RewardKeyColor::Ruby,
@@ -828,7 +1428,10 @@ fn canonical_recorder_phase(phase: &str, screen: &str, action: &Value) -> Option
         };
     }
     match screen {
-        "CARD_REWARD" | "COMBAT_REWARD" => Some("REWARD"),
+        // Java keeps the owning room in EVENT while GridSelectScreen is open.
+        // The language-neutral phase names the active card-selection decision,
+        // which RunEngine represents through its canonical reward surface.
+        "GRID" | "CARD_REWARD" | "COMBAT_REWARD" => Some("REWARD"),
         "SHOP" => Some("SHOP"),
         "MAP" => Some("MAP"),
         "DEATH" => Some("GAME_OVER"),
@@ -959,6 +1562,7 @@ mod tests {
             status: "in_progress".to_string(),
             records: 1,
             sittings: Vec::new(),
+            profile: None,
         };
         let actions = vec![RecorderAction {
             idx: 0,
@@ -983,7 +1587,7 @@ mod tests {
     }
 
     #[test]
-    fn path_debug_intent_keeps_damage_while_skipping_transient_name() {
+    fn path_debug_intent_skips_fields_captured_before_create_intent() {
         let record = RecordedTraceRecord {
             idx: 0,
             floor: 1,
@@ -1004,7 +1608,8 @@ mod tests {
             deck: json!([]),
         };
         let partial = record.partial_oracle_state(true).unwrap();
-        assert_eq!(partial.pointer("/enemies/0/intent/dmg"), Some(&json!(12)));
+        assert!(partial.pointer("/enemies/0/intent/dmg").is_none());
+        assert!(partial.pointer("/enemies/0/intent/hits").is_none());
         assert!(partial.pointer("/enemies/0/intent/name").is_none());
         assert_eq!(partial.get("phase"), Some(&json!("COMBAT")));
     }
@@ -1044,6 +1649,18 @@ mod tests {
             Some("SHOP")
         );
         assert_eq!(canonical_recorder_phase("COMPLETE", "NONE", &action), None);
+    }
+
+    #[test]
+    fn event_grid_uses_the_canonical_card_selection_phase() {
+        assert_eq!(
+            canonical_recorder_phase(
+                "EVENT",
+                "GRID",
+                &json!({"type": "EVENT_CHOICE", "choice": 0}),
+            ),
+            Some("REWARD"),
+        );
     }
 
     #[test]

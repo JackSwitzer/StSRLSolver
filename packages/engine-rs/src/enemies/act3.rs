@@ -517,12 +517,13 @@ pub(super) fn roll_awakened_one(enemy: &mut EnemyCombatState, num: i32) {
 pub fn awakened_one_rebirth(enemy: &mut EnemyCombatState) {
     enemy.entity.set_status(sid::PHASE, 2);
     enemy.entity.set_status(sid::CURIOSITY, 0);
+    enemy.entity.set_status(sid::UNAWAKENED, 0);
     // Remove all debuffs using power registry
     for i in 0..256 {
         if enemy.entity.statuses[i] != 0 {
             let sid = crate::ids::StatusId(i as u16);
             if crate::powers::registry::status_is_debuff(sid) {
-                enemy.entity.statuses[i] = 0;
+                enemy.entity.set_status(sid, 0);
             }
         }
     }

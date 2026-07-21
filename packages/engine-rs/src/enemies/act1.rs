@@ -1,6 +1,6 @@
 use super::move_ids;
 use super::{last_move, last_two_moves};
-use crate::combat_types::mfx;
+use crate::combat_types::{fx, mfx, Intent};
 use crate::seed::StsRandom;
 use crate::state::EnemyCombatState;
 use crate::status_ids::sid;
@@ -56,6 +56,13 @@ pub(super) fn roll_jaw_worm(enemy: &mut EnemyCombatState, num: i32, ai_rng: &mut
     } else {
         bellow(enemy);
     }
+}
+
+pub(super) fn roll_jaw_worm_initial(enemy: &mut EnemyCombatState) {
+    // JawWorm.getMove consumes the outer roll before firstMove forces CHOMP.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/exordium/JawWorm.java
+    let damage = enemy.entity.status(sid::STARTING_DMG).max(11);
+    enemy.set_move(move_ids::JW_CHOMP, damage, 1, 0);
 }
 
 // Java Cultist.getMove(int num) (decompiled monsters/exordium/Cultist.java):
@@ -674,7 +681,10 @@ pub(super) fn roll_sentry(enemy: &mut EnemyCombatState) {
         move_ids::SENTRY_BEAM
     };
     if move_id == move_ids::SENTRY_BOLT {
-        enemy.set_move(move_ids::SENTRY_BOLT, 0, 0, 0);
+        enemy.set_move_with_intent(
+            move_ids::SENTRY_BOLT,
+            Intent::Debuff { effects: fx::DAZE },
+        );
         enemy.add_effect(mfx::DAZE, daze);
     } else {
         enemy.set_move(move_ids::SENTRY_BEAM, damage, 1, 0);
@@ -863,7 +873,12 @@ pub(super) fn roll_slime_boss(enemy: &mut EnemyCombatState) {
     // Source: reference/extracted/methods/monster/SlimeBoss.java (`getMove`).
     if enemy.entity.status(sid::IS_FIRST_MOVE) == 0 {
         enemy.entity.set_status(sid::IS_FIRST_MOVE, 1);
-        enemy.set_move(move_ids::SB_STICKY, 0, 0, 0);
+        enemy.set_move_with_intent(
+            move_ids::SB_STICKY,
+            Intent::StrongDebuff {
+                effects: fx::SLIMED,
+            },
+        );
         enemy.add_effect(mfx::SLIMED, enemy.entity.status(sid::STR_AMT).max(3) as i16);
     }
 }
@@ -874,7 +889,9 @@ pub fn advance_slime_boss_after_turn(enemy: &mut EnemyCombatState) {
     enemy.move_history.push(enemy.move_id);
     enemy.move_effects.clear();
     match enemy.move_id {
-        move_ids::SB_STICKY => enemy.set_move(move_ids::SB_PREP_SLAM, 0, 0, 0),
+        move_ids::SB_STICKY => {
+            enemy.set_move_with_intent(move_ids::SB_PREP_SLAM, Intent::Unknown)
+        }
         move_ids::SB_PREP_SLAM => enemy.set_move(
             move_ids::SB_SLAM,
             enemy.entity.status(sid::SLAP_DMG).max(35),
@@ -882,7 +899,12 @@ pub fn advance_slime_boss_after_turn(enemy: &mut EnemyCombatState) {
             0,
         ),
         move_ids::SB_SLAM => {
-            enemy.set_move(move_ids::SB_STICKY, 0, 0, 0);
+            enemy.set_move_with_intent(
+                move_ids::SB_STICKY,
+                Intent::StrongDebuff {
+                    effects: fx::SLIMED,
+                },
+            );
             enemy.add_effect(mfx::SLIMED, enemy.entity.status(sid::STR_AMT).max(3) as i16);
         }
         _ => {}
@@ -912,6 +934,11 @@ pub fn advance_apology_slime_after_turn(enemy: &mut EnemyCombatState) {
     } else {
         enemy.set_move(move_ids::APOLOGY_TACKLE, 3, 1, 0);
     }
+}
+
+pub fn set_slime_boss_split(enemy: &mut EnemyCombatState) {
+    // Source: SlimeBoss.java `damage` and `takeTurn` case 3.
+    enemy.set_move_with_intent(move_ids::SB_SPLIT, Intent::Unknown);
 }
 
 /// Check if Slime Boss should split (HP <= 50%).

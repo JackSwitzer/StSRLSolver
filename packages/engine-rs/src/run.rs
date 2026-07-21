@@ -315,19 +315,20 @@ const COLORLESS_CARD_POOL: &[&str] = &[
 ];
 
 impl CardPools {
-    fn watcher_all_unlocked() -> Self {
-        let common: Vec<String> = WATCHER_COMMON_CARDS
-            .iter()
-            .map(|id| (*id).to_string())
-            .collect();
-        let uncommon: Vec<String> = WATCHER_UNCOMMON_CARDS
-            .iter()
-            .map(|id| (*id).to_string())
-            .collect();
-        let rare: Vec<String> = WATCHER_RARE_CARDS
-            .iter()
-            .map(|id| (*id).to_string())
-            .collect();
+    fn watcher_with_locked_cards(locked_cards: &[String]) -> Self {
+        fn available(ids: &[&str], locked_cards: &[String]) -> Vec<String> {
+            // Watcher.getCardPool delegates to CardLibrary.addPurpleCards,
+            // which filters UnlockTracker locks before pool construction.
+            // Java: Watcher.java:179-190; CardLibrary.java:1172-1179.
+            ids.iter()
+                .filter(|id| !locked_cards.iter().any(|locked| locked.as_str() == **id))
+                .map(|id| (*id).to_string())
+                .collect()
+        }
+
+        let common: Vec<String> = available(WATCHER_COMMON_CARDS, locked_cards);
+        let uncommon: Vec<String> = available(WATCHER_UNCOMMON_CARDS, locked_cards);
+        let rare: Vec<String> = available(WATCHER_RARE_CARDS, locked_cards);
         Self {
             // src*CardPool uses addToBottom, which inserts at index zero.
             source_common: common.iter().rev().cloned().collect(),
@@ -725,19 +726,33 @@ struct RelicPools {
 }
 
 impl RelicPools {
-    fn watcher_all_unlocked(rng: &mut crate::seed::StsRandom) -> Self {
-        fn shuffled(ids: &[&str], rng: &mut crate::seed::StsRandom) -> Vec<String> {
-            let mut pool = ids.iter().map(|id| (*id).to_string()).collect::<Vec<_>>();
+    fn watcher_with_locked_relics(
+        rng: &mut crate::seed::StsRandom,
+        locked_relics: &[String],
+    ) -> Self {
+        fn shuffled(
+            ids: &[&str],
+            locked_relics: &[String],
+            rng: &mut crate::seed::StsRandom,
+        ) -> Vec<String> {
+            // RelicLibrary.populateRelicPool checks UnlockTracker before
+            // AbstractDungeon.initializeRelicList shuffles each tier.
+            // Java: RelicLibrary.java:628-662; AbstractDungeon.java:1211-1231.
+            let mut pool = ids
+                .iter()
+                .filter(|id| !locked_relics.iter().any(|locked| locked.as_str() == **id))
+                .map(|id| (*id).to_string())
+                .collect::<Vec<_>>();
             let seed = rng.random_long_unbounded();
             crate::seed::java_util_shuffle(&mut pool, seed);
             pool
         }
         Self {
-            common: shuffled(WATCHER_COMMON_RELICS, rng),
-            uncommon: shuffled(WATCHER_UNCOMMON_RELICS, rng),
-            rare: shuffled(WATCHER_RARE_RELICS, rng),
-            shop: shuffled(WATCHER_SHOP_RELICS, rng),
-            boss: shuffled(WATCHER_BOSS_RELICS, rng),
+            common: shuffled(WATCHER_COMMON_RELICS, locked_relics, rng),
+            uncommon: shuffled(WATCHER_UNCOMMON_RELICS, locked_relics, rng),
+            rare: shuffled(WATCHER_RARE_RELICS, locked_relics, rng),
+            shop: shuffled(WATCHER_SHOP_RELICS, locked_relics, rng),
+            boss: shuffled(WATCHER_BOSS_RELICS, locked_relics, rng),
         }
     }
 
@@ -1045,6 +1060,75 @@ pub struct ShopState {
 // Profile input and cross-run outputs
 // ---------------------------------------------------------------------------
 
+// UnlockTracker.refresh registers these IDs as locked when their preference is
+// absent or not fully unlocked. Keep the source order for recorder diagnostics.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/unlock/UnlockTracker.java:173-240.
+const JAVA_FRESH_LOCKED_CARDS: &[&str] = &[
+    "Havoc",
+    "Sentinel",
+    "Exhume",
+    "Wild Strike",
+    "Evolve",
+    "Immolate",
+    "Heavy Blade",
+    "Spot Weakness",
+    "Limit Break",
+    "Concentrate",
+    "Setup",
+    "Grand Finale",
+    "Cloak And Dagger",
+    "Accuracy",
+    "Storm of Steel",
+    "Bane",
+    "Catalyst",
+    "Corpse Explosion",
+    "Rebound",
+    "Undo",
+    "Echo Form",
+    "Turbo",
+    "Sunder",
+    "Meteor Strike",
+    "Hyperbeam",
+    "Recycle",
+    "Core Surge",
+    "Prostrate",
+    "Blasphemy",
+    "Devotion",
+    "ForeignInfluence",
+    "Alpha",
+    "MentalFortress",
+    "SpiritShield",
+    "Wish",
+    "Wireheading",
+];
+
+const JAVA_FRESH_LOCKED_RELICS: &[&str] = &[
+    "Omamori",
+    "Prayer Wheel",
+    "Shovel",
+    "Art of War",
+    "The Courier",
+    "Pandora's Box",
+    "Blue Candle",
+    "Dead Branch",
+    "Singing Bowl",
+    "Du-Vu Doll",
+    "Smiling Mask",
+    "Tiny Chest",
+    "Cables",
+    "DataDisk",
+    "Emotion Chip",
+    "Runic Capacitor",
+    "Turnip",
+    "Symbiotic Virus",
+    "Akabeko",
+    "Yang",
+    "CeramicFish",
+    "StrikeDummy",
+    "TeardropLocket",
+    "CloakClasp",
+];
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProfileSnapshot {
     pub note_for_yourself_card: String,
@@ -1061,6 +1145,15 @@ pub struct ProfileSnapshot {
     /// this to select the first unseen boss without consuming monster RNG.
     #[serde(default = "BossSeenSnapshot::all_seen")]
     pub bosses_seen: BossSeenSnapshot,
+    /// Authoritative `UnlockTracker.lockedCards` snapshot. Standard Watcher
+    /// colored pools exclude these IDs during dungeon initialization.
+    #[serde(default)]
+    pub locked_cards: Vec<String>,
+    /// Authoritative `UnlockTracker.lockedRelics` snapshot. Java excludes
+    /// these IDs while populating each relic tier, before shuffling the pool.
+    /// The default preserves the simulator's historical all-unlocked profile.
+    #[serde(default)]
+    pub locked_relics: Vec<String>,
 }
 
 /// Java preference keys used by the three standard dungeon constructors.
@@ -1147,9 +1240,13 @@ impl ProfileSnapshot {
             is_daily_run: false,
             final_act_available: default_final_act_available(),
             bosses_seen: BossSeenSnapshot::all_seen(),
+            locked_cards: Vec::new(),
+            locked_relics: Vec::new(),
         }
     }
 
+    /// New-profile inputs matching the lock lists seeded by
+    /// `UnlockTracker.refresh()` when no unlock preferences are present.
     pub fn fresh() -> Self {
         Self {
             note_for_yourself_card: "IronWave".to_string(),
@@ -1157,6 +1254,14 @@ impl ProfileSnapshot {
             is_daily_run: false,
             final_act_available: false,
             bosses_seen: BossSeenSnapshot::fresh(),
+            locked_cards: JAVA_FRESH_LOCKED_CARDS
+                .iter()
+                .map(|id| (*id).to_string())
+                .collect(),
+            locked_relics: JAVA_FRESH_LOCKED_RELICS
+                .iter()
+                .map(|id| (*id).to_string())
+                .collect(),
         }
     }
 
@@ -1167,6 +1272,8 @@ impl ProfileSnapshot {
             is_daily_run: false,
             final_act_available: default_final_act_available(),
             bosses_seen: BossSeenSnapshot::all_seen(),
+            locked_cards: Vec::new(),
+            locked_relics: Vec::new(),
         }
     }
 
@@ -2253,7 +2360,17 @@ impl RunEngine {
         // AbstractDungeon.initializeRelicList shuffles these five persistent
         // tier pools before Neow is resolved.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:1227-1231
-        let relic_pools = RelicPools::watcher_all_unlocked(&mut persistent_rngs.relic);
+        // Daily runs make Settings.treatEverythingAsUnlocked() true, so raw
+        // profile locks do not constrain either library population path.
+        // Java: Settings.java:629-635.
+        let (locked_cards, locked_relics) = if profile.is_daily_run {
+            (&[][..], &[][..])
+        } else {
+            (&profile.locked_cards[..], &profile.locked_relics[..])
+        };
+        let relic_pools =
+            RelicPools::watcher_with_locked_relics(&mut persistent_rngs.relic, locked_relics);
+        let card_pools = CardPools::watcher_with_locked_cards(locked_cards);
         let event_pools = EventPools::watcher(
             ascension,
             profile.highest_unlocked_ascension,
@@ -2278,7 +2395,7 @@ impl RunEngine {
             java_collections_rng: crate::seed::JavaCollectionsRng::deterministic_default(),
             neow_rng: crate::seed::StsRandom::new(seed),
             map_rng,
-            card_pools: CardPools::watcher_all_unlocked(),
+            card_pools,
             relic_pools,
             event_pools,
             combat_engine: None,
@@ -6445,22 +6562,12 @@ impl RunEngine {
             other => other,
         };
         let (hp, max_hp) = self.roll_enemy_hp(canonical_id);
-        match canonical_id {
-            "Cultist" | "JawWorm" => {
-                // Both constructors randomize their initial animation time.
-                // Java: monsters/exordium/Cultist.java::<init> and
-                // monsters/exordium/JawWorm.java::<init>.
-                let _ = self.ambient_math_rng.random_f32();
-            }
-            "FungiBeast" => {
-                // Fungi Beast randomizes both animation time and time scale.
-                // Java: monsters/exordium/FungiBeast.java::<init>.
-                let _ = self.ambient_math_rng.random_f32();
-                let _ = self.ambient_math_rng.random_f32_range(0.7, 1.0);
-            }
-            _ => {}
-        }
-        let mut enemy = enemies::create_enemy(canonical_id, hp, max_hp);
+        let mut enemy = enemies::create_enemy_with_ambient(
+            canonical_id,
+            hp,
+            max_hp,
+            &mut self.ambient_math_rng,
+        );
 
         // These values are constructor-owned and therefore interleave with HP
         // member-by-member. Later pre-battle draws such as Curl Up remain in
@@ -7104,7 +7211,6 @@ impl RunEngine {
                     })
                     .map(|enemy| enemy.entity.status(crate::status_ids::sid::COUNT))
                     .sum();
-                adjust_run_gold_state(&mut self.run_state, recovered_stolen_gold);
                 self.run_state.potions = engine.state.potions.clone();
                 self.run_state.deck = engine
                     .state
@@ -7237,14 +7343,14 @@ impl RunEngine {
                         self.wait_for_continuation(RunContinuation::TrueVictory);
                         return;
                     }
-                    self.build_combat_reward_screen(RoomType::Boss);
+                    self.build_combat_reward_screen(RoomType::Boss, recovered_stolen_gold);
                     self.combat_engine = None;
                     self.phase = RunPhase::CardReward;
                     return;
                 }
 
                 // Build the ordered post-combat reward screen.
-                self.build_combat_reward_screen(room_type);
+                self.build_combat_reward_screen(room_type, recovered_stolen_gold);
                 self.combat_engine = None;
                 self.phase = RunPhase::CardReward;
             } else {
@@ -7509,7 +7615,7 @@ impl RunEngine {
         });
     }
 
-    fn build_combat_reward_screen(&mut self, room_type: RoomType) {
+    fn build_combat_reward_screen(&mut self, room_type: RoomType, stolen_gold: i32) {
         let base_gold = if room_type == RoomType::Boss {
             self.roll_boss_gold_reward()
         } else if room_type == RoomType::Elite {
@@ -7523,8 +7629,27 @@ impl RunEngine {
                 .relic_flags
                 .has(crate::relic_flags::flag::GOLDEN_IDOL),
         );
-        let mut items = vec![RewardItem {
-            index: 0,
+        // Looter/Mugger death appends a distinct reward before AbstractRoom
+        // generates ordinary combat rewards. The theft is not refunded until
+        // the player claims this item.
+        // Java: AbstractRoom.java:631-638, Looter.java:174-187,
+        // Mugger.java:167-178, RewardItem.java:104-111.
+        let mut items = Vec::new();
+        if stolen_gold > 0 {
+            items.push(RewardItem {
+                index: items.len(),
+                kind: RewardItemKind::StolenGold,
+                state: RewardItemState::Available,
+                label: stolen_gold.to_string(),
+                claimable: false,
+                active: false,
+                skip_allowed: false,
+                skip_label: None,
+                choices: Vec::new(),
+            });
+        }
+        items.push(RewardItem {
+            index: items.len(),
             kind: RewardItemKind::Gold,
             state: RewardItemState::Available,
             label: gold.to_string(),
@@ -7533,7 +7658,7 @@ impl RunEngine {
             skip_allowed: false,
             skip_label: None,
             choices: Vec::new(),
-        }];
+        });
 
         if room_type == RoomType::Elite {
             items.push(RewardItem {
@@ -8189,7 +8314,10 @@ impl RunEngine {
             (RewardItemKind::Potion, RewardChoice::Named { label, .. }) => {
                 self.add_potion_reward(&label);
             }
-            (RewardItemKind::Gold, RewardChoice::Named { label, .. }) => {
+            (
+                RewardItemKind::Gold | RewardItemKind::StolenGold,
+                RewardChoice::Named { label, .. },
+            ) => {
                 if let Ok(amount) = label.parse::<i32>() {
                     self.adjust_run_gold(amount.max(0));
                 }
@@ -8631,7 +8759,7 @@ impl RunEngine {
                 self.add_relic_reward(&label);
             }
             RewardItemKind::Potion => self.add_potion_reward(&label),
-            RewardItemKind::Gold => {
+            RewardItemKind::Gold | RewardItemKind::StolenGold => {
                 if let Ok(amount) = label.parse::<i32>() {
                     self.adjust_run_gold(amount.max(0));
                 }
@@ -10620,14 +10748,18 @@ impl RunEngine {
                 .random_int_range(minimum, maximum)
                 .min(self.run_state.gold);
             event.options[1].text = format!("Leave (lose {loss} gold)");
-            event.options[1].program = crate::events::EventProgram::from_ops(vec![
-                crate::events::EventProgramOp::gold(-loss),
-            ]);
+            event.options[1].program =
+                crate::events::EventProgram::from_ops(vec![crate::events::EventProgramOp::gold(
+                    -loss,
+                )]);
         } else if event.name == "Shining Light" && event.options.len() == 2 {
-            let percent = if self.run_state.ascension >= 15 { 30 } else { 20 };
+            let percent = if self.run_state.ascension >= 15 {
+                30
+            } else {
+                20
+            };
             let damage = (self.run_state.max_hp * percent + 50) / 100;
-            event.options[0].text =
-                format!("Enter (upgrade 2 random cards, take {damage} damage)");
+            event.options[0].text = format!("Enter (upgrade 2 random cards, take {damage} damage)");
         } else if event.name == "Falling" && event.options.len() == 1 {
             let choice = self.build_falling_choice_event();
             event.options[0].program = crate::events::EventProgram::from_ops(vec![
@@ -10688,9 +10820,7 @@ impl RunEngine {
                 card_candidates.into_iter().next()
             };
 
-            let option = |text: String,
-                          ops: Vec<crate::events::EventProgramOp>,
-                          legal: bool| {
+            let option = |text: String, ops: Vec<crate::events::EventProgramOp>, legal: bool| {
                 if legal {
                     crate::events::TypedEventOption::supported(
                         text,
@@ -10771,10 +10901,7 @@ impl RunEngine {
             self.run_state.reconcile_deck_card_states();
             let adjustment_upgrades_one = self.floor_rngs.misc.random_bool();
             let cleanup_removes_one = self.floor_rngs.misc.random_bool();
-            let main = self.build_designer_main_event(
-                adjustment_upgrades_one,
-                cleanup_removes_one,
-            );
+            let main = self.build_designer_main_event(adjustment_upgrades_one, cleanup_removes_one);
             *event = TypedEventDef {
                 name: "Designer".to_string(),
                 options: vec![crate::events::TypedEventOption::supported(
@@ -10858,12 +10985,11 @@ impl RunEngine {
         adjustment_upgrades_one: bool,
         cleanup_removes_one: bool,
     ) -> TypedEventDef {
-        let (adjust_cost, cleanup_cost, full_cost, hp_loss) =
-            if self.run_state.ascension >= 15 {
-                (50, 75, 110, 5)
-            } else {
-                (40, 60, 90, 3)
-            };
+        let (adjust_cost, cleanup_cost, full_cost, hp_loss) = if self.run_state.ascension >= 15 {
+            (50, 75, 110, 5)
+        } else {
+            (40, 60, 90, 3)
+        };
         let removable_count = (0..self.run_state.deck.len())
             .filter(|index| self.is_removable_master_deck_index(*index))
             .count();
@@ -10924,9 +11050,7 @@ impl RunEngine {
                 format!("Pay {full_cost} gold: remove 1 card, then upgrade 1 random card"),
                 vec![
                     crate::events::EventProgramOp::gold(-full_cost),
-                    crate::events::EventProgramOp::deck_selection(
-                        "deck_selection_designer_full",
-                    ),
+                    crate::events::EventProgramOp::deck_selection("deck_selection_designer_full"),
                 ],
                 self.run_state.gold >= full_cost && removable_count >= 1,
                 crate::events::EventEffect::RemoveCard,
@@ -10962,10 +11086,7 @@ impl RunEngine {
         }
     }
 
-    fn falling_card_of_type(
-        &mut self,
-        card_type: crate::cards::CardType,
-    ) -> Option<(u32, String)> {
+    fn falling_card_of_type(&mut self, card_type: crate::cards::CardType) -> Option<(u32, String)> {
         self.run_state.reconcile_deck_card_states();
         let registry = crate::cards::global_registry();
         let eligible = self
@@ -11982,13 +12103,11 @@ impl RunEngine {
                     name: event_name,
                     options: vec![crate::events::TypedEventOption::supported(
                         "Fight",
-                        crate::events::EventProgram::from_ops(vec![
-                            EventProgramOp::CombatBranch {
-                                enemies: enemies.clone(),
-                                on_win: Box::new(on_win),
-                                precombat_random_gold: None,
-                            },
-                        ]),
+                        crate::events::EventProgram::from_ops(vec![EventProgramOp::CombatBranch {
+                            enemies: enemies.clone(),
+                            on_win: Box::new(on_win),
+                            precombat_random_gold: None,
+                        }]),
                         crate::events::EventEffect::Nothing,
                     )],
                 })
@@ -12010,8 +12129,8 @@ impl RunEngine {
                 // the result true. Keep this general typed operation explicit
                 // so cursor behavior cannot be hidden in a weighted int table.
                 let rolled = self.floor_rngs.misc.random_bool();
-                let result = rolled
-                    || (*force_true_at_ascension15 && self.run_state.ascension >= 15);
+                let result =
+                    rolled || (*force_true_at_ascension15 && self.run_state.ascension >= 15);
                 self.apply_event_program(if result { if_true } else { if_false }, reward_items)
             }
             EventProgramOp::DeckSelection { label } => {
@@ -12592,9 +12711,8 @@ impl RunEngine {
                         active: false,
                         skip_allowed: false,
                         skip_label: None,
-                        choices: self.generate_colorless_reward_choices(
-                            self.card_reward_choice_count(),
-                        ),
+                        choices: self
+                            .generate_colorless_reward_choices(self.card_reward_choice_count()),
                     });
                 }
             }
@@ -12877,17 +12995,21 @@ impl RunEngine {
     /// rejection may consume multiple `RandomXS128` transitions inside one
     /// wrapper call. Active combat owns seven of these streams temporarily,
     /// so its snapshot replaces the corresponding run-level values here.
-    pub(crate) fn rng_state_tuples(
-        &self,
-    ) -> std::collections::BTreeMap<String, (u64, u64, i32)> {
+    pub(crate) fn rng_state_tuples(&self) -> std::collections::BTreeMap<String, (u64, u64, i32)> {
         let mut states = std::collections::BTreeMap::new();
         states.insert("card".to_string(), self.persistent_rngs.card.state_tuple());
         states.insert(
             "monster".to_string(),
             self.persistent_rngs.monster.state_tuple(),
         );
-        states.insert("event".to_string(), self.persistent_rngs.event.state_tuple());
-        states.insert("relic".to_string(), self.persistent_rngs.relic.state_tuple());
+        states.insert(
+            "event".to_string(),
+            self.persistent_rngs.event.state_tuple(),
+        );
+        states.insert(
+            "relic".to_string(),
+            self.persistent_rngs.relic.state_tuple(),
+        );
         states.insert(
             "treasure".to_string(),
             self.persistent_rngs.treasure.state_tuple(),
@@ -12905,10 +13027,7 @@ impl RunEngine {
             self.floor_rngs.monster_hp.state_tuple(),
         );
         states.insert("ai".to_string(), self.floor_rngs.ai.state_tuple());
-        states.insert(
-            "shuffle".to_string(),
-            self.floor_rngs.shuffle.state_tuple(),
-        );
+        states.insert("shuffle".to_string(), self.floor_rngs.shuffle.state_tuple());
         states.insert(
             "cardRandom".to_string(),
             self.floor_rngs.card_random.state_tuple(),
@@ -12919,10 +13038,7 @@ impl RunEngine {
 
         if let Some(combat) = &self.combat_engine {
             states.insert("card".to_string(), combat.card_rng.state_tuple());
-            states.insert(
-                "monsterHp".to_string(),
-                combat.monster_hp_rng.state_tuple(),
-            );
+            states.insert("monsterHp".to_string(), combat.monster_hp_rng.state_tuple());
             states.insert("potion".to_string(), combat.potion_rng.state_tuple());
             states.insert("ai".to_string(), combat.ai_rng.state_tuple());
             states.insert("shuffle".to_string(), combat.shuffle_rng.state_tuple());
@@ -13056,7 +13172,7 @@ impl RunEngine {
 
     #[cfg(test)]
     pub(crate) fn debug_build_combat_reward_screen(&mut self, room_type: RoomType) {
-        self.build_combat_reward_screen(room_type);
+        self.build_combat_reward_screen(room_type, 0);
         self.phase = RunPhase::CardReward;
         self.refresh_decision_stack();
     }
@@ -13085,6 +13201,39 @@ impl RunEngine {
             self.relic_pools.shop.len(),
             self.relic_pools.boss.len(),
         )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_relic_pool_contains(&self, relic_id: &str) -> bool {
+        [
+            &self.relic_pools.common,
+            &self.relic_pools.uncommon,
+            &self.relic_pools.rare,
+            &self.relic_pools.shop,
+            &self.relic_pools.boss,
+        ]
+        .into_iter()
+        .any(|pool| pool.iter().any(|candidate| candidate == relic_id))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_card_pool_lengths(&self) -> (usize, usize, usize) {
+        (
+            self.card_pools.common.len(),
+            self.card_pools.uncommon.len(),
+            self.card_pools.rare.len(),
+        )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_card_pool_contains(&self, card_id: &str) -> bool {
+        [
+            &self.card_pools.common,
+            &self.card_pools.uncommon,
+            &self.card_pools.rare,
+        ]
+        .into_iter()
+        .any(|pool| pool.iter().any(|candidate| candidate == card_id))
     }
 
     #[cfg(test)]
@@ -13602,7 +13751,7 @@ mod tests {
         // its source pool through CardGroup.addToBottom, which inserts at zero.
         // Java: CardLibrary.java::addPurpleCards,
         // AbstractDungeon.java::initializeCardPools, CardGroup.java::addToBottom.
-        let pools = CardPools::watcher_all_unlocked();
+        let pools = CardPools::watcher_with_locked_cards(&[]);
 
         assert_eq!(pools.common.len(), 19);
         assert_eq!(pools.uncommon.len(), 35);
@@ -14047,7 +14196,10 @@ mod tests {
         let checkpoint = crate::checkpoint::CoreCheckpoint::capture(&engine).unwrap();
         let mut restored = checkpoint.restore().unwrap();
         assert!(restored.step_game(&GameAction::ChoosePath(0)).accepted());
-        assert_eq!((restored.run_state.map_x, restored.run_state.map_y), (-1, 15));
+        assert_eq!(
+            (restored.run_state.map_x, restored.run_state.map_y),
+            (-1, 15)
+        );
         assert_eq!(restored.run_state.floor, 16);
         assert_eq!(restored.current_phase(), RunPhase::Combat);
     }
@@ -14060,14 +14212,19 @@ mod tests {
         let mut engine = RunEngine::new(73, 0);
         resolve_opening_neow(&mut engine);
         engine.run_state.relics.push("Dream Catcher".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.run_state.map_x = 3;
         engine.run_state.map_y = engine.map.height as i32 - 1;
         engine.phase = RunPhase::Campfire;
 
         assert!(engine.step_game(&GameAction::CampfireRest).accepted());
         assert_eq!(engine.current_phase(), RunPhase::CardReward);
-        assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
+        assert!(engine
+            .step_game(&GameAction::SelectRewardItem(0))
+            .accepted());
         assert!(engine.step_game(&GameAction::SkipRewardItem(0)).accepted());
         assert_eq!(engine.current_phase(), RunPhase::MapChoice);
         assert_eq!(engine.get_legal_actions(), vec![GameAction::ChoosePath(0)]);
@@ -14577,13 +14734,16 @@ mod tests {
 
     #[test]
     fn rng_ambient_002_jaw_worm_constructor_advances_process_global_mathutils_before_courier() {
-        // JawWorm's constructor randomizes its Spine animation time with one
-        // MathUtils.random() call. CardGroup.getRandomCard(false) later uses
-        // that same process-global stream for Courier replacement identity.
-        // Java: monsters/exordium/JawWorm.java::<init>,
+        // AbstractMonster first constructs BobEffect, then JawWorm randomizes
+        // its Spine animation time: two MathUtils.random() calls in order.
+        // CardGroup.getRandomCard(false) later uses that same process-global
+        // stream for Courier replacement identity.
+        // Java: monsters/AbstractMonster.java, vfx/BobEffect.java,
+        // monsters/exordium/JawWorm.java::<init>,
         // cards/CardGroup.java::getRandomCard(boolean).
         let mut engine = RunEngine::new_with_ambient_seed(73, 0, 0);
         let mut oracle = engine.ambient_math_rng.clone();
+        let _ = oracle.random_f32();
         let _ = oracle.random_f32();
 
         engine.enter_specific_combat(vec!["JawWorm".to_string()]);
@@ -19308,10 +19468,16 @@ mod tests {
             .hp = 0;
         refund.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         assert_eq!(
-            refund.run_state.gold, 99,
-            "death returns stolen gold before room rewards are claimed"
+            refund.run_state.gold, 84,
+            "Looter death stages a reward instead of refunding theft immediately"
         );
+        let rewards = refund.current_reward_screen().unwrap();
+        assert_eq!(rewards.items[0].kind, RewardItemKind::StolenGold);
+        assert_eq!(rewards.items[0].label, "15");
+        assert_eq!(rewards.items[1].kind, RewardItemKind::Gold);
         refund.step_game(&GameAction::SelectRewardItem(0));
+        assert_eq!(refund.run_state.gold, 99);
+        refund.step_game(&GameAction::SelectRewardItem(1));
         assert!((109..=119).contains(&refund.run_state.gold));
     }
 
@@ -19485,10 +19651,16 @@ mod tests {
             .hp = 0;
         refund.step_game(&GameAction::CombatAction(crate::actions::Action::EndTurn));
         assert_eq!(
-            refund.run_state.gold, 99,
-            "death returns stolen gold before room rewards are claimed"
+            refund.run_state.gold, 84,
+            "Mugger death stages a reward instead of refunding theft immediately"
         );
+        let rewards = refund.current_reward_screen().unwrap();
+        assert_eq!(rewards.items[0].kind, RewardItemKind::StolenGold);
+        assert_eq!(rewards.items[0].label, "15");
+        assert_eq!(rewards.items[1].kind, RewardItemKind::Gold);
         refund.step_game(&GameAction::SelectRewardItem(0));
+        assert_eq!(refund.run_state.gold, 99);
+        refund.step_game(&GameAction::SelectRewardItem(1));
         assert!((109..=119).contains(&refund.run_state.gold));
     }
 
@@ -20818,6 +20990,11 @@ mod tests {
         assert_eq!(
             combat.state.enemies[0].move_id,
             crate::enemies::move_ids::SB_SPLIT
+        );
+        assert_eq!(
+            combat.state.enemies[0].intent,
+            crate::combat_types::Intent::Unknown,
+            "SlimeBoss.damage assigns Java's UNKNOWN Split intent"
         );
         assert_eq!(
             combat.state.enemies.len(),

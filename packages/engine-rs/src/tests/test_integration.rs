@@ -1243,6 +1243,9 @@ mod combat_engine_p0_p1_regression {
         if enemy_dmg > 0 {
             enemy.set_move(enemy.move_id, enemy_dmg, enemy_hits, 0);
         }
+        // This fixture supplies an already-settled synthetic intent; unlike a
+        // canonical run spawn it must not execute AbstractMonster.init again.
+        enemy.needs_initial_move_roll = false;
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         CombatEngine::new(state, 42)
     }

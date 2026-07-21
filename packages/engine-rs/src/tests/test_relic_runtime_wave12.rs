@@ -50,6 +50,42 @@ fn relic_wave12_runtime_combat_start_buffs_and_debuffs_match_canonical_runtime()
 }
 
 #[test]
+fn red_skull_uses_direct_add_only_at_battle_start() {
+    // RedSkull.atBattleStart calls player.addPower directly; onBloodied uses
+    // ApplyPowerAction and therefore restores sorted priority order.
+    // Java: RedSkull.java:38-41, 54-57.
+    let mut state = combat_state_with(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    state.player.hp = state.player.max_hp / 2;
+    state
+        .player
+        .set_status_direct(sid::TOOLS_OF_THE_TRADE, 1);
+    state.relics.push("Red Skull".to_string());
+
+    let mut engine = engine_with_state(state);
+    let relevant_order = |engine: &crate::engine::CombatEngine| {
+        engine
+            .state
+            .player
+            .status_order
+            .iter()
+            .copied()
+            .filter(|status| matches!(*status, sid::TOOLS_OF_THE_TRADE | sid::STRENGTH))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(relevant_order(&engine), [sid::TOOLS_OF_THE_TRADE, sid::STRENGTH]);
+
+    engine.heal_player(2);
+    assert_eq!(engine.state.player.strength(), 0);
+    engine.player_lose_hp(3);
+    assert_eq!(engine.state.player.strength(), 3);
+    assert_eq!(relevant_order(&engine), [sid::STRENGTH, sid::TOOLS_OF_THE_TRADE]);
+}
+
+#[test]
 fn relic_wave12_runtime_combat_start_temp_cards_match_canonical_runtime() {
     let mut state = combat_state_with(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.relics = vec!["PureWater".to_string()];

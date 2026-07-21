@@ -96,6 +96,7 @@ pub enum Intent {
     Block { amount: i16, effects: u16 },
     Buff { effects: u16 },
     Debuff { effects: u16 },
+    StrongDebuff { effects: u16 },
     AttackBlock { damage: i16, hits: u8, block: i16, effects: u16 },
     AttackBuff { damage: i16, hits: u8, effects: u16 },
     AttackDebuff { damage: i16, hits: u8, effects: u16 },

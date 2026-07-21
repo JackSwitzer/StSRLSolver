@@ -183,6 +183,17 @@ fn checkpoint_rejects_an_unknown_major_version() {
 }
 
 #[test]
+fn checkpoint_rejects_the_pre_power_order_major_version() {
+    let checkpoint = CoreCheckpoint::capture(&RunEngine::new(42, 0)).unwrap();
+    let mut value = serde_json::to_value(checkpoint).unwrap();
+    value["schema"]["major"] = serde_json::json!(1);
+    let error = serde_json::from_value::<CoreCheckpoint>(value).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("unsupported checkpoint schema major 1"));
+}
+
+#[test]
 fn checkpoint_rejects_an_unknown_future_minor() {
     let checkpoint = CoreCheckpoint::capture(&RunEngine::new(42, 0)).unwrap();
     let mut value = serde_json::to_value(checkpoint).unwrap();
@@ -210,7 +221,7 @@ fn checkpoint_rejects_the_prior_causal_semantics_revision() {
     let checkpoint = CoreCheckpoint::capture(&RunEngine::new(42, 0)).unwrap();
     let mut value = serde_json::to_value(checkpoint).unwrap();
     let prior = crate::checkpoint::core_semantics_fingerprint_for_revision(
-        "java-rng-actions-v2-checkpoint-v1",
+        "java-rng-actions-v2-checkpoint-v2",
     );
     value["semantics_fingerprint"] = serde_json::json!(prior);
 
@@ -218,6 +229,45 @@ fn checkpoint_rejects_the_prior_causal_semantics_revision() {
     assert!(error
         .to_string()
         .contains("checkpoint semantics fingerprint mismatch"));
+}
+
+#[test]
+fn checkpoint_requires_complete_valid_status_order() {
+    let mut engine = active_combat_run();
+    engine
+        .debug_combat_engine_mut()
+        .state
+        .player
+        .set_status(crate::status_ids::sid::STRENGTH, 2);
+    let checkpoint = CoreCheckpoint::capture(&engine).unwrap();
+    let canonical = serde_json::to_value(checkpoint).unwrap();
+
+    let mut missing_field = canonical.clone();
+    missing_field["engine"]["combat_engine"]["state"]["player"]
+        .as_object_mut()
+        .unwrap()
+        .remove("status_order");
+    assert!(serde_json::from_value::<CoreCheckpoint>(missing_field).is_err());
+
+    let mut duplicate = canonical.clone();
+    let order = duplicate["engine"]["combat_engine"]["state"]["player"]["status_order"]
+        .as_array_mut()
+        .unwrap();
+    order.push(order[0].clone());
+    assert!(serde_json::from_value::<CoreCheckpoint>(duplicate)
+        .unwrap_err()
+        .to_string()
+        .contains("duplicate id"));
+
+    let mut missing_active = canonical;
+    missing_active["engine"]["combat_engine"]["state"]["player"]["status_order"]
+        .as_array_mut()
+        .unwrap()
+        .clear();
+    assert!(serde_json::from_value::<CoreCheckpoint>(missing_active)
+        .unwrap_err()
+        .to_string()
+        .contains("missing from status order"));
 }
 
 #[test]

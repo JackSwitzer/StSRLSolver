@@ -1061,7 +1061,10 @@ fn add_player_status(engine: &mut CombatEngine, status: StatusId, amount: i32) {
         engine.state.player.add_status(status, gained);
         return;
     }
-    if matches!(status, sid::COLLECT_MIRACLES | sid::LIKE_WATER | sid::ENERGIZED) {
+    if matches!(
+        status,
+        sid::COLLECT_MIRACLES | sid::LIKE_WATER | sid::ENERGIZED | sid::ENERGIZED_BLUE
+    ) {
         // Java CollectPower.stackPower(), LikeWaterPower.stackPower(), and
         // EnergizedPower.stackPower()/EnergizedBluePower.stackPower() cap at 999.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/CollectPower.java

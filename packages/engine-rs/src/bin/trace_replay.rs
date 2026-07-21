@@ -124,6 +124,7 @@ fn run() -> Result<DivergenceStatus, String> {
             .map_err(|error| format!("failed to write report '{diff_path}': {error}"))?;
         return Ok(match report.status {
             BundleComparisonStatus::Match => DivergenceStatus::Match,
+            BundleComparisonStatus::Uncertified => DivergenceStatus::Error,
             BundleComparisonStatus::NoActions => DivergenceStatus::Error,
             BundleComparisonStatus::Diverged => DivergenceStatus::Diverged,
         });

@@ -712,7 +712,10 @@ fn collect_test_markers_from_status(
         (Target::Player | Target::SelfEntity, sid::VIGOR) => add_test_marker(markers, "vigor"),
         (Target::Player | Target::SelfEntity, sid::DEXTERITY) => add_test_marker(markers, "gain_dexterity"),
         (Target::Player | Target::SelfEntity, sid::NEXT_TURN_BLOCK) => add_test_marker(markers, "next_turn_block"),
-        (Target::Player | Target::SelfEntity, sid::ENERGIZED | sid::DOPPELGANGER_ENERGY) => {
+        (
+            Target::Player | Target::SelfEntity,
+            sid::ENERGIZED | sid::ENERGIZED_BLUE | sid::DOPPELGANGER_ENERGY,
+        ) => {
             add_test_marker(markers, "next_turn_energy");
         }
         (Target::Player | Target::SelfEntity, sid::DOPPELGANGER_DRAW | sid::DRAW_CARD | sid::DRAW) => {

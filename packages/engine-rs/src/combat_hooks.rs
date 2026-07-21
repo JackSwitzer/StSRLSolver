@@ -43,7 +43,9 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
             && engine.state.enemies[i].entity.status(sid::FLIGHT) > 0
         {
             let stored = engine.state.enemies[i].entity.status(sid::BLOCK_AMT);
-            engine.state.enemies[i].entity.set_status(sid::FLIGHT, stored);
+            engine.state.enemies[i]
+                .entity
+                .set_status(sid::FLIGHT, stored);
         }
 
         let is_first = engine.state.enemies[i].first_turn;
@@ -63,7 +65,9 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
         // ChokePower.atStartOfTurn removes the whole power. Vault never enters
         // this enemy-turn flow, so a skipped turn correctly leaves Choke armed.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ChokePower.java
-        engine.state.enemies[i].entity.set_status(sid::CONSTRICTED, 0);
+        engine.state.enemies[i]
+            .entity
+            .set_status(sid::CONSTRICTED, 0);
 
         // Enemy status countdowns still modeled directly in the turn-flow loop.
         let fading = engine.state.enemies[i].entity.status(sid::FADING);
@@ -175,10 +179,13 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
             // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/MalleablePower.java.
             if engine.state.enemies[i].id == "SnakePlant" {
                 let base = engine.state.enemies[i].entity.status(sid::BLOCK_AMT).max(3);
-                engine.state.enemies[i].entity.set_status(sid::MALLEABLE, base);
-            } else if matches!(engine.state.enemies[i].id.as_str(),
-                "WrithingMass" | "Writhing Mass")
-            {
+                engine.state.enemies[i]
+                    .entity
+                    .set_status(sid::MALLEABLE, base);
+            } else if matches!(
+                engine.state.enemies[i].id.as_str(),
+                "WrithingMass" | "Writhing Mass"
+            ) {
                 engine.state.enemies[i].entity.set_status(sid::MALLEABLE, 3);
             }
         }
@@ -188,11 +195,18 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
 /// Execute a single enemy's move (attack, block, status effects).
 fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     // Awakened One rebirth: if pending, execute the rebirth this turn instead of normal move
-    if engine.state.enemies[enemy_idx].entity.status(sid::REBIRTH_PENDING) > 0 {
-        if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-            "AwakenedOne" | "Awakened One")
-        {
-            engine.state.enemies[enemy_idx].entity.set_status(sid::REBIRTH_PENDING, 0);
+    if engine.state.enemies[enemy_idx]
+        .entity
+        .status(sid::REBIRTH_PENDING)
+        > 0
+    {
+        if matches!(
+            engine.state.enemies[enemy_idx].id.as_str(),
+            "AwakenedOne" | "Awakened One"
+        ) {
+            engine.state.enemies[enemy_idx]
+                .entity
+                .set_status(sid::REBIRTH_PENDING, 0);
             enemies::awakened_one_rebirth(&mut engine.state.enemies[enemy_idx]);
             // Rebirth's takeTurn still ends with RollMoveAction. The phase-two
             // first-turn branch ignores the rolled value but consumes one aiRng
@@ -203,8 +217,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         }
 
         if engine.state.enemies[enemy_idx].id == "Darkling"
-            && engine.state.enemies[enemy_idx].move_id
-                == enemies::move_ids::DARK_REINCARNATE
+            && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::DARK_REINCARNATE
         {
             // Source: reference/extracted/methods/monster/Darkling.java
             // (`takeTurn`, case 5). Heal from zero to half max HP, leave the
@@ -212,15 +225,20 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             // then consume the queued RollMoveAction.
             let heal = engine.state.enemies[enemy_idx].entity.max_hp / 2;
             engine.state.enemies[enemy_idx].entity.hp = heal;
-            engine.state.enemies[enemy_idx].entity.set_status(sid::REBIRTH_PENDING, 0);
-            engine.state.enemies[enemy_idx].entity.set_status(sid::REGROW, 1);
+            engine.state.enemies[enemy_idx]
+                .entity
+                .set_status(sid::REBIRTH_PENDING, 0);
+            engine.state.enemies[enemy_idx]
+                .entity
+                .set_status(sid::REGROW, 1);
             if engine.state.has_relic("Philosopher's Stone")
                 || engine.state.has_relic("PhilosopherStone")
             {
-                engine.state.enemies[enemy_idx].entity.add_status(sid::STRENGTH, 1);
+                engine.state.enemies[enemy_idx]
+                    .entity
+                    .add_status(sid::STRENGTH, 1);
             }
-            enemies::roll_next_move(
-                &mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
+            enemies::roll_next_move(&mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
             return;
         }
     }
@@ -244,7 +262,9 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     {
         // Source: reference/extracted/methods/monster/Maw.java (`takeTurn`,
         // case ROAR). `roared` changes before the queued RollMoveAction.
-        engine.state.enemies[enemy_idx].entity.set_status(sid::FIRST_MOVE, 1);
+        engine.state.enemies[enemy_idx]
+            .entity
+            .set_status(sid::FIRST_MOVE, 1);
     }
 
     if engine.state.enemies[enemy_idx].id == "Spiker"
@@ -253,28 +273,37 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         // Source: reference/extracted/methods/monster/Spiker.java (`takeTurn`).
         // thornsCount increments before ApplyPowerAction adds two Thorns and
         // before the queued RollMoveAction observes the new count.
-        engine.state.enemies[enemy_idx].entity.add_status(sid::COUNT, 1);
+        engine.state.enemies[enemy_idx]
+            .entity
+            .add_status(sid::COUNT, 1);
     }
 
-    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-        "TheCollector" | "Collector")
-    {
+    if matches!(
+        engine.state.enemies[enemy_idx].id.as_str(),
+        "TheCollector" | "Collector"
+    ) {
         // Source: reference/extracted/methods/monster/TheCollector.java
         // (`takeTurn`). These fields change after the selected move's actions
         // and before the queued RollMoveAction resolves.
         if engine.state.enemies[enemy_idx].move_id == enemies::move_ids::COLL_SPAWN {
-            engine.state.enemies[enemy_idx].entity.set_status(sid::FIRST_MOVE, 0);
+            engine.state.enemies[enemy_idx]
+                .entity
+                .set_status(sid::FIRST_MOVE, 0);
         }
         if engine.state.enemies[enemy_idx].move_id == enemies::move_ids::COLL_MEGA_DEBUFF {
             engine.state.enemies[enemy_idx]
-                .entity.set_status(sid::USED_MEGA_DEBUFF, 1);
+                .entity
+                .set_status(sid::USED_MEGA_DEBUFF, 1);
         }
-        engine.state.enemies[enemy_idx].entity.add_status(sid::TURN_COUNT, 1);
+        engine.state.enemies[enemy_idx]
+            .entity
+            .add_status(sid::TURN_COUNT, 1);
     }
 
-    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-        "GremlinLeader" | "Gremlin Leader")
-        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::GL_ENCOURAGE
+    if matches!(
+        engine.state.enemies[enemy_idx].id.as_str(),
+        "GremlinLeader" | "Gremlin Leader"
+    ) && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::GL_ENCOURAGE
     {
         // Source: reference/extracted/methods/monster/GremlinLeader.java
         // (`getEncourageQuote` is visible in the full source).
@@ -293,18 +322,25 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     // DamageAction.java (`stealGold`): both attack variants steal before their
     // damage resolves, even when block prevents HP loss.
     let thief_attack = match engine.state.enemies[enemy_idx].id.as_str() {
-        "Looter" => matches!(engine.state.enemies[enemy_idx].move_id,
-            enemies::move_ids::LOOTER_MUG | enemies::move_ids::LOOTER_LUNGE),
-        "Mugger" => matches!(engine.state.enemies[enemy_idx].move_id,
-            enemies::move_ids::MUGGER_MUG | enemies::move_ids::MUGGER_BIG_SWIPE),
+        "Looter" => matches!(
+            engine.state.enemies[enemy_idx].move_id,
+            enemies::move_ids::LOOTER_MUG | enemies::move_ids::LOOTER_LUNGE
+        ),
+        "Mugger" => matches!(
+            engine.state.enemies[enemy_idx].move_id,
+            enemies::move_ids::MUGGER_MUG | enemies::move_ids::MUGGER_BIG_SWIPE
+        ),
         _ => false,
     };
-    if thief_attack
-    {
-        let amount = engine.state.enemies[enemy_idx].entity.status(sid::TURN_COUNT);
+    if thief_attack {
+        let amount = engine.state.enemies[enemy_idx]
+            .entity
+            .status(sid::TURN_COUNT);
         let stolen = amount.min(engine.state.run_gold);
         engine.state.run_gold -= stolen;
-        engine.state.enemies[enemy_idx].entity.add_status(sid::COUNT, stolen);
+        engine.state.enemies[enemy_idx]
+            .entity
+            .add_status(sid::COUNT, stolen);
     }
 
     // Attack
@@ -352,7 +388,8 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             false,
             false,
             has_odd_mushroom,
-        ).hp_loss;
+        )
+        .hp_loss;
         enemy_attack_output = if enemy.back_attack {
             ((modified as f64) * 1.5) as i32
         } else {
@@ -411,7 +448,8 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/PainfulStabsPower.java
                 if engine.state.enemies[enemy_idx]
                     .entity
-                    .status(sid::PAINFUL_STABS) > 0
+                    .status(sid::PAINFUL_STABS)
+                    > 0
                 {
                     let wound = engine.temp_card("Wound");
                     engine.state.discard_pile.push(wound);
@@ -425,9 +463,11 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 let plated = engine.state.player.status(sid::PLATED_ARMOR);
                 if plated > 0 {
                     let new_plated = plated - 1;
-                    engine.state.player.set_status(sid::PLATED_ARMOR, new_plated);
+                    engine
+                        .state
+                        .player
+                        .set_status(sid::PLATED_ARMOR, new_plated);
                 }
-
             }
 
             for _ in 0..static_discharge {
@@ -474,9 +514,10 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         }
     }
 
-    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-        "Shelled Parasite" | "ShelledParasite")
-        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::SP_LIFE_SUCK
+    if matches!(
+        engine.state.enemies[enemy_idx].id.as_str(),
+        "Shelled Parasite" | "ShelledParasite"
+    ) && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::SP_LIFE_SUCK
         && engine.state.enemies[enemy_idx].is_alive()
     {
         // Source: VampireDamageAction heals the source for the target's
@@ -488,16 +529,19 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         enemy.hp = (enemy.hp + actual_hp_loss).min(enemy.max_hp);
     }
 
-    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-        "SpireShield" | "Spire Shield")
-        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::SHIELD_SMASH
+    if matches!(
+        engine.state.enemies[enemy_idx].id.as_str(),
+        "SpireShield" | "Spire Shield"
+    ) && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::SHIELD_SMASH
         && engine.state.enemies[enemy_idx].is_alive()
     {
         // Source: reference/extracted/methods/monster/SpireShield.java
         // (`takeTurn`, SMASH). A18 gains 99 Block; lower ascensions gain the
         // attack's DamageInfo.output, independent of actual HP loss or Block.
         let block = if engine.state.enemies[enemy_idx]
-            .entity.status(sid::HIGH_ASCENSION_AI) > 0
+            .entity
+            .status(sid::HIGH_ASCENSION_AI)
+            > 0
         {
             99
         } else {
@@ -509,15 +553,17 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     // Block
     let move_blk = engine.state.enemies[enemy_idx].move_block();
     if move_blk > 0 {
-        if matches!(engine.state.enemies[enemy_idx].id.as_str(), "BronzeOrb" | "Bronze Orb")
-            && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::BO_SUPPORT
+        if matches!(
+            engine.state.enemies[enemy_idx].id.as_str(),
+            "BronzeOrb" | "Bronze Orb"
+        ) && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::BO_SUPPORT
         {
             // BronzeOrb SUPPORT_BEAM targets the boss, not the Orb itself.
             // Java: reference/extracted/methods/monster/BronzeOrb.java
-            if let Some(automaton) = engine.state.enemies.iter_mut().find(|enemy|
+            if let Some(automaton) = engine.state.enemies.iter_mut().find(|enemy| {
                 matches!(enemy.id.as_str(), "BronzeAutomaton" | "Bronze Automaton")
-                    && enemy.is_alive())
-            {
+                    && enemy.is_alive()
+            }) {
                 automaton.entity.block += move_blk;
             }
         } else {
@@ -525,24 +571,28 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         }
     }
 
-    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-        "WrithingMass" | "Writhing Mass")
-        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::WM_MEGA_DEBUFF
+    if matches!(
+        engine.state.enemies[enemy_idx].id.as_str(),
+        "WrithingMass" | "Writhing Mass"
+    ) && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::WM_MEGA_DEBUFF
     {
         // Source: reference/extracted/methods/monster/WrithingMass.java
         // (`takeTurn`, case 4). Implant permanently adds Parasite to the
         // master deck; it does not install Painful Stabs or add a combat Wound.
         engine.state.enemies[enemy_idx]
-            .entity.set_status(sid::USED_MEGA_DEBUFF, 1);
+            .entity
+            .set_status(sid::USED_MEGA_DEBUFF, 1);
         let parasite = engine.temp_card("Parasite");
         engine.state.master_deck.push(parasite);
     }
 
     // Apply move effects
     let effects: SmallVec<[(u8, i16); 4]> = engine.state.enemies[enemy_idx].move_effects.clone();
-    let champ_anger = matches!(engine.state.enemies[enemy_idx].id.as_str(),
-        "Champ" | "TheChamp")
-        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::CHAMP_ANGER;
+    let champ_anger = matches!(
+        engine.state.enemies[enemy_idx].id.as_str(),
+        "Champ" | "TheChamp"
+    ) && engine.state.enemies[enemy_idx].move_id
+        == enemies::move_ids::CHAMP_ANGER;
 
     if engine.state.enemies[enemy_idx].id == "Byrd"
         && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::BYRD_FLY_UP
@@ -550,36 +600,58 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         // Byrd.takeTurn case FLY_UP applies a fresh FlightPower before its
         // queued RollMoveAction selects the next airborne intent.
         // Java: reference/extracted/methods/monster/Byrd.java.
-        let flight = engine.state.enemies[enemy_idx].entity.status(sid::BLOCK_AMT);
-        engine.state.enemies[enemy_idx].entity.set_status(sid::FLIGHT, flight);
+        let flight = engine.state.enemies[enemy_idx]
+            .entity
+            .status(sid::BLOCK_AMT);
+        engine.state.enemies[enemy_idx]
+            .entity
+            .set_status(sid::FLIGHT, flight);
     }
 
     fn get_fx(effects: &SmallVec<[(u8, i16); 4]>, id: u8) -> Option<i16> {
         effects.iter().find(|e| e.0 == id).map(|e| e.1)
     }
 
-    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-        "CorruptHeart" | "Corrupt Heart")
-        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::HEART_BUFF
+    if matches!(
+        engine.state.enemies[enemy_idx].id.as_str(),
+        "CorruptHeart" | "Corrupt Heart"
+    ) && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::HEART_BUFF
     {
         // Source: reference/extracted/methods/monster/CorruptHeart.java
         // (`takeTurn`, case 4). Each buff first cancels any negative Strength,
         // then grants 2 Strength and applies the current escalation stage.
         let strength = engine.state.enemies[enemy_idx].entity.strength();
         if strength < 0 {
-            engine.state.enemies[enemy_idx].entity.set_status(sid::STRENGTH, 0);
-        }
-        engine.state.enemies[enemy_idx].entity.add_status(sid::STRENGTH, 2);
-        let buff_count = engine.state.enemies[enemy_idx].entity.status(sid::BUFF_COUNT);
-        match buff_count {
-            0 => engine.state.enemies[enemy_idx].entity.add_status(sid::ARTIFACT, 2),
-            1 => engine.state.enemies[enemy_idx].entity.add_status(sid::BEAT_OF_DEATH, 1),
-            2 => engine.state.enemies[enemy_idx].entity.set_status(sid::PAINFUL_STABS, 1),
-            3 => engine.state.enemies[enemy_idx].entity.add_status(sid::STRENGTH, 10),
-            _ => engine.state.enemies[enemy_idx].entity.add_status(sid::STRENGTH, 50),
+            engine.state.enemies[enemy_idx]
+                .entity
+                .set_status(sid::STRENGTH, 0);
         }
         engine.state.enemies[enemy_idx]
-            .entity.set_status(sid::BUFF_COUNT, buff_count + 1);
+            .entity
+            .add_status(sid::STRENGTH, 2);
+        let buff_count = engine.state.enemies[enemy_idx]
+            .entity
+            .status(sid::BUFF_COUNT);
+        match buff_count {
+            0 => engine.state.enemies[enemy_idx]
+                .entity
+                .add_status(sid::ARTIFACT, 2),
+            1 => engine.state.enemies[enemy_idx]
+                .entity
+                .add_status(sid::BEAT_OF_DEATH, 1),
+            2 => engine.state.enemies[enemy_idx]
+                .entity
+                .set_status(sid::PAINFUL_STABS, 1),
+            3 => engine.state.enemies[enemy_idx]
+                .entity
+                .add_status(sid::STRENGTH, 10),
+            _ => engine.state.enemies[enemy_idx]
+                .entity
+                .add_status(sid::STRENGTH, 50),
+        }
+        engine.state.enemies[enemy_idx]
+            .entity
+            .set_status(sid::BUFF_COUNT, buff_count + 1);
     }
 
     // D59: enemy-applied debuffs use `apply_debuff_from_enemy` so Java's
@@ -587,38 +659,34 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     // decrement is skipped. Without this, 1-stack Weak/Vuln/Frail vanishes
     // the same turn it lands -- radically under-models enemy debuff pressure
     // (Sentry beam, Boot Steel Pads, Sphere Slam, Time Eater Ripple).
-    let time_eater_ripple = matches!(engine.state.enemies[enemy_idx].id.as_str(),
-        "TimeEater" | "Time Eater")
-        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::TE_RIPPLE;
+    let time_eater_ripple = matches!(
+        engine.state.enemies[enemy_idx].id.as_str(),
+        "TimeEater" | "Time Eater"
+    ) && engine.state.enemies[enemy_idx].move_id
+        == enemies::move_ids::TE_RIPPLE;
     if time_eater_ripple {
         // Source: reference/extracted/methods/monster/TimeEater.java
         // (`takeTurn`, RIPPLE). Preserve ApplyPowerAction order because one
         // Artifact stack blocks Vulnerable first, then Weak, then A19 Frail.
         if let Some(amt) = get_fx(&effects, mfx::VULNERABLE) {
-            powers::apply_debuff_from_enemy(
-                &mut engine.state.player, sid::VULNERABLE, amt as i32);
+            powers::apply_debuff_from_enemy(&mut engine.state.player, sid::VULNERABLE, amt as i32);
         }
         if let Some(amt) = get_fx(&effects, mfx::WEAK) {
-            powers::apply_debuff_from_enemy(
-                &mut engine.state.player, sid::WEAKENED, amt as i32);
+            powers::apply_debuff_from_enemy(&mut engine.state.player, sid::WEAKENED, amt as i32);
         }
         if let Some(amt) = get_fx(&effects, mfx::FRAIL) {
-            powers::apply_debuff_from_enemy(
-                &mut engine.state.player, sid::FRAIL, amt as i32);
+            powers::apply_debuff_from_enemy(&mut engine.state.player, sid::FRAIL, amt as i32);
         }
     }
     if !time_eater_ripple {
         if let Some(amt) = get_fx(&effects, mfx::WEAK) {
-            powers::apply_debuff_from_enemy(
-                &mut engine.state.player, sid::WEAKENED, amt as i32);
+            powers::apply_debuff_from_enemy(&mut engine.state.player, sid::WEAKENED, amt as i32);
         }
         if let Some(amt) = get_fx(&effects, mfx::VULNERABLE) {
-            powers::apply_debuff_from_enemy(
-                &mut engine.state.player, sid::VULNERABLE, amt as i32);
+            powers::apply_debuff_from_enemy(&mut engine.state.player, sid::VULNERABLE, amt as i32);
         }
         if let Some(amt) = get_fx(&effects, mfx::FRAIL) {
-            powers::apply_debuff_from_enemy(
-                &mut engine.state.player, sid::FRAIL, amt as i32);
+            powers::apply_debuff_from_enemy(&mut engine.state.player, sid::FRAIL, amt as i32);
         }
     }
     if get_fx(&effects, mfx::HEART_STATUS_CARDS).unwrap_or(0) > 0 {
@@ -630,10 +698,10 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             if engine.state.draw_pile.is_empty() {
                 engine.state.draw_pile.push(card);
             } else {
-                let idx = engine.card_random_rng.random_int_range(
-                    0,
-                    (engine.state.draw_pile.len() - 1) as i32,
-                ) as usize;
+                let idx = engine
+                    .card_random_rng
+                    .random_int_range(0, (engine.state.draw_pile.len() - 1) as i32)
+                    as usize;
                 engine.state.draw_pile.insert(idx, card);
             }
         }
@@ -671,11 +739,13 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     }
     if let Some(amt) = get_fx(&effects, mfx::ENRAGE) {
         engine.state.enemies[enemy_idx]
-            .entity.set_status(sid::ENRAGE, amt as i32);
+            .entity
+            .set_status(sid::ENRAGE, amt as i32);
     }
     if let Some(amt) = get_fx(&effects, mfx::SHARP_HIDE) {
         engine.state.enemies[enemy_idx]
-            .entity.set_status(sid::SHARP_HIDE, amt as i32);
+            .entity
+            .set_status(sid::SHARP_HIDE, amt as i32);
     }
     if let Some(amt) = get_fx(&effects, mfx::ENTANGLE) {
         if amt > 0 {
@@ -705,21 +775,24 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             if engine.state.draw_pile.is_empty() {
                 engine.state.draw_pile.push(card);
             } else {
-                let idx = engine.card_random_rng.random_int_range(
-                    0,
-                    (engine.state.draw_pile.len() - 1) as i32,
-                ) as usize;
+                let idx = engine
+                    .card_random_rng
+                    .random_int_range(0, (engine.state.draw_pile.len() - 1) as i32)
+                    as usize;
                 engine.state.draw_pile.insert(idx, card);
             }
         }
     }
     if let Some(amt) = get_fx(&effects, mfx::BURN) {
-        let spear_draw_burns = matches!(engine.state.enemies[enemy_idx].id.as_str(),
-            "SpireSpear" | "Spire Spear")
-            && engine.state.enemies[enemy_idx].move_id
-                == enemies::move_ids::SPEAR_BURN_STRIKE
+        let spear_draw_burns = matches!(
+            engine.state.enemies[enemy_idx].id.as_str(),
+            "SpireSpear" | "Spire Spear"
+        ) && engine.state.enemies[enemy_idx].move_id
+            == enemies::move_ids::SPEAR_BURN_STRIKE
             && engine.state.enemies[enemy_idx]
-                .entity.status(sid::HIGH_ASCENSION_AI) > 0;
+                .entity
+                .status(sid::HIGH_ASCENSION_AI)
+                > 0;
         for _ in 0..amt {
             let burn = engine.temp_card("Burn");
             if spear_draw_burns {
@@ -729,10 +802,10 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 if engine.state.draw_pile.is_empty() {
                     engine.state.draw_pile.push(burn);
                 } else {
-                    let idx = engine.card_random_rng.random_int_range(
-                        0,
-                        (engine.state.draw_pile.len() - 1) as i32,
-                    ) as usize;
+                    let idx = engine
+                        .card_random_rng
+                        .random_int_range(0, (engine.state.draw_pile.len() - 1) as i32)
+                        as usize;
                     engine.state.draw_pile.insert(idx, burn);
                 }
             } else {
@@ -749,8 +822,10 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             if engine.state.draw_pile.is_empty() {
                 engine.state.draw_pile.push(draw_burn);
             } else {
-                let idx = engine.card_random_rng.random_int(
-                    engine.state.draw_pile.len() as i32 - 1) as usize;
+                let idx = engine
+                    .card_random_rng
+                    .random_int(engine.state.draw_pile.len() as i32 - 1)
+                    as usize;
                 engine.state.draw_pile.insert(idx, draw_burn);
             }
             let discard_burn = engine.temp_card("Burn");
@@ -768,18 +843,21 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         engine.state.player.add_status(sid::STRENGTH, -(amt as i32));
     }
     if let Some(amt) = get_fx(&effects, mfx::SIPHON_DEX) {
-        engine.state.player.add_status(sid::DEXTERITY, -(amt as i32));
+        engine
+            .state
+            .player
+            .add_status(sid::DEXTERITY, -(amt as i32));
     }
 
     // Champ Anger / Time Eater Haste: remove ALL debuffs from this enemy
     if get_fx(&effects, mfx::REMOVE_DEBUFFS).unwrap_or(0) > 0 {
-        let statuses = &mut engine.state.enemies[enemy_idx].entity.statuses;
+        let entity = &mut engine.state.enemies[enemy_idx].entity;
         for i in 0..256 {
-            if statuses[i] != 0 {
-                let sid = crate::ids::StatusId(i as u16);
-                if crate::powers::registry::status_is_debuff(sid) {
-                    statuses[i] = 0;
-                }
+            let status = crate::ids::StatusId(i as u16);
+            if entity.status(status) != 0
+                && crate::powers::registry::status_is_debuff(status)
+            {
+                entity.set_status(status, 0);
             }
         }
         // Negative StrengthPower and GainStrengthPower ("Shackled") are both
@@ -787,14 +865,18 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         // phase-two Strength, so the gain must resolve after this cleanup.
         // Java: reference/extracted/methods/monster/Champ.java (`takeTurn`).
         if engine.state.enemies[enemy_idx].entity.strength() < 0 {
-            engine.state.enemies[enemy_idx].entity.set_status(sid::STRENGTH, 0);
+            engine.state.enemies[enemy_idx]
+                .entity
+                .set_status(sid::STRENGTH, 0);
         }
         engine.state.enemies[enemy_idx]
-            .entity.set_status(sid::TEMP_STRENGTH_LOSS, 0);
+            .entity
+            .set_status(sid::TEMP_STRENGTH_LOSS, 0);
         if champ_anger {
             if let Some(amt) = get_fx(&effects, mfx::STRENGTH) {
                 engine.state.enemies[enemy_idx]
-                    .entity.add_status(sid::STRENGTH, amt as i32);
+                    .entity
+                    .add_status(sid::STRENGTH, amt as i32);
             }
         }
     }
@@ -804,24 +886,28 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         let half = engine.state.enemies[enemy_idx].entity.max_hp / 2;
         engine.state.enemies[enemy_idx].entity.hp = half;
     }
-    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-        "TimeEater" | "Time Eater")
-        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::TE_HASTE
+    if matches!(
+        engine.state.enemies[enemy_idx].id.as_str(),
+        "TimeEater" | "Time Eater"
+    ) && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::TE_HASTE
         && engine.state.enemies[enemy_idx]
-            .entity.status(sid::HIGH_ASCENSION_AI) > 0
+            .entity
+            .status(sid::HIGH_ASCENSION_AI)
+            > 0
     {
         // Source: reference/extracted/methods/monster/TimeEater.java
         // (`takeTurn`, HASTE). A19 gains Block equal to Head Slam's damage
         // after debuff removal and healing resolve.
         let block = engine.state.enemies[enemy_idx]
-            .entity.status(sid::HEAD_SLAM_DMG).max(26);
+            .entity
+            .status(sid::HEAD_SLAM_DMG)
+            .max(26);
         engine.state.enemies[enemy_idx].entity.block += block;
     }
 
     // Heal full (Awakened One rebirth, etc.)
     if get_fx(&effects, mfx::HEAL_FULL).unwrap_or(0) > 0 {
-        engine.state.enemies[enemy_idx].entity.hp =
-            engine.state.enemies[enemy_idx].entity.max_hp;
+        engine.state.enemies[enemy_idx].entity.hp = engine.state.enemies[enemy_idx].entity.max_hp;
     }
 
     // Artifact: give enemy Artifact stacks
@@ -836,16 +922,22 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     if get_fx(&effects, mfx::BURN_UPGRADE).unwrap_or(0) > 0 {
         let burn_id = engine.card_registry.make_card("Burn").def_id;
         for card in &mut engine.state.draw_pile {
-            if card.def_id == burn_id { engine.card_registry.upgrade_card(card); }
+            if card.def_id == burn_id {
+                engine.card_registry.upgrade_card(card);
+            }
         }
         for card in &mut engine.state.discard_pile {
-            if card.def_id == burn_id { engine.card_registry.upgrade_card(card); }
+            if card.def_id == burn_id {
+                engine.card_registry.upgrade_card(card);
+            }
         }
         for _ in 0..3 {
             let burn = engine.temp_card("Burn+");
             engine.state.discard_pile.push(burn);
         }
-        engine.state.enemies[enemy_idx].entity.set_status(sid::BUFF_COUNT, 1);
+        engine.state.enemies[enemy_idx]
+            .entity
+            .set_status(sid::BUFF_COUNT, 1);
     }
 
     // Snecko's Glare applies Confusion through ApplyPowerAction, so Artifact
@@ -859,13 +951,15 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     if let Some(amt) = get_fx(&effects, mfx::CONSTRICT) {
         // Source: SpireGrowth.takeTurn uses ApplyPowerAction, so Artifact can
         // block the debuff before ConstrictedPower is installed.
-        powers::apply_debuff_from_enemy(
-            &mut engine.state.player, sid::CONSTRICTED, amt as i32);
+        powers::apply_debuff_from_enemy(&mut engine.state.player, sid::CONSTRICTED, amt as i32);
     }
 
     // Dexterity down: reduce player Dexterity
     if let Some(amt) = get_fx(&effects, mfx::DEX_DOWN) {
-        engine.state.player.add_status(sid::DEXTERITY, -(amt as i32));
+        engine
+            .state
+            .player
+            .add_status(sid::DEXTERITY, -(amt as i32));
     }
 
     // Draw Reduction: reduce player draw next turn
@@ -873,11 +967,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         // Source: reference/extracted/methods/monster/TimeEater.java and
         // DrawReductionPower.java. ApplyPowerAction means Artifact can block
         // it, and justApplied preserves the reduced draw for the next turn.
-        powers::apply_debuff_from_enemy(
-            &mut engine.state.player,
-            sid::DRAW_REDUCTION,
-            amt as i32,
-        );
+        powers::apply_debuff_from_enemy(&mut engine.state.player, sid::DRAW_REDUCTION, amt as i32);
     }
 
     // Hex: apply Hex to player
@@ -907,22 +997,32 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             &engine.state.discard_pile
         };
         if !zone.is_empty() {
-            let preferred_rank = [3_u8, 2, 1]
-                .into_iter()
-                .find(|rank| zone.iter().any(|card|
+            let preferred_rank = [3_u8, 2, 1].into_iter().find(|rank| {
+                zone.iter().any(|card| {
                     crate::run::stasis_card_rarity_rank(
-                        engine.card_registry.card_def_by_id(card.def_id).id) == *rank));
-            let mut candidates: Vec<usize> = zone.iter().enumerate()
-                .filter(|(_, card)| preferred_rank.is_none_or(|rank|
-                    crate::run::stasis_card_rarity_rank(
-                        engine.card_registry.card_def_by_id(card.def_id).id) == rank))
+                        engine.card_registry.card_def_by_id(card.def_id).id,
+                    ) == *rank
+                })
+            });
+            let mut candidates: Vec<usize> = zone
+                .iter()
+                .enumerate()
+                .filter(|(_, card)| {
+                    preferred_rank.is_none_or(|rank| {
+                        crate::run::stasis_card_rarity_rank(
+                            engine.card_registry.card_def_by_id(card.def_id).id,
+                        ) == rank
+                    })
+                })
                 .map(|(idx, _)| idx)
                 .collect();
             if preferred_rank.is_some() {
-                candidates.sort_by_key(|idx|
-                    engine.card_registry.card_def_by_id(zone[*idx].def_id).id);
+                candidates
+                    .sort_by_key(|idx| engine.card_registry.card_def_by_id(zone[*idx].def_id).id);
             }
-            let pick = engine.card_random_rng.random_int(candidates.len() as i32 - 1) as usize;
+            let pick = engine
+                .card_random_rng
+                .random_int(candidates.len() as i32 - 1) as usize;
             let zone_idx = candidates[pick];
             let card = if use_draw {
                 engine.state.draw_pile.remove(zone_idx)
@@ -940,16 +1040,20 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             .add_status(sid::STRENGTH, amt as i32);
     }
 
-    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-        "SpireShield" | "Spire Shield")
-        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::SHIELD_BASH
+    if matches!(
+        engine.state.enemies[enemy_idx].id.as_str(),
+        "SpireShield" | "Spire Shield"
+    ) && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::SHIELD_BASH
     {
         // Source: reference/extracted/methods/monster/SpireShield.java
         // (`takeTurn`, BASH). The boolean is consumed only when at least one
         // orb is occupied; either negative power is blocked by Artifact.
-        let focus_down = engine.state.orb_slots.occupied_count() > 0
-            && engine.ai_rng.random_bool();
-        let status = if focus_down { sid::FOCUS } else { sid::STRENGTH };
+        let focus_down = engine.state.orb_slots.occupied_count() > 0 && engine.ai_rng.random_bool();
+        let status = if focus_down {
+            sid::FOCUS
+        } else {
+            sid::STRENGTH
+        };
         powers::apply_debuff_from_enemy(&mut engine.state.player, status, -1);
     }
 
@@ -976,10 +1080,10 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 // to CardGroup.addToRandomSpot and consumes cardRandomRng.
                 // Java: reference/extracted/methods/monster/AwakenedOne.java
                 // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
-                let idx = engine.card_random_rng.random_int_range(
-                    0,
-                    (engine.state.draw_pile.len() - 1) as i32,
-                ) as usize;
+                let idx = engine
+                    .card_random_rng
+                    .random_int_range(0, (engine.state.draw_pile.len() - 1) as i32)
+                    as usize;
                 engine.state.draw_pile.insert(idx, card);
             }
         }
@@ -1012,7 +1116,12 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         // Source: reference/extracted/methods/monster/Deca.java (`takeTurn`,
         // case 2). A19 Square applies Plated Armor to every monster, including
         // Deca, and repeated Squares stack it.
-        for enemy in engine.state.enemies.iter_mut().filter(|enemy| enemy.is_alive()) {
+        for enemy in engine
+            .state
+            .enemies
+            .iter_mut()
+            .filter(|enemy| enemy.is_alive())
+        {
             enemy.entity.add_status(sid::PLATED_ARMOR, amt as i32);
         }
         engine.rebuild_effect_runtime();
@@ -1021,7 +1130,8 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         let mut lowest_idx: Option<usize> = None;
         let mut lowest_hp = i32::MAX;
         for j in 0..engine.state.enemies.len() {
-            if j != enemy_idx && engine.state.enemies[j].is_alive()
+            if j != enemy_idx
+                && engine.state.enemies[j].is_alive()
                 && engine.state.enemies[j].entity.hp < lowest_hp
             {
                 lowest_idx = Some(j);
@@ -1037,23 +1147,37 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         // Source: reference/extracted/methods/monster/Healer.java (`takeTurn`,
         // case HEAL): HealAction targets every living, non-escaping monster,
         // including the Healer itself.
-        for enemy in engine.state.enemies.iter_mut().filter(|enemy| enemy.is_alive()) {
+        for enemy in engine
+            .state
+            .enemies
+            .iter_mut()
+            .filter(|enemy| enemy.is_alive())
+        {
             enemy.entity.hp = (enemy.entity.hp + amt as i32).min(enemy.entity.max_hp);
         }
     }
     if let Some(amt) = get_fx(&effects, mfx::STRENGTH_ALL_ALLIES) {
         for j in 0..engine.state.enemies.len() {
             if j != enemy_idx && engine.state.enemies[j].is_alive() {
-                engine.state.enemies[j].entity.add_status(sid::STRENGTH, amt as i32);
+                engine.state.enemies[j]
+                    .entity
+                    .add_status(sid::STRENGTH, amt as i32);
             }
         }
     }
     if let Some(amt) = get_fx(&effects, mfx::BLOCK_RANDOM_OTHER) {
         // Source: decompiled GainBlockRandomMonsterAction.java. Exclude the
         // source and escaping/dying monsters; use self without RNG if empty.
-        let valid: Vec<usize> = engine.state.enemies.iter().enumerate()
-            .filter(|(idx, enemy)| *idx != enemy_idx && enemy.is_alive()
-                && enemy.move_id != enemies::move_ids::GREMLIN_ESCAPE)
+        let valid: Vec<usize> = engine
+            .state
+            .enemies
+            .iter()
+            .enumerate()
+            .filter(|(idx, enemy)| {
+                *idx != enemy_idx
+                    && enemy.is_alive()
+                    && enemy.move_id != enemies::move_ids::GREMLIN_ESCAPE
+            })
             .map(|(idx, _)| idx)
             .collect();
         let target = if valid.is_empty() {
@@ -1064,9 +1188,11 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         engine.state.enemies[target].entity.block += amt as i32;
     }
 
-    let large_slime_split = matches!(engine.state.enemies[enemy_idx].id.as_str(),
-        "AcidSlime_L" | "SpikeSlime_L")
-        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::AS_SPLIT;
+    let large_slime_split = matches!(
+        engine.state.enemies[enemy_idx].id.as_str(),
+        "AcidSlime_L" | "SpikeSlime_L"
+    ) && engine.state.enemies[enemy_idx].move_id
+        == enemies::move_ids::AS_SPLIT;
 
     // Spawn minions for boss spawn moves
     {
@@ -1080,7 +1206,9 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 // source-range minion, calls init (one aiRng roll), and applies
                 // MinionPower before Collector's own RollMoveAction.
                 let high_hp = engine.state.enemies[enemy_idx]
-                    .entity.status(sid::BLOCK_AMT) >= 18;
+                    .entity
+                    .status(sid::BLOCK_AMT)
+                    >= 18;
                 let mut torches = Vec::with_capacity(2);
                 for _ in 0..2 {
                     // TorchHead's super call rolls 38..40 before setHp replaces
@@ -1092,7 +1220,12 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                     } else {
                         engine.monster_hp_rng.random_int_range(38, 40)
                     };
-                    let mut torch = enemies::create_enemy("TorchHead", hp, hp);
+                    let mut torch = enemies::create_enemy_with_ambient(
+                        "TorchHead",
+                        hp,
+                        hp,
+                        &mut engine.ambient_math_rng,
+                    );
                     torch.is_minion = true;
                     torches.push(torch);
                 }
@@ -1103,10 +1236,17 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             }
             ("TheCollector" | "Collector", x) if x == move_ids::COLL_REVIVE => {
                 let high_hp = engine.state.enemies[enemy_idx]
-                    .entity.status(sid::BLOCK_AMT) >= 18;
-                let dead_slots: Vec<usize> = engine.state.enemies.iter().enumerate()
-                    .filter(|(_, enemy)| matches!(enemy.id.as_str(),
-                        "TorchHead" | "Torch Head") && !enemy.is_alive())
+                    .entity
+                    .status(sid::BLOCK_AMT)
+                    >= 18;
+                let dead_slots: Vec<usize> = engine
+                    .state
+                    .enemies
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, enemy)| {
+                        matches!(enemy.id.as_str(), "TorchHead" | "Torch Head") && !enemy.is_alive()
+                    })
                     .map(|(idx, _)| idx)
                     .collect();
                 let mut replacements = Vec::with_capacity(dead_slots.len());
@@ -1120,7 +1260,12 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                     } else {
                         engine.monster_hp_rng.random_int_range(38, 40)
                     };
-                    let mut torch = enemies::create_enemy("TorchHead", hp, hp);
+                    let mut torch = enemies::create_enemy_with_ambient(
+                        "TorchHead",
+                        hp,
+                        hp,
+                        &mut engine.ambient_math_rng,
+                    );
                     torch.is_minion = true;
                     if engine.state.has_relic("Philosopher's Stone")
                         || engine.state.has_relic("PhilosopherStone")
@@ -1153,7 +1298,12 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                     } else {
                         engine.monster_hp_rng.random_int_range(52, 58)
                     };
-                    let mut orb = enemies::create_enemy("BronzeOrb", hp, hp);
+                    let mut orb = enemies::create_enemy_with_ambient(
+                        "BronzeOrb",
+                        hp,
+                        hp,
+                        &mut engine.ambient_math_rng,
+                    );
                     orb.is_minion = true;
                     orb.entity.set_status(sid::COUNT, count);
                     orbs.push(orb);
@@ -1167,10 +1317,16 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 // Source: reference/extracted/methods/monster/Reptomancer.java
                 // (`takeTurn`) fills up to four tracked dagger slots, one at
                 // baseline and two at ascension 18.
-                let alive_daggers = engine.state.enemies.iter().filter(|enemy|
-                    enemy.id == "Dagger" && enemy.is_alive()).count();
+                let alive_daggers = engine
+                    .state
+                    .enemies
+                    .iter()
+                    .filter(|enemy| enemy.id == "Dagger" && enemy.is_alive())
+                    .count();
                 let per_spawn = engine.state.enemies[enemy_idx]
-                    .entity.status(sid::BLOCK_AMT).max(1) as usize;
+                    .entity
+                    .status(sid::BLOCK_AMT)
+                    .max(1) as usize;
                 let spawn_count = (4usize.saturating_sub(alive_daggers)).min(per_spawn);
                 let mut daggers = Vec::with_capacity(spawn_count);
                 for _ in 0..spawn_count {
@@ -1179,7 +1335,12 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                     // Java: reference/extracted/methods/monster/SnakeDagger.java
                     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/SpawnMonsterAction.java
                     let hp = engine.monster_hp_rng.random_int_range(20, 25);
-                    let mut minion = enemies::create_enemy("Dagger", hp, hp);
+                    let mut minion = enemies::create_enemy_with_ambient(
+                        "Dagger",
+                        hp,
+                        hp,
+                        &mut engine.ambient_math_rng,
+                    );
                     minion.is_minion = true;
                     daggers.push(minion);
                 }
@@ -1196,12 +1357,17 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 // weighted type and constructs it, consuming monsterHpRng in
                 // setHp(). The queued update() calls later initialize minion 0
                 // then minion 1; only after both does Gremlin Leader roll below.
-                let alive_others = engine.state.enemies.iter().enumerate()
+                let alive_others = engine
+                    .state
+                    .enemies
+                    .iter()
+                    .enumerate()
                     .filter(|(idx, enemy)| *idx != enemy_idx && enemy.is_alive())
                     .count();
                 let spawn_count = (3usize.saturating_sub(alive_others)).min(2);
                 let ascension = engine.state.enemies[enemy_idx]
-                    .entity.status(sid::STARTING_DMG);
+                    .entity
+                    .status(sid::STARTING_DMG);
                 let high_hp = ascension >= 7;
                 let mut minions = Vec::with_capacity(spawn_count);
                 for _ in 0..spawn_count {
@@ -1234,38 +1400,58 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                             if high_hp { 17 } else { 15 },
                         ),
                     };
-                    let mut minion = enemies::create_enemy(gremlin_id, hp, hp);
+                    let mut minion = enemies::create_enemy_with_ambient(
+                        gremlin_id,
+                        hp,
+                        hp,
+                        &mut engine.ambient_math_rng,
+                    );
                     minion.is_minion = true;
                     match gremlin_id {
                         "GremlinFat" => {
                             let damage = if ascension >= 2 { 5 } else { 4 };
                             minion.entity.set_status(sid::STARTING_DMG, damage);
-                            minion.entity.set_status(sid::BLOCK_AMT,
-                                if ascension >= 17 { 17 } else { 0 });
+                            minion
+                                .entity
+                                .set_status(sid::BLOCK_AMT, if ascension >= 17 { 17 } else { 0 });
                         }
                         "GremlinThief" => {
-                            minion.entity.set_status(sid::STARTING_DMG,
-                                if ascension >= 2 { 10 } else { 9 });
+                            minion
+                                .entity
+                                .set_status(sid::STARTING_DMG, if ascension >= 2 { 10 } else { 9 });
                         }
                         "GremlinWarrior" => {
-                            minion.entity.set_status(sid::STARTING_DMG,
-                                if ascension >= 2 { 5 } else { 4 });
-                            minion.entity.set_status(sid::ANGRY,
-                                if ascension >= 17 { 2 } else { 1 });
+                            minion
+                                .entity
+                                .set_status(sid::STARTING_DMG, if ascension >= 2 { 5 } else { 4 });
+                            minion
+                                .entity
+                                .set_status(sid::ANGRY, if ascension >= 17 { 2 } else { 1 });
                         }
                         "GremlinWizard" => {
-                            minion.entity.set_status(sid::STARTING_DMG,
-                                if ascension >= 2 { 30 } else { 25 });
+                            minion.entity.set_status(
+                                sid::STARTING_DMG,
+                                if ascension >= 2 { 30 } else { 25 },
+                            );
                             minion.entity.set_status(sid::COUNT, 1);
-                            minion.entity.set_status(sid::BLOCK_AMT,
-                                if ascension >= 17 { 17 } else { 0 });
+                            minion
+                                .entity
+                                .set_status(sid::BLOCK_AMT, if ascension >= 17 { 17 } else { 0 });
                         }
                         _ => {
-                            minion.entity.set_status(sid::STARTING_DMG,
-                                if ascension >= 2 { 8 } else { 6 });
-                            minion.entity.set_status(sid::BLOCK_AMT,
-                                if ascension >= 17 { 11 }
-                                else if ascension >= 7 { 8 } else { 7 });
+                            minion
+                                .entity
+                                .set_status(sid::STARTING_DMG, if ascension >= 2 { 8 } else { 6 });
+                            minion.entity.set_status(
+                                sid::BLOCK_AMT,
+                                if ascension >= 17 {
+                                    11
+                                } else if ascension >= 7 {
+                                    8
+                                } else {
+                                    7
+                                },
+                            );
                         }
                     }
                     minions.push(minion);
@@ -1279,14 +1465,30 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 // AcidSlime_L.takeTurn spawns two AcidSlime_M at current HP.
                 let hp = engine.state.enemies[enemy_idx].entity.hp;
                 let upgraded = engine.state.enemies[enemy_idx]
-                    .entity.status(sid::STARTING_DMG) >= 12;
-                let a17 = engine.state.enemies[enemy_idx].entity.status(sid::BLOCK_AMT) >= 17;
+                    .entity
+                    .status(sid::STARTING_DMG)
+                    >= 12;
+                let a17 = engine.state.enemies[enemy_idx]
+                    .entity
+                    .status(sid::BLOCK_AMT)
+                    >= 17;
                 engine.state.enemies[enemy_idx].entity.hp = 0;
                 for _ in 0..2 {
-                    let mut child = enemies::create_enemy("AcidSlime_M", hp, hp);
-                    child.entity.set_status(sid::STARTING_DMG, if upgraded { 8 } else { 7 });
-                    child.entity.set_status(sid::STR_AMT, if upgraded { 12 } else { 10 });
-                    child.entity.set_status(sid::BLOCK_AMT, if a17 { 17 } else { 0 });
+                    let mut child = enemies::create_enemy_with_ambient(
+                        "AcidSlime_M",
+                        hp,
+                        hp,
+                        &mut engine.ambient_math_rng,
+                    );
+                    child
+                        .entity
+                        .set_status(sid::STARTING_DMG, if upgraded { 8 } else { 7 });
+                    child
+                        .entity
+                        .set_status(sid::STR_AMT, if upgraded { 12 } else { 10 });
+                    child
+                        .entity
+                        .set_status(sid::BLOCK_AMT, if a17 { 17 } else { 0 });
                     enemies::roll_initial_move(&mut child, &mut engine.ai_rng);
                     engine.add_spawned_enemy(child);
                 }
@@ -1296,13 +1498,27 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 // (`takeTurn` case SPLIT spawns two initialized SpikeSlime_M).
                 let hp = engine.state.enemies[enemy_idx].entity.hp;
                 let upgraded = engine.state.enemies[enemy_idx]
-                    .entity.status(sid::STARTING_DMG) >= 18;
-                let a17 = engine.state.enemies[enemy_idx].entity.status(sid::BLOCK_AMT) >= 17;
+                    .entity
+                    .status(sid::STARTING_DMG)
+                    >= 18;
+                let a17 = engine.state.enemies[enemy_idx]
+                    .entity
+                    .status(sid::BLOCK_AMT)
+                    >= 17;
                 engine.state.enemies[enemy_idx].entity.hp = 0;
                 for _ in 0..2 {
-                    let mut child = enemies::create_enemy("SpikeSlime_M", hp, hp);
-                    child.entity.set_status(sid::STARTING_DMG, if upgraded { 10 } else { 8 });
-                    child.entity.set_status(sid::BLOCK_AMT, if a17 { 17 } else { 0 });
+                    let mut child = enemies::create_enemy_with_ambient(
+                        "SpikeSlime_M",
+                        hp,
+                        hp,
+                        &mut engine.ambient_math_rng,
+                    );
+                    child
+                        .entity
+                        .set_status(sid::STARTING_DMG, if upgraded { 10 } else { 8 });
+                    child
+                        .entity
+                        .set_status(sid::BLOCK_AMT, if a17 { 17 } else { 0 });
                     enemies::roll_initial_move(&mut child, &mut engine.ai_rng);
                     engine.add_spawned_enemy(child);
                 }
@@ -1326,29 +1542,30 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         engine.state.enemies[enemy_idx].entity.hp = 0;
         engine.finalize_enemy_death(enemy_idx);
         if engine.state.enemies.iter().any(|enemy| enemy.is_alive()) {
-            enemies::roll_next_move(
-                &mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
+            enemies::roll_next_move(&mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
         }
         return;
     }
 
-    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-        "Shelled Parasite" | "ShelledParasite")
-        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::SP_STUNNED
+    if matches!(
+        engine.state.enemies[enemy_idx].id.as_str(),
+        "Shelled Parasite" | "ShelledParasite"
+    ) && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::SP_STUNNED
     {
         // Source: ShelledParasite.takeTurn case STUNNED first installs Fell,
         // then its queued RollMoveAction records that Fell for getMove.
         let damage = engine.state.enemies[enemy_idx]
-            .entity.status(sid::STR_AMT).max(18);
-        engine.state.enemies[enemy_idx].set_move(
-            enemies::move_ids::SP_FELL, damage, 1, 0);
+            .entity
+            .status(sid::STR_AMT)
+            .max(18);
+        engine.state.enemies[enemy_idx].set_move(enemies::move_ids::SP_FELL, damage, 1, 0);
         engine.state.enemies[enemy_idx].add_effect(mfx::FRAIL, 2);
     }
 
-    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-        "GremlinFat" | "GremlinThief" | "GremlinWarrior" | "GremlinWizard"
-            | "GremlinTsundere")
-        && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::GREMLIN_ESCAPE
+    if matches!(
+        engine.state.enemies[enemy_idx].id.as_str(),
+        "GremlinFat" | "GremlinThief" | "GremlinWarrior" | "GremlinWizard" | "GremlinTsundere"
+    ) && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::GREMLIN_ESCAPE
     {
         // Source: GremlinFat.java `takeTurn` case 99 (EscapeAction; no roll).
         engine.state.enemies[enemy_idx].is_escaping = true;
@@ -1357,35 +1574,44 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     }
 
     if engine.state.enemies[enemy_idx].id == "GremlinTsundere" {
-        let alive_count = engine.state.enemies.iter()
-            .filter(|enemy| enemy.is_alive()).count();
+        let alive_count = engine
+            .state
+            .enemies
+            .iter()
+            .filter(|enemy| enemy.is_alive())
+            .count();
         enemies::act1::advance_gremlin_tsundere_after_turn(
-            &mut engine.state.enemies[enemy_idx], alive_count);
+            &mut engine.state.enemies[enemy_idx],
+            alive_count,
+        );
         return;
     }
 
     if engine.state.enemies[enemy_idx].id == "GremlinWizard" {
-        enemies::act1::advance_gremlin_wizard_after_turn(
-            &mut engine.state.enemies[enemy_idx]);
+        enemies::act1::advance_gremlin_wizard_after_turn(&mut engine.state.enemies[enemy_idx]);
         return;
     }
 
     if engine.state.enemies[enemy_idx].id == "Lagavulin" {
         enemies::act1::advance_lagavulin_after_turn(
-            &mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
+            &mut engine.state.enemies[enemy_idx],
+            &mut engine.ai_rng,
+        );
         return;
     }
 
     if engine.state.enemies[enemy_idx].id == "TheGuardian" {
-        enemies::act1::advance_guardian_after_turn(
-            &mut engine.state.enemies[enemy_idx]);
+        enemies::act1::advance_guardian_after_turn(&mut engine.state.enemies[enemy_idx]);
         return;
     }
 
     if engine.state.enemies[enemy_idx].id == "Hexaghost" {
         let player_hp = engine.state.player.hp;
         enemies::act1::advance_hexaghost_after_turn(
-            &mut engine.state.enemies[enemy_idx], player_hp, &mut engine.ai_rng);
+            &mut engine.state.enemies[enemy_idx],
+            player_hp,
+            &mut engine.ai_rng,
+        );
         return;
     }
 
@@ -1393,40 +1619,42 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         if engine.state.enemies[enemy_idx].move_id == enemies::move_ids::SB_SPLIT {
             do_slime_boss_split(engine, enemy_idx);
         } else {
-            enemies::act1::advance_slime_boss_after_turn(
-                &mut engine.state.enemies[enemy_idx]);
+            enemies::act1::advance_slime_boss_after_turn(&mut engine.state.enemies[enemy_idx]);
         }
         return;
     }
 
-    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-        "Apology Slime" | "ApologySlime")
-    {
-        enemies::act1::advance_apology_slime_after_turn(
-            &mut engine.state.enemies[enemy_idx]);
+    if matches!(
+        engine.state.enemies[enemy_idx].id.as_str(),
+        "Apology Slime" | "ApologySlime"
+    ) {
+        enemies::act1::advance_apology_slime_after_turn(&mut engine.state.enemies[enemy_idx]);
         return;
     }
 
-    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-        "GremlinThief" | "GremlinWarrior")
-    {
+    if matches!(
+        engine.state.enemies[enemy_idx].id.as_str(),
+        "GremlinThief" | "GremlinWarrior"
+    ) {
         // Sources: GremlinThief.java and GremlinWarrior.java. Their attacks
         // set the same attack directly without RollMoveAction or aiRng.
-        engine.state.enemies[enemy_idx].move_history
+        engine.state.enemies[enemy_idx]
+            .move_history
             .push(enemies::move_ids::GREMLIN_ATTACK);
         return;
     }
 
-    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-        "TorchHead" | "Torch Head")
-    {
+    if matches!(
+        engine.state.enemies[enemy_idx].id.as_str(),
+        "TorchHead" | "Torch Head"
+    ) {
         // Source: reference/extracted/methods/monster/TorchHead.java. Tackle
         // queues SetMoveAction rather than RollMoveAction, so later turns do
         // not consume aiRng.
-        engine.state.enemies[enemy_idx].move_history
+        engine.state.enemies[enemy_idx]
+            .move_history
             .push(enemies::move_ids::TORCH_TACKLE);
-        engine.state.enemies[enemy_idx].set_move(
-            enemies::move_ids::TORCH_TACKLE, 7, 1, 0);
+        engine.state.enemies[enemy_idx].set_move(enemies::move_ids::TORCH_TACKLE, 7, 1, 0);
         return;
     }
 
@@ -1434,17 +1662,32 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         // Source: reference/extracted/methods/monster/Transient.java. takeTurn
         // increments count and directly sets the next attack, so only the
         // initial AbstractMonster.init roll consumes aiRng.
-        let count = engine.state.enemies[enemy_idx].entity.status(sid::ATTACK_COUNT) + 1;
-        let base = engine.state.enemies[enemy_idx].entity.status(sid::STARTING_DMG);
-        engine.state.enemies[enemy_idx].entity.set_status(sid::ATTACK_COUNT, count);
-        engine.state.enemies[enemy_idx].move_history
+        let count = engine.state.enemies[enemy_idx]
+            .entity
+            .status(sid::ATTACK_COUNT)
+            + 1;
+        let base = engine.state.enemies[enemy_idx]
+            .entity
+            .status(sid::STARTING_DMG);
+        engine.state.enemies[enemy_idx]
+            .entity
+            .set_status(sid::ATTACK_COUNT, count);
+        engine.state.enemies[enemy_idx]
+            .move_history
             .push(enemies::move_ids::TRANSIENT_ATTACK);
         engine.state.enemies[enemy_idx].set_move(
-            enemies::move_ids::TRANSIENT_ATTACK, base + count * 10, 1, 0);
+            enemies::move_ids::TRANSIENT_ATTACK,
+            base + count * 10,
+            1,
+            0,
+        );
         return;
     }
 
-    if matches!(engine.state.enemies[enemy_idx].id.as_str(), "BanditBear" | "Bear") {
+    if matches!(
+        engine.state.enemies[enemy_idx].id.as_str(),
+        "BanditBear" | "Bear"
+    ) {
         // BanditBear.takeTurn uses SetMoveAction for every post-opener intent;
         // there is no RollMoveAction and therefore no aiRng consumption.
         // Java: reference/extracted/methods/monster/BanditBear.java
@@ -1452,14 +1695,14 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         return;
     }
 
-    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-        "BanditChild" | "BanditPointy" | "Pointy")
-    {
+    if matches!(
+        engine.state.enemies[enemy_idx].id.as_str(),
+        "BanditChild" | "BanditPointy" | "Pointy"
+    ) {
         // BanditPointy.takeTurn repeats POINTY_SPECIAL with SetMoveAction;
         // the canonical game ID is BanditChild and no aiRng is consumed.
         // Java: reference/extracted/methods/monster/BanditPointy.java
-        enemies::act2::advance_bandit_pointy_after_turn(
-            &mut engine.state.enemies[enemy_idx]);
+        enemies::act2::advance_bandit_pointy_after_turn(&mut engine.state.enemies[enemy_idx]);
         return;
     }
 
@@ -1467,8 +1710,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         // Every post-Mock intent is installed by SetMoveAction in takeTurn;
         // BanditLeader never queues RollMoveAction after combat initialization.
         // Java: reference/extracted/methods/monster/BanditLeader.java
-        enemies::act2::advance_bandit_leader_after_turn(
-            &mut engine.state.enemies[enemy_idx]);
+        enemies::act2::advance_bandit_leader_after_turn(&mut engine.state.enemies[enemy_idx]);
         return;
     }
 
@@ -1478,21 +1720,26 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         // Byrd.takeTurn case HEADBUTT sets FLY_UP directly and returns without
         // queuing RollMoveAction, so this transition consumes no aiRng tick.
         // Java: reference/extracted/methods/monster/Byrd.java.
-        engine.state.enemies[enemy_idx].move_history
+        engine.state.enemies[enemy_idx]
+            .move_history
             .push(enemies::move_ids::BYRD_HEADBUTT);
-        engine.state.enemies[enemy_idx].set_move(
-            enemies::move_ids::BYRD_FLY_UP, 0, 0, 0);
+        engine.state.enemies[enemy_idx].set_move(enemies::move_ids::BYRD_FLY_UP, 0, 0, 0);
         return;
     }
 
     if engine.state.enemies[enemy_idx].id == "Nemesis"
-        && engine.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) <= 0
+        && engine.state.enemies[enemy_idx]
+            .entity
+            .status(sid::INTANGIBLE)
+            <= 0
     {
         // Source: reference/extracted/methods/monster/Nemesis.java (`takeTurn`)
         // and IntangiblePower.java. Java installs the power after the move and
         // its justApplied flag skips this round's decrement. Rust stores 2 so
         // the shared end-of-round decrement leaves the visible amount at 1.
-        engine.state.enemies[enemy_idx].entity.set_status(sid::INTANGIBLE, 2);
+        engine.state.enemies[enemy_idx]
+            .entity
+            .set_status(sid::INTANGIBLE, 2);
     }
 
     // These Java takeTurn methods set their next move directly and do not queue
@@ -1501,65 +1748,98 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         enemies::advance_acid_slime_s_after_turn(&mut engine.state.enemies[enemy_idx]);
     } else if engine.state.enemies[enemy_idx].id == "Looter" {
         enemies::act1::advance_looter_after_turn(
-            &mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
+            &mut engine.state.enemies[enemy_idx],
+            &mut engine.ai_rng,
+        );
     } else if engine.state.enemies[enemy_idx].id == "Mugger" {
         enemies::act2::advance_mugger_after_turn(
-            &mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
+            &mut engine.state.enemies[enemy_idx],
+            &mut engine.ai_rng,
+        );
     } else {
         if engine.state.enemies[enemy_idx].id == "Centurion" {
             // Centurion.getMove checks the current monster group's alive count
             // to choose Protect with allies or Fury while alone.
             // Java: reference/extracted/methods/monster/Centurion.java.
-            let alive_count = engine.state.enemies.iter()
-                .filter(|enemy| enemy.is_alive()).count() as i32;
-            engine.state.enemies[enemy_idx].entity.set_status(sid::COUNT, alive_count);
-        } else if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-            "GremlinLeader" | "Gremlin Leader")
-        {
+            let alive_count = engine
+                .state
+                .enemies
+                .iter()
+                .filter(|enemy| enemy.is_alive())
+                .count() as i32;
+            engine.state.enemies[enemy_idx]
+                .entity
+                .set_status(sid::COUNT, alive_count);
+        } else if matches!(
+            engine.state.enemies[enemy_idx].id.as_str(),
+            "GremlinLeader" | "Gremlin Leader"
+        ) {
             // Source: reference/extracted/methods/monster/GremlinLeader.java
             // (`numAliveGremlins` in the full source); despite its name, it
             // counts every other living monster in the encounter.
-            let alive_count = engine.state.enemies.iter().enumerate()
+            let alive_count = engine
+                .state
+                .enemies
+                .iter()
+                .enumerate()
                 .filter(|(idx, enemy)| *idx != enemy_idx && enemy.is_alive())
                 .count() as i32;
-            engine.state.enemies[enemy_idx].entity.set_status(sid::COUNT, alive_count);
+            engine.state.enemies[enemy_idx]
+                .entity
+                .set_status(sid::COUNT, alive_count);
         } else if engine.state.enemies[enemy_idx].id == "Reptomancer" {
             // Source: decompiled/java-src/com/megacrit/cardcrawl/monsters/
             // beyond/Reptomancer.java (`canSpawn`) counts every other
             // non-dying monster, not only daggers.
-            let alive_count = engine.state.enemies.iter().enumerate()
+            let alive_count = engine
+                .state
+                .enemies
+                .iter()
+                .enumerate()
                 .filter(|(idx, enemy)| *idx != enemy_idx && enemy.is_alive())
                 .count() as i32;
-            engine.state.enemies[enemy_idx].entity.set_status(sid::COUNT, alive_count);
-        } else if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-            "Serpent" | "SpireGrowth" | "Spire Growth")
-        {
+            engine.state.enemies[enemy_idx]
+                .entity
+                .set_status(sid::COUNT, alive_count);
+        } else if matches!(
+            engine.state.enemies[enemy_idx].id.as_str(),
+            "Serpent" | "SpireGrowth" | "Spire Growth"
+        ) {
             // Source: SpireGrowth.getMove checks whether the player currently
             // has Constricted before choosing its next intent.
             let player_constricted = engine.state.player.status(sid::CONSTRICTED) > 0;
-            engine.state.enemies[enemy_idx].entity.set_status(
-                sid::COUNT, i32::from(player_constricted));
-        } else if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-            "Healer" | "Mystic")
-        {
+            engine.state.enemies[enemy_idx]
+                .entity
+                .set_status(sid::COUNT, i32::from(player_constricted));
+        } else if matches!(
+            engine.state.enemies[enemy_idx].id.as_str(),
+            "Healer" | "Mystic"
+        ) {
             // Source: reference/extracted/methods/monster/Healer.java
             // (`getMove`): needToHeal sums missing HP across the living group.
-            let missing_hp = engine.state.enemies.iter()
+            let missing_hp = engine
+                .state
+                .enemies
+                .iter()
                 .filter(|enemy| enemy.is_alive())
                 .map(|enemy| enemy.entity.max_hp - enemy.entity.hp)
                 .sum();
-            engine.state.enemies[enemy_idx].entity.set_status(sid::COUNT, missing_hp);
-        } else if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-            "TheCollector" | "Collector")
-        {
+            engine.state.enemies[enemy_idx]
+                .entity
+                .set_status(sid::COUNT, missing_hp);
+        } else if matches!(
+            engine.state.enemies[enemy_idx].id.as_str(),
+            "TheCollector" | "Collector"
+        ) {
             // isMinionDead checks the two tracked Torch Head slots. Replacing
             // a revived slot in-place prevents old corpses from staying true.
             // Source: reference/extracted/methods/monster/TheCollector.java.
-            let minion_dead = engine.state.enemies.iter().any(|enemy|
-                matches!(enemy.id.as_str(), "TorchHead" | "Torch Head")
-                    && !enemy.is_alive());
+            let minion_dead = engine.state.enemies.iter().any(|enemy| {
+                matches!(enemy.id.as_str(), "TorchHead" | "Torch Head") && !enemy.is_alive()
+            });
             engine.state.enemies[enemy_idx]
-                .entity.set_status(sid::COUNT, i32::from(minion_dead));
+                .entity
+                .set_status(sid::COUNT, i32::from(minion_dead));
         }
         enemies::roll_next_move(&mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
     }
@@ -1577,14 +1857,13 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
     let enemy_id = engine.state.enemies[enemy_idx].id.clone();
     match enemy_id.as_str() {
         "TheGuardian" => {
-            enemies::guardian_check_mode_shift(
-                &mut engine.state.enemies[enemy_idx],
-                hp_damage,
-            );
+            enemies::guardian_check_mode_shift(&mut engine.state.enemies[enemy_idx], hp_damage);
         }
         "Lagavulin" => {
             // Wake Lagavulin if damaged while sleeping
-            let sleep_turns = engine.state.enemies[enemy_idx].entity.status(sid::SLEEP_TURNS);
+            let sleep_turns = engine.state.enemies[enemy_idx]
+                .entity
+                .status(sid::SLEEP_TURNS);
             if sleep_turns > 0 {
                 enemies::lagavulin_wake_up(&mut engine.state.enemies[enemy_idx]);
             }
@@ -1595,7 +1874,7 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
                 // the current intent with Split; spawning waits for takeTurn.
                 let enemy = &mut engine.state.enemies[enemy_idx];
                 enemy.move_effects.clear();
-                enemy.set_move(enemies::move_ids::SB_SPLIT, 0, 0, 0);
+                enemies::act1::set_slime_boss_split(enemy);
             }
         }
         "AcidSlime_L" | "SpikeSlime_L" => {
@@ -1631,6 +1910,7 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
                 // until changeState; the other removable powers clear here.
                 // Java: reference/extracted/methods/monster/AwakenedOne.java
                 enemy.entity.set_status(sid::CURIOSITY, 0);
+                enemy.entity.set_status(sid::UNAWAKENED, 0);
                 enemy.entity.set_status(sid::TEMP_STRENGTH_LOSS, 0);
                 if enemy.entity.strength() < 0 {
                     enemy.entity.set_status(sid::STRENGTH, 0);
@@ -1638,7 +1918,7 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
                 for status_idx in 0..256 {
                     let status = crate::ids::StatusId(status_idx as u16);
                     if crate::powers::registry::status_is_debuff(status) {
-                        enemy.entity.statuses[status_idx] = 0;
+                        enemy.entity.set_status(status, 0);
                     }
                 }
                 enemy.set_move(enemies::move_ids::AO_REBIRTH, 0, 0, 0);
@@ -1647,23 +1927,33 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
         "Darkling" => {
             if engine.state.enemies[enemy_idx].entity.hp <= 0
                 && engine.state.enemies[enemy_idx]
-                    .entity.status(sid::REBIRTH_PENDING) == 0
+                    .entity
+                    .status(sid::REBIRTH_PENDING)
+                    == 0
             {
                 // Source: reference/extracted/methods/monster/Darkling.java
                 // (`damage`). A lethal hit fires ordinary death hooks, clears
                 // every power, then either waits half-dead or ends the fight
                 // when every Darkling is half-dead.
-                let all_darklings_half_dead = engine.state.enemies.iter()
+                let all_darklings_half_dead = engine
+                    .state
+                    .enemies
+                    .iter()
                     .enumerate()
                     .filter(|(_, enemy)| enemy.id == "Darkling")
-                    .all(|(idx, enemy)| idx == enemy_idx
-                        || enemy.entity.status(sid::REBIRTH_PENDING) > 0
-                        || enemy.entity.hp <= 0);
+                    .all(|(idx, enemy)| {
+                        idx == enemy_idx
+                            || enemy.entity.status(sid::REBIRTH_PENDING) > 0
+                            || enemy.entity.hp <= 0
+                    });
 
                 if all_darklings_half_dead {
                     // Previously half-dead Darklings are basically dead for
                     // relic death predicates while the final hooks resolve.
-                    for enemy in engine.state.enemies.iter_mut()
+                    for enemy in engine
+                        .state
+                        .enemies
+                        .iter_mut()
                         .filter(|enemy| enemy.id == "Darkling")
                     {
                         enemy.entity.set_status(sid::REBIRTH_PENDING, 0);
@@ -1673,20 +1963,38 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
                 engine.finalize_enemy_death(enemy_idx);
 
                 let stored = [
-                    (sid::STARTING_DMG,
-                        engine.state.enemies[enemy_idx].entity.status(sid::STARTING_DMG)),
-                    (sid::STR_AMT,
-                        engine.state.enemies[enemy_idx].entity.status(sid::STR_AMT)),
-                    (sid::HIGH_ASCENSION_AI,
-                        engine.state.enemies[enemy_idx].entity.status(sid::HIGH_ASCENSION_AI)),
-                    (sid::FIRST_MOVE,
-                        engine.state.enemies[enemy_idx].entity.status(sid::FIRST_MOVE)),
-                    (sid::COUNT,
-                        engine.state.enemies[enemy_idx].entity.status(sid::COUNT)),
+                    (
+                        sid::STARTING_DMG,
+                        engine.state.enemies[enemy_idx]
+                            .entity
+                            .status(sid::STARTING_DMG),
+                    ),
+                    (
+                        sid::STR_AMT,
+                        engine.state.enemies[enemy_idx].entity.status(sid::STR_AMT),
+                    ),
+                    (
+                        sid::HIGH_ASCENSION_AI,
+                        engine.state.enemies[enemy_idx]
+                            .entity
+                            .status(sid::HIGH_ASCENSION_AI),
+                    ),
+                    (
+                        sid::FIRST_MOVE,
+                        engine.state.enemies[enemy_idx]
+                            .entity
+                            .status(sid::FIRST_MOVE),
+                    ),
+                    (
+                        sid::COUNT,
+                        engine.state.enemies[enemy_idx].entity.status(sid::COUNT),
+                    ),
                 ];
-                engine.state.enemies[enemy_idx].entity.statuses.fill(0);
+                engine.state.enemies[enemy_idx].entity.clear_statuses();
                 for (status, value) in stored {
-                    engine.state.enemies[enemy_idx].entity.set_status(status, value);
+                    engine.state.enemies[enemy_idx]
+                        .entity
+                        .set_status(status, value);
                 }
 
                 if all_darklings_half_dead {
@@ -1724,17 +2032,39 @@ fn do_slime_boss_split(engine: &mut CombatEngine, boss_idx: usize) {
     // Kill the boss
     engine.state.enemies[boss_idx].entity.hp = 0;
 
-    let upgraded = engine.state.enemies[boss_idx].entity.status(sid::STARTING_DMG) > 0;
+    let upgraded = engine.state.enemies[boss_idx]
+        .entity
+        .status(sid::STARTING_DMG)
+        > 0;
     let a17 = engine.state.enemies[boss_idx].entity.status(sid::BLOCK_AMT) >= 17;
-    let mut spike = enemies::create_enemy("SpikeSlime_L", boss_current_hp, boss_current_hp);
-    spike.entity.set_status(sid::STARTING_DMG, if upgraded { 18 } else { 16 });
-    spike.entity.set_status(sid::STR_AMT, if a17 { 3 } else { 2 });
-    spike.entity.set_status(sid::BLOCK_AMT, if a17 { 17 } else { 0 });
+    let mut spike = enemies::create_enemy_with_ambient(
+        "SpikeSlime_L",
+        boss_current_hp,
+        boss_current_hp,
+        &mut engine.ambient_math_rng,
+    );
+    spike
+        .entity
+        .set_status(sid::STARTING_DMG, if upgraded { 18 } else { 16 });
+    spike
+        .entity
+        .set_status(sid::STR_AMT, if a17 { 3 } else { 2 });
+    spike
+        .entity
+        .set_status(sid::BLOCK_AMT, if a17 { 17 } else { 0 });
     enemies::roll_initial_move(&mut spike, &mut engine.ai_rng);
-    let mut acid = enemies::create_enemy("AcidSlime_L", boss_current_hp, boss_current_hp);
-    acid.entity.set_status(sid::STARTING_DMG, if upgraded { 12 } else { 11 });
-    acid.entity.set_status(sid::STR_AMT, if upgraded { 18 } else { 16 });
-    acid.entity.set_status(sid::BLOCK_AMT, if a17 { 17 } else { 0 });
+    let mut acid = enemies::create_enemy_with_ambient(
+        "AcidSlime_L",
+        boss_current_hp,
+        boss_current_hp,
+        &mut engine.ambient_math_rng,
+    );
+    acid.entity
+        .set_status(sid::STARTING_DMG, if upgraded { 12 } else { 11 });
+    acid.entity
+        .set_status(sid::STR_AMT, if upgraded { 18 } else { 16 });
+    acid.entity
+        .set_status(sid::BLOCK_AMT, if a17 { 17 } else { 0 });
     enemies::roll_initial_move(&mut acid, &mut engine.ai_rng);
 
     engine.add_spawned_enemy(spike);
