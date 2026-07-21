@@ -10,6 +10,8 @@ static EFFECTS: [Effect; 1] = [
 ];
 
 static TRIGGERS: [TriggeredEffect; 1] = [
+    // Source: reference/extracted/methods/relic/Vajra.java
+    // atBattleStart queues exactly one StrengthPower on the player.
     TriggeredEffect {
         trigger: Trigger::CombatStart,
         condition: TriggerCondition::Always,

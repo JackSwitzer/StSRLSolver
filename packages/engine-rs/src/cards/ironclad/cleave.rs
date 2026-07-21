@@ -1,6 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+    // DamageAllEnemiesAction uses one 8-damage matrix hit per enemy; upgrade adds 3.
+    // Source: reference/extracted/methods/card/Cleave.java
     // ---- Ironclad Common: Cleave ---- (cost 1, 8 dmg AoE; +3 dmg)
     insert(cards, CardDef {
         id: "Cleave",

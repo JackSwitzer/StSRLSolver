@@ -3,11 +3,13 @@
 use crate::cards::CardDef;
 use crate::combat_types::CardInstance;
 use crate::engine::CombatEngine;
-use crate::status_ids::sid;
 use super::types::DamageModifier;
 
 /// Heavy Blade: multiply strength contribution (3x base, 5x upgraded).
 pub fn hook_heavy_blade(engine: &CombatEngine, card: &CardDef, _card_inst: CardInstance) -> DamageModifier {
+    // HeavyBlade.applyPowers/calculateCardDamage temporarily multiply the
+    // actual StrengthPower amount, including negative Strength.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/HeavyBlade.java
     let _ = engine;
     DamageModifier {
         strength_multiplier: card.base_magic.max(1),
@@ -31,15 +33,25 @@ pub fn hook_damage_plus_mantra(engine: &CombatEngine, _card: &CardDef, _card_ins
     }
 }
 
-/// Perfected Strike: +N damage per Strike card in all piles.
-pub fn hook_perfected_strike(engine: &CombatEngine, card: &CardDef, _card_inst: CardInstance) -> DamageModifier {
+/// Perfected Strike: +N damage per Strike card in hand, draw, and discard.
+pub fn hook_perfected_strike(engine: &CombatEngine, card: &CardDef, card_inst: CardInstance) -> DamageModifier {
     let per_strike = card.base_magic.max(1);
-    let strike_count = engine.state.hand.iter()
+    let mut strike_count = engine.state.hand.iter()
         .chain(engine.state.draw_pile.iter())
         .chain(engine.state.discard_pile.iter())
-        .chain(engine.state.exhaust_pile.iter())
         .filter(|c| engine.card_registry.is_strike(c.def_id))
         .count() as i32;
+
+    // Java calculates ordinary hand plays before AbstractPlayer removes the
+    // played card, so Perfected Strike counts itself. Autoplayed copies live in
+    // limbo and are not part of countCards(), matching the transient flag.
+    // Exhaust is intentionally excluded by PerfectedStrike.countCards().
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/PerfectedStrike.java
+    if card_inst.flags & CardInstance::FLAG_AUTOPLAY == 0
+        && engine.card_registry.is_strike(card_inst.def_id)
+    {
+        strike_count += 1;
+    }
     DamageModifier {
         base_damage_bonus: per_strike * strike_count,
         ..DamageModifier::default()
@@ -49,7 +61,7 @@ pub fn hook_perfected_strike(engine: &CombatEngine, card: &CardDef, _card_inst: 
 /// Rampage: scaling damage bonus from status counter.
 pub fn hook_rampage(_engine: &CombatEngine, card: &CardDef, card_inst: CardInstance) -> DamageModifier {
     let current_damage = if card_inst.misc >= 0 {
-        card_inst.misc as i32
+        card_inst.misc
     } else {
         card.base_damage
     };
@@ -62,7 +74,7 @@ pub fn hook_rampage(_engine: &CombatEngine, card: &CardDef, card_inst: CardInsta
 /// Glass Knife: damage decreases each play (negative bonus from penalty counter).
 pub fn hook_glass_knife(_engine: &CombatEngine, card: &CardDef, card_inst: CardInstance) -> DamageModifier {
     let current_damage = if card_inst.misc >= 0 {
-        card_inst.misc as i32
+        card_inst.misc
     } else {
         card.base_damage
     };
@@ -75,7 +87,7 @@ pub fn hook_glass_knife(_engine: &CombatEngine, card: &CardDef, card_inst: CardI
 /// Ritual Dagger: scaling damage bonus from kills.
 pub fn hook_ritual_dagger(_engine: &CombatEngine, card: &CardDef, card_inst: CardInstance) -> DamageModifier {
     let current_damage = if card_inst.misc >= 0 {
-        card_inst.misc as i32
+        card_inst.misc
     } else {
         card.base_damage
     };
@@ -85,19 +97,34 @@ pub fn hook_ritual_dagger(_engine: &CombatEngine, card: &CardDef, card_inst: Car
     }
 }
 
-/// Searing Blow: +4 bonus when upgraded (simplified for MCTS).
-pub fn hook_searing_blow(_engine: &CombatEngine, _card: &CardDef, card_inst: CardInstance) -> DamageModifier {
-    let bonus = if card_inst.flags & 0x04 != 0 { 4 } else { 0 };
+/// Searing Blow's nth upgrade adds `4 + previous timesUpgraded` damage.
+pub fn hook_searing_blow(_engine: &CombatEngine, card: &CardDef, card_inst: CardInstance) -> DamageModifier {
+    // Starting from 12, n upgrades total 12 + 4n + n(n-1)/2. The instance misc
+    // stores n; named `Searing Blow+` cards without explicit state mean n=1.
+    // Java: reference/extracted/methods/card/SearingBlow.java
+    let upgrades = if card_inst.misc >= 0 {
+        card_inst.misc
+    } else if card.id == "Searing Blow+" || card_inst.is_upgraded() {
+        1
+    } else {
+        0
+    };
+    let current_damage = 12 + 4 * upgrades + upgrades * (upgrades - 1) / 2;
     DamageModifier {
-        base_damage_bonus: bonus,
+        base_damage_bonus: current_damage - card.base_damage,
         ..DamageModifier::default()
     }
 }
 
-/// Windmill Strike: damage bonus from retaining (reads WINDMILL_STRIKE_BONUS status).
-pub fn hook_windmill_strike_damage(engine: &CombatEngine, _card: &CardDef, _card_inst: CardInstance) -> DamageModifier {
+/// Windmill Strike: damage growth belongs to the retained card instance.
+pub fn hook_windmill_strike_damage(_engine: &CombatEngine, card: &CardDef, card_inst: CardInstance) -> DamageModifier {
+    let current_damage = if card_inst.misc >= 0 {
+        card_inst.misc
+    } else {
+        card.base_damage
+    };
     DamageModifier {
-        base_damage_bonus: engine.state.player.status(sid::WINDMILL_STRIKE_BONUS),
+        base_damage_bonus: current_damage - card.base_damage,
         ..DamageModifier::default()
     }
 }
@@ -110,10 +137,15 @@ pub fn hook_damage_random_x_times(_engine: &CombatEngine, _card: &CardDef, _card
     }
 }
 
-/// Claw: bonus damage from CLAW_BONUS status (incremented each time any Claw is played).
-pub fn hook_claw_damage(engine: &CombatEngine, _card: &CardDef, _card_inst: CardInstance) -> DamageModifier {
+/// Claw: GashAction stores the mutable base damage on each affected instance.
+pub fn hook_claw_damage(_engine: &CombatEngine, card: &CardDef, card_inst: CardInstance) -> DamageModifier {
+    let current_damage = if card_inst.misc >= 0 {
+        card_inst.misc
+    } else {
+        card.base_damage
+    };
     DamageModifier {
-        base_damage_bonus: engine.state.player.status(sid::CLAW_BONUS),
+        base_damage_bonus: current_damage - card.base_damage,
         ..DamageModifier::default()
     }
 }

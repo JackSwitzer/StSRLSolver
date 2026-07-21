@@ -5,7 +5,8 @@ use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect a
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
 use crate::tests::support::{
-    end_turn, enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_self,
+    combat_state_with, end_turn, enemy_no_intent, engine_without_start, force_player_turn,
+    make_deck, play_self,
 };
 
 fn assert_gameplay_card_export(
@@ -139,6 +140,76 @@ fn test_card_runtime_defect_wave5_double_energy_force_field_and_leap_follow_engi
 }
 
 #[test]
+fn force_field_counts_power_cards_played_even_after_the_power_is_gone() {
+    // ForceField.triggerOnCardPlayed calls updateCost(-1) once per POWER card,
+    // while configureCostsOnNewCard replays every Power in
+    // cardsPlayedThisCombat for a later-created copy. Two plays of the same
+    // Power therefore reduce a fresh Force Field from four to two even though
+    // only one stacked power exists (and remains reduced after it is removed).
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ForceField.java
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        6,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Demon Form", "Demon Form"]);
+
+    assert!(play_self(&mut engine, "Demon Form"));
+    assert!(play_self(&mut engine, "Demon Form"));
+    assert_eq!(engine.state.power_cards_played_this_combat, 2);
+    engine.state.player.set_status(sid::DEMON_FORM, 0);
+
+    engine
+        .state
+        .hand
+        .push(engine.card_registry.make_card("Force Field"));
+    engine.state.energy = 2;
+    assert!(play_self(&mut engine, "Force Field"));
+    assert_eq!(engine.state.player.block, 12);
+    assert_eq!(engine.state.energy, 0);
+}
+
+#[test]
+fn force_field_confusion_overwrite_forgets_only_earlier_power_discounts() {
+    // Force Field has already received two updateCost(-1) calls before draw,
+    // but ConfusionPower.onCardDraw overwrites both cost and costForTurn with
+    // its random result. Earlier Power plays must not be subtracted again.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ForceField.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ConfusionPower.java
+    let seed = (0u64..100)
+        .find(|seed| {
+            let mut rng = crate::seed::StsRandom::new(*seed);
+            rng.random_int(3) == 3
+        })
+        .expect("a seed whose first Confusion roll is three");
+    let mut engine = crate::engine::CombatEngine::new(
+        combat_state_with(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 60, 60)],
+            6,
+        ),
+        seed,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Demon Form", "Demon Form"]);
+    assert!(play_self(&mut engine, "Demon Form"));
+    assert!(play_self(&mut engine, "Demon Form"));
+
+    engine.state.player.set_status(sid::CONFUSION, 1);
+    engine.state.draw_pile = make_deck(&["Force Field"]);
+    engine.draw_cards(1);
+    assert_eq!(engine.state.hand[0].cost, 3);
+    assert_eq!(engine.state.hand[0].base_cost, 3);
+    assert_eq!(engine.state.hand[0].misc, 2);
+
+    engine.state.energy = 2;
+    assert!(play_self(&mut engine, "Force Field"));
+    assert_eq!(engine.state.player.block, 0);
+    assert_eq!(engine.state.energy, 2);
+}
+
+#[test]
 fn test_card_runtime_defect_wave5_fission_and_fission_plus_cover_remove_and_evoke_paths() {
     let mut fission = engine_without_start(
         Vec::new(),
@@ -206,7 +277,10 @@ fn test_card_runtime_defect_wave5_heatsinks_hello_world_and_loop_install_runtime
     assert_eq!(hello_world.state.player.status(sid::HELLO_WORLD), 1);
     end_turn(&mut hello_world);
     assert_eq!(hello_world.state.hand.len(), 1);
-    assert_eq!(
+    // HelloPower.java selects from the current character's commonCardPool;
+    // Strike is BASIC and therefore cannot be generated. Exact pool order and
+    // cardRandomRng consumption are covered by the source-derived power test.
+    assert_ne!(
         hello_world.card_registry.card_name(hello_world.state.hand[0].def_id),
         "Strike"
     );
@@ -223,5 +297,7 @@ fn test_card_runtime_defect_wave5_heatsinks_hello_world_and_loop_install_runtime
     assert!(play_self(&mut loop_card, "Loop+"));
     assert_eq!(loop_card.state.player.status(sid::LOOP), 2);
     end_turn(&mut loop_card);
-    assert_eq!(loop_card.state.enemies[0].entity.hp, 54);
+    // LoopPower.atStartOfTurn repeats the front passive once per stack, after
+    // the ordinary end-turn passive: three Lightning triggers total.
+    assert_eq!(loop_card.state.enemies[0].entity.hp, 51);
 }

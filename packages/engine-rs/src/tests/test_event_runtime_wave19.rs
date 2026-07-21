@@ -1,5 +1,5 @@
 use crate::events::{typed_shrine_events, EventRuntimeStatus, TypedEventDef};
-use crate::run::{RunAction, RunEngine, RunPhase};
+use crate::run::{GameAction, RunEngine, RunPhase};
 use std::collections::HashMap;
 
 const CURSE_IDS: &[&str] = &[
@@ -29,12 +29,12 @@ fn typed_shrine_event(name: &str) -> TypedEventDef {
 fn enter_match_and_keep(engine: &mut RunEngine) {
     engine.debug_set_typed_event_state(typed_shrine_event("Match and Keep!"));
 
-    let intro = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(intro.action_accepted);
+    let intro = engine.step_game(&GameAction::EventChoice(0));
+    assert!(intro.accepted());
     assert_eq!(engine.current_phase(), RunPhase::Event);
 
-    let rules = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(rules.action_accepted);
+    let rules = engine.step_game(&GameAction::EventChoice(0));
+    assert!(rules.accepted());
     assert_eq!(engine.current_phase(), RunPhase::Event);
 }
 
@@ -54,8 +54,8 @@ fn match_and_keep_reveals_the_selected_card_by_index() {
         .expect("match board should exist");
     assert_eq!(board.len(), 12);
 
-    let reveal = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(reveal.action_accepted);
+    let reveal = engine.step_game(&GameAction::EventChoice(0));
+    assert!(reveal.accepted());
     assert_eq!(engine.current_phase(), RunPhase::Event);
 
     let ctx = engine.current_decision_context();
@@ -166,10 +166,10 @@ fn match_and_keep_mismatch_then_match_consumes_attempts_and_adds_only_the_matche
         })
         .expect("board should contain a match pair");
 
-    let first = engine.step_with_result(&RunAction::EventChoice(mismatch_pair.0));
-    assert!(first.action_accepted);
-    let second = engine.step_with_result(&RunAction::EventChoice(mismatch_pair.1));
-    assert!(second.action_accepted);
+    let first = engine.step_game(&GameAction::EventChoice(mismatch_pair.0));
+    assert!(first.accepted());
+    let second = engine.step_game(&GameAction::EventChoice(mismatch_pair.1));
+    assert!(second.accepted());
     assert_eq!(engine.debug_match_and_keep_attempts_left(), Some(4));
     assert_eq!(engine.run_state.deck.len(), deck_before);
     assert_eq!(
@@ -177,10 +177,10 @@ fn match_and_keep_mismatch_then_match_consumes_attempts_and_adds_only_the_matche
         12
     );
 
-    let third = engine.step_with_result(&RunAction::EventChoice(match_pair.0));
-    assert!(third.action_accepted);
-    let fourth = engine.step_with_result(&RunAction::EventChoice(match_pair.1));
-    assert!(fourth.action_accepted);
+    let third = engine.step_game(&GameAction::EventChoice(match_pair.0));
+    assert!(third.accepted());
+    let fourth = engine.step_game(&GameAction::EventChoice(match_pair.1));
+    assert!(fourth.accepted());
     assert_eq!(engine.debug_match_and_keep_attempts_left(), Some(3));
     assert_eq!(engine.run_state.deck.len(), deck_before + 1);
     assert_eq!(
@@ -207,16 +207,16 @@ fn match_and_keep_exits_after_five_failed_attempts() {
         .expect("board should contain a mismatch pair");
 
     for _ in 0..5 {
-        let first = engine.step_with_result(&RunAction::EventChoice(mismatch_pair.0));
-        assert!(first.action_accepted);
-        let second = engine.step_with_result(&RunAction::EventChoice(mismatch_pair.1));
-        assert!(second.action_accepted);
+        let first = engine.step_game(&GameAction::EventChoice(mismatch_pair.0));
+        assert!(first.accepted());
+        let second = engine.step_game(&GameAction::EventChoice(mismatch_pair.1));
+        assert!(second.accepted());
     }
 
     assert_eq!(engine.debug_match_and_keep_attempts_left(), Some(0));
     assert_eq!(engine.event_option_count(), 1);
 
-    let leave = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(leave.action_accepted);
+    let leave = engine.step_game(&GameAction::EventChoice(0));
+    assert!(leave.accepted());
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
 }

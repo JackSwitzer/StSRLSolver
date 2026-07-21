@@ -1,6 +1,5 @@
 use super::{
-    EventDef, EventEffect, EventProgram, EventProgramOp, EventReward, TypedEventDef,
-    TypedEventOption,
+    EventEffect, EventProgram, EventProgramOp, EventReward, TypedEventDef, TypedEventOption,
 };
 
 fn supported(text: &str, ops: Vec<EventProgramOp>, effect: EventEffect) -> TypedEventOption {
@@ -12,6 +11,25 @@ fn event(name: &str, options: Vec<TypedEventOption>) -> TypedEventDef {
         name: name.to_string(),
         options,
     }
+}
+
+fn face_trader_main_event() -> TypedEventDef {
+    event(
+        "FaceTrader",
+        vec![
+            supported(
+                "Touch",
+                vec![EventProgramOp::face_trader_touch()],
+                EventEffect::DamageAndGold(0, 0),
+            ),
+            supported(
+                "Trade for a face",
+                vec![EventProgramOp::obtain_random_face()],
+                EventEffect::GainRelic,
+            ),
+            supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+        ],
+    )
 }
 
 fn note_for_yourself_choose_state() -> TypedEventDef {
@@ -35,6 +53,23 @@ fn note_for_yourself_choose_state() -> TypedEventDef {
     )
 }
 
+fn nloth_complete_event() -> TypedEventDef {
+    event(
+        "N'loth (complete)",
+        vec![supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing)],
+    )
+}
+
+pub(crate) fn nloth_trade_program(relic_id: &str, already_has_gift: bool) -> EventProgram {
+    let mut ops = Vec::new();
+    if !already_has_gift {
+        ops.push(EventProgramOp::remove_relic(relic_id));
+    }
+    ops.push(EventProgramOp::obtain_relic("Nloth's Gift"));
+    ops.push(EventProgramOp::continue_event(nloth_complete_event()));
+    EventProgram::from_ops(ops)
+}
+
 pub fn typed_shrine_events() -> Vec<TypedEventDef> {
     vec![
         event(
@@ -46,9 +81,9 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
                     EventEffect::UpgradeCard,
                 ),
                 supported(
-                    "Rummage (obtain random relic, gain Pain curse)",
+                    "Rummage (obtain Warped Tongs, gain Pain curse)",
                     vec![
-                        EventProgramOp::gain_relic("random relic"),
+                        EventProgramOp::gain_relic("WarpedTongs"),
                         EventProgramOp::Reward(EventReward::Curse {
                             label: "Pain".to_string(),
                         }),
@@ -116,18 +151,16 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
         ),
         event(
             "FaceTrader",
-            vec![
-                supported(
-                    "Touch (take dmg, gain gold, swap face relic)",
-                    vec![
-                        EventProgramOp::hp(-5),
-                        EventProgramOp::gold(100),
-                        EventProgramOp::gain_relic("Face Trader reward"),
-                    ],
-                    EventEffect::GainRelic,
-                ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
-            ],
+            vec![supported(
+                "Approach the Face Trader",
+                vec![
+                    // FaceTrader.java first reveals a second screen containing
+                    // touch, trade, and leave; the intro choice has no reward.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/events/shrines/FaceTrader.java
+                    EventProgramOp::continue_event(face_trader_main_event()),
+                ],
+                EventEffect::Nothing,
+            )],
         ),
         event(
             "Fountain of Cleansing",
@@ -209,12 +242,12 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
             vec![
                 supported(
                     "Trade relic 1 (exchange for N'loth's Gift)",
-                    vec![EventProgramOp::gain_relic("N'loth's Gift")],
+                    vec![EventProgramOp::nothing()],
                     EventEffect::GainRelic,
                 ),
                 supported(
                     "Trade relic 2 (exchange for N'loth's Gift)",
-                    vec![EventProgramOp::gain_relic("N'loth's Gift")],
+                    vec![EventProgramOp::nothing()],
                     EventEffect::GainRelic,
                 ),
                 supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
@@ -310,12 +343,4 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
             ],
         ),
     ]
-}
-
-#[allow(dead_code)]
-pub fn shrine_events() -> Vec<EventDef> {
-    typed_shrine_events()
-        .into_iter()
-        .map(|event| event.summary_event())
-        .collect()
 }

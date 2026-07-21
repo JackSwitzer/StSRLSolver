@@ -1,5 +1,5 @@
 use crate::events::{typed_events_for_act, EventProgramOp, EventRuntimeStatus, TypedEventDef};
-use crate::run::{RunAction, RunEngine, RunPhase};
+use crate::run::{GameAction, RunEngine, RunPhase};
 
 // Java oracle:
 // - decompiled/java-src/com/megacrit/cardcrawl/events/beyond/SpireHeart.java
@@ -29,8 +29,8 @@ fn spire_heart_without_keys_ends_run_on_canonical_terminal_path() {
     let mut engine = RunEngine::new(313, 20);
     engine.debug_set_typed_event_state(typed_event(3, "Spire Heart"));
 
-    let step = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(step.action_accepted);
+    let step = engine.step_game(&GameAction::EventChoice(0));
+    assert!(step.accepted());
     assert_eq!(engine.current_phase(), RunPhase::GameOver);
     assert!(engine.run_state.run_won);
     assert!(engine.run_state.run_over);
@@ -45,20 +45,13 @@ fn spire_heart_with_keys_starts_act_four_on_event_runtime_path() {
     engine.run_state.has_sapphire_key = true;
     engine.debug_set_typed_event_state(typed_event(3, "Spire Heart"));
 
-    let step = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(step.action_accepted);
-    assert_eq!(engine.current_phase(), RunPhase::Combat);
+    let step = engine.step_game(&GameAction::EventChoice(0));
+    assert!(step.accepted());
+    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(engine.run_state.act, 4);
     assert_eq!(engine.boss_name(), "CorruptHeart");
-    assert_eq!(
-        engine.debug_current_enemy_ids(),
-        vec!["SpireShield".to_string(), "SpireSpear".to_string()]
-    );
-    let pending = engine
-        .pending_event_combat_summary()
-        .expect("final act should queue the Heart after the elite combat");
-    assert!(pending.contains("CorruptHeart"));
-    assert!(pending.contains("StartBossCombat"));
+    assert_eq!(engine.map.get_start_nodes()[0].room_type, crate::map::RoomType::Rest);
+    assert!(engine.pending_event_combat_summary().is_none());
 }
 
 #[test]
@@ -69,19 +62,40 @@ fn spire_heart_act_four_chain_reaches_heart_and_ends_without_boss_reward() {
     engine.run_state.has_sapphire_key = true;
     engine.debug_set_typed_event_state(typed_event(3, "Spire Heart"));
 
-    let enter = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(enter.action_accepted);
+    let enter = engine.step_game(&GameAction::EventChoice(0));
+    assert!(enter.accepted());
+
+    // The Ending is Rest -> Shop -> Elite -> Heart, with each transition a
+    // real action rather than the previous direct elite/Heart shortcut.
+    let rest = engine.get_legal_actions()[0].clone();
+    assert!(engine.step_game(&rest).accepted());
+    assert_eq!(engine.current_phase(), RunPhase::Campfire);
+    assert!(engine.step_game(&GameAction::CampfireRest).accepted());
+    let shop = engine.get_legal_actions()[0].clone();
+    assert!(engine.step_game(&shop).accepted());
+    assert_eq!(engine.current_phase(), RunPhase::Shop);
+    assert!(engine.step_game(&GameAction::ShopLeave).accepted());
+    let elite = engine.get_legal_actions()[0].clone();
+    assert!(engine.step_game(&elite).accepted());
     assert_eq!(engine.debug_current_enemy_ids().len(), 2);
 
     engine.debug_force_current_combat_outcome(true);
-    let shield_spear = engine.debug_resolve_current_combat_outcome();
-    assert!(shield_spear > 0.0);
+    engine.debug_resolve_current_combat_outcome();
+    assert_eq!(engine.current_phase(), RunPhase::CardReward);
+    assert!(engine.step_game(&GameAction::LeaveRewards).accepted());
+    let heart_room = engine.get_legal_actions()[0].clone();
+    assert!(engine.step_game(&heart_room).accepted());
     assert_eq!(engine.current_phase(), RunPhase::Combat);
     assert_eq!(engine.debug_current_enemy_ids(), vec!["CorruptHeart".to_string()]);
 
+    let heart_floor = engine.run_state.floor;
     engine.debug_force_current_combat_outcome(true);
-    let heart = engine.debug_resolve_current_combat_outcome();
-    assert!(heart >= 6.0);
+    engine.debug_resolve_current_combat_outcome();
+    assert_eq!(engine.current_phase(), RunPhase::Transition);
+    assert!(!engine.run_state.run_over);
+    assert_eq!(engine.run_state.floor, heart_floor);
+    assert!(engine.step_game(&GameAction::Proceed).accepted());
+    assert_eq!(engine.run_state.floor, heart_floor + 1);
     assert_eq!(engine.current_phase(), RunPhase::GameOver);
     assert!(engine.run_state.run_won);
     assert!(engine.run_state.run_over);

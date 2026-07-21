@@ -15,6 +15,7 @@ public class Script {
     public String seed;
     public String character = "WATCHER";
     public int ascension = 0;
+    public String mode = "script";
     public Stop stop;
     public List<Action> actions;
 
@@ -29,12 +30,14 @@ public class Script {
         public Integer choice;
         public Integer item;
         public Integer idx;
+        public String card_id;
+        public String choice_name;
     }
 
     public static Script load(String path) throws IOException {
         try (FileReader reader = new FileReader(path)) {
             Script s = new Gson().fromJson(reader, Script.class);
-            if (s == null || s.seed == null || s.actions == null) {
+            if (s == null || s.seed == null || (s.actions == null && !"auto".equals(s.mode))) {
                 throw new IOException("tracelab script missing seed or actions: " + path);
             }
             if (s.v != 1) {

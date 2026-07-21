@@ -2,7 +2,8 @@ use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Defect Common Cards ----
-        // Ball Lightning: 1 cost, 7 dmg, channel 1 Lightning
+        // Source: cards/blue/BallLightning.java costs 1, queues 7 damage then
+        // channels one Lightning, and upgrades only its damage by 3.
     insert(cards, CardDef {
                 id: "Ball Lightning", name: "Ball Lightning", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 7, base_block: -1,

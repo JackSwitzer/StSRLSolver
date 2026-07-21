@@ -1,5 +1,9 @@
 use crate::cards::prelude::*;
 
+// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Tranquility.java
+//   ctor: ID "ClearTheMind", cost 1 SKILL targeting SELF, exhaust + selfRetain.
+//   use(): changes stance to Calm.
+//   upgrade(): upgradeBaseCost(0) only.
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Common: Tranquility ---- (cost 1, enter Calm, exhaust, retain; upgrade: cost 0)
         // Java ID: ClearTheMind, run.rs uses Tranquility

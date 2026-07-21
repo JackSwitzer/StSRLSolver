@@ -1,5 +1,11 @@
 use crate::cards::prelude::*;
 
+// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Halt.java
+// Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/HaltAction.java
+// Halt.applyPowers temporarily adds 6 (10 upgraded) to baseBlock, calculates
+// the modified Wrath component into magicNumber, restores baseBlock, and then
+// calculates the normal component. The two declarative block gains reproduce
+// those independently modified values.
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     insert(cards, CardDef {
                 id: "Halt", name: "Halt", card_type: CardType::Skill,

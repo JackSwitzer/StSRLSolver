@@ -1,5 +1,4 @@
 //! Sling of Courage: +2 Strength if elite fight.
-//! Uses IsEliteFight condition with SLING_ELITE flag set by Python.
 
 use crate::effects::declarative::{Effect, SimpleEffect, Target, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
@@ -11,6 +10,8 @@ static EFFECTS: [Effect; 1] = [
 ];
 
 static TRIGGERS: [TriggeredEffect; 1] = [
+    // Source: reference/extracted/methods/relic/Sling.java
+    // atBattleStart applies exactly 2 Strength only when eliteTrigger is set.
     TriggeredEffect {
         trigger: Trigger::CombatStart,
         condition: TriggerCondition::IsEliteFight,

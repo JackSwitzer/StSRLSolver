@@ -14,6 +14,7 @@
 
 
 pub(crate) mod support;
+mod test_audit_repros;
 mod test_cards;
 mod test_cards_defect;
 mod test_cards_ironclad;
@@ -36,6 +37,8 @@ mod test_card_runtime_defect_wave17;
 mod test_card_runtime_instance_mutation_wave1;
 mod test_card_runtime_xcount_wave1;
 mod test_card_runtime_xcount_wave2;
+mod test_core_checkpoint;
+mod test_core_action_surface;
 mod test_card_runtime_xcount_wave3;
 mod test_card_runtime_colorless_wave1;
 mod test_card_runtime_colorless_wave2;
@@ -170,15 +173,12 @@ mod test_dead_system_cleanup_wave21;
 mod test_dead_system_cleanup_wave22;
 mod test_reward_relic_runtime_wave2;
 mod test_reward_relic_runtime_wave3;
-mod test_rl_reward_obs_wave1;
 mod test_reward_runtime;
-mod test_rl_contract;
 mod test_run_parity;
-mod test_combat_puct;
-mod test_search_harness;
 mod test_state;
 mod test_interactions;
 mod test_runtime_inline_cutover_wave1;
 mod test_runtime_inline_cutover_wave2;
 mod test_trace_oracle;
 mod test_trace_schema;
+mod test_trace_schema_v2;

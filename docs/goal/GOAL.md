@@ -10,8 +10,8 @@
 
 1. **Corpus exact** — every trace script in `data/traces/scripts/` replays through the Rust engine with a `match` verdict against its frozen Java golden in `data/traces/java/`: identical per-action player/enemy state, ordered piles, intents, gold, relic counters, and **all 13 RNG stream counters** (`docs/vault/rng-system-analysis.md`). Corpus = ~10 seeded Watcher A0 full runs (coverage-maximizing seeds) + the golden run `1776347657` (23 combats incl. Heart).
 2. **Coverage proven** — the ledger (`docs/goal/ledger.json`, seeded by `scripts/extract.sh`) shows every Watcher-reachable card, relic, potion, enemy, event, and boss either `verified` (source-cited, source-derived test, corpus-exact where covered) or `quarantined` (see Edge-Case Policy). No `unverified` rows on the Watcher-reachable set.
-3. **Existing tests green** — `./scripts/test_engine_rs.sh test --lib` (2219+ tests) and `uv run pytest tests/training -q` pass throughout; count only goes up.
-4. **Sim-first boundaries hold** — core sim modules have no dependency on obs/search/training-contract/PyO3; python bindings behind a cargo feature; `scripts/goal.sh check-arch` passes (future tool — built by U03/U07, see TOOLING.md T6; until it exists this item is checked by review).
+3. **Existing core tests green** — `./scripts/test_engine_rs.sh test --lib` passes with zero ignored tests. Consumer tests are owned by their rebuilt consumer; accounted archive/removal of obsolete adapter-only tests is allowed when unique gameplay proof is retained in core.
+4. **Sim-first boundaries hold** — core sim modules have no dependency on obs/search/training-contract/PyO3. Bindings, observations, rewards, and search are separate consumers rather than cargo features of the faithful core; `scripts/goal.sh check-arch` remains the future automated gate.
 5. **Quarantine triaged** — every quarantined item has an entry in `docs/work_units/parity-deviations-register.md` and a mask in `docs/goal/masks.json`; the quarantine list is short enough to review in one sitting (guideline: <15 items).
 6. **Divergences inspectable** — the viz ParityView renders any divergence report side-by-side (Java vs Rust at the diverging action) using the SVG sprites.
 
@@ -24,7 +24,7 @@
 ## Architecture Target
 
 - `packages/engine-rs` core = pure sim: state, actions, RNG, content, trace emission. Deterministic given `(seed, ascension, action sequence)`.
-- Layers on top (may depend on core; core never depends on them): `obs.rs`, `search.rs`, `training_contract.rs`, PyO3 bindings (feature `python`), trace differ bin, viz artifacts.
+- Layers on top may depend on core, but core never depends on them. The former `obs.rs`, `search.rs`, `training_contract.rs`, gameplay sessions, and PyO3 bindings are archived historical inputs; rebuilt consumers use `GameAction`, `StepOutcome`, and `CoreCheckpoint` from separate branches/crates. Trace tooling remains in core because it is parity infrastructure.
 - Content stays **character-modular**: Watcher is the proven path; Ironclad/Silent/Defect content compiles and keeps its tests but is out of parity scope. Adding a character later = new trace scripts + ledger rows, not a rewrite.
 - Portability: no Java/game-install/absolute paths in the crate; game paths live only in `scripts/`.
 

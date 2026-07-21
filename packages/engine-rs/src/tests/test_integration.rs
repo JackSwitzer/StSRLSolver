@@ -127,7 +127,7 @@ mod engine_integration_tests {
         assert!(!e.state.hand.is_empty(), "New hand should be drawn after Conclude");
     }
 
-    // ---- CutThroughFate draws cards ----
+    // ---- CutThroughFate Scrys, then draws exactly one ----
     #[test] fn cut_through_fate_draws() {
         let mut e = engine_with(
             make_deck(&["CutThroughFate", "Strike", "Strike", "Strike", "Defend", "Strike", "Strike"]),
@@ -136,8 +136,13 @@ mod engine_integration_tests {
         ensure_in_hand(&mut e, "CutThroughFate");
         let hand_before = e.state.hand.len();
         play(&mut e, "CutThroughFate");
-        // Played 1, drew 2 = net +1
-        assert_eq!(e.state.hand.len(), hand_before + 1);
+        assert_eq!(e.phase, CombatPhase::AwaitingChoice);
+        let option_count = e.choice.as_ref().unwrap().options.len();
+        for i in 0..option_count {
+            e.execute_action(&Action::Choose(i));
+        }
+        e.execute_action(&Action::ConfirmSelection);
+        assert_eq!(e.state.hand.len(), hand_before);
     }
 
     // ---- WheelKick draws 2 ----
@@ -455,7 +460,7 @@ mod engine_integration_tests {
         assert_eq!(pot.len(), 1);
     }
 
-    // ---- Wound/Daze cannot be played ----
+    // ---- Wound/Dazed cannot be played ----
     #[test] fn wound_not_playable() {
         let e = engine_with(
             make_deck(&["Wound", "Strike", "Strike", "Strike", "Strike"]),
@@ -468,16 +473,16 @@ mod engine_integration_tests {
         assert!(wound_plays.is_empty());
     }
 
-    #[test] fn daze_not_playable() {
+    #[test] fn dazed_not_playable() {
         let e = engine_with(
-            make_deck(&["Daze", "Strike", "Strike", "Strike", "Strike"]),
+            make_deck(&["Dazed", "Strike", "Strike", "Strike", "Strike"]),
             100, 0,
         );
         let actions = e.get_legal_actions();
-        let daze_plays: Vec<_> = actions.iter().filter(|a| {
-            if let Action::PlayCard { card_idx, .. } = a { e.card_registry.card_name(e.state.hand[*card_idx].def_id) == "Daze" } else { false }
+        let dazed_plays: Vec<_> = actions.iter().filter(|a| {
+            if let Action::PlayCard { card_idx, .. } = a { e.card_registry.card_name(e.state.hand[*card_idx].def_id) == "Dazed" } else { false }
         }).collect();
-        assert!(daze_plays.is_empty());
+        assert!(dazed_plays.is_empty());
     }
 
     // ---- Slimed can be played (costs 1, exhausts) ----
@@ -937,8 +942,6 @@ mod bugfix_regression_tests {
     use crate::combat_types::CardInstance;
     use crate::engine::CombatEngine;
     use crate::state::{CombatState, EnemyCombatState};
-    use crate::run::RunAction;
-    use crate::{PyRunEngine, COMBAT_BASE};
     use crate::tests::support::{make_deck, make_deck_n};
 
     fn ensure_in_hand(engine: &mut CombatEngine, card_id: &str) {
@@ -979,54 +982,6 @@ mod bugfix_regression_tests {
         if let Some(idx) = e.state.hand.iter().position(|c| e.card_registry.card_name(c.def_id) == card) {
             e.execute_action(&Action::PlayCard { card_idx: idx, target_idx: -1 });
         }
-    }
-
-    // ===== P1: Action encoding roundtrip =====
-
-    #[test]
-    fn action_encode_decode_play_card_target_0() {
-        let engine = PyRunEngine::new_py(42, 20);
-        let action = RunAction::CombatAction(Action::PlayCard { card_idx: 2, target_idx: 0 });
-        let encoded = engine.encode_action(&action);
-        let decoded = engine.decode_action(encoded).unwrap();
-        assert_eq!(decoded, action, "PlayCard target_idx=0 must roundtrip");
-    }
-
-    #[test]
-    fn action_encode_decode_play_card_target_neg1() {
-        let engine = PyRunEngine::new_py(42, 20);
-        let action = RunAction::CombatAction(Action::PlayCard { card_idx: 1, target_idx: -1 });
-        let encoded = engine.encode_action(&action);
-        let decoded = engine.decode_action(encoded).unwrap();
-        assert_eq!(decoded, action, "PlayCard target_idx=-1 must roundtrip");
-    }
-
-    #[test]
-    fn action_encode_decode_play_card_target_2() {
-        let engine = PyRunEngine::new_py(42, 20);
-        let action = RunAction::CombatAction(Action::PlayCard { card_idx: 0, target_idx: 2 });
-        let encoded = engine.encode_action(&action);
-        let decoded = engine.decode_action(encoded).unwrap();
-        assert_eq!(decoded, action, "PlayCard target_idx=2 must roundtrip");
-    }
-
-    #[test]
-    fn action_encode_decode_potion_target_0() {
-        let engine = PyRunEngine::new_py(42, 20);
-        let action = RunAction::CombatAction(Action::UsePotion { potion_idx: 0, target_idx: 0 });
-        let encoded = engine.encode_action(&action);
-        let decoded = engine.decode_action(encoded).unwrap();
-        assert_eq!(decoded, action, "UsePotion target_idx=0 must roundtrip");
-    }
-
-    #[test]
-    fn action_encode_decode_end_turn() {
-        let engine = PyRunEngine::new_py(42, 20);
-        let action = RunAction::CombatAction(Action::EndTurn);
-        let encoded = engine.encode_action(&action);
-        assert_eq!(encoded, COMBAT_BASE);
-        let decoded = engine.decode_action(encoded).unwrap();
-        assert_eq!(decoded, action);
     }
 
     // ===== P1: Card pool uses registry IDs =====
@@ -1211,20 +1166,20 @@ mod bugfix_regression_tests {
 
     #[test]
     fn ethereal_card_exhausts_at_end_turn() {
-        // Daze has "ethereal" and "unplayable" effects
+        // Dazed.java makes the unplayable Status Ethereal.
         let mut e = engine_with(
             make_deck(&["Strike", "Strike", "Strike", "Strike", "Defend"]),
             100, 0,
         );
-        // Manually add a Daze to hand
-        e.state.hand.push(e.card_registry.make_card("Daze"));
-        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Daze"));
+        // Manually add a Dazed to hand
+        e.state.hand.push(e.card_registry.make_card("Dazed"));
+        assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Dazed"));
         let exhaust_before = e.state.exhaust_pile.len();
         e.execute_action(&Action::EndTurn);
-        // Daze should be in exhaust pile, not discard
+        // Dazed should be in exhaust pile, not discard
         assert_eq!(e.state.exhaust_pile.len(), exhaust_before + 1,
-            "Ethereal card (Daze) should go to exhaust pile");
-        assert!(!e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Daze"),
+            "Ethereal card (Dazed) should go to exhaust pile");
+        assert!(!e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Dazed"),
             "Ethereal card should not remain in hand");
     }
 
@@ -1298,10 +1253,15 @@ mod combat_engine_p0_p1_regression {
         }
     }
 
-    // ===== P0-1: Player Poison Ticks =====
+    // ===== P0-1: Player Poison Owner-Turn Timing =====
 
     #[test]
-    fn player_poison_ticks_at_end_of_turn() {
+    fn player_poison_ticks_after_enemy_turn_at_next_turn_start() {
+        // GameActionManager completes monster turns before invoking the
+        // player's atStartOfTurn powers. Poison therefore resolves after this
+        // enemy attack has consumed Buffer.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java:297-359
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/PoisonPower.java:58-64
         let deck: Vec<CardInstance> = make_deck_n("Defend", 10);
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 6, 1, 0); // JawWorm does 6 damage
@@ -1309,24 +1269,27 @@ mod combat_engine_p0_p1_regression {
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
 
-        // Apply poison to player and give enough block to absorb enemy attack
+        // The enemy attack consumes Buffer. Poison then deals five HP_LOSS at
+        // the next owner-turn start and decrements to four.
         e.state.player.set_status(sid::POISON, 5);
-        e.state.player.block = 100; // Block all enemy damage
+        e.state.player.set_status(sid::BUFFER, 1);
         let hp_before = e.state.player.hp;
 
-        // End turn triggers poison tick (poison bypasses block)
         e.execute_action(&Action::EndTurn);
 
-        // Player should have taken exactly 5 poison damage (enemy was fully blocked)
         assert_eq!(e.state.player.hp, hp_before - 5,
-            "Player should take exactly 5 poison damage (enemy blocked)");
-        // Poison decrements by 1
+            "Player should take Poison only after Buffer absorbs the enemy attack");
         assert_eq!(e.state.player.status(sid::POISON), 4,
             "Poison should decrement to 4");
+        assert_eq!(e.state.player.status(sid::BUFFER), 0,
+            "Enemy attack should consume Buffer before player Poison resolves");
     }
 
     #[test]
-    fn player_poison_kills_player() {
+    fn player_poison_kills_player_at_turn_start_and_still_decrements() {
+        // PoisonLoseHpAction decrements Poison after applying HP_LOSS even when
+        // that damage is lethal.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/PoisonLoseHpAction.java:43-59
         let deck: Vec<CardInstance> = make_deck_n("Defend", 10);
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
@@ -1340,6 +1303,7 @@ mod combat_engine_p0_p1_regression {
         assert!(e.state.combat_over, "Combat should be over");
         assert!(!e.state.player_won, "Player should have lost");
         assert_eq!(e.state.player.hp, 0);
+        assert_eq!(e.state.player.status(sid::POISON), 4);
     }
 
     // ===== P0-2: Enemy Attacks Use Intangible/Torii/Tungsten =====
@@ -1411,9 +1375,12 @@ mod combat_engine_p0_p1_regression {
             play_card(&mut e, "Strike", 0);
         }
 
-        // Guardian should have shifted to defensive mode
-        assert_eq!(e.state.enemies[0].entity.status(sid::SHARP_HIDE), 3,
-            "Guardian should have entered defensive mode (SharpHide = 3)");
+        // Source: TheGuardian.java `changeState`: the threshold queues Close
+        // Up; Sharp Hide is not applied until that move executes.
+        assert_eq!(e.state.enemies[0].move_id,
+            crate::enemies::move_ids::GUARD_CLOSE_UP);
+        assert_eq!(e.state.enemies[0].entity.status(sid::SHARP_HIDE), 0);
+        assert_eq!(e.state.enemies[0].entity.block, 20);
     }
 
     #[test]
@@ -1430,13 +1397,14 @@ mod combat_engine_p0_p1_regression {
         // Strike does 6 damage -> brings to 65, which is <= 70 -> triggers split
         play_card(&mut e, "Strike", 0);
 
-        // Boss should be dead (hp set to 0 by split) and 2 new slimes spawned
-        assert!(e.state.enemies[0].entity.is_dead(),
-            "Slime Boss should be dead after split, hp={}",
-            e.state.enemies[0].entity.hp);
-        assert_eq!(e.state.enemies.len(), 3,
-            "Should have spawned 2 new medium slimes, total enemies: {}",
-            e.state.enemies.len());
+        // Source: SlimeBoss.java `damage` only interrupts to Split. The boss
+        // survives until Split executes on its monster turn.
+        assert_eq!(e.state.enemies[0].entity.hp, 65);
+        assert_eq!(e.state.enemies[0].move_id, crate::enemies::move_ids::SB_SPLIT);
+        assert_eq!(e.state.enemies.len(), 1);
+        e.execute_action(&Action::EndTurn);
+        assert!(e.state.enemies[0].entity.is_dead());
+        assert_eq!(e.state.enemies.len(), 3);
     }
 
     // ===== P0-4: Gremlin Nob + Lagavulin =====
@@ -1449,6 +1417,11 @@ mod combat_engine_p0_p1_regression {
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
+
+        // Source: reference/extracted/methods/monster/GremlinNob.java. Enrage
+        // is applied by Bellow's takeTurn, so execute that turn first.
+        e.execute_action(&Action::EndTurn);
+        assert_eq!(e.state.enemies[0].entity.status(sid::ENRAGE), 2);
 
         let str_before = e.state.enemies[0].entity.strength();
 
@@ -1467,6 +1440,10 @@ mod combat_engine_p0_p1_regression {
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
+
+        // Source: reference/extracted/methods/monster/GremlinNob.java.
+        e.execute_action(&Action::EndTurn);
+        assert_eq!(e.state.enemies[0].entity.status(sid::ENRAGE), 2);
 
         let str_before = e.state.enemies[0].entity.strength();
 
@@ -1487,8 +1464,9 @@ mod combat_engine_p0_p1_regression {
         e.start_combat();
 
         // Lagavulin starts sleeping with Metallicize
-        assert_eq!(e.state.enemies[0].entity.status(sid::SLEEP_TURNS), 3,
-            "Lagavulin should start with SleepTurns = 3");
+        // Source: Lagavulin.java starts idleCount at zero and grants 8 block.
+        assert_eq!(e.state.enemies[0].entity.status(sid::COUNT), 0);
+        assert_eq!(e.state.enemies[0].entity.block, 8);
         assert_eq!(e.state.enemies[0].entity.status(sid::METALLICIZE), 8,
             "Lagavulin should start with Metallicize = 8 while sleeping");
     }
@@ -1501,13 +1479,17 @@ mod combat_engine_p0_p1_regression {
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
 
-        // Attack Lagavulin — should wake it up
+        // Source: Lagavulin.damage wakes only when currentHealth changes. The
+        // first Strike is absorbed by its 8 block; the second deals HP damage.
+        play_card(&mut e, "Strike", 0);
+        assert_eq!(e.state.enemies[0].move_id, enemies::move_ids::LAGA_SLEEP);
         play_card(&mut e, "Strike", 0);
 
         assert_eq!(e.state.enemies[0].entity.status(sid::SLEEP_TURNS), 0,
             "Lagavulin should wake up when damaged");
         assert_eq!(e.state.enemies[0].entity.status(sid::METALLICIZE), 0,
             "Lagavulin should lose Metallicize when woken");
+        assert_eq!(e.state.enemies[0].move_id, enemies::move_ids::LAGA_STUN);
     }
 
     // ===== P1-5: Pen Nib Uses calculate_damage_full =====
@@ -1568,10 +1550,16 @@ mod combat_engine_p0_p1_regression {
             "Plated Armor should NOT decrement when damage is fully blocked");
     }
 
-    // ===== P1-7: TalkToTheHand Only Grants Block on HP Damage =====
+    // ===== P1-7: TalkToTheHand Grants Block on Ordinary Attack Hits =====
+
+    // Source-derived: AbstractMonster.damage calls BlockReturnPower.onAttacked
+    // after decrementBlock even when damageAmount is zero, and BlockReturn has
+    // no positive-damage guard.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/AbstractMonster.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/BlockReturnPower.java
 
     #[test]
-    fn talk_to_the_hand_no_block_when_enemy_blocks() {
+    fn talk_to_the_hand_grants_block_when_enemy_blocks() {
         let deck: Vec<CardInstance> = make_deck_n("Strike", 10);
         let mut enemy = EnemyCombatState::new("JawWorm", 100, 100);
         enemy.set_move(1, 0, 0, 0);
@@ -1585,9 +1573,9 @@ mod combat_engine_p0_p1_regression {
         play_card(&mut e, "Strike", 0);
         let block_after = e.state.player.block;
 
-        // Strike does 6 damage, enemy has 50 block -> 0 HP damage -> no BlockReturn
-        assert_eq!(block_after, block_before,
-            "TalkToTheHand should NOT grant block when hit deals no HP damage (enemy blocked)");
+        // Strike is fully blocked, but BlockReturn still sees an ordinary attack.
+        assert_eq!(block_after, block_before + 3,
+            "TalkToTheHand should grant block even when the attack is fully blocked");
     }
 
     #[test]
@@ -2018,10 +2006,10 @@ mod effect_handler_tests {
         // Put a card in discard
         e.state.discard_pile.push(e.card_registry.make_card("WreathOfFlame"));
         play_card(&mut e, "Meditate", -1);
-        // Meditate now enters AwaitingChoice — pick the card from discard
-        assert_eq!(e.phase, CombatPhase::AwaitingChoice);
-        e.execute_action(&Action::Choose(0));
-        e.execute_action(&Action::ConfirmSelection);
+        // MeditateAction automatically moves the whole discard pile when its
+        // size is <= numberOfCards; no grid selection is opened.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/MeditateAction.java
+        assert_ne!(e.phase, CombatPhase::AwaitingChoice);
         // Should have returned the card to hand
         assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "WreathOfFlame"),
             "Meditate should return a card from discard to hand");
@@ -2125,8 +2113,11 @@ mod effect_handler_tests {
         // Turn 2: should have 3 (base) + 1 (DevaForm) = 4 energy
         assert_eq!(e.state.energy, 4,
             "DevaForm should grant 1 extra energy on turn 2");
-        // Status should have increased for next turn
-        assert_eq!(e.state.player.status(sid::DEVA_FORM), 2);
+        // DevaPower.java keeps its visible amount stable and advances a
+        // separate energyGainAmount after recharge.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/DevaPower.java
+        assert_eq!(e.state.player.status(sid::DEVA_FORM), 1);
+        assert_eq!(e.state.player.status(sid::DEVA_FORM_ENERGY), 2);
     }
 
     // ===== 25. Install Power: Fasting =====
@@ -2142,7 +2133,8 @@ mod effect_handler_tests {
         play_card(&mut e, "Fasting2", -1);
         assert_eq!(e.state.player.strength(), 3, "Fasting should give 3 Strength");
         assert_eq!(e.state.player.dexterity(), 3, "Fasting should give 3 Dexterity");
-        assert_eq!(e.state.max_energy, 2, "Fasting should reduce max energy by 1");
+        assert_eq!(e.state.player.status(sid::ENERGY_DOWN), 1);
+        assert_eq!(e.state.max_energy, 3, "Fasting should not change max energy");
     }
 
     // ===== 26. Install Power: MasterReality =====
@@ -2317,11 +2309,15 @@ mod effect_handler_tests {
         play_card(&mut e, "LessonLearned", 0);
         // Should have killed the 5 HP enemy (10 dmg)
         assert!(e.state.enemies[0].entity.is_dead());
-        // Should have upgraded a card
-        let upgraded_count = e.state.draw_pile.iter().chain(e.state.discard_pile.iter())
+        // LessonLearnedAction upgrades the persistent masterDeck, not a combat pile.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/LessonLearnedAction.java
+        let upgraded_count = e.state.master_deck.iter()
             .filter(|c| e.card_registry.card_name(c.def_id).ends_with('+')).count();
         assert_eq!(upgraded_count, 1,
-            "Lesson Learned should upgrade exactly 1 card when killing an enemy");
+            "Lesson Learned should upgrade exactly 1 master-deck card on kill");
+        assert!(e.state.draw_pile.iter().chain(e.state.discard_pile.iter())
+            .all(|c| !e.card_registry.card_name(c.def_id).ends_with('+')),
+            "combat pile copies must remain unchanged");
     }
 
     // ===== 36. Wave of the Hand =====
@@ -2379,16 +2375,19 @@ mod effect_handler_tests {
         e.start_combat();
         // Deal damage to bring boss to 50% HP (70)
         e.deal_damage_to_enemy(0, 70);
-        // Boss should have split: should be dead
+        assert_eq!(e.state.enemies[0].entity.hp, 70,
+            "damage only changes the intent to Split");
+        assert_eq!(e.state.enemies[0].move_id, crate::enemies::move_ids::SB_SPLIT);
+        crate::combat_hooks::do_enemy_turns(&mut e);
         assert_eq!(e.state.enemies[0].entity.hp, 0, "SlimeBoss should be dead after split");
         // Two new enemies spawned
         assert_eq!(e.state.enemies.len(), 3, "Should have boss + 2 spawned slimes");
         // Spawned slimes should be Large variants
-        assert_eq!(e.state.enemies[1].id, "AcidSlime_L", "First spawn should be AcidSlime_L");
-        assert_eq!(e.state.enemies[2].id, "SpikeSlime_L", "Second spawn should be SpikeSlime_L");
+        assert_eq!(e.state.enemies[1].id, "SpikeSlime_L", "First spawn should be SpikeSlime_L");
+        assert_eq!(e.state.enemies[2].id, "AcidSlime_L", "Second spawn should be AcidSlime_L");
         // HP should be boss's current HP at split (140 - 70 = 70)
-        assert_eq!(e.state.enemies[1].entity.hp, 70, "AcidSlime_L should have boss's current HP");
-        assert_eq!(e.state.enemies[2].entity.hp, 70, "SpikeSlime_L should have boss's current HP");
+        assert_eq!(e.state.enemies[1].entity.hp, 70, "SpikeSlime_L should have boss's current HP");
+        assert_eq!(e.state.enemies[2].entity.hp, 70, "AcidSlime_L should have boss's current HP");
     }
 
     // #2: Awakened One rebirth uses pending flag (not instant)
@@ -2648,95 +2647,338 @@ mod effect_handler_tests {
 
     #[test]
     fn nemesis_gains_intangible_on_turn() {
+        // Sources: reference/extracted/methods/monster/Nemesis.java (`takeTurn`,
+        // `damage`) and decompiled IntangiblePower.java (`justApplied`).
         let deck = make_deck_n("Defend", 20);
-        let mut nem = crate::enemies::create_enemy("Nemesis", 185, 185);
-        nem.set_move(nem.move_id, 0, 0, 0); // Neuter damage
+        let nem = crate::enemies::create_enemy("Nemesis", 185, 185);
         let state = CombatState::new(80, 80, vec![nem], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
 
-        // Nemesis starts without Intangible
         assert_eq!(e.state.enemies[0].entity.status(sid::INTANGIBLE), 0,
-            "Nemesis should not start with Intangible");
+            "Nemesis starts without Intangible");
 
-        // After enemy turn, should have Intangible
+        e.state.enemies[0].set_move(crate::enemies::move_ids::NEM_BURN, 0, 0, 0);
+        e.state.enemies[0].move_effects.clear();
         e.execute_action(&Action::EndTurn);
-        // Intangible was set to 1 at enemy turn start, then decremented at end of round
-        // So after a full turn cycle it should be 0 (applied, then decremented)
-        // But Nemesis re-applies next turn. Let's check mid-turn:
-        // The important thing is damage is capped during enemy turn.
-        // After end_turn: intangible was set to 1, enemy acts, then end-of-round decrements it to 0.
-        // Next turn it gets reapplied. This is correct Java behavior.
-        // Test that it was applied by checking after second end_turn (fresh application)
-        // Actually, let's just verify the cycling works over multiple turns
+        assert_eq!(e.state.enemies[0].entity.status(sid::INTANGIBLE), 1,
+            "post-turn application survives its justApplied end-turn hook");
+        let hp = e.state.enemies[0].entity.hp;
+        e.deal_damage_to_enemy(0, 50);
+        assert_eq!(e.state.enemies[0].entity.hp, hp - 1);
+
+        e.state.enemies[0].entity.set_status(sid::POISON, 10);
+        e.state.enemies[0].set_move(crate::enemies::move_ids::NEM_BURN, 0, 0, 0);
+        e.state.enemies[0].move_effects.clear();
+        let hp = e.state.enemies[0].entity.hp;
         e.execute_action(&Action::EndTurn);
-        // After 2nd EndTurn: Nemesis got intangible=1 at its turn start, then decremented to 0 at end
-        // The pattern is: each enemy turn, Nemesis has intangible during its attack phase
-        assert!(e.state.enemies[0].is_alive(), "Nemesis should still be alive");
+        assert_eq!(e.state.enemies[0].entity.hp, hp - 1,
+            "Nemesis.damage caps PoisonLoseHpAction while Intangible is active");
+        assert_eq!(e.state.enemies[0].entity.status(sid::POISON), 9);
+        assert_eq!(e.state.enemies[0].entity.status(sid::INTANGIBLE), 0,
+            "the existing one-turn power expires after the next enemy turn");
+        let hp = e.state.enemies[0].entity.hp;
+        e.deal_damage_to_enemy(0, 10);
+        assert_eq!(e.state.enemies[0].entity.hp, hp - 10);
+
+        e.state.enemies[0].set_move(crate::enemies::move_ids::NEM_BURN, 0, 0, 0);
+        e.state.enemies[0].move_effects.clear();
+        e.execute_action(&Action::EndTurn);
+        assert_eq!(e.state.enemies[0].entity.status(sid::INTANGIBLE), 1,
+            "Nemesis reapplies Intangible on the following alternating turn");
     }
 
     // ===== C5: Spawn Logic =====
 
     #[test]
     fn collector_spawns_torch_heads() {
-        let deck = make_deck_n("Defend", 20);
-        let collector = crate::enemies::create_enemy("TheCollector", 282, 282);
-        let state = CombatState::new(80, 80, vec![collector], deck, 3);
-        let mut e = CombatEngine::new(state, 42);
-        e.start_combat();
+        // Sources: reference/extracted/methods/monster/TheCollector.java,
+        // reference/extracted/methods/monster/TorchHead.java, and decompiled/
+        // java-src/com/megacrit/cardcrawl/monsters/AbstractMonster.java (`setHp`).
+        // Each Torch Head consumes an overwritten 38..40 roll, then its
+        // ascension-specific final HP roll.
+        for (block_amt, final_min, final_max) in [(15, 38, 40), (18, 40, 45)] {
+            let deck = make_deck_n("Defend", 20);
+            let mut collector = crate::enemies::create_enemy("TheCollector", 282, 282);
+            collector.entity.set_status(sid::BLOCK_AMT, block_amt);
+            let state = CombatState::new(80, 80, vec![collector], deck, 3);
+            let mut e = CombatEngine::new(state, 42);
+            e.start_combat();
 
-        assert_eq!(e.state.enemies.len(), 1, "Should start with just Collector");
-        // Collector's first move is COLL_SPAWN. End turn to execute it.
-        e.execute_action(&Action::EndTurn);
-        assert_eq!(e.state.enemies.len(), 3,
-            "Collector should spawn 2 TorchHeads (1 + 2 = 3 enemies)");
-        assert_eq!(e.state.enemies[1].id, "TorchHead");
-        assert_eq!(e.state.enemies[2].id, "TorchHead");
+            let counters_before = e.rng_counters();
+            let mut hp_oracle = e.monster_hp_rng.clone();
+            let expected_hp: Vec<i32> = (0..2)
+                .map(|_| {
+                    let _ = hp_oracle.random_int_range(38, 40);
+                    hp_oracle.random_int_range(final_min, final_max)
+                })
+                .collect();
+            let mut ai_oracle = e.ai_rng.clone();
+            for _ in 0..3 {
+                ai_oracle.random_int(99);
+            }
+
+            // Collector's first move is COLL_SPAWN. End turn to execute it.
+            e.execute_action(&Action::EndTurn);
+
+            assert_eq!(e.state.enemies.len(), 3,
+                "Collector should spawn 2 TorchHeads (1 + 2 = 3 enemies)");
+            assert_eq!(e.state.enemies[1].id, "TorchHead");
+            assert_eq!(e.state.enemies[2].id, "TorchHead");
+            assert_eq!(
+                e.state.enemies[1..]
+                    .iter()
+                    .map(|enemy| enemy.entity.hp)
+                    .collect::<Vec<_>>(),
+                expected_hp,
+            );
+            assert_eq!(e.monster_hp_rng, hp_oracle);
+            assert_eq!(
+                e.ai_rng, ai_oracle,
+                "both Torch Heads are constructed before either queued init, then Collector rolls",
+            );
+            assert_eq!(e.rng_counters()["monsterHp"], counters_before["monsterHp"] + 4);
+            assert_eq!(e.rng_counters()["ai"], counters_before["ai"] + 3);
+            assert_eq!(e.rng_counters()["shuffle"], counters_before["shuffle"]);
+        }
     }
 
     #[test]
     fn automaton_spawns_bronze_orbs() {
-        let deck = make_deck_n("Defend", 20);
-        let auto = crate::enemies::create_enemy("BronzeAutomaton", 300, 300);
-        let state = CombatState::new(80, 80, vec![auto], deck, 3);
-        let mut e = CombatEngine::new(state, 42);
-        e.start_combat();
+        // Sources: decompiled/java-src/com/megacrit/cardcrawl/monsters/city/
+        // {BronzeAutomaton,BronzeOrb}.java and actions/common/
+        // SpawnMonsterAction.java. Both Orb constructors run before either
+        // queued spawn initializes its intent.
+        for (automaton_hp, final_min, final_max) in [(300, 52, 58), (320, 54, 60)] {
+            let deck = make_deck_n("Defend", 20);
+            let auto = crate::enemies::create_enemy(
+                "BronzeAutomaton", automaton_hp, automaton_hp);
+            let state = CombatState::new(80, 80, vec![auto], deck, 3);
+            let mut e = CombatEngine::new(state, 42);
+            e.start_combat();
 
-        assert_eq!(e.state.enemies.len(), 1);
-        e.execute_action(&Action::EndTurn);
-        assert_eq!(e.state.enemies.len(), 3,
-            "Automaton should spawn 2 BronzeOrbs");
-        assert_eq!(e.state.enemies[1].id, "BronzeOrb");
-        assert_eq!(e.state.enemies[2].id, "BronzeOrb");
+            let counters_before = e.rng_counters();
+            let unrelated_before = (
+                e.card_rng.clone(),
+                e.shuffle_rng.clone(),
+                e.card_random_rng.clone(),
+                e.potion_rng.clone(),
+                e.misc_rng.clone(),
+            );
+            let mut hp_oracle = e.monster_hp_rng.clone();
+            let expected_hp: Vec<i32> = (0..2)
+                .map(|_| {
+                    let _ = hp_oracle.random_int_range(52, 58);
+                    hp_oracle.random_int_range(final_min, final_max)
+                })
+                .collect();
+            let mut ai_oracle = e.ai_rng.clone();
+            for _ in 0..3 {
+                ai_oracle.random_int(99);
+            }
+
+            e.execute_action(&Action::EndTurn);
+
+            assert_eq!(e.state.enemies.len(), 3,
+                "Automaton should spawn 2 BronzeOrbs");
+            assert_eq!(
+                e.state.enemies[1..].iter()
+                    .map(|enemy| enemy.id.as_str()).collect::<Vec<_>>(),
+                vec!["BronzeOrb", "BronzeOrb"],
+            );
+            assert_eq!(
+                e.state.enemies[1..].iter()
+                    .map(|enemy| enemy.entity.hp).collect::<Vec<_>>(),
+                expected_hp,
+            );
+            assert_eq!(e.monster_hp_rng, hp_oracle);
+            assert_eq!(e.ai_rng, ai_oracle);
+            assert_eq!(e.rng_counters()["monsterHp"], counters_before["monsterHp"] + 4);
+            assert_eq!(e.rng_counters()["ai"], counters_before["ai"] + 3);
+            assert_eq!(
+                (
+                    e.card_rng.clone(),
+                    e.shuffle_rng.clone(),
+                    e.card_random_rng.clone(),
+                    e.potion_rng.clone(),
+                    e.misc_rng.clone(),
+                ),
+                unrelated_before,
+            );
+        }
     }
 
     #[test]
     fn reptomancer_spawns_snake_daggers() {
+        // Sources: decompiled/java-src/com/megacrit/cardcrawl/helpers/
+        // MonsterHelper.java and reference/extracted/methods/monster/
+        // Reptomancer.java plus SnakeDagger.java.
+        // Every dynamically constructed dagger consumes one inclusive
+        // monsterHpRng.random(20, 25), never the shuffle stream.
         let deck = make_deck_n("Defend", 20);
         let repto = crate::enemies::create_enemy("Reptomancer", 185, 185);
-        let state = CombatState::new(80, 80, vec![repto], deck, 3);
+        let mut left = crate::enemies::create_enemy("SnakeDagger", 22, 22);
+        let mut right = crate::enemies::create_enemy("SnakeDagger", 22, 22);
+        left.is_minion = true;
+        right.is_minion = true;
+        let state = CombatState::new(80, 80, vec![left, repto, right], deck, 3);
         let mut e = CombatEngine::new(state, 42);
         e.start_combat();
 
-        assert_eq!(e.state.enemies.len(), 1);
+        assert_eq!(e.state.enemies.len(), 3);
+        assert_eq!(e.ai_rng.counter, 3,
+            "each member of the opening group consumes one init roll");
+        let counters_before = e.rng_counters();
+        let expected_hp = e.monster_hp_rng.clone().random_int_range(20, 25);
         e.execute_action(&Action::EndTurn);
-        assert_eq!(e.state.enemies.len(), 3,
-            "Reptomancer should spawn 2 SnakeDaggers");
-        assert_eq!(e.state.enemies[1].id, "SnakeDagger");
+        assert_eq!(e.state.enemies.len(), 4,
+            "baseline Reptomancer fills one of four dagger slots");
+        assert_eq!(e.state.enemies[3].id, "SnakeDagger");
+        assert_eq!(e.state.enemies[3].entity.hp, expected_hp);
+        assert!(e.state.enemies[3].is_minion);
+        assert_eq!(e.rng_counters()["monsterHp"], counters_before["monsterHp"] + 1);
+        assert_eq!(e.rng_counters()["shuffle"], counters_before["shuffle"]);
+        assert_eq!(e.state.discard_pile.iter().filter(|card|
+            e.card_registry.card_name(card.def_id) == "Wound").count(), 2,
+            "newly spawned dagger waits until the next monster turn queue");
+    }
+
+    #[test]
+    fn reptomancer_a18_constructs_both_daggers_before_queued_initialization() {
+        // Reptomancer.takeTurn enqueues two SpawnMonsterAction instances at
+        // A18. Both constructors consume monsterHpRng before either action's
+        // update initializes its dagger; RollMoveAction for Reptomancer runs
+        // after both dagger init rolls.
+        // Sources: reference/extracted/methods/monster/Reptomancer.java and
+        // decompiled/java-src/com/megacrit/cardcrawl/actions/common/
+        // SpawnMonsterAction.java.
+        let deck = make_deck_n("Defend", 20);
+        let mut repto = crate::enemies::create_enemy("Reptomancer", 185, 185);
+        repto.entity.set_status(sid::BLOCK_AMT, 2);
+        let state = CombatState::new(80, 80, vec![repto], deck, 3);
+        let mut e = CombatEngine::new(state, 42);
+        e.start_combat();
+        e.state.enemies[0].set_move(crate::enemies::move_ids::REPTO_SPAWN, 0, 0, 0);
+        e.state.enemies[0].move_effects.clear();
+
+        let mut hp_oracle = e.monster_hp_rng.clone();
+        let expected_hp = [
+            hp_oracle.random_int_range(20, 25),
+            hp_oracle.random_int_range(20, 25),
+        ];
+        let mut ai_oracle = e.ai_rng.clone();
+        for _ in 0..3 {
+            ai_oracle.random_int(99);
+        }
+
+        e.execute_action(&Action::EndTurn);
+
+        assert_eq!(e.state.enemies.len(), 3);
+        assert_eq!(
+            e.state.enemies[1..]
+                .iter()
+                .map(|enemy| (enemy.id.as_str(), enemy.entity.hp, enemy.is_minion))
+                .collect::<Vec<_>>(),
+            vec![
+                ("SnakeDagger", expected_hp[0], true),
+                ("SnakeDagger", expected_hp[1], true),
+            ],
+        );
+        assert_eq!(e.monster_hp_rng, hp_oracle);
+        assert_eq!(
+            e.ai_rng, ai_oracle,
+            "two dagger init rolls must precede Reptomancer's next move roll",
+        );
     }
 
     #[test]
     fn gremlin_leader_spawns_gremlins() {
-        let deck = make_deck_n("Defend", 20);
-        let gl = crate::enemies::create_enemy("GremlinLeader", 140, 140);
-        let state = CombatState::new(80, 80, vec![gl], deck, 3);
-        let mut e = CombatEngine::new(state, 42);
-        e.start_combat();
+        // Sources: decompiled/java-src/com/megacrit/cardcrawl/monsters/city/
+        // GremlinLeader.java, actions/unique/SummonGremlinAction.java, and the
+        // five monsters/exordium/Gremlin*.java constructors. The two action
+        // constructors select type and HP before queued init() rolls begin.
+        for ascension in [0, 20] {
+            let deck = make_deck_n("Defend", 20);
+            let mut gl = crate::enemies::create_enemy("GremlinLeader", 140, 140);
+            gl.entity.set_status(sid::STARTING_DMG, ascension);
+            let state = CombatState::new(80, 80, vec![gl], deck, 3);
+            let mut e = CombatEngine::new(state, 42);
+            e.start_combat();
 
-        assert_eq!(e.state.enemies.len(), 1);
-        e.execute_action(&Action::EndTurn);
-        assert_eq!(e.state.enemies.len(), 3,
-            "GremlinLeader should spawn 2 gremlins");
+            let counters_before = e.rng_counters();
+            let unrelated_before = (
+                e.card_rng.clone(),
+                e.shuffle_rng.clone(),
+                e.card_random_rng.clone(),
+                e.potion_rng.clone(),
+                e.misc_rng.clone(),
+            );
+            let mut ai_oracle = e.ai_rng.clone();
+            let mut hp_oracle = e.monster_hp_rng.clone();
+            let high_hp = ascension >= 7;
+            let mut expected = Vec::with_capacity(2);
+            for _ in 0..2 {
+                let id = match ai_oracle.random_int_range(0, 7) {
+                    0 | 1 => "GremlinWarrior",
+                    2 | 3 => "GremlinThief",
+                    4 | 5 => "GremlinFat",
+                    6 => "GremlinTsundere",
+                    _ => "GremlinWizard",
+                };
+                let hp = match id {
+                    "GremlinFat" => hp_oracle.random_int_range(
+                        if high_hp { 14 } else { 13 },
+                        if high_hp { 18 } else { 17 },
+                    ),
+                    "GremlinThief" => hp_oracle.random_int_range(
+                        if high_hp { 11 } else { 10 },
+                        if high_hp { 15 } else { 14 },
+                    ),
+                    "GremlinWarrior" => hp_oracle.random_int_range(
+                        if high_hp { 21 } else { 20 },
+                        if high_hp { 25 } else { 24 },
+                    ),
+                    "GremlinWizard" => hp_oracle.random_int_range(
+                        if high_hp { 22 } else { 21 },
+                        if high_hp { 26 } else { 25 },
+                    ),
+                    _ => hp_oracle.random_int_range(
+                        if high_hp { 13 } else { 12 },
+                        if high_hp { 17 } else { 15 },
+                    ),
+                };
+                expected.push((id, hp));
+            }
+            for _ in 0..3 {
+                ai_oracle.random_int(99);
+            }
+
+            e.execute_action(&Action::EndTurn);
+
+            assert_eq!(e.state.enemies.len(), 3,
+                "GremlinLeader should spawn 2 gremlins");
+            assert_eq!(
+                e.state.enemies[1..].iter()
+                    .map(|enemy| (enemy.id.as_str(), enemy.entity.hp))
+                    .collect::<Vec<_>>(),
+                expected,
+            );
+            assert!(e.state.enemies[1..].iter().all(|enemy| enemy.is_minion));
+            assert_eq!(e.monster_hp_rng, hp_oracle);
+            assert_eq!(e.ai_rng, ai_oracle);
+            assert_eq!(e.rng_counters()["monsterHp"], counters_before["monsterHp"] + 2);
+            assert_eq!(e.rng_counters()["ai"], counters_before["ai"] + 5);
+            assert_eq!(
+                (
+                    e.card_rng.clone(),
+                    e.shuffle_rng.clone(),
+                    e.card_random_rng.clone(),
+                    e.potion_rng.clone(),
+                    e.misc_rng.clone(),
+                ),
+                unrelated_before,
+            );
+        }
     }
 
     // ====================================================================
@@ -2889,7 +3131,7 @@ mod effect_handler_tests {
     // PR5: Choice-based card effect tests
     // ====================================================================
 
-    #[test] fn secret_weapon_searches_attacks() {
+    #[test] fn secret_weapon_auto_moves_a_single_remaining_attack() {
         let mut e = make_engine_with_deck(make_deck(&[
             "Defend", "Defend", "Defend", "Defend", "Defend",
             "Strike", "Strike", "Strike",
@@ -2898,12 +3140,19 @@ mod effect_handler_tests {
         e.state.energy = 10;
         let sw = e.card_registry.make_card("Secret Weapon");
         e.state.hand.push(sw);
+        let attacks_before = e.state.hand.iter()
+            .filter(|card| e.card_registry.card_name(card.def_id) == "Strike")
+            .count();
+        assert_eq!(e.state.draw_pile.iter()
+            .filter(|card| e.card_registry.card_name(card.def_id) == "Strike")
+            .count(), 1);
         play_card(&mut e, "Secret Weapon", -1);
-        // Should be awaiting choice to pick an attack from draw pile
-        assert_eq!(e.phase, CombatPhase::AwaitingChoice, "Should be awaiting choice");
-        // Choose first option
-        e.execute_action(&Action::Choose(0));
-        assert_eq!(e.phase, CombatPhase::PlayerTurn, "Should return to player turn");
+        // AttackFromDeckToHandAction auto-moves a singleton without grid select.
+        // Java: actions/unique/AttackFromDeckToHandAction.java.
+        assert_eq!(e.phase, CombatPhase::PlayerTurn);
+        assert_eq!(e.state.hand.iter()
+            .filter(|card| e.card_registry.card_name(card.def_id) == "Strike")
+            .count(), attacks_before + 1);
     }
 
     #[test] fn hologram_returns_from_discard() {
@@ -2916,9 +3165,10 @@ mod effect_handler_tests {
         let holo = e.card_registry.make_card("Hologram");
         e.state.hand.push(holo);
         play_card(&mut e, "Hologram", -1);
-        // Should be awaiting choice
-        assert_eq!(e.phase, CombatPhase::AwaitingChoice);
-        e.execute_action(&Action::Choose(0));
+        // BetterDiscardPileToHandAction directly moves a mandatory singleton;
+        // it opens grid selection only when more than one card is available.
+        // Java: actions/common/BetterDiscardPileToHandAction.java.
+        assert_eq!(e.phase, CombatPhase::PlayerTurn);
         // Strike should now be in hand
         assert!(e.state.hand.iter().any(|c| e.card_registry.card_name(c.def_id) == "Strike"),
             "Strike_R should be in hand after Hologram");
@@ -3034,15 +3284,66 @@ mod effect_handler_tests {
         assert!(has_backstab, "Innate card (Backstab) should appear in opening hand");
     }
 
-    #[test] fn phantasmal_killer_sets_double_damage() {
+    #[test] fn phantasmal_killer_schedules_full_double_damage_turns() {
+        // Sources: cards/green/PhantasmalKiller.java,
+        // powers/PhantasmalPower.java, and powers/DoubleDamagePower.java.
         let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend", 10), 200, 0);
         e.start_combat();
         e.state.energy = 10;
-        let pk = e.card_registry.make_card("Phantasmal Killer");
-        e.state.hand.push(pk);
+        e.state.hand.push(e.card_registry.make_card("Phantasmal Killer"));
+        e.state.hand.push(e.card_registry.make_card("Phantasmal Killer"));
+        e.state.hand.push(e.card_registry.make_card("Strike"));
+
         play_card(&mut e, "Phantasmal Killer", -1);
+        play_card(&mut e, "Phantasmal Killer", -1);
+        assert_eq!(e.state.player.status(sid::PHANTASMAL), 2);
+        assert_eq!(e.state.player.status(sid::DOUBLE_DAMAGE), 0,
+            "Phantasmal Killer must not double damage on the play turn");
+
+        play_card(&mut e, "Strike", 0);
+        assert_eq!(e.state.enemies[0].entity.hp, 194,
+            "the play-turn Strike remains at its normal six damage");
+
+        e.execute_action(&Action::EndTurn);
+        assert_eq!(e.state.player.status(sid::PHANTASMAL), 1);
+        assert_eq!(e.state.player.status(sid::DOUBLE_DAMAGE), 1);
+        e.state.enemies[0].entity.block = 0;
+        e.state.hand.push(e.card_registry.make_card("Strike"));
+        e.state.hand.push(e.card_registry.make_card("Strike"));
+        play_card(&mut e, "Strike", 0);
+        play_card(&mut e, "Strike", 0);
+        assert_eq!(e.state.enemies[0].entity.hp, 170,
+            "DoubleDamagePower doubles every NORMAL attack for the turn");
         assert_eq!(e.state.player.status(sid::DOUBLE_DAMAGE), 1,
-            "Phantasmal Killer should set DOUBLE_DAMAGE = 1");
+            "attacks do not consume a turn-based DoubleDamagePower");
+
+        e.execute_action(&Action::EndTurn);
+        assert_eq!(e.state.player.status(sid::PHANTASMAL), 0);
+        assert_eq!(e.state.player.status(sid::DOUBLE_DAMAGE), 1,
+            "the second Phantasmal stack schedules the following turn");
+        e.state.enemies[0].entity.block = 0;
+        e.state.hand.push(e.card_registry.make_card("Strike"));
+        play_card(&mut e, "Strike", 0);
+        assert_eq!(e.state.enemies[0].entity.hp, 158);
+
+        e.execute_action(&Action::EndTurn);
+        assert_eq!(e.state.player.status(sid::DOUBLE_DAMAGE), 0,
+            "DoubleDamagePower reduces once at end of round");
+    }
+
+    #[test] fn phantasmal_stacks_pending_amount_into_existing_double_damage() {
+        // PhantasmalPower.java passes `this.amount` as ApplyPowerAction's
+        // stackAmount even though the newly constructed DoubleDamagePower is 1.
+        let mut e = make_engine_with_deck_and_enemy(make_deck_n("Defend", 10), 200, 0);
+        e.start_combat();
+        e.state.player.set_status(sid::PHANTASMAL, 3);
+        e.state.player.set_status(sid::DOUBLE_DAMAGE, 2);
+
+        e.execute_action(&Action::EndTurn);
+
+        assert_eq!(e.state.player.status(sid::PHANTASMAL), 2);
+        assert_eq!(e.state.player.status(sid::DOUBLE_DAMAGE), 4,
+            "round end reduces 2 to 1, then three pending stacks add 3");
     }
 
     #[test] fn biased_cognition_loses_focus_each_turn() {

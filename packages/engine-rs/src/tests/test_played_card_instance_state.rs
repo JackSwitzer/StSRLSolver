@@ -9,6 +9,7 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/RitualDagger.java
 
 use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_state, make_deck, play_on_enemy, play_self};
+use crate::actions::Action;
 
 fn effective_cost(engine: &crate::engine::CombatEngine, card: crate::combat_types::CardInstance) -> i32 {
     if card.cost >= 0 {
@@ -156,4 +157,193 @@ fn genetic_algorithm_and_ritual_dagger_only_scale_the_played_copy() {
     assert_eq!(effective_misc_or(&ritual_engine, played_ritual, 15), 18);
     assert_eq!(ritual_engine.state.draw_pile[0].misc, -1);
     assert_eq!(ritual_engine.state.discard_pile[0].misc, -1);
+}
+
+#[test]
+fn duplicate_equal_genetic_algorithms_update_the_matching_master_uuid_after_restore() {
+    // IncreaseMiscAction matches AbstractCard.uuid, not the first card with the
+    // same definition and misc value. This matters when exact duplicates have
+    // been reordered. Java: actions/defect/IncreaseMiscAction.java.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Genetic Algorithm", "Genetic Algorithm"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.master_deck[0].misc = 7;
+    engine.state.master_deck[1].misc = 7;
+    let first = engine.state.master_deck[0];
+    let second = engine.state.master_deck[1];
+    assert_ne!(first.instance_id, second.instance_id);
+    engine.state.hand = vec![first, second];
+    engine.state.draw_pile.clear();
+    engine.state.discard_pile.clear();
+
+    let encoded = serde_json::to_string(&engine).unwrap();
+    let mut restored: crate::engine::CombatEngine = serde_json::from_str(&encoded).unwrap();
+    restored.execute_action(&Action::PlayCard {
+        card_idx: 1,
+        target_idx: -1,
+    });
+
+    assert_eq!(restored.state.master_deck[0].misc, 7);
+    assert_eq!(restored.state.master_deck[1].misc, 9);
+    assert_eq!(restored.state.master_deck[1].instance_id, second.instance_id);
+}
+
+#[test]
+fn dual_wield_ritual_dagger_copy_kill_does_not_scale_the_owned_master_card() {
+    // DualWieldAction -> MakeTempCardInHandAction uses
+    // makeStatEquivalentCopy(), which receives a fresh UUID. A copied Ritual
+    // Dagger can scale itself on kill but must not match the owned master card.
+    // Java: actions/unique/DualWieldAction.java,
+    // actions/common/MakeTempCardInHandAction.java, AbstractCard.java:819.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["RitualDagger"]),
+        vec![enemy_no_intent("JawWorm", 15, 15)],
+        3,
+    ));
+    let owned = engine.state.master_deck[0];
+    engine.state.hand = vec![owned];
+    engine.state.draw_pile.clear();
+    engine.add_dual_wield_copies(owned, 1);
+    let copy = engine.state.hand[1];
+    assert_ne!(copy.instance_id, owned.instance_id);
+
+    engine.execute_action(&Action::PlayCard {
+        card_idx: 1,
+        target_idx: 0,
+    });
+
+    assert_eq!(engine.state.master_deck[0].misc, -1);
+    assert_eq!(engine.state.exhaust_pile[0].misc, 18);
+}
+
+#[test]
+fn generated_genetic_algorithm_copies_have_fresh_ids_and_do_not_scale_master() {
+    // Discovery-style previews and every selected stat copy are distinct Java
+    // card objects with fresh UUIDs. Generated copies therefore cannot match
+    // an owned Genetic Algorithm in IncreaseMiscAction.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Genetic Algorithm"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    let owned = engine.state.master_deck[0];
+    engine.state.hand.clear();
+    engine.state.draw_pile.clear();
+    let preview = engine.fresh_stat_copy(engine.card_registry.make_card("Genetic Algorithm"));
+    engine.begin_discovery_choice(
+        vec![crate::engine::ChoiceOption::GeneratedCard(preview)],
+        1,
+        1,
+        3,
+        crate::effects::declarative::GeneratedCostRule::Base,
+    );
+    engine.execute_action(&Action::Choose(0));
+
+    let generated_ids: std::collections::HashSet<_> = engine
+        .state
+        .hand
+        .iter()
+        .map(|card| card.instance_id)
+        .collect();
+    assert_eq!(generated_ids.len(), 3);
+    assert!(!generated_ids.contains(&owned.instance_id));
+    engine.execute_action(&Action::PlayCard {
+        card_idx: 0,
+        target_idx: -1,
+    });
+    assert_eq!(engine.state.master_deck[0].misc, -1);
+}
+
+#[test]
+fn omniscience_extra_ritual_dagger_kill_does_not_scale_the_owned_master_card() {
+    // Omniscience queues the selected original once, then queues
+    // makeStatEquivalentCopy() with purgeOnUse for every extra play. If only
+    // the extra copy kills, RitualDaggerAction must not match masterDeck UUID.
+    // Java: actions/watcher/OmniscienceAction.java:44-50.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Omniscience", "RitualDagger"]),
+        vec![enemy_no_intent("JawWorm", 25, 25)],
+        4,
+    ));
+    let omniscience = engine
+        .state
+        .master_deck
+        .iter()
+        .find(|card| engine.card_registry.card_name(card.def_id) == "Omniscience")
+        .copied()
+        .unwrap();
+    let dagger = engine
+        .state
+        .master_deck
+        .iter()
+        .find(|card| engine.card_registry.card_name(card.def_id) == "RitualDagger")
+        .copied()
+        .unwrap();
+    engine.state.hand = vec![omniscience];
+    engine.state.draw_pile = vec![dagger];
+    engine.state.discard_pile.clear();
+
+    assert!(play_self(&mut engine, "Omniscience"));
+    engine.execute_action(&Action::Choose(0));
+
+    let master_dagger = engine
+        .state
+        .master_deck
+        .iter()
+        .find(|card| card.instance_id == dagger.instance_id)
+        .unwrap();
+    assert_eq!(master_dagger.misc, -1);
+    assert!(engine.state.enemies[0].entity.is_dead());
+}
+
+#[test]
+fn ritual_dagger_kill_persists_to_master_deck_but_minion_kill_does_not_scale() {
+    // RitualDaggerAction raises misc on the matching master-deck UUID and all
+    // same-UUID combat instances only when the target dies without halfDead or
+    // MinionPower. Ritual Dagger+ raises by five because its upgrade changes
+    // magicNumber from three to five.
+    // Sources: cards/colorless/RitualDagger.java,
+    // actions/unique/RitualDaggerAction.java, and
+    // helpers/GetAllInBattleInstances.java.
+    let mut persistent = engine_with_state(combat_state_with(
+        make_deck(&["RitualDagger+", "Strike"]),
+        vec![enemy_no_intent("JawWorm", 15, 15)],
+        3,
+    ));
+    persistent.state.hand.retain(|card| {
+        persistent.card_registry.card_name(card.def_id) == "RitualDagger+"
+    });
+
+    assert!(play_on_enemy(&mut persistent, "RitualDagger+", 0));
+
+    let exhausted = persistent
+        .state
+        .exhaust_pile
+        .iter()
+        .find(|card| persistent.card_registry.card_name(card.def_id) == "RitualDagger+")
+        .copied()
+        .expect("played Ritual Dagger+ should exhaust");
+    let master = persistent
+        .state
+        .master_deck
+        .iter()
+        .find(|card| persistent.card_registry.card_name(card.def_id) == "RitualDagger+")
+        .copied()
+        .expect("persistent Ritual Dagger+ in master deck");
+    assert_eq!(effective_misc_or(&persistent, exhausted, 15), 20);
+    assert_eq!(effective_misc_or(&persistent, master, 15), 20);
+
+    let mut minion = enemy_no_intent("TorchHead", 15, 15);
+    minion.is_minion = true;
+    let mut ignored = engine_with_state(combat_state_with(
+        make_deck(&["RitualDagger"]),
+        vec![minion],
+        3,
+    ));
+    assert!(play_on_enemy(&mut ignored, "RitualDagger", 0));
+
+    assert_eq!(ignored.state.exhaust_pile[0].misc, -1);
+    assert_eq!(ignored.state.master_deck[0].misc, -1);
 }

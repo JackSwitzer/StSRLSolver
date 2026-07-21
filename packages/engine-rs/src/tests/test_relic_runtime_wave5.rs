@@ -86,6 +86,9 @@ fn pocketwatch_grants_draw_after_short_previous_turn_and_skips_first_turn_bonus(
 
 #[test]
 fn pen_nib_triggers_on_tenth_attack_and_resets() {
+    // Source: reference/extracted/methods/relic/PenNib.java. Each ATTACK
+    // increments the persistent relic counter; value 9 arms the next attack,
+    // and that tenth attack resets the counter to zero.
     let mut engine = relic_engine("Pen Nib", 20);
     engine.state.hand = make_deck_n("Strike", 10);
 
@@ -100,6 +103,36 @@ fn pen_nib_triggers_on_tenth_attack_and_resets() {
     assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(engine.state.enemies[0].entity.hp, hp_before_tenth - 12);
     assert_eq!(engine.state.player.status(sid::PEN_NIB_COUNTER), 0);
+}
+
+#[test]
+fn pen_nib_counter_nine_persists_and_arms_the_next_combat() {
+    // PenNib.java::atBattleStart reapplies PenNibPower when its persistent
+    // relic counter is 9.
+    let mut first = relic_engine("Pen Nib", 20);
+    first.state.hand = make_deck_n("Strike", 9);
+    for _ in 0..9 {
+        assert!(play_on_enemy(&mut first, "Strike", 0));
+    }
+    let persisted = first.export_persisted_effects();
+
+    let mut next = engine_without_start(
+        make_deck_n("Strike", 5),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    next.state.relics.push("Pen Nib".to_string());
+    next.load_persisted_effects(persisted);
+    next.start_combat();
+    next.state.hand = make_deck_n("Strike", 1);
+    next.state.draw_pile.clear();
+    next.state.discard_pile.clear();
+
+    assert_eq!(next.state.player.status(sid::PEN_NIB_COUNTER), 9);
+    let hp_before = next.state.enemies[0].entity.hp;
+    assert!(play_on_enemy(&mut next, "Strike", 0));
+    assert_eq!(next.state.enemies[0].entity.hp, hp_before - 12);
+    assert_eq!(next.state.player.status(sid::PEN_NIB_COUNTER), 0);
 }
 
 #[test]

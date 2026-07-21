@@ -14,8 +14,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ENGINE_MANIFEST="${REPO_ROOT}/packages/engine-rs/Cargo.toml"
-VENV_PYTHON="${REPO_ROOT}/.venv/bin/python3"
-XCODE_FRAMEWORKS="/Applications/Xcode.app/Contents/Developer/Library/Frameworks"
 
 if [[ $# -ne 1 ]]; then
   echo "usage: scripts/trace_diff.sh <script.json>" >&2
@@ -42,20 +40,12 @@ mkdir -p "${out_dir}"
 
 masks_path="${REPO_ROOT}/docs/goal/masks.json"
 
-# --- reuse test_engine_rs.sh's cargo/PyO3 env setup (minimal replica) ---
+# --- configure the native Rust simulator ---
 if [[ ! -f "${ENGINE_MANIFEST}" ]]; then
   echo "engine-rs manifest not found: ${ENGINE_MANIFEST}" >&2
   exit 1
 fi
-if [[ ! -x "${VENV_PYTHON}" ]]; then
-  echo "expected Python runtime missing: ${VENV_PYTHON}" >&2
-  exit 1
-fi
 export PATH="${HOME}/.cargo/bin:${PATH}"
-export PYO3_PYTHON="${VENV_PYTHON}"
-if [[ -d "${XCODE_FRAMEWORKS}" ]]; then
-  export DYLD_FRAMEWORK_PATH="${XCODE_FRAMEWORKS}${DYLD_FRAMEWORK_PATH:+:${DYLD_FRAMEWORK_PATH}}"
-fi
 
 cargo_args=(
   run --manifest-path "${ENGINE_MANIFEST}" --bin trace_replay --quiet --

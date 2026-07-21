@@ -50,12 +50,14 @@ fn echo_form_runtime_replays_only_first_non_power_card() {
 #[test]
 // Java oracle:
 // decompiled/java-src/com/megacrit/cardcrawl/powers/EchoPower.java
-fn echo_form_runtime_does_not_replay_power_cards() {
+fn echo_form_runtime_replays_the_first_power_card_too() {
     let mut engine = engine_with(make_deck_n("Strike", 10), 50, 0);
     engine.state.player.set_status(sid::ECHO_FORM, 1);
     ensure_in_hand(&mut engine, "Inflame");
 
     assert!(play_self(&mut engine, "Inflame"));
 
-    assert_eq!(engine.state.player.status(sid::STRENGTH), 2);
+    // EchoPower.onUseCard excludes only purge-on-use copies; it has no card
+    // type restriction, so Inflame's 2 Strength is applied twice.
+    assert_eq!(engine.state.player.status(sid::STRENGTH), 4);
 }

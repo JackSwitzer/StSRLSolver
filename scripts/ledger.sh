@@ -3,7 +3,7 @@
 # Usage:
 #   scripts/ledger.sh flip <row-id> <verified_by>              # -> verified
 #   scripts/ledger.sh quarantine <row-id> <verified_by> DEV-NNN
-#   scripts/ledger.sh status                                    # counts + next unverified
+#   scripts/ledger.sh status                                    # counts + any unverified rows
 set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LEDGER="$REPO/docs/goal/ledger.json"

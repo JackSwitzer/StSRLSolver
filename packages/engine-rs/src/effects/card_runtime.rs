@@ -4,7 +4,7 @@ use crate::engine::CombatEngine;
 use crate::effects::types::{
     CanPlayRule, CardPlayContext, CardRuntimeTrigger, CostModifierRule, DamageModifier,
     DamageModifierRule, OnDiscardEffect, OnDiscardRule, OnDrawRule, OnExhaustRule,
-    OnRetainRule, PostPlayDestination, PostPlayRule,
+    OnRetainRule, PostPlayDestination, PostPlayRule, StatefulCostRule,
 };
 use crate::status_ids::sid;
 
@@ -42,31 +42,92 @@ pub fn allows_play(engine: &CombatEngine, card: &CardDef, card_inst: CardInstanc
     true
 }
 
-pub fn apply_cost_modifiers(engine: &CombatEngine, card: &CardDef, base_cost: i32) -> i32 {
+pub fn apply_cost_modifiers(
+    engine: &CombatEngine,
+    card: &CardDef,
+    card_inst: CardInstance,
+    base_cost: i32,
+) -> i32 {
     let mut cost = base_cost;
     for trigger in card.runtime_triggers() {
         if let CardRuntimeTrigger::ModifyCost(rule) = trigger {
             match rule {
                 CostModifierRule::ReduceOnHpLoss => {
-                    let hp_lost = engine.state.player.status(sid::HP_LOSS_THIS_COMBAT);
-                    cost = (cost - hp_lost).max(0);
+                    let damage_events = engine.state.player.status(sid::HP_LOSS_THIS_COMBAT);
+                    cost = (cost - damage_events).max(0);
                 }
                 CostModifierRule::ReducePerPower => {
-                    let power_count =
-                        crate::powers::registry::active_player_power_count(&engine.state.player);
-                    cost = (cost - power_count).max(0);
-                }
-                CostModifierRule::ReduceOnDiscard => {
-                    let discarded = engine.state.player.status(sid::DISCARDED_THIS_TURN);
-                    cost = (cost - discarded).max(0);
+                    // ForceField.updateCost(-1) fires once for every Power card
+                    // played this combat. `misc` records the history baseline
+                    // when an overwrite such as Confusion replaces its cost.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ForceField.java
+                    let baseline = card_inst.misc.max(0) as i32;
+                    let reductions =
+                        (engine.state.power_cards_played_this_combat - baseline).max(0);
+                    cost = (cost - reductions).max(0);
                 }
                 CostModifierRule::IncreaseOnHpLoss => {
-                    cost += engine.state.total_damage_taken;
+                    // MasterfulStab.tookDamage physically updates each existing
+                    // combat-pile instance once per event. player_lose_hp performs
+                    // that mutation, preserving temporary-vs-permanent cost deltas.
                 }
             }
         }
     }
     cost
+}
+
+/// Eviscerate.triggerWhenDrawn initializes costForTurn from its combat cost
+/// and the discard count so far, before onCardDraw powers such as Confusion.
+/// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Eviscerate.java
+pub fn initialize_stateful_cost_on_draw(
+    card: &CardDef,
+    card_inst: &mut CardInstance,
+    discarded_this_turn: i32,
+) {
+    for trigger in card.runtime_triggers() {
+        match trigger {
+            CardRuntimeTrigger::StatefulCost(StatefulCostRule::ReduceOnDiscard) => {
+                let combat_cost = if card_inst.base_cost >= 0 {
+                    card_inst.base_cost as i32
+                } else {
+                    card.cost
+                };
+                card_inst.set_cost_for_turn((combat_cost - discarded_this_turn).max(0) as i8);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// AbstractPlayer.updateCardsOnDiscard calls Eviscerate.didDiscard for every
+/// copy in hand, draw, and discard piles after each manual discard.
+/// Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+/// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Eviscerate.java
+pub fn apply_stateful_cost_on_discard(engine: &mut CombatEngine) {
+    let registry = engine.card_registry;
+    for card_inst in engine
+        .state
+        .hand
+        .iter_mut()
+        .chain(engine.state.draw_pile.iter_mut())
+        .chain(engine.state.discard_pile.iter_mut())
+    {
+        let card = registry.card_def_by_id(card_inst.def_id);
+        if card.runtime_triggers().iter().any(|trigger| {
+            matches!(
+                trigger,
+                CardRuntimeTrigger::StatefulCost(StatefulCostRule::ReduceOnDiscard)
+            )
+        }) {
+            let current_cost = if card_inst.cost >= 0 {
+                card_inst.cost
+            } else {
+                card.cost as i8
+            };
+            card_inst.set_cost_for_turn((current_cost - 1).max(0));
+        }
+    }
 }
 
 pub fn resolve_damage_modifiers(
@@ -161,28 +222,56 @@ pub fn apply_on_exhaust(engine: &mut CombatEngine, card: &CardDef, card_inst: Ca
                 enemy_killed: false,
                 hand_size_at_play: engine.state.hand.len(),
                 last_bulk_count: 0,
+                last_drawn_card_types: Vec::new(),
+                deferred_manual_discards: Vec::new(),
             };
             match rule {
                 OnExhaustRule::GainEnergy => crate::effects::hooks_simple::hook_energy_on_exhaust(engine, &ctx),
+                // Necronomicurse.triggerOnExhaust queues a fresh makeCopy()
+                // through MakeTempCardInHandAction, including hand overflow.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Necronomicurse.java
+                OnExhaustRule::ReturnCopyToHand => {
+                    engine.add_temp_cards_to_hand(card.id, 1);
+                }
             }
         }
     }
 }
 
 pub fn apply_on_retain(card_inst: &mut CardInstance, card: &CardDef) -> (i32, i32) {
-    let mut perseverance_bonus = 0;
-    let mut windmill_bonus = 0;
+    let perseverance_bonus = 0;
+    let windmill_bonus = 0;
     for trigger in card.runtime_triggers() {
         if let CardRuntimeTrigger::OnRetain(rule) = trigger {
             match rule {
                 OnRetainRule::ReduceCost => {
-                    card_inst.cost = (card_inst.cost - 1).max(0);
+                    let current_cost = if card_inst.cost >= 0 {
+                        card_inst.cost
+                    } else {
+                        card.cost as i8
+                    };
+                    card_inst.set_permanent_cost((current_cost - 1).max(0));
                 }
                 OnRetainRule::GrowBlock => {
-                    perseverance_bonus += card.base_magic;
+                    // Perseverance.onRetained upgrades this exact card's block.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Perseverance.java
+                    let current_block = if card_inst.misc >= 0 {
+                        card_inst.misc
+                    } else {
+                        card.base_block
+                    };
+                    card_inst.misc = current_block.wrapping_add(card.base_magic);
                 }
                 OnRetainRule::GrowDamage => {
-                    windmill_bonus += card.base_magic;
+                    // WindmillStrike.onRetained upgrades this exact card's
+                    // damage, so separate copies grow independently.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/WindmillStrike.java
+                    let current_damage = if card_inst.misc >= 0 {
+                        card_inst.misc
+                    } else {
+                        card.base_damage
+                    };
+                    card_inst.misc = current_damage.wrapping_add(card.base_magic);
                 }
             }
         }

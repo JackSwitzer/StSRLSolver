@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // ---- Silent Uncommon: Backstab ---- (cost 0, 11 dmg, innate, exhaust; +4 dmg)
+    // Source: cards/green/Backstab.java costs 0, deals 11 damage, is Innate
+    // and Exhaust, and upgrades only its damage by 4.
     insert(cards, CardDef {
         id: "Backstab", name: "Backstab", card_type: CardType::Attack,
         target: CardTarget::Enemy, cost: 0, base_damage: 11, base_block: -1,

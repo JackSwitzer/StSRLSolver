@@ -47,38 +47,6 @@ mod power_tests {
         let mut e = entity();
         assert_eq!(tick_poison(&mut e), 0);
     }
-    #[test] fn metallicize_gain() {
-        let mut e = entity();
-        e.set_status(sid::METALLICIZE, 4);
-        apply_metallicize(&mut e);
-        assert_eq!(e.block, 4);
-    }
-    #[test] fn metallicize_stacks() {
-        let mut e = entity();
-        e.block = 3;
-        e.set_status(sid::METALLICIZE, 4);
-        apply_metallicize(&mut e);
-        assert_eq!(e.block, 7);
-    }
-    #[test] fn plated_armor_gain() {
-        let mut e = entity();
-        e.set_status(sid::PLATED_ARMOR, 6);
-        apply_plated_armor(&mut e);
-        assert_eq!(e.block, 6);
-    }
-    #[test] fn ritual_gain() {
-        let mut e = entity();
-        e.set_status(sid::RITUAL, 3);
-        apply_ritual(&mut e);
-        assert_eq!(e.strength(), 3);
-    }
-    #[test] fn ritual_stacks() {
-        let mut e = entity();
-        e.set_status(sid::RITUAL, 3);
-        apply_ritual(&mut e);
-        apply_ritual(&mut e);
-        assert_eq!(e.strength(), 6);
-    }
     #[test] fn artifact_blocks_debuff() {
         let mut e = entity();
         e.set_status(sid::ARTIFACT, 2);
@@ -102,4 +70,3 @@ mod power_tests {
 // =============================================================================
 // State tests
 // =============================================================================
-

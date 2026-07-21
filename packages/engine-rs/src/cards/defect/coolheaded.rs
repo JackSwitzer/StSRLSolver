@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Coolheaded: 1 cost, channel Frost, draw 1
+    // Source: reference/extracted/methods/card/Coolheaded.java queues one Frost
+    // channel before drawing magicNumber cards; the upgrade only raises magic 1 -> 2.
     insert(cards, CardDef {
                 id: "Coolheaded", name: "Coolheaded", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,

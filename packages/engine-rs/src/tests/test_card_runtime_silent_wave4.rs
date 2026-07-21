@@ -114,33 +114,49 @@ mod silent_wave4 {
             escape_plan.effect_data,
             &[
                 E::Simple(SE::DrawCards(A::Fixed(1))),
-                E::Simple(SE::GainBlockIfLastHandCardType(CardType::Skill, A::Block)),
+                E::Simple(SE::GainBlockIfLastDrawnCardType(CardType::Skill, A::Block)),
             ]
         );
         assert!(escape_plan.complex_hook.is_none());
     }
 
     #[test]
-    fn silent_wave4_bouncing_flask_applies_the_expected_total_poison() {
-        let mut engine = engine_for(
-            &["Bouncing Flask"],
-            &[],
-            vec![
-                enemy_no_intent("JawWorm", 40, 40),
-                enemy_no_intent("Cultist", 35, 35),
-            ],
-            3,
-        );
+    fn silent_wave4_bouncing_flask_matches_each_card_random_bounce() {
+        // BouncingFlask.use() selects the first target through cardRandomRng;
+        // BouncingFlaskAction recursively selects every later target through
+        // that same stream. Each selected target receives 3 Poison, and the
+        // upgrade changes numTimes from 3 to 4 by raising magicNumber.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/BouncingFlask.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/BouncingFlaskAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/MonsterGroup.java
+        for (card_id, bounces) in [("Bouncing Flask", 3), ("Bouncing Flask+", 4)] {
+            let mut engine = engine_for(
+                &[card_id],
+                &[],
+                vec![
+                    enemy_no_intent("A", 40, 40),
+                    enemy_no_intent("B", 40, 40),
+                    enemy_no_intent("C", 40, 40),
+                ],
+                3,
+            );
+            let mut oracle = engine.card_random_rng.clone();
+            let mut expected_hits = [0; 3];
+            for _ in 0..bounces {
+                let selected = oracle.random_int_range(0, 2) as usize;
+                expected_hits[selected] += 1;
+            }
+            let card_before = engine.rng_counters()["shuffle"];
 
-        assert!(play_self(&mut engine, "Bouncing Flask"));
+            assert!(play_self(&mut engine, card_id));
 
-        let total_poison: i32 = engine
-            .state
-            .enemies
-            .iter()
-            .map(|enemy| enemy.entity.status(sid::POISON))
-            .sum();
-        assert_eq!(total_poison, 9);
+            for (enemy, hits) in engine.state.enemies.iter().zip(expected_hits) {
+                assert_eq!(enemy.entity.status(sid::POISON), hits * 3, "{card_id}");
+            }
+            assert_eq!(engine.card_random_rng.counter, oracle.counter, "{card_id}");
+            assert_eq!(engine.rng_counters()["shuffle"], card_before, "{card_id}");
+            assert_eq!(engine.state.energy, 1, "{card_id}");
+        }
     }
 
     #[test]
@@ -207,6 +223,33 @@ mod silent_wave4 {
     }
 
     #[test]
+    fn concentrate_plus_discards_two_before_gaining_two_energy() {
+        // Source: Concentrate.java queues DiscardAction(magicNumber, false)
+        // before GainEnergyAction(2); upgradeMagicNumber(-1) changes 3 picks to 2.
+        let mut engine = engine_for(
+            &["Concentrate+", "Strike", "Defend", "Neutralize"],
+            &[],
+            vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
+            0,
+        );
+
+        assert!(play_self(&mut engine, "Concentrate+"));
+        assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+        assert_eq!(engine.choice.as_ref().unwrap().min_picks, 2);
+        assert_eq!(engine.choice.as_ref().unwrap().max_picks, 2);
+        assert_eq!(engine.state.energy, 0);
+
+        engine.execute_action(&Action::Choose(0));
+        engine.execute_action(&Action::Choose(1));
+        engine.execute_action(&Action::ConfirmSelection);
+
+        assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+        assert_eq!(engine.state.energy, 2);
+        assert_eq!(engine.state.hand.len(), 1);
+        assert_eq!(engine.state.discard_pile.len(), 3);
+    }
+
+    #[test]
     fn silent_wave4_dash_combines_damage_and_block_on_the_engine_path() {
         let mut engine = engine_for(
             &["Dash"],
@@ -247,6 +290,9 @@ mod silent_wave4 {
 
     #[test]
     fn silent_wave4_escape_plan_only_grants_block_when_the_drawn_card_is_a_skill() {
+        // EscapePlanAction.java inspects DrawCardAction.drawnCards, not the
+        // current end of the hand.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/EscapePlanAction.java
         let mut skill_draw = engine_for(
             &["Escape Plan"],
             &["Defend"],
@@ -266,5 +312,25 @@ mod silent_wave4 {
         );
         assert!(play_self(&mut attack_draw, "Escape Plan"));
         assert_eq!(attack_draw.state.player.block, 0);
+
+        // Echo Form replays Escape Plan after the first copy fills the hand.
+        // The replay draws nothing, so its cleared drawnCards list grants no
+        // second Block even though the last hand card is the drawn Defend.
+        let mut full_replay = engine_for(
+            &[
+                "Escape Plan", "Strike", "Strike", "Strike", "Strike",
+                "Strike", "Strike", "Strike", "Strike", "Strike",
+            ],
+            &["Defend"],
+            vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
+            3,
+        );
+        full_replay.state.player.set_status(sid::ECHO_FORM, 1);
+        full_replay.rebuild_effect_runtime();
+
+        assert!(play_self(&mut full_replay, "Escape Plan"));
+        assert_eq!(full_replay.state.player.block, 3);
+        assert_eq!(full_replay.state.hand.len(), 10);
+        assert!(full_replay.state.draw_pile.is_empty());
     }
 }

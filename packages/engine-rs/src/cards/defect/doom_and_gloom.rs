@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Doom and Gloom: 2 cost, 10 dmg AoE, channel 1 Dark
+    // DoomAndGloom.java deals its multiDamage to every enemy, then channels
+    // one Dark. The upgrade changes only damage, from 10 to 14.
+    // Java: reference/extracted/methods/card/DoomAndGloom.java
     insert(cards, CardDef {
                 id: "Doom and Gloom", name: "Doom and Gloom", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 2, base_damage: 10, base_block: -1,

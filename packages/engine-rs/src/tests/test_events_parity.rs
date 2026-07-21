@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod event_java_parity_tests {
     use crate::events::{
-        events_for_act, shrine_events, typed_events_for_act, typed_shrine_events,
-        EventProgramOp, EventRuntimeStatus, TypedEventDef,
+        typed_events_for_act, typed_shrine_events, EventProgramOp, EventRuntimeStatus,
+        TypedEventDef,
     };
 
     fn typed_event(act: i32, name: &str) -> TypedEventDef {
@@ -17,14 +17,6 @@ mod event_java_parity_tests {
             .into_iter()
             .find(|event| event.name == name)
             .unwrap_or_else(|| panic!("missing typed shrine event {name}"))
-    }
-
-    #[test]
-    fn typed_and_compat_catalog_sizes_match_current_port_target() {
-        assert_eq!(typed_events_for_act(1).len(), events_for_act(1).len());
-        assert_eq!(typed_events_for_act(2).len(), events_for_act(2).len());
-        assert_eq!(typed_events_for_act(3).len(), events_for_act(3).len());
-        assert_eq!(typed_shrine_events().len(), shrine_events().len());
     }
 
     #[test]
@@ -69,9 +61,21 @@ mod event_java_parity_tests {
         assert!(matches!(
             golden_idol.options[0].program.ops.as_slice(),
             [
-                EventProgramOp::LosePercentHp { percent: 25 },
-                EventProgramOp::Reward(_)
-            ]
+                EventProgramOp::ObtainRelic { label },
+                EventProgramOp::ContinueEvent { .. }
+            ] if label == "Golden Idol"
+        ));
+        let consequence = match &golden_idol.options[0].program.ops[1] {
+            EventProgramOp::ContinueEvent { event } => event,
+            _ => unreachable!("checked above"),
+        };
+        assert!(matches!(
+            consequence.options[2].program.ops.as_slice(),
+            [EventProgramOp::AdjustMaxHpPercentByAscension {
+                base_percent: -8,
+                asc15_percent: -10,
+                minimum_loss: 1,
+            }]
         ));
 
         let cleric = typed_event(1, "The Cleric");
@@ -261,24 +265,4 @@ mod event_java_parity_tests {
         assert_eq!(blocked_placeholder_count, 0);
     }
 
-    #[test]
-    fn compat_event_catalog_wrappers_remain_available_for_run_rs() {
-        let big_fish = events_for_act(1)
-            .into_iter()
-            .find(|event| event.name == "Big Fish")
-            .expect("missing Big Fish");
-        assert_eq!(big_fish.options.len(), 3);
-
-        let golden_idol = events_for_act(1)
-            .into_iter()
-            .find(|event| event.name == "Golden Idol")
-            .expect("missing Golden Idol");
-        assert!(matches!(golden_idol.options[0].effect, crate::events::EventEffect::GoldenIdolTake));
-
-        let we_meet_again = shrine_events()
-            .into_iter()
-            .find(|event| event.name == "WeMeetAgain")
-            .expect("missing WeMeetAgain shrine");
-        assert_eq!(we_meet_again.options.len(), 4);
-    }
 }

@@ -1,4 +1,5 @@
 //! Bag of Marbles: Apply 1 Vulnerable to ALL enemies at combat start.
+//! Source: decompiled/java-src/com/megacrit/cardcrawl/relics/BagOfMarbles.java.
 
 use crate::effects::declarative::{Effect, SimpleEffect, Target, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};

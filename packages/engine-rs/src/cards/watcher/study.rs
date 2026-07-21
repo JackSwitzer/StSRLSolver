@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // ---- Uncommon: Study ---- (cost 2, power, add Insight to draw at end of turn; upgrade: cost 1)
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Study.java
+    // Study installs one stack; StudyPower owns the end-turn random insertion.
     insert(cards, CardDef {
         id: "Study", name: "Study", card_type: CardType::Power,
         target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: -1,

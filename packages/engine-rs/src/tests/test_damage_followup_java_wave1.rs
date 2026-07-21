@@ -38,8 +38,9 @@ fn sadistic_nature_deals_damage_when_player_applies_a_debuff() {
 }
 
 #[test]
-fn the_specimen_uses_combat_rng_instead_of_always_picking_first_alive_enemy() {
-    // Java oracle: decompiled/java-src/com/megacrit/cardcrawl/relics/TheSpecimen.java
+fn the_specimen_uses_card_random_rng_instead_of_always_picking_first_alive_enemy() {
+    // TheSpecimen.java queues ApplyPowerToRandomEnemyAction, whose update calls
+    // MonsterGroup.getRandomMonster with AbstractDungeon.cardRandomRng.
     let mut hit_left = false;
     let mut hit_right = false;
 
@@ -58,7 +59,14 @@ fn the_specimen_uses_combat_rng_instead_of_always_picking_first_alive_enemy() {
 
         engine.state.enemies[1].entity.set_status(sid::POISON, 7);
         engine.state.enemies[1].entity.hp = 0;
+        let counters_before = engine.rng_counters();
         engine.finalize_enemy_death(1);
+
+        assert_eq!(
+            engine.rng_counters()["cardRandom"],
+            counters_before["cardRandom"] + 1
+        );
+        assert_eq!(engine.rng_counters()["shuffle"], counters_before["shuffle"]);
 
         hit_left |= engine.state.enemies[0].entity.status(sid::POISON) == 7;
         hit_right |= engine.state.enemies[2].entity.status(sid::POISON) == 7;
@@ -73,6 +81,36 @@ fn the_specimen_uses_combat_rng_instead_of_always_picking_first_alive_enemy() {
 }
 
 #[test]
+fn corpse_explosion_resolves_before_the_specimen_selects_a_target() {
+    // AbstractMonster.die invokes CorpseExplosionPower.onDeath before relic
+    // onMonsterDeath callbacks. Its queued DamageAllEnemiesAction therefore
+    // kills the last target before The Specimen's later
+    // ApplyPowerToRandomEnemyAction executes; no random roll is consumed.
+    // Java: monsters/AbstractMonster.java, powers/CorpseExplosionPower.java,
+    // relics/TheSpecimen.java, and actions/common/ApplyPowerToRandomEnemyAction.java.
+    let mut state = combat_state_with(
+        make_deck(&["Strike"]),
+        vec![
+            enemy_no_intent("JawWorm", 10, 10),
+            enemy_no_intent("Cultist", 10, 10),
+        ],
+        3,
+    );
+    state.relics.push("The Specimen".to_string());
+    let mut engine = engine_with_state(state);
+    engine.state.enemies[0].entity.set_status(sid::POISON, 5);
+    engine.state.enemies[0].entity.set_status(sid::CORPSE_EXPLOSION, 1);
+    engine.state.enemies[0].entity.hp = 0;
+    let card_random_before = engine.rng_counters()["cardRandom"];
+
+    engine.finalize_enemy_death(0);
+
+    assert_eq!(engine.state.enemies[1].entity.hp, 0);
+    assert_eq!(engine.state.enemies[1].entity.status(sid::POISON), 0);
+    assert_eq!(engine.rng_counters()["cardRandom"], card_random_before);
+}
+
+#[test]
 fn preserved_insect_reduces_all_elite_enemies_to_seventy_five_percent_of_max_hp() {
     // Java oracle: decompiled/java-src/com/megacrit/cardcrawl/relics/PreservedInsect.java
     let mut state = combat_state_with(
@@ -80,6 +118,7 @@ fn preserved_insect_reduces_all_elite_enemies_to_seventy_five_percent_of_max_hp(
         vec![
             enemy_no_intent("Sentry", 40, 40),
             enemy_no_intent("Sentry", 36, 36),
+            enemy_no_intent("Sentry", 20, 40),
         ],
         3,
     );
@@ -89,6 +128,7 @@ fn preserved_insect_reduces_all_elite_enemies_to_seventy_five_percent_of_max_hp(
 
     assert_eq!(engine.state.enemies[0].entity.hp, 30);
     assert_eq!(engine.state.enemies[1].entity.hp, 27);
+    assert_eq!(engine.state.enemies[2].entity.hp, 20);
 }
 
 #[test]
@@ -233,18 +273,19 @@ fn girya_applies_strength_from_lift_counter_on_combat_start() {
 }
 
 #[test]
-fn slavers_collar_grants_one_extra_energy_on_boss_turn_start() {
-    // Java oracle: decompiled/java-src/com/megacrit/cardcrawl/relics/SlaversCollar.java
-    let mut state = combat_state_with(
-        make_deck(&["Strike"]),
-        vec![enemy_no_intent("Hexaghost", 30, 30)],
-        3,
-    );
-    state.relics.push("SlaversCollar".to_string());
-
-    let engine = engine_with_state(state);
-
-    assert_eq!(engine.state.energy, 4);
+fn slavers_collar_changes_master_energy_only_for_elite_and_boss_combats() {
+    // SlaversCollar.beforeEnergyPrep increments energyMaster for eliteTrigger
+    // or a BOSS enemy, and onVictory removes that temporary increment.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/SlaversCollar.java
+    for (enemy, expected) in [("JawWorm", 3), ("GremlinNob", 4), ("Hexaghost", 4)] {
+        let mut run = crate::run::RunEngine::new(42, 0);
+        run.run_state.relics.push("SlaversCollar".to_string());
+        run.run_state.relic_flags.rebuild(&run.run_state.relics);
+        run.debug_enter_specific_combat(&[enemy]);
+        let combat = run.get_combat_engine().expect("combat");
+        assert_eq!(combat.state.max_energy, expected, "{enemy}");
+        assert_eq!(combat.state.energy, expected, "{enemy}");
+    }
 }
 
 #[test]

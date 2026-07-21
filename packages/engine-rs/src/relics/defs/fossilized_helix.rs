@@ -1,4 +1,5 @@
 //! Fossilized Helix: 1 Buffer at combat start.
+//! Source: decompiled/java-src/com/megacrit/cardcrawl/relics/FossilizedHelix.java.
 
 use crate::effects::declarative::{Effect, SimpleEffect, Target, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
@@ -6,6 +7,7 @@ use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::status_ids::sid;
 
 static EFFECTS: [Effect; 1] = [
+    // FossilizedHelix.java::atBattleStart applies exactly one BufferPower.
     Effect::Simple(SimpleEffect::AddStatus(Target::Player, sid::BUFFER, AmountSource::Fixed(1))),
 ];
 
@@ -19,7 +21,7 @@ static TRIGGERS: [TriggeredEffect; 1] = [
 ];
 
 pub static DEF: EntityDef = EntityDef {
-    id: "Fossilized Helix",
+    id: "FossilizedHelix",
     name: "Fossilized Helix",
     kind: EntityKind::Relic,
     triggers: &TRIGGERS,

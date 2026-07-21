@@ -150,6 +150,77 @@ mod interaction_tests {
             "Block should be retained with Barricade active");
     }
 
+    #[test]
+    fn barricade_card_installs_once_and_retains_block_across_turns() {
+        // Source: Barricade.java applies BarricadePower only if no power with
+        // ID "Barricade" exists; its upgrade changes only the cost from 3 to 2.
+        let mut engine = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 50, 50)],
+            10,
+        );
+        force_player_turn(&mut engine);
+        engine.state.hand = make_deck(&["Barricade", "Barricade+", "Defend"]);
+
+        assert!(play_self(&mut engine, "Barricade"));
+        assert_eq!(engine.state.player.status(sid::BARRICADE), 1);
+        assert_eq!(engine.state.energy, 7);
+
+        assert!(play_self(&mut engine, "Barricade+"));
+        assert_eq!(engine.state.player.status(sid::BARRICADE), 1);
+        assert_eq!(engine.state.energy, 5);
+
+        assert!(play_self(&mut engine, "Defend"));
+        assert_eq!(engine.state.player.block, 5);
+        end_turn(&mut engine);
+
+        assert_eq!(engine.state.player.block, 5);
+        assert_eq!(discard_prefix_count(&engine, "Barricade"), 0);
+        assert_eq!(exhaust_prefix_count(&engine, "Barricade"), 0);
+    }
+
+    #[test]
+    fn berserk_variants_apply_self_vulnerable_and_gain_energy_next_turn() {
+        // Sources: Berserk.java applies 2 Vulnerable (1 upgraded) and one
+        // BerserkPower; BerserkPower.java gains its amount at turn start.
+        for (card_id, vulnerable_on_play, vulnerable_after_round) in
+            [("Berserk", 2, 1), ("Berserk+", 1, 0)]
+        {
+            let mut engine = engine_without_start(
+                Vec::new(),
+                vec![enemy_no_intent("JawWorm", 50, 50)],
+                3,
+            );
+            force_player_turn(&mut engine);
+            engine.state.hand = make_deck(&[card_id]);
+
+            assert!(play_self(&mut engine, card_id));
+            assert_eq!(engine.state.player.status(sid::VULNERABLE), vulnerable_on_play);
+            assert_eq!(engine.state.player.status(sid::BERSERK), 1);
+            assert_eq!(engine.state.energy, 3);
+
+            end_turn(&mut engine);
+
+            assert_eq!(engine.state.player.status(sid::VULNERABLE), vulnerable_after_round);
+            assert_eq!(engine.state.player.status(sid::BERSERK), 1);
+            assert_eq!(engine.state.energy, 4);
+        }
+
+        // VulnerablePower is a DEBUFF even when Berserk applies it to self.
+        let mut artifact = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 50, 50)],
+            3,
+        );
+        force_player_turn(&mut artifact);
+        artifact.state.player.set_status(sid::ARTIFACT, 1);
+        artifact.state.hand = make_deck(&["Berserk"]);
+        assert!(play_self(&mut artifact, "Berserk"));
+        assert_eq!(artifact.state.player.status(sid::ARTIFACT), 0);
+        assert_eq!(artifact.state.player.status(sid::VULNERABLE), 0);
+        assert_eq!(artifact.state.player.status(sid::BERSERK), 1);
+    }
+
     // =========================================================================
     // 6b. Without Barricade, block decays
     // =========================================================================

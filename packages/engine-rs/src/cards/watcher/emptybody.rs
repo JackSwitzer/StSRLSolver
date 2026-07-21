@@ -1,6 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+    // Java queues block before changing to Neutral; upgrade adds 3 block.
+    // decompiled/java-src/com/megacrit/cardcrawl/cards/purple/EmptyBody.java
     insert(cards, CardDef {
                 id: "EmptyBody", name: "Empty Body", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 7,

@@ -1,6 +1,8 @@
 use super::prelude::*;
 
 static EFFECTS: [E; 1] = [
+    // Source: reference/extracted/methods/potion/PoisonPotion.java. The potion
+    // applies PoisonPower to its selected target at constant potency six.
     E::Simple(SE::AddStatus(T::SelectedEnemy, sid::POISON, A::PotionPotency)),
 ];
 

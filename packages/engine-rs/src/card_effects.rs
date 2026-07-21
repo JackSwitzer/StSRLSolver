@@ -11,18 +11,24 @@ use crate::effects::types::DamageModifier;
 use crate::status_ids::sid;
 
 fn consume_pen_nib_for_attack(engine: &mut CombatEngine) -> bool {
-    if !engine.state.has_relic("Pen Nib") {
+    let Some(relic_slot) = engine.state.relics.iter().position(|id| id == "Pen Nib") else {
         return false;
-    }
-
-    let counter = engine.state.player.status(sid::PEN_NIB_COUNTER);
+    };
+    let owner = crate::effects::runtime::EffectOwner::PlayerRelic {
+        slot: relic_slot as u16,
+    };
+    // Source: reference/extracted/methods/relic/PenNib.java
+    // AbstractRelic.counter persists across fights. Counter 9 means the next
+    // ATTACK has PenNibPower; playing it resets the relic counter to zero.
+    let counter = engine
+        .hidden_effect_value("Pen Nib", owner, 0)
+        .max(engine.state.player.status(sid::PEN_NIB_COUNTER));
+    let next = if counter >= 9 { 0 } else { counter + 1 };
+    let _ = engine.set_hidden_effect_value("Pen Nib", owner, 0, next);
+    engine.state.player.set_status(sid::PEN_NIB_COUNTER, next);
     if counter >= 9 {
-        engine.state.player.set_status(sid::PEN_NIB_COUNTER, 0);
         true
     } else {
-        engine.state
-            .player
-            .set_status(sid::PEN_NIB_COUNTER, counter + 1);
         false
     }
 }
@@ -40,14 +46,37 @@ fn pick_random_living_enemy(engine: &mut CombatEngine) -> Option<usize> {
     if living.is_empty() {
         None
     } else {
-        Some(living[engine.rng_gen_range(0..living.len())])
+        // AttackDamageRandomEnemyAction uses cardRandomRng and consumes a call
+        // even when the only possible range is random(0, 0).
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/AttackDamageRandomEnemyAction.java
+        let selected = engine
+            .card_random_rng
+            .random_int_range(0, (living.len() - 1) as i32) as usize;
+        Some(living[selected])
     }
 }
 
 fn extra_hits_allow_zero(card_id: &str) -> bool {
+    // SkewerAction and WhirlwindAction only queue hits when their final energy
+    // effect is positive; zero energy without Chemical X deals no damage.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/SkewerAction.java
+    // and actions/unique/WhirlwindAction.java.
     matches!(
         card_id,
-        "Barrage" | "Barrage+" | "Thunder Strike" | "Thunder Strike+"
+        "Barrage"
+            | "Barrage+"
+            | "Expunger"
+            | "Expunger+"
+            | "Finisher"
+            | "Finisher+"
+            | "Flechettes"
+            | "Flechettes+"
+            | "Skewer"
+            | "Skewer+"
+            | "Thunder Strike"
+            | "Thunder Strike+"
+            | "Whirlwind"
+            | "Whirlwind+"
     )
 }
 
@@ -70,6 +99,10 @@ pub(crate) fn execute_primary_attack(
         total_damage_bonus += engine.player_attack_base_damage(card, card_inst) - card.base_damage;
     }
 
+    // Shiv.java bakes the current AccuracyPower amount into baseDamage when a
+    // Shiv is constructed, while AccuracyPower updates existing Shivs whenever
+    // it is applied, stacked, drawn, or discarded. CardDef is immutable here,
+    // so adding the current amount at damage resolution is semantically equal.
     if card_id == "Shiv" || card_id == "Shiv+" {
         let accuracy = engine.state.player.status(sid::ACCURACY);
         if accuracy > 0 {
@@ -116,10 +149,6 @@ pub(crate) fn execute_primary_attack(
     let stance_mult = engine.state.stance.outgoing_mult();
 
     let double_damage = engine.state.player.status(sid::DOUBLE_DAMAGE) > 0;
-    if double_damage {
-        let dd = engine.state.player.status(sid::DOUBLE_DAMAGE);
-        engine.state.player.set_status(sid::DOUBLE_DAMAGE, dd - 1);
-    }
 
     match target {
         crate::effects::declarative::Target::SelectedEnemy => {
@@ -143,13 +172,9 @@ pub(crate) fn execute_primary_attack(
                     false,
                     enemy_intangible,
                 );
-                let block_return = engine.state.enemies[tidx].entity.status(sid::BLOCK_RETURN);
                 for _ in 0..hits {
                     let hp_dmg = engine.deal_player_attack_hit_to_enemy(tidx, dmg);
                     total_unblocked_damage += hp_dmg;
-                    if block_return > 0 && hp_dmg > 0 {
-                        engine.gain_block_player(block_return);
-                    }
                     if engine.state.enemies[tidx].entity.is_dead() {
                         enemy_killed = true;
                         break;
@@ -177,13 +202,9 @@ pub(crate) fn execute_primary_attack(
                     false,
                     enemy_intangible,
                 );
-                let block_return = engine.state.enemies[enemy_idx].entity.status(sid::BLOCK_RETURN);
                 for _ in 0..hits {
                     let hp_dmg = engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
                     total_unblocked_damage += hp_dmg;
-                    if block_return > 0 && hp_dmg > 0 {
-                        engine.gain_block_player(block_return);
-                    }
                     if engine.state.enemies[enemy_idx].entity.is_dead() {
                         enemy_killed = true;
                         break;
@@ -213,12 +234,8 @@ pub(crate) fn execute_primary_attack(
                     false,
                     enemy_intangible,
                 );
-                let block_return = engine.state.enemies[enemy_idx].entity.status(sid::BLOCK_RETURN);
-                let hp_dmg = engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
-                total_unblocked_damage += hp_dmg;
-                if block_return > 0 && hp_dmg > 0 {
-                    engine.gain_block_player(block_return);
-                }
+            let hp_dmg = engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
+            total_unblocked_damage += hp_dmg;
                 if engine.state.enemies[enemy_idx].entity.is_dead() {
                     enemy_killed = true;
                 }
@@ -226,7 +243,7 @@ pub(crate) fn execute_primary_attack(
         }
         crate::effects::declarative::Target::Player | crate::effects::declarative::Target::SelfEntity => {
             for _ in 0..hits {
-                engine.player_lose_hp(effective_base_damage);
+                engine.player_lose_hp_from_damage(effective_base_damage);
             }
         }
     }
@@ -241,15 +258,26 @@ pub(crate) fn execute_primary_attack(
 pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst: CardInstance, target_idx: i32) {
     let card_id = engine.card_registry.card_name(card_inst.def_id);
     // ---- X-cost: consume all remaining energy as X value + Chemical X bonus ----
+    // Sources: ChemicalX.java defines BOOST 2; CollectAction.java and
+    // ConjureBladeAction.java add exactly 2 when the player owns "Chemical X".
     let x_value = if card.cost == -1 {
-        let x = engine.state.energy;
+        let x = engine
+            .runtime_x_energy_override
+            .take()
+            .unwrap_or(engine.state.energy);
+        engine.runtime_last_x_energy_on_use = x;
         let x_is_free = card_inst.is_free()
             || (card.card_type == CardType::Attack
                 && engine.state.player.status(sid::NEXT_ATTACK_FREE) > 0)
             || (card.card_type == CardType::Skill
-                && engine.state.player.status(sid::CORRUPTION) > 0)
-            || engine.state.player.status(sid::BULLET_TIME) > 0;
-        if !x_is_free {
+                && engine.state.player.status(sid::CORRUPTION) > 0);
+        // MulticastAction only spends EnergyPanel.totalCount inside its
+        // `player.hasOrb()` branch. Playing Multi-Cast with no front orb is
+        // therefore a legal no-op that preserves all energy.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/MulticastAction.java
+        let multi_cast_without_orb = matches!(card_id, "Multi-Cast" | "Multi-Cast+")
+            && engine.state.orb_slots.occupied_count() == 0;
+        if !x_is_free && !multi_cast_without_orb {
             engine.state.energy = 0;
         }
         x + if engine.state.has_relic("Chemical X") || engine.state.has_relic("ChemicalX") {
@@ -258,6 +286,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
             0
         }
     } else {
+        engine.runtime_last_x_energy_on_use = 0;
         0
     };
 
@@ -268,7 +297,8 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         false
     };
 
-    // ---- Vigor (consumed on first attack hit) ----
+    // ---- Vigor (applies to the full next Attack, then is consumed) ----
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/VigorPower.java
     let vigor = if card.card_type == CardType::Attack {
         let v = engine.state.player.status(sid::VIGOR);
         if v > 0 {
@@ -291,7 +321,9 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         total_damage_bonus += engine.player_attack_base_damage(card, card_inst) - card.base_damage;
     }
 
-    // Accuracy: +N damage to Shiv cards
+    // AccuracyPower updates every existing Shiv to 4/6 + its current amount;
+    // immutable CardDefs represent that as the same play-time damage bonus.
+    // Java: cards/tempCards/Shiv.java and powers/AccuracyPower.java.
     if card_id == "Shiv" || card_id == "Shiv+" {
         let accuracy = engine.state.player.status(sid::ACCURACY);
         if accuracy > 0 {
@@ -309,20 +341,6 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         )
     }) && !engine.state.draw_pile.is_empty();
 
-    // ---- Perseverance: scaling block bonus from retaining ----
-    let perseverance_block_bonus = if card.runtime_triggers().iter().any(|trigger| {
-        matches!(
-            trigger,
-            crate::effects::types::CardRuntimeTrigger::OnRetain(
-                crate::effects::types::OnRetainRule::GrowBlock
-            )
-        )
-    }) {
-        engine.state.player.status(sid::PERSEVERANCE_BONUS)
-    } else {
-        0
-    };
-
     // ---- Damage ----
     // Track damage dealt for Wallop (block_from_damage) and Reaper (heal)
     let mut total_unblocked_damage = 0i32;
@@ -338,6 +356,8 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         enemy_killed: false,
         hand_size_at_play: engine.state.hand.len(),
         last_bulk_count: 0,
+        last_drawn_card_types: Vec::new(),
+        deferred_manual_discards: Vec::new(),
     };
 
     // Skip generic damage for cards that use damage_random_x_times (they handle their own hits)
@@ -360,7 +380,16 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
 
         // X-cost attacks: Whirlwind = X hits AoE, Skewer = X hits single
         let hits = if let Some(amount_src) = card.declared_extra_hits() {
-            crate::effects::interpreter::resolve_card_amount(engine, &pre_damage_ctx, &amount_src).max(1)
+            let resolved = crate::effects::interpreter::resolve_card_amount(
+                engine,
+                &pre_damage_ctx,
+                &amount_src,
+            );
+            if resolved <= 0 && extra_hits_allow_zero(card_id) {
+                0
+            } else {
+                resolved.max(1)
+            }
         } else if card.uses_x_cost() && card.cost == -1 {
             x_value
         } else if card.uses_multi_hit_hint() && card.base_magic > 0 {
@@ -374,15 +403,12 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         let weak_paper_crane = engine.state.has_relic("Paper Crane");
         let stance_mult = engine.state.stance.outgoing_mult();
 
-        // DoubleDamage (Phantasmal Killer, Double Damage potion): consume and double
+        // DoubleDamagePower modifies every NORMAL attack for its full duration;
+        // powers/DoubleDamagePower.java decrements it only at end of round.
         let double_damage = engine.state.player.status(sid::DOUBLE_DAMAGE) > 0;
-        if double_damage {
-            let dd = engine.state.player.status(sid::DOUBLE_DAMAGE);
-            engine.state.player.set_status(sid::DOUBLE_DAMAGE, dd - 1);
-        }
 
         match card.target {
-            CardTarget::Enemy => {
+            CardTarget::Enemy | CardTarget::SelfAndEnemy => {
                 if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
                     let tidx = target_idx as usize;
                     let enemy_vuln = engine.state.enemies[tidx].entity.is_vulnerable();
@@ -402,15 +428,9 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
                         false, // flight
                         enemy_intangible,
                     );
-                    // Talk to the Hand: player gains block per hit ONLY on HP damage
-                    let block_return = engine.state.enemies[tidx].entity.status(sid::BLOCK_RETURN);
                     for _ in 0..hits {
                         let hp_dmg = engine.deal_player_attack_hit_to_enemy(tidx, dmg);
                         total_unblocked_damage += hp_dmg;
-                        // BlockReturn only triggers on actual HP damage
-                        if block_return > 0 && hp_dmg > 0 {
-                            engine.gain_block_player(block_return);
-                        }
                         if engine.state.enemies[tidx].entity.is_dead() {
                             enemy_killed = true;
                             break;
@@ -420,6 +440,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
             }
             CardTarget::AllEnemy => {
                 let living = engine.state.living_enemy_indices();
+                let mut damage_by_enemy = Vec::with_capacity(living.len());
                 for enemy_idx in living {
                     let enemy_vuln = engine.state.enemies[enemy_idx].entity.is_vulnerable();
                     let enemy_intangible = engine.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) > 0;
@@ -438,16 +459,22 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
                         false, // flight
                         enemy_intangible,
                     );
-                    let block_return = engine.state.enemies[enemy_idx].entity.status(sid::BLOCK_RETURN);
-                    for _ in 0..hits {
+                    damage_by_enemy.push((enemy_idx, dmg));
+                }
+                // WhirlwindAction and Dagger Spray queue one complete
+                // DamageAllEnemiesAction per hit. Resolve each whole AoE before
+                // starting the next rather than grouping all hits by target.
+                // Java: actions/unique/WhirlwindAction.java and
+                // cards/green/DaggerSpray.java.
+                for _ in 0..hits {
+                    for &(enemy_idx, dmg) in &damage_by_enemy {
+                        if engine.state.enemies[enemy_idx].entity.is_dead() {
+                            continue;
+                        }
                         let hp_dmg = engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
                         total_unblocked_damage += hp_dmg;
-                        if block_return > 0 && hp_dmg > 0 {
-                            engine.gain_block_player(block_return);
-                        }
                         if engine.state.enemies[enemy_idx].entity.is_dead() {
                             enemy_killed = true;
-                            break;
                         }
                     }
                 }
@@ -481,7 +508,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
             let dex = engine.state.player.dexterity();
             let frail = engine.state.player.is_frail();
             let block = damage::calculate_block(
-                (current_base_block + perseverance_block_bonus).max(0),
+                current_base_block.max(0),
                 dex, frail,
             );
             engine.gain_block_player(block * block_multiplier);
@@ -500,6 +527,8 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         enemy_killed,
         hand_size_at_play: engine.state.hand.len(),
         last_bulk_count: 0,
+        last_drawn_card_types: Vec::new(),
+        deferred_manual_discards: Vec::new(),
     };
     let prev_total_unblocked_damage = engine.runtime_card_total_unblocked_damage;
     let prev_enemy_killed = engine.runtime_card_enemy_killed;

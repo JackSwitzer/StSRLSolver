@@ -1,5 +1,5 @@
 use crate::state::EnemyCombatState;
-use crate::combat_types::mfx;
+use crate::combat_types::{fx, mfx, Intent};
 use super::{last_move, last_two_moves};
 use super::move_ids;
 use crate::status_ids::sid;
@@ -8,204 +8,561 @@ use crate::status_ids::sid;
 // Act 2 Basic Enemies
 // =========================================================================
 
-pub(super) fn roll_chosen(enemy: &mut EnemyCombatState, _num: i32) {
-    let used_hex = enemy.move_history.iter().any(|&m| m == move_ids::CHOSEN_HEX);
+pub(super) fn roll_chosen(enemy: &mut EnemyCombatState, num: i32) {
+    let zap_damage = enemy.entity.status(sid::STARTING_DMG).max(18);
+    let debilitate_damage = enemy.entity.status(sid::STR_AMT).max(10);
+    let poke_damage = enemy.entity.status(sid::SLAP_DMG).max(5);
+    let high_ai = enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0;
 
-    // After first turn (Poke): use Hex
-    if !used_hex {
+    let poke = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::CHOSEN_POKE, poke_damage, 2, 0);
+    };
+
+    // Source: reference/extracted/methods/monster/Chosen.java (`getMove`).
+    if !high_ai && enemy.entity.status(sid::FIRST_TURN) > 0 {
+        enemy.entity.set_status(sid::FIRST_TURN, 0);
+        poke(enemy);
+        return;
+    }
+
+    if enemy.entity.status(sid::FIRST_MOVE) == 0 {
+        enemy.entity.set_status(sid::FIRST_MOVE, 1);
         enemy.set_move(move_ids::CHOSEN_HEX, 0, 0, 0);
         enemy.add_effect(mfx::HEX, 1);
         return;
     }
-    // After Hex: alternate Debilitate/Drain and Zap/Poke
-    if last_move(enemy, move_ids::CHOSEN_DEBILITATE) || last_move(enemy, move_ids::CHOSEN_DRAIN) {
-        // Attack turn: Zap (18) or Poke (5x2)
-        enemy.set_move(move_ids::CHOSEN_ZAP, 18, 1, 0);
+
+    if !last_move(enemy, move_ids::CHOSEN_DEBILITATE)
+        && !last_move(enemy, move_ids::CHOSEN_DRAIN)
+    {
+        if num < 50 {
+            enemy.set_move(move_ids::CHOSEN_DEBILITATE, debilitate_damage, 1, 0);
+            enemy.add_effect(mfx::VULNERABLE, 2);
+        } else {
+            enemy.set_move(move_ids::CHOSEN_DRAIN, 0, 0, 0);
+            enemy.add_effect(mfx::WEAK, 3);
+            enemy.add_effect(mfx::STRENGTH, 3);
+        }
+    } else if num < 40 {
+        enemy.set_move(move_ids::CHOSEN_ZAP, zap_damage, 1, 0);
     } else {
-        // Debuff turn: Debilitate (10 + Vuln 2) or Drain (Weak 3, +3 Str)
-        enemy.set_move(move_ids::CHOSEN_DEBILITATE, 10, 1, 0);
-        enemy.add_effect(mfx::VULNERABLE, 2);
+        poke(enemy);
     }
 }
 
 pub(super) fn roll_mugger(enemy: &mut EnemyCombatState, _num: i32) {
-    let turns = enemy.move_history.len();
-    if turns < 2 {
-        enemy.set_move(move_ids::MUGGER_MUG, 10, 1, 0);
-    } else if turns == 2 {
-        // SmokeBomb or BigSwipe. Use BigSwipe (more threatening)
-        enemy.set_move(move_ids::MUGGER_BIG_SWIPE, 16, 1, 0);
-    } else if last_move(enemy, move_ids::MUGGER_BIG_SWIPE) {
-        enemy.set_move(move_ids::MUGGER_SMOKE_BOMB, 0, 0, 11);
-    } else if last_move(enemy, move_ids::MUGGER_SMOKE_BOMB) {
-        enemy.set_move(move_ids::MUGGER_ESCAPE, 0, 0, 0);
-        enemy.is_escaping = true;
-    } else {
-        enemy.set_move(move_ids::MUGGER_MUG, 10, 1, 0);
+    // Source: reference/extracted/methods/monster/Mugger.java (`getMove`).
+    // Only AbstractMonster.init calls getMove; takeTurn directly sets every
+    // later intent without queueing RollMoveAction.
+    let swipe = enemy.entity.status(sid::STARTING_DMG).max(10);
+    enemy.set_move(move_ids::MUGGER_MUG, swipe, 1, 0);
+}
+
+pub fn advance_mugger_after_turn(
+    enemy: &mut EnemyCombatState,
+    ai_rng: &mut crate::seed::StsRandom,
+) {
+    // Source: reference/extracted/methods/monster/Mugger.java (`takeTurn`,
+    // `playSfx`). Unlike Looter, every attack voice uses aiRng.random(2).
+    let current = enemy.move_id;
+    enemy.move_history.push(current);
+    enemy.move_effects.clear();
+    let swipe = enemy.entity.status(sid::STARTING_DMG).max(10);
+    let big_swipe = enemy.entity.status(sid::STR_AMT).max(16);
+    let escape_block = enemy.entity.status(sid::BLOCK_AMT).max(11);
+
+    match current {
+        move_ids::MUGGER_MUG => {
+            let slash_count = enemy.entity.status(sid::ATTACK_COUNT);
+            let _ = ai_rng.random_int(2); // playSfx
+            if slash_count == 1 {
+                let _ = ai_rng.random_f32() < 0.6; // optional dialogue
+            }
+            enemy.entity.set_status(sid::ATTACK_COUNT, slash_count + 1);
+            if slash_count + 1 == 2 {
+                if ai_rng.random_f32() < 0.5 {
+                    enemy.set_move(move_ids::MUGGER_SMOKE_BOMB, 0, 0, escape_block);
+                } else {
+                    enemy.set_move(move_ids::MUGGER_BIG_SWIPE, big_swipe, 1, 0);
+                }
+            } else {
+                enemy.set_move(move_ids::MUGGER_MUG, swipe, 1, 0);
+            }
+        }
+        move_ids::MUGGER_BIG_SWIPE => {
+            let _ = ai_rng.random_int(2); // playSfx
+            enemy.entity.add_status(sid::ATTACK_COUNT, 1);
+            enemy.set_move(move_ids::MUGGER_SMOKE_BOMB, 0, 0, escape_block);
+        }
+        move_ids::MUGGER_SMOKE_BOMB => {
+            enemy.set_move(move_ids::MUGGER_ESCAPE, 0, 0, 0);
+        }
+        move_ids::MUGGER_ESCAPE => {
+            enemy.is_escaping = true;
+            enemy.entity.hp = 0;
+            enemy.set_move(move_ids::MUGGER_ESCAPE, 0, 0, 0);
+        }
+        _ => {}
     }
 }
 
-pub(super) fn roll_byrd(enemy: &mut EnemyCombatState, _num: i32) {
-    let is_flying = enemy.entity.status(sid::FLIGHT) > 0;
+pub(super) fn roll_byrd(
+    enemy: &mut EnemyCombatState,
+    num: i32,
+    ai_rng: &mut crate::seed::StsRandom,
+) {
+    let peck_damage = enemy.entity.status(sid::STARTING_DMG).max(1);
+    let peck_count = enemy.entity.status(sid::STR_AMT).max(5);
+    let swoop_damage = enemy.entity.status(sid::SLASH_DMG).max(12);
+    let headbutt_damage = enemy.entity.status(sid::HEAD_SLAM_DMG).max(3);
 
-    if !is_flying {
-        // Grounded: Headbutt then Fly Up
-        if last_move(enemy, move_ids::BYRD_STUNNED) {
-            enemy.set_move(move_ids::BYRD_HEADBUTT, 3, 1, 0);
+    let peck = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::BYRD_PECK, peck_damage, peck_count, 0);
+    };
+    let swoop = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::BYRD_SWOOP, swoop_damage, 1, 0);
+    };
+    let caw = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::BYRD_CAW, 0, 0, 0);
+        enemy.add_effect(mfx::STRENGTH, 1);
+    };
+
+    // Source: reference/extracted/methods/monster/Byrd.java (`getMove`).
+    // The opening roll ignores `num` but consumes a conditional 37.5% draw.
+    if enemy.entity.status(sid::FIRST_MOVE) > 0 {
+        enemy.entity.set_status(sid::FIRST_MOVE, 0);
+        if ai_rng.random_f32() < 0.375 {
+            caw(enemy);
         } else {
-            enemy.set_move(move_ids::BYRD_FLY_UP, 0, 0, 0);
-            enemy.entity.set_status(sid::FLIGHT, 3);
+            peck(enemy);
         }
-    } else {
-        // Flying: alternate Peck and Swoop
+        return;
+    }
+
+    if enemy.entity.status(sid::FLIGHT) <= 0 {
+        enemy.set_move(move_ids::BYRD_HEADBUTT, headbutt_damage, 1, 0);
+    } else if num < 50 {
         if last_two_moves(enemy, move_ids::BYRD_PECK) {
-            enemy.set_move(move_ids::BYRD_SWOOP, 12, 1, 0);
-        } else if last_move(enemy, move_ids::BYRD_SWOOP) {
-            enemy.set_move(move_ids::BYRD_PECK, 1, 5, 0);
+            if ai_rng.random_f32() < 0.4 {
+                swoop(enemy);
+            } else {
+                caw(enemy);
+            }
         } else {
-            enemy.set_move(move_ids::BYRD_PECK, 1, 5, 0);
+            peck(enemy);
+        }
+    } else if num < 70 {
+        if last_move(enemy, move_ids::BYRD_SWOOP) {
+            if ai_rng.random_f32() < 0.375 {
+                caw(enemy);
+            } else {
+                peck(enemy);
+            }
+        } else {
+            swoop(enemy);
+        }
+    } else if last_move(enemy, move_ids::BYRD_CAW) {
+        if ai_rng.random_f32() < 0.2857 {
+            swoop(enemy);
+        } else {
+            peck(enemy);
+        }
+    } else {
+        caw(enemy);
+    }
+}
+
+pub(super) fn roll_shelled_parasite(
+    enemy: &mut EnemyCombatState,
+    num: i32,
+    ai_rng: &mut crate::seed::StsRandom,
+) {
+    // Source: reference/extracted/methods/monster/ShelledParasite.java
+    // (`getMove`).
+    let double_damage = enemy.entity.status(sid::STARTING_DMG).max(6);
+    let fell_damage = enemy.entity.status(sid::STR_AMT).max(18);
+    let suck_damage = enemy.entity.status(sid::BLOCK_AMT).max(10);
+    let fell = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::SP_FELL, fell_damage, 1, 0);
+        enemy.add_effect(mfx::FRAIL, 2);
+        enemy.intent = Intent::AttackDebuff {
+            damage: fell_damage as i16,
+            hits: 1,
+            effects: fx::FRAIL,
+        };
+    };
+    let double_strike = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::SP_DOUBLE_STRIKE, double_damage, 2, 0);
+    };
+    let life_suck = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::SP_LIFE_SUCK, suck_damage, 1, 0);
+        enemy.add_effect(mfx::HEAL, suck_damage as i16);
+        enemy.intent = Intent::AttackBuff {
+            damage: suck_damage as i16,
+            hits: 1,
+            effects: 0,
+        };
+    };
+
+    if enemy.entity.status(sid::FIRST_MOVE) > 0 {
+        enemy.entity.set_status(sid::FIRST_MOVE, 0);
+        if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
+            fell(enemy);
+        } else if ai_rng.random_bool() {
+            double_strike(enemy);
+        } else {
+            life_suck(enemy);
+        }
+        return;
+    }
+
+    let mut roll = num;
+    loop {
+        if roll < 20 {
+            if !last_move(enemy, move_ids::SP_FELL) {
+                fell(enemy);
+                return;
+            }
+            roll = ai_rng.random_int_range(20, 99);
+        } else if roll < 60 {
+            if !last_two_moves(enemy, move_ids::SP_DOUBLE_STRIKE) {
+                double_strike(enemy);
+            } else {
+                life_suck(enemy);
+            }
+            return;
+        } else {
+            if !last_two_moves(enemy, move_ids::SP_LIFE_SUCK) {
+                life_suck(enemy);
+            } else {
+                double_strike(enemy);
+            }
+            return;
         }
     }
 }
 
-pub(super) fn roll_shelled_parasite(enemy: &mut EnemyCombatState, _num: i32) {
-    // Cycle: Double Strike (6x2), Life Suck (10), Fell (18 + Frail 2)
-    if last_move(enemy, move_ids::SP_DOUBLE_STRIKE) {
-        enemy.set_move(move_ids::SP_LIFE_SUCK, 10, 1, 0);
-        enemy.add_effect(mfx::HEAL, 10);
-    } else if last_move(enemy, move_ids::SP_LIFE_SUCK) {
-        enemy.set_move(move_ids::SP_FELL, 18, 1, 0);
-        enemy.add_effect(mfx::FRAIL, 2);
+pub(super) fn roll_snake_plant(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/SnakePlant.java (`getMove`).
+    // A17 forbids Spores if either of the previous two moves was Spores;
+    // lower ascensions only inspect the immediately previous move.
+    let chomp_damage = enemy.entity.status(sid::STARTING_DMG).max(7);
+    let history_len = enemy.move_history.len();
+    let used_spores_two_moves_ago = history_len >= 2
+        && enemy.move_history[history_len - 2] == move_ids::SNAKE_SPORES;
+    let choose_chomp = if num < 65 {
+        !last_two_moves(enemy, move_ids::SNAKE_CHOMP)
+    } else if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
+        last_move(enemy, move_ids::SNAKE_SPORES) || used_spores_two_moves_ago
     } else {
-        enemy.set_move(move_ids::SP_DOUBLE_STRIKE, 6, 2, 0);
-    }
-}
+        last_move(enemy, move_ids::SNAKE_SPORES)
+    };
 
-pub(super) fn roll_snake_plant(enemy: &mut EnemyCombatState, _num: i32) {
-    // 65% Chomp (7x3), 35% Spores (Weak 2 + Frail 2). Anti-repeat.
-    if last_two_moves(enemy, move_ids::SNAKE_CHOMP) {
+    if choose_chomp {
+        enemy.set_move(move_ids::SNAKE_CHOMP, chomp_damage, 3, 0);
+    } else {
         enemy.set_move(move_ids::SNAKE_SPORES, 0, 0, 0);
-        enemy.add_effect(mfx::WEAK, 2);
         enemy.add_effect(mfx::FRAIL, 2);
-    } else if last_move(enemy, move_ids::SNAKE_SPORES) {
-        enemy.set_move(move_ids::SNAKE_CHOMP, 7, 3, 0);
-    } else {
-        enemy.set_move(move_ids::SNAKE_CHOMP, 7, 3, 0);
+        enemy.add_effect(mfx::WEAK, 2);
     }
 }
 
-pub(super) fn roll_centurion(enemy: &mut EnemyCombatState, _num: i32) {
-    // Cycle: Fury -> Slash -> Protect -> Fury -> ...
-    if last_move(enemy, move_ids::CENT_FURY) {
-        enemy.set_move(move_ids::CENT_SLASH, 12, 1, 0);
-    } else if last_move(enemy, move_ids::CENT_SLASH) {
-        enemy.set_move(move_ids::CENT_PROTECT, 0, 0, 15);
-        enemy.add_effect(mfx::BLOCK_ALL_ALLIES, 15);
-    } else {
-        enemy.set_move(move_ids::CENT_FURY, 6, 3, 0);
-    }
-}
+pub(super) fn roll_centurion(enemy: &mut EnemyCombatState, num: i32) {
+    let slash_damage = enemy.entity.status(sid::STARTING_DMG).max(12);
+    let fury_damage = enemy.entity.status(sid::STR_AMT).max(6);
+    let fury_hits = enemy.entity.status(sid::ATTACK_COUNT).max(3);
+    let block = enemy.entity.status(sid::BLOCK_AMT).max(15);
+    let has_ally = enemy.entity.status(sid::COUNT) > 1;
 
-pub(super) fn roll_mystic(enemy: &mut EnemyCombatState, _num: i32) {
-    // Cycle: Attack -> Attack -> Heal -> Attack -> Attack -> Buff -> repeat
-    if last_two_moves(enemy, move_ids::MYSTIC_ATTACK) {
-        // Alternate Heal / Buff after two attacks
-        let used_heal = enemy.entity.status(sid::MYSTIC_HEAL_USED);
-        if used_heal == 0 {
-            enemy.set_move(move_ids::MYSTIC_HEAL, 0, 0, 0);
-            enemy.add_effect(mfx::HEAL_LOWEST_ALLY, 16);
-            enemy.entity.set_status(sid::MYSTIC_HEAL_USED, 1);
+    let slash = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::CENT_SLASH, slash_damage, 1, 0);
+    };
+    let protect_or_fury = |enemy: &mut EnemyCombatState| {
+        if has_ally {
+            enemy.set_move(move_ids::CENT_PROTECT, 0, 0, 0);
+            enemy.add_effect(mfx::BLOCK_RANDOM_OTHER, block as i16);
         } else {
-            enemy.set_move(move_ids::MYSTIC_BUFF, 0, 0, 0);
-            enemy.add_effect(mfx::STRENGTH, 2);
-            enemy.entity.set_status(sid::MYSTIC_HEAL_USED, 0);
+            enemy.set_move(move_ids::CENT_FURY, fury_damage, fury_hits, 0);
         }
+    };
+
+    // Source: reference/extracted/methods/monster/Centurion.java (`getMove`).
+    if num >= 65
+        && !last_two_moves(enemy, move_ids::CENT_PROTECT)
+        && !last_two_moves(enemy, move_ids::CENT_FURY)
+    {
+        protect_or_fury(enemy);
+    } else if !last_two_moves(enemy, move_ids::CENT_SLASH) {
+        slash(enemy);
     } else {
-        enemy.set_move(move_ids::MYSTIC_ATTACK, 8, 1, 0);
+        protect_or_fury(enemy);
     }
 }
 
-pub(super) fn roll_book_of_stabbing(enemy: &mut EnemyCombatState, _num: i32) {
-    // Multi-stab with increasing count. Stab count increases each time multi-stab is used.
+pub(super) fn roll_healer(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/Healer.java (`getMove`).
+    // COUNT mirrors the summed missing HP of every living monster.
+    let damage = enemy.entity.status(sid::STARTING_DMG).max(8);
+    let strength = enemy.entity.status(sid::STR_AMT).max(2) as i16;
+    let heal = enemy.entity.status(sid::BLOCK_AMT).max(16) as i16;
+    let high_ai = enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0;
+    let need_to_heal = enemy.entity.status(sid::COUNT);
+
+    if need_to_heal > if high_ai { 20 } else { 15 }
+        && !last_two_moves(enemy, move_ids::MYSTIC_HEAL)
+    {
+        enemy.set_move(move_ids::MYSTIC_HEAL, 0, 0, 0);
+        enemy.add_effect(mfx::HEAL_ALL, heal);
+    } else if num >= 40
+        && if high_ai {
+            !last_move(enemy, move_ids::MYSTIC_ATTACK)
+        } else {
+            !last_two_moves(enemy, move_ids::MYSTIC_ATTACK)
+        }
+    {
+        enemy.set_move(move_ids::MYSTIC_ATTACK, damage, 1, 0);
+        enemy.add_effect(mfx::FRAIL, 2);
+    } else if !last_two_moves(enemy, move_ids::MYSTIC_BUFF) {
+        enemy.set_move(move_ids::MYSTIC_BUFF, 0, 0, 0);
+        enemy.add_effect(mfx::STRENGTH, strength);
+        enemy.add_effect(mfx::STRENGTH_ALL_ALLIES, strength);
+    } else {
+        enemy.set_move(move_ids::MYSTIC_ATTACK, damage, 1, 0);
+        enemy.add_effect(mfx::FRAIL, 2);
+    }
+}
+
+pub(super) fn roll_book_of_stabbing(enemy: &mut EnemyCombatState, num: i32) {
+    // Java: reference/extracted/methods/monster/BookOfStabbing.java (`getMove`).
     let stab_count = enemy.entity.status(sid::STAB_COUNT);
-    if last_two_moves(enemy, move_ids::BOOK_STAB) {
-        enemy.set_move(move_ids::BOOK_BIG_STAB, 21, 1, 0);
-        // Increment stab count on A18+
-    } else if last_move(enemy, move_ids::BOOK_BIG_STAB) {
+    let a18 = enemy.entity.status(sid::BLOCK_AMT) > 0;
+    let stab_damage = enemy.entity.status(sid::STARTING_DMG);
+    let big_stab_damage = enemy.entity.status(sid::STR_AMT);
+    if num < 15 && last_move(enemy, move_ids::BOOK_BIG_STAB) {
         let new_count = stab_count + 1;
         enemy.entity.set_status(sid::STAB_COUNT, new_count);
-        enemy.set_move(move_ids::BOOK_STAB, 6, new_count, 0);
+        enemy.set_move(move_ids::BOOK_STAB, stab_damage, new_count, 0);
+    } else if num < 15 || last_two_moves(enemy, move_ids::BOOK_STAB) {
+        if a18 {
+            enemy.entity.set_status(sid::STAB_COUNT, stab_count + 1);
+        }
+        enemy.set_move(move_ids::BOOK_BIG_STAB, big_stab_damage, 1, 0);
     } else {
         let new_count = stab_count + 1;
         enemy.entity.set_status(sid::STAB_COUNT, new_count);
-        enemy.set_move(move_ids::BOOK_STAB, 6, new_count, 0);
+        enemy.set_move(move_ids::BOOK_STAB, stab_damage, new_count, 0);
     }
 }
 
-pub(super) fn roll_gremlin_leader(enemy: &mut EnemyCombatState, _num: i32) {
-    // Rally (summon), Encourage (block + Str to all allies), Stab (6x3)
-    if last_move(enemy, move_ids::GL_RALLY) {
-        enemy.set_move(move_ids::GL_ENCOURAGE, 0, 0, 6);
-        enemy.add_effect(mfx::STRENGTH_ALL_ALLIES, 3);
-        enemy.add_effect(mfx::BLOCK_ALL_ALLIES, 6);
-    } else if last_move(enemy, move_ids::GL_ENCOURAGE) {
-        enemy.set_move(move_ids::GL_STAB, 6, 3, 0);
-    } else {
+pub(super) fn roll_gremlin_leader(
+    enemy: &mut EnemyCombatState,
+    num: i32,
+    ai_rng: &mut crate::seed::StsRandom,
+) {
+    // Source: reference/extracted/methods/monster/GremlinLeader.java
+    // (`getMove`). COUNT mirrors numAliveGremlins for this selection.
+    let alive = enemy.entity.status(sid::COUNT);
+    let strength = enemy.entity.status(sid::STR_AMT).max(3) as i16;
+    let block = enemy.entity.status(sid::BLOCK_AMT).max(6) as i16;
+    let rally = |enemy: &mut EnemyCombatState| {
         enemy.set_move(move_ids::GL_RALLY, 0, 0, 0);
+    };
+    let encourage = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::GL_ENCOURAGE, 0, 0, 0);
+        enemy.add_effect(mfx::STRENGTH, strength);
+        enemy.add_effect(mfx::STRENGTH_ALL_ALLIES, strength);
+        enemy.add_effect(mfx::BLOCK_ALL_ALLIES, block);
+    };
+    let stab = |enemy: &mut EnemyCombatState| {
+        enemy.set_move(move_ids::GL_STAB, 6, 3, 0);
+    };
+
+    if alive == 0 {
+        if num < 75 {
+            if !last_move(enemy, move_ids::GL_RALLY) { rally(enemy); } else { stab(enemy); }
+        } else if !last_move(enemy, move_ids::GL_STAB) {
+            stab(enemy);
+        } else {
+            rally(enemy);
+        }
+    } else if alive == 1 {
+        if num < 50 {
+            if !last_move(enemy, move_ids::GL_RALLY) {
+                rally(enemy);
+            } else {
+                let retry = ai_rng.random_int_range(50, 99);
+                roll_gremlin_leader(enemy, retry, ai_rng);
+            }
+        } else if num < 80 {
+            if !last_move(enemy, move_ids::GL_ENCOURAGE) { encourage(enemy); } else { stab(enemy); }
+        } else if !last_move(enemy, move_ids::GL_STAB) {
+            stab(enemy);
+        } else {
+            let retry = ai_rng.random_int_range(0, 80);
+            roll_gremlin_leader(enemy, retry, ai_rng);
+        }
+    } else if num < 66 {
+        if !last_move(enemy, move_ids::GL_ENCOURAGE) { encourage(enemy); } else { stab(enemy); }
+    } else if !last_move(enemy, move_ids::GL_STAB) {
+        stab(enemy);
+    } else {
+        encourage(enemy);
     }
 }
 
 pub(super) fn roll_taskmaster(enemy: &mut EnemyCombatState, _num: i32) {
-    // Always Scouring Whip (7 damage + Wound card to discard)
-    enemy.set_move(move_ids::TASK_SCOURING_WHIP, 7, 1, 0);
-    enemy.add_effect(mfx::WOUND, 1);
+    // Source: reference/extracted/methods/monster/Taskmaster.java (`getMove`).
+    let damage = enemy.entity.status(sid::STARTING_DMG).max(7);
+    let wounds = enemy.entity.status(sid::BLOCK_AMT).max(1) as i16;
+    enemy.set_move(move_ids::TASK_SCOURING_WHIP, damage, 1, 0);
+    enemy.add_effect(mfx::WOUND, wounds);
+    if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
+        enemy.add_effect(mfx::STRENGTH, 1);
+    }
+    enemy.intent = Intent::AttackDebuff {
+        damage: damage as i16,
+        hits: 1,
+        effects: fx::WOUND,
+    };
 }
 
 pub(super) fn roll_spheric_guardian(enemy: &mut EnemyCombatState) {
-    // Pattern: Initial Block -> Frail Attack -> Big Attack -> Block Attack -> repeat
-    if last_move(enemy, move_ids::SPHER_INITIAL_BLOCK) {
-        enemy.set_move(move_ids::SPHER_FRAIL_ATTACK, 10, 1, 0);
+    // Source: reference/extracted/methods/monster/SphericGuardian.java (`getMove`).
+    let damage = enemy.entity.status(sid::STARTING_DMG).max(10);
+    if enemy.entity.status(sid::FIRST_MOVE) > 0 {
+        enemy.entity.set_status(sid::FIRST_MOVE, 0);
+        let activate_block = enemy.entity.status(sid::BLOCK_AMT).max(25);
+        enemy.set_move(move_ids::SPHER_INITIAL_BLOCK, 0, 0, activate_block);
+    } else if enemy.entity.status(sid::FIRST_TURN) > 0 {
+        enemy.entity.set_status(sid::FIRST_TURN, 0);
+        enemy.set_move(move_ids::SPHER_FRAIL_ATTACK, damage, 1, 0);
         enemy.add_effect(mfx::FRAIL, 5);
     } else if last_move(enemy, move_ids::SPHER_BIG_ATTACK) {
-        enemy.set_move(move_ids::SPHER_BLOCK_ATTACK, 10, 1, 15);
-    } else if last_move(enemy, move_ids::SPHER_BLOCK_ATTACK) || last_move(enemy, move_ids::SPHER_FRAIL_ATTACK) {
-        enemy.set_move(move_ids::SPHER_BIG_ATTACK, 10, 2, 0);
+        let harden_block = enemy.entity.status(sid::STR_AMT).max(15);
+        enemy.set_move(move_ids::SPHER_BLOCK_ATTACK, damage, 1, harden_block);
     } else {
-        enemy.set_move(move_ids::SPHER_BIG_ATTACK, 10, 2, 0);
+        enemy.set_move(move_ids::SPHER_BIG_ATTACK, damage, 2, 0);
     }
 }
 
-pub(super) fn roll_snecko(enemy: &mut EnemyCombatState, _num: i32) {
-    // First turn: Glare. Then alternate Tail (8 + Vuln 2) and Bite (15)
-    if last_move(enemy, move_ids::SNECKO_GLARE) || last_two_moves(enemy, move_ids::SNECKO_BITE) {
-        enemy.set_move(move_ids::SNECKO_TAIL, 8, 1, 0);
+pub(super) fn roll_snecko(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/Snecko.java (`getMove`).
+    // Glare is forced once. Afterwards low rolls use Tail, while high rolls
+    // use Bite unless two consecutive Bites force Tail.
+    if enemy.entity.status(sid::FIRST_MOVE) > 0 {
+        enemy.entity.set_status(sid::FIRST_MOVE, 0);
+        enemy.set_move(move_ids::SNECKO_GLARE, 0, 0, 0);
+        enemy.add_effect(mfx::CONFUSED, 1);
+    } else if num < 40 || last_two_moves(enemy, move_ids::SNECKO_BITE) {
+        let tail_damage = enemy.entity.status(sid::STR_AMT).max(8);
+        enemy.set_move(move_ids::SNECKO_TAIL, tail_damage, 1, 0);
+        if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
+            enemy.add_effect(mfx::WEAK, 2);
+        }
         enemy.add_effect(mfx::VULNERABLE, 2);
     } else {
-        enemy.set_move(move_ids::SNECKO_BITE, 15, 1, 0);
+        let bite_damage = enemy.entity.status(sid::STARTING_DMG).max(15);
+        enemy.set_move(move_ids::SNECKO_BITE, bite_damage, 1, 0);
     }
 }
 
 pub(super) fn roll_bear(enemy: &mut EnemyCombatState, _num: i32) {
-    // Bear Hug (debuff) -> Maul (18) -> Lunge (9 + 9 block) -> cycle
-    if last_move(enemy, move_ids::BEAR_HUG) {
-        enemy.set_move(move_ids::BEAR_MAUL, 18, 1, 0);
-    } else if last_move(enemy, move_ids::BEAR_MAUL) {
-        enemy.set_move(move_ids::BEAR_LUNGE, 9, 1, 9);
+    // BanditBear.getMove always selects the one-time Bear Hug opener. Later
+    // intents are installed directly by takeTurn and never call rollMove.
+    // Java: reference/extracted/methods/monster/BanditBear.java
+    enemy.set_move(move_ids::BEAR_HUG, 0, 0, 0);
+    enemy.add_effect(
+        mfx::DEX_DOWN,
+        enemy.entity.status(sid::BLOCK_AMT) as i16,
+    );
+}
+
+pub(crate) fn advance_bear_after_turn(enemy: &mut EnemyCombatState) {
+    // takeTurn case 2 sets Lunge, then cases 3 and 1 alternate Lunge/Maul.
+    // SetMoveAction does not consume aiRng.
+    // Java: reference/extracted/methods/monster/BanditBear.java
+    let completed_move = enemy.move_id;
+    enemy.move_history.push(completed_move);
+    enemy.move_effects.clear();
+    if completed_move == move_ids::BEAR_LUNGE {
+        enemy.set_move(
+            move_ids::BEAR_MAUL,
+            enemy.entity.status(sid::STARTING_DMG),
+            1,
+            0,
+        );
     } else {
-        enemy.set_move(move_ids::BEAR_HUG, 0, 0, 0);
-        enemy.add_effect(mfx::DEX_DOWN, 2);
+        enemy.set_move(
+            move_ids::BEAR_LUNGE,
+            enemy.entity.status(sid::STR_AMT),
+            1,
+            9,
+        );
     }
 }
 
+pub(super) fn roll_bandit_pointy(enemy: &mut EnemyCombatState, _num: i32) {
+    // BanditPointy.getMove always selects its two-hit attack.
+    // Java: reference/extracted/methods/monster/BanditPointy.java
+    enemy.set_move(
+        move_ids::POINTY_STAB,
+        enemy.entity.status(sid::STARTING_DMG),
+        2,
+        0,
+    );
+}
+
+pub(crate) fn advance_bandit_pointy_after_turn(enemy: &mut EnemyCombatState) {
+    // takeTurn repeats the same intent with SetMoveAction, not RollMoveAction.
+    // Java: reference/extracted/methods/monster/BanditPointy.java
+    enemy.move_history.push(enemy.move_id);
+    enemy.move_effects.clear();
+    enemy.set_move(
+        move_ids::POINTY_STAB,
+        enemy.entity.status(sid::STARTING_DMG),
+        2,
+        0,
+    );
+}
+
 pub(super) fn roll_bandit_leader(enemy: &mut EnemyCombatState, _num: i32) {
-    // Mock -> Agonizing Slash (10 + Weak 2) -> Cross Slash (15) -> cycle
-    if last_move(enemy, move_ids::BANDIT_MOCK) {
-        enemy.set_move(move_ids::BANDIT_AGONIZE, 10, 1, 0);
-        enemy.add_effect(mfx::WEAK, 2);
-    } else if last_move(enemy, move_ids::BANDIT_AGONIZE) {
-        enemy.set_move(move_ids::BANDIT_CROSS_SLASH, 15, 1, 0);
-    } else {
-        enemy.set_move(move_ids::BANDIT_MOCK, 0, 0, 0);
+    // BanditLeader.getMove always selects the one-time Mock opener. All later
+    // intents are installed by takeTurn through SetMoveAction.
+    // Java: reference/extracted/methods/monster/BanditLeader.java
+    enemy.set_move(move_ids::BANDIT_MOCK, 0, 0, 0);
+}
+
+pub(crate) fn advance_bandit_leader_after_turn(enemy: &mut EnemyCombatState) {
+    // Mock -> Agonizing Slash -> Cross Slash. Below A17, Cross returns to
+    // Agonizing Slash; at A17, it repeats once unless the last two were Cross.
+    // SetMoveAction does not consume aiRng.
+    // Java: reference/extracted/methods/monster/BanditLeader.java
+    let completed_move = enemy.move_id;
+    enemy.move_history.push(completed_move);
+    enemy.move_effects.clear();
+    match completed_move {
+        move_ids::BANDIT_MOCK | move_ids::BANDIT_CROSS_SLASH
+            if completed_move == move_ids::BANDIT_MOCK
+                || enemy.entity.status(sid::BLOCK_AMT) < 3
+                || last_two_moves(enemy, move_ids::BANDIT_CROSS_SLASH) =>
+        {
+            enemy.set_move(
+                move_ids::BANDIT_AGONIZE,
+                enemy.entity.status(sid::STR_AMT),
+                1,
+                0,
+            );
+            enemy.add_effect(
+                mfx::WEAK,
+                enemy.entity.status(sid::BLOCK_AMT) as i16,
+            );
+        }
+        _ => enemy.set_move(
+            move_ids::BANDIT_CROSS_SLASH,
+            enemy.entity.status(sid::STARTING_DMG),
+            1,
+            0,
+        ),
     }
 }
 
@@ -214,76 +571,91 @@ pub(super) fn roll_bandit_leader(enemy: &mut EnemyCombatState, _num: i32) {
 // =========================================================================
 
 pub(super) fn roll_bronze_automaton(enemy: &mut EnemyCombatState, _num: i32) {
-    let fd = { let v = enemy.entity.status(sid::FLAIL_DMG); if v > 0 { v } else { 7 } };
-    let bd = { let v = enemy.entity.status(sid::BEAM_DMG); if v > 0 { v } else { 45 } };
-    let sa = { let v = enemy.entity.status(sid::STR_AMT); if v > 0 { v } else { 3 } };
-    let ba = { let v = enemy.entity.status(sid::BLOCK_AMT); if v > 0 { v } else { 9 } };
-    if last_move(enemy, move_ids::BA_SPAWN_ORBS) || last_move(enemy, move_ids::BA_STUNNED) || last_move(enemy, move_ids::BA_BOOST) {
-        enemy.set_move(move_ids::BA_FLAIL, fd, 2, 0);
-    } else if last_move(enemy, move_ids::BA_FLAIL) {
-        let turns = enemy.move_history.len();
-        if turns >= 4 {
-            enemy.set_move(move_ids::BA_HYPER_BEAM, bd, 1, 0);
+    // Java: reference/extracted/methods/monster/BronzeAutomaton.java (`getMove`).
+    let flail = enemy.entity.status(sid::FLAIL_DMG);
+    let beam = enemy.entity.status(sid::BEAM_DMG);
+    let strength = enemy.entity.status(sid::STR_AMT);
+    let block = enemy.entity.status(sid::BLOCK_AMT);
+    if enemy.entity.status(sid::FIRST_TURN) > 0 {
+        enemy.entity.set_status(sid::FIRST_TURN, 0);
+        enemy.set_move(move_ids::BA_SPAWN_ORBS, 0, 0, 0);
+        return;
+    }
+    let num_turns = enemy.entity.status(sid::NUM_TURNS);
+    if num_turns == 4 {
+        enemy.entity.set_status(sid::NUM_TURNS, 0);
+        enemy.set_move(move_ids::BA_HYPER_BEAM, beam, 1, 0);
+        return;
+    }
+    if last_move(enemy, move_ids::BA_HYPER_BEAM) {
+        if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
+            enemy.set_move(move_ids::BA_BOOST, 0, 0, block);
+            enemy.add_effect(mfx::STRENGTH, strength as i16);
         } else {
-            enemy.set_move(move_ids::BA_BOOST, 0, 0, ba);
-            enemy.add_effect(mfx::STRENGTH, sa as i16);
+            enemy.set_move(move_ids::BA_STUNNED, 0, 0, 0);
         }
-    } else if last_move(enemy, move_ids::BA_HYPER_BEAM) {
-        enemy.set_move(move_ids::BA_STUNNED, 0, 0, 0);
-    } else {
-        enemy.set_move(move_ids::BA_FLAIL, fd, 2, 0);
+        return;
     }
+    if last_move(enemy, move_ids::BA_STUNNED)
+        || last_move(enemy, move_ids::BA_BOOST)
+        || last_move(enemy, move_ids::BA_SPAWN_ORBS)
+    {
+        enemy.set_move(move_ids::BA_FLAIL, flail, 2, 0);
+    } else {
+        enemy.set_move(move_ids::BA_BOOST, 0, 0, block);
+        enemy.add_effect(mfx::STRENGTH, strength as i16);
+    }
+    enemy.entity.set_status(sid::NUM_TURNS, num_turns + 1);
 }
 
-pub(super) fn roll_bronze_orb(enemy: &mut EnemyCombatState, _num: i32) {
-    // Stasis (first turn) -> Beam (8) / Support (12 block to Automaton)
-    if last_two_moves(enemy, move_ids::BO_BEAM) {
+pub(super) fn roll_bronze_orb(enemy: &mut EnemyCombatState, num: i32) {
+    // Java: reference/extracted/methods/monster/BronzeOrb.java (`getMove`).
+    if enemy.entity.status(sid::FIRST_MOVE) == 0 && num >= 25 {
+        enemy.entity.set_status(sid::FIRST_MOVE, 1);
+        enemy.set_move(move_ids::BO_STASIS, 0, 0, 0);
+        enemy.add_effect(mfx::STASIS, 1);
+    } else if num >= 70 && !last_two_moves(enemy, move_ids::BO_SUPPORT) {
         enemy.set_move(move_ids::BO_SUPPORT, 0, 0, 12);
-    } else if last_move(enemy, move_ids::BO_SUPPORT) {
+    } else if !last_two_moves(enemy, move_ids::BO_BEAM) {
         enemy.set_move(move_ids::BO_BEAM, 8, 1, 0);
     } else {
-        enemy.set_move(move_ids::BO_BEAM, 8, 1, 0);
+        enemy.set_move(move_ids::BO_SUPPORT, 0, 0, 12);
     }
 }
 
-pub(super) fn roll_champ(enemy: &mut EnemyCombatState, _num: i32) {
+pub(super) fn roll_champ(enemy: &mut EnemyCombatState, num: i32) {
     let num_turns = enemy.entity.status(sid::NUM_TURNS) + 1;
     enemy.entity.set_status(sid::NUM_TURNS, num_turns);
 
     let str_amt = enemy.entity.status(sid::STR_AMT).max(2);
-    let _forge_amt = enemy.entity.status(sid::FORGE_AMT).max(5);
-    let _block_amt = enemy.entity.status(sid::BLOCK_AMT).max(15);
+    let forge_amt = enemy.entity.status(sid::FORGE_AMT).max(5);
+    let block_amt = enemy.entity.status(sid::BLOCK_AMT).max(15);
     let slash_dmg = enemy.entity.status(sid::SLASH_DMG).max(16);
     let slap_dmg = enemy.entity.status(sid::SLAP_DMG).max(12);
 
-    let threshold_reached_now = enemy.entity.hp <= enemy.entity.max_hp / 2;
+    // Source: reference/extracted/methods/monster/Champ.java (`getMove`).
+    let threshold_reached_now = enemy.entity.hp < enemy.entity.max_hp / 2;
 
-    // Phase 2 trigger: Anger (remove debuffs, gain 3*strAmt Str)
     if threshold_reached_now && enemy.entity.status(sid::THRESHOLD_REACHED) == 0 {
         enemy.entity.set_status(sid::THRESHOLD_REACHED, 1);
         enemy.set_move(move_ids::CHAMP_ANGER, 0, 0, 0);
-        // Java: Anger gives 3*strAmt Strength (not strAmt)
         enemy.add_effect(mfx::STRENGTH, (str_amt * 3) as i16);
         enemy.add_effect(mfx::REMOVE_DEBUFFS, 1);
         return;
     }
 
-    // Phase 2: Execute spam
-    if enemy.entity.status(sid::THRESHOLD_REACHED) > 0 {
-        // Java: Execute (10x2) every turn if threshold reached.
-        // Uses lastMove and lastMoveBefore to check.
-        if !last_move(enemy, move_ids::CHAMP_EXECUTE) {
-            enemy.set_move(move_ids::CHAMP_EXECUTE, 10, 2, 0);
-        } else {
-            enemy.set_move(move_ids::CHAMP_EXECUTE, 10, 2, 0);
-        }
+    let history_len = enemy.move_history.len();
+    let last_move_before_execute = history_len >= 2
+        && enemy.move_history[history_len - 2] == move_ids::CHAMP_EXECUTE;
+    if enemy.entity.status(sid::THRESHOLD_REACHED) > 0
+        && !last_move(enemy, move_ids::CHAMP_EXECUTE)
+        && !last_move_before_execute
+    {
+        enemy.set_move(move_ids::CHAMP_EXECUTE, 10, 2, 0);
         return;
     }
 
-    // Phase 1: Java uses numTurns==4 for Taunt, then RNG-based selection.
-    // Deterministic MCTS: simplified cycle.
-    if num_turns == 4 {
-        // Taunt at turn 4 (Java)
+    if num_turns == 4 && enemy.entity.status(sid::THRESHOLD_REACHED) == 0 {
         enemy.set_move(move_ids::CHAMP_TAUNT, 0, 0, 0);
         enemy.add_effect(mfx::VULNERABLE, 2);
         enemy.add_effect(mfx::WEAK, 2);
@@ -291,17 +663,31 @@ pub(super) fn roll_champ(enemy: &mut EnemyCombatState, _num: i32) {
         return;
     }
 
-    if last_move(enemy, move_ids::CHAMP_FACE_SLAP) || last_move(enemy, move_ids::CHAMP_TAUNT) {
-        enemy.set_move(move_ids::CHAMP_HEAVY_SLASH, slash_dmg, 1, 0);
-    } else if last_move(enemy, move_ids::CHAMP_HEAVY_SLASH) {
-        // Gloat (gain strAmt Str)
+    let forge_times = enemy.entity.status(sid::FORGE_TIMES);
+    let forge_roll_max = if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
+        30
+    } else {
+        15
+    };
+    if !last_move(enemy, move_ids::CHAMP_DEFENSIVE)
+        && forge_times < 2
+        && num <= forge_roll_max
+    {
+        enemy.entity.set_status(sid::FORGE_TIMES, forge_times + 1);
+        enemy.set_move(move_ids::CHAMP_DEFENSIVE, 0, 0, block_amt);
+        enemy.add_effect(mfx::METALLICIZE, forge_amt as i16);
+    } else if !last_move(enemy, move_ids::CHAMP_GLOAT)
+        && !last_move(enemy, move_ids::CHAMP_DEFENSIVE)
+        && num <= 30
+    {
         enemy.set_move(move_ids::CHAMP_GLOAT, 0, 0, 0);
         enemy.add_effect(mfx::STRENGTH, str_amt as i16);
-    } else if last_move(enemy, move_ids::CHAMP_GLOAT) || last_move(enemy, move_ids::CHAMP_DEFENSIVE) {
+    } else if !last_move(enemy, move_ids::CHAMP_FACE_SLAP) && num <= 55 {
         enemy.set_move(move_ids::CHAMP_FACE_SLAP, slap_dmg, 1, 0);
-        // Java: Face Slap gives Frail 2 + Vulnerable 2
         enemy.add_effect(mfx::FRAIL, 2);
         enemy.add_effect(mfx::VULNERABLE, 2);
+    } else if !last_move(enemy, move_ids::CHAMP_HEAVY_SLASH) {
+        enemy.set_move(move_ids::CHAMP_HEAVY_SLASH, slash_dmg, 1, 0);
     } else {
         enemy.set_move(move_ids::CHAMP_FACE_SLAP, slap_dmg, 1, 0);
         enemy.add_effect(mfx::FRAIL, 2);
@@ -309,23 +695,40 @@ pub(super) fn roll_champ(enemy: &mut EnemyCombatState, _num: i32) {
     }
 }
 
-pub(super) fn roll_collector(enemy: &mut EnemyCombatState, _num: i32) {
+pub(super) fn roll_collector(enemy: &mut EnemyCombatState, num: i32) {
+    // Source: reference/extracted/methods/monster/TheCollector.java (`getMove`).
     let fd = { let v = enemy.entity.status(sid::FIREBALL_DMG); if v > 0 { v } else { 18 } };
     let sa = { let v = enemy.entity.status(sid::STR_AMT); if v > 0 { v } else { 3 } };
     let ba = { let v = enemy.entity.status(sid::BLOCK_AMT); if v > 0 { v } else { 15 } };
-    let turns = enemy.move_history.len();
-    if turns == 4 && !enemy.move_history.iter().any(|&m| m == move_ids::COLL_MEGA_DEBUFF) {
+    let mega = enemy.entity.status(sid::STARTING_DMG).max(3);
+    if enemy.entity.status(sid::FIRST_MOVE) > 0 {
+        enemy.set_move(move_ids::COLL_SPAWN, 0, 0, 0);
+        enemy.intent = crate::combat_types::Intent::Unknown;
+    } else if enemy.entity.status(sid::TURN_COUNT) >= 3
+        && enemy.entity.status(sid::USED_MEGA_DEBUFF) == 0
+    {
         enemy.set_move(move_ids::COLL_MEGA_DEBUFF, 0, 0, 0);
-        enemy.add_effect(mfx::VULNERABLE, 3);
-        enemy.add_effect(mfx::WEAK, 3);
-        enemy.add_effect(mfx::FRAIL, 3);
-    } else if last_two_moves(enemy, move_ids::COLL_FIREBALL) {
-        enemy.set_move(move_ids::COLL_BUFF, 0, 0, ba);
-        enemy.add_effect(mfx::STRENGTH, sa as i16);
-    } else if last_move(enemy, move_ids::COLL_BUFF) || last_move(enemy, move_ids::COLL_MEGA_DEBUFF) {
+        enemy.intent = crate::combat_types::Intent::Debuff { effects: 0 };
+        enemy.add_effect(mfx::WEAK, mega as i16);
+        enemy.add_effect(mfx::VULNERABLE, mega as i16);
+        enemy.add_effect(mfx::FRAIL, mega as i16);
+    } else if num <= 25
+        && enemy.entity.status(sid::COUNT) > 0
+        && !last_move(enemy, move_ids::COLL_REVIVE)
+    {
+        enemy.set_move(move_ids::COLL_REVIVE, 0, 0, 0);
+        enemy.intent = crate::combat_types::Intent::Unknown;
+    } else if num <= 70 && !last_two_moves(enemy, move_ids::COLL_FIREBALL) {
         enemy.set_move(move_ids::COLL_FIREBALL, fd, 1, 0);
+    } else if !last_move(enemy, move_ids::COLL_BUFF) {
+        enemy.set_move(move_ids::COLL_BUFF, 0, 0, ba);
+        enemy.intent = crate::combat_types::Intent::DefendBuff {
+            block: ba as i16,
+            effects: 0,
+        };
+        enemy.add_effect(mfx::STRENGTH, sa as i16);
+        enemy.add_effect(mfx::STRENGTH_ALL_ALLIES, sa as i16);
     } else {
         enemy.set_move(move_ids::COLL_FIREBALL, fd, 1, 0);
     }
 }
-

@@ -1,4 +1,7 @@
 //! Meat on the Bone: Heal 12 HP on victory if HP <= 50%.
+//!
+//! Source: `reference/extracted/methods/relic/MeatOnTheBone.java` (`onTrigger`
+//! requires positive HP at or below maxHealth / 2.0, then calls `heal(12)`).
 
 use crate::effects::declarative::{Effect, SimpleEffect, Target, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};

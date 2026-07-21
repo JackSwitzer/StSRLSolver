@@ -1,5 +1,9 @@
 use crate::cards::prelude::*;
 
+// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/BowlingBash.java
+//   ctor: cost 1 ATTACK targeting ENEMY with baseDamage 7.
+//   use(): queues one damage hit on the selected target per non-dead/non-escaped monster.
+//   upgrade(): upgradeDamage(3), producing 10 damage per hit.
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Common Watcher Cards ----
     insert(cards, CardDef {

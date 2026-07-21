@@ -1,9 +1,12 @@
 use crate::actions::Action;
 use crate::cards::CardType;
 use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
+use crate::run::{GameAction, RunEngine, RunPhase, ShopState};
 use crate::state::Stance;
 use crate::status_ids::sid;
-use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_state, make_deck};
+use crate::tests::support::{
+    combat_state_with, enemy_no_intent, engine_with_state, make_deck, TEST_SEED,
+};
 
 fn use_potion(engine: &mut crate::engine::CombatEngine, potion_idx: usize, target_idx: i32) {
     engine.execute_action(&Action::UsePotion {
@@ -64,6 +67,64 @@ const COLORLESS_CHOICES: &[&str] = &[
     "Trip",
     "Violence",
 ];
+
+fn has_discard_potion_action(engine: &RunEngine, slot: usize) -> bool {
+    engine.get_legal_actions().iter().any(
+        |action| matches!(action, GameAction::DiscardPotion(action_slot) if *action_slot == slot),
+    )
+}
+
+fn has_noncombat_use_potion_action(engine: &RunEngine, slot: usize) -> bool {
+    engine
+        .get_legal_actions()
+        .contains(&GameAction::UsePotion(slot))
+}
+
+#[test]
+fn blood_potion_heals_twenty_percent_at_every_ascension_and_bark_doubles_it() {
+    // Source: reference/extracted/methods/potion/BloodPotion.java. getPotency
+    // always returns 20; use floors maxHealth * potency / 100 before healing.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.player.max_hp = 81;
+    engine.state.player.hp = 20;
+    engine.state.potions[0] = "BloodPotion".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.hp, 36);
+    assert!(engine.state.potions[0].is_empty());
+
+    engine.state.player.hp = 20;
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "Blood Potion".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.hp, 52);
+    assert!(engine.state.potions[0].is_empty());
+}
+
+#[test]
+fn focus_potion_grants_two_focus_and_bark_doubles_it() {
+    // Source: reference/extracted/methods/potion/FocusPotion.java. getPotency
+    // always returns two; AbstractPotion.getPotency doubles it for Sacred Bark.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.potions[0] = "FocusPotion".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::FOCUS), 2);
+    assert!(engine.state.potions[0].is_empty());
+
+    engine.state.player.set_status(sid::FOCUS, 0);
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "Focus Potion".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::FOCUS), 4);
+    assert!(engine.state.potions[0].is_empty());
+}
 
 #[test]
 fn generation_potions_use_engine_action_path_and_consume_slot() {
@@ -206,6 +267,46 @@ fn distilled_chaos_moves_top_draw_cards_via_action_path() {
 }
 
 #[test]
+fn distilled_chaos_preselects_random_targets_and_retries_after_shuffle() {
+    // Source-derived (verify potion/DistilledChaosPotion): use() queues three
+    // PlayTopCardActions with targets selected through cardRandomRng, while
+    // PlayTopCardAction shuffles discard and retries when draw is empty.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/DistilledChaosPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/MonsterGroup.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/PlayTopCardAction.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike", "Strike", "Strike"]),
+        vec![
+            enemy_no_intent("JawWorm", 40, 40),
+            enemy_no_intent("Cultist", 40, 40),
+        ],
+        3,
+    ));
+    engine.state.hand.clear();
+    engine.state.draw_pile.clear();
+    engine.state.discard_pile = make_deck(&["Strike", "Strike", "Strike"]);
+    engine.state.potions[0] = "DistilledChaos".to_string();
+
+    let counter_before = engine.card_random_rng.counter;
+    let mut oracle = engine.card_random_rng.clone();
+    let mut expected_hits = [0; 2];
+    for _ in 0..3 {
+        expected_hits[oracle.random_int_range(0, 1) as usize] += 1;
+    }
+
+    use_potion(&mut engine, 0, -1);
+
+    assert_eq!(engine.card_random_rng.counter, counter_before + 3);
+    assert_eq!(engine.card_random_rng.counter, oracle.counter);
+    assert_eq!(engine.state.enemies[0].entity.hp, 40 - expected_hits[0] * 6);
+    assert_eq!(engine.state.enemies[1].entity.hp, 40 - expected_hits[1] * 6);
+    assert!(engine.state.draw_pile.is_empty());
+    assert_eq!(engine.state.discard_pile.len(), 3);
+    assert_eq!(engine.state.energy, 3, "autoplayed cards are free");
+    assert!(engine.state.potions[0].is_empty());
+}
+
+#[test]
 fn liquid_memories_returns_discard_cards_via_action_path() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame"]),
@@ -230,7 +331,50 @@ fn liquid_memories_returns_discard_cards_via_action_path() {
 }
 
 #[test]
-fn entropic_brew_fills_other_empty_slots_and_then_consumes_itself() {
+fn liquid_memories_auto_return_preserves_discard_order_and_hand_limit() {
+    // Source-derived (verify potion/LiquidMemories): Sacred Bark doubles the
+    // constant-one potency. When the discard has no more than that many cards,
+    // BetterDiscardPileToHandAction iterates CardGroup.group in stored order;
+    // each moved card costs zero this turn and the ten-card hand cap leaves
+    // later cards in the discard pile.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/LiquidMemories.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/BetterDiscardPileToHandAction.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike", "Defend", "Bash"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand = make_deck(&[
+        "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend",
+        "Defend",
+    ]);
+    engine.state.discard_pile = make_deck(&["Strike", "Bash"]);
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "LiquidMemories".to_string();
+
+    use_potion(&mut engine, 0, -1);
+
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert_eq!(engine.state.hand.len(), 10);
+    assert_eq!(hand_names(&engine).last().copied(), Some("Strike"));
+    assert_eq!(engine.state.hand.last().expect("returned card").cost, 0);
+    assert_eq!(engine.state.discard_pile.len(), 1);
+    assert_eq!(
+        engine
+            .card_registry
+            .card_name(engine.state.discard_pile[0].def_id),
+        "Bash"
+    );
+}
+
+#[test]
+fn entropic_brew_rolls_for_every_slot_and_refills_its_consumed_slot() {
+    // Source-derived (verify potion/EntropicBrew): combat use rolls one limited
+    // random potion per potion slot before queued ObtainPotionActions resolve.
+    // The UI destroys the brew first, so its own slot is available to refill.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/EntropicBrew.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/panels/PotionPopUp.java
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike", "Defend", "Strike", "Defend", "Strike"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -239,16 +383,43 @@ fn entropic_brew_fills_other_empty_slots_and_then_consumes_itself() {
     engine.state.potions = vec![String::new(); 3];
     engine.state.potions[0] = "EntropicBrew".to_string();
     engine.state.potions[2] = "Fire Potion".to_string();
+    let potion_rng_before = engine.potion_rng.counter;
 
     use_potion(&mut engine, 0, -1);
 
-    assert!(engine.state.potions[0].is_empty(), "used slot should be consumed after resolution");
-    assert_eq!(engine.state.potions[1], "Block Potion");
+    assert!(engine.state.potions.iter().all(|potion| !potion.is_empty()));
     assert_eq!(engine.state.potions[2], "Fire Potion");
+    assert!(engine.state.potions[..2].iter().all(|potion| {
+        crate::potions::defs::entropic_brew::is_watcher_limited_potion(potion)
+    }));
+    assert!(engine.potion_rng.counter >= potion_rng_before + 9);
 }
 
 #[test]
-fn elixir_uses_runtime_action_path_and_exhausts_hand() {
+fn entropic_brew_rolls_but_sozu_blocks_every_obtain_action() {
+    // ObtainPotionAction checks Sozu only when each already-rolled action
+    // resolves, so the brew is consumed and no replacement is obtained.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ObtainPotionAction.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.relics.push("Sozu".to_string());
+    engine.state.potions = vec!["EntropicBrew".to_string(), String::new(), String::new()];
+    let potion_rng_before = engine.potion_rng.counter;
+
+    use_potion(&mut engine, 0, -1);
+
+    assert!(engine.state.potions.iter().all(|potion| potion.is_empty()));
+    assert!(engine.potion_rng.counter >= potion_rng_before + 9);
+}
+
+#[test]
+fn elixir_uses_any_number_zero_allowed_exhaust_selection() {
+    // Source: reference/extracted/methods/potion/Elixir.java and
+    // decompiled ExhaustAction.java. The three booleans are
+    // isRandom=false, anyNumber=true, canPickZero=true.
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike", "Defend", "Bash"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -261,13 +432,33 @@ fn elixir_uses_runtime_action_path_and_exhausts_hand() {
 
     use_potion(&mut engine, 0, -1);
 
-    assert!(engine.state.hand.is_empty());
-    assert_eq!(engine.state.exhaust_pile.len(), 3);
+    assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+    let choice = engine.choice.as_ref().expect("Elixir exhaust selection");
+    assert_eq!(choice.reason, ChoiceReason::ExhaustFromHand);
+    assert_eq!((choice.min_picks, choice.max_picks), (0, 3));
+    assert_eq!(engine.state.hand.len(), 3);
     assert!(engine.state.potions[0].is_empty());
     assert!(engine.event_log.iter().any(|record| {
         record.event == crate::effects::trigger::Trigger::ManualActivation
             && record.def_id == Some("Elixir")
     }));
+
+    engine.execute_action(&Action::Choose(0));
+    engine.execute_action(&Action::Choose(2));
+    engine.execute_action(&Action::ConfirmSelection);
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert_eq!(engine.state.hand.len(), 1);
+    assert_eq!(engine.state.exhaust_pile.len(), 2);
+
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "Elixir".to_string();
+    use_potion(&mut engine, 0, -1);
+    let choice = engine.choice.as_ref().expect("Bark Elixir selection");
+    assert_eq!((choice.min_picks, choice.max_picks), (0, 1),
+        "potency is zero and Sacred Bark does not change the selection");
+    engine.execute_action(&Action::ConfirmSelection);
+    assert_eq!(engine.state.hand.len(), 1);
+    assert_eq!(engine.state.exhaust_pile.len(), 2);
 }
 
 #[test]
@@ -283,6 +474,25 @@ fn blessing_of_the_forge_upgrades_hand_via_runtime_action_path() {
     use_potion(&mut engine, 0, -1);
 
     assert_eq!(hand_names(&engine), vec!["Strike+", "Defend+"]);
+    assert!(engine.state.potions[0].is_empty());
+}
+
+#[test]
+fn blessing_of_the_forge_upgrades_each_eligible_hand_card_once() {
+    // Source-derived (verify potion/BlessingOfTheForge): ArmamentsAction(true)
+    // iterates the current hand and calls upgrade only when canUpgrade is true.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.hand = make_deck(&["Strike", "Defend+", "Dazed", "Miracle"]);
+    engine.state.potions[0] = "BlessingOfTheForge".to_string();
+
+    use_potion(&mut engine, 0, -1);
+
+    assert_eq!(hand_names(&engine), vec!["Strike+", "Defend+", "Dazed", "Miracle+"]);
     assert!(engine.state.potions[0].is_empty());
 }
 
@@ -303,7 +513,7 @@ fn bottled_miracle_and_cunning_potion_use_runtime_hooks() {
     use_potion(&mut engine, 1, -1);
     assert_eq!(
         hand_names(&engine),
-        vec!["Miracle", "Miracle", "Shiv", "Shiv", "Shiv"]
+        vec!["Miracle", "Miracle", "Shiv+", "Shiv+", "Shiv+"]
     );
 }
 
@@ -335,17 +545,22 @@ fn bottled_miracle_and_cunning_potion_respect_sacred_bark_and_hand_limit_via_act
         ["Miracle", "Miracle"]
     );
 
+    let discard_before = engine.state.discard_pile.len();
     use_potion(&mut engine, 1, -1);
     assert_eq!(engine.state.hand.len(), 10);
-    let shiv_count = hand_names(&engine)
-        .into_iter()
-        .filter(|name| *name == "Shiv")
-        .count();
-    assert_eq!(shiv_count, 0, "full hand should block extra Shiv generation");
+    assert_eq!(engine.state.discard_pile.len(), discard_before + 6);
+    assert!(engine.state.discard_pile[discard_before..].iter().all(|card|
+        engine.card_registry.card_name(card.def_id) == "Shiv+"));
 }
 
 #[test]
-fn gamblers_brew_discards_then_redraws_through_engine_path() {
+fn gamblers_brew_selects_any_subset_then_discards_and_redraws_that_count() {
+    // Source-derived (verify potion/GamblersBrew): use queues a
+    // GamblingChipAction with notchip=true. That action opens an any-number
+    // hand selection, manually discards only those cards, and draws exactly
+    // the number selected.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/GamblersBrew.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/GamblingChipAction.java
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame", "Zap", "Dualcast"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -358,27 +573,94 @@ fn gamblers_brew_discards_then_redraws_through_engine_path() {
 
     use_potion(&mut engine, 0, -1);
 
-    assert_eq!(hand_names(&engine), vec!["Dualcast", "Zap", "Inflame"]);
-    assert_eq!(engine.state.discard_pile.len(), 3);
-    assert_eq!(engine.state.player.status(sid::POTION_DRAW), 0);
+    assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+    let choice = engine.choice.as_ref().expect("Gambler's Brew choice");
+    assert_eq!(choice.reason, ChoiceReason::DiscardFromHand);
+    assert_eq!(choice.min_picks, 0);
+    assert_eq!(choice.max_picks, 3);
+    assert!(engine.state.potions[0].is_empty());
+
+    engine.execute_action(&Action::Choose(0));
+    engine.execute_action(&Action::Choose(2));
+    engine.execute_action(&Action::ConfirmSelection);
+
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert_eq!(hand_names(&engine), vec!["Defend", "Dualcast", "Zap"]);
+    assert_eq!(engine.state.discard_pile.len(), 2);
+    assert_eq!(engine.state.player.status(sid::GAMBLING_CHIP_ACTIVE), 0);
+}
+
+#[test]
+fn gamblers_brew_allows_zero_discards_and_consumes_with_an_empty_hand() {
+    // GamblingChipAction's `anyNumber=true` permits confirming zero cards;
+    // GamblersBrew.use queues no action at all when the hand is empty.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/GamblersBrew.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/GamblingChipAction.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike", "Defend", "Bash"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand = make_deck(&["Strike", "Defend"]);
+    engine.state.draw_pile = make_deck(&["Bash"]);
+    engine.state.potions[0] = "GamblersBrew".to_string();
+
+    use_potion(&mut engine, 0, -1);
+    engine.execute_action(&Action::ConfirmSelection);
+
+    assert_eq!(hand_names(&engine), vec!["Strike", "Defend"]);
+    assert_eq!(engine.state.draw_pile.len(), 1);
+    assert!(engine.state.discard_pile.is_empty());
+
+    engine.state.hand.clear();
+    engine.state.potions[0] = "GamblersBrew".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.phase, CombatPhase::PlayerTurn);
+    assert!(engine.choice.is_none());
     assert!(engine.state.potions[0].is_empty());
 }
 
 #[test]
-fn snecko_oil_runtime_action_path_draws_and_applies_confusion() {
+fn snecko_oil_draws_then_randomizes_hand_costs_without_confusion() {
+    // Source-derived (verify potion/SneckoOil): getPotency is always five,
+    // Sacred Bark doubles the draw, and RandomizeHandCostAction then rolls
+    // cardRandomRng.random(3) once for each non-negative printed-cost card in
+    // the whole hand. It changes combat cost rather than applying Confusion.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/SneckoOil.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/RandomizeHandCostAction.java
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame", "Zap", "Dualcast"]),
+        make_deck(&["Strike", "Defend", "Bash"]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
-    engine.state.hand.clear();
-    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Bash", "Shrug It Off"]);
+    engine.state.hand = make_deck(&["Strike", "Whirlwind"]);
+    engine.state.draw_pile = make_deck(&[
+        "Defend", "Bash", "Inflame", "Zap", "Dualcast", "Shrug It Off", "Strike", "Defend",
+    ]);
+    engine.state.relics.push("SacredBark".to_string());
     engine.state.potions[0] = "SneckoOil".to_string();
 
     use_potion(&mut engine, 0, -1);
 
-    assert_eq!(engine.state.hand.len(), 4);
-    assert_eq!(engine.state.player.status(sid::CONFUSION), 1);
+    assert_eq!(engine.state.hand.len(), 10);
+    assert!(engine.state.draw_pile.is_empty());
+    assert_eq!(engine.state.player.status(sid::CONFUSION), 0);
+    let mut oracle = crate::seed::StsRandom::new(TEST_SEED);
+    for card in &engine.state.hand {
+        let printed_cost = engine.card_registry.card_def_by_id(card.def_id).cost;
+        if printed_cost < 0 {
+            assert_eq!(engine.card_registry.card_name(card.def_id), "Whirlwind");
+            continue;
+        }
+        let expected = oracle.random_int(3);
+        let actual = if card.base_cost >= 0 {
+            card.base_cost as i32
+        } else {
+            printed_cost
+        };
+        assert_eq!(actual, expected);
+    }
+    assert_eq!(engine.card_random_rng.counter, 9);
     assert!(engine.state.potions[0].is_empty());
     assert!(engine.event_log.iter().any(|record| {
         record.event == crate::effects::trigger::Trigger::ManualActivation
@@ -426,6 +708,170 @@ fn temporary_effect_potions_apply_statuses_through_action_path() {
 }
 
 #[test]
+fn ghost_in_a_jar_applies_one_intangible_and_bark_doubles_it() {
+    // Source: reference/extracted/methods/potion/GhostInAJar.java. getPotency
+    // always returns one; AbstractPotion.getPotency doubles it for Sacred Bark.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.potions[0] = "GhostInAJar".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::INTANGIBLE), 1);
+
+    engine.state.player.set_status(sid::INTANGIBLE, 0);
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "Ghost in a Jar".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::INTANGIBLE), 2);
+    assert!(engine.state.potions[0].is_empty());
+}
+
+#[test]
+fn heart_of_iron_grants_six_metallicize_and_bark_doubles_it() {
+    // Source: reference/extracted/methods/potion/HeartOfIron.java. getPotency
+    // always returns six; AbstractPotion.getPotency doubles it for Sacred Bark.
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.potions[0] = "HeartOfIron".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::METALLICIZE), 6);
+
+    engine.state.player.set_status(sid::METALLICIZE, 0);
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "Heart of Iron".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::METALLICIZE), 12);
+    assert!(engine.state.potions[0].is_empty());
+}
+
+#[test]
+fn speed_potion_keeps_five_potency_and_artifact_can_block_only_dex_loss() {
+    // Source-derived (verify potion/SpeedPotion): getPotency always returns
+    // five. Java applies DexterityPower before debuff-typed LoseDexterityPower,
+    // so Sacred Bark doubles both while Artifact consumes itself to block only
+    // the delayed loss.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/SpeedPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/LoseDexterityPower.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Defend"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand = make_deck(&["Defend"]);
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "SpeedPotion".to_string();
+
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::DEXTERITY), 10);
+    assert_eq!(engine.state.player.status(sid::LOSE_DEXTERITY), 10);
+    assert!(crate::tests::support::play_self(&mut engine, "Defend"));
+    assert_eq!(engine.state.player.block, 15);
+    engine.execute_action(&Action::EndTurn);
+    assert_eq!(engine.state.player.status(sid::DEXTERITY), 0);
+    assert_eq!(engine.state.player.status(sid::LOSE_DEXTERITY), 0);
+
+    let mut artifact = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    artifact.state.player.set_status(sid::ARTIFACT, 1);
+    artifact.state.potions[0] = "SpeedPotion".to_string();
+    use_potion(&mut artifact, 0, -1);
+    assert_eq!(artifact.state.player.status(sid::DEXTERITY), 5);
+    assert_eq!(artifact.state.player.status(sid::LOSE_DEXTERITY), 0);
+    assert_eq!(artifact.state.player.status(sid::ARTIFACT), 0);
+    artifact.execute_action(&Action::EndTurn);
+    assert_eq!(artifact.state.player.status(sid::DEXTERITY), 5);
+}
+
+#[test]
+fn steroid_potion_keeps_five_potency_and_artifact_can_block_only_strength_loss() {
+    // Source-derived (verify potion/SteroidPotion): getPotency always returns
+    // five. Java applies StrengthPower before debuff-typed LoseStrengthPower,
+    // so Sacred Bark doubles both while Artifact blocks only the delayed loss.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/SteroidPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/LoseStrengthPower.java
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    engine.state.hand = make_deck(&["Strike"]);
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "SteroidPotion".to_string();
+
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.player.status(sid::STRENGTH), 10);
+    assert_eq!(engine.state.player.status(sid::LOSE_STRENGTH), 10);
+    engine.execute_action(&Action::PlayCard {
+        card_idx: 0,
+        target_idx: 0,
+    });
+    assert_eq!(engine.state.enemies[0].entity.hp, 24);
+    engine.execute_action(&Action::EndTurn);
+    assert_eq!(engine.state.player.status(sid::STRENGTH), 0);
+    assert_eq!(engine.state.player.status(sid::LOSE_STRENGTH), 0);
+
+    let mut artifact = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    ));
+    artifact.state.player.set_status(sid::ARTIFACT, 1);
+    artifact.state.potions[0] = "SteroidPotion".to_string();
+    use_potion(&mut artifact, 0, -1);
+    assert_eq!(artifact.state.player.status(sid::STRENGTH), 5);
+    assert_eq!(artifact.state.player.status(sid::LOSE_STRENGTH), 0);
+    assert_eq!(artifact.state.player.status(sid::ARTIFACT), 0);
+    artifact.execute_action(&Action::EndTurn);
+    assert_eq!(artifact.state.player.status(sid::STRENGTH), 5);
+}
+
+#[test]
+fn fairy_potion_is_passive_and_revives_through_java_healing_rules() {
+    // Source-derived (verify potion/FairyPotion): canUse is always false. On
+    // lethal damage, potency is 30% at every ascension, Sacred Bark doubles it,
+    // the amount is clamped to at least one, and player.heal applies Magic
+    // Flower before the potion slot is destroyed.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FairyPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+    let mut lethal_enemy = enemy_no_intent("JawWorm", 40, 40);
+    lethal_enemy.set_move(1, 200, 1, 0);
+    let mut state = combat_state_with(make_deck(&["Strike"]), vec![lethal_enemy], 3);
+    state.relics.push("SacredBark".to_string());
+    state.relics.push("Magic Flower".to_string());
+    state.potions[0] = "FairyPotion".to_string();
+    let mut engine = engine_with_state(state);
+
+    assert!(!engine.get_legal_actions().iter().any(|action| {
+        matches!(action, Action::UsePotion { potion_idx: 0, .. })
+    }));
+
+    engine.execute_action(&Action::EndTurn);
+
+    // 80 * 60% Sacred Bark = 48; Magic Flower raises that heal to 72.
+    assert_eq!(engine.state.player.hp, 72);
+    assert!(!engine.state.combat_over);
+    assert!(engine.state.potions[0].is_empty());
+
+    let mut tiny_enemy = enemy_no_intent("JawWorm", 40, 40);
+    tiny_enemy.set_move(1, 2, 1, 0);
+    let mut tiny_state = combat_state_with(make_deck(&["Strike"]), vec![tiny_enemy], 3);
+    tiny_state.player.hp = 1;
+    tiny_state.player.max_hp = 1;
+    tiny_state.potions[0] = "FairyPotion".to_string();
+    let mut tiny = engine_with_state(tiny_state);
+    tiny.execute_action(&Action::EndTurn);
+    assert_eq!(tiny.state.player.hp, 1, "Fairy heal is clamped to one");
+}
+
+#[test]
 fn stance_potion_opens_choose_one_and_sets_stance_via_action_path() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike", "Defend", "Strike", "Defend", "Strike"]),
@@ -443,7 +889,7 @@ fn stance_potion_opens_choose_one_and_sets_stance_via_action_path() {
         .options
         .iter()
         .filter_map(|opt| match opt {
-            crate::engine::ChoiceOption::Named(label) => Some(*label),
+            crate::engine::ChoiceOption::Named(label) => Some(label.as_str()),
             _ => None,
         })
         .collect();
@@ -481,7 +927,25 @@ fn ambrosia_essence_of_darkness_and_capacity_use_runtime_action_path() {
         .slots
         .iter()
         .all(|orb| orb.orb_type == crate::orbs::OrbType::Dark));
+    assert_eq!(engine.state.enemies[0].entity.hp, 40);
 
+    // EssenceOfDarkness.java supplies potency one to
+    // EssenceOfDarknessAction, whose nested loops channel once per slot per
+    // potency. AbstractPotion.getPotency doubles that potency with Sacred Bark,
+    // so two slots channel four Dark orbs and evoke the first two for 6 each.
+    engine.init_defect_orbs(2);
+    engine.state.relics.push("SacredBark".to_string());
+    engine.state.potions[0] = "EssenceOfDarkness".to_string();
+    use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.state.enemies[0].entity.hp, 28);
+    assert!(engine
+        .state
+        .orb_slots
+        .slots
+        .iter()
+        .all(|orb| orb.orb_type == crate::orbs::OrbType::Dark));
+
+    engine.state.relics.retain(|relic| relic != "SacredBark");
     engine.state.potions[0] = "PotionOfCapacity".to_string();
     use_potion(&mut engine, 0, -1);
     assert_eq!(engine.state.player.status(sid::ORB_SLOTS), 2);
@@ -505,4 +969,191 @@ fn smoke_bomb_uses_runtime_action_path_and_consumes_its_slot() {
         record.event == crate::effects::trigger::Trigger::ManualActivation
             && record.def_id == Some("SmokeBomb")
     }));
+}
+
+#[test]
+fn discard_potion_is_legal_across_representative_live_decision_frames() {
+    // AbstractPotion.canDiscard is independent of room phase. TopPanel keeps
+    // occupied potion slots interactive while ordinary run screens are open,
+    // and PotionPopUp destroys the selected slot through the same discard path.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/AbstractPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/panels/PotionPopUp.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/panels/TopPanel.java
+    let mut run = RunEngine::new(42, 0);
+    run.run_state.potions[1] = "Dexterity Potion".to_string();
+    assert!(has_discard_potion_action(&run, 1), "Neow");
+
+    run.phase = RunPhase::MapChoice;
+    assert!(has_discard_potion_action(&run, 1), "map");
+
+    run.debug_set_card_reward_screen(vec!["Strike".to_string()]);
+    assert!(has_discard_potion_action(&run, 1), "reward screen");
+
+    run.debug_set_campfire_phase();
+    assert!(has_discard_potion_action(&run, 1), "campfire");
+
+    run.debug_set_shop_state(ShopState {
+        cards: Vec::new(),
+        relics: Vec::new(),
+        potions: Vec::new(),
+        remove_price: 75,
+        removal_used: false,
+    });
+    assert!(has_discard_potion_action(&run, 1), "shop");
+
+    let ordinary_event = crate::events::typed_events_for_act(1)
+        .into_iter()
+        .find(|event| event.name == "Big Fish")
+        .expect("Act 1 should contain Big Fish");
+    run.debug_set_typed_event_state(ordinary_event);
+    assert!(has_discard_potion_action(&run, 1), "ordinary event");
+
+    let mut combat = RunEngine::new(42, 0);
+    combat.run_state.potions[1] = "Dexterity Potion".to_string();
+    combat.debug_enter_specific_combat(&["JawWorm"]);
+    assert!(has_discard_potion_action(&combat, 1), "combat");
+}
+
+#[test]
+fn we_meet_again_empty_slots_and_game_over_block_potion_discard() {
+    // AbstractPotion.canDiscard rejects WeMeetAgain specifically. PotionPopUp
+    // can only open for a real occupied potion, while terminal runs expose no
+    // live top-panel action surface.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/AbstractPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/panels/PotionPopUp.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/panels/TopPanel.java
+    let mut run = RunEngine::new(73, 0);
+    run.run_state.potions = vec![
+        "FairyPotion".to_string(),
+        String::new(),
+        "SmokeBomb".to_string(),
+    ];
+    run.phase = RunPhase::MapChoice;
+    assert!(!has_discard_potion_action(&run, 1), "empty slot");
+
+    let we_meet_again = crate::events::typed_shrine_events()
+        .into_iter()
+        .find(|event| event.name == "WeMeetAgain")
+        .expect("shrine pool should contain WeMeetAgain");
+    run.debug_set_typed_event_state(we_meet_again);
+    assert!(!has_discard_potion_action(&run, 0));
+    assert!(!has_discard_potion_action(&run, 2));
+
+    run.run_state.run_over = true;
+    run.phase = RunPhase::GameOver;
+    assert!(run.get_legal_actions().is_empty());
+}
+
+#[test]
+fn fairy_and_boss_blocked_smoke_bomb_remain_discardable() {
+    // FairyPotion.canUse always returns false. SmokeBomb.canUse returns false
+    // against a boss, but neither override changes AbstractPotion.canDiscard.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FairyPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/SmokeBomb.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/AbstractPotion.java
+    let mut run = RunEngine::new(97, 0);
+    run.run_state.potions = vec![
+        "FairyPotion".to_string(),
+        "SmokeBomb".to_string(),
+        String::new(),
+    ];
+    run.debug_enter_specific_combat(&["TheGuardian"]);
+
+    let actions = run.get_legal_actions();
+    assert!(!actions.iter().any(|action| {
+        matches!(
+            action,
+            GameAction::CombatAction(Action::UsePotion { potion_idx: 0, .. })
+        )
+    }));
+    assert!(!actions.iter().any(|action| {
+        matches!(
+            action,
+            GameAction::CombatAction(Action::UsePotion { potion_idx: 1, .. })
+        )
+    }));
+    assert!(has_discard_potion_action(&run, 0));
+    assert!(has_discard_potion_action(&run, 1));
+}
+
+#[test]
+fn discard_potion_only_destroys_the_slot_and_preserves_callbacks_and_rng() {
+    // PotionPopUp's discard branch calls destroyPotion directly: it does not
+    // invoke AbstractPotion.use, ManualActivation, OnPotionUsed, or relic use
+    // callbacks. The UI's discard sound is presentation-only and consumes no
+    // named dungeon RNG stream.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/panels/PotionPopUp.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/panels/TopPanel.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/AbstractPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/ToyOrnithopter.java
+    let mut run = RunEngine::new_with_ambient_seed(101, 0, 202);
+    run.run_state.current_hp = 30;
+    run.run_state.relics.push("Toy Ornithopter".to_string());
+    run.run_state.potions = vec![
+        "FairyPotion".to_string(),
+        "SwiftPotion".to_string(),
+        "SmokeBomb".to_string(),
+    ];
+    run.debug_enter_specific_combat(&["JawWorm"]);
+
+    {
+        let combat = run.debug_combat_engine_mut();
+        combat.state.player.hp = 30;
+        combat.state.player.set_status(sid::POTION_DRAW, 2);
+        combat.clear_event_log();
+    }
+    let rng_before = run.rng_counters();
+    let ambient_before = run.ambient_math_rng_state();
+    let java_collections_before = run
+        .get_combat_engine()
+        .expect("active combat")
+        .java_collections_rng_state();
+
+    let result = run.step_game(&GameAction::DiscardPotion(1));
+
+    assert!(result.accepted());
+    assert_eq!(run.rng_counters(), rng_before);
+    assert_eq!(run.ambient_math_rng_state(), ambient_before);
+    let combat = run
+        .get_combat_engine()
+        .expect("discard keeps combat active");
+    assert_eq!(combat.java_collections_rng_state(), java_collections_before);
+    assert_eq!(
+        combat.state.potions,
+        vec![
+            "FairyPotion".to_string(),
+            String::new(),
+            "SmokeBomb".to_string()
+        ]
+    );
+    assert_eq!(combat.state.player.hp, 30, "Toy Ornithopter must not heal");
+    assert_eq!(combat.state.player.status(sid::POTION_DRAW), 2);
+    assert!(combat.event_log.is_empty());
+    assert!(run.last_combat_events().is_empty());
+}
+
+#[test]
+fn blood_potion_and_entropic_brew_are_usable_outside_combat_except_we_meet_again() {
+    // Both potions override canUse so they are legal outside combat whenever
+    // the current event is not WeMeetAgain.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/BloodPotion.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/EntropicBrew.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/events/shrines/WeMeetAgain.java
+    let mut run = RunEngine::new(131, 0);
+    run.run_state.potions = vec![
+        "BloodPotion".to_string(),
+        "EntropicBrew".to_string(),
+        String::new(),
+    ];
+    run.phase = RunPhase::MapChoice;
+    assert!(has_noncombat_use_potion_action(&run, 0));
+    assert!(has_noncombat_use_potion_action(&run, 1));
+
+    let we_meet_again = crate::events::typed_shrine_events()
+        .into_iter()
+        .find(|event| event.name == "WeMeetAgain")
+        .expect("shrine pool should contain WeMeetAgain");
+    run.debug_set_typed_event_state(we_meet_again);
+    assert!(!has_noncombat_use_potion_action(&run, 0));
+    assert!(!has_noncombat_use_potion_action(&run, 1));
 }

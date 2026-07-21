@@ -5,7 +5,7 @@
 //! the most common/expected move pattern for fast simulation.
 
 use crate::state::EnemyCombatState;
-use crate::combat_types::mfx;
+use crate::combat_types::{fx, mfx, Intent};
 use crate::status_ids::sid;
 
 
@@ -20,6 +20,9 @@ pub mod act4;
 /// than the full game database, and provides a stable registry surface for the
 /// universal gameplay export.
 pub fn known_enemy_ids() -> &'static [(&'static str, &'static str)] {
+    // Sources: HexaghostBody.java implements Disposable and HexaghostOrb.java
+    // is a plain visual helper. Neither extends AbstractMonster, so neither is
+    // a targetable gameplay entity in this registry.
     &[
         ("Cultist", "Cultist"),
         ("JawWorm", "Jaw Worm"),
@@ -41,15 +44,15 @@ pub fn known_enemy_ids() -> &'static [(&'static str, &'static str)] {
         ("SlimeBoss", "Slime Boss"),
         ("Byrd", "Byrd"),
         ("Chosen", "Chosen"),
-        ("ShelledParasite", "Shelled Parasite"),
+    ("Shelled Parasite", "Shelled Parasite"),
         ("SnakePlant", "Snake Plant"),
         ("Centurion", "Centurion"),
-        ("Mystic", "Mystic"),
+        ("Healer", "Mystic"),
         ("GremlinLeader", "Gremlin Leader"),
         ("BookOfStabbing", "Book of Stabbing"),
-        ("TaskMaster", "Taskmaster"),
+    ("SlaverBoss", "Taskmaster"),
         ("Darkling", "Darkling"),
-        ("OrbWalker", "Orb Walker"),
+        ("Orb Walker", "Orb Walker"),
         ("Repulsor", "Repulsor"),
         ("WrithingMass", "Writhing Mass"),
         ("GiantHead", "Giant Head"),
@@ -57,7 +60,7 @@ pub fn known_enemy_ids() -> &'static [(&'static str, &'static str)] {
         ("Reptomancer", "Reptomancer"),
         ("Transient", "Transient"),
         ("Maw", "Maw"),
-        ("SpireGrowth", "Spire Growth"),
+    ("Serpent", "Spire Growth"),
         ("SpireShield", "Spire Shield"),
         ("SpireSpear", "Spire Spear"),
     ]
@@ -118,6 +121,8 @@ pub mod move_ids {
     pub const RS_SCRAPE: i32 = 3;
 
     // Acid Slime S/M/L
+    pub const AS_S_TACKLE: i32 = 1;
+    pub const AS_S_LICK: i32 = 2;
     pub const AS_CORROSIVE_SPIT: i32 = 1;
     pub const AS_TACKLE: i32 = 2;
     pub const AS_LICK: i32 = 4;
@@ -132,10 +137,15 @@ pub mod move_ids {
     pub const LOOTER_MUG: i32 = 1;
     pub const LOOTER_SMOKE_BOMB: i32 = 2;
     pub const LOOTER_ESCAPE: i32 = 3;
+    pub const LOOTER_LUNGE: i32 = 4;
 
     // Gremlin (Fat/Thief/Warrior/Wizard/Tsundere)
     pub const GREMLIN_ATTACK: i32 = 1;
     pub const GREMLIN_PROTECT: i32 = 2;
+    pub const GREMLIN_FAT_SMASH: i32 = 2;
+    pub const GREMLIN_ESCAPE: i32 = 99;
+    pub const GREMLIN_TSUNDERE_PROTECT: i32 = 1;
+    pub const GREMLIN_TSUNDERE_BASH: i32 = 2;
 
     // Gremlin Nob
     pub const NOB_BELLOW: i32 = 1;
@@ -143,16 +153,19 @@ pub mod move_ids {
     pub const NOB_SKULL_BASH: i32 = 3;
 
     // Lagavulin
-    pub const LAGA_SLEEP: i32 = 1;
-    pub const LAGA_ATTACK: i32 = 2;
-    pub const LAGA_SIPHON: i32 = 3;
+    pub const LAGA_SIPHON: i32 = 1;
+    pub const LAGA_ATTACK: i32 = 3;
+    pub const LAGA_STUN: i32 = 4;
+    pub const LAGA_SLEEP: i32 = 5;
+    pub const LAGA_OPEN_NATURAL: i32 = 6;
 
     // Sentry
-    pub const SENTRY_BOLT: i32 = 1;
-    pub const SENTRY_BEAM: i32 = 2;
+    pub const SENTRY_BOLT: i32 = 3;
+    pub const SENTRY_BEAM: i32 = 4;
 
     // The Guardian
     pub const GUARD_CHARGING_UP: i32 = 6;
+    pub const GUARD_CLOSE_UP: i32 = 1;
     pub const GUARD_FIERCE_BASH: i32 = 2;
     pub const GUARD_ROLL_ATTACK: i32 = 3;
     pub const GUARD_TWIN_SLAM: i32 = 4;
@@ -166,6 +179,10 @@ pub mod move_ids {
     pub const HEX_SEAR: i32 = 4;
     pub const HEX_ACTIVATE: i32 = 5;
     pub const HEX_INFERNO: i32 = 6;
+
+    // Apology Slime
+    pub const APOLOGY_TACKLE: i32 = 1;
+    pub const APOLOGY_DEBUFF: i32 = 2;
 
     // Slime Boss
     pub const SB_SLAM: i32 = 1;
@@ -293,6 +310,7 @@ pub mod move_ids {
     pub const DARK_CHOMP: i32 = 1;
     pub const DARK_HARDEN: i32 = 2;
     pub const DARK_NIP: i32 = 3;
+    pub const DARK_WAIT: i32 = 4;
     pub const DARK_REINCARNATE: i32 = 5;
 
     // Orb Walker
@@ -402,6 +420,11 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         // Act 1 — Exordium
         // =================================================================
         "JawWorm" => {
+            // Source: reference/extracted/methods/monster/JawWorm.java.
+            // The run layer patches these constructor values for ascension.
+            enemy.entity.set_status(sid::STARTING_DMG, 11);
+            enemy.entity.set_status(sid::STR_AMT, 3);
+            enemy.entity.set_status(sid::BLOCK_AMT, 6);
             enemy.set_move(move_ids::JW_CHOMP, 11, 1, 0);
         }
         "Cultist" => {
@@ -410,202 +433,352 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // ctor sets ritualAmount = ascension >= 2 ? 4 : 3 and takeTurn adds
             // +1 at ascension >= 17. Base 3 here = ascension 0/1; the run layer
             // (run.rs enter_specific_combat) patches 4/5 for ascension >= 2/17.
+            enemy.entity.set_status(sid::STR_AMT, 3);
             enemy.set_move(move_ids::CULT_INCANTATION, 0, 0, 0);
             enemy.add_effect(mfx::RITUAL, 3);
         }
         "FungiBeast" => {
+            enemy.entity.set_status(sid::STR_AMT, 3);
             enemy.set_move(move_ids::FB_BITE, 6, 1, 0);
             enemy.entity.set_status(sid::SPORE_CLOUD, 2);
         }
         "FuzzyLouseNormal" | "RedLouse" => {
+            enemy.entity.set_status(sid::STARTING_DMG, 6);
+            enemy.entity.set_status(sid::STR_AMT, 3);
             enemy.set_move(move_ids::LOUSE_BITE, 6, 1, 0);
             enemy.entity.set_status(sid::CURL_UP, 5);
         }
         "FuzzyLouseDefensive" | "GreenLouse" => {
+            enemy.entity.set_status(sid::STARTING_DMG, 6);
+            // Also marks the A17 getMove rule at value 4 in the run layer.
+            enemy.entity.set_status(sid::STR_AMT, 3);
             enemy.set_move(move_ids::LOUSE_BITE, 6, 1, 0);
             enemy.entity.set_status(sid::CURL_UP, 5);
         }
         "SlaverBlue" | "BlueSlaver" => {
+            enemy.entity.set_status(sid::STARTING_DMG, 12);
+            enemy.entity.set_status(sid::STR_AMT, 7);
+            enemy.entity.set_status(sid::BLOCK_AMT, 1);
             enemy.set_move(move_ids::BS_STAB, 12, 1, 0);
         }
         "SlaverRed" | "RedSlaver" => {
+            enemy.entity.set_status(sid::STARTING_DMG, 13);
+            enemy.entity.set_status(sid::STR_AMT, 8);
+            enemy.entity.set_status(sid::BLOCK_AMT, 1);
+            enemy.entity.set_status(sid::IS_FIRST_MOVE, 1);
             enemy.set_move(move_ids::RS_STAB, 13, 1, 0);
         }
         "AcidSlime_S" => {
-            enemy.set_move(move_ids::AS_TACKLE, 3, 1, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 3);
+            enemy.entity.set_status(sid::STR_AMT, 0);
+            enemy.set_move(move_ids::AS_S_TACKLE, 3, 1, 0);
         }
         "AcidSlime_M" => {
+            enemy.entity.set_status(sid::STARTING_DMG, 7);
+            enemy.entity.set_status(sid::STR_AMT, 10);
+            enemy.entity.set_status(sid::BLOCK_AMT, 0);
             enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 7, 1, 0);
             enemy.add_effect(mfx::SLIMED, 1);
         }
         "AcidSlime_L" => {
+            enemy.entity.set_status(sid::STARTING_DMG, 11);
+            enemy.entity.set_status(sid::STR_AMT, 16);
+            enemy.entity.set_status(sid::BLOCK_AMT, 0);
             enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 11, 1, 0);
             enemy.add_effect(mfx::SLIMED, 2);
         }
         "SpikeSlime_S" => {
+            enemy.entity.set_status(sid::STARTING_DMG, 5);
             enemy.set_move(move_ids::SS_TACKLE, 5, 1, 0);
         }
         "SpikeSlime_M" => {
+            enemy.entity.set_status(sid::STARTING_DMG, 8);
+            enemy.entity.set_status(sid::BLOCK_AMT, 0);
             enemy.set_move(move_ids::SS_TACKLE, 8, 1, 0);
+            enemy.add_effect(mfx::SLIMED, 1);
         }
         "SpikeSlime_L" => {
+            enemy.entity.set_status(sid::STARTING_DMG, 16);
+            enemy.entity.set_status(sid::STR_AMT, 2);
+            enemy.entity.set_status(sid::BLOCK_AMT, 0);
             enemy.set_move(move_ids::SS_TACKLE, 16, 1, 0);
+            enemy.add_effect(mfx::SLIMED, 2);
         }
         "Looter" => {
-            // Mug -> Mug -> SmokeBomb -> Escape
+            enemy.entity.set_status(sid::STARTING_DMG, 10);
+            enemy.entity.set_status(sid::STR_AMT, 12);
+            enemy.entity.set_status(sid::BLOCK_AMT, 6);
+            enemy.entity.set_status(sid::TURN_COUNT, 15);
             enemy.set_move(move_ids::LOOTER_MUG, 10, 1, 0);
         }
         "GremlinFat" => {
-            // Smash: 4 damage + apply 1 Weak
-            enemy.set_move(move_ids::GREMLIN_ATTACK, 4, 1, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 4);
+            enemy.entity.set_status(sid::BLOCK_AMT, 0);
+            enemy.set_move(move_ids::GREMLIN_FAT_SMASH, 4, 1, 0);
             enemy.add_effect(mfx::WEAK, 1);
         }
         "GremlinThief" => {
-            // Puncture: 9 damage
+            enemy.entity.set_status(sid::STARTING_DMG, 9);
             enemy.set_move(move_ids::GREMLIN_ATTACK, 9, 1, 0);
         }
         "GremlinWarrior" => {
-            // Scratch: 4 damage
+            enemy.entity.set_status(sid::STARTING_DMG, 4);
+            enemy.entity.set_status(sid::ANGRY, 1);
             enemy.set_move(move_ids::GREMLIN_ATTACK, 4, 1, 0);
         }
         "GremlinWizard" => {
-            // Charging (first turn), then Ultimate Blast (25 damage)
+            enemy.entity.set_status(sid::STARTING_DMG, 25);
+            enemy.entity.set_status(sid::COUNT, 1);
+            enemy.entity.set_status(sid::BLOCK_AMT, 0);
             enemy.set_move(move_ids::GREMLIN_PROTECT, 0, 0, 0);
         }
         "GremlinTsundere" | "GremlinSneaky" => {
-            // Shield: does nothing
-            enemy.set_move(move_ids::GREMLIN_PROTECT, 0, 0, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 6);
+            enemy.entity.set_status(sid::BLOCK_AMT, 7);
+            enemy.set_move(move_ids::GREMLIN_TSUNDERE_PROTECT, 0, 0, 0);
+            enemy.add_effect(mfx::BLOCK_RANDOM_OTHER, 7);
         }
         "GremlinNob" | "Gremlin Nob" => {
+            enemy.entity.set_status(sid::STARTING_DMG, 14);
+            enemy.entity.set_status(sid::STR_AMT, 6);
+            enemy.entity.set_status(sid::TURN_COUNT, 2);
+            enemy.entity.set_status(sid::IS_FIRST_MOVE, 0);
+            enemy.entity.set_status(sid::BLOCK_AMT, 0);
             enemy.set_move(move_ids::NOB_BELLOW, 0, 0, 0);
-            enemy.entity.set_status(sid::ENRAGE, 2);
+            enemy.add_effect(mfx::ENRAGE, 2);
         }
         "Lagavulin" => {
+            enemy.entity.block = 8;
+            enemy.entity.set_status(sid::STARTING_DMG, 18);
+            enemy.entity.set_status(sid::STR_AMT, 1);
+            enemy.entity.set_status(sid::IS_FIRST_MOVE, 0);
+            enemy.entity.set_status(sid::COUNT, 0);
+            enemy.entity.set_status(sid::ATTACK_COUNT, 0);
             enemy.set_move(move_ids::LAGA_SLEEP, 0, 0, 0);
             enemy.entity.set_status(sid::METALLICIZE, 8);
-            enemy.entity.set_status(sid::SLEEP_TURNS, 3);
+            enemy.entity.set_status(sid::SLEEP_TURNS, 1);
         }
         "Sentry" => {
-            enemy.set_move(move_ids::SENTRY_BOLT, 9, 1, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 9);
+            enemy.entity.set_status(sid::STR_AMT, 2);
+            enemy.entity.set_status(sid::FIRST_MOVE, 0);
+            enemy.entity.set_status(sid::IS_FIRST_MOVE, move_ids::SENTRY_BOLT);
+            enemy.entity.set_status(sid::ARTIFACT, 1);
+            enemy.set_move(move_ids::SENTRY_BOLT, 0, 0, 0);
+            enemy.add_effect(mfx::DAZE, 2);
         }
         "TheGuardian" => {
+            enemy.entity.set_status(sid::PHASE, 0);
+            enemy.entity.set_status(sid::MODE_SHIFT, 30);
+            enemy.entity.set_status(sid::DAMAGE_TAKEN_THIS_MODE, 0);
+            enemy.entity.set_status(sid::FIERCE_BASH_DMG, 32);
+            enemy.entity.set_status(sid::ROLL_DMG, 9);
+            enemy.entity.set_status(sid::BLOCK_AMT, 9);
+            enemy.entity.set_status(sid::STR_AMT, 3);
+            enemy.entity.set_status(sid::TURN_COUNT, 20);
             enemy.set_move(move_ids::GUARD_CHARGING_UP, 0, 0, 9);
-            if hp >= 250 {
-                enemy.entity.set_status(sid::MODE_SHIFT, 40);
-                enemy.entity.set_status(sid::FIERCE_BASH_DMG, 36);
-                enemy.entity.set_status(sid::ROLL_DMG, 10);
-            } else {
-                enemy.entity.set_status(sid::MODE_SHIFT, 30);
-                enemy.entity.set_status(sid::FIERCE_BASH_DMG, 32);
-                enemy.entity.set_status(sid::ROLL_DMG, 9);
-            }
         }
         "Hexaghost" => {
+            enemy.entity.set_status(sid::IS_FIRST_MOVE, 0);
+            enemy.entity.set_status(sid::COUNT, 0);
+            enemy.entity.set_status(sid::BUFF_COUNT, 0);
+            enemy.entity.set_status(sid::STR_AMT, 2);
+            enemy.entity.set_status(sid::SEAR_BURN_COUNT, 1);
+            enemy.entity.set_status(sid::FIRE_TACKLE_DMG, 5);
+            enemy.entity.set_status(sid::INFERNO_DMG, 2);
             enemy.set_move(move_ids::HEX_ACTIVATE, 0, 0, 0);
-            if hp >= 264 {
-                enemy.entity.set_status(sid::STR_AMT, 3);
-                enemy.entity.set_status(sid::SEAR_BURN_COUNT, 2);
-                enemy.entity.set_status(sid::FIRE_TACKLE_DMG, 6);
-                enemy.entity.set_status(sid::INFERNO_DMG, 3);
-            } else {
-                enemy.entity.set_status(sid::STR_AMT, 2);
-                enemy.entity.set_status(sid::SEAR_BURN_COUNT, 1);
-                enemy.entity.set_status(sid::FIRE_TACKLE_DMG, 5);
-                enemy.entity.set_status(sid::INFERNO_DMG, 2);
-            }
         }
         "SlimeBoss" => {
+            enemy.entity.set_status(sid::IS_FIRST_MOVE, 0);
+            enemy.entity.set_status(sid::FIRE_TACKLE_DMG, 9);
+            enemy.entity.set_status(sid::SLAP_DMG, 35);
+            enemy.entity.set_status(sid::STR_AMT, 3);
             enemy.set_move(move_ids::SB_STICKY, 0, 0, 0);
             enemy.add_effect(mfx::SLIMED, 3);
+        }
+        "Apology Slime" | "ApologySlime" => {
+            enemy.set_move(move_ids::APOLOGY_TACKLE, 3, 1, 0);
         }
 
         // =================================================================
         // Act 2 — The City
         // =================================================================
         "Chosen" => {
-            // First turn: Poke (5 dmg x2)
+            // Source: reference/extracted/methods/monster/Chosen.java.
+            // The opening is rolled during combat initialization.
             enemy.set_move(move_ids::CHOSEN_POKE, 5, 2, 0);
+            enemy.entity.set_status(sid::FIRST_TURN, 1);
+            enemy.entity.set_status(sid::FIRST_MOVE, 0);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 18);
+            enemy.entity.set_status(sid::STR_AMT, 10);
+            enemy.entity.set_status(sid::SLAP_DMG, 5);
         }
         "Mugger" => {
-            // First turn: Mug (10 damage, steals gold)
+            // Source: reference/extracted/methods/monster/Mugger.java.
             enemy.set_move(move_ids::MUGGER_MUG, 10, 1, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 10);
+            enemy.entity.set_status(sid::STR_AMT, 16);
+            enemy.entity.set_status(sid::BLOCK_AMT, 11);
+            enemy.entity.set_status(sid::TURN_COUNT, 15);
+            enemy.entity.set_status(sid::ATTACK_COUNT, 0);
         }
         "Byrd" => {
-            // Starts flying with Flight power. First turn: Peck (1x5)
+            // Source: reference/extracted/methods/monster/Byrd.java.
+            // Ascension-derived values are patched at the run spawn site.
             enemy.set_move(move_ids::BYRD_PECK, 1, 5, 0);
+            enemy.entity.set_status(sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(sid::STARTING_DMG, 1);
+            enemy.entity.set_status(sid::STR_AMT, 5);
+            enemy.entity.set_status(sid::SLASH_DMG, 12);
+            enemy.entity.set_status(sid::HEAD_SLAM_DMG, 3);
+            enemy.entity.set_status(sid::BLOCK_AMT, 3);
             enemy.entity.set_status(sid::FLIGHT, 3);
         }
         "Shelled Parasite" | "ShelledParasite" => {
-            // Has Plated Armor 14. First turn: Double Strike (6x2)
+            // Source: reference/extracted/methods/monster/ShelledParasite.java.
             enemy.set_move(move_ids::SP_DOUBLE_STRIKE, 6, 2, 0);
             enemy.entity.set_status(sid::PLATED_ARMOR, 14);
+            enemy.entity.block = 14;
+            enemy.entity.set_status(sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(sid::STARTING_DMG, 6);
+            enemy.entity.set_status(sid::STR_AMT, 18);
+            enemy.entity.set_status(sid::BLOCK_AMT, 10);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "SnakePlant" => {
-            // Has Malleable. First turn: Chomp (7x3)
+            // Source: reference/extracted/methods/monster/SnakePlant.java.
+            // The real opening intent is rolled during combat initialization.
             enemy.set_move(move_ids::SNAKE_CHOMP, 7, 3, 0);
-            enemy.entity.set_status(sid::MALLEABLE, 1);
+            enemy.entity.set_status(sid::STARTING_DMG, 7);
+            enemy.entity.set_status(sid::MALLEABLE, 3);
+            enemy.entity.set_status(sid::BLOCK_AMT, 3);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "Centurion" => {
-            // First turn: Fury (6x3) or Slash (12)
-            enemy.set_move(move_ids::CENT_FURY, 6, 3, 0);
+            // Source: reference/extracted/methods/monster/Centurion.java.
+            // The real opener is rolled during combat initialization.
+            enemy.set_move(move_ids::CENT_SLASH, 12, 1, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 12);
+            enemy.entity.set_status(sid::STR_AMT, 6);
+            enemy.entity.set_status(sid::ATTACK_COUNT, 3);
+            enemy.entity.set_status(sid::BLOCK_AMT, 15);
+            enemy.entity.set_status(sid::COUNT, 2);
         }
         "Mystic" | "Healer" => {
-            // Attack + debuff (8 damage)
+            // Source: reference/extracted/methods/monster/Healer.java.
+            // The real opener is rolled during combat initialization.
             enemy.set_move(move_ids::MYSTIC_ATTACK, 8, 1, 0);
+            enemy.add_effect(mfx::FRAIL, 2);
+            enemy.entity.set_status(sid::STARTING_DMG, 8);
+            enemy.entity.set_status(sid::STR_AMT, 2);
+            enemy.entity.set_status(sid::BLOCK_AMT, 16);
+            enemy.entity.set_status(sid::COUNT, 0);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "BookOfStabbing" | "Book of Stabbing" => {
-            // Multi-stab. Starts with stabCount=1, increases each turn
-            enemy.set_move(move_ids::BOOK_STAB, 6, 2, 0);
-            enemy.entity.set_status(sid::STAB_COUNT, 2);
+            // A0 constructor and pre-battle values. The actual opener is
+            // selected by getMove during CombatEngine::start_combat.
+            // Java: reference/extracted/methods/monster/BookOfStabbing.java
+            enemy.entity.set_status(sid::STARTING_DMG, 6);
+            enemy.entity.set_status(sid::STR_AMT, 21);
+            enemy.entity.set_status(sid::STAB_COUNT, 0);
+            enemy.entity.set_status(sid::BLOCK_AMT, 0);
+            enemy.entity.set_status(sid::PAINFUL_STABS, 1);
+            enemy.set_move(move_ids::BOOK_STAB, 6, 1, 0);
         }
         "GremlinLeader" | "Gremlin Leader" => {
-            // First turn: Rally (summon gremlins)
+            // Source: reference/extracted/methods/monster/GremlinLeader.java.
+            // The encounter spawn site patches ascension and alive-gremlin
+            // state before the opening roll.
             enemy.set_move(move_ids::GL_RALLY, 0, 0, 0);
+            enemy.entity.set_status(sid::STR_AMT, 3);
+            enemy.entity.set_status(sid::BLOCK_AMT, 6);
+            enemy.entity.set_status(sid::COUNT, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 0);
         }
-        "Taskmaster" => {
-            // Always Scouring Whip (7 damage + Wounds)
+        "SlaverBoss" | "TaskMaster" | "Taskmaster" => {
+            // Source: reference/extracted/methods/monster/Taskmaster.java.
             enemy.set_move(move_ids::TASK_SCOURING_WHIP, 7, 1, 0);
             enemy.add_effect(mfx::WOUND, 1);
+            enemy.intent = Intent::AttackDebuff {
+                damage: 7,
+                hits: 1,
+                effects: fx::WOUND,
+            };
+            enemy.entity.set_status(sid::STARTING_DMG, 7);
+            enemy.entity.set_status(sid::BLOCK_AMT, 1);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "SphericGuardian" | "Spheric Guardian" => {
-            // First turn: Activate (gain 40 block)
-            enemy.set_move(move_ids::SPHER_INITIAL_BLOCK, 0, 0, 40);
+            // Source: reference/extracted/methods/monster/SphericGuardian.java.
+            // Pre-battle grants Barricade, Artifact 3, and 40 Block. The
+            // source-rolled opening Activate gains another 25 at A0.
+            enemy.set_move(move_ids::SPHER_INITIAL_BLOCK, 0, 0, 25);
+            enemy.entity.set_status(sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(sid::FIRST_TURN, 1);
+            enemy.entity.set_status(sid::STARTING_DMG, 10);
+            enemy.entity.set_status(sid::BLOCK_AMT, 25);
+            enemy.entity.set_status(sid::STR_AMT, 15);
+            enemy.entity.set_status(sid::BARRICADE, 1);
+            enemy.entity.set_status(sid::ARTIFACT, 3);
+            enemy.entity.block = 40;
         }
         "Snecko" => {
-            // First turn: Glare (debuff)
+            // Source: reference/extracted/methods/monster/Snecko.java.
+            // This is a placeholder for the source-rolled forced Glare opener.
             enemy.set_move(move_ids::SNECKO_GLARE, 0, 0, 0);
             enemy.add_effect(mfx::CONFUSED, 1);
+            enemy.entity.set_status(sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(sid::STARTING_DMG, 15);
+            enemy.entity.set_status(sid::STR_AMT, 8);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "BanditBear" | "Bear" => {
-            // First turn: Bear Hug (debuff: -2 Dexterity)
+            // A0 constructor values. Ascension variants are patched at the
+            // RunEngine spawn site, where ascension is available.
+            // Java: reference/extracted/methods/monster/BanditBear.java
+            enemy.entity.set_status(sid::STARTING_DMG, 18);
+            enemy.entity.set_status(sid::STR_AMT, 9);
+            enemy.entity.set_status(sid::BLOCK_AMT, 2);
             enemy.set_move(move_ids::BEAR_HUG, 0, 0, 0);
             enemy.add_effect(mfx::DEX_DOWN, 2);
         }
         "BanditLeader" => {
-            // First turn: Mock (buff minions)
+            // A0 constructor values. Ascension variants are patched where the
+            // run's ascension level is available.
+            // Java: reference/extracted/methods/monster/BanditLeader.java
+            enemy.entity.set_status(sid::STARTING_DMG, 15);
+            enemy.entity.set_status(sid::STR_AMT, 10);
+            enemy.entity.set_status(sid::BLOCK_AMT, 2);
             enemy.set_move(move_ids::BANDIT_MOCK, 0, 0, 0);
         }
-        "BanditPointy" | "Pointy" => {
-            // Always: stab 5x2
+        "BanditChild" | "BanditPointy" | "Pointy" => {
+            // The Java class is BanditPointy, but its canonical game ID is
+            // BanditChild. A2 damage is patched at the RunEngine spawn site.
+            // Java: reference/extracted/methods/monster/BanditPointy.java
+            enemy.entity.set_status(sid::STARTING_DMG, 5);
             enemy.set_move(move_ids::POINTY_STAB, 5, 2, 0);
         }
         "BronzeAutomaton" | "Bronze Automaton" => {
+            // A0 constructor/pre-battle values. Independent A4/A9/A19 gates
+            // are patched at the RunEngine spawn site.
+            // Java: reference/extracted/methods/monster/BronzeAutomaton.java
             enemy.set_move(move_ids::BA_SPAWN_ORBS, 0, 0, 0);
-            if hp >= 320 {
-                enemy.entity.set_status(sid::FLAIL_DMG, 8);
-                enemy.entity.set_status(sid::BEAM_DMG, 50);
-                enemy.entity.set_status(sid::STR_AMT, 4);
-                enemy.entity.set_status(sid::BLOCK_AMT, 12);
-            } else {
-                enemy.entity.set_status(sid::FLAIL_DMG, 7);
-                enemy.entity.set_status(sid::BEAM_DMG, 45);
-                enemy.entity.set_status(sid::STR_AMT, 3);
-                enemy.entity.set_status(sid::BLOCK_AMT, 9);
-            }
+            enemy.entity.set_status(sid::FLAIL_DMG, 7);
+            enemy.entity.set_status(sid::BEAM_DMG, 45);
+            enemy.entity.set_status(sid::STR_AMT, 3);
+            enemy.entity.set_status(sid::BLOCK_AMT, 9);
+            enemy.entity.set_status(sid::FIRST_TURN, 1);
+            enemy.entity.set_status(sid::NUM_TURNS, 0);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
             enemy.entity.set_status(sid::ARTIFACT, 3);
         }
         "BronzeOrb" | "Bronze Orb" => {
-            // First turn: Stasis (steal card from hand)
+            // Placeholder intent; SpawnMonsterAction/init performs the source
+            // opening roll. FIRST_MOVE represents usedStasis.
+            // Java: reference/extracted/methods/monster/BronzeOrb.java
+            enemy.entity.set_status(sid::FIRST_MOVE, 0);
             enemy.set_move(move_ids::BO_STASIS, 0, 0, 0);
             enemy.add_effect(mfx::STASIS, 1);
         }
@@ -614,11 +787,11 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::TORCH_TACKLE, 7, 1, 0);
         }
         "Champ" | "TheChamp" => {
-            let (slash_dmg, slap_dmg, str_amt, forge_amt, block_amt) = if hp >= 440 {
-                (18, 14, 4, 7, 20)
-            } else {
-                (16, 12, 2, 5, 15)
-            };
+            // A0 constructor values. Independent A4/A9/A19 thresholds are
+            // patched at the run spawn site.
+            // Java: reference/extracted/methods/monster/Champ.java.
+            let (slash_dmg, slap_dmg, str_amt, forge_amt, block_amt) =
+                (16, 12, 2, 5, 15);
             enemy.set_move(move_ids::CHAMP_FACE_SLAP, slap_dmg, 1, 0);
             enemy.add_effect(mfx::FRAIL, 2);
             enemy.add_effect(mfx::VULNERABLE, 2);
@@ -630,77 +803,119 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::FORGE_TIMES, 0);
             enemy.entity.set_status(sid::SLASH_DMG, slash_dmg);
             enemy.entity.set_status(sid::SLAP_DMG, slap_dmg);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "TheCollector" | "Collector" => {
+            // Source: reference/extracted/methods/monster/TheCollector.java.
+            // A0 constructor state; independent A4/A9/A19 values are patched
+            // at the run spawn site.
             enemy.set_move(move_ids::COLL_SPAWN, 0, 0, 0);
-            if hp >= 300 {
-                enemy.entity.set_status(sid::FIREBALL_DMG, 21);
-                enemy.entity.set_status(sid::STR_AMT, 4);
-                enemy.entity.set_status(sid::BLOCK_AMT, 18);
-            } else {
-                enemy.entity.set_status(sid::FIREBALL_DMG, 18);
-                enemy.entity.set_status(sid::STR_AMT, 3);
-                enemy.entity.set_status(sid::BLOCK_AMT, 15);
-            }
+            enemy.intent = crate::combat_types::Intent::Unknown;
+            enemy.entity.set_status(sid::FIREBALL_DMG, 18);
+            enemy.entity.set_status(sid::STR_AMT, 3);
+            enemy.entity.set_status(sid::BLOCK_AMT, 15);
+            enemy.entity.set_status(sid::STARTING_DMG, 3);
+            enemy.entity.set_status(sid::TURN_COUNT, 0);
+            enemy.entity.set_status(sid::USED_MEGA_DEBUFF, 0);
+            enemy.entity.set_status(sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(sid::COUNT, 0);
         }
 
         // =================================================================
         // Act 3 — Beyond
         // =================================================================
         "Darkling" => {
-            // First turn: Nip (8 damage, variable)
+            // Source: reference/extracted/methods/monster/Darkling.java.
+            // Ascension and randomized constructor values are patched at the
+            // run spawn site; this is the A0 factory baseline.
             enemy.set_move(move_ids::DARK_NIP, 8, 1, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 8);
+            enemy.entity.set_status(sid::STR_AMT, 8);
+            enemy.entity.set_status(sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
+            enemy.entity.set_status(sid::COUNT, 0);
+            enemy.entity.set_status(sid::REGROW, 1);
         }
         "OrbWalker" | "Orb Walker" => {
-            // First turn: Laser (10 damage + burn)
+            // Source: reference/extracted/methods/monster/OrbWalker.java.
             enemy.set_move(move_ids::OW_LASER, 10, 1, 0);
-            enemy.add_effect(mfx::BURN, 1);
+            enemy.add_effect(mfx::BURN_DRAW_DISCARD, 1);
+            enemy.intent = Intent::AttackDebuff {
+                damage: 10,
+                hits: 1,
+                effects: fx::BURN,
+            };
+            enemy.entity.set_status(sid::STARTING_DMG, 10);
+            enemy.entity.set_status(sid::STR_AMT, 15);
+            enemy.entity.set_status(sid::GENERIC_STRENGTH_UP, 3);
         }
         "Spiker" => {
-            // Has Thorns 3. First turn: attack (7 damage)
+            // Source: reference/extracted/methods/monster/Spiker.java.
+            // The real opener is rolled during combat initialization.
             enemy.set_move(move_ids::SPIKER_ATTACK, 7, 1, 0);
             enemy.entity.set_status(sid::THORNS, 3);
+            enemy.entity.set_status(sid::STARTING_DMG, 7);
+            enemy.entity.set_status(sid::COUNT, 0);
         }
         "Repulsor" => {
-            // Mostly Daze (add Daze cards). First turn: Daze
+            // Source: reference/extracted/methods/monster/Repulsor.java.
             enemy.set_move(move_ids::REPULSOR_DAZE, 0, 0, 0);
-            enemy.add_effect(mfx::DAZE, 2);
+            enemy.add_effect(mfx::DAZE_DRAW, 2);
+            enemy.intent = Intent::Debuff { effects: fx::DAZE };
+            enemy.entity.set_status(sid::STARTING_DMG, 11);
         }
         "Exploder" => {
-            // 3-turn timer: Attack -> Unknown -> Explode (30 damage)
+            // Source: reference/extracted/methods/monster/Exploder.java.
             enemy.set_move(move_ids::EXPLODER_ATTACK, 9, 1, 0);
             enemy.entity.set_status(sid::TURN_COUNT, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 9);
+            enemy.entity.set_status(sid::EXPLOSIVE, 3);
         }
         "WrithingMass" | "Writhing Mass" => {
-            // First turn: random attack. Use Multi Hit as default.
-            // Reactive power: changes intent when hit. Malleable power: gains block when hit.
-            // A2: 38/9/16/12, else 32/7/15/10
-            // For MCTS deterministic: use Multi Hit as first move
+            // Base factory represents A0; RunEngine applies ascension stats.
+            // AbstractMonster.init replaces this placeholder with a random
+            // first intent from WrithingMass.getMove.
             enemy.set_move(move_ids::WM_MULTI_HIT, 7, 3, 0);
             enemy.entity.set_status(sid::REACTIVE, 1);
-            enemy.entity.set_status(sid::MALLEABLE, 1);
+            enemy.entity.set_status(sid::MALLEABLE, 3);
+            enemy.entity.set_status(sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(sid::STARTING_DMG, 32);
+            enemy.entity.set_status(sid::STR_AMT, 7);
+            enemy.entity.set_status(sid::BLOCK_AMT, 15);
+            enemy.entity.set_status(sid::HEAD_SLAM_DMG, 10);
             enemy.entity.set_status(sid::USED_MEGA_DEBUFF, 0);
         }
-        "SpireGrowth" | "Spire Growth" => {
-            // Has Constrict. First turn: Quick Tackle (16)
+        "Serpent" | "SpireGrowth" | "Spire Growth" => {
+            // Source: reference/extracted/methods/monster/SpireGrowth.java.
             enemy.set_move(move_ids::SG_QUICK_TACKLE, 16, 1, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 16);
+            enemy.entity.set_status(sid::STR_AMT, 22);
+            enemy.entity.set_status(sid::BLOCK_AMT, 10);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
+            enemy.entity.set_status(sid::COUNT, 0);
         }
         "Maw" => {
-            // First turn: Roar (debuff: Weak + Frail)
+            // Source: reference/extracted/methods/monster/Maw.java. The
+            // opening getMove increments constructor turnCount 1 to 2; the
+            // run-time initial roll performs that transition and consumes RNG.
             enemy.set_move(move_ids::MAW_ROAR, 0, 0, 0);
             enemy.add_effect(mfx::WEAK, 3);
             enemy.add_effect(mfx::FRAIL, 3);
             enemy.entity.set_status(sid::TURN_COUNT, 1);
+            enemy.entity.set_status(sid::STARTING_DMG, 25);
+            enemy.entity.set_status(sid::STR_AMT, 3);
+            enemy.entity.set_status(sid::BLOCK_AMT, 3);
+            enemy.entity.set_status(sid::FIRST_MOVE, 0);
         }
         "Transient" => {
             // Escalating damage. A2: starts at 40, else 30. +10 each turn.
-            // Fading: A17 = 6 turns, else 5 turns. Has Shifting power (reduces all damage to block).
+            // Fading: A17 = 6 turns, else 5 turns. Has Shifting power.
             // startingDeathDmg stored as status for escalation.
             enemy.set_move(move_ids::TRANSIENT_ATTACK, 30, 1, 0);
             enemy.entity.set_status(sid::ATTACK_COUNT, 0);
             enemy.entity.set_status(sid::STARTING_DMG, 30);
             enemy.entity.set_status(sid::SHIFTING, 1);
-            // Fading: dies after 5 turns (6 at A17+, but Transient always 999hp so use 5)
+            // Base factory represents A0; RunEngine applies ascension thresholds.
             enemy.entity.set_status(sid::FADING, 5);
         }
         "GiantHead" | "Giant Head" => {
@@ -713,59 +928,67 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::SLOW, 1);
         }
         "Nemesis" => {
-            // Intangible cycling — gains Intangible every turn in takeTurn if not already present.
-            // First move: 50% Tri Attack (fireDmg x3), 50% Burn (3 burns, 5 at A18).
-            // Deterministic MCTS: use Tri Attack as default first move.
-            // fireDmg: A3+ = 7, else 6. Scythe always 45.
+            // Source: reference/extracted/methods/monster/Nemesis.java.
             enemy.set_move(move_ids::NEM_TRI_ATTACK, 6, 3, 0);
             enemy.entity.set_status(sid::SCYTHE_COOLDOWN, 0);
             enemy.entity.set_status(sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(sid::STARTING_DMG, 6);
+            enemy.entity.set_status(sid::BLOCK_AMT, 3);
         }
         "Reptomancer" => {
-            // First turn: Spawn daggers
+            // Source: reference/extracted/methods/monster/Reptomancer.java.
             enemy.set_move(move_ids::REPTO_SPAWN, 0, 0, 0);
+            enemy.intent = Intent::Unknown;
+            enemy.entity.set_status(sid::FIRST_MOVE, 1);
+            enemy.entity.set_status(sid::STARTING_DMG, 13);
+            enemy.entity.set_status(sid::STR_AMT, 30);
+            enemy.entity.set_status(sid::BLOCK_AMT, 1);
+            enemy.entity.set_status(sid::COUNT, 0);
         }
         "SnakeDagger" | "Snake Dagger" => {
-            // First turn: Wound (9 damage + add Wound to discard)
+            // Source: reference/extracted/methods/monster/SnakeDagger.java.
             enemy.set_move(move_ids::SD_WOUND, 9, 1, 0);
             enemy.add_effect(mfx::WOUND, 1);
+            enemy.entity.set_status(sid::FIRST_MOVE, 1);
         }
         "AwakenedOne" | "Awakened One" => {
-            // Phase 1. Curiosity: gains Str when player plays a Power (A19: 2, else 1).
-            // Regen: A19 = 15, else 10. A4: starts with +2 Str.
-            // First turn always Slash (20 damage). Has Unawakened power.
+            // Ascension-dependent pre-battle values are patched at the run
+            // spawn site. These are the A0 constructor/usePreBattle defaults.
+            // Java: reference/extracted/methods/monster/AwakenedOne.java
             enemy.set_move(move_ids::AO_SLASH, 20, 1, 0);
             enemy.entity.set_status(sid::PHASE, 1);
             enemy.entity.set_status(sid::FIRST_TURN, 0);
-            if hp >= 320 {
-                enemy.entity.set_status(sid::CURIOSITY, 2);
-                enemy.entity.set_status(sid::REGENERATE, 15);
-                enemy.entity.set_status(sid::STRENGTH, 2);
-            } else {
-                enemy.entity.set_status(sid::CURIOSITY, 1);
-                enemy.entity.set_status(sid::REGENERATE, 10);
-            }
+            enemy.entity.set_status(sid::CURIOSITY, 1);
+            enemy.entity.set_status(sid::REGENERATION, 10);
         }
         "Donu" => {
+            // Source: reference/extracted/methods/monster/Donu.java. These are
+            // A0 defaults; A4/A9/A19 are independent run-site thresholds.
             enemy.set_move(move_ids::DONU_CIRCLE, 0, 0, 0);
             enemy.add_effect(mfx::STRENGTH, 3);
-            if hp >= 265 { enemy.entity.set_status(sid::ARTIFACT, 3); enemy.entity.set_status(sid::BEAM_DMG, 12); }
-            else { enemy.entity.set_status(sid::ARTIFACT, 2); enemy.entity.set_status(sid::BEAM_DMG, 10); }
+            enemy.add_effect(mfx::STRENGTH_ALL_ALLIES, 3);
+            enemy.entity.set_status(sid::ARTIFACT, 2);
+            enemy.entity.set_status(sid::BEAM_DMG, 10);
         }
         "Deca" => {
-            let bdmg = if hp >= 265 { 12 } else { 10 };
-            enemy.set_move(move_ids::DECA_BEAM, bdmg, 2, 0);
+            // Source: reference/extracted/methods/monster/Deca.java. These are
+            // A0 defaults; A4/A9/A19 are independent run-site thresholds.
+            enemy.set_move(move_ids::DECA_BEAM, 10, 2, 0);
             enemy.add_effect(mfx::DAZE, 2);
-            if hp >= 265 { enemy.entity.set_status(sid::ARTIFACT, 3); } else { enemy.entity.set_status(sid::ARTIFACT, 2); }
-            enemy.entity.set_status(sid::BEAM_DMG, bdmg);
+            enemy.entity.set_status(sid::ARTIFACT, 2);
+            enemy.entity.set_status(sid::BEAM_DMG, 10);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "TimeEater" | "Time Eater" => {
-            let (rd, hsd) = if hp >= 480 { (8, 32) } else { (7, 26) };
-            enemy.set_move(move_ids::TE_REVERBERATE, rd, 3, 0);
+            // Source: reference/extracted/methods/monster/TimeEater.java.
+            // A0 defaults; the run spawn site patches independent A4/A9/A19
+            // thresholds before the source-random opening roll.
+            enemy.set_move(move_ids::TE_REVERBERATE, 7, 3, 0);
             enemy.entity.set_status(sid::CARD_COUNT, 0);
             enemy.entity.set_status(sid::USED_HASTE, 0);
-            enemy.entity.set_status(sid::REVERB_DMG, rd);
-            enemy.entity.set_status(sid::HEAD_SLAM_DMG, hsd);
+            enemy.entity.set_status(sid::REVERB_DMG, 7);
+            enemy.entity.set_status(sid::HEAD_SLAM_DMG, 26);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
             enemy.entity.set_status(sid::TIME_WARP_ACTIVE, 1);
         }
 
@@ -773,39 +996,54 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         // Act 4 — The Ending
         // =================================================================
         "SpireShield" | "Spire Shield" => {
-            // 3-move cycle. First turn: Bash or Fortify (50/50 in Java).
-            // Bash: 12 (A3+ = 14). Smash: 34 (A3+ = 38). Fortify: 30 block.
-            // Bash applies -1 Str or -1 Focus (random if player has orbs).
+            // Source: reference/extracted/methods/monster/SpireShield.java.
+            // These are the A0 constructor/pre-battle defaults; run spawning
+            // patches the independent A3/A8/A18 thresholds.
             enemy.set_move(move_ids::SHIELD_BASH, 12, 1, 0);
-            enemy.add_effect(mfx::STRENGTH_DOWN, 1);
+            enemy.intent = crate::combat_types::Intent::AttackDebuff {
+                damage: 12,
+                hits: 1,
+                effects: 0,
+            };
             enemy.entity.set_status(sid::MOVE_COUNT, 0);
+            enemy.entity.set_status(sid::STARTING_DMG, 12);
+            enemy.entity.set_status(sid::STR_AMT, 34);
+            enemy.entity.set_status(sid::ARTIFACT, 1);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "SpireSpear" | "Spire Spear" => {
-            // 3-move cycle. First turn: Burn Strike (5x2 + Burns)
+            // Source: reference/extracted/methods/monster/SpireSpear.java.
+            // A0 constructor and pre-battle defaults; the run spawn site owns
+            // the independent A3/A8/A18 thresholds.
             enemy.set_move(move_ids::SPEAR_BURN_STRIKE, 5, 2, 0);
+            enemy.intent = crate::combat_types::Intent::AttackDebuff {
+                damage: 5,
+                hits: 2,
+                effects: 0,
+            };
             enemy.add_effect(mfx::BURN, 2);
             enemy.entity.set_status(sid::MOVE_COUNT, 0);
             enemy.entity.set_status(sid::SKEWER_COUNT, 3);
+            enemy.entity.set_status(sid::STARTING_DMG, 5);
+            enemy.entity.set_status(sid::ARTIFACT, 1);
+            enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
         "CorruptHeart" | "Corrupt Heart" => {
+            // Source: reference/extracted/methods/monster/CorruptHeart.java.
+            // Ascension-dependent constructor/pre-battle values are patched at
+            // the run spawn site because create_enemy has no ascension input.
             enemy.set_move(move_ids::HEART_DEBILITATE, 0, 0, 0);
             enemy.add_effect(mfx::VULNERABLE, 2);
             enemy.add_effect(mfx::WEAK, 2);
             enemy.add_effect(mfx::FRAIL, 2);
+            enemy.add_effect(mfx::HEART_STATUS_CARDS, 1);
             enemy.entity.set_status(sid::MOVE_COUNT, 0);
             enemy.entity.set_status(sid::BUFF_COUNT, 0);
             enemy.entity.set_status(sid::IS_FIRST_MOVE, 1);
-            if hp >= 800 {
-                enemy.entity.set_status(sid::INVINCIBLE, 200);
-                enemy.entity.set_status(sid::BEAT_OF_DEATH, 2);
-                enemy.entity.set_status(sid::BLOOD_HIT_COUNT, 15);
-                enemy.entity.set_status(sid::ECHO_DMG, 45);
-            } else {
-                enemy.entity.set_status(sid::INVINCIBLE, 300);
-                enemy.entity.set_status(sid::BEAT_OF_DEATH, 1);
-                enemy.entity.set_status(sid::BLOOD_HIT_COUNT, 12);
-                enemy.entity.set_status(sid::ECHO_DMG, 40);
-            }
+            enemy.entity.set_status(sid::INVINCIBLE, 300);
+            enemy.entity.set_status(sid::BEAT_OF_DEATH, 1);
+            enemy.entity.set_status(sid::BLOOD_HIT_COUNT, 12);
+            enemy.entity.set_status(sid::ECHO_DMG, 40);
         }
 
         _ => {
@@ -825,86 +1063,140 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
 /// Deterministic enemies ignore `num` but the stream still advances, preserving
 /// multi-enemy intent ordering parity with Java.
 pub fn roll_next_move(enemy: &mut EnemyCombatState, ai_rng: &mut crate::seed::StsRandom) {
-    let num: i32 = ai_rng.random(99);
-    roll_next_move_with_num(enemy, num);
+    let num: i32 = ai_rng.random_int(99);
+    roll_next_move_with_num_and_rng(enemy, num, ai_rng);
+}
+
+/// Select a monster's opening intent without recording a placeholder move in
+/// history. Java calls `rollMove()` from `AbstractMonster.init()` while history
+/// is empty. This is currently used only for source-verified random openers.
+pub fn roll_initial_move(enemy: &mut EnemyCombatState, ai_rng: &mut crate::seed::StsRandom) {
+    let num = ai_rng.random_int(99);
+    roll_initial_move_with_num_and_rng(enemy, num, ai_rng);
+}
+
+pub fn roll_initial_move_with_num_and_rng(
+    enemy: &mut EnemyCombatState,
+    num: i32,
+    ai_rng: &mut crate::seed::StsRandom,
+) {
+    enemy.move_history.clear();
+    enemy.move_effects.clear();
+    if enemy.id == "Cultist" {
+        act1::roll_cultist_initial(enemy);
+    } else {
+        select_move(enemy, num, ai_rng);
+    }
 }
 
 /// Test-friendly entry point: advance enemy intent using an explicit `num` (0..=99)
-/// without consuming from any RNG. Production code should call `roll_next_move`.
+/// and a deterministic secondary RNG. Production code should call `roll_next_move`;
+/// RNG-sensitive tests should call `roll_next_move_with_num_and_rng`.
 pub fn roll_next_move_with_num(enemy: &mut EnemyCombatState, num: i32) {
+    let mut secondary_rng = crate::seed::StsRandom::new(0);
+    roll_next_move_with_num_and_rng(enemy, num, &mut secondary_rng);
+}
+
+/// Advance with an explicit Java `getMove` number while preserving conditional
+/// RNG draws performed inside the enemy's AI routine.
+pub fn roll_next_move_with_num_and_rng(
+    enemy: &mut EnemyCombatState,
+    num: i32,
+    ai_rng: &mut crate::seed::StsRandom,
+) {
     enemy.move_history.push(enemy.move_id);
     enemy.move_effects.clear();
+    select_move(enemy, num, ai_rng);
+}
 
+fn select_move(
+    enemy: &mut EnemyCombatState,
+    num: i32,
+    ai_rng: &mut crate::seed::StsRandom,
+) {
     match enemy.id.as_str() {
         // Act 1
-        "JawWorm" => act1::roll_jaw_worm(enemy, num),
+        "JawWorm" => act1::roll_jaw_worm(enemy, num, ai_rng),
         "Cultist" => act1::roll_cultist(enemy, num),
         "FungiBeast" => act1::roll_fungi_beast(enemy, num),
         "FuzzyLouseNormal" | "RedLouse" => act1::roll_red_louse(enemy, num),
         "FuzzyLouseDefensive" | "GreenLouse" => act1::roll_green_louse(enemy, num),
         "SlaverBlue" | "BlueSlaver" => act1::roll_blue_slaver(enemy, num),
         "SlaverRed" | "RedSlaver" => act1::roll_red_slaver(enemy, num),
-        "AcidSlime_S" => act1::roll_acid_slime_s(enemy, num),
-        "AcidSlime_M" => act1::roll_acid_slime_m(enemy, num),
-        "AcidSlime_L" => act1::roll_acid_slime_l(enemy, num),
+        "AcidSlime_S" => act1::roll_acid_slime_s(enemy, num, ai_rng),
+        "AcidSlime_M" => act1::roll_acid_slime_m(enemy, num, ai_rng),
+        "AcidSlime_L" => act1::roll_acid_slime_l(enemy, num, ai_rng),
         "SpikeSlime_S" => act1::roll_spike_slime_s(enemy, num),
         "SpikeSlime_M" => act1::roll_spike_slime_m(enemy, num),
         "SpikeSlime_L" => act1::roll_spike_slime_l(enemy, num),
         "Looter" => act1::roll_looter(enemy, num),
-        "GremlinFat" => act1::roll_gremlin_simple(enemy, 4, 1),
-        "GremlinThief" => act1::roll_gremlin_simple(enemy, 9, 0),
-        "GremlinWarrior" => act1::roll_gremlin_simple(enemy, 4, 0),
+        "GremlinFat" => act1::roll_gremlin_fat(enemy),
+        "GremlinThief" => act1::roll_gremlin_thief(enemy),
+        "GremlinWarrior" => act1::roll_gremlin_warrior(enemy),
         "GremlinWizard" => act1::roll_gremlin_wizard(enemy),
-        "GremlinTsundere" | "GremlinSneaky" => { /* Does nothing each turn */ }
+        "GremlinTsundere" | "GremlinSneaky" => act1::roll_gremlin_tsundere(enemy),
         "GremlinNob" | "Gremlin Nob" => act1::roll_gremlin_nob(enemy, num),
         "Lagavulin" => act1::roll_lagavulin(enemy),
         "Sentry" => act1::roll_sentry(enemy),
         "TheGuardian" => act1::roll_guardian(enemy),
         "Hexaghost" => act1::roll_hexaghost(enemy),
         "SlimeBoss" => act1::roll_slime_boss(enemy),
+        "Apology Slime" | "ApologySlime" => act1::roll_apology_slime(enemy, ai_rng),
         // Act 2
         "Chosen" => act2::roll_chosen(enemy, num),
         "Mugger" => act2::roll_mugger(enemy, num),
-        "Byrd" => act2::roll_byrd(enemy, num),
-        "Shelled Parasite" | "ShelledParasite" => act2::roll_shelled_parasite(enemy, num),
+        "Byrd" => act2::roll_byrd(enemy, num, ai_rng),
+        "Shelled Parasite" | "ShelledParasite" => {
+            act2::roll_shelled_parasite(enemy, num, ai_rng)
+        }
         "SnakePlant" => act2::roll_snake_plant(enemy, num),
         "Centurion" => act2::roll_centurion(enemy, num),
-        "Mystic" | "Healer" => act2::roll_mystic(enemy, num),
+        "Mystic" | "Healer" => act2::roll_healer(enemy, num),
         "BookOfStabbing" | "Book of Stabbing" => act2::roll_book_of_stabbing(enemy, num),
-        "GremlinLeader" | "Gremlin Leader" => act2::roll_gremlin_leader(enemy, num),
-        "Taskmaster" => act2::roll_taskmaster(enemy, num),
+        "GremlinLeader" | "Gremlin Leader" => {
+            act2::roll_gremlin_leader(enemy, num, ai_rng)
+        }
+        "SlaverBoss" | "TaskMaster" | "Taskmaster" => {
+            act2::roll_taskmaster(enemy, num)
+        }
         "SphericGuardian" | "Spheric Guardian" => act2::roll_spheric_guardian(enemy),
         "Snecko" => act2::roll_snecko(enemy, num),
         "BanditBear" | "Bear" => act2::roll_bear(enemy, num),
         "BanditLeader" => act2::roll_bandit_leader(enemy, num),
-        "BanditPointy" | "Pointy" => { /* Always stab 5x2 */ }
+        "BanditChild" | "BanditPointy" | "Pointy" => {
+            act2::roll_bandit_pointy(enemy, num)
+        }
         "BronzeAutomaton" | "Bronze Automaton" => act2::roll_bronze_automaton(enemy, num),
         "BronzeOrb" | "Bronze Orb" => act2::roll_bronze_orb(enemy, num),
         "TorchHead" | "Torch Head" => { /* Always Tackle 7 */ }
         "Champ" | "TheChamp" => act2::roll_champ(enemy, num),
         "TheCollector" | "Collector" => act2::roll_collector(enemy, num),
         // Act 3
-        "Darkling" => act3::roll_darkling(enemy, num),
+        "Darkling" => act3::roll_darkling(enemy, num, ai_rng),
         "OrbWalker" | "Orb Walker" => act3::roll_orb_walker(enemy, num),
         "Spiker" => act3::roll_spiker(enemy, num),
         "Repulsor" => act3::roll_repulsor(enemy, num),
         "Exploder" => act3::roll_exploder(enemy, num),
-        "WrithingMass" | "Writhing Mass" => act3::roll_writhing_mass(enemy, num),
-        "SpireGrowth" | "Spire Growth" => act3::roll_spire_growth(enemy, num),
+        "WrithingMass" | "Writhing Mass" => {
+            act3::roll_writhing_mass(enemy, num, ai_rng)
+        }
+        "Serpent" | "SpireGrowth" | "Spire Growth" => {
+            act3::roll_spire_growth(enemy, num)
+        }
         "Maw" => act3::roll_maw(enemy, num),
         "Transient" => act3::roll_transient(enemy, num),
         "GiantHead" | "Giant Head" => act3::roll_giant_head(enemy, num),
-        "Nemesis" => act3::roll_nemesis(enemy, num),
-        "Reptomancer" => act3::roll_reptomancer(enemy, num),
+        "Nemesis" => act3::roll_nemesis(enemy, num, ai_rng),
+        "Reptomancer" => act3::roll_reptomancer(enemy, num, ai_rng),
         "SnakeDagger" | "Snake Dagger" => act3::roll_snake_dagger(enemy, num),
         "AwakenedOne" | "Awakened One" => act3::roll_awakened_one(enemy, num),
         "Donu" => act3::roll_donu(enemy, num),
         "Deca" => act3::roll_deca(enemy, num),
-        "TimeEater" | "Time Eater" => act3::roll_time_eater(enemy, num),
+        "TimeEater" | "Time Eater" => act3::roll_time_eater(enemy, num, ai_rng),
         // Act 4
-        "SpireShield" | "Spire Shield" => act4::roll_spire_shield(enemy),
-        "SpireSpear" | "Spire Spear" => act4::roll_spire_spear(enemy),
-        "CorruptHeart" | "Corrupt Heart" => act4::roll_corrupt_heart(enemy, num),
+        "SpireShield" | "Spire Shield" => act4::roll_spire_shield(enemy, ai_rng),
+        "SpireSpear" | "Spire Spear" => act4::roll_spire_spear(enemy, ai_rng),
+        "CorruptHeart" | "Corrupt Heart" => act4::roll_corrupt_heart(enemy, num, ai_rng),
         _ => {
             if enemy.move_damage() > 0 {
                 enemy.set_move(2, 0, 0, 5);
@@ -933,6 +1225,7 @@ pub(crate) fn last_two_moves(enemy: &EnemyCombatState, move_id: i32) -> bool {
 pub use act3::awakened_one_rebirth;
 pub use act1::guardian_check_mode_shift;
 pub use act1::guardian_switch_to_offensive;
+pub(crate) use act1::advance_acid_slime_s_after_turn;
 pub use act1::hexaghost_set_divider;
 pub use act1::lagavulin_wake_up;
 pub use act1::slime_boss_should_split;
@@ -962,16 +1255,18 @@ mod tests {
         let mut enemy = create_enemy("JawWorm", 44, 44);
         assert_eq!(enemy.move_id, move_ids::JW_CHOMP);
 
-        roll_next_move_with_num(&mut enemy, 30); // -> BELLOW
-        assert_eq!(enemy.move_id, move_ids::JW_BELLOW);
-        assert_eq!(enemy.effect(mfx::STRENGTH), Some(3));
-
-        roll_next_move_with_num(&mut enemy, 80); // -> THRASH
+        // Source: reference/extracted/methods/monster/JawWorm.java (`getMove`).
+        roll_next_move_with_num(&mut enemy, 30); // CHOMP -> THRASH
         assert_eq!(enemy.move_id, move_ids::JW_THRASH);
         assert_eq!(enemy.move_damage(), 7);
         assert_eq!(enemy.move_block(), 5);
 
-        roll_next_move_with_num(&mut enemy, 10); // -> CHOMP
+        roll_next_move_with_num(&mut enemy, 80); // THRASH -> BELLOW
+        assert_eq!(enemy.move_id, move_ids::JW_BELLOW);
+        assert_eq!(enemy.effect(mfx::STRENGTH), Some(3));
+
+        roll_next_move_with_num(&mut enemy, 30); // BELLOW -> THRASH
+        roll_next_move_with_num(&mut enemy, 10); // THRASH -> CHOMP
         assert_eq!(enemy.move_id, move_ids::JW_CHOMP);
     }
 
@@ -980,6 +1275,12 @@ mod tests {
         let mut enemy = create_enemy("Cultist", 50, 50);
         assert_eq!(enemy.move_id, move_ids::CULT_INCANTATION);
         assert_eq!(enemy.move_damage(), 0);
+        assert_eq!(enemy.effect(mfx::RITUAL), Some(3));
+
+        // AbstractMonster.init calls rollMove; Cultist's first getMove keeps
+        // Incantation while consuming the mandatory aiRng draw.
+        roll_initial_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(enemy.move_id, move_ids::CULT_INCANTATION);
         assert_eq!(enemy.effect(mfx::RITUAL), Some(3));
 
         roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
@@ -993,26 +1294,26 @@ mod tests {
     #[test]
     fn test_fungi_beast_anti_repeat() {
         let mut enemy = create_enemy("FungiBeast", 24, 24);
-        assert_eq!(enemy.move_id, move_ids::FB_BITE);
+        // Source: reference/extracted/methods/monster/FungiBeast.java.
+        roll_next_move_with_num(&mut enemy, 0);
+        roll_next_move_with_num(&mut enemy, 0);
+        assert_eq!(enemy.move_id, move_ids::FB_GROW);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        if enemy.move_history.len() >= 2
-            && enemy.move_history[enemy.move_history.len() - 1] == move_ids::FB_BITE
-            && enemy.move_history[enemy.move_history.len() - 2] == move_ids::FB_BITE
-        {
-            assert_eq!(enemy.move_id, move_ids::FB_GROW);
-        }
+        roll_next_move_with_num(&mut enemy, 99);
+        assert_eq!(enemy.move_id, move_ids::FB_BITE);
     }
 
     #[test]
     fn test_sentry_alternating() {
         let mut enemy = create_enemy("Sentry", 38, 38);
         assert_eq!(enemy.move_id, move_ids::SENTRY_BOLT);
+        assert_eq!(enemy.effect(mfx::DAZE), Some(2));
 
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 0, &mut crate::seed::StsRandom::new(1));
         roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SENTRY_BEAM);
-        assert_eq!(enemy.effect(mfx::DAZE), Some(2));
+        assert_eq!(enemy.move_damage(), 9);
 
         roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SENTRY_BOLT);
@@ -1020,17 +1321,18 @@ mod tests {
 
     #[test]
     fn test_slime_boss_pattern() {
+        // Source: reference/extracted/methods/monster/SlimeBoss.java (`takeTurn`).
         let mut enemy = create_enemy("SlimeBoss", 140, 140);
         assert_eq!(enemy.move_id, move_ids::SB_STICKY);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_slime_boss_after_turn(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SB_PREP_SLAM);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_slime_boss_after_turn(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SB_SLAM);
         assert_eq!(enemy.move_damage(), 35);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_slime_boss_after_turn(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::SB_STICKY);
     }
 
@@ -1048,19 +1350,21 @@ mod tests {
 
     #[test]
     fn test_guardian_offensive_pattern() {
+        // Source: reference/extracted/methods/monster/TheGuardian.java
+        // (`useChargeUp`, `useFierceBash`, and `useVentSteam`).
         let mut enemy = create_enemy("TheGuardian", 240, 240);
         assert_eq!(enemy.move_id, move_ids::GUARD_CHARGING_UP);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_guardian_after_turn(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::GUARD_FIERCE_BASH);
         assert_eq!(enemy.move_damage(), 32);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_guardian_after_turn(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::GUARD_VENT_STEAM);
         assert_eq!(enemy.effect(mfx::WEAK), Some(2));
         assert_eq!(enemy.effect(mfx::VULNERABLE), Some(2));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_guardian_after_turn(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::GUARD_WHIRLWIND);
         assert_eq!(enemy.move_damage(), 5);
         assert_eq!(enemy.move_hits(), 4);
@@ -1073,29 +1377,34 @@ mod tests {
 
         let shifted = guardian_check_mode_shift(&mut enemy, 30);
         assert!(shifted);
-        assert_eq!(enemy.entity.status(sid::SHARP_HIDE), 3);
+        assert_eq!(enemy.entity.status(sid::SHARP_HIDE), 0);
         assert_eq!(enemy.entity.status(sid::MODE_SHIFT), 40);
+        assert_eq!(enemy.entity.block, 20);
+        assert_eq!(enemy.move_id, move_ids::GUARD_CLOSE_UP);
+        assert_eq!(enemy.effect(mfx::SHARP_HIDE), Some(3));
 
+        act1::advance_guardian_after_turn(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::GUARD_ROLL_ATTACK);
-
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_guardian_after_turn(&mut enemy);
         assert_eq!(enemy.move_id, move_ids::GUARD_TWIN_SLAM);
     }
 
     #[test]
     fn test_hexaghost_pattern() {
+        // Source: reference/extracted/methods/monster/Hexaghost.java (`takeTurn`).
         let mut enemy = create_enemy("Hexaghost", 250, 250);
+        let mut rng = crate::seed::StsRandom::new(0);
         assert_eq!(enemy.move_id, move_ids::HEX_ACTIVATE);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_hexaghost_after_turn(&mut enemy, 80, &mut rng);
         assert_eq!(enemy.move_id, move_ids::HEX_DIVIDER);
         assert_eq!(enemy.move_hits(), 6);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_hexaghost_after_turn(&mut enemy, 38, &mut rng);
         assert_eq!(enemy.move_id, move_ids::HEX_SEAR);
         assert_eq!(enemy.effect(mfx::BURN), Some(1));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_hexaghost_after_turn(&mut enemy, 32, &mut rng);
         assert_eq!(enemy.move_id, move_ids::HEX_TACKLE);
         assert_eq!(enemy.move_hits(), 2);
     }
@@ -1116,13 +1425,13 @@ mod tests {
     #[test]
     fn test_blue_slaver_pattern() {
         let mut enemy = create_enemy("SlaverBlue", 48, 48);
+        // Source: reference/extracted/methods/monster/SlaverBlue.java.
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 40, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 40);
         assert_eq!(enemy.move_id, move_ids::BS_STAB);
-        assert_eq!(enemy.move_damage(), 12);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::BS_STAB);
-
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 40);
         assert_eq!(enemy.move_id, move_ids::BS_RAKE);
         assert_eq!(enemy.effect(mfx::WEAK), Some(1));
     }
@@ -1130,14 +1439,17 @@ mod tests {
     #[test]
     fn test_red_slaver_pattern() {
         let mut enemy = create_enemy("SlaverRed", 48, 48);
+        // Source: reference/extracted/methods/monster/SlaverRed.java.
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 0, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::RS_STAB);
         assert_eq!(enemy.move_damage(), 13);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 75);
         assert_eq!(enemy.move_id, move_ids::RS_ENTANGLE);
         assert_eq!(enemy.effect(mfx::ENTANGLE), Some(1));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 60);
         assert!(
             enemy.move_id == move_ids::RS_SCRAPE || enemy.move_id == move_ids::RS_STAB
         );
@@ -1146,26 +1458,30 @@ mod tests {
     #[test]
     fn test_acid_slime_s_pattern() {
         let mut enemy = create_enemy("AcidSlime_S", 10, 10);
-        assert_eq!(enemy.move_id, move_ids::AS_TACKLE);
+        assert_eq!(enemy.move_id, move_ids::AS_S_TACKLE);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::AS_LICK);
+        advance_acid_slime_s_after_turn(&mut enemy);
+        assert_eq!(enemy.move_id, move_ids::AS_S_LICK);
         assert_eq!(enemy.effect(mfx::WEAK), Some(1));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::AS_TACKLE);
+        advance_acid_slime_s_after_turn(&mut enemy);
+        assert_eq!(enemy.move_id, move_ids::AS_S_TACKLE);
     }
 
     #[test]
     fn test_spike_slime_m_pattern() {
+        // Source: reference/extracted/methods/monster/SpikeSlime_M.java
+        // (`getMove`: <30 cannot Tackle three times; >=30 selects Lick).
         let mut enemy = create_enemy("SpikeSlime_M", 28, 28);
         assert_eq!(enemy.move_id, move_ids::SS_TACKLE);
         assert_eq!(enemy.move_damage(), 8);
+        assert_eq!(enemy.effect(mfx::SLIMED), Some(1));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 0);
         assert_eq!(enemy.move_id, move_ids::SS_TACKLE);
+        assert_eq!(enemy.effect(mfx::SLIMED), Some(1));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 0);
         assert_eq!(enemy.move_id, move_ids::SS_LICK);
         assert_eq!(enemy.effect(mfx::FRAIL), Some(1));
     }
@@ -1180,80 +1496,152 @@ mod tests {
     fn test_guardian_switch_to_offensive() {
         let mut enemy = create_enemy("TheGuardian", 240, 240);
         guardian_check_mode_shift(&mut enemy, 30);
-        assert_eq!(enemy.entity.status(sid::SHARP_HIDE), 3);
+        enemy.entity.set_status(sid::SHARP_HIDE, 3);
 
         guardian_switch_to_offensive(&mut enemy);
         assert_eq!(enemy.entity.status(sid::SHARP_HIDE), 0);
-        assert_eq!(enemy.move_id, move_ids::GUARD_CHARGING_UP);
+        assert_eq!(enemy.move_id, move_ids::GUARD_WHIRLWIND);
     }
 
     #[test]
     fn test_looter_escape() {
+        // Source: reference/extracted/methods/monster/Looter.java (`takeTurn`).
         let mut enemy = create_enemy("Looter", 44, 44);
         assert_eq!(enemy.move_id, move_ids::LOOTER_MUG);
+        let seed = (1..10_000).find(|&seed| {
+            let mut rng = crate::seed::StsRandom::new(seed);
+            let _ = rng.random_f32();
+            rng.random_f32() < 0.5
+        }).unwrap();
+        let mut rng = crate::seed::StsRandom::new(seed);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_looter_after_turn(&mut enemy, &mut rng);
         assert_eq!(enemy.move_id, move_ids::LOOTER_MUG);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_looter_after_turn(&mut enemy, &mut rng);
         assert_eq!(enemy.move_id, move_ids::LOOTER_SMOKE_BOMB);
+        assert_eq!(enemy.move_block(), 6);
+        assert_eq!(rng.counter, 2);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        act1::advance_looter_after_turn(&mut enemy, &mut rng);
         assert_eq!(enemy.move_id, move_ids::LOOTER_ESCAPE);
+        assert!(!enemy.is_escaping);
+        act1::advance_looter_after_turn(&mut enemy, &mut rng);
         assert!(enemy.is_escaping);
+        assert_eq!(enemy.entity.hp, 0);
+
+        let lunge_seed = (1..10_000).find(|&seed| {
+            let mut rng = crate::seed::StsRandom::new(seed);
+            let _ = rng.random_f32();
+            rng.random_f32() >= 0.5
+        }).unwrap();
+        let mut lunge = create_enemy("Looter", 44, 44);
+        let mut rng = crate::seed::StsRandom::new(lunge_seed);
+        act1::advance_looter_after_turn(&mut lunge, &mut rng);
+        act1::advance_looter_after_turn(&mut lunge, &mut rng);
+        assert_eq!(lunge.move_id, move_ids::LOOTER_LUNGE);
+        assert_eq!(lunge.move_damage(), 12);
+        act1::advance_looter_after_turn(&mut lunge, &mut rng);
+        assert_eq!(lunge.move_id, move_ids::LOOTER_SMOKE_BOMB);
     }
 
     // ----- Act 2 -----
 
     #[test]
     fn test_chosen_pattern() {
+        // Source: reference/extracted/methods/monster/Chosen.java.
         let mut enemy = create_enemy("Chosen", 97, 97);
         assert_eq!(enemy.move_id, move_ids::CHOSEN_POKE);
         assert_eq!(enemy.move_damage(), 5);
         assert_eq!(enemy.move_hits(), 2);
 
-        // After Poke: Hex
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 99, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(enemy.move_id, move_ids::CHOSEN_POKE);
+
+        // After Poke: Hex.
+        roll_next_move_with_num(&mut enemy, 99);
         assert_eq!(enemy.move_id, move_ids::CHOSEN_HEX);
         assert_eq!(enemy.effect(mfx::HEX), Some(1));
 
-        // After Hex: Debilitate or Drain
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 0);
         assert_eq!(enemy.move_id, move_ids::CHOSEN_DEBILITATE);
 
-        // After debuff: attack
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 0);
         assert_eq!(enemy.move_id, move_ids::CHOSEN_ZAP);
         assert_eq!(enemy.move_damage(), 18);
     }
 
     #[test]
-    fn test_byrd_pattern() {
+    fn test_byrd_source_ai_windows_and_conditional_rng() {
+        // Source: reference/extracted/methods/monster/Byrd.java (`getMove`).
         let mut enemy = create_enemy("Byrd", 28, 28);
         assert_eq!(enemy.move_id, move_ids::BYRD_PECK);
         assert_eq!(enemy.move_damage(), 1);
         assert_eq!(enemy.move_hits(), 5);
         assert_eq!(enemy.entity.status(sid::FLIGHT), 3);
+        assert_eq!(enemy.entity.status(sid::FIRST_MOVE), 1);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        let seed_for = |chance: f32, expected: bool| (1..10_000).find(|&seed| {
+            let mut rng = crate::seed::StsRandom::new(seed);
+            (rng.random_f32() < chance) == expected
+        }).unwrap();
+
+        for (caws, expected) in [
+            (true, move_ids::BYRD_CAW),
+            (false, move_ids::BYRD_PECK),
+        ] {
+            let mut opening = create_enemy("Byrd", 28, 28);
+            let mut rng = crate::seed::StsRandom::new(seed_for(0.375, caws));
+            roll_initial_move_with_num_and_rng(&mut opening, 99, &mut rng);
+            assert_eq!(opening.move_id, expected);
+            assert_eq!(rng.counter, 1);
+        }
+
+        enemy.entity.set_status(sid::FIRST_MOVE, 0);
+        roll_next_move_with_num(&mut enemy, 0);
         assert_eq!(enemy.move_id, move_ids::BYRD_PECK);
-
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 60);
         assert_eq!(enemy.move_id, move_ids::BYRD_SWOOP);
         assert_eq!(enemy.move_damage(), 12);
+
+        for (swoops, expected) in [
+            (true, move_ids::BYRD_SWOOP),
+            (false, move_ids::BYRD_CAW),
+        ] {
+            let mut repeated_peck = create_enemy("Byrd", 28, 28);
+            repeated_peck.entity.set_status(sid::FIRST_MOVE, 0);
+            repeated_peck.move_history.push(move_ids::BYRD_PECK);
+            let mut rng = crate::seed::StsRandom::new(seed_for(0.4, swoops));
+            roll_next_move_with_num_and_rng(&mut repeated_peck, 0, &mut rng);
+            assert_eq!(repeated_peck.move_id, expected);
+            assert_eq!(rng.counter, 1);
+        }
+
+        enemy.entity.set_status(sid::FLIGHT, 0);
+        let mut rng = crate::seed::StsRandom::new(7);
+        roll_next_move_with_num_and_rng(&mut enemy, 99, &mut rng);
+        assert_eq!(enemy.move_id, move_ids::BYRD_HEADBUTT);
+        assert_eq!(enemy.move_damage(), 3);
+        assert_eq!(rng.counter, 0);
     }
 
     #[test]
     fn test_snake_plant_pattern() {
+        // Source: reference/extracted/methods/monster/SnakePlant.java.
         let mut enemy = create_enemy("SnakePlant", 77, 77);
         assert_eq!(enemy.move_id, move_ids::SNAKE_CHOMP);
         assert_eq!(enemy.move_damage(), 7);
         assert_eq!(enemy.move_hits(), 3);
+        assert_eq!(enemy.entity.status(sid::MALLEABLE), 3);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 64, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::SNAKE_CHOMP);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 64);
+        assert_eq!(enemy.move_id, move_ids::SNAKE_CHOMP);
+        roll_next_move_with_num(&mut enemy, 64);
         assert_eq!(enemy.move_id, move_ids::SNAKE_SPORES);
         assert_eq!(enemy.effect(mfx::WEAK), Some(2));
         assert_eq!(enemy.effect(mfx::FRAIL), Some(2));
@@ -1262,19 +1650,22 @@ mod tests {
     #[test]
     fn test_book_of_stabbing_escalation() {
         let mut enemy = create_enemy("BookOfStabbing", 162, 162);
+        // Source: reference/extracted/methods/monster/BookOfStabbing.java.
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 99, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(enemy.move_id, move_ids::BOOK_STAB);
+        assert_eq!(enemy.move_hits(), 1);
+        roll_next_move_with_num(&mut enemy, 99);
         assert_eq!(enemy.move_id, move_ids::BOOK_STAB);
         assert_eq!(enemy.move_hits(), 2);
-
-        // Roll: stab count increments
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::BOOK_STAB);
-        let new_count = enemy.entity.status(sid::STAB_COUNT);
-        assert!(new_count >= 3);
     }
 
     #[test]
     fn test_bronze_automaton_boss_pattern() {
         let mut enemy = create_enemy("BronzeAutomaton", 300, 300);
+        // Source: reference/extracted/methods/monster/BronzeAutomaton.java.
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 0, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::BA_SPAWN_ORBS);
 
         // After spawn: Flail
@@ -1286,6 +1677,7 @@ mod tests {
 
     #[test]
     fn test_champ_boss_pattern() {
+        // Source: reference/extracted/methods/monster/Champ.java.
         let mut enemy = create_enemy("Champ", 420, 420);
         assert_eq!(enemy.move_id, move_ids::CHAMP_FACE_SLAP);
         assert_eq!(enemy.move_damage(), 12);
@@ -1293,85 +1685,127 @@ mod tests {
         assert_eq!(enemy.effect(mfx::FRAIL), Some(2));
         assert_eq!(enemy.effect(mfx::VULNERABLE), Some(2));
 
-        // Phase 1 cycle
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 99, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::CHAMP_HEAVY_SLASH);
-        assert_eq!(enemy.move_damage(), 16); // base (non-A4) slash dmg
+        assert_eq!(enemy.move_damage(), 16);
 
-        // Trigger phase 2 at half HP
-        enemy.entity.hp = 200;
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        // Exactly half does not trigger; strictly below half does.
+        enemy.entity.hp = 210;
+        roll_next_move_with_num(&mut enemy, 99);
+        assert_ne!(enemy.move_id, move_ids::CHAMP_ANGER);
+        enemy.entity.hp = 209;
+        roll_next_move_with_num(&mut enemy, 99);
         assert_eq!(enemy.move_id, move_ids::CHAMP_ANGER);
     }
 
     #[test]
     fn test_collector_boss_pattern() {
+        // Source: reference/extracted/methods/monster/TheCollector.java.
         let mut enemy = create_enemy("TheCollector", 282, 282);
         assert_eq!(enemy.move_id, move_ids::COLL_SPAWN);
+        assert_eq!(enemy.entity.status(sid::FIRST_MOVE), 1);
+        assert_eq!(enemy.entity.status(sid::TURN_COUNT), 0);
 
-        // Java: after Spawn, Fireball cycle (not immediate Mega Debuff)
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        enemy.entity.set_status(sid::FIRST_MOVE, 0);
+        enemy.entity.set_status(sid::TURN_COUNT, 1);
+        roll_next_move_with_num(&mut enemy, 70);
         assert_eq!(enemy.move_id, move_ids::COLL_FIREBALL);
         assert_eq!(enemy.move_damage(), 18);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::COLL_FIREBALL);
+        enemy.entity.set_status(sid::COUNT, 1);
+        roll_next_move_with_num(&mut enemy, 25);
+        assert_eq!(enemy.move_id, move_ids::COLL_REVIVE);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        enemy.entity.set_status(sid::COUNT, 0);
+        roll_next_move_with_num(&mut enemy, 99);
         assert_eq!(enemy.move_id, move_ids::COLL_BUFF);
+        assert_eq!(enemy.move_block(), 15);
+        assert_eq!(enemy.effect(mfx::STRENGTH), Some(3));
+        assert_eq!(enemy.effect(mfx::STRENGTH_ALL_ALLIES), Some(3));
 
-        // Mega Debuff at turn 4 (turnsTaken >= 3)
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        enemy.entity.set_status(sid::TURN_COUNT, 3);
+        roll_next_move_with_num(&mut enemy, 99);
         assert_eq!(enemy.move_id, move_ids::COLL_MEGA_DEBUFF);
         assert_eq!(enemy.effect(mfx::VULNERABLE), Some(3));
         assert_eq!(enemy.effect(mfx::WEAK), Some(3));
+        assert_eq!(enemy.effect(mfx::FRAIL), Some(3));
     }
 
     // ----- Act 3 -----
 
     #[test]
     fn test_awakened_one_boss() {
+        // Source-derived branch table for AwakenedOne.getMove. Phase one uses
+        // a 25% Soul Strike branch with one-/two-move guards; phase two uses a
+        // 50% Sludge branch and permits either normal attack twice, not three
+        // times. Java: reference/extracted/methods/monster/AwakenedOne.java.
         let mut enemy = create_enemy("AwakenedOne", 300, 300);
         assert_eq!(enemy.move_id, move_ids::AO_SLASH);
         assert_eq!(enemy.move_damage(), 20);
         assert_eq!(enemy.entity.status(sid::PHASE), 1);
         assert_eq!(enemy.entity.status(sid::CURIOSITY), 1);
+        assert_eq!(enemy.entity.status(sid::REGENERATION), 10);
 
-        // Phase 1 cycle: Slash -> Soul Strike
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 80);
+        assert_eq!(enemy.move_id, move_ids::AO_SLASH);
+        roll_next_move_with_num(&mut enemy, 80);
         assert_eq!(enemy.move_id, move_ids::AO_SOUL_STRIKE);
         assert_eq!(enemy.move_damage(), 6);
         assert_eq!(enemy.move_hits(), 4);
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::AO_SLASH);
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::AO_SOUL_STRIKE);
 
-        // Trigger rebirth
         awakened_one_rebirth(&mut enemy);
         assert_eq!(enemy.entity.status(sid::PHASE), 2);
         assert_eq!(enemy.entity.hp, 300);
         assert_eq!(enemy.move_id, move_ids::AO_DARK_ECHO);
         assert_eq!(enemy.move_damage(), 40);
 
-        // Phase 2: Dark Echo -> Sludge (adds Void, not Slimed)
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num(&mut enemy, 75);
+        assert_eq!(enemy.move_id, move_ids::AO_TACKLE);
+        roll_next_move_with_num(&mut enemy, 75);
+        assert_eq!(enemy.move_id, move_ids::AO_TACKLE);
+        roll_next_move_with_num(&mut enemy, 75);
         assert_eq!(enemy.move_id, move_ids::AO_SLUDGE);
         assert_eq!(enemy.effect(mfx::VOID), Some(1));
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::AO_SLUDGE);
+        roll_next_move_with_num(&mut enemy, 10);
+        assert_eq!(enemy.move_id, move_ids::AO_TACKLE);
     }
 
     #[test]
     fn test_time_eater_boss() {
+        // Source: reference/extracted/methods/monster/TimeEater.java.
         let mut enemy = create_enemy("TimeEater", 456, 456);
         assert_eq!(enemy.move_id, move_ids::TE_REVERBERATE);
         assert_eq!(enemy.move_damage(), 7);
         assert_eq!(enemy.move_hits(), 3);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        // After first reverberate, second reverberate
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 44, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::TE_REVERBERATE);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        // After two reverberates: Head Slam (gives draw_reduction, not slimed)
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 45, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::TE_HEAD_SLAM);
         assert_eq!(enemy.move_damage(), 26);
         assert_eq!(enemy.effect(mfx::DRAW_REDUCTION), Some(1));
+
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 80, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(enemy.move_id, move_ids::TE_RIPPLE);
+        assert_eq!(enemy.move_block(), 20);
+
+        enemy.entity.hp = 227;
+        enemy.entity.set_status(sid::USED_HASTE, 0);
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 0, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(enemy.move_id, move_ids::TE_HASTE);
+        assert_eq!(enemy.entity.status(sid::USED_HASTE), 1);
     }
 
     #[test]
@@ -1432,15 +1866,24 @@ mod tests {
 
     #[test]
     fn test_reptomancer_elite() {
+        // Source: reference/extracted/methods/monster/Reptomancer.java.
         let mut enemy = create_enemy("Reptomancer", 185, 185);
         assert_eq!(enemy.move_id, move_ids::REPTO_SPAWN);
+        assert!(matches!(enemy.intent, crate::combat_types::Intent::Unknown));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(
+            &mut enemy, 99, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(enemy.move_id, move_ids::REPTO_SPAWN);
+
+        roll_next_move_with_num_and_rng(
+            &mut enemy, 0, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::REPTO_SNAKE_STRIKE);
         assert_eq!(enemy.move_damage(), 13);
         assert_eq!(enemy.move_hits(), 2);
+        assert_eq!(enemy.effect(crate::combat_types::mfx::WEAK), Some(1));
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num_and_rng(
+            &mut enemy, 66, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::REPTO_BIG_BITE);
         assert_eq!(enemy.move_damage(), 30);
     }
@@ -1451,14 +1894,12 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::TRANSIENT_ATTACK);
         assert_eq!(enemy.move_damage(), 30);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_damage(), 40); // 30 + 10
-
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_damage(), 50); // 30 + 20
-
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_damage(), 60); // 30 + 30
+        // Source: Transient.java getMove reads count; takeTurn owns increment.
+        for (count, damage) in [(1, 40), (2, 50), (3, 60)] {
+            enemy.entity.set_status(sid::ATTACK_COUNT, count);
+            roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+            assert_eq!(enemy.move_damage(), damage);
+        }
     }
 
     // ----- Act 4 -----
@@ -1471,43 +1912,51 @@ mod tests {
         assert_eq!(enemy.entity.status(sid::BEAT_OF_DEATH), 1);
         assert_eq!(enemy.entity.status(sid::BLOOD_HIT_COUNT), 12);
 
-        // After Debilitate: moveCount=0, 0%3=0 -> Blood Shots
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::HEART_BLOOD_SHOTS);
-        assert_eq!(enemy.move_damage(), 2);
-        assert_eq!(enemy.move_hits(), 12);
+        // Source: reference/extracted/methods/monster/CorruptHeart.java.
+        // The first getMove call selects Debilitate and does not advance the
+        // cycle. Slot zero is random; slot one selects the other attack.
+        let mut rng = crate::seed::StsRandom::new(0);
+        roll_next_move(&mut enemy, &mut rng);
+        assert_eq!(enemy.move_id, move_ids::HEART_DEBILITATE);
+        assert_eq!(enemy.entity.status(sid::MOVE_COUNT), 0);
 
-        // moveCount=1, 1%3=1 -> Echo (since last wasn't Echo)
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::HEART_ECHO);
-        assert_eq!(enemy.move_damage(), 40);
+        roll_next_move(&mut enemy, &mut rng);
+        let first_attack = enemy.move_id;
+        assert!(matches!(first_attack,
+            move_ids::HEART_BLOOD_SHOTS | move_ids::HEART_ECHO));
+        roll_next_move(&mut enemy, &mut rng);
+        assert_eq!(enemy.move_id, if first_attack == move_ids::HEART_ECHO {
+            move_ids::HEART_BLOOD_SHOTS
+        } else {
+            move_ids::HEART_ECHO
+        });
 
-        // moveCount=2, 2%3=2 -> Buff (first buff: +2 Str + Artifact 2)
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move(&mut enemy, &mut rng);
         assert_eq!(enemy.move_id, move_ids::HEART_BUFF);
-        assert_eq!(enemy.effect(mfx::STRENGTH), Some(2));
-        assert_eq!(enemy.effect(mfx::ARTIFACT), Some(2));
+        assert_eq!(enemy.entity.status(sid::BUFF_COUNT), 0);
     }
 
     #[test]
     fn test_spire_shield_boss() {
         let mut enemy = create_enemy("SpireShield", 110, 110);
         assert_eq!(enemy.move_id, move_ids::SHIELD_BASH);
-        // Base damage: 12 (A3+ = 14)
+        // Source: reference/extracted/methods/monster/SpireShield.java.
         assert_eq!(enemy.move_damage(), 12);
-        assert_eq!(enemy.effect(mfx::STRENGTH_DOWN), Some(1));
+        assert_eq!(enemy.entity.status(sid::ARTIFACT), 1);
 
-        // mc=0 -> 0%3=0: Fortify (since last was Bash)
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        let false_seed = (1..10_000).find(|&seed|
+            !crate::seed::StsRandom::new(seed).random_bool()).unwrap();
+        let mut rng = crate::seed::StsRandom::new(false_seed);
+        roll_initial_move_with_num_and_rng(&mut enemy, 0, &mut rng);
+        assert_eq!(enemy.move_id, move_ids::SHIELD_BASH);
+        assert_eq!(rng.counter, 1);
+
+        roll_next_move_with_num_and_rng(&mut enemy, 0, &mut rng);
         assert_eq!(enemy.move_id, move_ids::SHIELD_FORTIFY);
         assert_eq!(enemy.move_block(), 30);
+        assert_eq!(enemy.effect(mfx::BLOCK_ALL_ALLIES), Some(30));
 
-        // mc=1 -> 1%3=1: Bash (since last was Fortify)
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::SHIELD_BASH);
-
-        // mc=2 -> 2%3=2: Smash
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num_and_rng(&mut enemy, 0, &mut rng);
         assert_eq!(enemy.move_id, move_ids::SHIELD_SMASH);
         assert_eq!(enemy.move_damage(), 34);
     }
@@ -1519,16 +1968,26 @@ mod tests {
         assert_eq!(enemy.move_damage(), 5);
         assert_eq!(enemy.move_hits(), 2);
         assert_eq!(enemy.entity.status(sid::SKEWER_COUNT), 3);
+        assert_eq!(enemy.entity.status(sid::ARTIFACT), 1);
 
-        // mc=0 -> 0%3=0: Piercer (since last was BurnStrike; anti-repeat)
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::SPEAR_PIERCER);
+        // Source: reference/extracted/methods/monster/SpireSpear.java. The
+        // empty-history opener is Burn Strike, then Skewer, then a boolean.
+        let true_seed = (1..10_000).find(|&seed|
+            crate::seed::StsRandom::new(seed).random_bool()).unwrap();
+        let mut rng = crate::seed::StsRandom::new(true_seed);
+        roll_initial_move_with_num_and_rng(&mut enemy, 0, &mut rng);
+        assert_eq!(enemy.move_id, move_ids::SPEAR_BURN_STRIKE);
 
-        // mc=1 -> 1%3=1: Skewer
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        roll_next_move_with_num_and_rng(&mut enemy, 0, &mut rng);
         assert_eq!(enemy.move_id, move_ids::SPEAR_SKEWER);
         assert_eq!(enemy.move_damage(), 10);
         assert_eq!(enemy.move_hits(), 3);
+
+        roll_next_move_with_num_and_rng(&mut enemy, 0, &mut rng);
+        assert_eq!(enemy.move_id, move_ids::SPEAR_PIERCER);
+        assert_eq!(enemy.effect(mfx::STRENGTH), Some(2));
+        assert_eq!(enemy.effect(mfx::STRENGTH_ALL_ALLIES), Some(2));
+        assert_eq!(rng.counter, 1);
     }
 
     #[test]
@@ -1537,7 +1996,12 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::SD_WOUND);
         assert_eq!(enemy.move_damage(), 9);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        let mut rng = crate::seed::StsRandom::new(0);
+        roll_initial_move(&mut enemy, &mut rng);
+        assert_eq!(enemy.move_id, move_ids::SD_WOUND);
+        assert_eq!(enemy.entity.status(sid::FIRST_MOVE), 0);
+
+        roll_next_move(&mut enemy, &mut rng);
         assert_eq!(enemy.move_id, move_ids::SD_EXPLODE);
         assert_eq!(enemy.move_damage(), 25);
     }
@@ -1548,27 +2012,36 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::DARK_NIP);
         assert_eq!(enemy.move_damage(), 8);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
-        // After two Nips: Chomp
+        let mut rng = crate::seed::StsRandom::new(0);
+        // Java's first getMove call consumes the firstMove flag. Use an
+        // explicit Nip opener before exercising the normal move table.
+        roll_initial_move_with_num_and_rng(&mut enemy, 72, &mut rng);
+        roll_next_move_with_num_and_rng(&mut enemy, 0, &mut rng);
         assert_eq!(enemy.move_id, move_ids::DARK_CHOMP);
         assert_eq!(enemy.move_hits(), 2);
+
+        // Java rejects a repeated Chomp and rerolls only within 40..=99.
+        roll_next_move_with_num_and_rng(&mut enemy, 0, &mut rng);
+        assert_ne!(enemy.move_id, move_ids::DARK_CHOMP);
+        assert_eq!(rng.counter, 1);
     }
 
     #[test]
     fn test_exploder_timer() {
         let mut enemy = create_enemy("Exploder", 30, 30);
         assert_eq!(enemy.move_id, move_ids::EXPLODER_ATTACK);
+        assert_eq!(enemy.entity.status(sid::EXPLOSIVE), 3);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0)); // count=1, attack
+        // Source: Exploder.java increments turnCount in takeTurn, not getMove.
+        enemy.entity.set_status(sid::TURN_COUNT, 1);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::EXPLODER_ATTACK);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0)); // count=2, attack
-        assert_eq!(enemy.move_id, move_ids::EXPLODER_ATTACK);
-
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0)); // count=3, EXPLODE
+        enemy.entity.set_status(sid::TURN_COUNT, 2);
+        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::EXPLODER_EXPLODE);
-        assert_eq!(enemy.move_damage(), 30);
+        assert_eq!(enemy.move_damage(), 0);
+        assert_eq!(enemy.move_hits(), 0);
     }
 
     #[test]
@@ -1577,7 +2050,12 @@ mod tests {
         assert_eq!(enemy.move_id, move_ids::OW_LASER);
         assert_eq!(enemy.move_damage(), 10);
 
-        roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
+        let mut rng = crate::seed::StsRandom::new(0);
+        roll_next_move_with_num_and_rng(&mut enemy, 72, &mut rng);
+        assert_eq!(enemy.move_id, move_ids::OW_LASER);
+
+        // Java allows two Lasers, then forces Claw instead of a third.
+        roll_next_move_with_num_and_rng(&mut enemy, 72, &mut rng);
         assert_eq!(enemy.move_id, move_ids::OW_CLAW);
         assert_eq!(enemy.move_damage(), 15);
     }
@@ -1596,15 +2074,15 @@ mod tests {
             "GremlinNob", "Lagavulin", "Sentry",
             "TheGuardian", "Hexaghost", "SlimeBoss",
             // Act 2
-            "Chosen", "Mugger", "Byrd", "ShelledParasite", "SnakePlant",
-            "Centurion", "Mystic", "BookOfStabbing", "GremlinLeader",
-            "Taskmaster", "SphericGuardian", "Snecko",
-            "BanditBear", "BanditLeader", "BanditPointy",
+            "Chosen", "Mugger", "Byrd", "Shelled Parasite", "SnakePlant",
+            "Centurion", "Healer", "BookOfStabbing", "GremlinLeader",
+            "SlaverBoss", "SphericGuardian", "Snecko",
+            "BanditBear", "BanditLeader", "BanditChild",
             "BronzeAutomaton", "BronzeOrb", "TorchHead",
             "Champ", "TheCollector",
             // Act 3
             "Darkling", "OrbWalker", "Spiker", "Repulsor", "Exploder",
-            "WrithingMass", "SpireGrowth", "Maw", "Transient",
+            "WrithingMass", "Serpent", "Maw", "Transient",
             "GiantHead", "Nemesis", "Reptomancer", "SnakeDagger",
             "AwakenedOne", "Donu", "Deca", "TimeEater",
             // Act 4
@@ -1640,14 +2118,14 @@ mod tests {
             "GremlinWizard", "GremlinTsundere",
             "GremlinNob", "Lagavulin", "Sentry",
             "TheGuardian", "Hexaghost", "SlimeBoss",
-            "Chosen", "Mugger", "Byrd", "ShelledParasite", "SnakePlant",
-            "Centurion", "Mystic", "BookOfStabbing", "GremlinLeader",
-            "Taskmaster", "SphericGuardian", "Snecko",
-            "BanditBear", "BanditLeader", "BanditPointy",
+            "Chosen", "Mugger", "Byrd", "Shelled Parasite", "SnakePlant",
+            "Centurion", "Healer", "BookOfStabbing", "GremlinLeader",
+            "SlaverBoss", "SphericGuardian", "Snecko",
+            "BanditBear", "BanditLeader", "BanditChild",
             "BronzeAutomaton", "BronzeOrb", "TorchHead",
             "Champ", "TheCollector",
             "Darkling", "OrbWalker", "Spiker", "Repulsor", "Exploder",
-            "WrithingMass", "SpireGrowth", "Maw", "Transient",
+            "WrithingMass", "Serpent", "Maw", "Transient",
             "GiantHead", "Nemesis", "Reptomancer", "SnakeDagger",
             "AwakenedOne", "Donu", "Deca", "TimeEater",
             "SpireShield", "SpireSpear", "CorruptHeart",

@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Uncommon: Weave ---- (cost 0, 4 dmg, returns to hand on Scry; +2 dmg upgrade)
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Weave.java
+    // triggerOnScry queues DiscardToHandAction for this exact card instance.
     insert(cards, CardDef {
                 id: "Weave", name: "Weave", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 0, base_damage: 4, base_block: -1,

@@ -4,7 +4,9 @@
 
 use crate::effects::declarative::{AmountSource, Effect, SimpleEffect};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
+use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerCondition};
+use crate::engine::CombatEngine;
 use crate::status_ids::sid;
 
 // ===========================================================================
@@ -35,9 +37,7 @@ pub static DEF_FEEL_NO_PAIN: EntityDef = EntityDef {
 // Dark Embrace — OnCardExhaust: draw cards equal to stacks
 // ===========================================================================
 
-static DARK_EMBRACE_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::DrawCards(
-    AmountSource::StatusValue(sid::DARK_EMBRACE),
-))];
+static DARK_EMBRACE_EFFECTS: [Effect; 0] = [];
 
 static DARK_EMBRACE_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::OnCardExhaust,
@@ -46,12 +46,27 @@ static DARK_EMBRACE_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     counter: None,
 }];
 
+fn hook_dark_embrace(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    _event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    // DarkEmbracePower.onExhaust draws its amount only while the monster group
+    // is not basically dead. EnemyCombatState::is_alive also excludes escaping
+    // enemies while retaining rebirth-pending enemies, matching that guard.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DarkEmbracePower.java
+    if engine.state.enemies.iter().any(|enemy| enemy.is_alive()) {
+        engine.draw_cards(engine.state.player.status(sid::DARK_EMBRACE));
+    }
+}
+
 pub static DEF_DARK_EMBRACE: EntityDef = EntityDef {
     id: "dark_embrace",
     name: "Dark Embrace",
     kind: EntityKind::Power,
     triggers: &DARK_EMBRACE_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_dark_embrace),
     status_guard: Some(sid::DARK_EMBRACE),
 };
 

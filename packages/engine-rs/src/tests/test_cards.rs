@@ -155,7 +155,7 @@ mod card_registry_tests {
     fn flying_sleeves_base() {
         let c = reg().get("FlyingSleeves").unwrap().clone();
         assert_eq!(c.base_damage, 4);
-        assert_eq!(c.base_magic, 2);
+        assert_eq!(c.base_magic, -1);
         assert!(c.has_test_marker("multi_hit"));
     }
 
@@ -163,7 +163,7 @@ mod card_registry_tests {
     fn flying_sleeves_upgraded() {
         let c = reg().get("FlyingSleeves+").unwrap().clone();
         assert_eq!(c.base_damage, 6);
-        assert_eq!(c.base_magic, 2);
+        assert_eq!(c.base_magic, -1);
     }
 
     #[test]
@@ -393,16 +393,21 @@ mod card_registry_tests {
     fn miracle_base() {
         let c = reg().get("Miracle").unwrap().clone();
         assert_eq!(c.cost, 0);
+        assert_eq!(c.target, CardTarget::None);
         assert_eq!(c.base_magic, 1);
         assert!(c.exhaust);
+        assert!(c.runtime_traits().retain);
         assert!(c.has_test_marker("gain_energy"));
     }
 
     #[test]
     fn miracle_upgraded() {
         let c = reg().get("Miracle+").unwrap().clone();
+        assert_eq!(c.cost, 0);
+        assert_eq!(c.target, CardTarget::None);
         assert_eq!(c.base_magic, 2);
         assert!(c.exhaust);
+        assert!(c.runtime_traits().retain);
     }
 
     #[test]
@@ -439,11 +444,14 @@ mod card_registry_tests {
     }
 
     #[test]
-    fn daze_is_unplayable_ethereal() {
-        let c = reg().get("Daze").unwrap().clone();
+    fn dazed_is_unplayable_ethereal_and_has_no_upgrade() {
+        // Source: Dazed.java sets cost -2 and isEthereal, while both use and
+        // upgrade are empty.
+        let c = reg().get("Dazed").unwrap().clone();
         assert_eq!(c.cost, -2);
         assert!(c.has_test_marker("unplayable"));
         assert!(c.has_test_marker("ethereal"));
+        assert!(reg().get("Dazed+").is_none());
     }
 
     #[test]
@@ -514,7 +522,7 @@ mod card_registry_tests {
             "Adaptation", "Adaptation+", "MentalFortress", "MentalFortress+",
             "Ragnarok", "Ragnarok+", "Miracle", "Miracle+",
             "Smite", "Smite+",
-            "Slimed", "Wound", "Daze", "Burn", "AscendersBane",
+            "Slimed", "Wound", "Dazed", "Burn", "AscendersBane",
             "Strike", "Defend",
         ];
         for id in &expected {
@@ -526,4 +534,3 @@ mod card_registry_tests {
 // =============================================================================
 // Damage calculation exhaustive tests
 // =============================================================================
-

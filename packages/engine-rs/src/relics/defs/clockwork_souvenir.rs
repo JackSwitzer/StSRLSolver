@@ -10,6 +10,8 @@ static EFFECTS: [Effect; 1] = [
 ];
 
 static TRIGGERS: [TriggeredEffect; 1] = [
+    // Source: reference/extracted/methods/relic/ClockworkSouvenir.java
+    // atBattleStart applies exactly one ArtifactPower to the player.
     TriggeredEffect {
         trigger: Trigger::CombatStart,
         condition: TriggerCondition::Always,
@@ -19,7 +21,7 @@ static TRIGGERS: [TriggeredEffect; 1] = [
 ];
 
 pub static DEF: EntityDef = EntityDef {
-    id: "Clockwork Souvenir",
+    id: "ClockworkSouvenir",
     name: "Clockwork Souvenir",
     kind: EntityKind::Relic,
     triggers: &TRIGGERS,

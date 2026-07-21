@@ -1,16 +1,17 @@
 //! Mark of Pain: Add 2 Wounds to draw pile at combat start.
 
-use crate::effects::declarative::{AmountSource, Effect, Pile, SimpleEffect};
+use crate::effects::declarative::{AmountSource, Effect, SimpleEffect};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 
-static EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddCard(
+static EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddCardToRandomDrawSpot(
     "Wound",
-    Pile::Draw,
     AmountSource::Fixed(2),
 ))];
 
 static TRIGGERS: [TriggeredEffect; 1] = [
+    // MarkOfPain.java passes randomSpot=true to MakeTempCardInDrawPileAction,
+    // so each Wound consumes cardRandomRng rather than shuffling the deck.
     TriggeredEffect {
         trigger: Trigger::CombatStart,
         condition: TriggerCondition::Always,

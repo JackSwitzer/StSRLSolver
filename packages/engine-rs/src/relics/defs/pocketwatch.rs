@@ -1,4 +1,5 @@
 //! Pocketwatch: If <= 3 cards were played last turn, draw 3 extra this turn.
+//! Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Pocketwatch.java
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};

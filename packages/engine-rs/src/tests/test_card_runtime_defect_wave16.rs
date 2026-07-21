@@ -47,12 +47,12 @@ fn defect_wave16_registry_keeps_only_the_remaining_java_blockers_on_partial_type
     assert_eq!(
         ftl.effect_data,
         &[
-            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::Conditional(
-                Cond::CardsPlayedThisTurnLessThan(3),
-                &[E::Simple(SE::DrawCards(A::Magic))],
+                Cond::CardsPlayedThisTurnLessThan(4),
+                &[E::Simple(SE::DrawCards(A::Fixed(1)))],
                 &[],
             ),
+            E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
         ]
     );
     assert!(ftl.complex_hook.is_none());

@@ -2,6 +2,19 @@
 
 What gets built between here and the Definition of Done. One pipeline, seven tools. Game launches happen only at mint time (left box); everything an agent loop runs is offline (right side).
 
+## V2 Status — 2026-07-19
+
+Schema v1 remains frozen for the existing smoke golden. Rust schema v2 now
+serializes the canonical `GameAction` directly, covers all current run actions,
+and replays deterministic pre/post causal checkpoints. The stable action wire
+contract is [`docs/work_units/script-schema-v2.md`](../work_units/script-schema-v2.md).
+
+The Java recorder does not yet implement v2, and Rust `CoreCheckpoint` is a
+continuation artifact rather than a language-neutral Java/Rust state DTO. V2
+Java diff flags are intentionally rejected until that shared projection is
+frozen. The human mint request lives at
+`data/traces/requests/watcher-a0-oracle-closure.json`.
+
 ```
 [real game + TraceLab mod]                        [any agent, sandboxed]
   scripts/trace_java.sh ──► data/traces/java/*.jsonl (frozen goldens, committed)
@@ -47,7 +60,7 @@ Maven project resurrected from git history (`git show ec608e30:mod/pom.xml`, EVT
 - Trace writer = EVTracker's `TurnStateCapture` extended to per-action records + ordered piles + all 13 counters (public static fields on `AbstractDungeon`, no reflection).
 - On script end/death: flush, exit (MTS `--close-when-finished`). Windowed is fine; never chase true headless.
 
-**Action script** (`data/traces/scripts/<name>.json`) — the canonical action vocabulary, mapped 1:1 to `RunAction` on the Rust side:
+**Legacy v1 action script** (`data/traces/scripts/<name>.json`) — retained for the existing smoke golden:
 
 ```json
 {"v":1,"seed":"3LGMWP6QYAWB","character":"WATCHER","ascension":0,"stop":{"max_floor":8},
@@ -64,7 +77,12 @@ Entry: `scripts/trace_java.sh <script> <out>` — build-if-stale (mvn), copy jar
 
 First `[[bin]]` target (zero impact on lib tests). `trace_replay --script s.json --java-trace t.jsonl [--out rust.jsonl] --diff report.json --masks docs/goal/masks.json`.
 
-Maps script actions → `RunAction`, steps `RunEngine`, emits the same schema, diffs field-by-field in canonical order (**rng counters first** — for enemy-AI work the counter delta is the diagnosis). Exit 0 ⇔ `"status":"match"` (masked-only diffs still exit 0 but list `masked`).
+V1 maps legacy script actions to `GameAction`, steps `RunEngine`, emits the v1
+state projection, and diffs field-by-field in canonical order (**rng counters
+first**). Exit 0 means `"status":"match"` (masked-only diffs still exit 0 but
+list `masked`). V2 replays the canonical action script to JSONL with
+`--script <v2.json> --out <rust-v2.jsonl>`; cross-language v2 comparison stays
+disabled until the shared projection and Java adapter land.
 
 ```json
 {"status":"diverged","script":"act1-jawworm-3turn","seed":"3LGMWP6QYAWB",

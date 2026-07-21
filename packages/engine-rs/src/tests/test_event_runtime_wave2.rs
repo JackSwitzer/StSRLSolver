@@ -1,6 +1,6 @@
-use crate::decision::{DecisionAction, RewardItemKind, RewardScreenSource};
+use crate::decision::{RewardItemKind, RewardScreenSource};
 use crate::events::{typed_events_for_act, typed_shrine_events, EventRuntimeStatus};
-use crate::run::{RunAction, RunEngine, RunPhase};
+use crate::run::{GameAction, RunEngine, RunPhase};
 
 fn typed_event(act: i32, name: &str) -> crate::events::TypedEventDef {
     typed_events_for_act(act)
@@ -27,8 +27,8 @@ fn addict_pay_opens_canonical_relic_reward_screen() {
     ));
     engine.debug_set_typed_event_state(addict);
 
-    let step = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(step.action_accepted);
+    let step = engine.step_game(&GameAction::EventChoice(0));
+    assert!(step.accepted());
     assert_eq!(engine.run_state.gold, gold_before - 85);
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
 
@@ -40,8 +40,8 @@ fn addict_pay_opens_canonical_relic_reward_screen() {
     assert_eq!(screen.items[0].kind, RewardItemKind::Relic);
     assert!(screen.items[0].claimable);
     assert_eq!(
-        engine.get_legal_decision_actions(),
-        vec![DecisionAction::ClaimRewardItem { item_index: 0 }]
+        engine.get_legal_actions(),
+        vec![GameAction::SelectRewardItem(0 )]
     );
 }
 
@@ -55,8 +55,8 @@ fn library_read_uses_nested_card_reward_choice_flow() {
     ));
     engine.debug_set_typed_event_state(library);
 
-    let open_screen = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(open_screen.action_accepted);
+    let open_screen = engine.step_game(&GameAction::EventChoice(0));
+    assert!(open_screen.accepted());
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
 
     let screen = engine
@@ -68,32 +68,23 @@ fn library_read_uses_nested_card_reward_choice_flow() {
     assert!(screen.items[0].claimable);
     assert_eq!(screen.items[0].choices.len(), 3);
 
-    let open_choice = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(open_choice.action_accepted);
+    let open_choice = engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(open_choice.accepted());
     assert_eq!(
-        open_choice.legal_decision_actions,
+        open_choice.next_decision.legal_actions,
         vec![
-            DecisionAction::PickRewardChoice {
-                item_index: 0,
-                choice_index: 0,
-            },
-            DecisionAction::PickRewardChoice {
-                item_index: 0,
-                choice_index: 1,
-            },
-            DecisionAction::PickRewardChoice {
-                item_index: 0,
-                choice_index: 2,
-            },
+            GameAction::ChooseRewardOption { item_index: 0, choice_index: 0, },
+            GameAction::ChooseRewardOption { item_index: 0, choice_index: 1, },
+            GameAction::ChooseRewardOption { item_index: 0, choice_index: 2, },
         ]
     );
 
     let card_count_before = engine.run_state.deck.len();
-    let choose = engine.step_with_result(&RunAction::ChooseRewardOption {
+    let choose = engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index: 1,
     });
-    assert!(choose.action_accepted);
+    assert!(choose.accepted());
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(engine.run_state.deck.len(), card_count_before + 1);
 }
@@ -113,8 +104,8 @@ fn winding_halls_supported_branches_apply_heal_curse_and_max_hp_changes() {
 
     heal_engine.run_state.current_hp = 12;
     heal_engine.debug_set_typed_event_state(halls.clone());
-    let heal_step = heal_engine.step_with_result(&RunAction::EventChoice(1));
-    assert!(heal_step.action_accepted);
+    let heal_step = heal_engine.step_game(&GameAction::EventChoice(1));
+    assert!(heal_step.accepted());
     assert_eq!(heal_engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(
         heal_engine.run_state.current_hp,
@@ -126,8 +117,8 @@ fn winding_halls_supported_branches_apply_heal_curse_and_max_hp_changes() {
     let max_hp_before = max_hp_engine.run_state.max_hp;
     let hp_before = max_hp_engine.run_state.current_hp;
     max_hp_engine.debug_set_typed_event_state(halls);
-    let max_hp_step = max_hp_engine.step_with_result(&RunAction::EventChoice(2));
-    assert!(max_hp_step.action_accepted);
+    let max_hp_step = max_hp_engine.step_game(&GameAction::EventChoice(2));
+    assert!(max_hp_step.accepted());
     assert_eq!(max_hp_engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(max_hp_engine.run_state.max_hp, max_hp_before - 3);
     assert_eq!(max_hp_engine.run_state.current_hp, hp_before - 3);
@@ -139,8 +130,8 @@ fn woman_in_blue_routes_potion_rewards_through_ordered_event_screen() {
     let gold_before = engine.run_state.gold;
     engine.debug_set_typed_event_state(typed_shrine_event("The Woman in Blue"));
 
-    let step = engine.step_with_result(&RunAction::EventChoice(1));
-    assert!(step.action_accepted);
+    let step = engine.step_game(&GameAction::EventChoice(1));
+    assert!(step.accepted());
     assert_eq!(engine.run_state.gold, gold_before - 30);
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
 
@@ -157,6 +148,8 @@ fn woman_in_blue_routes_potion_rewards_through_ordered_event_screen() {
 #[test]
 fn supported_map_or_combat_event_branches_open_real_runtime_flows() {
     let mut portal_engine = RunEngine::new(23, 20);
+    portal_engine.run_state.act = 3;
+    portal_engine.run_state.floor = 42;
     let portal = typed_event(3, "Secret Portal");
     assert!(matches!(
         portal.options[0].status,
@@ -165,11 +158,11 @@ fn supported_map_or_combat_event_branches_open_real_runtime_flows() {
     let floor_before = portal_engine.run_state.floor;
     portal_engine.debug_set_typed_event_state(portal);
 
-    let step = portal_engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(step.action_accepted);
+    let step = portal_engine.step_game(&GameAction::EventChoice(0));
+    assert!(step.accepted());
     assert_eq!(portal_engine.current_phase(), RunPhase::Combat);
     assert!(portal_engine.current_reward_screen().is_none());
-    assert_eq!(portal_engine.run_state.floor, 16);
+    assert_eq!(portal_engine.run_state.floor, 43);
     assert_ne!(portal_engine.run_state.floor, floor_before);
     assert!(portal_engine.get_combat_engine().is_some());
 
@@ -182,8 +175,8 @@ fn supported_map_or_combat_event_branches_open_real_runtime_flows() {
     let relic_count_before = sphere_engine.run_state.relics.len();
     sphere_engine.debug_set_typed_event_state(sphere);
 
-    let sphere_step = sphere_engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(sphere_step.action_accepted);
+    let sphere_step = sphere_engine.step_game(&GameAction::EventChoice(0));
+    assert!(sphere_step.accepted());
     assert_eq!(sphere_engine.current_phase(), RunPhase::Combat);
     assert!(sphere_engine.current_reward_screen().is_none());
     assert_eq!(sphere_engine.run_state.relics.len(), relic_count_before);

@@ -17,13 +17,18 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/VioletLotus.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/Torii.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/TungstenRod.java
+// - decompiled/java-src/com/megacrit/cardcrawl/relics/Ginger.java
+// - decompiled/java-src/com/megacrit/cardcrawl/actions/common/ApplyPowerAction.java
+// - decompiled/java-src/com/megacrit/cardcrawl/relics/IceCream.java
+// - decompiled/java-src/com/megacrit/cardcrawl/relics/LizardTail.java
+// - decompiled/java-src/com/megacrit/cardcrawl/core/EnergyManager.java
 
 use crate::effects::runtime::EffectOwner;
 use crate::state::Stance;
 use crate::status_ids::sid;
 use crate::tests::support::{
     combat_state_with, end_turn, enemy, enemy_no_intent, engine_with_state, engine_without_start,
-    make_deck, make_deck_n, play_on_enemy,
+    make_deck, make_deck_n, play_on_enemy, play_self,
 };
 
 fn engine_without_start_with_relics(
@@ -47,9 +52,9 @@ fn combat_start_bundle_applies_simple_java_relic_effects_on_runtime_path() {
             "Anchor",
             "Akabeko",
             "Bronze Scales",
-            "Clockwork Souvenir",
-            "Fossilized Helix",
-            "Data Disk",
+            "ClockworkSouvenir",
+            "FossilizedHelix",
+            "DataDisk",
         ],
         &["Strike", "Strike", "Strike", "Strike", "Strike"],
         vec![
@@ -74,6 +79,327 @@ fn combat_start_bundle_applies_simple_java_relic_effects_on_runtime_path() {
         .enemies
         .iter()
         .all(|enemy| enemy.entity.status(sid::VULNERABLE) == 1));
+}
+
+#[test]
+fn vajra_applies_exactly_one_strength_at_combat_start() {
+    // Source: reference/extracted/methods/relic/Vajra.java
+    let mut engine = engine_without_start_with_relics(
+        &["Vajra"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        3,
+    );
+
+    engine.start_combat();
+
+    assert_eq!(engine.state.player.strength(), 1);
+}
+
+#[test]
+fn thread_and_needle_applies_exactly_four_plated_armor_at_combat_start() {
+    // Source: reference/extracted/methods/relic/ThreadAndNeedle.java
+    let mut engine = engine_without_start_with_relics(
+        &["Thread and Needle"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        3,
+    );
+
+    engine.start_combat();
+
+    assert_eq!(engine.state.player.status(sid::PLATED_ARMOR), 4);
+}
+
+#[test]
+fn akabeko_vigor_survives_skills_then_buffs_every_hit_of_the_first_attack() {
+    // Source-derived (verify relic/Akabeko): Akabeko.java::atBattleStart
+    // applies 8 Vigor. VigorPower.java adds that amount to NORMAL damage and
+    // removes itself only when an Attack card is used.
+    let mut engine = engine_without_start_with_relics(
+        &["Akabeko"],
+        &["Defend", "FlyingSleeves", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+    engine.start_combat();
+    engine.state.hand = make_deck(&["Defend", "FlyingSleeves"]);
+    engine.state.draw_pile.clear();
+    engine.state.discard_pile.clear();
+
+    assert_eq!(engine.state.player.status(sid::VIGOR), 8);
+    assert!(play_self(&mut engine, "Defend"));
+    assert_eq!(engine.state.player.status(sid::VIGOR), 8);
+
+    assert!(play_on_enemy(&mut engine, "FlyingSleeves", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp, 36);
+    assert_eq!(engine.state.player.status(sid::VIGOR), 0);
+}
+
+#[test]
+fn anchor_applies_ten_block_only_at_combat_start() {
+    // Source-derived (verify relic/Anchor): Anchor.java::atBattleStart queues a
+    // GainBlockAction for exactly 10 block and has no per-turn block hook.
+    let mut engine = engine_without_start_with_relics(
+        &["Anchor"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+
+    engine.start_combat();
+    assert_eq!(engine.state.player.block, 10);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.player.block, 0);
+}
+
+#[test]
+fn ancient_tea_set_charge_only_grants_energy_on_the_first_turn() {
+    // Source-derived (verify relic/Ancient Tea Set): AncientTeaSet.java checks
+    // its armed counter only during the first atTurnStart call, grants 2
+    // energy, and immediately resets the counter.
+    let mut engine = engine_without_start_with_relics(
+        &["Ancient Tea Set"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+    engine.state.relic_counters[crate::relic_flags::counter::ANCIENT_TEA_SET] = 1;
+
+    engine.start_combat();
+    assert_eq!(engine.state.energy, 5);
+    assert_eq!(
+        engine.state.relic_counters[crate::relic_flags::counter::ANCIENT_TEA_SET],
+        0
+    );
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.energy, 3);
+}
+
+#[test]
+fn art_of_war_tracks_whether_the_previous_turn_used_an_attack() {
+    // Source-derived (verify relic/Art of War): ArtOfWar.java starts ready but
+    // skips turn one, clears readiness from onUseCard only for Attacks, and
+    // restores readiness at every turn start.
+    let mut engine = engine_without_start_with_relics(
+        &["Art of War"],
+        &["Strike", "Defend", "Strike", "Defend", "Strike"],
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+    engine.start_combat();
+    assert_eq!(engine.state.energy, 3);
+
+    engine.state.hand = make_deck(&["Strike"]);
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
+    end_turn(&mut engine);
+    assert_eq!(engine.state.energy, 3);
+
+    engine.state.hand = make_deck(&["Defend"]);
+    assert!(play_self(&mut engine, "Defend"));
+    end_turn(&mut engine);
+    assert_eq!(engine.state.energy, 4);
+}
+
+#[test]
+fn bag_of_marbles_applies_one_vulnerable_to_every_enemy_at_combat_start() {
+    // Source-derived (verify relic/Bag of Marbles): BagOfMarbles.java loops
+    // over the room's complete monster list and queues VulnerablePower(1) for
+    // each monster during atBattleStart.
+    let mut engine = engine_without_start_with_relics(
+        &["Bag of Marbles"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
+        vec![
+            enemy_no_intent("JawWorm", 60, 60),
+            enemy_no_intent("Cultist", 60, 60),
+            enemy_no_intent("FungiBeast", 60, 60),
+        ],
+        3,
+    );
+
+    engine.start_combat();
+    assert!(engine
+        .state
+        .enemies
+        .iter()
+        .all(|enemy| enemy.entity.status(sid::VULNERABLE) == 1));
+}
+
+#[test]
+fn bag_of_preparation_draws_two_extra_cards_only_in_the_opening_hand() {
+    // Source-derived (verify relic/Bag of Preparation):
+    // BagOfPreparation.java::atBattleStart queues exactly one DrawCardAction(2)
+    // and defines no later turn-start hook.
+    let mut engine = engine_without_start_with_relics(
+        &["Bag of Preparation"],
+        &[
+            "Strike", "Strike", "Strike", "Strike", "Strike", "Defend", "Defend", "Defend",
+            "Defend", "Defend", "Defend", "Defend",
+        ],
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+
+    engine.start_combat();
+    assert_eq!(engine.state.hand.len(), 7);
+
+    end_turn(&mut engine);
+    assert_eq!(engine.state.hand.len(), 5);
+}
+
+#[test]
+fn bird_faced_urn_heals_two_only_when_a_power_card_is_used() {
+    // Source-derived (verify relic/Bird Faced Urn): BirdFacedUrn.java::onUseCard
+    // checks card.type == POWER and then queues HealAction(..., 2).
+    let mut engine = engine_without_start_with_relics(
+        &["Bird Faced Urn"],
+        &["Defend", "Inflame", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        5,
+    );
+    engine.start_combat();
+    engine.state.player.hp = 60;
+    engine.state.hand = make_deck(&["Defend", "Inflame"]);
+
+    assert!(play_self(&mut engine, "Defend"));
+    assert_eq!(engine.state.player.hp, 60);
+    assert!(play_self(&mut engine, "Inflame"));
+    assert_eq!(engine.state.player.hp, 62);
+}
+
+#[test]
+fn blood_vial_heals_exactly_two_at_combat_start() {
+    // Source-derived (verify relic/Blood Vial): BloodVial.java::atBattleStart
+    // queues HealAction(player, player, 2, 0.0f).
+    let mut engine = engine_without_start_with_relics(
+        &["Blood Vial"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+    engine.state.player.hp = 50;
+
+    engine.start_combat();
+    assert_eq!(engine.state.player.hp, 52);
+}
+
+#[test]
+fn blue_candle_plays_and_exhausts_curses_through_hp_loss_damage_rules() {
+    // Source-derived (verify relic/Blue Candle): BlueCandle.java makes a Curse
+    // exhaust on use and queues LoseHPAction(1). AbstractPlayer.damage handles
+    // HP_LOSS modifiers, including Tungsten Rod.
+    let mut normal = engine_without_start_with_relics(
+        &["Blue Candle"],
+        &["Regret", "Strike", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+    normal.start_combat();
+    normal.state.hand = make_deck(&["Regret"]);
+    let hp = normal.state.player.hp;
+    assert!(play_self(&mut normal, "Regret"));
+    assert_eq!(normal.state.player.hp, hp - 1);
+    assert_eq!(normal.state.exhaust_pile.len(), 1);
+
+    let mut tungsten = engine_without_start_with_relics(
+        &["Blue Candle", "Tungsten Rod"],
+        &["Regret", "Strike", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        3,
+    );
+    tungsten.start_combat();
+    tungsten.state.hand = make_deck(&["Regret"]);
+    let hp = tungsten.state.player.hp;
+    assert!(play_self(&mut tungsten, "Regret"));
+    assert_eq!(tungsten.state.player.hp, hp);
+    assert_eq!(tungsten.state.exhaust_pile.len(), 1);
+}
+
+#[test]
+fn bronze_scales_grants_three_thorns_that_retaliates_through_full_block() {
+    // Source-derived (verify relic/Bronze Scales): BronzeScales.java applies
+    // ThornsPower(3) at battle start. ThornsPower.onAttacked does not require
+    // positive HP damage from the triggering NORMAL attack.
+    let mut engine = engine_without_start_with_relics(
+        &["Bronze Scales"],
+        &["Defend", "Defend", "Defend", "Defend", "Defend"],
+        vec![enemy("Cultist", 60, 60, 1, 4, 1)],
+        3,
+    );
+    engine.start_combat();
+    assert_eq!(engine.state.player.status(sid::THORNS), 3);
+    engine.state.enemies[0].set_move(1, 4, 1, 0);
+    engine.state.player.block = 10;
+    let player_hp = engine.state.player.hp;
+
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.hp, player_hp);
+    assert_eq!(engine.state.enemies[0].entity.hp, 57);
+}
+
+#[test]
+fn ginger_runtime_install_blocks_enemy_weak_application() {
+    // Source-derived (verify relic/Ginger): Ginger.java is the owned relic and
+    // ApplyPowerAction.java refuses Weakened when its target is that player.
+    let mut engine = engine_without_start_with_relics(
+        &["Ginger"],
+        &["Strike", "Strike", "Defend", "Defend", "Vigilance"],
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        3,
+    );
+    engine.start_combat();
+
+    assert_eq!(engine.state.player.status(sid::HAS_GINGER), 1);
+    let applied = crate::powers::apply_debuff_from_enemy(
+        &mut engine.state.player,
+        sid::WEAKENED,
+        2,
+    );
+    assert!(!applied);
+    assert_eq!(engine.state.player.status(sid::WEAKENED), 0);
+    assert_eq!(engine.state.player.status(sid::WEAKENED_JUST_APPLIED), 0);
+}
+
+#[test]
+fn fossilized_helix_buffer_prevents_and_is_consumed_by_first_enemy_attack() {
+    // Source-derived (verify relic/FossilizedHelix): FossilizedHelix.java uses
+    // canonical ID "FossilizedHelix" and applies BufferPower(1) at battle start.
+    let mut engine = engine_without_start_with_relics(
+        &["FossilizedHelix"],
+        &["Strike", "Strike", "Defend", "Defend", "Vigilance"],
+        vec![enemy("Cultist", 50, 50, 1, 12, 1)],
+        3,
+    );
+    engine.start_combat();
+    let hp = engine.state.player.hp;
+    assert_eq!(engine.state.player.status(sid::BUFFER), 1);
+    engine.state.enemies[0].set_move(1, 12, 1, 0);
+
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.hp, hp);
+    assert_eq!(engine.state.player.status(sid::BUFFER), 0);
+}
+
+#[test]
+fn ice_cream_carries_unspent_energy_through_real_turn_recharge() {
+    // Source-derived (verify relic/Ice Cream): EnergyManager.recharge uses
+    // addEnergy(energyMaster) rather than setEnergy while Ice Cream is owned.
+    let mut engine = engine_without_start_with_relics(
+        &["Ice Cream"],
+        &["Strike", "Strike", "Defend", "Defend", "Vigilance"],
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        3,
+    );
+    engine.start_combat();
+    engine.state.energy = 2;
+
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.energy, 5);
 }
 
 #[test]
@@ -102,6 +428,8 @@ fn blood_vial_and_mark_of_pain_apply_at_real_combat_start() {
 
 #[test]
 fn lantern_grants_bonus_energy_only_on_turn_one_runtime_path() {
+    // Lantern.java arms at pre-battle, queues exactly one energy on the first
+    // turn start, and clears its first-turn flag for later turns.
     let mut engine = engine_without_start_with_relics(
         &["Lantern"],
         &["Strike", "Strike", "Strike", "Strike", "Strike"],
@@ -121,6 +449,65 @@ fn lantern_grants_bonus_energy_only_on_turn_one_runtime_path() {
     end_turn(&mut engine);
     assert_eq!(engine.state.turn, 2);
     assert_eq!(engine.state.energy, 3);
+}
+
+#[test]
+fn lizard_tail_revive_uses_healing_rules_and_stays_consumed_next_combat() {
+    // LizardTail.java heals maxHealth / 2 (minimum 1) through player.heal and
+    // then uses itself up. The relic object persists, so the used state is run-wide.
+    let mut lethal_enemy = enemy("JawWorm", 60, 60, 1, 200, 1);
+    lethal_enemy.set_move(1, 200, 1, 0);
+    let mut first_state = combat_state_with(
+        make_deck_n("Strike", 10),
+        vec![lethal_enemy],
+        3,
+    );
+    first_state.relics = vec!["Lizard Tail".to_string(), "Magic Flower".to_string()];
+    first_state.player.hp = 10;
+    let mut first = engine_with_state(first_state);
+
+    end_turn(&mut first);
+
+    assert_eq!(first.state.player.max_hp, 80);
+    assert_eq!(first.state.player.hp, 60, "40-point revive is boosted by 50%");
+    assert_eq!(first.state.player.status(sid::LIZARD_TAIL_USED), 1);
+    assert!(!first.state.combat_over);
+
+    let mut next_enemy = enemy("JawWorm", 60, 60, 1, 200, 1);
+    next_enemy.set_move(1, 200, 1, 0);
+    let mut next_state = combat_state_with(
+        make_deck_n("Strike", 10),
+        vec![next_enemy],
+        3,
+    );
+    next_state.relics.push("Lizard Tail".to_string());
+    next_state.player.set_status(sid::LIZARD_TAIL_USED, 1);
+    next_state.player.hp = 10;
+    let mut next = engine_with_state(next_state);
+
+    end_turn(&mut next);
+
+    assert_eq!(next.state.player.hp, 0);
+    assert!(next.state.combat_over);
+    assert!(!next.state.player_won);
+}
+
+#[test]
+fn magic_flower_uses_canonical_id_and_rounds_odd_combat_heals() {
+    // MagicFlower.java uses canonical ID "Magic Flower" and, during combat,
+    // returns MathUtils.round(healAmount * 1.5f). Five therefore heals eight.
+    let mut state = combat_state_with(
+        make_deck_n("Strike", 5),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    state.relics.push("Magic Flower".to_string());
+    let mut engine = engine_with_state(state);
+    engine.state.player.hp = 40;
+
+    assert_eq!(engine.state.player.status(sid::HAS_MAGIC_FLOWER), 1);
+    engine.heal_player(5);
+    assert_eq!(engine.state.player.hp, 48);
 }
 
 #[test]
@@ -167,6 +554,34 @@ fn violet_lotus_grants_extra_energy_when_exiting_calm() {
 
     assert_eq!(engine.state.stance, Stance::Wrath);
     assert_eq!(engine.state.energy, 4);
+}
+
+#[test]
+fn violet_lotus_uses_its_java_id_and_only_triggers_when_leaving_calm() {
+    // Source-derived (verify relic/VioletLotus): VioletLotus.java has no
+    // combat-start hook and grants one energy only when the previous stance is
+    // Calm and differs from the new stance.
+    let mut engine = engine_without_start_with_relics(
+        &["VioletLotus"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 60, 60)],
+        0,
+    );
+    engine.start_combat();
+    assert_eq!(engine.state.player.status(sid::VIOLET_LOTUS), 0);
+
+    engine.state.energy = 0;
+    engine.state.stance = Stance::Calm;
+    engine.change_stance(Stance::Wrath);
+    assert_eq!(engine.state.energy, 3);
+
+    engine.change_stance(Stance::Neutral);
+    engine.change_stance(Stance::Calm);
+    engine.change_stance(Stance::Calm);
+    assert_eq!(engine.state.energy, 3);
+
+    engine.change_stance(Stance::Wrath);
+    assert_eq!(engine.state.energy, 6);
 }
 
 #[test]

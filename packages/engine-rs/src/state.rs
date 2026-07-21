@@ -1,10 +1,8 @@
 //! Combat state types — mirrors packages/engine/state/combat.py.
 //!
 //! Design: all state is owned, Clone for MCTS tree copies. Statuses use a flat
-//! [i16; 256] array indexed by StatusId for O(1) access and fast cloning.
+//! fixed array indexed by StatusId for O(1) access and fast cloning.
 
-use pyo3::prelude::*;
-use pyo3::types::PyDict;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
@@ -68,13 +66,35 @@ impl Stance {
 // EntityState — shared between player and enemies
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EntityState {
     pub hp: i32,
     pub max_hp: i32,
     pub block: i32,
     /// All statuses as a flat array indexed by StatusId. Zero means absent.
-    pub statuses: [i16; 256],
+    #[serde(with = "status_array_serde")]
+    pub statuses: [i32; sid::MAX_STATUS_ID],
+}
+
+mod status_array_serde {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S>(statuses: &[i32; super::sid::MAX_STATUS_ID], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        statuses.as_slice().serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<[i32; super::sid::MAX_STATUS_ID], D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let statuses = Vec::<i32>::deserialize(deserializer)?;
+        statuses.try_into().map_err(|statuses: Vec<i32>| {
+            serde::de::Error::invalid_length(statuses.len(), &"512 status entries")
+        })
+    }
 }
 
 impl EntityState {
@@ -83,22 +103,22 @@ impl EntityState {
             hp,
             max_hp,
             block: 0,
-            statuses: [0; 256],
+            statuses: [0; sid::MAX_STATUS_ID],
         }
     }
 
     // -- Convenience accessors (match Python properties) --
 
     pub fn strength(&self) -> i32 {
-        self.statuses[sid::STRENGTH.0 as usize] as i32
+        self.statuses[sid::STRENGTH.0 as usize]
     }
 
     pub fn dexterity(&self) -> i32 {
-        self.statuses[sid::DEXTERITY.0 as usize] as i32
+        self.statuses[sid::DEXTERITY.0 as usize]
     }
 
     pub fn focus(&self) -> i32 {
-        self.statuses[sid::FOCUS.0 as usize] as i32
+        self.statuses[sid::FOCUS.0 as usize]
     }
 
     pub fn is_weak(&self) -> bool {
@@ -119,18 +139,18 @@ impl EntityState {
 
     /// Get a status value, defaulting to 0.
     pub fn status(&self, id: StatusId) -> i32 {
-        self.statuses[id.0 as usize] as i32
+        self.statuses[id.0 as usize]
     }
 
     /// Set a status value.
     pub fn set_status(&mut self, id: StatusId, value: i32) {
-        self.statuses[id.0 as usize] = value as i16;
+        self.statuses[id.0 as usize] = value;
     }
 
     /// Add to a status value.
     pub fn add_status(&mut self, id: StatusId, amount: i32) {
         let idx = id.0 as usize;
-        self.statuses[idx] = (self.statuses[idx] as i32 + amount) as i16;
+        self.statuses[idx] = self.statuses[idx].wrapping_add(amount);
     }
 }
 
@@ -138,13 +158,15 @@ impl EntityState {
 // EnemyCombatState
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnemyCombatState {
     pub entity: EntityState,
     pub id: String,
     pub name: String,
     /// Java BackAttack legality bit for Smoke Bomb and similar checks.
     pub back_attack: bool,
+    /// Whether this enemy currently carries Java's MinionPower.
+    pub is_minion: bool,
     /// Current intended move
     pub move_id: i32,
     pub intent: Intent,
@@ -153,6 +175,8 @@ pub struct EnemyCombatState {
     pub move_history: Vec<i32>,
     pub first_turn: bool,
     pub is_escaping: bool,
+    /// Card held by Java's StasisPower (Bronze Orb), returned on death.
+    pub stasis_card: Option<CardInstance>,
 }
 
 impl EnemyCombatState {
@@ -162,12 +186,14 @@ impl EnemyCombatState {
             id: id.to_string(),
             name: id.to_string(),
             back_attack: false,
+            is_minion: false,
             move_id: -1,
             intent: Intent::Unknown,
             move_effects: SmallVec::new(),
             move_history: Vec::new(),
             first_turn: true,
             is_escaping: false,
+            stasis_card: None,
         }
     }
 
@@ -275,7 +301,7 @@ impl EnemyCombatState {
 // CombatState
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CombatState {
     // Player
     pub player: EntityState,
@@ -283,22 +309,32 @@ pub struct CombatState {
     pub max_energy: i32,
     pub stance: Stance,
 
-    // Card piles (compact CardInstance, 4 bytes each)
+    // Card piles (compact Copy-friendly CardInstance values)
     pub hand: Vec<CardInstance>,
     pub draw_pile: Vec<CardInstance>,
     pub discard_pile: Vec<CardInstance>,
     pub exhaust_pile: Vec<CardInstance>,
+    /// Persistent deck snapshot used by combat actions that mutate Java's
+    /// `AbstractPlayer.masterDeck` (not the combat draw/discard copies).
+    pub master_deck: Vec<CardInstance>,
+    /// Next deterministic identity for a card created within this combat.
+    #[serde(default = "default_next_card_instance_id")]
+    pub next_card_instance_id: u64,
 
     // Enemies
     pub enemies: Vec<EnemyCombatState>,
 
-    // Potions
+    // Empty strings represent Java's inert PotionSlot placeholder objects.
+    // Source: reference/extracted/methods/potion/PotionSlot.java.
     pub potions: Vec<String>,
 
     // Combat tracking
     pub turn: i32,
     pub cards_played_this_turn: i32,
     pub attacks_played_this_turn: i32,
+    /// POWER cards played in this combat. ForceField.configureCostsOnNewCard
+    /// and triggerOnCardPlayed use this history, not currently active powers.
+    pub power_cards_played_this_combat: i32,
     pub combat_over: bool,
     pub player_won: bool,
 
@@ -317,8 +353,11 @@ pub struct CombatState {
     pub total_damage_dealt: i32,
     pub total_damage_taken: i32,
     pub total_cards_played: i32,
-    /// Gold earned during combat that should be synced back to RunState on resolution.
+    /// Cumulative gold earned during combat, retained for telemetry/tests.
+    /// `run_gold` is updated at the same time and is the authoritative balance.
     pub pending_run_gold: i32,
+    /// Current run gold while combat is active (Looter/Mugger steal immediately).
+    pub run_gold: i32,
 
     // Relics (just IDs for checking effects)
     pub relics: Vec<String>,
@@ -330,9 +369,14 @@ pub struct CombatState {
     /// Orb slots (Defect mechanic, also available for cross-character mods).
     pub orb_slots: OrbSlots,
 
+    /// Independent TheBombPower instances as (turns remaining, damage).
+    /// Java gives every application a unique power ID, so later plays must not
+    /// merge damage or reset an older bomb's countdown.
+    pub pending_bombs: SmallVec<[(i16, i16); 4]>,
+
     /// Cross-combat relic counters (Nunchaku, Incense Burner, Ink Bottle, Happy Flower, etc.)
     /// Indexed by relic_flags::counter::* constants. Synced from/to RunState.relic_flags.
-    pub relic_counters: [i16; 8],
+    pub relic_counters: [i16; crate::relic_flags::counter::NUM_COUNTERS],
 
 }
 
@@ -345,6 +389,20 @@ impl CombatState {
         deck: Vec<CardInstance>,
         energy: i32,
     ) -> Self {
+        let mut deck = deck;
+        let mut next_card_instance_id = deck
+            .iter()
+            .map(|card| u64::from(card.instance_id))
+            .max()
+            .unwrap_or(0)
+            .wrapping_add(1)
+            .max(1);
+        for card in &mut deck {
+            if card.instance_id == 0 {
+                card.instance_id = take_card_instance_id(&mut next_card_instance_id);
+            }
+        }
+        let master_deck = deck.clone();
         Self {
             player: EntityState::new(player_hp, player_max_hp),
             energy,
@@ -354,11 +412,14 @@ impl CombatState {
             draw_pile: deck,
             discard_pile: Vec::new(),
             exhaust_pile: Vec::new(),
+            master_deck,
+            next_card_instance_id,
             enemies,
             potions: vec!["".to_string(); 3],
             turn: 0,
             cards_played_this_turn: 0,
             attacks_played_this_turn: 0,
+            power_cards_played_this_combat: 0,
             combat_over: false,
             player_won: false,
             mantra: 0,
@@ -370,11 +431,17 @@ impl CombatState {
             total_damage_taken: 0,
             total_cards_played: 0,
             pending_run_gold: 0,
+            run_gold: 0,
             relics: Vec::new(),
             retained_cards: Vec::new(),
             orb_slots: OrbSlots::new(0), // 0 slots by default (Watcher has no orbs)
-            relic_counters: [0i16; 8],
+            pending_bombs: SmallVec::new(),
+            relic_counters: [0i16; crate::relic_flags::counter::NUM_COUNTERS],
         }
+    }
+
+    pub fn allocate_card_instance_id(&mut self) -> u32 {
+        take_card_instance_id(&mut self.next_card_instance_id)
     }
 
     pub fn is_victory(&self) -> bool {
@@ -412,6 +479,12 @@ impl CombatState {
         self.relics.iter().any(|r| r == relic_id)
     }
 
+    /// Java keeps enemy moves internally but suppresses their presentation
+    /// while Runic Dome is owned (AbstractMonster.java::render/renderTip).
+    pub fn enemy_intents_visible(&self) -> bool {
+        !self.has_relic("Runic Dome") && !self.has_relic("RunicDome")
+    }
+
     /// Centralized healing: checks Mark of the Bloom (blocks) and Magic Flower (1.5x).
     pub fn heal_player(&mut self, amount: i32) {
         if amount <= 0 {
@@ -422,90 +495,21 @@ impl CombatState {
         }
         let mut heal = amount;
         if self.player.status(crate::status_ids::sid::HAS_MAGIC_FLOWER) > 0 {
-            heal = (heal as f64 * 1.5) as i32;
+            // MagicFlower.java uses MathUtils.round(healAmount * 1.5f).
+            heal = (heal as f64 * 1.5).round() as i32;
         }
         self.player.hp = (self.player.hp + heal).min(self.player.max_hp);
     }
 }
 
-// ---------------------------------------------------------------------------
-// PyO3 wrapper for CombatState — returned to Python as a dict
-// ---------------------------------------------------------------------------
-
-#[pyclass(name = "CombatState")]
-#[derive(Clone)]
-pub struct PyCombatState {
-    pub inner: CombatState,
+fn default_next_card_instance_id() -> u64 {
+    1
 }
 
-#[pymethods]
-impl PyCombatState {
-    /// Convert the state to a Python dict for inspection.
-    fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let registry = crate::cards::global_registry();
-        let dict = PyDict::new_bound(py);
-        dict.set_item("player_hp", self.inner.player.hp)?;
-        dict.set_item("player_max_hp", self.inner.player.max_hp)?;
-        dict.set_item("player_block", self.inner.player.block)?;
-        dict.set_item("energy", self.inner.energy)?;
-        dict.set_item("max_energy", self.inner.max_energy)?;
-        dict.set_item("stance", self.inner.stance.as_str())?;
-        dict.set_item("turn", self.inner.turn)?;
-        dict.set_item("combat_over", self.inner.combat_over)?;
-        dict.set_item("player_won", self.inner.player_won)?;
-
-        // Hand
-        let hand: Vec<String> = self.inner.hand.iter()
-            .map(|c| registry.card_name(c.def_id).to_string())
-            .collect();
-        dict.set_item("hand", hand)?;
-
-        // Draw/discard sizes
-        dict.set_item("draw_pile_size", self.inner.draw_pile.len())?;
-        dict.set_item("discard_pile_size", self.inner.discard_pile.len())?;
-        dict.set_item("exhaust_pile_size", self.inner.exhaust_pile.len())?;
-
-        // Enemies
-        let enemies: Vec<_> = self
-            .inner
-            .enemies
-            .iter()
-            .map(|e| {
-                format!(
-                    "{}(hp={}/{}, move_dmg={}, move_hits={})",
-                    e.id, e.entity.hp, e.entity.max_hp, e.move_damage(), e.move_hits()
-                )
-            })
-            .collect();
-        dict.set_item("enemies", enemies)?;
-
-        // Player statuses
-        let statuses = PyDict::new_bound(py);
-        for (i, &val) in self.inner.player.statuses.iter().enumerate() {
-            if val != 0 {
-                let name = crate::status_ids::status_name(crate::ids::StatusId(i as u16));
-                statuses.set_item(name, val as i32)?;
-            }
-        }
-        dict.set_item("player_statuses", statuses)?;
-
-        // Stats
-        dict.set_item("total_damage_dealt", self.inner.total_damage_dealt)?;
-        dict.set_item("total_damage_taken", self.inner.total_damage_taken)?;
-        dict.set_item("total_cards_played", self.inner.total_cards_played)?;
-
-        Ok(dict)
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "CombatState(hp={}/{}, energy={}, turn={}, hand={}, enemies={})",
-            self.inner.player.hp,
-            self.inner.player.max_hp,
-            self.inner.energy,
-            self.inner.turn,
-            self.inner.hand.len(),
-            self.inner.enemies.len(),
-        )
-    }
+fn take_card_instance_id(next: &mut u64) -> u32 {
+    let current = (*next).max(1);
+    let instance_id = u32::try_from(current)
+        .expect("card instance identity space exhausted");
+    *next = current + 1;
+    instance_id
 }

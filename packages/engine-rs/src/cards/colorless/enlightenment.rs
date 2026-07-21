@@ -13,8 +13,9 @@ static ENLIGHTENMENT_THIS_TURN: [Effect; 1] = [Effect::ForEachInPile {
 }];
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Enlightenment: 0 cost, reduce cost of all cards in hand to 1 for this turn.
-        // Enlightenment+ stays the permanent reduction path.
+    // EnlightenmentAction.java reduces only current costs above 1 for the turn;
+    // upgraded, it also permanently reduces only base costs above 1.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/EnlightenmentAction.java
     insert(cards, CardDef {
                 id: "Enlightenment", name: "Enlightenment", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,

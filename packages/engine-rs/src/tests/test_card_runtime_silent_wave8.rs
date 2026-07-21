@@ -61,6 +61,23 @@ fn silent_wave8_registry_exports_match_typed_primary_surface() {
 }
 
 #[test]
+fn backstab_plus_starts_in_hand_then_deals_fifteen_and_exhausts_for_free() {
+    // Source: Backstab.java sets cost 0, baseDamage 11, isInnate and exhaust;
+    // upgradeDamage(4) makes the upgraded damage exactly 15.
+    let mut deck = make_deck_n("Defend", 9);
+    deck.push(global_registry().make_card("Backstab+"));
+    let mut engine = engine_with(deck, 40, 0);
+
+    assert_eq!(hand_count(&engine, "Backstab+"), 1);
+    let energy_before = engine.state.energy;
+    assert!(play_on_enemy(&mut engine, "Backstab+", 0));
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 25);
+    assert_eq!(engine.state.energy, energy_before);
+    assert_eq!(exhaust_prefix_count(&engine, "Backstab"), 1);
+}
+
+#[test]
 fn silent_wave8_single_target_typed_attacks_follow_java_oracle_on_engine_path() {
     let mut engine = engine_without_start(
         Vec::new(),
@@ -93,6 +110,8 @@ fn silent_wave8_single_target_typed_attacks_follow_java_oracle_on_engine_path() 
 
 #[test]
 fn silent_wave8_block_and_aoe_cards_follow_java_oracle_on_engine_path() {
+    // Dash.java queues GainBlockAction before DamageAction at 10 each, and
+    // upgradeDamage(3) plus upgradeBlock(3) raises both values to 13.
     let mut engine = engine_without_start(
         Vec::new(),
         vec![enemy_no_intent("JawWorm", 40, 40), enemy_no_intent("Cultist", 40, 40)],
@@ -119,6 +138,8 @@ fn silent_wave8_block_and_aoe_cards_follow_java_oracle_on_engine_path() {
     assert_eq!(engine.state.enemies[0].entity.hp, 17);
 
     ensure_in_hand(&mut engine, "Die Die Die");
+    // DieDieDie.java queues one DamageAllEnemiesAction at 13 damage (17 after
+    // upgradeDamage(4)); both variants cost 1 and exhaust after use.
     assert!(play_on_enemy(&mut engine, "Die Die Die", 0));
     assert_eq!(engine.state.enemies[0].entity.hp, 4);
     assert_eq!(engine.state.enemies[1].entity.hp, 27);

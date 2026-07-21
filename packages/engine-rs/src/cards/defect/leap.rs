@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // Leap: 1 cost, 9 block
+    // Leap.java queues GainBlockAction(this.block): 9 base Block for one
+    // energy, with upgradeBlock(3) as its only upgrade change.
     insert(cards, CardDef {
         id: "Leap", name: "Leap", card_type: CardType::Skill,
         target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 9,

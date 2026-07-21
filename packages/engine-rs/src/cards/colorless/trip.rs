@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Trip: 0 cost, apply 2 Vulnerable (upgrade: target all)
+        // Trip.java applies two Vulnerable to one enemy for free; upgrading
+        // changes only its target to ALL_ENEMY.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Trip.java
     insert(cards, CardDef {
                 id: "Trip", name: "Trip", card_type: CardType::Skill,
                 target: CardTarget::Enemy, cost: 0, base_damage: -1, base_block: -1,

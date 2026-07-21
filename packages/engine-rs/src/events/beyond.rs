@@ -1,6 +1,5 @@
 use super::{
-    EventDef, EventEffect, EventProgram, EventProgramOp, EventReward, TypedEventDef,
-    TypedEventOption,
+    EventEffect, EventProgram, EventProgramOp, EventReward, TypedEventDef, TypedEventOption,
 };
 
 #[cfg(test)]
@@ -35,7 +34,7 @@ pub fn typed_act3_events() -> Vec<TypedEventDef> {
                     "Open (gain relic, fight)",
                     vec![
                         EventProgramOp::combat_branch(
-                            ["OrbWalker", "OrbWalker"],
+                            ["Orb Walker", "Orb Walker"],
                             vec![EventProgramOp::gain_relic("random relic")],
                         ),
                     ],
@@ -61,7 +60,10 @@ pub fn typed_act3_events() -> Vec<TypedEventDef> {
                     "I am Awake (upgrade all, lose ability to heal)",
                     vec![
                         EventProgramOp::upgrade_card(999),
-                        EventProgramOp::gain_relic("Mark of the Bloom"),
+                        // MindBloom.java obtains Mark of the Bloom immediately
+                        // after upgrading the master deck; there is no reward screen.
+                        // Java: decompiled/java-src/com/megacrit/cardcrawl/events/beyond/MindBloom.java
+                        EventProgramOp::obtain_relic("Mark of the Bloom"),
                     ],
                     EventEffect::UpgradeCard,
                 ),
@@ -195,12 +197,4 @@ pub fn typed_act3_events() -> Vec<TypedEventDef> {
             ],
         ),
     ]
-}
-
-#[allow(dead_code)]
-pub fn act3_events() -> Vec<EventDef> {
-    typed_act3_events()
-        .into_iter()
-        .map(|event| event.summary_event())
-        .collect()
 }

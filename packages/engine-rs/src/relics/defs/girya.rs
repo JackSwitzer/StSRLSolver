@@ -1,5 +1,6 @@
 //! Girya: +Strength based on lift count at combat start.
-//! Requires complex_hook to read GIRYA_COUNTER (set by Python rest site).
+//! Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Girya.java
+//! RunEngine persists campfire lifts and transfers them through GIRYA_COUNTER.
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};

@@ -1,12 +1,11 @@
-use crate::actions::Action;
 use crate::engine::{ChoiceOption, ChoiceReason, CombatEngine};
-use crate::run::{
-    RunAction, RunPhase, ShopState,
-};
+use crate::run::{RunPhase, ShopState};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DecisionKind {
     NeowChoice,
+    ChestAction,
     CombatAction,
     CombatChoice,
     RewardScreen,
@@ -14,10 +13,11 @@ pub enum DecisionKind {
     EventOption,
     ShopAction,
     CampfireAction,
+    Proceed,
     GameOver,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DecisionState {
     pub kind: DecisionKind,
     pub phase: RunPhase,
@@ -25,16 +25,19 @@ pub struct DecisionState {
     pub room_type: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RewardScreenSource {
     Combat,
     BossCombat,
+    BossRelic,
+    Campfire,
     Event,
     Treasure,
+    Shop,
     Unknown,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RewardItemState {
     Available,
     Claimed,
@@ -42,17 +45,29 @@ pub enum RewardItemState {
     Disabled,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RewardKeyColor {
+    Ruby,
+    Emerald,
+    Sapphire,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RewardItemKind {
     CardChoice,
     Relic,
     Gold,
     Potion,
-    Key,
+    Key {
+        color: RewardKeyColor,
+        /// Sapphire is mutually exclusive with its chest relic. Java's
+        /// Emerald reward is independent and therefore leaves this empty.
+        linked_item_index: Option<usize>,
+    },
     Unknown,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RewardChoice {
     Card {
         index: usize,
@@ -64,7 +79,7 @@ pub enum RewardChoice {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RewardItem {
     pub index: usize,
     pub kind: RewardItemKind,
@@ -77,7 +92,7 @@ pub struct RewardItem {
     pub choices: Vec<RewardChoice>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RewardScreen {
     pub source: RewardScreenSource,
     pub ordered: bool,
@@ -85,7 +100,7 @@ pub struct RewardScreen {
     pub items: Vec<RewardItem>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RewardChoiceFrame {
     pub item_index: usize,
     pub item_kind: RewardItemKind,
@@ -93,7 +108,7 @@ pub struct RewardChoiceFrame {
     pub choices: Vec<RewardChoice>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CombatPotionSlotContext {
     pub slot: usize,
     pub occupied: bool,
@@ -101,7 +116,13 @@ pub struct CombatPotionSlotContext {
     pub requires_target: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PotionSlotContext {
+    pub slot: usize,
+    pub potion_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CombatChoiceOptionContext {
     pub index: usize,
     pub kind: String,
@@ -110,7 +131,7 @@ pub struct CombatChoiceOptionContext {
     pub selected: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CombatChoiceContext {
     pub active: bool,
     pub reason: Option<String>,
@@ -121,41 +142,60 @@ pub struct CombatChoiceContext {
     pub options: Vec<CombatChoiceOptionContext>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CombatContext {
     pub potions: Vec<CombatPotionSlotContext>,
+    /// Actual draw order is visible only with Frozen Eye.
+    pub draw_order: Vec<String>,
     pub choice: CombatChoiceContext,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MapDecisionContext {
     pub available_paths: usize,
+    pub paths: Vec<MapPathContext>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MapPathContext {
+    pub choice: usize,
+    pub x: usize,
+    pub y: usize,
+    pub room_type: String,
+    pub uses_winged_greaves: bool,
+    pub has_emerald_key: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChestDecisionContext {
+    /// Chest size is visible from the room art before the chest is opened.
+    pub size: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NeowOptionContext {
     pub index: usize,
     pub label: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NeowDecisionContext {
     pub options: Vec<NeowOptionContext>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EventOptionContext {
     pub index: usize,
     pub label: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EventDecisionContext {
     pub name: String,
     pub options: Vec<EventOptionContext>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShopCardOfferContext {
     pub index: usize,
     pub card_id: String,
@@ -163,35 +203,67 @@ pub struct ShopCardOfferContext {
     pub affordable: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShopRelicOfferContext {
+    pub index: usize,
+    pub relic_id: String,
+    pub price: i32,
+    pub affordable: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShopPotionOfferContext {
+    pub index: usize,
+    pub potion_id: String,
+    pub price: i32,
+    pub affordable: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShopDecisionContext {
     pub offers: Vec<ShopCardOfferContext>,
+    pub relic_offers: Vec<ShopRelicOfferContext>,
+    pub potion_offers: Vec<ShopPotionOfferContext>,
     pub remove_price: i32,
     pub removal_used: bool,
     pub removable_cards: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CampfireDecisionContext {
     pub can_rest: bool,
     pub upgradable_cards: Vec<usize>,
+    pub removable_cards: Vec<usize>,
+    pub can_lift: bool,
+    pub can_dig: bool,
+    pub can_recall: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TransitionDecisionContext {
+    pub continuation: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DecisionContext {
     pub kind: DecisionKind,
+    /// Stable top-panel potion slots visible at every live decision.
+    pub potion_slots: Vec<PotionSlotContext>,
     pub neow: Option<NeowDecisionContext>,
+    pub chest: Option<ChestDecisionContext>,
     pub combat: Option<CombatContext>,
     pub reward_screen: Option<RewardScreen>,
     pub map: Option<MapDecisionContext>,
     pub event: Option<EventDecisionContext>,
     pub shop: Option<ShopDecisionContext>,
     pub campfire: Option<CampfireDecisionContext>,
+    pub transition: Option<TransitionDecisionContext>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DecisionFrame {
     Neow(NeowDecisionContext),
+    Chest(ChestDecisionContext),
     Combat(CombatContext),
     CombatChoice(CombatChoiceContext),
     RewardScreen { source: RewardScreenSource },
@@ -200,6 +272,7 @@ pub enum DecisionFrame {
     Event(EventDecisionContext),
     Shop(ShopDecisionContext),
     Campfire(CampfireDecisionContext),
+    Transition(TransitionDecisionContext),
     GameOver,
 }
 
@@ -207,6 +280,7 @@ impl DecisionFrame {
     pub fn kind(&self) -> DecisionKind {
         match self {
             Self::Neow(_) => DecisionKind::NeowChoice,
+            Self::Chest(_) => DecisionKind::ChestAction,
             Self::Combat(_) => DecisionKind::CombatAction,
             Self::CombatChoice(_) => DecisionKind::CombatChoice,
             Self::RewardScreen { .. } | Self::RewardChoice(_) => DecisionKind::RewardScreen,
@@ -214,12 +288,13 @@ impl DecisionFrame {
             Self::Event(_) => DecisionKind::EventOption,
             Self::Shop(_) => DecisionKind::ShopAction,
             Self::Campfire(_) => DecisionKind::CampfireAction,
+            Self::Transition(_) => DecisionKind::Proceed,
             Self::GameOver => DecisionKind::GameOver,
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct DecisionStack {
     pub frames: Vec<DecisionFrame>,
 }
@@ -276,83 +351,6 @@ impl DecisionStack {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum DecisionAction {
-    ChooseNeowOption(usize),
-    ChooseMapPath(usize),
-    Combat(Action),
-    ClaimRewardItem {
-        item_index: usize,
-    },
-    PickRewardChoice {
-        item_index: usize,
-        choice_index: usize,
-    },
-    SkipRewardItem {
-        item_index: usize,
-    },
-    CampfireRest,
-    CampfireUpgrade(usize),
-    ShopBuyCard(usize),
-    ShopRemoveCard(usize),
-    ShopLeave,
-    EventChoice(usize),
-}
-
-impl DecisionAction {
-    pub fn to_run_action(&self) -> RunAction {
-        match self {
-            Self::ChooseNeowOption(idx) => RunAction::ChooseNeowOption(*idx),
-            Self::ChooseMapPath(idx) => RunAction::ChoosePath(*idx),
-            Self::Combat(action) => RunAction::CombatAction(action.clone()),
-            Self::ClaimRewardItem { item_index } => RunAction::SelectRewardItem(*item_index),
-            Self::PickRewardChoice {
-                item_index,
-                choice_index,
-            } => RunAction::ChooseRewardOption {
-                item_index: *item_index,
-                choice_index: *choice_index,
-            },
-            Self::SkipRewardItem { item_index } => RunAction::SkipRewardItem(*item_index),
-            Self::CampfireRest => RunAction::CampfireRest,
-            Self::CampfireUpgrade(idx) => RunAction::CampfireUpgrade(*idx),
-            Self::ShopBuyCard(idx) => RunAction::ShopBuyCard(*idx),
-            Self::ShopRemoveCard(idx) => RunAction::ShopRemoveCard(*idx),
-            Self::ShopLeave => RunAction::ShopLeave,
-            Self::EventChoice(idx) => RunAction::EventChoice(*idx),
-        }
-    }
-
-    pub fn from_run_action(action: &RunAction, phase: RunPhase) -> Self {
-        match action {
-            RunAction::ChooseNeowOption(idx) => Self::ChooseNeowOption(*idx),
-            RunAction::ChoosePath(idx) => Self::ChooseMapPath(*idx),
-            RunAction::SelectRewardItem(item_index) => Self::ClaimRewardItem {
-                item_index: *item_index,
-            },
-            RunAction::ChooseRewardOption {
-                item_index,
-                choice_index,
-            } => Self::PickRewardChoice {
-                item_index: *item_index,
-                choice_index: *choice_index,
-            },
-            RunAction::SkipRewardItem(item_index) => Self::SkipRewardItem {
-                item_index: *item_index,
-            },
-            RunAction::CampfireRest => Self::CampfireRest,
-            RunAction::CampfireUpgrade(idx) => Self::CampfireUpgrade(*idx),
-            RunAction::ShopBuyCard(idx) => Self::ShopBuyCard(*idx),
-            RunAction::ShopRemoveCard(idx) => Self::ShopRemoveCard(*idx),
-            RunAction::ShopLeave => Self::ShopLeave,
-            RunAction::EventChoice(idx) => Self::EventChoice(*idx),
-            RunAction::CombatAction(action) => {
-                let _ = phase;
-                Self::Combat(action.clone())
-            }
-        }
-    }
-}
 
 pub(crate) fn build_shop_context(shop: &ShopState, gold: i32, deck_len: usize) -> ShopDecisionContext {
     ShopDecisionContext {
@@ -367,6 +365,21 @@ pub(crate) fn build_shop_context(shop: &ShopState, gold: i32, deck_len: usize) -
                 affordable: gold >= *price,
             })
             .collect(),
+        relic_offers: shop
+            .relics
+            .iter()
+            .enumerate()
+            .map(|(index, (relic_id, price))| ShopRelicOfferContext {
+                index,
+                relic_id: relic_id.clone(),
+                price: *price,
+                affordable: gold >= *price,
+            })
+            .collect(),
+        potion_offers: shop.potions.iter().enumerate()
+            .map(|(index, (potion_id, price))| ShopPotionOfferContext {
+                index, potion_id: potion_id.clone(), price: *price, affordable: gold >= *price,
+            }).collect(),
         remove_price: shop.remove_price,
         removal_used: shop.removal_used,
         removable_cards: if !shop.removal_used && deck_len > 5 { deck_len } else { 0 },
@@ -388,6 +401,18 @@ pub(crate) fn build_combat_context(combat: &CombatEngine) -> CombatContext {
                     && crate::potions::potion_requires_target(potion_id),
             })
             .collect(),
+        // Source: DrawPileViewScreen.java copies the real group order with
+        // Frozen Eye; otherwise it sorts the copy and hides actual order.
+        draw_order: if combat.state.has_relic("Frozen Eye") {
+            combat
+                .state
+                .draw_pile
+                .iter()
+                .map(|card| combat.card_registry.card_name(card.def_id).to_string())
+                .collect()
+        } else {
+            Vec::new()
+        },
         choice: build_choice_context(combat),
     }
 }
@@ -449,6 +474,7 @@ fn choice_reason_name(reason: &ChoiceReason) -> &'static str {
         ChoiceReason::ForethoughtPick => "forethought_pick",
         ChoiceReason::RecycleCard => "recycle_card",
         ChoiceReason::DiscardForEffect => "discard_for_effect",
+        ChoiceReason::RetainFromHand => "retain_from_hand",
         ChoiceReason::SetupPick => "setup_pick",
         ChoiceReason::PlayCardFreeFromDraw => "play_card_free_from_draw",
     }
@@ -493,7 +519,7 @@ fn choice_option_payload(option: &ChoiceOption, combat: &CombatEngine) -> (Strin
             -1,
             combat.card_registry.card_name(card.def_id).to_string(),
         ),
-        ChoiceOption::Named(name) => ("named".to_string(), -1, (*name).to_string()),
+        ChoiceOption::Named(name) => ("named".to_string(), -1, name.clone()),
         ChoiceOption::ExhaustCard(idx) => {
             let name = combat
                 .state

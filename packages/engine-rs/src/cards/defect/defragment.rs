@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Defragment: 1 cost, power, gain 1 focus
+    // Source: reference/extracted/methods/card/Defragment.java applies 1 Focus
+    // for 1 energy; upgrading adds 1 Focus and changes nothing else.
     insert(cards, CardDef {
                 id: "Defragment", name: "Defragment", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,

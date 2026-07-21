@@ -1,5 +1,5 @@
 use crate::events::{typed_events_for_act, EventRuntimeStatus};
-use crate::run::{RunAction, RunEngine, RunPhase};
+use crate::run::{GameAction, RunEngine, RunPhase};
 
 fn typed_event(act: i32, name: &str) -> crate::events::TypedEventDef {
     typed_events_for_act(act)
@@ -25,12 +25,10 @@ fn test_event_runtime_wave5_mind_bloom_awake_installs_mark_and_blocks_future_hea
     ));
     engine.debug_set_typed_event_state(mind_bloom);
 
-    let awake = engine.step_with_result(&RunAction::EventChoice(1));
-    assert!(awake.action_accepted);
-    assert_eq!(engine.current_phase(), RunPhase::CardReward);
-
-    let claim_mark = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(claim_mark.action_accepted);
+    let awake = engine.step_game(&GameAction::EventChoice(1));
+    assert!(awake.accepted());
+    // MindBloom.java::buttonEffect obtains the relic during this choice; it
+    // does not interpose a reward-screen decision.
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
 
     assert!(engine
@@ -42,10 +40,31 @@ fn test_event_runtime_wave5_mind_bloom_awake_installs_mark_and_blocks_future_hea
 
     let library = typed_event(2, "The Library");
     engine.debug_set_typed_event_state(library);
-    let sleep = engine.step_with_result(&RunAction::EventChoice(1));
-    assert!(sleep.action_accepted);
+    let sleep = engine.step_game(&GameAction::EventChoice(1));
+    assert!(sleep.accepted());
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(engine.run_state.current_hp, 20);
+}
+
+#[test]
+fn mark_of_the_bloom_acquired_from_mind_bloom_blocks_next_combat_heal() {
+    // MarkOfTheBloom.java::onPlayerHeal always returns 0. MindBloom.java obtains
+    // the relic immediately in "I am Awake", so the next combat must install
+    // that behavior without any extra reward-screen action.
+    let mut engine = RunEngine::new(29, 0);
+    engine.run_state.current_hp = 20;
+    engine.debug_set_typed_event_state(typed_event(3, "Mind Bloom"));
+
+    assert!(engine
+        .step_game(&GameAction::EventChoice(1))
+        .accepted());
+    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    let combat = engine.debug_combat_engine_mut();
+    assert_eq!(combat.state.player.hp, 20);
+    combat.state.heal_player(12);
+    assert_eq!(combat.state.player.hp, 20);
 }
 
 #[test]
@@ -61,8 +80,8 @@ fn test_event_runtime_wave5_mind_bloom_rich_adds_gold_and_two_normalities() {
     ));
     engine.debug_set_typed_event_state(mind_bloom);
 
-    let rich = engine.step_with_result(&RunAction::EventChoice(2));
-    assert!(rich.action_accepted);
+    let rich = engine.step_game(&GameAction::EventChoice(2));
+    assert!(rich.accepted());
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(engine.run_state.gold, gold_before + 999);
     assert_eq!(engine.run_state.deck.len(), deck_before + 2);
@@ -90,8 +109,8 @@ fn test_event_runtime_wave5_moai_head_trades_away_golden_idol_for_gold() {
     let moai = typed_event(3, "The Moai Head");
     engine.debug_set_typed_event_state(moai);
 
-    let trade = engine.step_with_result(&RunAction::EventChoice(1));
-    assert!(trade.action_accepted);
+    let trade = engine.step_game(&GameAction::EventChoice(1));
+    assert!(trade.accepted());
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(engine.run_state.gold, 423);
     assert!(!engine

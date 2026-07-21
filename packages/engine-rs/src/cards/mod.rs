@@ -24,7 +24,7 @@ use crate::effects::declarative::CardFilter;
 #[cfg(test)]
 use crate::effects::types::{
     CanPlayRule, CostModifierRule, DamageModifierRule, EndTurnHandRule, OnDiscardRule,
-    OnDrawRule, OnRetainRule, PostPlayRule, WhileInHandRule,
+    OnDrawRule, OnRetainRule, PostPlayRule, StatefulCostRule, WhileInHandRule,
 };
 
 mod prelude;
@@ -62,6 +62,8 @@ pub enum CardType {
 pub enum CardTarget {
     /// Single enemy (requires target selection)
     Enemy,
+    /// Select one enemy while the card's effect is applied to the player.
+    SelfAndEnemy,
     /// All enemies (no target needed)
     AllEnemy,
     /// Self only
@@ -337,7 +339,7 @@ impl CardDef {
                 CardRuntimeTrigger::ModifyCost(CostModifierRule::ReducePerPower) => {
                     add_test_marker(&mut markers, "reduce_cost_per_power");
                 }
-                CardRuntimeTrigger::ModifyCost(CostModifierRule::ReduceOnDiscard) => {
+                CardRuntimeTrigger::StatefulCost(StatefulCostRule::ReduceOnDiscard) => {
                     add_test_marker(&mut markers, "cost_reduce_on_discard");
                 }
                 CardRuntimeTrigger::ModifyCost(CostModifierRule::IncreaseOnHpLoss) => {
@@ -497,7 +499,7 @@ fn collect_test_markers_from_effects(effects: &[Effect], markers: &mut Vec<&'sta
                             add_test_marker(markers, "discard");
                             add_test_marker(markers, "discard_gain_energy");
                         }
-                        ChoiceAction::PutOnTopAtCostZero | ChoiceAction::PutOnBottomAtCostZero => {
+                        ChoiceAction::PutOnTopAtCostZero | ChoiceAction::PutOnBottomFreeIfCostly => {
                             add_test_marker(markers, "setup");
                         }
                         ChoiceAction::StoreCardForNextTurnCopies => {
@@ -624,6 +626,7 @@ fn collect_test_markers_from_simple(simple: &SimpleEffect, markers: &mut Vec<&'s
             add_test_marker(markers, "draw_to_ten");
         }
         SimpleEffect::DrawCards(_)
+        | SimpleEffect::ShuffleAllAndDraw(_)
         | SimpleEffect::DrawCardsThenDiscardDrawnNonZeroCost(_) => {
             add_test_marker(markers, "draw");
         }
@@ -652,6 +655,13 @@ fn collect_test_markers_from_simple(simple: &SimpleEffect, markers: &mut Vec<&'s
                 _ => {}
             }
         }
+        SimpleEffect::AddCardToRandomDrawSpot(card_id, _) => {
+            match *card_id {
+                "Insight" => add_test_marker(markers, "insight_to_draw"),
+                "ThroughViolence" => add_test_marker(markers, "add_through_violence_to_draw"),
+                _ => {}
+            }
+        }
         SimpleEffect::ChannelOrb(orb, _) => match orb {
             OrbType::Lightning => add_test_marker(markers, "channel_lightning"),
             OrbType::Frost => add_test_marker(markers, "channel_frost"),
@@ -659,7 +669,9 @@ fn collect_test_markers_from_simple(simple: &SimpleEffect, markers: &mut Vec<&'s
             OrbType::Plasma => add_test_marker(markers, "channel_plasma"),
             OrbType::Empty => {}
         },
-        SimpleEffect::EvokeOrb(_) => add_test_marker(markers, "evoke_orb"),
+        SimpleEffect::EvokeOrb(_) | SimpleEffect::EvokeOrbWithoutRemoving => {
+            add_test_marker(markers, "evoke_orb")
+        }
         SimpleEffect::ChangeStance(Stance::Neutral) => add_test_marker(markers, "exit_stance"),
         SimpleEffect::SetFlag(flag) => match flag {
             BoolFlag::SkipEnemyTurn => add_test_marker(markers, "skip_enemy_turn"),
@@ -780,6 +792,7 @@ fn effect_slice_has_gain_block(effects: &[Effect]) -> bool {
 fn effect_slice_has_draw(effects: &[Effect]) -> bool {
     effects.iter().any(|effect| match effect {
         Effect::Simple(SimpleEffect::DrawCards(_))
+        | Effect::Simple(SimpleEffect::ShuffleAllAndDraw(_))
         | Effect::Simple(SimpleEffect::DrawCardsThenDiscardDrawnNonZeroCost(_))
         | Effect::Simple(SimpleEffect::DrawToHandSize(_)) => true,
         Effect::Conditional(_, then_effects, else_effects) => {
@@ -821,10 +834,12 @@ fn supplemental_test_markers(id: &str) -> &'static [&'static str] {
             &["pressure_points"]
         }
         "Judgement" | "Judgement+" => &["judgement"],
+        "SpiritShield" | "SpiritShield+" => &["block_per_card_in_hand"],
         "LessonLearned" | "LessonLearned+" => &["lesson_learned"],
         "Wish" | "Wish+" => &["wish"],
         "DeusExMachina" | "DeusExMachina+" => &["deus_ex_machina"],
         "Collect" | "Collect+" => &["mantra"],
+        "Evaluate" | "Evaluate+" => &["insight_to_draw"],
         "StormOfSteel" | "StormOfSteel+" | "Storm of Steel" | "Storm of Steel+" => {
             &["storm_of_steel", "add_shivs"]
         }
@@ -906,6 +921,7 @@ fn find_declared_draw_count(effects: &[Effect]) -> Option<AmountSource> {
     for effect in effects {
         match effect {
             Effect::Simple(SimpleEffect::DrawCards(amount))
+            | Effect::Simple(SimpleEffect::ShuffleAllAndDraw(amount))
             | Effect::Simple(SimpleEffect::DrawCardsThenDiscardDrawnNonZeroCost(amount)) => {
                 return Some(*amount);
             }
@@ -966,7 +982,9 @@ fn find_declared_primary_attack_target(effects: &[Effect]) -> Option<Target> {
 fn has_declared_primary_block(effects: &[Effect]) -> bool {
     for effect in effects {
         match effect {
-            Effect::Simple(SimpleEffect::GainBlock(AmountSource::Block)) => return true,
+            Effect::Simple(SimpleEffect::GainBlock(
+                AmountSource::Block | AmountSource::DiscardPileSizePlusBlock,
+            )) => return true,
             Effect::Conditional(_, then_effects, else_effects) => {
                 if has_declared_primary_block(then_effects) {
                     return true;
@@ -1048,9 +1066,14 @@ fn collect_declared_channel_orbs(
 }
 
 fn find_declared_evoke_count(effects: &[Effect]) -> Option<AmountSource> {
+    let mut fixed_count = 0;
     for effect in effects {
         match effect {
+            Effect::Simple(SimpleEffect::EvokeOrb(AmountSource::Fixed(amount))) => {
+                fixed_count += *amount;
+            }
             Effect::Simple(SimpleEffect::EvokeOrb(amount)) => return Some(*amount),
+            Effect::Simple(SimpleEffect::EvokeOrbWithoutRemoving) => fixed_count += 1,
             Effect::Conditional(_, then_effects, else_effects) => {
                 if let Some(amount) = find_declared_evoke_count(then_effects) {
                     return Some(amount);
@@ -1062,7 +1085,7 @@ fn find_declared_evoke_count(effects: &[Effect]) -> Option<AmountSource> {
             _ => {}
         }
     }
-    None
+    (fixed_count > 0).then_some(AmountSource::Fixed(fixed_count))
 }
 
 fn collect_declared_player_statuses(effects: &[Effect], statuses: &mut Vec<StatusId>) {
@@ -1130,6 +1153,7 @@ fn collect_simple_x_cost_amounts(effect: &SimpleEffect, amounts: &mut Vec<Amount
         SimpleEffect::AddStatus(_, _, source)
         | SimpleEffect::SetStatus(_, _, source)
         | SimpleEffect::DrawCards(source)
+        | SimpleEffect::ShuffleAllAndDraw(source)
         | SimpleEffect::GainEnergy(source)
         | SimpleEffect::GainBlock(source)
         | SimpleEffect::ModifyHp(source)
@@ -1137,6 +1161,7 @@ fn collect_simple_x_cost_amounts(effect: &SimpleEffect, amounts: &mut Vec<Amount
         | SimpleEffect::Scry(source)
         | SimpleEffect::DrawCardsThenDiscardDrawnNonZeroCost(source)
         | SimpleEffect::AddCard(_, _, source)
+        | SimpleEffect::AddCardToRandomDrawSpot(_, source)
         | SimpleEffect::AddCardWithMisc(_, _, source, _)
         | SimpleEffect::ChannelOrb(_, source)
         | SimpleEffect::EvokeOrb(source)
@@ -1145,7 +1170,8 @@ fn collect_simple_x_cost_amounts(effect: &SimpleEffect, amounts: &mut Vec<Amount
         | SimpleEffect::HealHp(_, source)
         | SimpleEffect::ModifyMaxHp(source)
         | SimpleEffect::ModifyMaxEnergy(source)
-        | SimpleEffect::ModifyGold(source) => {
+        | SimpleEffect::ModifyGold(source)
+        | SimpleEffect::IncreaseAllClawDamage(source) => {
             if amount_uses_x_cost(source) {
                 amounts.push(*source);
             }
@@ -1156,7 +1182,7 @@ fn collect_simple_x_cost_amounts(effect: &SimpleEffect, amounts: &mut Vec<Amount
         | SimpleEffect::ShuffleDiscardIntoDraw
         | SimpleEffect::ExhaustRandomCardFromHand
         | SimpleEffect::CopyThisCardTo(_)
-        | SimpleEffect::GainBlockIfLastHandCardType(_, _)
+        | SimpleEffect::GainBlockIfLastDrawnCardType(_, _)
         | SimpleEffect::DrawToHandSize(_)
         | SimpleEffect::TriggerMarks
         | SimpleEffect::DoubleEnergy
@@ -1167,14 +1193,16 @@ fn collect_simple_x_cost_amounts(effect: &SimpleEffect, amounts: &mut Vec<Amount
         | SimpleEffect::SetRandomHandCardCost(_)
         | SimpleEffect::ObtainRandomPotion
         | SimpleEffect::TriggerDarkPassive
+        | SimpleEffect::TriggerAllOrbPassives
         | SimpleEffect::RemoveOrbSlot
+        | SimpleEffect::EvokeOrbWithoutRemoving
         | SimpleEffect::EvokeAndRechannelFrontOrb
         | SimpleEffect::ChannelRandomOrb(_)
         | SimpleEffect::DiscardRandomCardsFromPile(_, _)
         | SimpleEffect::PlayTopCardOfDraw
         | SimpleEffect::ResolveFission { .. }
         | SimpleEffect::RemoveEnemyBlock(_)
-        | SimpleEffect::UpgradeRandomCardFromPiles(_)
+        | SimpleEffect::UpgradeRandomMasterDeckCard
         | SimpleEffect::FleeCombat => {}
         SimpleEffect::DrawRandomCardsFromPileToHand(_, _, source) => {
             if amount_uses_x_cost(source) {
@@ -1445,6 +1473,13 @@ impl CardRegistry {
         if name.ends_with('+') {
             card.flags |= CardInstance::FLAG_UPGRADED;
         }
+        if matches!(name, "Searing Blow" | "Searing Blow+") {
+            // SearingBlow(int upgrades) retains its exact timesUpgraded. The
+            // static `+` definition represents level one; later levels keep
+            // that definition and store the counter on the card instance.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/SearingBlow.java
+            card.misc = i32::from(name == "Searing Blow+");
+        }
         card
     }
 
@@ -1465,16 +1500,72 @@ impl CardRegistry {
         self.strike_flags.get(id as usize).copied().unwrap_or(false)
     }
 
+    /// Whether Java's `canUpgrade()` permits one more upgrade.
+    pub fn can_upgrade_card(&self, card: &CardInstance) -> bool {
+        if card.def_id == u16::MAX {
+            return false;
+        }
+        let name = self.card_name(card.def_id);
+        if matches!(name, "Searing Blow" | "Searing Blow+") {
+            // SearingBlow.canUpgrade() always returns true.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/SearingBlow.java
+            return true;
+        }
+        !card.is_upgraded() && self.get(&format!("{name}+")).is_some()
+    }
+
+    /// Whether a persistent string-backed deck entry permits one more upgrade.
+    pub fn can_upgrade_name(&self, name: &str) -> bool {
+        if matches!(name, "Searing Blow" | "Searing Blow+") {
+            return true;
+        }
+        !name.ends_with('+') && self.get(&format!("{name}+")).is_some()
+    }
+
     /// Upgrade a card in-place: change def_id to the upgraded version and set FLAG_UPGRADED.
     pub fn upgrade_card(&self, card: &mut CardInstance) {
-        if card.flags & CardInstance::FLAG_UPGRADED != 0 { return; }
         let name = self.card_name(card.def_id);
+        if matches!(name, "Searing Blow" | "Searing Blow+") {
+            let current = if card.misc >= 0 {
+                card.misc
+            } else if name == "Searing Blow+" || card.is_upgraded() {
+                1
+            } else {
+                0
+            };
+            card.misc = current.wrapping_add(1);
+            if let Some(&id) = self.name_to_id.get("Searing Blow+") {
+                card.def_id = id;
+                card.flags |= CardInstance::FLAG_UPGRADED;
+                card.base_cost = self.id_to_def[id as usize].cost as i8;
+            }
+            return;
+        }
+        if card.flags & CardInstance::FLAG_UPGRADED != 0 { return; }
+        let original_def_cost = self.id_to_def[card.def_id as usize].cost as i8;
         let upgraded = format!("{}+", name);
         if let Some(&id) = self.name_to_id.get(upgraded.as_str()) {
+            if name == "Steam" && card.misc != -1 {
+                // SteamBarrier.upgradeBlock(2) changes its current mutable
+                // baseBlock, including after prior ModifyBlockActions.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/SteamBarrier.java
+                let base = self.id_to_def[card.def_id as usize].base_block;
+                let upgraded_base = self.id_to_def[id as usize].base_block;
+                let current = card.decrementing_misc_or(base);
+                card.set_decrementing_misc(current + upgraded_base - base);
+            }
             card.def_id = id;
             card.flags |= CardInstance::FLAG_UPGRADED;
             if let Some(def) = self.id_to_def.get(id as usize) {
-                card.base_cost = def.cost as i8;
+                let upgraded_def_cost = def.cost as i8;
+                // Only an upgrade that calls upgradeBaseCost changes Java's
+                // permanent combat cost. Streamline.upgrade changes damage
+                // only, so a cost already lowered by ReduceCostAction survives.
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/AbstractCard.java
+                // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Streamline.java
+                if original_def_cost != upgraded_def_cost || card.base_cost == original_def_cost {
+                    card.base_cost = upgraded_def_cost;
+                }
             }
         }
     }
@@ -2011,20 +2102,20 @@ mod tests {
             "Poisoned Stab", "Prepared", "Quick Slash", "Slice",
             "Sneaky Strike", "Sucker Punch",
             // Uncommon
-            "Accuracy", "All-Out Attack", "Backstab", "Blur", "Bouncing Flask",
+            "Accuracy", "All Out Attack", "Backstab", "Blur", "Bouncing Flask",
             "Calculated Gamble", "Caltrops", "Catalyst", "Choke", "Concentrate",
             "Crippling Cloud", "Dash", "Distraction", "Endless Agony", "Envenom",
             "Escape Plan", "Eviscerate", "Expertise", "Finisher", "Flechettes",
             "Footwork", "Heel Hook", "Infinite Blades", "Leg Sweep",
             "Masterful Stab", "Noxious Fumes", "Predator", "Reflex",
-            "Riddle with Holes", "Setup", "Skewer", "Tactician", "Terror",
-            "Well-Laid Plans",
+            "Riddle With Holes", "Setup", "Skewer", "Tactician", "Terror",
+            "Well Laid Plans",
             // Rare
             "A Thousand Cuts", "Adrenaline", "After Image", "Alchemize",
             "Bullet Time", "Burst", "Corpse Explosion", "Die Die Die",
             "Doppelganger", "Glass Knife", "Grand Finale", "Malaise",
-            "Nightmare", "Phantasmal Killer", "Storm of Steel",
-            "Tools of the Trade", "Unload", "Wraith Form",
+            "Night Terror", "Phantasmal Killer", "Storm of Steel",
+            "Tools of the Trade", "Unload", "Wraith Form v2",
         ];
         for id in &silent_cards {
             assert!(reg.get(id).is_some(), "Silent card '{}' missing from registry", id);
@@ -2085,8 +2176,8 @@ mod tests {
     #[test]
     fn test_wraith_form_stats() {
         let reg = super::global_registry();
-        assert_card(&reg, "Wraith Form", 3, -1, -1, 2, CardType::Power);
-        assert_card(&reg, "Wraith Form+", 3, -1, -1, 3, CardType::Power);
+        assert_card(&reg, "Wraith Form v2", 3, -1, -1, 2, CardType::Power);
+        assert_card(&reg, "Wraith Form v2+", 3, -1, -1, 3, CardType::Power);
         // Wraith Form now uses complex_hook, no effect tags
     }
 
@@ -2117,7 +2208,7 @@ mod tests {
             "Defragment", "Doom and Gloom", "Double Energy", "Undo",
             "Force Field", "FTL", "Fusion", "Genetic Algorithm", "Glacier",
             "Heatsinks", "Hello World", "Lockon", "Loop",
-            "Melter", "Steam Power", "Recycle", "Redo",
+            "Melter", "Impulse", "Steam Power", "Recycle", "Redo",
             "Reinforced Body", "Reprogram", "Rip and Tear", "Scrape",
             "Self Repair", "Skim", "Static Discharge", "Storm",
             "Sunder", "Tempest", "White Noise",
@@ -2252,7 +2343,7 @@ mod tests {
     #[test]
     fn test_all_status_cards_registered() {
         let reg = super::global_registry();
-        let status_cards = ["Slimed", "Wound", "Daze", "Burn", "Void"];
+        let status_cards = ["Slimed", "Wound", "Dazed", "Burn", "Void"];
         for id in &status_cards {
             let card = reg.get(id).unwrap_or_else(|| panic!("Status '{}' missing", id));
             assert_eq!(card.card_type, CardType::Status, "{} should be Status type", id);
@@ -2268,7 +2359,7 @@ mod tests {
         assert_eq!(reg.get("Burn+").unwrap().base_magic, 4);
         assert_has_effect(&reg, "Void", "lose_energy_on_draw");
         assert_has_effect(&reg, "Void", "ethereal");
-        assert_has_effect(&reg, "Daze", "ethereal");
+        assert_has_effect(&reg, "Dazed", "ethereal");
     }
 
     // -----------------------------------------------------------------------

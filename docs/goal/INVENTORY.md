@@ -4,14 +4,14 @@ Everything below already exists. Read before building anything new; most "new" n
 
 ## Rust engine — USE (the product)
 
-- `packages/engine-rs/` — 2219/2219 lib tests green. Watcher A0 Act 1 ≈95-98% parity.
-  - `src/run.rs` — `RunEngine::new(seed, ascension)` + `step(RunAction)`: full run surface (Neow/path/combat/rewards/shop/event/campfire). This is the replay entry point for the oracle.
-  - `src/seed.rs` — `StsRandom`, Java-parity MT, exposes `(seed0, seed1, counter)` — the RNG counters in the trace schema.
+- `packages/engine-rs/` — 3,016/3,016 lib tests green, zero ignored. Watcher A0 implementation is approximately 95% complete against known work but only about 9% real-game-corpus certified.
+  - `src/run.rs` — `RunEngine::new(seed, ascension)` + `step_game(&GameAction)`: canonical full-run surface (Neow/path/combat/rewards/shop/event/campfire/Act 4).
+  - `src/seed.rs` — native libGDX `RandomXS128`, counted StS `Random`, Java-util LCG/shuffle, and typed persistent/floor/combat stream ownership.
   - `src/engine.rs`, `src/state.rs`, `src/combat_hooks.rs`, `src/card_effects.rs` — combat core; state structs already serde-derive.
-  - Content: `src/cards/` (~352 files, all characters; 71 on `complex_hook` fallback), `src/enemies/` (130 variants; **no RNG threading — the known critical bug**), `src/relics/` (103), `src/potions/` (34, done), `src/orbs.rs`, `src/powers/`, `src/events/`, `src/map.rs` (done).
-  - Layers to keep behind boundaries: `src/obs.rs` (480-dim), `src/search.rs` (PUCT), `src/training_contract.rs`, PyO3 glue.
-  - `src/tests/` — 212 files incl. `test_run_parity.rs` (recorded-run playback — the pattern trace_replay generalizes).
-- `scripts/test_engine_rs.sh` — canonical test runner (env/PyO3 setup lives here; reuse for any cargo bin).
+  - Content ledger: 370 cards, 68 monsters, 186 relics, and 43 potions source-verified; card-owned secondary behavior uses typed metadata, with 12 intentionally imperative card hooks remaining.
+  - Obsolete obs/search/training-contract/gameplay-session/PyO3 consumers are archived under `archive/2026-07-engine-consumers`; they are not core dependencies.
+  - `src/tests/` — 214 Rust files, including canonical run, RNG, checkpoint, trace, and source-derived content coverage.
+- `scripts/test_engine_rs.sh` — canonical cargo test/check/build runner for the engine crate.
 
 ## Audits & registers — MINE (they ARE the work queue)
 

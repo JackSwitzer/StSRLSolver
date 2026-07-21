@@ -4,7 +4,7 @@ use crate::effects::declarative::{
 use crate::effects::types::{
     CanPlayRule, CardBlockHint, CardEvokeHint, CardMetadata, CardPlayHints, CardRuntimeTraits,
     CardRuntimeTrigger, CostModifierRule, DamageModifierRule, EndTurnHandRule, OnDiscardRule,
-    OnDrawRule, OnExhaustRule, OnRetainRule, PostPlayRule, WhileInHandRule,
+    OnDrawRule, OnExhaustRule, OnRetainRule, PostPlayRule, StatefulCostRule, WhileInHandRule,
 };
 
 const EMPTY_TRIGGERS: &[CardRuntimeTrigger] = &[];
@@ -36,12 +36,14 @@ const WINDMILL_STRIKE_TRIGGERS: &[CardRuntimeTrigger] = &[
 ];
 const SENTINEL_TRIGGERS: &[CardRuntimeTrigger] =
     &[CardRuntimeTrigger::OnExhaust(OnExhaustRule::GainEnergy)];
+const NECRONOMICURSE_TRIGGERS: &[CardRuntimeTrigger] =
+    &[CardRuntimeTrigger::OnExhaust(OnExhaustRule::ReturnCopyToHand)];
 const BLOOD_FOR_BLOOD_TRIGGERS: &[CardRuntimeTrigger] =
     &[CardRuntimeTrigger::ModifyCost(CostModifierRule::ReduceOnHpLoss)];
 const FORCE_FIELD_TRIGGERS: &[CardRuntimeTrigger] =
     &[CardRuntimeTrigger::ModifyCost(CostModifierRule::ReducePerPower)];
 const EVISCERATE_TRIGGERS: &[CardRuntimeTrigger] =
-    &[CardRuntimeTrigger::ModifyCost(CostModifierRule::ReduceOnDiscard)];
+    &[CardRuntimeTrigger::StatefulCost(StatefulCostRule::ReduceOnDiscard)];
 const MASTERFUL_STAB_TRIGGERS: &[CardRuntimeTrigger] =
     &[CardRuntimeTrigger::ModifyCost(CostModifierRule::IncreaseOnHpLoss)];
 const TANTRUM_TRIGGERS: &[CardRuntimeTrigger] =
@@ -104,6 +106,7 @@ pub fn runtime_traits_for_card(id: &str, cost: i32) -> CardRuntimeTraits {
                 | "Backstab"
                 | "Backstab+"
                 | "Infinite Blades+"
+                | "After Image+"
                 | "Alpha+"
                 | "BattleHymn+"
                 | "Establishment+"
@@ -112,7 +115,12 @@ pub fn runtime_traits_for_card(id: &str, cost: i32) -> CardRuntimeTraits {
         ),
         retain: matches!(
             id,
-            "Crescendo"
+            // Miracle.java sets selfRetain in its constructor; upgrading changes
+            // only its description/energy branch, so both variants retain.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Miracle.java
+            "Miracle"
+                | "Miracle+"
+                | "Crescendo"
                 | "Crescendo+"
                 | "FlyingSleeves"
                 | "FlyingSleeves+"
@@ -141,7 +149,7 @@ pub fn runtime_traits_for_card(id: &str, cost: i32) -> CardRuntimeTraits {
         ),
         ethereal: matches!(
             id,
-            "Daze"
+            "Dazed"
                 | "Void"
                 | "AscendersBane"
                 | "Clumsy"
@@ -150,7 +158,6 @@ pub fn runtime_traits_for_card(id: &str, cost: i32) -> CardRuntimeTraits {
                 | "Carnage+"
                 | "Ghostly Armor"
                 | "Ghostly Armor+"
-                | "Phantasmal Killer"
                 | "DevaForm"
                 | "Echo Form"
         ),
@@ -180,6 +187,7 @@ pub fn runtime_triggers_for_card(id: &str) -> &'static [CardRuntimeTrigger] {
             WINDMILL_STRIKE_TRIGGERS
         }
         "Sentinel" | "Sentinel+" => SENTINEL_TRIGGERS,
+        "Necronomicurse" => NECRONOMICURSE_TRIGGERS,
         "Blood for Blood" | "Blood for Blood+" => BLOOD_FOR_BLOOD_TRIGGERS,
         "Force Field" | "Force Field+" => FORCE_FIELD_TRIGGERS,
         "Eviscerate" | "Eviscerate+" => EVISCERATE_TRIGGERS,
@@ -195,7 +203,7 @@ pub fn runtime_triggers_for_card(id: &str) -> &'static [CardRuntimeTrigger] {
         "RitualDagger" | "Ritual Dagger" | "RitualDagger+" | "Ritual Dagger+" => {
             RITUAL_DAGGER_TRIGGERS
         }
-        "Searing Blow" => SEARING_BLOW_TRIGGERS,
+        "Searing Blow" | "Searing Blow+" => SEARING_BLOW_TRIGGERS,
         "Claw" | "Claw+" | "Gash" | "Gash+" => CLAW_TRIGGERS,
         "Mind Blast" | "Mind Blast+" => MIND_BLAST_TRIGGERS,
         "Brilliance" | "Brilliance+" => BRILLIANCE_TRIGGERS,
@@ -248,6 +256,7 @@ fn effect_draws_cards(effects: &[Effect]) -> bool {
     effects.iter().any(|effect| match effect {
         Effect::Simple(
             SimpleEffect::DrawCards(_)
+            | SimpleEffect::ShuffleAllAndDraw(_)
             | SimpleEffect::DrawCardsThenDiscardDrawnNonZeroCost(_)
             | SimpleEffect::DrawToHandSize(_)
             | SimpleEffect::DrawRandomCardsFromPileToHand(_, _, _),
@@ -301,6 +310,9 @@ fn collect_evoke_hint(
 ) {
     for effect in effects {
         match effect {
+            Effect::Simple(SimpleEffect::EvokeOrbWithoutRemoving) => {
+                *fixed_count = fixed_count.saturating_add(1);
+            }
             Effect::Simple(SimpleEffect::EvokeOrb(amount)) => match amount {
                 AmountSource::Fixed(count) if *count > 0 => {
                     *fixed_count = fixed_count.saturating_add(*count as u8);

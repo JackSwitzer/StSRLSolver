@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Auto Shields: 1 cost, 11 block only if no block
+        // Source: cards/blue/AutoShields.java sets cost 1 and base block 11;
+        // use() queues that block only while the player's current block is 0.
     insert(cards, CardDef {
                 id: "Auto Shields", name: "Auto-Shields", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 11,

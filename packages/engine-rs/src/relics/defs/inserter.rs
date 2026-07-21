@@ -18,7 +18,14 @@ fn hook(
     let next = state.get(0) + 1;
     if next >= 2 {
         state.set(0, 0);
-        engine.state.player.add_status(sid::ORB_SLOTS, 1);
+        // Inserter.java queues IncreaseMaxOrbAction(1), which mutates the live
+        // orb collection and no-ops at Java's ten-slot cap.
+        let before = engine.state.orb_slots.max_slots;
+        engine.state.orb_slots.add_slot();
+        let gained = engine.state.orb_slots.max_slots.saturating_sub(before) as i32;
+        if gained > 0 {
+            engine.state.player.add_status(sid::ORB_SLOTS, gained);
+        }
     } else {
         state.set(0, next);
     }

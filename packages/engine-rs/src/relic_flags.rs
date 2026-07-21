@@ -2,6 +2,8 @@
 //!
 //! Avoids Vec<String> scanning for relics that just need boolean or counter checks.
 
+use serde::{Deserialize, Serialize};
+
 /// Bitfield flags for boolean relics. Checked via `flags & FLAG != 0`.
 pub mod flag {
     pub const ECTOPLASM: u64        = 1 << 0;   // No gold gain
@@ -22,14 +24,14 @@ pub mod flag {
     pub const SINGING_BOWL: u64     = 1 << 15;  // +2 max HP option at card reward
     pub const QUESTION_CARD: u64    = 1 << 16;  // +1 card choice at reward
     pub const PRAYER_WHEEL: u64     = 1 << 17;  // +1 card reward after combat
-    pub const MAW_BANK: u64         = 1 << 18;  // +12g per non-shop floor
+    pub const MAW_BANK: u64         = 1 << 18;  // +12g per room until gold is spent
     pub const OLD_COIN: u64         = 1 << 19;  // +300g on pickup (already applied)
     pub const CERAMIC_FISH: u64     = 1 << 20;  // +9g on card add
     pub const MEAL_TICKET: u64      = 1 << 21;  // Heal 15 at shop
     pub const DREAM_CATCHER: u64    = 1 << 22;  // Card reward at rest
     pub const JUZU_BRACELET: u64    = 1 << 23;  // No ? room monsters
-    pub const SSSERPENT_HEAD: u64   = 1 << 24;  // +50g on event card add
-    pub const THE_COURIER: u64      = 1 << 25;  // Shop has card removal + discount
+    pub const SSSERPENT_HEAD: u64   = 1 << 24;  // +50g on EventRoom entry
+    pub const THE_COURIER: u64      = 1 << 25;  // 20% shop discount + stock refill
     pub const MATRYOSHKA: u64       = 1 << 26;  // 2 free relics from first 2 chests
     pub const MARK_OF_BLOOM: u64    = 1 << 27;  // No healing
     pub const MAGIC_FLOWER: u64     = 1 << 28;  // 1.5x healing
@@ -38,6 +40,13 @@ pub mod flag {
     pub const MOLTEN_EGG: u64       = 1 << 31;  // Upgrade attacks when added to deck
     pub const TOXIC_EGG: u64        = 1 << 32;  // Upgrade skills when added to deck
     pub const FROZEN_EGG: u64       = 1 << 33;  // Upgrade powers when added to deck
+    pub const BLOODY_IDOL: u64      = 1 << 34;  // Heal 5 whenever gold is gained
+    pub const BUSTED_CROWN: u64     = 1 << 35;  // +1 energy, -2 card reward choices
+    pub const DARKSTONE_PERIAPT: u64 = 1 << 36; // +6 max HP when a curse is obtained
+    pub const ETERNAL_FEATHER: u64 = 1 << 37; // Heal per five cards on rest-room entry
+    pub const RUNIC_DOME: u64 = 1 << 38; // +1 energy; enemy intents are hidden
+    pub const VELVET_CHOKER: u64 = 1 << 39; // +1 energy; at most six cards per turn
+    pub const PHILOSOPHERS_STONE: u64 = 1 << 40; // +1 energy; spawned enemies gain Strength
 }
 
 /// Counter indices for cross-combat persistent counters.
@@ -46,14 +55,20 @@ pub mod counter {
     pub const INCENSE_BURNER: usize = 1;  // 6 turns -> intangible
     pub const INK_BOTTLE: usize     = 2;  // 10 cards -> +1 draw
     pub const HAPPY_FLOWER: usize   = 3;  // 3 turns -> +1 energy
-    pub const MAW_BANK_GOLD: usize  = 4;  // Accumulated Maw Bank gold
+    pub const MAW_BANK_GOLD: usize  = 4;  // -2 after Maw Bank is used up
     pub const OMAMORI_USES: usize   = 5;  // Remaining curse negations (starts at 2)
     pub const MATRYOSHKA_USES: usize = 6; // Remaining free chest relics
-    pub const NUM_COUNTERS: usize   = 8;
+    pub const ANCIENT_TEA_SET: usize = 7; // Armed by entering a rest room; consumed next combat
+    pub const GIRYA: usize          = 8;  // Permanent campfire lifts, capped at 3
+    pub const TINY_CHEST: usize     = 9;  // Mystery rooms since last forced chest
+    pub const NLOTHS_MASK: usize    = 10; // One non-boss chest relic removal
+    pub const WINGED_GREAVES: usize = 11; // Remaining non-edge map jumps
+    pub const NEOWS_LAMENT: usize   = 12; // Remaining 1-HP combats
+    pub const NUM_COUNTERS: usize   = 13;
 }
 
 /// Relic flags for a run. Populated from Vec<String> relics on add/remove.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RelicFlags {
     pub flags: u64,
     pub counters: [i16; counter::NUM_COUNTERS],
@@ -111,6 +126,13 @@ impl RelicFlags {
                 "MoltenEgg2" | "Molten Egg 2" => flag::MOLTEN_EGG,
                 "ToxicEgg2" | "Toxic Egg 2" => flag::TOXIC_EGG,
                 "FrozenEgg2" | "Frozen Egg 2" => flag::FROZEN_EGG,
+                "Bloody Idol" | "BloodyIdol" => flag::BLOODY_IDOL,
+                "Busted Crown" | "BustedCrown" => flag::BUSTED_CROWN,
+                "Darkstone Periapt" | "DarkstonePeriapt" => flag::DARKSTONE_PERIAPT,
+                "Eternal Feather" | "EternalFeather" => flag::ETERNAL_FEATHER,
+                "Runic Dome" | "RunicDome" => flag::RUNIC_DOME,
+                "Velvet Choker" | "VelvetChoker" => flag::VELVET_CHOKER,
+                "Philosopher's Stone" | "PhilosopherStone" => flag::PHILOSOPHERS_STONE,
                 _ => 0,
             };
             self.flags |= f;
@@ -122,6 +144,10 @@ impl RelicFlags {
         match name {
             "Omamori" => self.counters[counter::OMAMORI_USES] = 2,
             "Matryoshka" => self.counters[counter::MATRYOSHKA_USES] = 2,
+            "Tiny Chest" | "TinyChest" => self.counters[counter::TINY_CHEST] = 0,
+            "NlothsMask" => self.counters[counter::NLOTHS_MASK] = 1,
+            "WingedGreaves" => self.counters[counter::WINGED_GREAVES] = 3,
+            "NeowsBlessing" => self.counters[counter::NEOWS_LAMENT] = 3,
             _ => {}
         }
     }

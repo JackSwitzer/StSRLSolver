@@ -1,7 +1,11 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Ironclad Uncommon: Rupture ---- (cost 1, power, +1 str when lose HP from card; +1 magic)
+        // Rupture.java applies RupturePower for magic 1 (2 upgraded) at cost 1.
+        // RupturePower.wasHPLost grants that much Strength only when positive HP
+        // is lost from DamageInfo owned by the player.
+        // Java: reference/extracted/methods/card/Rupture.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RupturePower.java
     insert(cards, CardDef {
                 id: "Rupture", name: "Rupture", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,

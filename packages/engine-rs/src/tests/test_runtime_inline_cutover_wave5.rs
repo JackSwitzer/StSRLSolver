@@ -51,20 +51,27 @@ fn canonical_cost_helper_matches_runtime_scaling_rules() {
     let blood_for_blood_inst = registry.make_card("Blood for Blood");
     assert_eq!(engine.effective_cost_inst(blood_for_blood, blood_for_blood_inst), 2);
 
-    engine.state.player.set_status(sid::DEMON_FORM, 1);
-    engine.state.player.set_status(sid::NOXIOUS_FUMES, 1);
+    engine.state.power_cards_played_this_combat = 2;
     let force_field = registry.get("Force Field").expect("Force Field");
     let force_field_inst = registry.make_card("Force Field");
     assert_eq!(engine.effective_cost_inst(force_field, force_field_inst), 2);
 
     engine.state.player.set_status(sid::DISCARDED_THIS_TURN, 2);
     let eviscerate = registry.get("Eviscerate").expect("Eviscerate");
-    let eviscerate_inst = registry.make_card("Eviscerate");
+    let mut eviscerate_inst = registry.make_card("Eviscerate");
+    crate::effects::card_runtime::initialize_stateful_cost_on_draw(
+        eviscerate,
+        &mut eviscerate_inst,
+        2,
+    );
     assert_eq!(engine.effective_cost_inst(eviscerate, eviscerate_inst), 1);
 
-    engine.state.total_damage_taken = 3;
+    engine.state.hand = make_deck(&["Masterful Stab"]);
+    engine.player_lose_hp(10);
+    engine.player_lose_hp(1);
+    engine.player_lose_hp(5);
     let masterful_stab = registry.get("Masterful Stab").expect("Masterful Stab");
-    let masterful_stab_inst = registry.make_card("Masterful Stab");
+    let masterful_stab_inst = engine.state.hand[0];
     assert_eq!(engine.effective_cost_inst(masterful_stab, masterful_stab_inst), 3);
 }
 
@@ -74,15 +81,15 @@ fn canonical_cost_helper_controls_legal_actions_for_unaffordable_cards() {
     blocked.state.hand = make_deck(&["Masterful Stab"]);
     blocked.state.draw_pile.clear();
     blocked.state.discard_pile.clear();
-    blocked.state.energy = 2;
-    blocked.state.total_damage_taken = 3;
+    blocked.state.energy = 0;
+    blocked.player_lose_hp(3);
     assert!(!legal_play_names(&blocked).contains(&"Masterful Stab"));
 
     let mut allowed = engine_with(make_deck(&["Masterful Stab"]), 50, 0);
     allowed.state.hand = make_deck(&["Masterful Stab"]);
     allowed.state.draw_pile.clear();
     allowed.state.discard_pile.clear();
-    allowed.state.energy = 3;
-    allowed.state.total_damage_taken = 3;
+    allowed.state.energy = 1;
+    allowed.player_lose_hp(3);
     assert!(legal_play_names(&allowed).contains(&"Masterful Stab"));
 }

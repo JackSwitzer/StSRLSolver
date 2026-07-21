@@ -1,18 +1,13 @@
 use crate::cards::prelude::*;
-use crate::effects::declarative::{BulkAction, CardFilter, Effect, Pile as P, SimpleEffect as SE};
+use crate::effects::declarative::{AmountSource as A, Effect, SimpleEffect as SE};
 
-static REBOOT_EFFECTS: [Effect; 3] = [
-    Effect::ForEachInPile {
-        pile: P::Hand,
-        filter: CardFilter::All,
-        action: BulkAction::Discard,
-    },
-    Effect::Simple(SE::ShuffleDiscardIntoDraw),
-    Effect::Simple(SE::DrawCards(crate::effects::declarative::AmountSource::Magic)),
-];
+// Source: reference/extracted/methods/card/Reboot.java. ShuffleAllAction moves
+// the remaining hand directly to draw, shuffles discard, and fires relic hooks;
+// Reboot then explicitly shuffles the combined draw pile and draws magicNumber.
+static REBOOT_EFFECTS: [Effect; 1] = [Effect::Simple(SE::ShuffleAllAndDraw(A::Magic))];
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // Reboot: 0 cost, move remaining hand to discard, shuffle discard into draw, draw N, exhaust.
+    // Reboot: 0 cost, shuffle every non-played card into draw, draw N, exhaust.
     insert(cards, CardDef {
         id: "Reboot",
         name: "Reboot",

@@ -8,17 +8,30 @@ static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     counter: None,
 }];
 
-/// Gambler's Brew: discard entire hand, then draw that many cards.
-/// Irreducible -- hand size must be captured before discard.
+/// Gambler's Brew opens GamblingChipAction's any-number hand selection.
 fn gamblers_brew_hook(
     engine: &mut CombatEngine,
     _owner: crate::effects::runtime::EffectOwner,
     _event: &crate::effects::runtime::GameEvent,
     _state: &mut crate::effects::runtime::EffectState,
 ) {
-    let hand_size = engine.state.hand.len() as i32;
-    engine.state.discard_pile.extend(engine.state.hand.drain(..));
-    engine.state.player.set_status(sid::POTION_DRAW, hand_size);
+    if engine.state.hand.is_empty() {
+        return;
+    }
+
+    let options: Vec<crate::engine::ChoiceOption> = (0..engine.state.hand.len())
+        .map(crate::engine::ChoiceOption::HandCard)
+        .collect();
+    let count = options.len();
+    // GamblingChipAction opens an any-number selection capped at 99, then
+    // manually discards only the selected cards and draws the same count.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/GamblersBrew.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/GamblingChipAction.java
+    engine.begin_choice(crate::engine::ChoiceReason::DiscardFromHand, options, 0, count);
+    engine
+        .state
+        .player
+        .set_status(sid::GAMBLING_CHIP_ACTIVE, 1);
 }
 
 pub static DEF: EntityDef = EntityDef {

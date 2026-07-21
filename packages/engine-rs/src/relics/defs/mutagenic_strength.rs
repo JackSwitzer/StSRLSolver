@@ -1,4 +1,7 @@
 //! Mutagenic Strength: +3 Strength and -3 at end of turn at combat start.
+//!
+//! Source: `reference/extracted/methods/relic/MutagenicStrength.java` —
+//! `atBattleStart` applies 3 Strength and 3 LoseStrength to the player.
 
 use crate::effects::declarative::{Effect, SimpleEffect, Target, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};

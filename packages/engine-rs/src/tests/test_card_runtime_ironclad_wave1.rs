@@ -60,6 +60,22 @@ mod ironclad_wave1_card_runtime_tests {
     }
 
     #[test]
+    fn body_slam_plus_treats_block_as_base_damage_before_normal_modifiers() {
+        // Source: BodySlam.java assigns currentBlock to baseDamage, calls
+        // calculateCardDamage(target), and upgrades only its base cost to 0.
+        let mut engine = engine_for(&["Body Slam+"], &[], &[], 40, 0);
+        engine.state.player.block = 10;
+        engine.state.player.set_status(sid::STRENGTH, 2);
+        engine.state.enemies[0].entity.set_status(sid::VULNERABLE, 1);
+
+        assert!(play_on_enemy(&mut engine, "Body Slam+", 0));
+
+        assert_eq!(engine.state.enemies[0].entity.hp, 22);
+        assert_eq!(engine.state.player.block, 10);
+        assert_eq!(engine.state.energy, 0);
+    }
+
+    #[test]
     fn true_grit_base_uses_the_typed_random_exhaust_surface_and_upgrade_uses_declarative_choice_data() {
         let true_grit = card("True Grit");
         assert_eq!(true_grit.card_type, CardType::Skill);
@@ -75,14 +91,17 @@ mod ironclad_wave1_card_runtime_tests {
         let true_grit_plus = card("True Grit+");
         assert_eq!(
             true_grit_plus.effect_data,
-            &[Effect::ChooseCards {
-                source: Pile::Hand,
-                filter: crate::effects::declarative::CardFilter::All,
-                action: ChoiceAction::Exhaust,
-                min_picks: AmountSource::Fixed(1),
-                max_picks: AmountSource::Fixed(1),
-                post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
-            }],
+            &[
+                Effect::Simple(SimpleEffect::GainBlock(AmountSource::Block)),
+                Effect::ChooseCards {
+                    source: Pile::Hand,
+                    filter: crate::effects::declarative::CardFilter::All,
+                    action: ChoiceAction::Exhaust,
+                    min_picks: AmountSource::Fixed(1),
+                    max_picks: AmountSource::Fixed(1),
+                    post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
+                },
+            ],
         );
 
         let mut engine = engine_for(&["True Grit", "Strike"], &[], &[], 40, 3);
@@ -138,7 +157,7 @@ mod ironclad_wave1_card_runtime_tests {
         );
         let hp_before = perfected_strike.state.enemies[0].entity.hp;
         assert!(play_on_enemy(&mut perfected_strike, "Perfected Strike", 0));
-        assert_eq!(perfected_strike.state.enemies[0].entity.hp, hp_before - 12);
+        assert_eq!(perfected_strike.state.enemies[0].entity.hp, hp_before - 14);
 
         let mut ghostly_armor = engine_for(&["Ghostly Armor"], &[], &[], 40, 3);
         let block_before = ghostly_armor.state.player.block;

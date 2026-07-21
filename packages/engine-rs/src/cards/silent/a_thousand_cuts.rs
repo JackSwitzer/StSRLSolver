@@ -1,5 +1,7 @@
 use crate::cards::prelude::*;
 
+// Source: decompiled/java-src/com/megacrit/cardcrawl/cards/green/AThousandCuts.java
+
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Silent Rare: A Thousand Cuts ---- (cost 2, power, deal 1 dmg per card played; +1)
     insert(cards, CardDef {

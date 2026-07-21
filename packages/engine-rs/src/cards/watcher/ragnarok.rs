@@ -19,7 +19,11 @@ static RAGNAROK_PLUS: [E; 6] = [
 ];
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Rare Watcher Cards ----
+        // Each AttackDamageRandomEnemyAction recalculates damage for its chosen
+        // target and consumes one cardRandomRng selection. Upgrade adds one
+        // damage and one queued hit.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Ragnarok.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/AttackDamageRandomEnemyAction.java
     insert(cards, CardDef {
                 id: "Ragnarok", name: "Ragnarok", card_type: CardType::Attack,
                 target: CardTarget::AllEnemy, cost: 3, base_damage: 5, base_block: -1,

@@ -34,30 +34,16 @@ mod silent_wave3 {
         let reg = global_registry();
 
         let finisher = reg.get("Finisher").expect("Finisher");
-        assert_eq!(finisher.effect_data, &[E::ExtraHits(A::AttacksThisTurn)]);
+        assert_eq!(finisher.effect_data, &[E::ExtraHits(A::PriorAttacksThisTurn)]);
         assert!(finisher.complex_hook.is_none());
 
         let finisher_plus = reg.get("Finisher+").expect("Finisher+");
-        assert_eq!(finisher_plus.effect_data, &[E::ExtraHits(A::AttacksThisTurn)]);
+        assert_eq!(finisher_plus.effect_data, &[E::ExtraHits(A::PriorAttacksThisTurn)]);
         assert!(finisher_plus.complex_hook.is_none());
 
         let malaise = reg.get("Malaise").expect("Malaise");
-        assert_eq!(
-            malaise.effect_data,
-            &[
-                E::Simple(SE::AddStatus(
-                    T::SelectedEnemy,
-                    sid::WEAKENED,
-                    A::MagicPlusX,
-                )),
-                E::Simple(SE::AddStatus(
-                    T::SelectedEnemy,
-                    sid::STRENGTH,
-                    A::MagicPlusXNeg,
-                )),
-            ]
-        );
-        assert!(malaise.complex_hook.is_none());
+        assert!(malaise.effect_data.is_empty());
+        assert!(malaise.complex_hook.is_some());
 
         let bane = reg.get("Bane").expect("Bane");
         assert_eq!(
@@ -77,7 +63,7 @@ mod silent_wave3 {
         );
         assert!(bane.complex_hook.is_none());
 
-        let all_out_attack = reg.get("All-Out Attack").expect("All-Out Attack");
+        let all_out_attack = reg.get("All Out Attack").expect("All Out Attack");
         assert_eq!(
             all_out_attack.effect_data,
             &[
@@ -99,6 +85,10 @@ mod silent_wave3 {
 
     #[test]
     fn silent_wave3_bane_and_finisher_follow_poison_and_attack_count_engine_rules() {
+        // DamagePerAttackPlayedAction subtracts the current Finisher and queues
+        // one DamageAction per earlier Attack, so zero earlier Attacks means
+        // zero damage.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DamagePerAttackPlayedAction.java
         let mut bane_engine = engine_for(
             &["Deadly Poison", "Bane"],
             &[],
@@ -121,7 +111,16 @@ mod silent_wave3 {
         let hp_before = finisher_engine.state.enemies[0].entity.hp;
         assert!(play_on_enemy(&mut finisher_engine, "Finisher", 0));
         assert_eq!(finisher_engine.state.attacks_played_this_turn, 3);
-        assert_eq!(finisher_engine.state.enemies[0].entity.hp, hp_before - 18);
+        assert_eq!(finisher_engine.state.enemies[0].entity.hp, hp_before - 12);
+
+        let mut first_attack = engine_for(
+            &["Finisher"],
+            &[],
+            vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
+            1,
+        );
+        assert!(play_on_enemy(&mut first_attack, "Finisher", 0));
+        assert_eq!(first_attack.state.enemies[0].entity.hp, 40);
     }
 
     #[test]
@@ -145,7 +144,7 @@ mod silent_wave3 {
             .any(|card| die_die_die.card_registry.card_name(card.def_id) == "Die Die Die"));
 
         let mut all_out = engine_for(
-            &["All-Out Attack", "Strike", "Defend"],
+            &["All Out Attack", "Strike", "Defend"],
             &[],
             vec![
                 enemy_no_intent("JawWorm", 40, 40),
@@ -154,7 +153,7 @@ mod silent_wave3 {
             3,
         );
         let before_hand = all_out.state.hand.len();
-        assert!(play_self(&mut all_out, "All-Out Attack"));
+        assert!(play_self(&mut all_out, "All Out Attack"));
         assert_eq!(all_out.state.enemies[0].entity.hp, 30);
         assert_eq!(all_out.state.enemies[1].entity.hp, 25);
         assert_eq!(all_out.state.hand.len(), before_hand - 2);
@@ -199,6 +198,49 @@ mod silent_wave3 {
     }
 
     #[test]
+    fn malaise_source_gates_zero_effect_and_applies_strength_before_weak() {
+        // MalaiseAction.java does nothing when effect == 0. Chemical X adds two;
+        // upgrade adds one. StrengthPower is queued before WeakPower, so a single
+        // Artifact charge blocks only the Strength loss.
+        let mut zero = engine_for(
+            &["Malaise"],
+            &[],
+            vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
+            0,
+        );
+        zero.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+        assert!(play_on_enemy(&mut zero, "Malaise", 0));
+        assert_eq!(zero.state.enemies[0].entity.status(sid::ARTIFACT), 1);
+        assert_eq!(zero.state.enemies[0].entity.status(sid::WEAKENED), 0);
+
+        let mut chemical = engine_for(
+            &["Malaise"],
+            &[],
+            vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
+            0,
+        );
+        chemical.state.relics.push("Chemical X".to_string());
+        chemical.state.enemies[0].entity.set_status(sid::STRENGTH, 5);
+        assert!(play_on_enemy(&mut chemical, "Malaise", 0));
+        assert_eq!(chemical.state.enemies[0].entity.strength(), 3);
+        assert_eq!(chemical.state.enemies[0].entity.status(sid::WEAKENED), 2);
+
+        let mut artifact = engine_for(
+            &["Malaise+"],
+            &[],
+            vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
+            2,
+        );
+        artifact.state.enemies[0].entity.set_status(sid::STRENGTH, 5);
+        artifact.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+        assert!(play_on_enemy(&mut artifact, "Malaise+", 0));
+        assert_eq!(artifact.state.energy, 0);
+        assert_eq!(artifact.state.enemies[0].entity.strength(), 5);
+        assert_eq!(artifact.state.enemies[0].entity.status(sid::ARTIFACT), 0);
+        assert_eq!(artifact.state.enemies[0].entity.status(sid::WEAKENED), 3);
+    }
+
+    #[test]
     fn silent_wave3_masterful_stab_cost_tracks_damage_taken_in_legal_actions() {
         let mut engine = engine_for(
             &["Masterful Stab"],
@@ -219,7 +261,13 @@ mod silent_wave3 {
         )));
 
         engine.player_lose_hp(2);
+        assert_eq!(engine.state.hand[card_idx].cost, 1);
         assert!(!engine.get_legal_actions().iter().any(|action| matches!(
+            action,
+            Action::PlayCard { card_idx: idx, .. } if *idx == card_idx
+        )));
+        engine.state.energy = 1;
+        assert!(engine.get_legal_actions().iter().any(|action| matches!(
             action,
             Action::PlayCard { card_idx: idx, .. } if *idx == card_idx
         )));

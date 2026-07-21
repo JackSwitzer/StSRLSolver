@@ -204,6 +204,99 @@ fn test_card_runtime_defect_wave2_ball_lightning_beam_cell_and_compile_driver_re
 }
 
 #[test]
+fn compile_driver_plus_draws_once_per_distinct_non_empty_orb_type() {
+    // Source: CompileDriver.java queues 7 damage then CompileDriverAction(1),
+    // and upgradeDamage(3) changes only damage. CompileDriverAction ignores
+    // Empty orbs and orb IDs already present in its list.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.init_defect_orbs(5);
+    engine.channel_orb(OrbType::Lightning);
+    engine.channel_orb(OrbType::Lightning);
+    engine.channel_orb(OrbType::Frost);
+    engine.state.hand = make_deck(&["Compile Driver+"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Zap"]);
+
+    assert!(play_on_enemy(&mut engine, "Compile Driver+", 0));
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 40);
+    assert_eq!(engine.state.hand.len(), 2);
+}
+
+#[test]
+fn ball_lightning_plus_deals_ten_then_channels_one_lightning_into_a_full_slot() {
+    // Source: BallLightning.java queues DamageAction for 7 damage before one
+    // ChannelAction(new Lightning()); upgradeDamage(3) makes the attack 10.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.init_defect_orbs(1);
+    engine.channel_orb(OrbType::Frost);
+    engine.state.hand = make_deck(&["Ball Lightning+"]);
+
+    assert!(play_on_enemy(&mut engine, "Ball Lightning+", 0));
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 30);
+    assert_eq!(engine.state.player.block, 5);
+    assert_eq!(engine.state.energy, 2);
+    assert_eq!(engine.state.orb_slots.occupied_count(), 1);
+    assert_eq!(engine.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
+}
+
+#[test]
+fn beam_cell_variants_deal_damage_before_vulnerable_for_zero_energy() {
+    // Source: BeamCell.java queues DamageAction before ApplyPowerAction at
+    // cost 0; its upgrade changes 3/1 damage/Vulnerable to 4/2.
+    for (card_id, expected_hp, expected_vulnerable) in
+        [("Beam Cell", 37, 1), ("Beam Cell+", 36, 2)]
+    {
+        let mut engine = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            0,
+        );
+        force_player_turn(&mut engine);
+        engine.state.hand = make_deck(&[card_id]);
+
+        assert!(play_on_enemy(&mut engine, card_id, 0));
+
+        assert_eq!(engine.state.enemies[0].entity.hp, expected_hp);
+        assert_eq!(
+            engine.state.enemies[0].entity.status(sid::VULNERABLE),
+            expected_vulnerable
+        );
+        assert_eq!(engine.state.energy, 0);
+    }
+}
+
+#[test]
+fn coolheaded_plus_channels_one_frost_then_draws_two() {
+    // Source: Coolheaded.java queues ChannelAction(new Frost()) before
+    // DrawCardAction(p, magicNumber), and upgradeMagicNumber(1) makes that draw 2.
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    force_player_turn(&mut engine);
+    engine.init_defect_orbs(1);
+    engine.channel_orb(OrbType::Lightning);
+    engine.state.hand = make_deck(&["Coolheaded+"]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Zap"]);
+
+    assert!(play_self(&mut engine, "Coolheaded+"));
+
+    assert_eq!(engine.state.enemies[0].entity.hp, 32);
+    assert_eq!(engine.state.orb_slots.slots.len(), 1);
+    assert_eq!(engine.state.orb_slots.slots[0].orb_type, OrbType::Frost);
+    assert_eq!(engine.state.hand.len(), 2);
+    assert_eq!(engine.state.energy, 2);
+}
+
+#[test]
 fn test_card_runtime_defect_wave2_coolheaded_fusion_darkness_and_rainbow_cover_channel_draw_and_exhaust_paths() {
     let mut coolheaded = engine_without_start(
         Vec::new(),
@@ -257,6 +350,42 @@ fn test_card_runtime_defect_wave2_coolheaded_fusion_darkness_and_rainbow_cover_c
     assert_eq!(
         rainbow.card_registry.card_name(rainbow.state.exhaust_pile[0].def_id),
         "Rainbow"
+    );
+}
+
+#[test]
+fn rainbow_source_channels_in_order_and_upgrade_only_removes_exhaust() {
+    // Rainbow.java queues Lightning, Frost, then Dark. With three full slots
+    // holding that same sequence, the new channels evoke 8 damage, 5 Block,
+    // then 6 damage in order and leave the new sequence behind. upgrade()
+    // changes only exhaust to false.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.init_defect_orbs(3);
+    engine.channel_orb(OrbType::Lightning);
+    engine.channel_orb(OrbType::Frost);
+    engine.channel_orb(OrbType::Dark);
+    engine.state.hand = make_deck(&["Rainbow+"]);
+    let card_random_before = engine.rng_counters()["cardRandom"];
+
+    assert!(play_self(&mut engine, "Rainbow+"));
+
+    assert_eq!(engine.state.energy, 1);
+    assert_eq!(engine.state.enemies[0].entity.hp, 36);
+    assert_eq!(engine.state.player.block, 5);
+    assert_eq!(engine.rng_counters()["cardRandom"], card_random_before + 1);
+    assert_eq!(engine.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
+    assert_eq!(engine.state.orb_slots.slots[1].orb_type, OrbType::Frost);
+    assert_eq!(engine.state.orb_slots.slots[2].orb_type, OrbType::Dark);
+    assert!(engine.state.exhaust_pile.is_empty());
+    assert_eq!(engine.state.discard_pile.len(), 1);
+    assert_eq!(
+        engine.card_registry.card_name(engine.state.discard_pile[0].def_id),
+        "Rainbow+"
     );
 }
 

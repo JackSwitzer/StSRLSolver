@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // Loop: 1 cost, power, trigger frontmost orb passive at start of turn
+    // Loop.java applies one LoopPower stack for one energy; upgradeMagicNumber(1).
+    // LoopPower.atStartOfTurn calls the front orb's start and end callbacks once
+    // per stack.
     insert(cards, CardDef {
         id: "Loop", name: "Loop", card_type: CardType::Power,
         target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,

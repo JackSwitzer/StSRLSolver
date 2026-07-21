@@ -11,6 +11,8 @@ static EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddCard(
 ))];
 
 static TRIGGERS: [TriggeredEffect; 1] = [
+    // NinjaScroll.java declares ID "Ninja Scroll" and creates exactly three
+    // unupgraded Shivs before the opening draw.
     TriggeredEffect {
         trigger: Trigger::CombatStart,
         condition: TriggerCondition::Always,
@@ -20,7 +22,7 @@ static TRIGGERS: [TriggeredEffect; 1] = [
 ];
 
 pub static DEF: EntityDef = EntityDef {
-    id: "NinjaScroll",
+    id: "Ninja Scroll",
     name: "Ninja Scroll",
     kind: EntityKind::Relic,
     triggers: &TRIGGERS,

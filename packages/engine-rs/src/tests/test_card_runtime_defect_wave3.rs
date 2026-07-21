@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use crate::cards::{CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, BulkAction, CardFilter, Effect as E, Pile as P, SimpleEffect as SE};
+use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE};
 use crate::orbs::OrbType;
 use crate::tests::support::{
     enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self,
@@ -70,21 +70,15 @@ fn test_card_runtime_defect_wave3_registry_exports_surface_x_cost_and_exhaust_hi
     );
     assert_eq!(
         reboot.declared_effect_count,
-        3,
-        "Reboot should expose discard/shuffle/draw effects"
+        1,
+        "Reboot should expose its ordered shuffle-all-and-draw action"
     );
+    assert!(reboot.play_hints.draws_cards);
+    assert!(!reboot.play_hints.discards_cards);
     let reboot_def = crate::cards::global_registry().get("Reboot").expect("Reboot");
     assert_eq!(
         reboot_def.effect_data,
-        &[
-            E::ForEachInPile {
-                pile: P::Hand,
-                filter: CardFilter::All,
-                action: BulkAction::Discard,
-            },
-            E::Simple(SE::ShuffleDiscardIntoDraw),
-            E::Simple(SE::DrawCards(A::Magic)),
-        ]
+        &[E::Simple(SE::ShuffleAllAndDraw(A::Magic))]
     );
     assert!(reboot_def.complex_hook.is_none());
 
@@ -217,8 +211,44 @@ fn test_card_runtime_defect_wave3_fission_and_multicast_cover_orb_evoke_and_x_co
     let block_before = multi_cast.state.player.block;
     assert!(play_self(&mut multi_cast, "Multi-Cast+"));
     assert_eq!(multi_cast.state.energy, 0);
-    assert_eq!(multi_cast.state.enemies[0].entity.hp, hp_before - 14);
-    assert_eq!(multi_cast.state.player.block, block_before + 5);
+    // MulticastAction with X=2 and upgraded=true evokes the same front
+    // Lightning three times, then removes only that Lightning.
+    assert_eq!(multi_cast.state.enemies[0].entity.hp, hp_before - 24);
+    assert_eq!(multi_cast.state.player.block, block_before);
+    assert_eq!(multi_cast.state.orb_slots.occupied_count(), 2);
+    assert_eq!(multi_cast.state.orb_slots.front_orb_type(), OrbType::Frost);
+}
+
+#[test]
+fn multi_cast_preserves_energy_without_an_orb_and_chemical_x_repeats_front_orb() {
+    let mut no_orb = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 80, 80)],
+        3,
+    );
+    force_player_turn(&mut no_orb);
+    no_orb.init_defect_orbs(3);
+    no_orb.state.hand = make_deck(&["Multi-Cast"]);
+    assert!(play_self(&mut no_orb, "Multi-Cast"));
+    assert_eq!(no_orb.state.energy, 3);
+
+    let mut chemical = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 80, 80)],
+        0,
+    );
+    force_player_turn(&mut chemical);
+    chemical.init_defect_orbs(3);
+    chemical.channel_orb(OrbType::Frost);
+    chemical.channel_orb(OrbType::Lightning);
+    chemical.state.relics.push("Chemical X".to_string());
+    chemical.state.hand = make_deck(&["Multi-Cast"]);
+    assert!(play_self(&mut chemical, "Multi-Cast"));
+    // Chemical X makes effect=2 at zero energy: Frost evokes twice for ten
+    // block total, only Frost is removed, and Lightning becomes the front orb.
+    assert_eq!(chemical.state.player.block, 10);
+    assert_eq!(chemical.state.orb_slots.occupied_count(), 1);
+    assert_eq!(chemical.state.orb_slots.front_orb_type(), OrbType::Lightning);
 }
 
 #[test]

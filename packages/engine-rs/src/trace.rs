@@ -15,7 +15,7 @@
 //! Slay the Spire has **13 independent RNG streams**
 //! (`docs/vault/rng-system-analysis.md`, corroborated by
 //! `docs/vault/rng-parity-audit.md` § 5). [`PostState::rng`] is a
-//! `BTreeMap<String, u64>` — rather than a fixed struct — so the schema
+//! `BTreeMap<String, i64>` — rather than a fixed struct — so the schema
 //! tolerates streams being added/renamed without a version bump, and so
 //! JSON key order is deterministic (`BTreeMap` sorts, which also gives
 //! stable diffing/golden-fixture output). The canonical key set (vault
@@ -41,6 +41,10 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+
+/// Additive trace-v2 schema types. The existing definitions in this file stay
+/// frozen as the read-only v1 contract.
+pub mod v2;
 
 /// Current trace schema version. Every header/record carries `v` so a
 /// consumer can immediately detect drift instead of silently misparsing.
@@ -121,7 +125,7 @@ impl TraceRecord {
 }
 
 // ===========================================================================
-// T2 — Action vocabulary (tagged enum, matches script file + RunAction 1:1)
+// T2 — Action vocabulary (tagged enum, matches script file + GameAction 1:1)
 // ===========================================================================
 
 /// The canonical action vocabulary shared by action scripts (T2) and trace
@@ -205,7 +209,7 @@ pub struct PostState {
     /// (`card`, `ai`, `shuffle`, ... — see module docs). `BTreeMap` so the
     /// key set can grow without a schema version bump and so serialized
     /// key order is deterministic.
-    pub rng: BTreeMap<String, u64>,
+    pub rng: BTreeMap<String, i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -299,6 +303,20 @@ impl ActionScript {
     }
 }
 
+/// Parse a script seed using the same precedence as TraceLab.
+///
+/// Decimal strings are Java `long` values; display-form seeds fall back to
+/// `SeedHelper.getLong`. The signed parse matters for seeds with the high bit
+/// set because Java stores dungeon seeds in a signed `long`.
+///
+/// Source: packages/harness-java/src/main/java/tracelab/TraceLabMod.java
+pub fn parse_script_seed(raw: &str) -> u64 {
+    raw.trim()
+        .parse::<i64>()
+        .map(|seed| seed as u64)
+        .unwrap_or_else(|_| crate::seed::seed_from_string(raw.trim()))
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ScriptStopCondition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -357,8 +375,8 @@ pub struct FirstDivergence {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RngSnapshotPair {
-    pub java: BTreeMap<String, u64>,
-    pub rust: BTreeMap<String, u64>,
+    pub java: BTreeMap<String, i64>,
+    pub rust: BTreeMap<String, i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -576,27 +594,60 @@ fn record_field_diffs(
         }
     }
 
-    // 2. Player.
+    // 2. Record identity and the executed action.
+    push_diff(&mut diffs, "idx", java.idx, rust.idx);
+    push_diff(&mut diffs, "floor", java.floor, rust.floor);
+    push_diff(&mut diffs, "turn", java.turn, rust.turn);
+    push_diff_str(&mut diffs, "phase", &java.phase, &rust.phase);
+    push_diff(&mut diffs, "action", &java.action, &rust.action);
+
+    // 3. Player.
     push_diff(&mut diffs, "post.player.hp", java.post.player.hp, rust.post.player.hp);
     push_diff(&mut diffs, "post.player.max_hp", java.post.player.max_hp, rust.post.player.max_hp);
     push_diff(&mut diffs, "post.player.block", java.post.player.block, rust.post.player.block);
     push_diff(&mut diffs, "post.player.energy", java.post.player.energy, rust.post.player.energy);
     push_diff_str(&mut diffs, "post.player.stance", &java.post.player.stance, &rust.post.player.stance);
     push_diff(&mut diffs, "post.player.gold", java.post.player.gold, rust.post.player.gold);
+    push_power_diffs(
+        &mut diffs,
+        "post.player.powers",
+        &java.post.player.powers,
+        &rust.post.player.powers,
+    );
+    push_orb_diffs(
+        &mut diffs,
+        "post.player.orbs",
+        &java.post.player.orbs,
+        &rust.post.player.orbs,
+    );
 
-    // 3. Enemies (index-aligned).
+    // 4. Enemies (index-aligned).
     let enemy_count = java.post.enemies.len().max(rust.post.enemies.len());
     for idx in 0..enemy_count {
         let base = format!("post.enemies[{idx}]");
         match (java.post.enemies.get(idx), rust.post.enemies.get(idx)) {
             (Some(je), Some(re)) => {
                 push_diff_str(&mut diffs, &format!("{base}.id"), &je.id, &re.id);
+                push_diff(&mut diffs, &format!("{base}.idx"), je.idx, re.idx);
                 push_diff(&mut diffs, &format!("{base}.hp"), je.hp, re.hp);
                 push_diff(&mut diffs, &format!("{base}.max_hp"), je.max_hp, re.max_hp);
                 push_diff(&mut diffs, &format!("{base}.block"), je.block, re.block);
                 push_diff(&mut diffs, &format!("{base}.intent.move_id"), je.intent.move_id, re.intent.move_id);
+                push_diff_str(&mut diffs, &format!("{base}.intent.name"), &je.intent.name, &re.intent.name);
                 push_diff(&mut diffs, &format!("{base}.intent.dmg"), je.intent.dmg, re.intent.dmg);
                 push_diff(&mut diffs, &format!("{base}.intent.hits"), je.intent.hits, re.intent.hits);
+                push_power_diffs(
+                    &mut diffs,
+                    &format!("{base}.powers"),
+                    &je.powers,
+                    &re.powers,
+                );
+                push_diff(
+                    &mut diffs,
+                    &format!("{base}.move_history"),
+                    &je.move_history,
+                    &re.move_history,
+                );
             }
             (Some(_), None) => {
                 diffs.push((base, serde_json::json!("present"), serde_json::json!("absent")))
@@ -608,7 +659,7 @@ fn record_field_diffs(
         }
     }
 
-    // 4. Piles.
+    // 5. Piles.
     push_diff_vec(&mut diffs, "post.piles.hand", &java.post.piles.hand, &rust.post.piles.hand);
     push_diff_vec(
         &mut diffs,
@@ -619,19 +670,96 @@ fn record_field_diffs(
     push_diff_vec(&mut diffs, "post.piles.discard", &java.post.piles.discard, &rust.post.piles.discard);
     push_diff_vec(&mut diffs, "post.piles.exhaust", &java.post.piles.exhaust, &rust.post.piles.exhaust);
 
-    // 5. Relics + potions.
-    let java_relics: Vec<&str> = java.post.relics.iter().map(|r| r.id.as_str()).collect();
-    let rust_relics: Vec<&str> = rust.post.relics.iter().map(|r| r.id.as_str()).collect();
-    if java_relics != rust_relics {
-        diffs.push((
-            "post.relics".to_string(),
-            serde_json::json!(java_relics),
-            serde_json::json!(rust_relics),
-        ));
+    // 6. Relics + potions.
+    let relic_count = java.post.relics.len().max(rust.post.relics.len());
+    for idx in 0..relic_count {
+        let base = format!("post.relics[{idx}]");
+        match (java.post.relics.get(idx), rust.post.relics.get(idx)) {
+            (Some(jr), Some(rr)) => {
+                push_diff_str(&mut diffs, &format!("{base}.id"), &jr.id, &rr.id);
+                push_diff(&mut diffs, &format!("{base}.counter"), jr.counter, rr.counter);
+            }
+            (Some(_), None) => {
+                diffs.push((base, serde_json::json!("present"), serde_json::json!("absent")))
+            }
+            (None, Some(_)) => {
+                diffs.push((base, serde_json::json!("absent"), serde_json::json!("present")))
+            }
+            (None, None) => {}
+        }
     }
     push_diff_vec(&mut diffs, "post.potions", &java.post.potions, &rust.post.potions);
 
     diffs
+}
+
+fn push_power_diffs(
+    diffs: &mut Vec<(String, serde_json::Value, serde_json::Value)>,
+    base: &str,
+    java: &[PowerPostState],
+    rust: &[PowerPostState],
+) {
+    let count = java.len().max(rust.len());
+    for idx in 0..count {
+        let path = format!("{base}[{idx}]");
+        match (java.get(idx), rust.get(idx)) {
+            (Some(jp), Some(rp)) => {
+                push_diff_str(diffs, &format!("{path}.id"), &jp.id, &rp.id);
+                push_diff(diffs, &format!("{path}.amt"), jp.amt, rp.amt);
+            }
+            (Some(_), None) => diffs.push((
+                path,
+                serde_json::json!("present"),
+                serde_json::json!("absent"),
+            )),
+            (None, Some(_)) => diffs.push((
+                path,
+                serde_json::json!("absent"),
+                serde_json::json!("present"),
+            )),
+            (None, None) => {}
+        }
+    }
+}
+
+fn push_orb_diffs(
+    diffs: &mut Vec<(String, serde_json::Value, serde_json::Value)>,
+    base: &str,
+    java: &[OrbPostState],
+    rust: &[OrbPostState],
+) {
+    let count = java.len().max(rust.len());
+    for idx in 0..count {
+        let path = format!("{base}[{idx}]");
+        match (java.get(idx), rust.get(idx)) {
+            (Some(jo), Some(ro)) => {
+                push_diff_str(diffs, &format!("{path}.id"), &jo.id, &ro.id);
+                push_diff(
+                    diffs,
+                    &format!("{path}.evoke_amount"),
+                    jo.evoke_amount,
+                    ro.evoke_amount,
+                );
+                push_diff(
+                    diffs,
+                    &format!("{path}.passive_amount"),
+                    jo.passive_amount,
+                    ro.passive_amount,
+                );
+            }
+            (Some(_), None) => diffs.push((
+                path,
+                serde_json::json!("present"),
+                serde_json::json!("absent"),
+            )),
+            (None, Some(_)) => diffs.push((
+                path,
+                serde_json::json!("absent"),
+                serde_json::json!("present"),
+            )),
+            (None, None) => {}
+        }
+    }
 }
 
 fn push_diff<T: PartialEq + serde::Serialize>(
@@ -693,7 +821,7 @@ pub const CANONICAL_RNG_KEYS: &[&str] = &[
 ];
 
 // ===========================================================================
-// Replay support — TraceAction -> RunAction, and RunEngine -> PostState.
+// Replay support — TraceAction -> GameAction, and RunEngine -> PostState.
 //
 // Shared by `bin/trace_replay.rs` (against a real Java golden, T3/T4) and
 // `tests/test_trace_oracle.rs` (in-process synthetic fixture, T5), so the
@@ -703,30 +831,30 @@ pub const CANONICAL_RNG_KEYS: &[&str] = &[
 // architecture target — core sim never depends back on `trace`).
 // ===========================================================================
 
-/// Map a script `TraceAction` to the engine's `RunAction`.
+/// Map a script `TraceAction` to the engine's `GameAction`.
 ///
 /// Implemented today: `PLAY_CARD`, `END_TURN`, `USE_POTION` (combat), plus
 /// `NEOW` and `PATH` (straightforward 1:1 index mappings off `run.rs`'s
-/// `RunAction::ChooseNeowOption`/`ChoosePath`). Anything else is a hard
+/// `GameAction::ChooseNeowOption`/`ChoosePath`). Anything else is a hard
 /// error naming the unsupported action type — per T3, the differ must
 /// never guess semantics for an action it doesn't recognize.
 pub fn map_action(
     engine: &crate::run::RunEngine,
     action: &TraceAction,
-) -> Result<crate::run::RunAction, String> {
+) -> Result<crate::run::GameAction, String> {
     use crate::actions::Action;
-    use crate::run::RunAction;
+    use crate::run::GameAction;
 
     match action {
         TraceAction::PlayCard { hand_idx, target, .. } => {
-            Ok(RunAction::CombatAction(Action::PlayCard { card_idx: *hand_idx, target_idx: *target }))
+            Ok(GameAction::CombatAction(Action::PlayCard { card_idx: *hand_idx, target_idx: *target }))
         }
-        TraceAction::EndTurn => Ok(RunAction::CombatAction(Action::EndTurn)),
+        TraceAction::EndTurn => Ok(GameAction::CombatAction(Action::EndTurn)),
         TraceAction::UsePotion { idx, target } => {
-            Ok(RunAction::CombatAction(Action::UsePotion { potion_idx: *idx, target_idx: *target }))
+            Ok(GameAction::CombatAction(Action::UsePotion { potion_idx: *idx, target_idx: *target }))
         }
-        TraceAction::Neow { choice } => Ok(RunAction::ChooseNeowOption(*choice)),
-        TraceAction::Path { choice } => Ok(RunAction::ChoosePath(*choice)),
+        TraceAction::Neow { choice } => Ok(GameAction::ChooseNeowOption(*choice)),
+        TraceAction::Path { choice } => Ok(GameAction::ChoosePath(*choice)),
         unsupported => Err(format!(
             "unsupported action type for trace_replay (engine phase={:?}): {unsupported:?}. \
              RunEngine mapping for this action type is not implemented yet; see \
@@ -741,11 +869,13 @@ fn phase_label(phase: crate::run::RunPhase) -> &'static str {
     match phase {
         RunPhase::Neow => "NEOW",
         RunPhase::MapChoice => "MAP",
+        RunPhase::Chest => "CHEST",
         RunPhase::Combat => "COMBAT",
         RunPhase::CardReward => "CARD_REWARD",
         RunPhase::Campfire => "CAMPFIRE",
         RunPhase::Shop => "SHOP",
         RunPhase::Event => "EVENT",
+        RunPhase::Transition => "TRANSITION",
         RunPhase::GameOver => "GAME_OVER",
     }
 }
@@ -767,13 +897,140 @@ pub fn build_trace_record(engine: &crate::run::RunEngine, idx: u64, action: Trac
     }
 }
 
+fn trace_potion_id(potion_id: &str) -> String {
+    // Java keeps vacant inventory entries as PotionSlot instances whose
+    // stable POTION_ID is "Potion Slot"; traces must preserve those entries.
+    // Source: decompiled/java-src/com/megacrit/cardcrawl/potions/PotionSlot.java
+    if potion_id.is_empty() {
+        "Potion Slot".to_string()
+    } else {
+        potion_id.to_string()
+    }
+}
+
+fn run_relic_counter(relic_id: &str, counters: &[i16; crate::relic_flags::counter::NUM_COUNTERS]) -> Option<i32> {
+    use crate::relic_flags::counter;
+
+    let (index, normalize): (usize, fn(i16) -> i32) = match relic_id {
+        "MawBank" | "Maw Bank" => (counter::MAW_BANK_GOLD, |value| if value == -2 { -2 } else { -1 }),
+        "Omamori" => (counter::OMAMORI_USES, |value| value as i32),
+        "Matryoshka" => (counter::MATRYOSHKA_USES, |value| if value <= 0 { -2 } else { value as i32 }),
+        "Ancient Tea Set" | "AncientTeaSet" => (
+            counter::ANCIENT_TEA_SET,
+            |value| if value > 0 { -2 } else { -1 },
+        ),
+        "Girya" => (counter::GIRYA, |value| value as i32),
+        "Tiny Chest" | "TinyChest" => (counter::TINY_CHEST, |value| value as i32),
+        "NlothsMask" => (counter::NLOTHS_MASK, |value| value as i32),
+        "WingedGreaves" => (counter::WINGED_GREAVES, |value| value as i32),
+        "NeowsBlessing" => (counter::NEOWS_LAMENT, |value| value as i32),
+        _ => return None,
+    };
+    Some(normalize(counters[index]))
+}
+
+fn runtime_counter_relic(relic_id: &str) -> bool {
+    matches!(
+        relic_id,
+        "Pen Nib"
+            | "Nunchaku"
+            | "InkBottle"
+            | "Happy Flower"
+            | "Incense Burner"
+            | "Sundial"
+            | "Inserter"
+            | "Ornamental Fan"
+            | "Kunai"
+            | "Shuriken"
+            | "Letter Opener"
+            | "StoneCalendar"
+            | "Velvet Choker"
+            | "Pocketwatch"
+            | "Du-Vu Doll"
+            | "HornCleat"
+            | "CaptainsWheel"
+    )
+}
+
+fn runtime_counter_persists_outside_combat(relic_id: &str) -> bool {
+    matches!(
+        relic_id,
+        "Pen Nib"
+            | "Nunchaku"
+            | "InkBottle"
+            | "Happy Flower"
+            | "Incense Burner"
+            | "Sundial"
+            | "Inserter"
+    )
+}
+
+fn outside_combat_relic_counter(engine: &crate::run::RunEngine, relic_id: &str) -> i32 {
+    if let Some(counter) = run_relic_counter(relic_id, &engine.run_state.relic_flags.counters) {
+        return counter;
+    }
+    match relic_id {
+        "Lizard Tail" => return if engine.run_state.lizard_tail_used { -2 } else { -1 },
+        "Circlet" => return 1,
+        "Du-Vu Doll" => {
+            let registry = crate::cards::global_registry();
+            return engine
+                .run_state
+                .deck
+                .iter()
+                .filter(|id| {
+                    registry
+                        .get(id)
+                        .is_some_and(|card| card.card_type == crate::cards::CardType::Curse)
+                })
+                .count() as i32;
+        }
+        _ => {}
+    }
+    if runtime_counter_persists_outside_combat(relic_id) {
+        return engine
+            .run_state
+            .persisted_effect_states
+            .iter()
+            .find(|state| state.def_id == relic_id)
+            .and_then(|state| state.values.first())
+            .copied()
+            .unwrap_or(0) as i32;
+    }
+    -1
+}
+
+fn combat_relic_counter(
+    engine: &crate::run::RunEngine,
+    combat: &crate::engine::CombatEngine,
+    relic_id: &str,
+    slot: usize,
+) -> i32 {
+    if let Some(counter) = run_relic_counter(relic_id, &combat.state.relic_counters) {
+        return counter;
+    }
+    match relic_id {
+        "Lizard Tail" => return if engine.run_state.lizard_tail_used { -2 } else { -1 },
+        "Circlet" => return 1,
+        _ => {}
+    }
+    if runtime_counter_relic(relic_id) {
+        return combat.hidden_effect_value(
+            relic_id,
+            crate::effects::runtime::EffectOwner::PlayerRelic { slot: slot as u16 },
+            0,
+        );
+    }
+    -1
+}
+
 /// Snapshot the engine's current state into a [`PostState`].
 ///
 /// Outside combat there is no `CombatState` to report player/enemy detail
 /// from; a minimal but well-formed `PostState` is built from `RunState` so
 /// every record still round-trips through the schema.
 pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
-    let rng: BTreeMap<String, u64> = engine.rng_counters().into_iter().collect();
+    let rng: BTreeMap<String, i64> = engine.rng_counters().into_iter().collect();
 
     let Some(combat) = engine.get_combat_engine() else {
         return PostState {
@@ -793,9 +1050,17 @@ pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
                 .run_state
                 .relics
                 .iter()
-                .map(|id| RelicPostState { id: id.clone(), counter: -1 })
+                .map(|id| RelicPostState {
+                    id: id.clone(),
+                    counter: outside_combat_relic_counter(engine, id),
+                })
                 .collect(),
-            potions: engine.run_state.potions.clone(),
+            potions: engine
+                .run_state
+                .potions
+                .iter()
+                .map(|potion| trace_potion_id(potion))
+                .collect(),
             rng,
         };
     };
@@ -811,14 +1076,14 @@ pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
         name
     };
 
-    let powers_from_statuses = |statuses: &[i16; 256]| -> Vec<PowerPostState> {
+    let powers_from_statuses = |statuses: &[i32; crate::status_ids::sid::MAX_STATUS_ID]| -> Vec<PowerPostState> {
         statuses
             .iter()
             .enumerate()
             .filter(|(_, &amt)| amt != 0)
             .map(|(i, &amt)| PowerPostState {
                 id: crate::status_ids::status_name(crate::ids::StatusId(i as u16)).to_string(),
-                amt: amt as i32,
+                amt,
             })
             .collect()
     };
@@ -874,8 +1139,20 @@ pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
             discard: state.discard_pile.iter().map(card_name).collect(),
             exhaust: state.exhaust_pile.iter().map(card_name).collect(),
         },
-        relics: state.relics.iter().map(|id| RelicPostState { id: id.clone(), counter: -1 }).collect(),
-        potions: state.potions.iter().filter(|p| !p.is_empty()).cloned().collect(),
+        relics: state
+            .relics
+            .iter()
+            .enumerate()
+            .map(|(slot, id)| RelicPostState {
+                id: id.clone(),
+                counter: combat_relic_counter(engine, combat, id, slot),
+            })
+            .collect(),
+        potions: state
+            .potions
+            .iter()
+            .map(|potion| trace_potion_id(potion))
+            .collect(),
         rng,
     }
 }
@@ -885,7 +1162,7 @@ pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
 /// script's stop condition or run completion. Errors (unsupported action,
 /// illegal action) mirror `bin/trace_replay.rs`'s behavior.
 pub fn replay_script(script: &ActionScript) -> Result<Vec<TraceRecord>, String> {
-    let seed = crate::seed::seed_from_string(&script.seed);
+    let seed = parse_script_seed(&script.seed);
     let mut engine = crate::run::RunEngine::new(seed, script.ascension);
     let mut records = Vec::with_capacity(script.actions.len());
 
@@ -898,7 +1175,7 @@ pub fn replay_script(script: &ActionScript) -> Result<Vec<TraceRecord>, String> 
                 engine.current_phase()
             ));
         }
-        engine.step(&run_action);
+        engine.step_game(&run_action);
         records.push(build_trace_record(&engine, idx as u64, action.clone()));
 
         if let Some(max_floor) = script.stop.max_floor {
@@ -931,7 +1208,7 @@ pub fn header_for_script(script: &ActionScript) -> TraceHeader {
         v: 1,
         kind: "header".to_string(),
         seed: script.seed.clone(),
-        seed_long: crate::seed::seed_from_string(&script.seed) as i64,
+        seed_long: parse_script_seed(&script.seed) as i64,
         character: script.character.clone(),
         ascension: script.ascension,
         game_version: "rust-sim".to_string(),

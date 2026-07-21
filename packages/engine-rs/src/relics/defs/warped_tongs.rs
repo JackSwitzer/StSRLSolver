@@ -1,4 +1,6 @@
 //! Warped Tongs: upgrade a random card in hand at start of each turn.
+//! Sources: decompiled/java-src/com/megacrit/cardcrawl/relics/WarpedTongs.java
+//! and decompiled/java-src/com/megacrit/cardcrawl/actions/common/UpgradeRandomCardAction.java.
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
@@ -11,12 +13,28 @@ fn hook(
     _event: &GameEvent,
     _state: &mut EffectState,
 ) {
-    if engine.state.hand.is_empty() {
+    let mut upgradeable = engine
+        .state
+        .hand
+        .iter()
+        .enumerate()
+        .filter_map(|(index, card)| {
+            let def = engine.card_registry.card_def_by_id(card.def_id);
+            (def.card_type != crate::cards::CardType::Status
+                && engine.card_registry.can_upgrade_card(card))
+            .then_some(index)
+        })
+        .collect::<Vec<_>>();
+    if upgradeable.is_empty() {
         return;
     }
 
-    let idx = engine.rng.random(engine.state.hand.len() as i32 - 1) as usize;
-    engine.card_registry.upgrade_card(&mut engine.state.hand[idx]);
+    // CardGroup.shuffle seeds java.util.Random with one shuffleRng.randomLong.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
+    crate::seed::card_group_shuffle(&mut upgradeable, &mut engine.shuffle_rng);
+    engine
+        .card_registry
+        .upgrade_card(&mut engine.state.hand[upgradeable[0]]);
 }
 
 static TRIGGERS: [TriggeredEffect; 1] = [

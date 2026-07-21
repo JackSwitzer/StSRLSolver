@@ -1,6 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+    // Java: reference/extracted/methods/card/Headbutt.java and
+    // decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DiscardPileToTopOfDeckAction.java
     // ---- Ironclad Common: Headbutt ----
     // cost 1, 9 dmg, put card from discard on top of draw; upgrade: +3 dmg
     insert(cards, CardDef {

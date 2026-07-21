@@ -1,6 +1,7 @@
 //! Bag of Preparation: Draw 2 extra cards on turn 1.
 //!
 //! Runtime-backed via a first-turn declarative draw effect.
+//! Source: decompiled/java-src/com/megacrit/cardcrawl/relics/BagOfPreparation.java.
 
 use crate::effects::declarative::{Effect, SimpleEffect, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};

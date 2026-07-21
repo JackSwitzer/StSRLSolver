@@ -4,7 +4,7 @@ use crate::effects::declarative::{AmountSource as A, ChoiceAction, CardFilter, E
 static FORETHOUGHT_BASE: [Effect; 1] = [Effect::ChooseCards {
     source: P::Hand,
     filter: CardFilter::All,
-    action: ChoiceAction::PutOnBottomAtCostZero,
+    action: ChoiceAction::PutOnBottomFreeIfCostly,
     min_picks: A::Fixed(1),
     max_picks: A::Fixed(1),
     post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
@@ -13,14 +13,16 @@ static FORETHOUGHT_BASE: [Effect; 1] = [Effect::ChooseCards {
 static FORETHOUGHT_PLUS: [Effect; 1] = [Effect::ChooseCards {
     source: P::Hand,
     filter: CardFilter::All,
-    action: ChoiceAction::PutOnBottomAtCostZero,
+    action: ChoiceAction::PutOnBottomFreeIfCostly,
     min_picks: A::Fixed(0),
     max_picks: A::Fixed(99),
     post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
 }];
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Forethought: 0 cost, put card from hand to bottom of draw pile at 0 cost
+        // ForethoughtAction marks positive-cost cards freeToPlayOnce before
+        // moving them to the bottom of the draw pile.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ForethoughtAction.java
     insert(cards, CardDef {
                 id: "Forethought", name: "Forethought", card_type: CardType::Skill,
                 target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,

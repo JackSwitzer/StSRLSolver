@@ -1,7 +1,10 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // ---- Ironclad Uncommon: Dual Wield ----
+    // DualWieldAction.java offers only Attacks/Powers and makes magicNumber
+    // stat-equivalent copies; the upgrade raises that count from 1 to 2.
+    // Java: reference/extracted/methods/card/DualWield.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DualWieldAction.java
     insert(cards, CardDef {
         id: "Dual Wield",
         name: "Dual Wield",

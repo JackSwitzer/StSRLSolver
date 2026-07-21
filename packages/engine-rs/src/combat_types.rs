@@ -9,6 +9,10 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct CardInstance {
+    /// Stable identity shared by a master-deck card and its combat copy.
+    /// Zero means the caller has not assigned an engine-local identity yet.
+    #[serde(default)]
+    pub instance_id: u32,
     /// Index into static CardDef table.
     pub def_id: u16,
     /// Cost for this turn. -1 = use the permanent baseline or CardDef cost.
@@ -16,7 +20,8 @@ pub struct CardInstance {
     /// Permanent combat cost baseline. -1 = use CardDef cost.
     pub base_cost: i8,
     /// Card-specific mutable numeric state. -1 = uninitialized / use def value.
-    pub misc: i16,
+    /// Signed decrementing state reserves -1 and encodes negative N as N - 1.
+    pub misc: i32,
     /// Bit flags.
     pub flags: u8,
 }
@@ -28,13 +33,31 @@ impl CardInstance {
     pub const FLAG_FREE: u8      = 0x08;
     pub const FLAG_INNATE: u8    = 0x10;
     pub const FLAG_PURGE: u8     = 0x20;
+    pub const FLAG_EXHAUST_ON_USE: u8 = 0x40;
+    /// Transient: card is being autoplayed from outside the hand/normal piles.
+    pub const FLAG_AUTOPLAY: u8 = 0x80;
 
     pub fn new(def_id: u16) -> Self {
-        Self { def_id, cost: -1, base_cost: -1, misc: -1, flags: 0 }
+        Self { instance_id: 0, def_id, cost: -1, base_cost: -1, misc: -1, flags: 0 }
+    }
+    pub fn with_instance_id(mut self, instance_id: u32) -> Self {
+        self.instance_id = instance_id;
+        self
     }
     pub fn with_cost(mut self, cost: i8) -> Self { self.cost = cost; self }
     pub fn upgraded(mut self) -> Self { self.flags |= Self::FLAG_UPGRADED; self }
-    pub fn with_misc(mut self, misc: i16) -> Self { self.misc = misc; self }
+    pub fn with_misc(mut self, misc: i32) -> Self { self.misc = misc; self }
+    pub fn decrementing_misc_or(&self, default: i32) -> i32 {
+        match self.misc {
+            -1 => default,
+            value if value < -1 => value + 1,
+            value => value,
+        }
+    }
+    pub fn set_decrementing_misc(&mut self, value: i32) {
+        let encoded = if value < 0 { value.saturating_sub(1) } else { value };
+        self.misc = encoded;
+    }
     pub fn set_free(mut self, v: bool) -> Self {
         if v { self.flags |= Self::FLAG_FREE } else { self.flags &= !Self::FLAG_FREE }
         self
@@ -140,6 +163,16 @@ pub mod mfx {
     pub const BLOCK_ALL_ALLIES: u8 = 31;
     pub const HEAL_LOWEST_ALLY: u8 = 32;
     pub const STRENGTH_ALL_ALLIES: u8 = 33;
+    pub const BLOCK_RANDOM_OTHER: u8 = 34;
+    pub const ENRAGE: u8 = 35;
+    pub const SHARP_HIDE: u8 = 36;
+    pub const BURN_PLUS: u8 = 37;
+    pub const METALLICIZE: u8 = 38;
+    pub const HEART_STATUS_CARDS: u8 = 39;
+    pub const PLATED_ARMOR_ALL: u8 = 40;
+    pub const HEAL_ALL: u8 = 41;
+    pub const BURN_DRAW_DISCARD: u8 = 42;
+    pub const DAZE_DRAW: u8 = 43;
 }
 
 // ---------------------------------------------------------------------------
@@ -177,8 +210,11 @@ mod tests {
     }
 
     #[test]
-    fn card_instance_is_4_bytes() {
-        assert_eq!(std::mem::size_of::<CardInstance>(), 8);
+    fn card_instance_stays_within_the_identity_and_i32_misc_clone_budget() {
+        // EDA-002 requires Java-width misc state, while Java's AbstractCard
+        // UUID semantics require stable identity for equal mutable cards. The
+        // compact Copy type is 16 bytes; benchmarks guard actual clone cost.
+        assert_eq!(std::mem::size_of::<CardInstance>(), 16);
     }
 
     #[test]

@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // ---- Ironclad Rare: Bludgeon ---- (cost 3, 32 dmg; +10 dmg)
+    // Source: cards/red/Bludgeon.java costs 3, queues one 32-damage hit, and
+    // upgrades only that damage by 10.
     insert(cards, CardDef {
         id: "Bludgeon",
         name: "Bludgeon",

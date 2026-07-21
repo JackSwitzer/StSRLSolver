@@ -14,6 +14,7 @@ import com.megacrit.cardcrawl.map.MapRoomNode;
 import com.megacrit.cardcrawl.monsters.AbstractMonster;
 import com.megacrit.cardcrawl.potions.AbstractPotion;
 import com.megacrit.cardcrawl.rooms.AbstractRoom;
+import tracelab.cm.ChoiceScreenUtils;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -44,8 +45,57 @@ public class ScriptRunner {
     private static int framesSinceExecute = 0;
     private static java.lang.reflect.Field animWaitTimerField;
 
+    private static boolean auto = false;
+    private static boolean record = false;
+    private static com.megacrit.cardcrawl.map.MapRoomNode lastMapNode = null;
+    private static List<MapRoomNode> lastMapOptions = null;
+
+    public static boolean recording() {
+        return record && active && !finished && (!standalone || runFileOpen);
+    }
+
+    public static void recordAction(Script.Action a) {
+        if (!recording()) {
+            return;
+        }
+        if (awaitingRecord) {
+            TraceWriter.writeRecord(recordIdx, lastAction);
+            recordIdx++;
+        }
+        System.out.println("[TraceLab] recorded " + a.type
+                + (a.card_id != null ? " " + a.card_id : "")
+                + (a.choice != null ? " choice=" + a.choice : "")
+                + (a.choice_name != null ? " " + a.choice_name : ""));
+        lastAction = a;
+        awaitingRecord = true;
+        stableFrames = 0;
+    }
+
+    private static boolean standalone = false;
+    private static String standaloneDir = null;
+    private static boolean runFileOpen = false;
+
+    public static void startStandaloneRecord(String dir) {
+        Script s = new Script();
+        s.mode = "record";
+        s.actions = new ArrayList<Script.Action>();
+        script = s;
+        record = true;
+        standalone = true;
+        standaloneDir = dir;
+        active = true;
+    }
+
     public static void start(Script s) {
         script = s;
+        auto = "auto".equals(s.mode);
+        record = "record".equals(s.mode);
+        if (record && s.actions == null) {
+            s.actions = new ArrayList<Script.Action>();
+        }
+        if (auto && s.actions == null) {
+            s.actions = new ArrayList<Script.Action>();
+        }
         active = true;
     }
 
@@ -53,6 +103,47 @@ public class ScriptRunner {
         if (!active || finished) {
             return;
         }
+        if (standalone) {
+            boolean inRun = CardCrawlGame.isInARun() && AbstractDungeon.player != null
+                    && AbstractDungeon.currMapNode != null;
+            boolean dead = inRun
+                    && (AbstractDungeon.player.isDead || AbstractDungeon.player.isDying);
+            if (runFileOpen && (!inRun || dead)) {
+                if (awaitingRecord) {
+                    TraceWriter.writeRecord(recordIdx, lastAction);
+                    recordIdx++;
+                    awaitingRecord = false;
+                }
+                TraceWriter.writeFinal(dead ? "player_dead" : "run_ended",
+                        recordIdx, recordIdx, recordIdx);
+                TraceWriter.close();
+                System.out.println("[TraceLab] run trace closed (" + recordIdx + " actions)");
+                runFileOpen = false;
+                recordIdx = 0;
+                lastMapNode = null;
+                lastMapOptions = null;
+                return;
+            }
+            if (!runFileOpen && inRun && !dead) {
+                try {
+                    long seedLong = com.megacrit.cardcrawl.core.Settings.seed != null
+                            ? com.megacrit.cardcrawl.core.Settings.seed : 0L;
+                    TraceWriter.initRun(standaloneDir,
+                            com.megacrit.cardcrawl.helpers.SeedHelper.getString(seedLong),
+                            seedLong,
+                            AbstractDungeon.player.chosenClass.name(),
+                            AbstractDungeon.ascensionLevel);
+                    runFileOpen = true;
+                } catch (Exception e) {
+                    System.err.println("[TraceLab] failed to open run trace: " + e);
+                    active = false;
+                    return;
+                }
+            }
+            if (!runFileOpen) {
+                return;
+            }
+        } else {
         if (!CardCrawlGame.isInARun() || AbstractDungeon.player == null) {
             return;
         }
@@ -60,10 +151,16 @@ public class ScriptRunner {
             finish("player_dead");
             return;
         }
+        }
 
         frameCounter++;
         if (DEBUG && frameCounter % 180 == 0) {
             logState();
+        }
+
+        if (record) {
+            recordModeUpdate();
+            return;
         }
 
         framesSinceExecute++;
@@ -93,8 +190,15 @@ public class ScriptRunner {
             return;
         }
         if (nextAction >= script.actions.size()) {
-            finish("script_exhausted");
-            return;
+            if (!auto) {
+                finish("script_exhausted");
+                return;
+            }
+            Script.Action synth = autoPolicy();
+            if (synth == null) {
+                return;
+            }
+            script.actions.add(synth);
         }
 
         Script.Action a = script.actions.get(nextAction);
@@ -139,6 +243,13 @@ public class ScriptRunner {
         if (am == null) {
             return false;
         }
+        ChoiceScreenUtils.ChoiceType sct = safeChoiceType();
+        if (sct == ChoiceScreenUtils.ChoiceType.GRID
+                || sct == ChoiceScreenUtils.ChoiceType.HAND_SELECT
+                || sct == ChoiceScreenUtils.ChoiceType.CARD_REWARD
+                || sct == ChoiceScreenUtils.ChoiceType.BOSS_REWARD) {
+            return !AbstractDungeon.isFadingOut && !AbstractDungeon.isFadingIn;
+        }
         if (!am.actions.isEmpty() || !am.cardQueue.isEmpty() || !am.preTurnActions.isEmpty()
                 || am.currentAction != null) {
             return false;
@@ -168,7 +279,19 @@ public class ScriptRunner {
         return true;
     }
 
-    static AbstractRoom currRoom() {
+    static ChoiceScreenUtils.ChoiceType safeChoiceType() {
+        if (!CardCrawlGame.isInARun() || AbstractDungeon.currMapNode == null
+                || AbstractDungeon.player == null) {
+            return ChoiceScreenUtils.ChoiceType.NONE;
+        }
+        try {
+            return ChoiceScreenUtils.getCurrentChoiceType();
+        } catch (Exception e) {
+            return ChoiceScreenUtils.ChoiceType.NONE;
+        }
+    }
+
+    public static AbstractRoom currRoom() {
         if (!CardCrawlGame.isInARun() || AbstractDungeon.currMapNode == null) {
             return null;
         }
@@ -193,6 +316,16 @@ public class ScriptRunner {
             }
             case "PATH":
                 return AbstractDungeon.screen == AbstractDungeon.CurrentScreen.MAP;
+            case "CHOOSE": {
+                ChoiceScreenUtils.ChoiceType ct = safeChoiceType();
+                return ct != ChoiceScreenUtils.ChoiceType.NONE
+                        && ct != ChoiceScreenUtils.ChoiceType.COMPLETE
+                        && ct != ChoiceScreenUtils.ChoiceType.GAME_OVER;
+            }
+            case "PROCEED":
+                return ChoiceScreenUtils.isConfirmButtonAvailable();
+            case "CANCEL":
+                return ChoiceScreenUtils.isCancelButtonAvailable();
             default:
                 return false;
         }
@@ -212,6 +345,15 @@ public class ScriptRunner {
                 return pressEventOption(a.choice == null ? 0 : a.choice);
             case "PATH":
                 return choosePath(a.choice == null ? 0 : a.choice);
+            case "CHOOSE":
+                ChoiceScreenUtils.executeChoice(a.choice == null ? 0 : a.choice);
+                return true;
+            case "PROCEED":
+                ChoiceScreenUtils.pressConfirmButton();
+                return true;
+            case "CANCEL":
+                ChoiceScreenUtils.pressCancelButton();
+                return true;
             default:
                 System.err.println("[TraceLab] unsupported action type " + a.type);
                 return false;
@@ -334,6 +476,127 @@ public class ScriptRunner {
         }
         options.sort(Comparator.comparingInt(n -> n.x));
         return options;
+    }
+
+    private static void recordModeUpdate() {
+        if (AbstractDungeon.screen == AbstractDungeon.CurrentScreen.MAP) {
+            lastMapNode = AbstractDungeon.getCurrMapNode();
+            lastMapOptions = availablePathNodes();
+        }
+        com.megacrit.cardcrawl.map.MapRoomNode now = AbstractDungeon.currMapNode;
+        if (now != null && lastMapNode != null && now != lastMapNode && lastMapOptions != null) {
+            int idx = -1;
+            for (int i = 0; i < lastMapOptions.size(); i++) {
+                if (lastMapOptions.get(i).x == now.x && lastMapOptions.get(i).y == now.y) {
+                    idx = i;
+                    break;
+                }
+            }
+            Script.Action a = new Script.Action();
+            a.type = "PATH";
+            a.choice = idx >= 0 ? idx : null;
+            a.choice_name = now.x + "," + now.y;
+            lastMapNode = now;
+            lastMapOptions = null;
+            recordAction(a);
+        }
+        if (now != null && lastMapNode == null) {
+            lastMapNode = now;
+        }
+
+        if (awaitingRecord && isQuiescent()) {
+            stableFrames++;
+            if (stableFrames >= STABLE_FRAMES_REQUIRED) {
+                TraceWriter.writeRecord(recordIdx, lastAction);
+                recordIdx++;
+                awaitingRecord = false;
+            }
+        } else if (awaitingRecord) {
+            stableFrames = 0;
+        }
+
+        if (script.stop != null && script.stop.max_floor != null
+                && AbstractDungeon.floorNum > script.stop.max_floor) {
+            finish("max_floor");
+        }
+    }
+
+    private static Script.Action autoPolicy() {
+        AbstractRoom room = currRoom();
+        if (room != null && room.phase == AbstractRoom.RoomPhase.COMBAT) {
+            int target = -1;
+            if (AbstractDungeon.getMonsters() != null) {
+                for (int i = 0; i < AbstractDungeon.getMonsters().monsters.size(); i++) {
+                    AbstractMonster m = AbstractDungeon.getMonsters().monsters.get(i);
+                    if (!m.isDead && !m.isDying && !m.escaped) {
+                        target = i;
+                        break;
+                    }
+                }
+            }
+            for (int i = 0; i < AbstractDungeon.player.hand.group.size(); i++) {
+                AbstractCard c = AbstractDungeon.player.hand.group.get(i);
+                AbstractMonster m = target >= 0
+                        ? AbstractDungeon.getMonsters().monsters.get(target) : null;
+                if (c.canUse(AbstractDungeon.player, m)) {
+                    Script.Action a = new Script.Action();
+                    a.type = "PLAY_CARD";
+                    a.hand_idx = i;
+                    a.target = target;
+                    return a;
+                }
+            }
+            Script.Action a = new Script.Action();
+            a.type = "END_TURN";
+            return a;
+        }
+
+        ChoiceScreenUtils.ChoiceType ct = safeChoiceType();
+        Script.Action a = new Script.Action();
+        switch (ct) {
+            case MAP:
+                a.type = "PATH";
+                a.choice = 0;
+                return a;
+            case EVENT:
+                a.type = (room != null && room.getClass().getSimpleName().equals("NeowRoom"))
+                        ? "NEOW" : "EVENT_CHOICE";
+                a.choice = 0;
+                return a;
+            case REST:
+                a.type = "CHOOSE";
+                a.choice = 0;
+                return a;
+            case GAME_OVER:
+                finish("game_over");
+                return null;
+            case COMBAT_REWARD:
+            case CARD_REWARD:
+            case BOSS_REWARD:
+            case CHEST:
+            case SHOP_ROOM:
+            case SHOP_SCREEN:
+            case GRID:
+            case HAND_SELECT:
+            case COMPLETE:
+            case NONE:
+            default:
+                if (ChoiceScreenUtils.isConfirmButtonAvailable()) {
+                    a.type = "PROCEED";
+                    return a;
+                }
+                if (ChoiceScreenUtils.isCancelButtonAvailable()) {
+                    a.type = "CANCEL";
+                    return a;
+                }
+                if (ct == ChoiceScreenUtils.ChoiceType.GRID
+                        || ct == ChoiceScreenUtils.ChoiceType.HAND_SELECT) {
+                    a.type = "CHOOSE";
+                    a.choice = 0;
+                    return a;
+                }
+                return null;
+        }
     }
 
     private static void logState() {

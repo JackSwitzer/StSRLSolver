@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Ironclad Uncommon: Fire Breathing ---- (cost 1, power, 6 dmg on Status/Curse draw; +4 magic)
+        // FireBreathing.java applies 6 Fire Breathing; upgrading adds 4.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/FireBreathing.java
     insert(cards, CardDef {
                 id: "Fire Breathing", name: "Fire Breathing", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,

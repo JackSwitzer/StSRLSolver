@@ -32,10 +32,17 @@ fn hook(
         .collect();
 
     if !living.is_empty() {
-        let alive_idx = living[engine.rng_gen_range(0..living.len())];
-        engine.state.enemies[alive_idx]
-            .entity
-            .add_status(sid::POISON, dead_poison);
+        // ApplyPowerToRandomEnemyAction selects through cardRandomRng even
+        // with one living target, then constructs a player-sourced
+        // ApplyPowerAction. That shared constructor applies Snake Skull's +1
+        // and lets Artifact block the whole Poison application.
+        // Java: relics/TheSpecimen.java, actions/common/
+        // ApplyPowerToRandomEnemyAction.java, and ApplyPowerAction.java.
+        let selected = engine
+            .card_random_rng
+            .random_int_range(0, (living.len() - 1) as i32) as usize;
+        let alive_idx = living[selected];
+        engine.apply_player_debuff_to_enemy(alive_idx, sid::POISON, dead_poison);
     }
 }
 

@@ -1,5 +1,8 @@
 use crate::cards::prelude::*;
 
+// Sources: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Aggregate.java
+// and decompiled/java-src/com/megacrit/cardcrawl/actions/defect/AggregateEnergyAction.java
+
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Defect Uncommon Cards ----
         // Aggregate: 1 cost, gain 1 energy per 4 cards in draw pile (upgrade: per 3)

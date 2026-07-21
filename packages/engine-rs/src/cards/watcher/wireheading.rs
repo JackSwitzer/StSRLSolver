@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Uncommon: Foresight ---- (Java ID: Wireheading, cost 1, power, scry 3 at start of turn; +1 magic upgrade)
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Foresight.java
+    // Java's class keeps ID Wireheading and installs stacking ForesightPower.
     insert(cards, CardDef {
                 id: "Wireheading", name: "Foresight", card_type: CardType::Power,
                 target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,

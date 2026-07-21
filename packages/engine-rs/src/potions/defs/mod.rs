@@ -206,10 +206,10 @@ mod tests {
         let simple_ids = [
             "StrengthPotion", "DexterityPotion", "FocusPotion", "BlockPotion",
             "SwiftPotion", "EnergyPotion", "WeakenPotion", "FearPotion",
-            "PoisonPotion", "SpeedPotion", "SteroidPotion", "AncientPotion",
+            "PoisonPotion", "AncientPotion",
             "RegenPotion", "EssenceOfSteel", "LiquidBronze", "HeartOfIron",
-            "BloodPotion", "FruitJuice", "SmokeBomb", "FirePotion",
-            "ExplosivePotion", "SneckoOil",
+            "BloodPotion", "SmokeBomb", "FirePotion",
+            "ExplosivePotion",
             "CultistPotion", "GhostInAJar", "DuplicationPotion",
         ];
         for id in &simple_ids {
@@ -219,6 +219,7 @@ mod tests {
             assert_eq!(def.triggers[0].trigger, Trigger::ManualActivation,
                 "wrong trigger for {}", id);
         }
+
     }
 
     #[test]
@@ -231,6 +232,10 @@ mod tests {
             "BlessingOfTheForge",
             "LiquidMemories",
             "DistilledChaos",
+            "FruitJuice",
+            "SneckoOil",
+            "SpeedPotion",
+            "SteroidPotion",
             "EssenceOfDarkness",
             "AttackPotion",
             "SkillPotion",

@@ -175,6 +175,36 @@ fn ironclad_wave6_cleave_and_bludgeon_follow_the_attack_preamble() {
 }
 
 #[test]
+fn cleave_plus_deals_one_upgraded_hit_to_every_enemy() {
+    // Cleave.use queues one DamageAllEnemiesAction using its multiDamage
+    // matrix. Base damage is 8 and upgradeDamage(3) changes every entry to 11.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Cleave.java.
+    let mut engine = two_enemy_engine(("JawWorm", 40), ("Cultist", 35));
+    engine.state.hand = make_deck(&["Cleave+"]);
+
+    assert!(play_on_enemy(&mut engine, "Cleave+", 0));
+    assert_eq!(engine.state.enemies[0].entity.hp, 29);
+    assert_eq!(engine.state.enemies[1].entity.hp, 24);
+    assert_eq!(engine.state.energy, 2);
+}
+
+#[test]
+fn bludgeon_variants_spend_three_energy_for_one_source_sized_hit() {
+    // Source: Bludgeon.java queues one DamageAction for 32 damage at cost 3;
+    // upgradeDamage(10) changes only the hit to 42.
+    for (card_id, expected_damage) in [("Bludgeon", 32), ("Bludgeon+", 42)] {
+        let mut engine = one_enemy_engine("JawWorm", 60);
+        engine.state.hand = make_deck(&[card_id]);
+
+        assert!(play_on_enemy(&mut engine, card_id, 0));
+
+        assert_eq!(engine.state.enemies[0].entity.hp, 60 - expected_damage);
+        assert_eq!(engine.state.energy, 0);
+        assert_eq!(discard_prefix_count(&engine, "Bludgeon"), 1);
+    }
+}
+
+#[test]
 fn ironclad_wave6_clash_and_heavy_blade_cover_legality_and_strength_scaling() {
     let mut blocked = one_enemy_engine("JawWorm", 50);
     blocked.state.hand = make_deck(&["Clash", "Defend"]);
@@ -202,6 +232,39 @@ fn ironclad_wave6_clash_and_heavy_blade_cover_legality_and_strength_scaling() {
     heavy_blade.state.player.set_status(sid::STRENGTH, 2);
     assert!(play_on_enemy(&mut heavy_blade, "Heavy Blade+", 0));
     assert_eq!(heavy_blade.state.enemies[0].entity.hp, 56);
+}
+
+#[test]
+fn clash_source_requires_every_remaining_hand_card_to_be_an_attack() {
+    // Clash.canUse loops over the whole hand and rejects every card whose type
+    // is not ATTACK, including Skills, Powers, Statuses, and Curses. The upgrade
+    // changes only base damage from 14 to 18.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Clash.java.
+    for blocker in ["Defend", "Inflame", "Burn", "AscendersBane"] {
+        let mut engine = one_enemy_engine("JawWorm", 50);
+        engine.state.hand = make_deck(&["Clash+", "Strike", blocker]);
+        let clash_idx = engine
+            .state
+            .hand
+            .iter()
+            .position(|card| engine.card_registry.card_name(card.def_id) == "Clash+")
+            .expect("Clash+ should be in hand");
+
+        assert!(!engine.get_legal_actions().iter().any(|action| matches!(
+            action,
+            Action::PlayCard {
+                card_idx,
+                target_idx: 0,
+            } if *card_idx == clash_idx
+        )), "{blocker} should prevent Clash+");
+    }
+
+    let mut allowed = one_enemy_engine("JawWorm", 50);
+    allowed.state.hand = make_deck(&["Clash+", "Strike", "Anger"]);
+    let energy_before = allowed.state.energy;
+    assert!(play_on_enemy(&mut allowed, "Clash+", 0));
+    assert_eq!(allowed.state.enemies[0].entity.hp, 32);
+    assert_eq!(allowed.state.energy, energy_before);
 }
 
 #[test]
@@ -239,5 +302,5 @@ fn ironclad_wave6_perfected_strike_registry_stays_honest_while_engine_path_keeps
     engine.state.discard_pile = make_deck(&["Strike"]);
 
     assert!(play_on_enemy(&mut engine, "Perfected Strike", 0));
-    assert_eq!(engine.state.enemies[0].entity.hp, 66);
+    assert_eq!(engine.state.enemies[0].entity.hp, 64);
 }

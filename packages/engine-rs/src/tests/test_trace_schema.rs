@@ -7,7 +7,7 @@
 use std::collections::BTreeMap;
 
 use crate::trace::{
-    check_version, parse_masks, ActionScript, DivergenceReport, DivergenceStatus,
+    check_version, parse_masks, parse_script_seed, ActionScript, DivergenceReport, DivergenceStatus,
     EnemyPostState, FieldDiff, FirstDivergence, IntentPostState, Mask, MaskedDiff,
     OrbPostState, PilePostState, PlayerPostState, PostState, PowerPostState, RelicPostState,
     RngSnapshotPair, ScriptStopCondition, TraceAction, TraceHeader, TraceRecord,
@@ -17,6 +17,15 @@ use crate::trace::{
 // ---------------------------------------------------------------------------
 // Version helper
 // ---------------------------------------------------------------------------
+
+#[test]
+fn script_seed_parsing_matches_tracelab_decimal_then_display_precedence() {
+    // Source: packages/harness-java/src/main/java/tracelab/TraceLabMod.java
+    assert_eq!(parse_script_seed("57554006466"), 57_554_006_466);
+    assert_eq!(parse_script_seed("ABC"), crate::seed::seed_from_string("ABC"));
+    assert_eq!(parse_script_seed("10"), 10);
+    assert_eq!(parse_script_seed("-1"), u64::MAX);
+}
 
 #[test]
 fn check_version_accepts_v1() {
@@ -35,7 +44,7 @@ fn check_version_rejects_other() {
 // Round-trip helpers
 // ---------------------------------------------------------------------------
 
-fn sample_rng_map() -> BTreeMap<String, u64> {
+fn sample_rng_map() -> BTreeMap<String, i64> {
     let mut rng = BTreeMap::new();
     rng.insert("card".to_string(), 37);
     rng.insert("ai".to_string(), 4);
@@ -130,6 +139,15 @@ round_trip!(
     sample_post_state(),
     PostState
 );
+
+#[test]
+fn post_state_preserves_signed_java_rng_counter_overflow() {
+    let mut post = sample_post_state();
+    post.rng.insert("card".to_string(), i64::from(i32::MIN));
+    let json = serde_json::to_string(&post).unwrap();
+    assert!(json.contains("-2147483648"));
+    assert_eq!(serde_json::from_str::<PostState>(&json).unwrap(), post);
+}
 
 round_trip!(
     trace_record_round_trip,

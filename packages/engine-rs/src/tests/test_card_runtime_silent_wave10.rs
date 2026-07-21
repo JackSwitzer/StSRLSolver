@@ -19,7 +19,7 @@ use crate::tests::support::*;
 fn silent_wave10_registry_exports_show_typed_primary_surfaces() {
     let registry = global_registry();
 
-    let all_out_attack = registry.get("All-Out Attack").expect("All-Out Attack should exist");
+    let all_out_attack = registry.get("All Out Attack").expect("All Out Attack should exist");
     assert_eq!(all_out_attack.card_type, CardType::Attack);
     assert_eq!(all_out_attack.target, CardTarget::AllEnemy);
     assert_eq!(
@@ -58,7 +58,7 @@ fn silent_wave10_registry_exports_show_typed_primary_surfaces() {
         escape_plan.effect_data,
         &[
             E::Simple(SE::DrawCards(A::Fixed(1))),
-            E::Simple(SE::GainBlockIfLastHandCardType(CardType::Skill, A::Block)),
+            E::Simple(SE::GainBlockIfLastDrawnCardType(CardType::Skill, A::Block)),
         ]
     );
     assert!(escape_plan.complex_hook.is_none());
@@ -102,13 +102,13 @@ fn silent_wave10_typed_primary_surfaces_follow_java_oracle_on_engine_path() {
         3,
     );
     force_player_turn(&mut aoa);
-    aoa.state.hand = make_deck(&["All-Out Attack", "Strike", "Defend"]);
+    aoa.state.hand = make_deck(&["All Out Attack", "Strike", "Defend"]);
     let hp0 = aoa.state.enemies[0].entity.hp;
     let hp1 = aoa.state.enemies[1].entity.hp;
-    assert!(play_on_enemy(&mut aoa, "All-Out Attack", 0));
+    assert!(play_on_enemy(&mut aoa, "All Out Attack", 0));
     assert_eq!(aoa.state.enemies[0].entity.hp, hp0 - 10);
     assert_eq!(aoa.state.enemies[1].entity.hp, hp1 - 10);
-    assert_eq!(discard_prefix_count(&aoa, "All-Out Attack"), 1);
+    assert_eq!(discard_prefix_count(&aoa, "All Out Attack"), 1);
     assert_eq!(aoa.state.discard_pile.len(), 2);
     assert_eq!(aoa.state.hand.len(), 1);
     assert_eq!(aoa.state.player.status(sid::DISCARDED_THIS_TURN), 1);
@@ -166,6 +166,35 @@ fn silent_wave10_typed_primary_surfaces_follow_java_oracle_on_engine_path() {
     let glass_hp2 = glass_knife.state.enemies[0].entity.hp;
     assert!(play_on_enemy(&mut glass_knife, "Glass Knife", 0));
     assert_eq!(glass_knife.state.enemies[0].entity.hp, glass_hp2 - 12);
+}
+
+#[test]
+fn flechettes_deals_exactly_one_hit_per_remaining_skill_including_zero() {
+    // FlechetteAction loops over the hand after Flechettes has left it and
+    // queues a DamageAction only for each card whose type is SKILL. With zero
+    // Skills there is no hit; two Skills produce two 6-damage hits for the
+    // upgraded card.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Flechettes.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/FlechetteAction.java
+    let mut zero = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        1,
+    );
+    force_player_turn(&mut zero);
+    zero.state.hand = make_deck(&["Flechettes", "Strike"]);
+    assert!(play_on_enemy(&mut zero, "Flechettes", 0));
+    assert_eq!(zero.state.enemies[0].entity.hp, 40);
+
+    let mut two = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        1,
+    );
+    force_player_turn(&mut two);
+    two.state.hand = make_deck(&["Flechettes+", "Defend", "Escape Plan", "Strike"]);
+    assert!(play_on_enemy(&mut two, "Flechettes+", 0));
+    assert_eq!(two.state.enemies[0].entity.hp, 28);
 }
 
 #[test]

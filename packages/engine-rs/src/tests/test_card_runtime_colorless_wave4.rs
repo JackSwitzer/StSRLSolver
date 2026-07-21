@@ -33,6 +33,9 @@ fn colorless_wave4_registry_exports_match_typed_surface() {
 
 #[test]
 fn enlightenment_plus_sets_costs_in_hand_to_one() {
+    // EnlightenmentAction.java changes only costs above 1. Mind Blast becomes
+    // permanently 1; an ordinary 1-cost Strike remains unmodified.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/EnlightenmentAction.java
     let mut engine = engine_without_start(
         Vec::new(),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -45,5 +48,7 @@ fn enlightenment_plus_sets_costs_in_hand_to_one() {
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
     assert_eq!(engine.state.hand.len(), 2);
     assert_eq!(engine.state.hand[0].cost, 1);
-    assert_eq!(engine.state.hand[1].cost, 1);
+    assert_eq!(engine.state.hand[0].base_cost, 1);
+    assert_eq!(engine.state.hand[1].cost, -1);
+    assert_eq!(engine.state.hand[1].base_cost, 1);
 }

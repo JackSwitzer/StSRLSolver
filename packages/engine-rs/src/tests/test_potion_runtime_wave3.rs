@@ -96,7 +96,7 @@ fn test_potion_runtime_wave3_generated_cards_and_upgrade_behaviors() {
     engine.state.discard_pile.clear();
     equip_potion(&mut engine, 0, "CunningPotion");
     use_potion(&mut engine, 0, -1);
-    assert_eq!(hand_names(&engine), vec!["Shiv", "Shiv", "Shiv"]);
+    assert_eq!(hand_names(&engine), vec!["Shiv+", "Shiv+", "Shiv+"]);
 
     engine.state.hand = make_deck(&["Strike", "Defend"]);
     equip_potion(&mut engine, 0, "BlessingOfTheForge");
@@ -106,6 +106,11 @@ fn test_potion_runtime_wave3_generated_cards_and_upgrade_behaviors() {
     engine.state.hand = make_deck(&["Strike", "Defend", "Bash"]);
     equip_potion(&mut engine, 0, "Elixir");
     use_potion(&mut engine, 0, -1);
+    assert_eq!(engine.phase, crate::engine::CombatPhase::AwaitingChoice);
+    engine.execute_action(&Action::Choose(0));
+    engine.execute_action(&Action::Choose(1));
+    engine.execute_action(&Action::Choose(2));
+    engine.execute_action(&Action::ConfirmSelection);
     assert!(engine.state.hand.is_empty());
     assert_eq!(engine.state.exhaust_pile.len(), 3);
 }
@@ -130,6 +135,10 @@ fn test_potion_runtime_wave3_discard_draw_and_randomized_draw_behaviors() {
     engine.state.hand = make_deck(&["Strike", "Defend", "Bash"]);
     equip_potion(&mut engine, 0, "GamblersBrew");
     use_potion(&mut engine, 0, -1);
+    engine.execute_action(&Action::Choose(0));
+    engine.execute_action(&Action::Choose(1));
+    engine.execute_action(&Action::Choose(2));
+    engine.execute_action(&Action::ConfirmSelection);
     assert_eq!(engine.state.hand.len(), 3);
     assert!(engine.state.discard_pile.is_empty());
     assert_eq!(engine.state.player.status(sid::POTION_DRAW), 0);

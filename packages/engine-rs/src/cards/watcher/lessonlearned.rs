@@ -1,16 +1,21 @@
 use crate::cards::prelude::*;
 use crate::effects::declarative::{
-    AmountSource as A, Condition as Cond, Effect as E, Pile as P, SimpleEffect as SE,
-    Target as T,
+    AmountSource as A, Condition as Cond, Effect as E, SimpleEffect as SE, Target as T,
 };
 
-static LESSON_LEARNED_UPGRADE_PILES: [P; 2] = [P::Draw, P::Discard];
-static LESSON_LEARNED_KILL_BRANCH: [E; 1] = [E::Simple(SE::UpgradeRandomCardFromPiles(
-    &LESSON_LEARNED_UPGRADE_PILES,
-))];
+// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/LessonLearned.java
+// Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/LessonLearnedAction.java
+// On a non-minion kill, the action chooses one upgradeable master-deck card
+// with miscRng. Combat pile copies are not upgraded.
+static LESSON_LEARNED_KILL_BRANCH: [E; 1] =
+    [E::Simple(SE::UpgradeRandomMasterDeckCard)];
 static LESSON_LEARNED_EFFECTS: [E; 2] = [
     E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
-    E::Conditional(Cond::EnemyKilled, &LESSON_LEARNED_KILL_BRANCH, &[]),
+    E::Conditional(
+        Cond::EnemyKilledNonMinion,
+        &LESSON_LEARNED_KILL_BRANCH,
+        &[],
+    ),
 ];
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {

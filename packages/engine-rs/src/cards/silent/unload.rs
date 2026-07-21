@@ -1,7 +1,10 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Rare: Unload ---- (cost 1, 14 dmg, discard all non-attacks; +4 dmg)
+    // Damage resolves before UnloadAction snapshots the hand and queues a
+    // manual DiscardSpecificCardAction for every non-Attack.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Unload.java
+    // and actions/unique/UnloadAction.java.
     insert(cards, CardDef {
                 id: "Unload", name: "Unload", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 14, base_block: -1,

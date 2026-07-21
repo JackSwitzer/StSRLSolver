@@ -14,6 +14,7 @@ import com.megacrit.cardcrawl.relics.AbstractRelic;
 import com.megacrit.cardcrawl.rooms.AbstractRoom;
 import com.megacrit.cardcrawl.ui.panels.EnergyPanel;
 
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -33,6 +34,29 @@ public class TraceWriter {
 
     private static final Gson GSON = new Gson();
     private static PrintWriter out;
+
+    public static void initRun(String dir, String seedString, long seedLong,
+                               String character, int ascension) throws IOException {
+        new File(dir).mkdirs();
+        String name = "run-" + new java.text.SimpleDateFormat("yyyyMMdd-HHmmss")
+                .format(new java.util.Date()) + "-" + seedString + ".jsonl";
+        out = new PrintWriter(new FileWriter(new File(dir, name), false));
+        Map<String, Object> header = new LinkedHashMap<String, Object>();
+        header.put("v", 1);
+        header.put("kind", "header");
+        header.put("seed", seedString);
+        header.put("seed_long", seedLong);
+        header.put("character", character);
+        header.put("ascension", ascension);
+        header.put("game_version", CardCrawlGame.TRUE_VERSION_NUM);
+        List<String> mods = new ArrayList<String>();
+        mods.add("basemod");
+        mods.add("tracelab");
+        header.put("mods", mods);
+        header.put("recorded", true);
+        writeLine(header);
+        System.out.println("[TraceLab] recording run -> " + name);
+    }
 
     public static void init(String path, Script script) throws IOException {
         out = new PrintWriter(new FileWriter(path, false));
@@ -93,7 +117,7 @@ public class TraceWriter {
         out.flush();
     }
 
-    private static String currentPhase() {
+    static String currentPhase() {
         AbstractRoom room = ScriptRunner.currRoom();
         if (room == null) {
             return "NONE";
@@ -118,10 +142,12 @@ public class TraceWriter {
         if (a.choice != null) m.put("choice", a.choice);
         if (a.item != null) m.put("item", a.item);
         if (a.idx != null) m.put("idx", a.idx);
+        if (a.card_id != null) m.put("card_id", a.card_id);
+        if (a.choice_name != null) m.put("choice_name", a.choice_name);
         return m;
     }
 
-    private static Map<String, Object> postState() {
+    static Map<String, Object> postState() {
         Map<String, Object> post = new LinkedHashMap<String, Object>();
         post.put("player", playerState());
         post.put("enemies", enemyStates());
@@ -226,7 +252,7 @@ public class TraceWriter {
         return piles;
     }
 
-    private static List<String> cardIds(ArrayList<AbstractCard> cards) {
+    static List<String> cardIds(ArrayList<AbstractCard> cards) {
         List<String> ids = new ArrayList<String>();
         for (AbstractCard c : cards) {
             StringBuilder sb = new StringBuilder(c.cardID);

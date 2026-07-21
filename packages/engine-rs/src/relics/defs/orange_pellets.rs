@@ -4,7 +4,6 @@ use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::engine::CombatEngine;
-use crate::status_ids::sid;
 
 fn hook(
     engine: &mut CombatEngine,
@@ -12,6 +11,8 @@ fn hook(
     event: &GameEvent,
     state: &mut EffectState,
 ) {
+    // Source: reference/extracted/methods/relic/OrangePellets.java
+    // ATTACK, SKILL, and POWER flags reset at turn start and after firing.
     match event.kind {
         Trigger::CombatStart | Trigger::TurnStart => {
             state.set(0, 0);
@@ -32,11 +33,14 @@ fn hook(
         return;
     }
 
-    engine.state.player.set_status(sid::WEAKENED, 0);
-    engine.state.player.set_status(sid::VULNERABLE, 0);
-    engine.state.player.set_status(sid::FRAIL, 0);
-    engine.state.player.set_status(sid::ENTANGLED, 0);
-    engine.state.player.set_status(sid::NO_DRAW, 0);
+    // OrangePellets.java queues RemoveDebuffsAction, which removes every
+    // AbstractPower whose type is DEBUFF rather than a fixed hand-picked list.
+    for idx in 0..engine.state.player.statuses.len() {
+        let status = crate::ids::StatusId(idx as u16);
+        if crate::powers::registry::status_is_debuff(status) {
+            engine.state.player.statuses[idx] = 0;
+        }
+    }
     state.set(0, 0);
     state.set(1, 0);
     state.set(2, 0);

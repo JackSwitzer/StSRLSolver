@@ -1,0 +1,8 @@
+{
+  "v": 1,
+  "seed": "52248462423",
+  "character": "WATCHER",
+  "ascension": 0,
+  "mode": "auto",
+  "stop": { "max_floor": 7 }
+}

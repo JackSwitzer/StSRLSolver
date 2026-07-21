@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Uncommon: Masterful Stab ---- (cost 0, 12 dmg, costs 1 more per HP lost; +4 dmg)
+    // MasterfulStab.java starts at cost 0/damage 12. tookDamage() calls
+    // updateCost(1) once per damage event; upgradeDamage(4) is the only upgrade.
     insert(cards, CardDef {
                 id: "Masterful Stab", name: "Masterful Stab", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 0, base_damage: 12, base_block: -1,

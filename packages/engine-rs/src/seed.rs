@@ -4,10 +4,10 @@
 //! the xorshift128+ algorithm. This module provides an exact port so that
 //! seed-for-seed output matches the Java game.
 //!
-//! Also includes SeedHelper string<->long conversion (base-34 encoding
+//! Also includes SeedHelper string<->long conversion (base-35 encoding
 //! with 'O' mapped to '0').
 
-use rand::RngCore;
+use serde::{Deserialize, Serialize};
 
 // ===========================================================================
 // Murmur hash for seeding (matches libGDX RandomXS128 constructor)
@@ -25,75 +25,41 @@ fn murmur_hash3(mut x: u64) -> u64 {
 }
 
 // ===========================================================================
-// StsRandom — xorshift128+ RNG
+// RandomXs128 — private libGDX generator
 // ===========================================================================
 
-/// STS-compatible RNG using xorshift128+ (matches libGDX RandomXS128).
-#[derive(Debug, Clone)]
-pub struct StsRandom {
+/// Native Rust port of libGDX 1.9.5's `RandomXS128`.
+///
+/// This type deliberately stays private: counted gameplay draws go through
+/// `StsRandom`, while ambient libGDX draws go through `AmbientMathRng`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct RandomXs128 {
     seed0: u64,
     seed1: u64,
-    pub counter: i32,
 }
 
-impl StsRandom {
-    /// Create a new RNG from a single seed.
-    /// Matches libGDX: `new RandomXS128(seed)` which calls
-    /// `setState(murmurHash3(seed), murmurHash3(seed0))`.
-    pub fn new(seed: u64) -> Self {
-        let mut s0 = murmur_hash3(seed);
+impl RandomXs128 {
+    fn new(seed: u64) -> Self {
+        // RandomXS128 substitutes Long.MIN_VALUE before hashing a zero seed.
+        // Source: com.badlogic.gdx.math.RandomXS128 in desktop-1.0.jar.
+        let seed = if seed == 0 { i64::MIN as u64 } else { seed };
+        let s0 = murmur_hash3(seed);
         let s1 = murmur_hash3(s0);
-        // Guard: murmur_hash3(0)==0, making both seeds 0 -- an absorbing state
-        // for xorshift128+. Use fallback to avoid degenerate all-zero output.
-        if s0 == 0 && s1 == 0 {
-            s0 = 1;
-        }
         Self {
             seed0: s0,
             seed1: s1,
-            counter: 0,
         }
     }
 
-    /// Create from explicit state (for copy/restore).
-    pub fn from_state(seed0: u64, seed1: u64, counter: i32) -> Self {
-        Self {
-            seed0,
-            seed1,
-            counter,
-        }
+    fn from_state(seed0: u64, seed1: u64) -> Self {
+        Self { seed0, seed1 }
     }
 
-    /// Export the internal RNG state for deterministic snapshot/replay flows.
-    pub fn state_tuple(&self) -> (u64, u64, i32) {
-        (self.seed0, self.seed1, self.counter)
+    fn state_tuple(&self) -> (u64, u64) {
+        (self.seed0, self.seed1)
     }
 
-    /// Deep copy with identical state.
-    pub fn copy(&self) -> Self {
-        Self {
-            seed0: self.seed0,
-            seed1: self.seed1,
-            counter: self.counter,
-        }
-    }
-
-    // -----------------------------------------------------------------------
-    // Core xorshift128+ step
-    // -----------------------------------------------------------------------
-
-    /// One step of xorshift128+. Returns 64 random bits.
-    ///
-    /// Matches libGDX RandomXS128.nextLong() exactly:
-    /// ```java
-    /// long s1 = seed0;         // note: s1 reads from seed0
-    /// long s0 = seed1;         // note: s0 reads from seed1
-    /// seed0 = s0;              // swap
-    /// s1 ^= s1 << 23;
-    /// seed1 = s1 ^ s0 ^ (s1 >>> 17) ^ (s0 >>> 26);
-    /// return seed1 + s0;
-    /// ```
-    pub fn next_long(&mut self) -> u64 {
+    fn next_long(&mut self) -> u64 {
         let mut s1 = self.seed0;
         let s0 = self.seed1;
         self.seed0 = s0;
@@ -104,137 +70,476 @@ impl StsRandom {
         self.seed1.wrapping_add(s0)
     }
 
-    /// Generate the next i32 in [0, bound) — matches java.util.Random.nextInt(int)
-    /// with rejection sampling to eliminate modulo bias.
-    pub fn next_int(&mut self, bound: i32) -> i32 {
-        debug_assert!(bound > 0, "bound must be positive");
-        let bound = bound as u64;
-
-        // Power-of-2 bounds have no modulo bias
-        if bound & (bound - 1) == 0 {
-            let bits = (self.next_long() >> 33) as u64;
-            return (bits & (bound - 1)) as i32;
-        }
-
-        // Rejection sampling: reject values where modular reduction is biased.
-        // Mirrors java.util.Random.nextInt(int bound) logic.
+    fn next_long_bounded(&mut self, bound: i64) -> i64 {
+        assert!(bound > 0, "bound must be positive");
         loop {
-            let bits = (self.next_long() >> 33) as u64;
-            let val = bits % bound;
-            // Reject if bits - val + (bound - 1) would overflow 31-bit range
-            if bits.wrapping_sub(val).wrapping_add(bound - 1) < (1u64 << 31) {
-                return val as i32;
+            let bits = (self.next_long() >> 1) as i64;
+            let value = bits % bound;
+            if bits.wrapping_sub(value).wrapping_add(bound - 1) >= 0 {
+                return value;
             }
         }
     }
 
-    /// Generate i32 in [start, end] (inclusive both ends).
-    /// Matches STS Random.random(start, end): `start + nextInt(end - start + 1)`.
-    pub fn next_int_range(&mut self, start: i32, end: i32) -> i32 {
-        self.counter += 1;
-        start + self.next_int(end - start + 1)
+    fn next_int(&mut self, bound: i32) -> i32 {
+        self.next_long_bounded(bound as i64) as i32
     }
 
-    /// Generate a random bool. Matches libGDX nextBoolean().
-    pub fn next_boolean(&mut self) -> bool {
-        self.counter += 1;
+    fn next_bool(&mut self) -> bool {
         (self.next_long() & 1) != 0
     }
 
-    /// Match STS Random.random(range): returns int in [0, range] (inclusive!).
-    /// This is the most-used method in STS: `random.random(range)` = `nextInt(range + 1)`.
-    pub fn random(&mut self, range: i32) -> i32 {
-        self.counter += 1;
-        self.next_int(range + 1)
+    fn next_f32(&mut self) -> f32 {
+        ((self.next_long() >> 40) as f64 * (1.0 / (1_u64 << 24) as f64)) as f32
     }
 
-    /// Match STS Random.random(start, end): returns int in [start, end] (inclusive!).
-    pub fn random_range(&mut self, start: i32, end: i32) -> i32 {
-        self.counter += 1;
-        start + self.next_int(end - start + 1)
-    }
-
-    /// Random long — matches STS Random.randomLong().
-    pub fn random_long(&mut self) -> u64 {
-        self.counter += 1;
-        self.next_long()
-    }
-
-    /// Random bool — matches STS Random.randomBoolean().
-    pub fn random_boolean(&mut self) -> bool {
-        // next_boolean already increments counter
-        self.next_boolean()
-    }
-
-    /// Random float in [0, 1) — matches libGDX nextFloat().
-    pub fn next_float(&mut self) -> f32 {
-        // libGDX: (nextLong() >>> 40) as f64 / (1L << 24) as f64
-        let bits = self.next_long() >> 40;
-        (bits as f32) / ((1u64 << 24) as f32)
-    }
-
-    /// Random float in [0, 1) with counter increment.
-    pub fn random_float(&mut self) -> f32 {
-        self.counter += 1;
-        self.next_float()
+    fn next_f64(&mut self) -> f64 {
+        (self.next_long() >> 11) as f64 * (1.0 / (1_u64 << 53) as f64)
     }
 }
 
 // ===========================================================================
-// Implement rand::RngCore so StsRandom works with .shuffle(), .gen_range(), etc.
+// AmbientMathRng — uncounted libGDX MathUtils.random owner
 // ===========================================================================
 
-impl RngCore for StsRandom {
-    fn next_u32(&mut self) -> u32 {
-        self.next_long() as u32
-    }
+/// Deterministic owner for gameplay-significant draws made through libGDX's
+/// ambient `MathUtils.random` generator.
+///
+/// Unlike `StsRandom`, this stream has no wrapper counter and is not derived
+/// from a dungeon seed implicitly. Its owner must construct, persist, and
+/// restore it explicitly.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct AmbientMathRng {
+    inner: RandomXs128,
+}
 
-    fn next_u64(&mut self) -> u64 {
-        self.next_long()
-    }
-
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
-        let mut i = 0;
-        while i < dest.len() {
-            let val = self.next_long();
-            let bytes = val.to_le_bytes();
-            let remaining = dest.len() - i;
-            let to_copy = remaining.min(8);
-            dest[i..i + to_copy].copy_from_slice(&bytes[..to_copy]);
-            i += to_copy;
+impl AmbientMathRng {
+    pub(crate) fn new(seed: u64) -> Self {
+        Self {
+            inner: RandomXs128::new(seed),
         }
     }
 
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
-        self.fill_bytes(dest);
-        Ok(())
+    pub(crate) fn from_state(seed0: u64, seed1: u64) -> Self {
+        Self {
+            inner: RandomXs128::from_state(seed0, seed1),
+        }
+    }
+
+    pub(crate) fn state_tuple(&self) -> (u64, u64) {
+        self.inner.state_tuple()
+    }
+
+    pub(crate) fn restore_state(&mut self, seed0: u64, seed1: u64) {
+        self.inner = RandomXs128::from_state(seed0, seed1);
+    }
+
+    /// Match libGDX `MathUtils.random(int range)`: both endpoints are inclusive.
+    pub(crate) fn random_int(&mut self, max_inclusive: i32) -> i32 {
+        self.inner.next_int(max_inclusive.wrapping_add(1))
     }
 }
 
 // ===========================================================================
-// SeedHelper — base-34 string <-> u64 conversion
+// StsRandom — com.megacrit.cardcrawl.random.Random
+// ===========================================================================
+
+/// Exact native Rust equivalent of Slay the Spire's counted RNG wrapper.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StsRandom {
+    inner: RandomXs128,
+    pub counter: i32,
+}
+
+/// Streams that persist for the lifetime of a dungeon run.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct PersistentRngs {
+    pub card: StsRandom,
+    pub monster: StsRandom,
+    pub event: StsRandom,
+    pub relic: StsRandom,
+    pub treasure: StsRandom,
+    pub merchant: StsRandom,
+    pub potion: StsRandom,
+}
+
+impl PersistentRngs {
+    pub(crate) fn new(seed: u64) -> Self {
+        Self {
+            card: StsRandom::new(seed),
+            monster: StsRandom::new(seed),
+            event: StsRandom::new(seed),
+            relic: StsRandom::new(seed),
+            treasure: StsRandom::new(seed),
+            merchant: StsRandom::new(seed),
+            potion: StsRandom::new(seed),
+        }
+    }
+}
+
+/// Streams rebuilt from `Settings.seed + floorNum` at each room transition.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct FloorRngs {
+    pub monster_hp: StsRandom,
+    pub ai: StsRandom,
+    pub shuffle: StsRandom,
+    pub card_random: StsRandom,
+    pub misc: StsRandom,
+}
+
+impl FloorRngs {
+    pub(crate) fn new(seed: u64) -> Self {
+        Self {
+            monster_hp: StsRandom::new(seed),
+            ai: StsRandom::new(seed),
+            shuffle: StsRandom::new(seed),
+            card_random: StsRandom::new(seed),
+            misc: StsRandom::new(seed),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn combat_snapshot(&self, persistent: &PersistentRngs) -> CombatRngs {
+        self.combat_snapshot_with_collections(
+            persistent,
+            JavaCollectionsRng::deterministic_default(),
+        )
+    }
+
+    /// Transfer the process-global Collections RNG into combat alongside the
+    /// dungeon streams. `RunEngine` owns this ambient LCG and must use this path
+    /// rather than reconstructing the deterministic test default per combat.
+    pub(crate) fn combat_snapshot_with_collections(
+        &self,
+        persistent: &PersistentRngs,
+        java_collections: JavaCollectionsRng,
+    ) -> CombatRngs {
+        CombatRngs {
+            card: persistent.card.clone(),
+            monster_hp: self.monster_hp.clone(),
+            shuffle: self.shuffle.clone(),
+            card_random: self.card_random.clone(),
+            potion: persistent.potion.clone(),
+            misc: self.misc.clone(),
+            ai: self.ai.clone(),
+            java_collections,
+        }
+    }
+}
+
+/// The exact dungeon RNG ownership transferred into and out of combat.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct CombatRngs {
+    pub card: StsRandom,
+    pub monster_hp: StsRandom,
+    pub shuffle: StsRandom,
+    pub card_random: StsRandom,
+    pub potion: StsRandom,
+    pub misc: StsRandom,
+    pub ai: StsRandom,
+    pub java_collections: JavaCollectionsRng,
+}
+
+impl CombatRngs {
+    /// Return combat-owned state to the two canonical run-level groups in one
+    /// operation. Java keeps `cardRng` and `potionRng` persistent while the
+    /// other five streams are floor-local.
+    pub(crate) fn absorb_into(
+        self,
+        persistent: &mut PersistentRngs,
+        floor: &mut FloorRngs,
+    ) -> JavaCollectionsRng {
+        persistent.card = self.card;
+        persistent.potion = self.potion;
+        floor.monster_hp = self.monster_hp;
+        floor.shuffle = self.shuffle;
+        floor.card_random = self.card_random;
+        floor.misc = self.misc;
+        floor.ai = self.ai;
+        self.java_collections
+    }
+}
+
+impl StsRandom {
+    pub fn new(seed: u64) -> Self {
+        Self {
+            inner: RandomXs128::new(seed),
+            counter: 0,
+        }
+    }
+
+    /// Java's `Random(Long seed, int counter)` constructor advances by calling
+    /// `random(999)` exactly `counter` times.
+    pub fn with_counter(seed: u64, counter: i32) -> Self {
+        let mut rng = Self::new(seed);
+        for _ in 0..counter.max(0) {
+            rng.random_int(999);
+        }
+        rng
+    }
+
+    pub fn from_state(seed0: u64, seed1: u64, counter: i32) -> Self {
+        Self {
+            inner: RandomXs128::from_state(seed0, seed1),
+            counter,
+        }
+    }
+
+    pub fn state_tuple(&self) -> (u64, u64, i32) {
+        let (seed0, seed1) = self.inner.state_tuple();
+        (seed0, seed1, self.counter)
+    }
+
+    pub fn copy(&self) -> Self {
+        // Random.copy() constructs and then overwrites a temporary wrapper.
+        // No game code calls it, and its incidental global MathUtils.random
+        // consumption is not part of the copied stream's observable state.
+        self.clone()
+    }
+
+    /// Match Java `Random.random(int range)`: both endpoints are inclusive.
+    pub fn random_int(&mut self, max_inclusive: i32) -> i32 {
+        self.counter = self.counter.wrapping_add(1);
+        self.inner.next_int(max_inclusive.wrapping_add(1))
+    }
+
+    /// Match Java `Random.random(int start, int end)`: both endpoints are inclusive.
+    pub fn random_int_range(&mut self, start: i32, end_inclusive: i32) -> i32 {
+        self.counter = self.counter.wrapping_add(1);
+        let width = end_inclusive.wrapping_sub(start).wrapping_add(1);
+        start.wrapping_add(self.inner.next_int(width))
+    }
+
+    /// Match Java `Random.random(long range)`, which uses `nextDouble` rather than
+    /// `RandomXS128.nextLong(long)` and therefore has an exclusive upper bound.
+    pub fn random_long(&mut self, max_exclusive: i64) -> i64 {
+        self.counter = self.counter.wrapping_add(1);
+        (self.inner.next_f64() * max_exclusive as f64) as i64
+    }
+
+    /// Match Java `Random.random(long start, long end)`. Java's upper endpoint is
+    /// exclusive because the implementation multiplies a `[0, 1)` double.
+    pub fn random_long_range(&mut self, start: i64, end_exclusive: i64) -> i64 {
+        self.counter = self.counter.wrapping_add(1);
+        let width = end_exclusive.wrapping_sub(start);
+        start.wrapping_add((self.inner.next_f64() * width as f64) as i64)
+    }
+
+    pub fn random_long_unbounded(&mut self) -> i64 {
+        self.counter = self.counter.wrapping_add(1);
+        self.inner.next_long() as i64
+    }
+
+    pub fn random_bool(&mut self) -> bool {
+        self.counter = self.counter.wrapping_add(1);
+        self.inner.next_bool()
+    }
+
+    pub fn random_bool_chance(&mut self, chance: f32) -> bool {
+        self.counter = self.counter.wrapping_add(1);
+        self.inner.next_f32() < chance
+    }
+
+    pub fn random_f32(&mut self) -> f32 {
+        self.counter = self.counter.wrapping_add(1);
+        self.inner.next_f32()
+    }
+
+    pub fn random_f32_scaled(&mut self, range: f32) -> f32 {
+        self.counter = self.counter.wrapping_add(1);
+        self.inner.next_f32() * range
+    }
+
+    pub fn random_f32_range(&mut self, start: f32, end: f32) -> f32 {
+        self.counter = self.counter.wrapping_add(1);
+        start + self.inner.next_f32() * (end - start)
+    }
+
+    pub(crate) fn random_index(&mut self, len: usize) -> usize {
+        assert!(len > 0 && len <= i32::MAX as usize, "invalid random index length");
+        self.random_int(len as i32 - 1) as usize
+    }
+
+    /// Java's room assignment passes the wrapped `RandomXS128` directly to
+    /// `Collections.shuffle`. This advances the inner state for every swap but
+    /// intentionally does not increment `com.megacrit...Random.counter`.
+    pub(crate) fn shuffle_with_inner<T>(&mut self, values: &mut [T]) {
+        for len in (2..=values.len()).rev() {
+            let other = self.inner.next_int(len as i32) as usize;
+            values.swap(len - 1, other);
+        }
+    }
+
+    /// Match Java's forward-only `setCounter`. Requests at or below the current
+    /// counter are intentionally a no-op, matching the game's logged error path.
+    pub fn set_counter(&mut self, target: i32) {
+        if self.counter < target {
+            // Java computes this distance as a signed int. An overflowing
+            // positive-looking interval therefore becomes negative and the
+            // loop performs no draws.
+            let count = target.wrapping_sub(self.counter);
+            for _ in 0..count {
+                self.random_bool();
+            }
+        }
+    }
+}
+
+/// Shuffle a slice with `java.util.Random`, seeded the same way as
+/// `Collections.shuffle`. Slay the Spire's `CardGroup.shuffle` consumes one
+/// `StsRandom.randomLong()` and passes that value to this distinct RNG.
+///
+/// Source: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+struct JavaUtilRandom {
+    seed: u64,
+}
+
+impl JavaUtilRandom {
+    const MULTIPLIER: u64 = 0x5DEECE66D;
+    const ADDEND: u64 = 0xB;
+    const MASK: u64 = (1_u64 << 48) - 1;
+
+    fn new(seed: i64) -> Self {
+        Self {
+            seed: (seed as u64 ^ Self::MULTIPLIER) & Self::MASK,
+        }
+    }
+
+    fn from_internal_state(seed: u64) -> Self {
+        Self {
+            seed: seed & Self::MASK,
+        }
+    }
+
+    fn internal_state(&self) -> u64 {
+        self.seed
+    }
+
+    fn next_bits(&mut self, bits: u32) -> u32 {
+        self.seed = self
+            .seed
+            .wrapping_mul(Self::MULTIPLIER)
+            .wrapping_add(Self::ADDEND)
+            & Self::MASK;
+        (self.seed >> (48 - bits)) as u32
+    }
+
+    fn next_int(&mut self, bound: usize) -> usize {
+        assert!(bound > 0 && bound <= i32::MAX as usize, "invalid Java int bound");
+        if bound.is_power_of_two() {
+            return ((bound as u64 * self.next_bits(31) as u64) >> 31) as usize;
+        }
+        loop {
+            let bits = self.next_bits(31) as usize;
+            let value = bits % bound;
+            if bits - value + (bound - 1) < (1_usize << 31) {
+                return value;
+            }
+        }
+    }
+
+    #[cfg(test)]
+    fn next_i32(&mut self) -> i32 {
+        self.next_bits(32) as i32
+    }
+
+    fn shuffle<T>(&mut self, values: &mut [T]) {
+        for len in (2..=values.len()).rev() {
+            let other = self.next_int(len);
+            values.swap(len - 1, other);
+        }
+    }
+}
+
+/// Transferable state for the static default `Random` used by no-argument
+/// `Collections.shuffle`.
+///
+/// Java initializes that generator from process/time state, not the dungeon
+/// seed. Standalone simulation therefore uses Java seed `0` as an explicit,
+/// deterministic boundary default. Exact trace replay must inject the captured
+/// 48-bit internal state instead of pretending it can be derived from a run
+/// seed.
+///
+/// Source: JDK 8 `java.util.Collections.shuffle(List)` and
+/// `actions/common/DiscardAtEndOfTurnAction.java`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct JavaCollectionsRng {
+    inner: JavaUtilRandom,
+}
+
+impl JavaCollectionsRng {
+    const DETERMINISTIC_SIMULATOR_SEED: i64 = 0;
+
+    pub(crate) fn deterministic_default() -> Self {
+        Self {
+            inner: JavaUtilRandom::new(Self::DETERMINISTIC_SIMULATOR_SEED),
+        }
+    }
+
+    pub(crate) fn from_state(state: u64) -> Self {
+        Self {
+            inner: JavaUtilRandom::from_internal_state(state),
+        }
+    }
+
+    pub(crate) fn state(&self) -> u64 {
+        self.inner.internal_state()
+    }
+
+    pub(crate) fn restore_state(&mut self, state: u64) {
+        *self = Self::from_state(state);
+    }
+
+    pub(crate) fn shuffle<T>(&mut self, values: &mut [T]) {
+        self.inner.shuffle(values);
+    }
+}
+
+pub(crate) fn java_util_shuffle<T>(values: &mut [T], random_seed: i64) {
+    JavaUtilRandom::new(random_seed).shuffle(values);
+}
+
+/// Match `CardGroup.shuffle(Random)`: consume one outer stream tick, then use
+/// that value to seed the independent `java.util.Random` permutation.
+///
+/// Source: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java:550-555
+pub(crate) fn card_group_shuffle<T>(values: &mut [T], rng: &mut StsRandom) {
+    let random_seed = rng.random_long_unbounded();
+    java_util_shuffle(values, random_seed);
+}
+
+// ===========================================================================
+// SeedHelper — base-35 string <-> u64 conversion
 // ===========================================================================
 
 const CHARACTERS: &str = "0123456789ABCDEFGHIJKLMNPQRSTUVWXYZ";
-const BASE: u64 = 34;
+const BASE: u64 = 35;
 
 /// Convert a seed string to u64. Matches STS SeedHelper.getLong().
 /// 'O' is mapped to '0'. Case insensitive.
 pub fn seed_from_string(s: &str) -> u64 {
     let s = s.to_uppercase().replace('O', "0");
     let mut total: u64 = 0;
-    for ch in s.chars() {
-        let idx = CHARACTERS.find(ch).unwrap_or(0) as u64;
-        total = total.wrapping_mul(BASE).wrapping_add(idx);
+    for code_unit in s.encode_utf16() {
+        // Java iterates UTF-16 code units. SeedHelper.getLong logs invalid
+        // input but still folds indexOf == -1 into the returned long.
+        let idx = CHARACTERS
+            .as_bytes()
+            .iter()
+            .position(|candidate| u16::from(*candidate) == code_unit)
+            .map(|index| index as i64)
+            .unwrap_or(-1);
+        total = total.wrapping_mul(BASE).wrapping_add(idx as u64);
     }
     total
 }
 
 /// Convert a u64 seed to display string. Matches STS SeedHelper.getString().
-/// Uses base-34 encoding (skipping 'O').
+/// Uses base-35 encoding (skipping 'O').
 pub fn seed_to_string(seed: u64) -> String {
     if seed == 0 {
-        return "0".to_string();
+        return String::new();
     }
 
     // Java uses BigInteger for unsigned division since Java long is signed.
@@ -279,8 +584,10 @@ mod tests {
         let mut rng2 = StsRandom::new(42);
 
         for _ in 0..100 {
-            assert_eq!(rng1.next_long(), rng2.next_long());
+            assert_eq!(rng1.random_long_unbounded(), rng2.random_long_unbounded());
         }
+        assert_eq!(rng1.counter, 100);
+        assert_eq!(rng1.state_tuple(), rng2.state_tuple());
     }
 
     #[test]
@@ -288,26 +595,25 @@ mod tests {
         let mut rng1 = StsRandom::new(42);
         let mut rng2 = StsRandom::new(123);
         // Overwhelmingly likely to differ
-        assert_ne!(rng1.next_long(), rng2.next_long());
+        assert_ne!(rng1.random_long_unbounded(), rng2.random_long_unbounded());
     }
 
     #[test]
     fn sts_random_copy() {
         let mut rng = StsRandom::new(42);
-        // Advance a few steps
         for _ in 0..10 {
-            rng.next_long();
+            rng.random_long_unbounded();
         }
         let mut copy = rng.copy();
-        // Should produce same sequence
         for _ in 0..100 {
-            assert_eq!(rng.next_long(), copy.next_long());
+            assert_eq!(rng.random_long_unbounded(), copy.random_long_unbounded());
         }
+        assert_eq!(rng.state_tuple(), copy.state_tuple());
     }
 
     #[test]
     fn next_int_in_range() {
-        let mut rng = StsRandom::new(42);
+        let mut rng = RandomXs128::new(42);
         for _ in 0..1000 {
             let val = rng.next_int(10);
             assert!(val >= 0 && val < 10, "next_int(10) produced {}", val);
@@ -320,7 +626,7 @@ mod tests {
         let mut seen_zero = false;
         let mut seen_five = false;
         for _ in 0..1000 {
-            let val = rng.random(5);
+            let val = rng.random_int(5);
             assert!(val >= 0 && val <= 5, "random(5) produced {}", val);
             if val == 0 {
                 seen_zero = true;
@@ -339,7 +645,7 @@ mod tests {
         let mut seen_3 = false;
         let mut seen_7 = false;
         for _ in 0..1000 {
-            let val = rng.random_range(3, 7);
+            let val = rng.random_int_range(3, 7);
             assert!(val >= 3 && val <= 7, "random_range(3,7) produced {}", val);
             if val == 3 {
                 seen_3 = true;
@@ -356,18 +662,17 @@ mod tests {
     fn counter_tracks_calls() {
         let mut rng = StsRandom::new(42);
         assert_eq!(rng.counter, 0);
-        rng.random(5);
+        rng.random_int(5);
         assert_eq!(rng.counter, 1);
-        rng.random_boolean();
+        rng.random_bool();
         assert_eq!(rng.counter, 2);
-        rng.random_range(1, 10);
+        rng.random_int_range(1, 10);
         assert_eq!(rng.counter, 3);
     }
 
     #[test]
     fn seed_zero_not_absorbing() {
-        // Seed 0 should not produce all-zero output
-        let mut rng = StsRandom::new(0);
+        let mut rng = RandomXs128::new(0);
         let mut all_zero = true;
         for _ in 0..10 {
             if rng.next_long() != 0 {
@@ -382,9 +687,49 @@ mod tests {
     }
 
     #[test]
+    fn combat_rng_transfer_preserves_java_collections_state() {
+        let mut persistent = PersistentRngs::new(42);
+        let mut floor = FloorRngs::new(43);
+        let injected = JavaCollectionsRng::from_state(0x1234_5678_9ABC);
+
+        let combat = floor.combat_snapshot_with_collections(&persistent, injected);
+        assert_eq!(combat.java_collections.state(), 0x1234_5678_9ABC);
+
+        let returned = combat.absorb_into(&mut persistent, &mut floor);
+        assert_eq!(returned.state(), 0x1234_5678_9ABC);
+    }
+
+    #[test]
+    fn random_xs128_bounded_ints_match_shipped_java_class() {
+        // Oracle generated directly from the shipped desktop-1.0.jar
+        // com.badlogic.gdx.math.RandomXS128 class.
+        let cases = [
+            (0, [72, 60, 52, 92, 31, 68, 42, 24]),
+            (1, [55, 5, 88, 32, 21, 19, 63, 84]),
+            (4, [19, 33, 83, 6, 31, 43, 57, 53]),
+            (42, [24, 41, 71, 88, 61, 27, 25, 23]),
+            (57_554_006_466, [56, 22, 0, 1, 20, 77, 89, 72]),
+        ];
+
+        for (seed, expected) in cases {
+            let mut rng = RandomXs128::new(seed);
+            let actual = std::array::from_fn(|_| rng.next_int(100));
+            assert_eq!(actual, expected, "seed {seed}");
+        }
+    }
+
+    #[test]
+    fn random_xs128_zero_seed_long_sequence_matches_shipped_java_class() {
+        let mut rng = RandomXs128::new(0);
+        assert_eq!(rng.next_long() as i64, 2_940_871_956_904_845_945);
+        assert_eq!(rng.next_long() as i64, -1_645_442_809_927_433_695);
+        assert_eq!(rng.next_long() as i64, -890_117_169_686_220_111);
+    }
+
+    #[test]
     fn next_int_rejection_sampling_uniformity() {
         // Test that next_int with non-power-of-2 bound is reasonably uniform
-        let mut rng = StsRandom::new(42);
+        let mut rng = RandomXs128::new(42);
         let bound = 7;
         let mut counts = [0u32; 7];
         let n = 7000;
@@ -414,8 +759,8 @@ mod tests {
     }
 
     #[test]
-    fn next_int_power_of_2_fast_path() {
-        let mut rng = StsRandom::new(42);
+    fn next_int_power_of_two_bound() {
+        let mut rng = RandomXs128::new(42);
         for _ in 0..1000 {
             let val = rng.next_int(8); // power of 2
             assert!(val >= 0 && val < 8);
@@ -427,9 +772,9 @@ mod tests {
         // Test several known seeds
         for seed in &[0u64, 1, 42, 1000, 12345678, u64::MAX / 2, u64::MAX] {
             if *seed == 0 {
-                // 0 encodes to "0", decodes back to 0
+                // SeedHelper.getString(0) returns an empty string.
                 let s = seed_to_string(*seed);
-                assert_eq!(s, "0");
+                assert_eq!(s, "");
                 assert_eq!(seed_from_string(&s), 0);
             } else {
                 let s = seed_to_string(*seed);
@@ -459,23 +804,290 @@ mod tests {
     }
 
     #[test]
-    fn rng_core_trait_works() {
-        use rand::Rng;
-        let mut rng = StsRandom::new(42);
-        // Should be able to use rand trait methods
-        let _: f64 = rng.gen();
-        let _: i32 = rng.gen_range(0..10);
-        let _: bool = rng.gen();
+    fn seed_helper_matches_java_base_35_vectors() {
+        // Oracle: decompiled/java-src/com/megacrit/cardcrawl/helpers/SeedHelper.java:62-91.
+        // Re-verified: the alphabet has 35 entries and treats a Java long as unsigned.
+        assert_eq!(seed_from_string("WATCHER"), 57_554_006_466);
+        assert_eq!(seed_to_string(57_554_006_466), "WATCHER");
+        assert_eq!(seed_to_string(0), "");
+        assert_eq!(seed_from_string("1O"), seed_from_string("10"));
+        assert_eq!(seed_to_string(u64::MAX), "5G24A25UXKXFF");
+        assert_eq!(seed_to_string(i64::MIN as u64), "2QIJMIKEYSYQ8");
+        assert_eq!(seed_from_string("😀"), (-36_i64) as u64);
+        assert_eq!(seed_from_string("?"), (-1_i64) as u64);
     }
 
     #[test]
-    fn shuffle_works() {
-        use rand::seq::SliceRandom;
+    fn random_xs128_seed_boundaries_match_shipped_java_class() {
+        let cases = [
+            (0_u64, (0x8f78_0810_af31_a493, 0xd1f9_a22a_f8e8_3383)),
+            (1_u64, (0xb456_bcfc_34c2_cb2c, 0x7d6e_4ac3_8b2b_1be2)),
+            (u64::MAX, (0x64b5_720b_4b82_5f21, 0xfa60_5f44_aea3_667d)),
+            (i64::MIN as u64, (0x8f78_0810_af31_a493, 0xd1f9_a22a_f8e8_3383)),
+            (i64::MAX as u64, (0xabb9_3df0_a930_edea, 0xe723_0606_8b6e_596a)),
+        ];
+        for (seed, expected) in cases {
+            assert_eq!(RandomXs128::new(seed).state_tuple(), expected, "seed {seed}");
+        }
+    }
+
+    #[test]
+    fn ambient_math_rng_zero_seed_state_and_first_draw_match_libgdx() {
+        // Oracle: shipped libGDX 1.9.5 RandomXS128.
+        let mut rng = AmbientMathRng::new(0);
+        assert_eq!(
+            rng.state_tuple(),
+            (0x8f78_0810_af31_a493, 0xd1f9_a22a_f8e8_3383)
+        );
+        assert_eq!(rng.inner.next_long() as i64, 2_940_871_956_904_845_945);
+        assert_eq!(
+            rng.state_tuple(),
+            (0xd1f9_a22a_f8e8_3383, 0x56d6_714b_a850_6ef6)
+        );
+    }
+
+    #[test]
+    fn ambient_math_rng_inclusive_int_matches_math_utils() {
+        // Oracle: shipped libGDX 1.9.5 MathUtils.random(int range).
+        assert_eq!(AmbientMathRng::new(0).random_int(9), 2);
+        assert_eq!(AmbientMathRng::new(1).random_int(9), 5);
+    }
+
+    #[test]
+    fn ambient_math_rng_exact_state_clones_serializes_and_restores() {
+        let initial = (0x8f78_0810_af31_a493, 0xd1f9_a22a_f8e8_3383);
+        let original = AmbientMathRng::from_state(initial.0, initial.1);
+        let encoded = serde_json::to_string(&original).unwrap();
+        let mut restored: AmbientMathRng = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(restored, original);
+
+        let mut cloned = original.clone();
+        assert_eq!(restored.random_int(9), cloned.random_int(9));
+        assert_eq!(restored.state_tuple(), cloned.state_tuple());
+
+        restored.restore_state(initial.0, initial.1);
+        assert_eq!(restored, original);
+        assert_eq!(restored.random_int(9), 2);
+    }
+
+    #[test]
+    fn signed_seed_boundaries_match_java_first_draws() {
+        let cases = [
+            (0_u64, 2_940_871_956_904_845_945_i64),
+            (42_u64, 3_553_440_125_194_606_449_i64),
+            (u64::MAX, -7_651_268_203_606_709_133_i64),
+            (i64::MIN as u64, 2_940_871_956_904_845_945_i64),
+            (i64::MAX as u64, -7_209_822_827_912_203_100_i64),
+        ];
+        for (seed, expected) in cases {
+            assert_eq!(StsRandom::new(seed).random_long_unbounded(), expected);
+        }
+    }
+
+    #[test]
+    fn random_xs128_primitives_match_shipped_java_class() {
+        let mut floats = RandomXs128::new(42);
+        assert_eq!(
+            std::array::from_fn::<_, 4, _>(|_| floats.next_f32().to_bits()),
+            [0x3e45_4168, 0x3f66_5257, 0x3e23_78c4, 0x3e24_c118]
+        );
+
+        let mut doubles = RandomXs128::new(42);
+        assert_eq!(
+            std::array::from_fn::<_, 4, _>(|_| doubles.next_f64().to_bits()),
+            [
+                0x3fc8_a82d_7bc4_6c08,
+                0x3fec_ca4a_f9c8_e4d8,
+                0x3fc4_6f18_ebc8_e92c,
+                0x3fc4_9823_2dcf_ac84,
+            ]
+        );
+
+        let mut booleans = RandomXs128::new(42);
+        assert_eq!(
+            std::array::from_fn::<_, 8, _>(|_| booleans.next_bool()),
+            [true, true, false, true, false, true, true, false]
+        );
+    }
+
+    #[test]
+    fn bounded_rejection_consumes_raw_state_without_extra_wrapper_ticks() {
+        let mut rng = StsRandom::from_state(0x07e0_7ff0_3fff_e000, 0, 0);
+        assert_eq!(rng.random_int(i32::MAX - 1), 2_147_483_584_u32 as i32);
+        assert_eq!(rng.counter, 1);
+        assert_eq!(rng.state_tuple(), (u64::MAX, 0xffff_ffc0_0000_0000, 1));
+    }
+
+    #[test]
+    fn invalid_bounds_increment_counter_without_advancing_inner_state() {
         let mut rng = StsRandom::new(42);
-        let mut data = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-        let original = data.clone();
-        data.shuffle(&mut rng);
-        // Extremely unlikely to remain in order
-        assert_ne!(data, original, "Shuffle didn't change order");
+        let before = rng.state_tuple();
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            rng.random_int(-1);
+        }))
+        .is_err());
+        assert_eq!(rng.counter, 1);
+        assert_eq!((rng.state_tuple().0, rng.state_tuple().1), (before.0, before.1));
+
+        rng.counter = i32::MAX;
+        assert_eq!(rng.random_int(0), 0);
+        assert_eq!(rng.counter, i32::MIN);
+    }
+
+    #[test]
+    fn sts_random_mixed_overloads_match_java_derived_fixture() {
+        // Oracle: Random.java:55-103 and libGDX 1.9.5 RandomXS128.java.
+        // Re-verified: integer overloads are inclusive, while the long overload
+        // multiplies nextDouble and therefore excludes its upper endpoint.
+        let mut rng = StsRandom::new(42);
+        assert_eq!(rng.random_int(999), 224);
+        assert_eq!(rng.random_int_range(3, 9), 8);
+        assert_eq!(rng.random_long_unbounded(), 2_944_846_008_281_095_542);
+        assert!(rng.random_bool());
+        assert_eq!(rng.random_f32().to_bits(), 0x3f73_e8e4);
+        assert!(!rng.random_bool_chance(0.33));
+        assert_eq!(rng.random_f32_range(2.0, 5.0).to_bits(), 0x403c_2f36);
+        assert_eq!(rng.random_long(1_000_000), 634_725);
+        assert_eq!(rng.counter, 8);
+        assert_eq!(
+            rng.state_tuple(),
+            (16_212_654_256_975_937_342, 13_942_703_727_853_910_520, 8)
+        );
+    }
+
+    #[test]
+    fn each_sts_random_overload_matches_an_independent_java_fixture() {
+        // Each assertion starts from Random(Long.valueOf(42)). Fixtures were
+        // generated from the shipped Random.java and libGDX RandomXS128.
+        assert_eq!(StsRandom::new(42).random_int(999), 224);
+        assert_eq!(StsRandom::new(42).random_int_range(3, 9), 5);
+        assert_eq!(StsRandom::new(42).random_long(1_000_000), 192_632);
+        assert_eq!(StsRandom::new(42).random_long_range(-100, 100), -62);
+        assert_eq!(
+            StsRandom::new(42).random_long_unbounded(),
+            3_553_440_125_194_606_449,
+        );
+        assert!(StsRandom::new(42).random_bool());
+        assert!(StsRandom::new(42).random_bool_chance(0.33));
+        assert_eq!(StsRandom::new(42).random_f32().to_bits(), 0x3e45_4168);
+        assert_eq!(
+            StsRandom::new(42).random_f32_scaled(5.0).to_bits(),
+            0x3f76_91c2,
+        );
+        assert_eq!(
+            StsRandom::new(42).random_f32_range(2.0, 5.0).to_bits(),
+            0x4024_fc44,
+        );
+    }
+
+    #[test]
+    fn every_sts_draw_overload_ticks_the_wrapper_counter_once() {
+        macro_rules! assert_one_tick {
+            ($call:expr) => {{
+                let mut rng = StsRandom::new(42);
+                rng.counter = i32::MAX;
+                $call(&mut rng);
+                assert_eq!(rng.counter, i32::MIN);
+            }};
+        }
+
+        assert_one_tick!(|rng: &mut StsRandom| { rng.random_int(5) });
+        assert_one_tick!(|rng: &mut StsRandom| { rng.random_int_range(-3, 7) });
+        assert_one_tick!(|rng: &mut StsRandom| { rng.random_long(5) });
+        assert_one_tick!(|rng: &mut StsRandom| { rng.random_long_range(-3, 7) });
+        assert_one_tick!(|rng: &mut StsRandom| { rng.random_long_unbounded() });
+        assert_one_tick!(|rng: &mut StsRandom| { rng.random_bool() });
+        assert_one_tick!(|rng: &mut StsRandom| { rng.random_bool_chance(0.5) });
+        assert_one_tick!(|rng: &mut StsRandom| { rng.random_f32() });
+        assert_one_tick!(|rng: &mut StsRandom| { rng.random_f32_scaled(5.0) });
+        assert_one_tick!(|rng: &mut StsRandom| { rng.random_f32_range(-3.0, 7.0) });
+    }
+
+    #[test]
+    fn rng_state_serializes_and_restores_without_losing_signed_bits() {
+        let original = StsRandom::from_state(
+            i64::MIN as u64,
+            (-7_i64) as u64,
+            i32::MIN,
+        );
+        let encoded = serde_json::to_string(&original).unwrap();
+        let mut restored: StsRandom = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(restored, original);
+
+        let mut direct = original.clone();
+        for _ in 0..8 {
+            assert_eq!(restored.random_long_unbounded(), direct.random_long_unbounded());
+        }
+
+        let all_zero = StsRandom::from_state(0, 0, i32::MAX);
+        assert_eq!(
+            serde_json::from_str::<StsRandom>(&serde_json::to_string(&all_zero).unwrap()).unwrap(),
+            all_zero,
+        );
+    }
+
+    #[test]
+    fn constructor_counter_and_set_counter_follow_java_advance_methods() {
+        // Oracle: Random.java:30-35,44-49.
+        // Re-verified: constructor replay uses random(999), while setCounter
+        // advances with randomBoolean; equal/lower targets do not rewind.
+        let mut constructed = StsRandom::with_counter(42, 3);
+        assert_eq!(
+            constructed.state_tuple(),
+            (16_577_691_427_031_560_757, 4_813_898_654_959_086_401, 3)
+        );
+        assert!(constructed.random_bool());
+
+        let mut advanced = StsRandom::new(42);
+        advanced.set_counter(5);
+        assert_eq!(
+            advanced.state_tuple(),
+            (16_600_794_932_517_003_392, 974_753_361_020_776_730, 5)
+        );
+        advanced.set_counter(3);
+        assert_eq!(advanced.counter, 5);
+        assert_eq!(advanced.random_int(999), 527);
+
+        let negative = StsRandom::with_counter(42, -2);
+        assert_eq!(negative.state_tuple(), StsRandom::new(42).state_tuple());
+
+        let mut overflowed = StsRandom::from_state(1, 2, i32::MIN);
+        let before = overflowed.state_tuple();
+        overflowed.set_counter(0);
+        assert_eq!(overflowed.state_tuple(), before);
+    }
+
+    #[test]
+    fn java_util_random_shuffle_matches_collections_fixture() {
+        // Oracle: CardGroup.java:550-555 and JDK 8 Collections.shuffle.
+        // Re-verified: the signed randomLong bit pattern seeds a distinct
+        // 48-bit java.util.Random before the backwards Fisher-Yates pass.
+        let mut data: Vec<i32> = (0..10).collect();
+        java_util_shuffle(&mut data, -1_645_442_809_927_433_695);
+        assert_eq!(data, [1, 2, 8, 5, 7, 9, 6, 0, 4, 3]);
+    }
+
+    #[test]
+    fn java_util_random_rejection_sampling_matches_jdk_fixture() {
+        let mut random = JavaUtilRandom::new(0);
+        assert_eq!(random.next_int(1_073_741_825), 516_548_029);
+        assert_eq!(random.next_i32(), -1_690_734_402);
+    }
+
+    #[test]
+    fn direct_inner_shuffle_preserves_wrapper_counter_and_matches_java_state() {
+        let mut rng = StsRandom::new(42);
+        let mut values = [0, 1, 2, 3, 4, 5];
+        rng.shuffle_with_inner(&mut values);
+        assert_eq!(values, [0, 2, 5, 3, 1, 4]);
+        assert_eq!(
+            rng.state_tuple(),
+            (0xe661_df09_4dc7_e080, 0x0d87_0504_7342_f11a, 0),
+        );
+
+        let state = rng.state_tuple();
+        rng.shuffle_with_inner::<u8>(&mut []);
+        rng.shuffle_with_inner(&mut [1]);
+        assert_eq!(rng.state_tuple(), state);
     }
 }

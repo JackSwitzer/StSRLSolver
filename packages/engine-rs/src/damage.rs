@@ -67,7 +67,7 @@ pub fn calculate_damage_full(
     strength: i32,
     vigor: i32,
     weak: bool,
-    weak_paper_crane: bool,
+    _weak_paper_crane: bool,
     pen_nib: bool,
     double_damage: bool,
     stance_mult: f64,
@@ -86,11 +86,9 @@ pub fn calculate_damage_full(
         damage *= 2.0;
     }
     if weak {
-        damage *= if weak_paper_crane {
-            WEAK_MULT_PAPER_CRANE
-        } else {
-            WEAK_MULT
-        };
+        // WeakPower.java applies Paper Crane only when the Weak owner is not
+        // the player. This function calculates player-outgoing card damage.
+        damage *= WEAK_MULT;
     }
 
     // Stance
@@ -170,7 +168,8 @@ pub fn calculate_incoming_damage(
         final_damage *= WRATH_MULT;
     }
 
-    // 2. Vulnerable (Odd Mushroom: 1.25 instead of 1.50)
+    // 2. Vulnerable (Odd Mushroom: 1.25 instead of 1.50).
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/VulnerablePower.java
     if vulnerable {
         final_damage *= if odd_mushroom { VULN_MULT_ODD_MUSHROOM } else { VULN_MULT };
     }

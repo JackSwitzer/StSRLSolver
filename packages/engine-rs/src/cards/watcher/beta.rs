@@ -1,5 +1,9 @@
 use crate::cards::prelude::*;
 
+// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Beta.java
+//   ctor: cost 2 COLORLESS SPECIAL skill targeting NONE; exhausts and previews Omega.
+//   use(): adds one stat-equivalent Omega to a random position in the draw pile.
+//   upgrade(): upgradeBaseCost(1) only; the generated card and exhaust stay unchanged.
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Special Generated Cards ----
         // Beta (from Alpha chain): cost 2, skill, exhaust, add Omega to draw

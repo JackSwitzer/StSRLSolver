@@ -22,14 +22,14 @@ fn watcher_wave24_registry_exports_match_typed_surface() {
     let collect = registry.get("Collect").expect("Collect should exist");
     assert_eq!(
         collect.effect_data,
-        &[E::Simple(SE::SetStatus(T::SelfEntity, sid::COLLECT_MIRACLES, A::XCostPlus(0)))]
+        &[E::Simple(SE::AddStatus(T::SelfEntity, sid::COLLECT_MIRACLES, A::XCostPlus(0)))]
     );
     assert!(collect.complex_hook.is_none());
 
     let collect_plus = registry.get("Collect+").expect("Collect+ should exist");
     assert_eq!(
         collect_plus.effect_data,
-        &[E::Simple(SE::SetStatus(T::SelfEntity, sid::COLLECT_MIRACLES, A::XCostPlus(1)))]
+        &[E::Simple(SE::AddStatus(T::SelfEntity, sid::COLLECT_MIRACLES, A::XCostPlus(1)))]
     );
     assert!(collect_plus.complex_hook.is_none());
 
@@ -67,10 +67,9 @@ fn watcher_wave24_registry_exports_match_typed_surface() {
         &[
             E::Simple(SE::AddStatus(T::Player, sid::STRENGTH, A::Magic)),
             E::Simple(SE::AddStatus(T::Player, sid::DEXTERITY, A::Magic)),
-            E::Simple(SE::ModifyMaxEnergy(A::Fixed(-1))),
         ]
     );
-    assert!(fasting.complex_hook.is_none());
+    assert!(fasting.complex_hook.is_some());
 
     let fasting_plus = registry.get("Fasting2+").expect("Fasting+ should exist");
     assert_eq!(
@@ -78,10 +77,9 @@ fn watcher_wave24_registry_exports_match_typed_surface() {
         &[
             E::Simple(SE::AddStatus(T::Player, sid::STRENGTH, A::Magic)),
             E::Simple(SE::AddStatus(T::Player, sid::DEXTERITY, A::Magic)),
-            E::Simple(SE::ModifyMaxEnergy(A::Fixed(-1))),
         ]
     );
-    assert!(fasting_plus.complex_hook.is_none());
+    assert!(fasting_plus.complex_hook.is_some());
 
     let omniscience = registry.get("Omniscience").expect("Omniscience should exist");
     assert_eq!(
@@ -126,13 +124,15 @@ fn watcher_wave24_collect_and_fasting_follow_typed_effect_data() {
     assert!(play_self(&mut fasting, "Fasting2"));
     assert_eq!(fasting.state.player.status(sid::STRENGTH), 3);
     assert_eq!(fasting.state.player.status(sid::DEXTERITY), 3);
-    assert_eq!(fasting.state.max_energy, 2);
+    assert_eq!(fasting.state.player.status(sid::ENERGY_DOWN), 1);
+    assert_eq!(fasting.state.max_energy, 3);
 
     let mut fasting_plus = engine_with(crate::tests::support::make_deck(&["Fasting2+"]), 40, 0);
     assert!(play_self(&mut fasting_plus, "Fasting2+"));
     assert_eq!(fasting_plus.state.player.status(sid::STRENGTH), 4);
     assert_eq!(fasting_plus.state.player.status(sid::DEXTERITY), 4);
-    assert_eq!(fasting_plus.state.max_energy, 2);
+    assert_eq!(fasting_plus.state.player.status(sid::ENERGY_DOWN), 1);
+    assert_eq!(fasting_plus.state.max_energy, 3);
 }
 
 #[test]
@@ -170,7 +170,8 @@ fn watcher_wave24_collect_resolves_miracles_before_next_turn_draw() {
 
     end_turn(&mut engine);
 
-    assert_eq!(hand_count(&engine, "Miracle"), 1);
+    assert_eq!(hand_count(&engine, "Miracle+"), 1);
+    assert_eq!(engine.state.player.status(sid::COLLECT_MIRACLES), 0);
     assert_eq!(hand_count(&engine, "Strike"), 0);
     assert_eq!(engine.state.draw_pile.len(), 1);
     assert_eq!(
@@ -229,6 +230,19 @@ fn watcher_wave24_chemical_x_bonus_stamps_expunger_hit_count() {
 }
 
 #[test]
+fn chemical_x_makes_zero_energy_collect_apply_exactly_two() {
+    // Sources: ChemicalX.java defines BOOST 2, and CollectAction.java adds it
+    // to EnergyPanel.totalCount before applying CollectPower.
+    let mut engine = engine_with(make_deck(&["Collect"]), 40, 0);
+    engine.state.relics.push("Chemical X".to_string());
+    engine.state.energy = 0;
+
+    assert!(play_self(&mut engine, "Collect"));
+
+    assert_eq!(engine.state.player.status(sid::COLLECT_MIRACLES), 2);
+}
+
+#[test]
 fn watcher_wave24_omniscience_uses_the_typed_draw_pile_free_play_surface() {
     let mut engine = engine_without_start(
         make_deck(&["Omniscience+", "Strike", "Defend"]),
@@ -250,8 +264,11 @@ fn watcher_wave24_omniscience_uses_the_typed_draw_pile_free_play_surface() {
     engine.execute_action(&crate::actions::Action::Choose(0));
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
-    assert_eq!(engine.state.hand.len(), 1);
-    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Strike");
-    assert_eq!(engine.state.hand[0].cost, 0);
+    // Java sorts Defend before Strike, plays it twice, exhausts the original,
+    // and purges the stat-equivalent copy.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/OmniscienceAction.java
+    assert!(engine.state.hand.is_empty());
+    assert_eq!(engine.state.player.block, 10);
+    assert!(engine.state.exhaust_pile.iter().any(|card| engine.card_registry.card_name(card.def_id) == "Defend"));
     assert_eq!(engine.state.draw_pile.len(), 1);
 }

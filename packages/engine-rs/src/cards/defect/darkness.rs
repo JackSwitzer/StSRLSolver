@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Darkness: 1 cost, channel 1 Dark (upgrade: also trigger Dark passive)
+    // Source: reference/extracted/methods/card/Darkness.java channels one Dark;
+    // upgrading adds a DarkImpulseAction after the channel action.
     insert(cards, CardDef {
                 id: "Darkness", name: "Darkness", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,

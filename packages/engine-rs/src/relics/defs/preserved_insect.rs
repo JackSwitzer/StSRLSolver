@@ -10,6 +10,9 @@ fn hook(
     _event: &crate::effects::runtime::GameEvent,
     _state: &mut crate::effects::runtime::EffectState,
 ) {
+    // Source: reference/extracted/methods/relic/PreservedInsect.java
+    // Elite combat start floors current HP to 75% of max only when it is
+    // currently above that threshold.
     for enemy in &mut engine.state.enemies {
         if !enemy.is_alive() {
             continue;

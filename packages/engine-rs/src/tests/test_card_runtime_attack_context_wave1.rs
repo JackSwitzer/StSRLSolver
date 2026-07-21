@@ -53,16 +53,14 @@ fn typed_primary_attack_context_reaches_feed_reaper_wallop_and_lesson_learned() 
 
     let mut lesson_learned = one_enemy_engine(3, 0);
     lesson_learned.state.draw_pile = make_deck(&["Wallop"]);
+    lesson_learned.state.master_deck = make_deck(&["Wallop"]);
     lesson_learned.state.player.hp = 35;
     lesson_learned.state.player.max_hp = 60;
     ensure_in_hand(&mut lesson_learned, "LessonLearned");
     assert!(play_on_enemy(&mut lesson_learned, "LessonLearned", 0));
     assert!(
-        lesson_learned
-            .state
-            .draw_pile
-            .iter()
-            .any(|card| card.is_upgraded()),
-        "Lesson Learned should upgrade a random eligible card after a kill",
+        lesson_learned.state.master_deck.iter().any(|card| card.is_upgraded()),
+        "Lesson Learned should upgrade a random eligible master-deck card after a kill",
     );
+    assert!(lesson_learned.state.draw_pile.iter().all(|card| !card.is_upgraded()));
 }

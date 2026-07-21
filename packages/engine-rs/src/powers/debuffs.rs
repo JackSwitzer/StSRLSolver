@@ -24,6 +24,11 @@ pub fn decrement_debuffs(entity: &mut EntityState) {
         sid::FRAIL,
         sid::FRAIL_JUST_APPLIED,
     );
+    decrement_debuff_with_just_applied(
+        entity,
+        sid::DRAW_REDUCTION,
+        sid::DRAW_REDUCTION_JUST_APPLIED,
+    );
 }
 
 fn decrement_debuff_with_just_applied(
@@ -67,6 +72,8 @@ fn just_applied_flag_for(status: StatusId) -> Option<StatusId> {
         Some(sid::VULNERABLE_JUST_APPLIED)
     } else if status == sid::FRAIL {
         Some(sid::FRAIL_JUST_APPLIED)
+    } else if status == sid::DRAW_REDUCTION {
+        Some(sid::DRAW_REDUCTION_JUST_APPLIED)
     } else {
         None
     }
@@ -93,7 +100,10 @@ pub fn tick_poison(entity: &mut EntityState) -> i32 {
         return 0;
     }
 
-    let damage = poison;
+    // Source: reference/extracted/methods/monster/Nemesis.java (`damage`) and
+    // decompiled PoisonLoseHpAction.java. Poison constructs HP_LOSS DamageInfo,
+    // so an installed Intangible power caps the tick to one before HP changes.
+    let damage = if entity.status(sid::INTANGIBLE) > 0 { 1 } else { poison };
     entity.hp -= damage;
 
     let new_poison = poison - 1;
@@ -102,86 +112,14 @@ pub fn tick_poison(entity: &mut EntityState) -> i32 {
     damage
 }
 
-// ---------------------------------------------------------------------------
-// End-of-turn triggers
-// ---------------------------------------------------------------------------
-
-/// Remove temporary Strength (LoseStrength) at end of turn.
-
-pub fn apply_lose_strength(entity: &mut EntityState) {
-    let lose_str = entity.status(sid::LOSE_STRENGTH);
-    if lose_str > 0 {
-        entity.add_status(sid::STRENGTH, -lose_str);
-        entity.set_status(sid::LOSE_STRENGTH, 0);
-    }
-}
-
-/// Apply LoseDexterity at start of turn (undo temporary Dexterity gains).
-
-pub fn apply_lose_dexterity(entity: &mut EntityState) {
-    let lose_dex = entity.status(sid::LOSE_DEXTERITY);
-    if lose_dex > 0 {
-        entity.add_status(sid::DEXTERITY, -lose_dex);
-        entity.set_status(sid::LOSE_DEXTERITY, 0);
-    }
-}
-
-/// Wraith Form: lose N Dexterity per stack each turn.
-
-pub fn apply_wraith_form(entity: &mut EntityState) {
-    let wraith = entity.status(sid::WRAITH_FORM);
-    if wraith > 0 {
-        entity.add_status(sid::DEXTERITY, -wraith);
-    }
-}
-
-/// Modify incoming damage based on Slow and Intangible.
-
-pub fn modify_damage_receive(entity: &EntityState, damage: f64) -> f64 {
-    let mut d = damage;
-
-    // Slow: +10% per stack
-    let slow = entity.status(sid::SLOW);
-    if slow > 0 {
-        d *= 1.0 + (slow as f64 * 0.1);
-    }
-
-    // Intangible: cap at 1
-    if entity.status(sid::INTANGIBLE) > 0 && d > 1.0 {
-        d = 1.0;
-    }
-
-    d
-}
-
-/// Decrement Fading by 1. Returns true if entity should die (fading reached 0).
-
-pub fn decrement_fading(entity: &mut EntityState) -> bool {
-    let fading = entity.status(sid::FADING);
-    if fading > 0 {
-        let new_val = fading - 1;
-        entity.set_status(sid::FADING, new_val);
-        if new_val <= 0 {
-            return true;
-        }
-    }
-    false
-}
-
 /// Decrement Blur at end of turn.
-
+#[cfg(test)]
 pub fn decrement_blur(entity: &mut EntityState) {
     decrement_status(entity, sid::BLUR);
 }
 
-/// Decrement Intangible at end of turn.
-
-pub fn decrement_intangible(entity: &mut EntityState) {
-    decrement_status(entity, sid::INTANGIBLE);
-}
-
 /// Decrement Lock-On at end of round.
-
+#[cfg(test)]
 pub fn decrement_lock_on(entity: &mut EntityState) {
     decrement_status(entity, sid::LOCK_ON);
 }
@@ -189,6 +127,16 @@ pub fn decrement_lock_on(entity: &mut EntityState) {
 /// Reset Invincible at end of round (Champ).
 
 pub fn apply_debuff(entity: &mut EntityState, status: StatusId, amount: i32) -> bool {
+    // ApplyPowerAction checks Ginger and Turnip before Artifact. Their exact
+    // immunities therefore block without consuming an Artifact stack.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ApplyPowerAction.java
+    if status == sid::WEAKENED && entity.status(sid::HAS_GINGER) > 0 {
+        return false;
+    }
+    if status == sid::FRAIL && entity.status(sid::HAS_TURNIP) > 0 {
+        return false;
+    }
+
     let artifact = entity.status(sid::ARTIFACT);
     if artifact > 0 {
         // Artifact blocks the debuff and decrements
@@ -196,57 +144,13 @@ pub fn apply_debuff(entity: &mut EntityState, status: StatusId, amount: i32) -> 
         return false;
     }
 
-    // Ginger blocks Weak
-    if status == sid::WEAKENED && entity.status(sid::HAS_GINGER) > 0 {
-        return false;
-    }
-
-    // Turnip blocks Frail
-    if status == sid::FRAIL && entity.status(sid::HAS_TURNIP) > 0 {
-        return false;
-    }
-
     entity.add_status(status, amount);
     true
-}
-
-/// Apply a debuff with Sadistic Nature check. Returns damage to deal from Sadistic.
-
-pub fn apply_debuff_with_sadistic(
-    target: &mut EntityState,
-    status: StatusId,
-    amount: i32,
-    source_sadistic: i32,
-) -> (bool, i32) {
-    let applied = apply_debuff(target, status, amount);
-    if applied && source_sadistic > 0 {
-        (true, source_sadistic)
-    } else {
-        (applied, 0)
-    }
 }
 
 // ---------------------------------------------------------------------------
 // Invincible damage cap
 // ---------------------------------------------------------------------------
-
-/// Invincible: cap total damage this turn. Returns capped damage.
-/// The `Invincible` status value tracks remaining damage allowed this turn.
-/// Call `reset_invincible` at start of each turn to restore the cap.
-
-pub fn apply_invincible_cap(entity: &mut EntityState, incoming_damage: i32) -> i32 {
-    let inv = entity.status(sid::INVINCIBLE);
-    if inv > 0 {
-        if incoming_damage > inv {
-            entity.set_status(sid::INVINCIBLE, 0);
-            return inv;
-        } else {
-            entity.set_status(sid::INVINCIBLE, inv - incoming_damage);
-            return incoming_damage;
-        }
-    }
-    incoming_damage
-}
 
 /// Invincible: per-turn cap using a separate damage-taken tracker.
 /// Leaves the INVINCIBLE cap itself unchanged so it persists across turns.
@@ -275,30 +179,10 @@ pub fn reset_invincible_damage_taken(entity: &mut EntityState) {
 /// Slow: returns the damage multiplier for an entity with Slow stacks.
 /// Each stack adds +10% damage taken.
 pub fn slow_damage_multiplier(entity: &EntityState) -> f64 {
-    let slow = entity.status(sid::SLOW);
-    if slow > 0 {
-        1.0 + (slow as f64 * 0.10)
-    } else {
-        1.0
-    }
+    // SlowPower is installed with amount zero. Because a zero status cannot
+    // keep an EntityDef active, Rust stores that installed state as sentinel
+    // one and the Java amount is `status - 1`.
+    // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/SlowPower.java.
+    let amount = (entity.status(sid::SLOW) - 1).max(0);
+    1.0 + (amount as f64 * 0.10)
 }
-
-// ---------------------------------------------------------------------------
-// ModeShift (Guardian)
-// ---------------------------------------------------------------------------
-
-/// ModeShift: track damage. Returns true if threshold reached.
-
-pub fn apply_mode_shift_damage(entity: &mut EntityState, damage: i32) -> bool {
-    let ms = entity.status(sid::MODE_SHIFT);
-    if ms > 0 {
-        let new_val = ms - damage;
-        if new_val <= 0 {
-            entity.set_status(sid::MODE_SHIFT, 0);
-            return true;
-        }
-        entity.set_status(sid::MODE_SHIFT, new_val);
-    }
-    false
-}
-

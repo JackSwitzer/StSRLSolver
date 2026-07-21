@@ -6,7 +6,7 @@
 //! deterministic event trace for debugging / RL inspection.
 
 use smallvec::SmallVec;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::hash::{Hash, Hasher};
 
 use crate::cards::CardType;
@@ -20,7 +20,7 @@ use crate::engine::{ChoiceOption, ChoiceReason, CombatEngine, NamedChoicePayload
 use crate::ids::StatusId;
 use crate::status_ids::sid;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum EffectOwner {
     PlayerRelic { slot: u16 },
     PlayerPower,
@@ -29,7 +29,7 @@ pub enum EffectOwner {
     RunEffect,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PersistenceScope {
     Combat,
     Run,
@@ -41,7 +41,7 @@ impl Hash for Trigger {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EffectState {
     pub persistence: PersistenceScope,
     values: SmallVec<[i16; 4]>,
@@ -103,7 +103,7 @@ pub struct EntityInstance {
     pub state: EffectState,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameEvent {
     pub kind: Trigger,
     pub card_type: Option<CardType>,
@@ -157,23 +157,24 @@ impl GameEvent {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EventRecordPhase {
     Emitted,
     Handled,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EffectExecutionPhase {
     Declarative,
     Hook,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameEventRecord {
     pub phase: EventRecordPhase,
     pub event: Trigger,
     pub owner: Option<EffectOwner>,
+    #[serde(deserialize_with = "deserialize_effect_def_id")]
     pub def_id: Option<&'static str>,
     pub execution: Option<EffectExecutionPhase>,
     pub card_type: Option<CardType>,
@@ -233,7 +234,7 @@ pub struct DispatchTable {
 
 impl DispatchTable {
     fn new() -> Self {
-        let len = Trigger::OnPoisonApplied as usize + 1;
+        let len = Trigger::RoundEnd as usize + 1;
         Self {
             handlers: vec![Vec::new(); len],
         }
@@ -266,6 +267,139 @@ pub struct EffectRuntime {
     instances: Vec<EntityInstance>,
     dispatch: DispatchTable,
     persisted_states: Vec<PersistedEffectState>,
+}
+
+#[derive(Serialize)]
+struct EntityInstanceRef<'a> {
+    instance_id: u32,
+    def_id: &'a str,
+    owner: EffectOwner,
+    state: &'a EffectState,
+}
+
+#[derive(Serialize)]
+struct EffectRuntimeRef<'a> {
+    next_instance_id: u32,
+    instances: Vec<EntityInstanceRef<'a>>,
+    persisted_states: &'a [PersistedEffectState],
+}
+
+#[derive(Deserialize)]
+struct EntityInstanceWire {
+    instance_id: u32,
+    def_id: String,
+    owner: EffectOwner,
+    state: EffectState,
+}
+
+#[derive(Deserialize)]
+struct EffectRuntimeWire {
+    next_instance_id: u32,
+    instances: Vec<EntityInstanceWire>,
+    persisted_states: Vec<PersistedEffectState>,
+}
+
+impl Serialize for EffectRuntime {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let instances = self
+            .instances
+            .iter()
+            .map(|instance| EntityInstanceRef {
+                instance_id: instance.instance_id,
+                def_id: instance.def.id,
+                owner: instance.owner,
+                state: &instance.state,
+            })
+            .collect();
+        EffectRuntimeRef {
+            next_instance_id: self.next_instance_id,
+            instances,
+            persisted_states: &self.persisted_states,
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for EffectRuntime {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = EffectRuntimeWire::deserialize(deserializer)?;
+        let mut instances = Vec::with_capacity(wire.instances.len());
+        for instance in wire.instances {
+            let def = entity_def_for_owner(instance.owner, &instance.def_id).ok_or_else(|| {
+                serde::de::Error::custom(format!(
+                    "unknown effect definition {:?} for owner {:?}",
+                    instance.def_id, instance.owner
+                ))
+            })?;
+            instances.push(EntityInstance {
+                instance_id: instance.instance_id,
+                def,
+                owner: instance.owner,
+                state: instance.state,
+            });
+        }
+        for state in &wire.persisted_states {
+            if canonical_entity_def_by_id(&state.def_id).is_none() {
+                return Err(serde::de::Error::custom(format!(
+                    "unknown persisted effect definition {:?}",
+                    state.def_id
+                )));
+            }
+        }
+
+        let mut runtime = Self {
+            next_instance_id: wire.next_instance_id,
+            instances,
+            dispatch: DispatchTable::default(),
+            persisted_states: wire.persisted_states,
+        };
+        runtime.rebuild_dispatch();
+        Ok(runtime)
+    }
+}
+
+fn power_def_by_id(id: &str) -> Option<&'static EntityDef> {
+    crate::powers::defs::POWER_DEFS
+        .iter()
+        .find(|def| def.id == id)
+        .copied()
+}
+
+fn canonical_entity_def_by_id(id: &str) -> Option<&'static EntityDef> {
+    crate::relics::defs::relic_def_by_id(id)
+        .or_else(|| power_def_by_id(id))
+        .or_else(|| crate::potions::defs::potion_def_by_id(id))
+}
+
+fn entity_def_for_owner(owner: EffectOwner, id: &str) -> Option<&'static EntityDef> {
+    match owner {
+        EffectOwner::PlayerRelic { .. } => crate::relics::defs::relic_def_by_id(id),
+        EffectOwner::PlayerPower | EffectOwner::EnemyPower { .. } => power_def_by_id(id),
+        EffectOwner::PotionSlot { .. } => crate::potions::defs::potion_def_by_id(id),
+        EffectOwner::RunEffect => canonical_entity_def_by_id(id),
+    }
+}
+
+fn deserialize_effect_def_id<'de, D>(
+    deserializer: D,
+) -> Result<Option<&'static str>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    match Option::<String>::deserialize(deserializer)? {
+        Some(id) => canonical_entity_def_by_id(&id)
+            .map(|def| Some(def.id))
+            .ok_or_else(|| {
+                serde::de::Error::custom(format!("unknown effect definition {:?}", id))
+            }),
+        None => Ok(None),
+    }
 }
 
 impl EffectRuntime {
@@ -410,7 +544,12 @@ impl EffectRuntime {
                 continue;
             }
             self.execute_instance(engine, idx, &event);
-            if engine.state.combat_over {
+            self.drain_nested_events(engine);
+            // Java marks combat complete before AbstractPlayer.onVictory()
+            // iterates relics, blights, and powers, but still runs the full
+            // victory handler snapshot in order.
+            // Source: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java:1949-1960
+            if engine.state.combat_over && event.kind != Trigger::CombatVictory {
                 break;
             }
         }
@@ -430,6 +569,7 @@ impl EffectRuntime {
                 continue;
             }
             self.execute_instance_hook_only(engine, idx, &event);
+            self.drain_nested_events(engine);
             if engine.state.combat_over {
                 break;
             }
@@ -525,7 +665,9 @@ impl EffectRuntime {
         for idx in 0..self.instances.len() {
             let def_id = self.instances[idx].def.id;
             let matches = match event.kind {
-                Trigger::OnCardPlayedPost => def_id == "echo_form",
+                Trigger::OnCardPlayedPost => {
+                    def_id == "echo_form" || def_id == "duplication" || def_id == "amplify"
+                }
                 Trigger::OnAttackPlayed => def_id == "double_tap",
                 Trigger::OnSkillPlayed => def_id == "burst",
                 _ => false,
@@ -534,11 +676,24 @@ impl EffectRuntime {
                 continue;
             }
             self.execute_instance_hook_only(engine, idx, &event);
+            self.drain_nested_events(engine);
             if engine.state.combat_over {
                 break;
             }
         }
         self.persisted_states = self.export_persisted_states();
+    }
+
+    fn drain_nested_events(&mut self, engine: &mut CombatEngine) {
+        loop {
+            let pending = engine.take_pending_runtime_events();
+            if pending.is_empty() {
+                break;
+            }
+            for event in pending {
+                self.emit(engine, event);
+            }
+        }
     }
 
     fn alloc_instance_id(&mut self) -> u32 {
@@ -688,6 +843,7 @@ impl EffectRuntime {
                 let threshold = (engine.state.player.max_hp * (*pct as i32)) / 100;
                 engine.state.player.hp <= threshold
             }
+            TriggerCondition::PlayerAlive => engine.state.player.hp > 0,
             TriggerCondition::HandEmpty => engine.state.hand.is_empty(),
             TriggerCondition::CardTypeIs(card_type) => event.card_type == Some(*card_type),
             TriggerCondition::IsBossFight => is_boss_fight(engine),
@@ -722,6 +878,21 @@ impl EffectRuntime {
                 }
                 Effect::ChooseScaledNamedOptions(option_specs) => {
                     self.execute_choose_scaled_named_options(engine, instance_idx, owner, option_specs);
+                }
+                Effect::GenerateRandomCardsToHand {
+                    pool,
+                    count,
+                    cost_rule,
+                } => {
+                    let count = self
+                        .resolve_amount(engine, instance_idx, owner, *count)
+                        .max(0) as usize;
+                    crate::effects::interpreter::generate_random_cards_to_hand(
+                        engine,
+                        *pool,
+                        count,
+                        *cost_rule,
+                    );
                 }
                 _ => {}
             }
@@ -790,31 +961,20 @@ impl EffectRuntime {
             }
             SimpleEffect::ExhaustRandomCardFromHand => {
                 if !engine.state.hand.is_empty() {
-                    let idx = engine.rng_gen_range(0..engine.state.hand.len());
+                    let idx = if engine.state.hand.len() == 1 {
+                        0
+                    } else {
+                        engine
+                            .card_random_rng
+                            .random_int((engine.state.hand.len() - 1) as i32) as usize
+                    };
                     let exhausted = engine.state.hand.remove(idx);
                     engine.state.exhaust_pile.push(exhausted);
                     engine.trigger_on_exhaust();
                 }
             }
             SimpleEffect::SetRandomHandCardCost(cost) => {
-                let eligible: Vec<usize> = engine.state.hand.iter()
-                    .enumerate()
-                    .filter(|(_, card)| {
-                        let current_cost = if card.cost >= 0 {
-                            card.cost as i32
-                        } else {
-                            engine.card_registry.card_def_by_id(card.def_id).cost
-                        };
-                        current_cost > 0
-                    })
-                    .map(|(idx, _)| idx)
-                    .collect();
-                if !eligible.is_empty() {
-                    let idx = eligible[engine.rng_gen_range(0..eligible.len())];
-                    if idx < engine.state.hand.len() {
-                        engine.state.hand[idx].set_permanent_cost(cost as i8);
-                    }
-                }
+                engine.apply_madness_action(cost as i8);
             }
             SimpleEffect::ObtainRandomPotion => {
                 let _ = engine.obtain_random_potion();
@@ -835,31 +995,53 @@ impl EffectRuntime {
             SimpleEffect::ModifyPlayedCardBlock(amount_src) => {
                 let delta = self.resolve_amount(engine, instance_idx, owner, amount_src);
                 if let Some(mut card) = engine.runtime_played_card {
-                    let current = if card.misc >= 0 {
-                        card.misc as i32
+                    let before = card;
+                    let def_id = card.def_id;
+                    let def = engine.card_registry.card_def_by_id(card.def_id);
+                    let is_steam = matches!(def.id, "Steam" | "Steam+");
+                    let current = if is_steam {
+                        card.decrementing_misc_or(def.base_block.max(0))
+                    } else if card.misc >= 0 {
+                        card.misc
                     } else {
                         engine.card_registry
                             .card_def_by_id(card.def_id)
                             .base_block
                             .max(0)
                     };
-                    let next = (current + delta).max(0) as i16;
-                    card.misc = next;
+                    let next = if is_steam {
+                        current + delta
+                    } else {
+                        (current + delta).max(0)
+                    };
+                    if is_steam {
+                        card.set_decrementing_misc(next);
+                    } else {
+                        card.misc = next;
+                    }
                     engine.runtime_played_card = Some(card);
+                    let card_id = engine.card_registry.card_def_by_id(def_id).id;
+                    if matches!(card_id, "Genetic Algorithm" | "Genetic Algorithm+") {
+                        engine.sync_genetic_algorithm_master_deck(before, next);
+                    }
                 }
             }
             SimpleEffect::ModifyPlayedCardDamage(amount_src) => {
                 let delta = self.resolve_amount(engine, instance_idx, owner, amount_src);
                 if let Some(mut card) = engine.runtime_played_card {
                     let current = if card.misc >= 0 {
-                        card.misc as i32
+                        card.misc
                     } else {
                         engine.card_registry.card_def_by_id(card.def_id).base_damage
                     };
-                    let next = (current + delta).max(0) as i16;
+                    let next = current.wrapping_add(delta).max(0);
                     card.misc = next;
                     engine.runtime_played_card = Some(card);
                 }
+            }
+            SimpleEffect::IncreaseAllClawDamage(amount_src) => {
+                let delta = self.resolve_amount(engine, instance_idx, owner, amount_src);
+                engine.increase_all_claw_damage(delta);
             }
             SimpleEffect::GainEnergy(amount_src) => {
                 let amount = self.resolve_amount(engine, instance_idx, owner, amount_src);
@@ -883,35 +1065,25 @@ impl EffectRuntime {
                     EffectOwner::PotionSlot { .. } => {
                         engine.state.player.block += base;
                     }
-                    _ => {
-                        let dex = engine.state.player.dexterity();
-                        let frail = engine.state.player.is_frail();
-                        let block = crate::damage::calculate_block(base, dex, frail);
-                        engine.gain_block_player(block);
+                    EffectOwner::PlayerPower
+                    | EffectOwner::PlayerRelic { .. }
+                    | EffectOwner::RunEffect => {
+                        // Entity powers/relics queue GainBlockAction with their
+                        // already-resolved amount. Dexterity and Frail modify
+                        // card.block during applyPowers, not these actions.
+                        engine.gain_block_player(base);
                     }
                 }
             }
-            SimpleEffect::GainBlockIfLastHandCardType(card_type, amount_src) => {
-                if let Some(last_card) = engine.state.hand.last() {
-                    let last_type = engine.card_registry.card_def_by_id(last_card.def_id).card_type;
-                    if last_type == card_type {
-                        let base = self.resolve_amount(engine, instance_idx, owner, amount_src);
-                        if base <= 0 {
-                            return;
-                        }
-                        let dex = engine.state.player.dexterity();
-                        let frail = engine.state.player.is_frail();
-                        let block = crate::damage::calculate_block(base, dex, frail);
-                        engine.gain_block_player(block);
-                    }
-                }
-            }
+            // Card-only follow-up state is carried by CardPlayContext in the
+            // declarative interpreter; entity runtime effects do not own it.
+            SimpleEffect::GainBlockIfLastDrawnCardType(_, _) => {}
             SimpleEffect::ModifyHp(amount_src) => {
                 let amount = self.resolve_amount(engine, instance_idx, owner, amount_src);
                 if amount > 0 {
                     engine.heal_player(amount);
                 } else if amount < 0 {
-                    engine.player_lose_hp(-amount);
+                    engine.player_lose_hp_from_damage(-amount);
                 }
             }
             SimpleEffect::RemoveEnemyBlock(target) => {
@@ -931,7 +1103,7 @@ impl EffectRuntime {
                     Target::RandomEnemy => {
                         let living = engine.state.living_enemy_indices();
                         if !living.is_empty() {
-                            let idx = living[engine.rng_gen_range(0..living.len())];
+                            let idx = living[engine.card_random_rng.random_index(living.len())];
                             engine.state.enemies[idx].entity.block = 0;
                         }
                     }
@@ -960,9 +1132,27 @@ impl EffectRuntime {
                     engine.shuffle_draw_pile();
                 }
             }
+            SimpleEffect::AddCardToRandomDrawSpot(card_name, amount_src) => {
+                if engine.state.combat_over || engine.state.is_victory() {
+                    return;
+                }
+                let count = self.resolve_amount(engine, instance_idx, owner, amount_src).max(0);
+                for _ in 0..count {
+                    let card = engine.temp_card(card_name);
+                    if engine.state.draw_pile.is_empty() {
+                        engine.state.draw_pile.push(card);
+                    } else {
+                        let idx = engine.card_random_rng.random_int_range(
+                            0,
+                            (engine.state.draw_pile.len() - 1) as i32,
+                        ) as usize;
+                        engine.state.draw_pile.insert(idx, card);
+                    }
+                }
+            }
             SimpleEffect::AddCardWithMisc(card_name, pile, amount_src, misc_src) => {
                 let count = self.resolve_amount(engine, instance_idx, owner, amount_src).max(0);
-                let misc = self.resolve_amount(engine, instance_idx, owner, misc_src).max(0) as i16;
+                let misc = self.resolve_amount(engine, instance_idx, owner, misc_src).max(0);
                 if pile == Pile::Hand {
                     for _ in 0..count {
                         let mut card = engine.temp_card(card_name);
@@ -994,51 +1184,21 @@ impl EffectRuntime {
             SimpleEffect::ChannelRandomOrb(amount_src) => {
                 let count = self.resolve_amount(engine, instance_idx, owner, amount_src).max(0);
                 let orb_types = [
-                    crate::orbs::OrbType::Lightning,
-                    crate::orbs::OrbType::Frost,
                     crate::orbs::OrbType::Dark,
+                    crate::orbs::OrbType::Frost,
+                    crate::orbs::OrbType::Lightning,
                     crate::orbs::OrbType::Plasma,
                 ];
                 for _ in 0..count {
-                    let idx = engine.rng_gen_range(0..orb_types.len());
+                    let idx = engine.card_random_rng.random_int(3) as usize;
                     engine.channel_orb(orb_types[idx]);
                 }
             }
             SimpleEffect::DrawRandomCardsFromPileToHand(pile, filter, count_src) => {
                 let count = self.resolve_amount(engine, instance_idx, owner, count_src).max(0) as usize;
-                if count == 0 {
-                    return;
-                }
-                let mut picked = Vec::new();
-                let mut eligible: Vec<usize> = self
-                    .pile_ref(engine, pile)
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, card)| self.matches_filter(engine, card, filter))
-                    .map(|(idx, _)| idx)
-                    .collect();
-                for _ in 0..count {
-                    if eligible.is_empty() {
-                        break;
-                    }
-                    let choice_idx = engine.rng_gen_range(0..eligible.len());
-                    let idx = eligible.remove(choice_idx);
-                    let source = self.pile_ref_mut(engine, pile);
-                    if idx < source.len() {
-                        picked.push(source.remove(idx));
-                        eligible = eligible
-                            .into_iter()
-                            .map(|n| if n > idx { n - 1 } else { n })
-                            .collect();
-                    }
-                }
-                for card in picked {
-                    if engine.state.hand.len() < 10 {
-                        engine.state.hand.push(card);
-                    } else {
-                        engine.state.discard_pile.push(card);
-                    }
-                }
+                crate::effects::interpreter::draw_random_cards_from_pile_to_hand(
+                    engine, pile, filter, count,
+                );
             }
             SimpleEffect::RemoveOrbSlot => {
                 let focus = engine.state.player.focus();
@@ -1046,25 +1206,16 @@ impl EffectRuntime {
                 engine.apply_evoke_effect(evoke);
             }
             SimpleEffect::TriggerDarkPassive => {
-                let focus = engine.state.player.focus();
-                for orb in engine.state.orb_slots.slots.iter_mut() {
-                    if orb.orb_type == crate::orbs::OrbType::Dark {
-                        let gain = (orb.base_passive + focus).max(0);
-                        orb.evoke_amount += gain;
-                    }
-                }
+                engine.trigger_dark_impulse();
+            }
+            SimpleEffect::TriggerAllOrbPassives => {
+                engine.trigger_orb_impulse();
             }
             SimpleEffect::EvokeAndRechannelFrontOrb => {
-                if engine.state.orb_slots.occupied_count() > 0 {
-                    let orb_type = engine.state.orb_slots.front_orb_type();
-                    let focus = engine.state.player.focus();
-                    let evoke = engine.state.orb_slots.evoke_front(focus);
-                    engine.apply_evoke_effect(evoke);
-                    if orb_type != crate::orbs::OrbType::Empty {
-                        let evoke = engine.state.orb_slots.channel(orb_type, focus);
-                        engine.apply_evoke_effect(evoke);
-                    }
-                }
+                engine.evoke_and_rechannel_front_orb();
+            }
+            SimpleEffect::EvokeOrbWithoutRemoving => {
+                engine.evoke_front_orb_without_removing();
             }
             SimpleEffect::EvokeOrb(amount_src) => {
                 let count = self.resolve_amount(engine, instance_idx, owner, amount_src).max(0);
@@ -1087,14 +1238,13 @@ impl EffectRuntime {
                         engine.state.skip_enemy_turn = true;
                     }
                     crate::effects::declarative::BoolFlag::NextAttackFree => {
-                        engine.state.player.set_status(sid::NEXT_ATTACK_FREE, 1);
+                        engine.state.player.add_status(sid::NEXT_ATTACK_FREE, 1);
                     }
                     crate::effects::declarative::BoolFlag::Blasphemy => {
                         engine.state.blasphemy_active = true;
                     }
                     crate::effects::declarative::BoolFlag::BulletTime => {
-                        engine.state.player.set_status(sid::NO_DRAW, 1);
-                        engine.state.player.set_status(sid::BULLET_TIME, 1);
+                        engine.apply_bullet_time();
                     }
                 }
             }
@@ -1102,6 +1252,10 @@ impl EffectRuntime {
                 let mut cards = std::mem::take(&mut engine.state.discard_pile);
                 engine.state.draw_pile.append(&mut cards);
                 engine.shuffle_draw_pile();
+            }
+            SimpleEffect::ShuffleAllAndDraw(amount_src) => {
+                let draw_count = self.resolve_amount(engine, instance_idx, owner, amount_src);
+                engine.shuffle_all_and_draw(draw_count);
             }
             SimpleEffect::DiscardRandomCardsFromPile(pile, count) => {
                 self.execute_discard_random_cards_from_pile(engine, pile, count);
@@ -1121,9 +1275,9 @@ impl EffectRuntime {
                     if engine.state.enemies[tidx].entity.hp <= threshold
                         && engine.state.enemies[tidx].is_alive()
                     {
-                        let lethal =
-                            engine.state.enemies[tidx].entity.hp + engine.state.enemies[tidx].entity.block;
-                        engine.deal_damage_to_enemy(tidx, lethal);
+                        if engine.instant_kill_enemy(tidx) {
+                            engine.runtime_card_enemy_killed = true;
+                        }
                     }
                 }
             }
@@ -1156,16 +1310,25 @@ impl EffectRuntime {
                 }
                 self.heal_hp(engine, owner, target, amount, event);
             }
-            SimpleEffect::IncrementCounter(status_id, _threshold) => {
+            SimpleEffect::IncrementCounter(status_id, threshold) => {
                 let next = self.read_status(engine, instance_idx, owner, status_id) + 1;
+                // VelvetChoker.java stops incrementing at six. A threshold of
+                // 1 remains the unbounded counter behavior used by Slow.
+                let next = if threshold > 1 { next.min(threshold) } else { next };
                 self.write_status(engine, instance_idx, owner, status_id, next);
             }
             SimpleEffect::ModifyMaxHp(amount_src) => {
                 let amount = self.resolve_amount(engine, instance_idx, owner, amount_src);
                 engine.state.player.max_hp = (engine.state.player.max_hp + amount).max(1);
-                engine.state.player.hp = (engine.state.player.hp + amount)
-                    .max(0)
-                    .min(engine.state.player.max_hp);
+                if amount > 0 {
+                    // AbstractCreature.java::increaseMaxHp routes the matching
+                    // current-HP gain through heal(), preserving Mark of the
+                    // Bloom and Magic Flower hooks for relic-owned effects.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/core/AbstractCreature.java
+                    engine.heal_player(amount);
+                } else {
+                    engine.state.player.hp = engine.state.player.hp.min(engine.state.player.max_hp);
+                }
             }
             SimpleEffect::ModifyMaxEnergy(amount_src) => {
                 let amount = self.resolve_amount(engine, instance_idx, owner, amount_src);
@@ -1174,12 +1337,15 @@ impl EffectRuntime {
             }
             SimpleEffect::PlayTopCardOfDraw => {}
             SimpleEffect::ResolveFission { .. } => {}
-            SimpleEffect::ModifyGold(_amount_src) => {}
+            SimpleEffect::ModifyGold(amount_src) => {
+                let amount = self.resolve_amount(engine, instance_idx, owner, amount_src);
+                engine.gain_run_gold(amount);
+            }
             SimpleEffect::FleeCombat => {
                 engine.state.combat_over = true;
             }
-            SimpleEffect::UpgradeRandomCardFromPiles(piles) => {
-                self.upgrade_random_card_from_piles(engine, piles);
+            SimpleEffect::UpgradeRandomMasterDeckCard => {
+                engine.upgrade_random_master_deck_card();
             }
         }
     }
@@ -1195,6 +1361,7 @@ impl EffectRuntime {
         let options = option_names
             .iter()
             .copied()
+            .map(str::to_string)
             .map(ChoiceOption::Named)
             .collect();
         engine.begin_choice(ChoiceReason::PickOption, options, 1, 1);
@@ -1212,7 +1379,7 @@ impl EffectRuntime {
         }
         let options = option_specs
             .iter()
-            .map(|option| ChoiceOption::Named(option.label))
+            .map(|option| ChoiceOption::Named(option.label.to_string()))
             .collect();
         let payloads = option_specs
             .iter()
@@ -1222,64 +1389,6 @@ impl EffectRuntime {
             })
             .collect();
         engine.begin_choice_with_named_payloads(ChoiceReason::PickOption, options, 1, 1, payloads);
-    }
-
-    fn pile_ref<'a>(
-        &self,
-        engine: &'a CombatEngine,
-        pile: crate::effects::declarative::Pile,
-    ) -> &'a [crate::combat_types::CardInstance] {
-        match pile {
-            crate::effects::declarative::Pile::Hand => &engine.state.hand,
-            crate::effects::declarative::Pile::Draw => &engine.state.draw_pile,
-            crate::effects::declarative::Pile::Discard => &engine.state.discard_pile,
-            crate::effects::declarative::Pile::Exhaust => &engine.state.exhaust_pile,
-        }
-    }
-
-    fn pile_ref_mut<'a>(
-        &self,
-        engine: &'a mut CombatEngine,
-        pile: crate::effects::declarative::Pile,
-    ) -> &'a mut Vec<crate::combat_types::CardInstance> {
-        match pile {
-            crate::effects::declarative::Pile::Hand => &mut engine.state.hand,
-            crate::effects::declarative::Pile::Draw => &mut engine.state.draw_pile,
-            crate::effects::declarative::Pile::Discard => &mut engine.state.discard_pile,
-            crate::effects::declarative::Pile::Exhaust => &mut engine.state.exhaust_pile,
-        }
-    }
-
-    fn matches_filter(
-        &self,
-        engine: &CombatEngine,
-        card: &crate::combat_types::CardInstance,
-        filter: crate::effects::declarative::CardFilter,
-    ) -> bool {
-        match filter {
-            crate::effects::declarative::CardFilter::All => true,
-            crate::effects::declarative::CardFilter::Attacks => {
-                engine.card_registry.card_def_by_id(card.def_id).card_type == crate::cards::CardType::Attack
-            }
-            crate::effects::declarative::CardFilter::AttackOrPower => {
-                matches!(
-                    engine.card_registry.card_def_by_id(card.def_id).card_type,
-                    crate::cards::CardType::Attack | crate::cards::CardType::Power
-                )
-            }
-            crate::effects::declarative::CardFilter::Skills => {
-                engine.card_registry.card_def_by_id(card.def_id).card_type == crate::cards::CardType::Skill
-            }
-            crate::effects::declarative::CardFilter::NonAttacks => {
-                engine.card_registry.card_def_by_id(card.def_id).card_type != crate::cards::CardType::Attack
-            }
-            crate::effects::declarative::CardFilter::ZeroCost => {
-                let def = engine.card_registry.card_def_by_id(card.def_id);
-                let current_cost = if card.cost >= 0 { card.cost as i32 } else { def.cost };
-                current_cost == 0
-            }
-            crate::effects::declarative::CardFilter::Upgradeable => !card.is_upgraded(),
-        }
     }
 
     fn evaluate_effect_condition(
@@ -1308,6 +1417,7 @@ impl EffectRuntime {
                 let idx = event.target_idx;
                 idx >= 0
                     && (idx as usize) < engine.state.enemies.len()
+                    && !engine.state.is_victory()
                     && engine.state.enemies[idx as usize].entity.status(status_id) > 0
             }
             crate::effects::declarative::Condition::EnemyAlive => {
@@ -1324,6 +1434,17 @@ impl EffectRuntime {
             }
             crate::effects::declarative::Condition::NoBlock => engine.state.player.block == 0,
             crate::effects::declarative::Condition::EnemyKilled => engine.runtime_card_enemy_killed,
+            crate::effects::declarative::Condition::EnemyKilledNonMinion => {
+                let idx = event.target_idx;
+                engine.runtime_card_enemy_killed
+                    && idx >= 0
+                    && (idx as usize) < engine.state.enemies.len()
+                    && !engine.state.enemies[idx as usize].is_minion
+                    && engine.state.enemies[idx as usize]
+                        .entity
+                        .status(sid::REBIRTH_PENDING)
+                        == 0
+            }
             crate::effects::declarative::Condition::DiscardedThisTurn => {
                 engine.state.player.status(crate::status_ids::sid::DISCARDED_THIS_TURN) > 0
             }
@@ -1340,6 +1461,7 @@ impl EffectRuntime {
         match amount_src {
             AmountSource::Magic => 0,
             AmountSource::Block => 0,
+            AmountSource::ModifiedBlock => 0,
             AmountSource::Damage => 0,
             AmountSource::Fixed(value) => value,
             AmountSource::XCost => 0,
@@ -1370,6 +1492,7 @@ impl EffectRuntime {
             AmountSource::HandSize => engine.state.hand.len() as i32,
             AmountSource::PlayerBlock => engine.state.player.block,
             AmountSource::DiscardPileSize => engine.state.discard_pile.len() as i32,
+            AmountSource::DiscardPileSizePlusBlock => 0,
             AmountSource::CardMisc => 0,
             AmountSource::StatusValue(status_id) => {
                 self.read_status(engine, instance_idx, owner, status_id)
@@ -1390,7 +1513,9 @@ impl EffectRuntime {
             AmountSource::LastBulkCount => 0,
             AmountSource::LastBulkCountTimesBlock => 0,
             AmountSource::DrawPileSize => engine.state.draw_pile.len() as i32,
-            AmountSource::AttacksThisTurn => engine.state.attacks_played_this_turn,
+            AmountSource::PriorAttacksThisTurn => {
+                (engine.state.attacks_played_this_turn - 1).max(0)
+            }
             AmountSource::SkillsInHand => engine
                 .state
                 .hand
@@ -1415,36 +1540,6 @@ impl EffectRuntime {
         }
     }
 
-    fn upgrade_random_card_from_piles(&self, engine: &mut CombatEngine, piles: &'static [Pile]) {
-        let mut eligible: Vec<(Pile, usize)> = Vec::new();
-        for pile in piles {
-            let cards = match pile {
-                Pile::Hand => &engine.state.hand,
-                Pile::Draw => &engine.state.draw_pile,
-                Pile::Discard => &engine.state.discard_pile,
-                Pile::Exhaust => &engine.state.exhaust_pile,
-            };
-            for (idx, card) in cards.iter().enumerate() {
-                if !card.is_upgraded() {
-                    eligible.push((*pile, idx));
-                }
-            }
-        }
-        if eligible.is_empty() {
-            return;
-        }
-        let (pile, idx) = eligible[engine.rng_gen_range(0..eligible.len())];
-        let pile_vec = match pile {
-            Pile::Hand => &mut engine.state.hand,
-            Pile::Draw => &mut engine.state.draw_pile,
-            Pile::Discard => &mut engine.state.discard_pile,
-            Pile::Exhaust => &mut engine.state.exhaust_pile,
-        };
-        if idx < pile_vec.len() {
-            engine.card_registry.upgrade_card(&mut pile_vec[idx]);
-        }
-    }
-
     fn execute_discard_random_cards_from_pile(
         &self,
         engine: &mut CombatEngine,
@@ -1453,6 +1548,14 @@ impl EffectRuntime {
     ) {
         let count = count.max(0) as usize;
         if count == 0 {
+            return;
+        }
+
+        if pile == Pile::Hand && engine.state.hand.len() <= count {
+            while let Some(card) = engine.state.hand.pop() {
+                engine.state.discard_pile.push(card);
+                engine.on_card_discarded(card);
+            }
             return;
         }
 
@@ -1466,7 +1569,7 @@ impl EffectRuntime {
             if len == 0 {
                 break;
             }
-            let idx = engine.rng_gen_range(0..len);
+            let idx = engine.card_random_rng.random_int((len - 1) as i32) as usize;
             let source = match pile {
                 Pile::Hand => &mut engine.state.hand,
                 Pile::Draw => &mut engine.state.draw_pile,
@@ -1541,11 +1644,31 @@ impl EffectRuntime {
     ) {
         match target {
             Target::Player => {
-                if is_hidden_status_for_def(self.instances[instance_idx].def.id, status_id) {
+                if status_id == sid::ORB_SLOTS && amount > 0 {
+                    // Source: decompiled/java-src/com/megacrit/cardcrawl/actions/
+                    // defect/IncreaseMaxOrbAction.java. Runtime-owned effects
+                    // that request orb slots must grow the actual capped slot
+                    // collection, not only its compact bookkeeping status.
+                    let before = engine.state.orb_slots.max_slots;
+                    for _ in 0..amount {
+                        engine.state.orb_slots.add_slot();
+                    }
+                    let gained = engine
+                        .state
+                        .orb_slots
+                        .max_slots
+                        .saturating_sub(before) as i32;
+                    engine.state.player.add_status(status_id, gained);
+                } else if is_hidden_status_for_def(self.instances[instance_idx].def.id, status_id) {
                     let current = self.instances[instance_idx]
                         .state
                         .get(hidden_status_slot(self.instances[instance_idx].def.id, status_id).unwrap());
                     self.write_status(engine, instance_idx, owner, status_id, current + amount);
+                } else if is_debuff(status_id) {
+                    // ApplyPowerAction routes player debuffs through immunity
+                    // and Artifact checks; direct status mutation bypasses both.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ApplyPowerAction.java
+                    crate::powers::apply_debuff(&mut engine.state.player, status_id, amount);
                 } else {
                     engine.state.player.add_status(status_id, amount);
                 }
@@ -1604,7 +1727,7 @@ impl EffectRuntime {
             Target::RandomEnemy => {
                 let living = engine.state.living_enemy_indices();
                 if !living.is_empty() {
-                    let idx = living[engine.rng_gen_range(0..living.len())];
+                    let idx = living[engine.card_random_rng.random_index(living.len())];
                     if is_debuff(status_id) {
                         match owner {
                             EffectOwner::EnemyPower { .. } => {
@@ -1662,7 +1785,7 @@ impl EffectRuntime {
             Target::RandomEnemy => {
                 let living = engine.state.living_enemy_indices();
                 if !living.is_empty() {
-                    let idx = living[engine.rng_gen_range(0..living.len())];
+                    let idx = living[engine.card_random_rng.random_index(living.len())];
                     engine.state.enemies[idx].entity.set_status(status_id, value);
                 }
             }
@@ -1712,7 +1835,11 @@ impl EffectRuntime {
         event: &GameEvent,
     ) {
         match target {
-            Target::Player => engine.deal_damage_to_player(amount),
+            // The only player-targeted declarative damage power is Brutality,
+            // whose Java action is LoseHPAction (HP_LOSS), not normal attack
+            // damage. It bypasses block while retaining HP-loss mitigation.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BrutalityPower.java
+            Target::Player => engine.player_lose_hp_from_damage(amount),
             Target::SelfEntity => {
                 if let EffectOwner::EnemyPower { enemy_idx } = owner {
                     let idx = enemy_idx as usize;
@@ -1738,7 +1865,7 @@ impl EffectRuntime {
             Target::RandomEnemy => {
                 let living = engine.state.living_enemy_indices();
                 if !living.is_empty() {
-                    let idx = living[engine.rng_gen_range(0..living.len())];
+                    let idx = living[engine.card_random_rng.random_index(living.len())];
                     engine.deal_damage_to_enemy(idx, amount);
                 }
             }
@@ -1785,7 +1912,7 @@ impl EffectRuntime {
             Target::RandomEnemy => {
                 let living = engine.state.living_enemy_indices();
                 if !living.is_empty() {
-                    let idx = living[engine.rng_gen_range(0..living.len())];
+                    let idx = living[engine.card_random_rng.random_index(living.len())];
                     let enemy = &mut engine.state.enemies[idx].entity;
                     enemy.hp = (enemy.hp + amount).min(enemy.max_hp);
                 }
@@ -1832,7 +1959,15 @@ fn seed_hidden_relic_state(
 
 fn default_persistence_for(def_id: &str) -> PersistenceScope {
     match def_id {
-        "Nunchaku" | "InkBottle" | "Happy Flower" | "Incense Burner" | "Sundial" => PersistenceScope::Run,
+        // PenNib.java stores progress in AbstractRelic.counter, including the
+        // armed value 9 that atBattleStart turns into PenNibPower.
+        "Pen Nib"
+        | "Nunchaku"
+        | "InkBottle"
+        | "Happy Flower"
+        | "Incense Burner"
+        | "Sundial"
+        | "Inserter" => PersistenceScope::Run,
         _ => PersistenceScope::Combat,
     }
 }
@@ -1868,6 +2003,14 @@ fn owner_is_active(engine: &CombatEngine, owner: EffectOwner, def: &EntityDef) -
 
 fn owner_matches_event(owner: EffectOwner, event: &GameEvent) -> bool {
     match owner {
+        EffectOwner::EnemyPower { enemy_idx }
+            if matches!(event.kind, Trigger::EnemyTurnStart | Trigger::EnemyTurnEnd) =>
+        {
+            // MonsterGroup dispatches these callbacks to the acting/ending
+            // monster's powers, not to every enemy-owned power once per group
+            // member. This matters for Deca's team-wide Plated Armor.
+            event.enemy_idx < 0 || event.enemy_idx == enemy_idx as i32
+        }
         EffectOwner::PotionSlot { slot }
             if matches!(event.kind, Trigger::ManualActivation | Trigger::OnPotionUsed) =>
         {
@@ -1946,7 +2089,8 @@ fn is_elite_fight(engine: &CombatEngine) -> bool {
         matches!(
             enemy.id.as_str(),
             "GremlinNob" | "Lagavulin" | "Sentry" | "BookOfStabbing" | "GremlinLeader"
-                | "TaskMaster" | "Nemesis" | "Reptomancer" | "GiantHead"
+                | "SlaverBoss" | "TaskMaster" | "Taskmaster"
+                | "Nemesis" | "Reptomancer" | "GiantHead"
         )
     })
 }
@@ -1974,4 +2118,98 @@ fn is_debuff(status_id: StatusId) -> bool {
         || status_id == sid::FRAIL
         || status_id == sid::POISON
         || status_id == sid::CONSTRICTED
+        || status_id == sid::LOSE_STRENGTH
+        || status_id == sid::WRAITH_FORM
+}
+
+#[cfg(test)]
+mod serde_tests {
+    use super::*;
+
+    fn runtime_with_owner_aware_state() -> EffectRuntime {
+        let relic = crate::relics::defs::relic_def_by_id("Nunchaku").unwrap();
+        let power = power_def_by_id("demon_form").unwrap();
+        let potion = crate::potions::defs::potion_def_by_id("EnergyPotion").unwrap();
+
+        let mut runtime = EffectRuntime {
+            next_instance_id: 91,
+            instances: vec![
+                EntityInstance {
+                    instance_id: 12,
+                    def: relic,
+                    owner: EffectOwner::PlayerRelic { slot: 3 },
+                    state: EffectState::from_values(
+                        PersistenceScope::Run,
+                        vec![9, -17, i16::MAX],
+                    ),
+                },
+                EntityInstance {
+                    instance_id: 44,
+                    def: power,
+                    owner: EffectOwner::EnemyPower { enemy_idx: 2 },
+                    state: EffectState::from_values(PersistenceScope::Combat, vec![-3, 8]),
+                },
+                EntityInstance {
+                    instance_id: 90,
+                    def: potion,
+                    owner: EffectOwner::PotionSlot { slot: 1 },
+                    state: EffectState::from_values(PersistenceScope::Combat, vec![6]),
+                },
+            ],
+            dispatch: DispatchTable::default(),
+            persisted_states: vec![PersistedEffectState {
+                def_id: "Nunchaku".to_string(),
+                values: vec![7, -1],
+            }],
+        };
+        runtime.rebuild_dispatch();
+        runtime
+    }
+
+    #[test]
+    fn effect_runtime_serde_round_trip_preserves_causal_state() {
+        let runtime = runtime_with_owner_aware_state();
+        let encoded = serde_json::to_value(&runtime).unwrap();
+        assert!(encoded.get("dispatch").is_none());
+
+        let mut restored: EffectRuntime = serde_json::from_value(encoded).unwrap();
+        assert_eq!(restored.next_instance_id, runtime.next_instance_id);
+        assert_eq!(restored.persisted_states, runtime.persisted_states);
+        assert_eq!(restored.instances.len(), runtime.instances.len());
+        for (actual, expected) in restored.instances.iter().zip(&runtime.instances) {
+            assert_eq!(actual.instance_id, expected.instance_id);
+            assert_eq!(actual.def.id, expected.def.id);
+            assert!(std::ptr::eq(actual.def, expected.def));
+            assert_eq!(actual.owner, expected.owner);
+            assert_eq!(actual.state, expected.state);
+        }
+        for (idx, instance) in restored.instances.iter().enumerate() {
+            for trigger in instance.def.triggers {
+                assert!(restored
+                    .dispatch
+                    .handlers_for(trigger.trigger)
+                    .contains(&idx));
+            }
+        }
+        assert_eq!(restored.alloc_instance_id(), 91);
+    }
+
+    #[test]
+    fn effect_runtime_deserialize_rejects_unknown_definition() {
+        let mut encoded = serde_json::to_value(runtime_with_owner_aware_state()).unwrap();
+        encoded["instances"][0]["def_id"] = serde_json::json!("unknown-runtime-def");
+
+        let error = serde_json::from_value::<EffectRuntime>(encoded).unwrap_err();
+        assert!(error.to_string().contains("unknown effect definition"));
+        assert!(error.to_string().contains("unknown-runtime-def"));
+
+        let mut encoded = serde_json::to_value(runtime_with_owner_aware_state()).unwrap();
+        encoded["persisted_states"][0]["def_id"] =
+            serde_json::json!("unknown-persisted-def");
+        let error = serde_json::from_value::<EffectRuntime>(encoded).unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("unknown persisted effect definition"));
+        assert!(error.to_string().contains("unknown-persisted-def"));
+    }
 }

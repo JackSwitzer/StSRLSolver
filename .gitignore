@@ -57,6 +57,7 @@ data/*
 data/traces/*
 !data/traces/scripts/
 !data/traces/java/
+!data/traces/recordings/
 
 # VOD extraction outputs (generated)
 vod/verify_ui/extractions.json

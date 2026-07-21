@@ -7,6 +7,7 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/TeardropLocket.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/Pantograph.java
 
+use crate::actions::Action;
 use crate::effects::runtime::EffectOwner;
 use crate::state::Stance;
 use crate::status_ids::sid;
@@ -42,6 +43,29 @@ fn twisted_funnel_applies_poison_to_all_enemies_on_runtime_path() {
 }
 
 #[test]
+fn twisted_funnel_uses_player_sourced_poison_for_skull_and_artifact() {
+    // TwistedFunnel.java queues one player-sourced ApplyPowerAction for four
+    // Poison on every living monster. ApplyPowerAction.java adds Snake Skull's
+    // one before Artifact consumes and blocks the complete application.
+    let mut engine = engine_without_start_with_relics(
+        &["TwistedFunnel", "Snake Skull"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
+        vec![
+            enemy_no_intent("JawWorm", 40, 40),
+            enemy_no_intent("Cultist", 44, 44),
+        ],
+        3,
+    );
+    engine.state.enemies[1].entity.set_status(sid::ARTIFACT, 1);
+
+    engine.start_combat();
+
+    assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 5);
+    assert_eq!(engine.state.enemies[1].entity.status(sid::POISON), 0);
+    assert_eq!(engine.state.enemies[1].entity.status(sid::ARTIFACT), 0);
+}
+
+#[test]
 fn snecko_eye_confuses_and_draws_two_extra_cards_on_runtime_path() {
     let mut engine = engine_without_start_with_relics(
         &["Snecko Eye"],
@@ -63,11 +87,59 @@ fn snecko_eye_confuses_and_draws_two_extra_cards_on_runtime_path() {
 
     assert_eq!(engine.state.player.status(sid::SNECKO_EYE), 1);
     assert_eq!(engine.state.player.status(sid::CONFUSION), 1);
-    assert_eq!(engine.state.player.status(sid::BAG_OF_PREP_DRAW), 2);
+    assert_eq!(engine.state.hand.len(), 7);
+}
+
+#[test]
+fn snecko_eye_randomizes_on_draw_with_card_random_and_uses_the_drawn_cost() {
+    // Sources: SneckoEye.java applies Confusion before the opening draw and
+    // raises masterHandSize by 2. ConfusionPower.java::onCardDraw consumes one
+    // cardRandomRng.random(3) per non-negative-cost card, sets that instance's
+    // combat cost, and clears freeToPlayOnce; X-cost cards consume no roll.
+    let registry = crate::cards::global_registry();
+    let deck = (0..8)
+        .map(|_| registry.make_card("Defend").set_free(true))
+        .collect();
+    let mut engine = engine_without_start(
+        deck,
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    engine.state.relics.push("Snecko Eye".to_string());
+    let card_random_before = engine.card_random_rng.counter;
+
+    engine.start_combat();
+
+    assert_eq!(engine.state.hand.len(), 7);
+    assert_eq!(engine.card_random_rng.counter - card_random_before, 7);
+    assert!(engine
+        .state
+        .hand
+        .iter()
+        .all(|card| (0..=3).contains(&card.cost)));
+    assert!(engine.state.hand.iter().all(|card| !card.is_free()));
+
+    let drawn_cost = engine.state.hand[0].cost as i32;
+    let counter_before_play = engine.card_random_rng.counter;
+    engine.state.energy = 10;
+    engine.execute_action(&Action::PlayCard {
+        card_idx: 0,
+        target_idx: -1,
+    });
+    assert_eq!(engine.state.energy, 10 - drawn_cost);
+    assert_eq!(engine.card_random_rng.counter, counter_before_play);
+
+    engine.state.hand.clear();
+    engine.state.draw_pile = vec![engine.card_registry.make_card("ConjureBlade")];
+    let counter_before_x = engine.card_random_rng.counter;
+    engine.draw_cards(1);
+    assert_eq!(engine.state.hand[0].cost, -1);
+    assert_eq!(engine.card_random_rng.counter, counter_before_x);
 }
 
 #[test]
 fn sling_grants_strength_only_in_elite_fights_on_runtime_path() {
+    // Source: reference/extracted/methods/relic/Sling.java
     let mut elite_engine = engine_without_start_with_relics(
         &["Sling"],
         &["Strike", "Strike", "Strike", "Strike", "Strike"],
@@ -99,6 +171,29 @@ fn teardrop_locket_starts_player_in_calm_on_runtime_path() {
     engine.start_combat();
 
     assert_eq!(engine.state.stance, Stance::Calm);
+}
+
+#[test]
+fn teardrop_locket_uses_a_real_stance_transition_before_the_opening_draw() {
+    // Source-derived (verify relic/TeardropLocket): TeardropLocket.java queues
+    // ChangeStanceAction("Calm") from atBattleStart rather than assigning the
+    // stance field, so OnStanceChange hooks resolve before the initial draw.
+    let mut engine = engine_without_start_with_relics(
+        &["TeardropLocket"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    engine.start_combat();
+
+    assert_eq!(engine.state.stance, Stance::Calm);
+    assert!(engine
+        .event_log
+        .iter()
+        .any(|record| record.event == crate::effects::trigger::Trigger::OnStanceChange));
+    assert_eq!(engine.state.player.block, 0);
+    assert_eq!(engine.state.hand.len(), 5);
+    assert_eq!(engine.state.energy, 3);
 }
 
 #[test]

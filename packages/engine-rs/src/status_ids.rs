@@ -310,6 +310,7 @@ pub mod sid {
     pub const SIMMERING_FURY: StatusId = StatusId(248);
     pub const FROST_CHANNELED: StatusId = StatusId(249);
     pub const CLAW_BONUS: StatusId = StatusId(250);
+    pub const DISCIPLINE: StatusId = StatusId(251);
     pub const STEAM_BARRIER_LOSS: StatusId = StatusId(252);
 
     /// Mirrors Java's `AbstractPower.justApplied` for enemy-applied debuffs.
@@ -321,11 +322,30 @@ pub mod sid {
     pub const VULNERABLE_JUST_APPLIED: StatusId = StatusId(254);
     pub const FRAIL_JUST_APPLIED: StatusId = StatusId(255);
 
+    // Silent delayed damage power. Appended to preserve every existing numeric
+    // ID used by trace/training snapshots.
+    pub const PHANTASMAL: StatusId = StatusId(256);
+
+    // Defect one-shot card destination power. Appended to preserve every
+    // existing numeric ID used by trace/training snapshots.
+    pub const REBOUND: StatusId = StatusId(257);
+
+    // Enemy reactive power. Appended to preserve existing snapshot IDs.
+    pub const PAINFUL_STABS: StatusId = StatusId(258);
+
+    // Generic marker for monster AI branches gated at the highest ascension.
+    // Appended to preserve existing snapshot IDs.
+    pub const HIGH_ASCENSION_AI: StatusId = StatusId(259);
+
+    // Mirrors DrawReductionPower.justApplied so its one reduced draw survives
+    // the application round before the turn-based power begins decrementing.
+    pub const DRAW_REDUCTION_JUST_APPLIED: StatusId = StatusId(260);
+
     /// Total number of defined status IDs (exclusive upper bound).
-    pub const NUM_IDS: usize = 256;
+    pub const NUM_IDS: usize = 261;
 
     /// Array sizing constant (power of 2 for cache-friendly indexing).
-    pub const MAX_STATUS_ID: usize = 256;
+    pub const MAX_STATUS_ID: usize = 512;
 }
 
 // =========================================================================
@@ -610,11 +630,16 @@ static STATUS_NAMES: &[&str] = &[
     "SimmeringFury",      // 248
     "FrostChanneled",     // 249
     "ClawBonus",          // 250
-    "PendingDraw",        // 251
+    "DisciplinePower",    // 251
     "SteamBarrierLoss",   // 252
     "WeakenedJustApplied", // 253
     "VulnerableJustApplied", // 254
     "FrailJustApplied",   // 255
+    "Phantasmal",         // 256
+    "Rebound",            // 257
+    "PainfulStabs",        // 258
+    "HighAscensionAi",     // 259
+    "DrawReductionJustApplied", // 260
 ];
 
 #[cfg(test)]

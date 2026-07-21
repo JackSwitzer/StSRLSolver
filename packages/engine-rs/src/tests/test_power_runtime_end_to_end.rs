@@ -89,22 +89,31 @@ fn creative_ai_adds_its_generated_card_on_real_turn_start() {
     engine.state.draw_pile.clear();
     engine.state.discard_pile.clear();
     engine.clear_event_log();
+    let general_before = engine.shuffle_rng.counter;
+    let mut oracle = engine.card_random_rng.clone();
+    const POOL: &[&str] = &[
+        "Defragment", "Capacitor", "Heatsinks", "Static Discharge", "Loop", "Hello World", "Storm",
+        "Biased Cognition", "Machine Learning", "Electrodynamics", "Buffer", "Echo Form", "Creative AI",
+    ];
+    let expected = POOL[oracle.random_int((POOL.len() - 1) as i32) as usize];
 
     engine.execute_action(&Action::EndTurn);
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
-    assert_eq!(hand_names(&engine), vec!["Smite".to_string()]);
+    assert_eq!(hand_names(&engine), vec![expected.to_string()]);
+    assert_eq!(engine.card_random_rng.counter, oracle.counter);
+    assert_eq!(engine.shuffle_rng.counter, general_before);
 
     let events = engine.take_event_log();
     assert!(events.iter().any(|record| {
         record.phase == EventRecordPhase::Handled
-            && record.event == Trigger::TurnStartPostDraw
+            && record.event == Trigger::TurnStart
             && record.def_id == Some("creative_ai")
     }));
 }
 
 #[test]
-fn mayhem_moves_the_remaining_top_draw_card_into_hand_on_turn_start() {
+fn mayhem_autoplays_the_remaining_top_draw_card_on_turn_start() {
     let mut engine = engine_with_state(combat_state_with(
         Vec::new(),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -126,9 +135,13 @@ fn mayhem_moves_the_remaining_top_draw_card_into_hand_on_turn_start() {
     engine.execute_action(&Action::EndTurn);
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
-    assert_eq!(engine.state.hand.len(), 6);
-    assert!(hand_names(&engine).contains(&"Strike".to_string()));
+    assert_eq!(engine.state.hand.len(), 5);
+    assert!(!hand_names(&engine).contains(&"Strike".to_string()));
     assert!(engine.state.draw_pile.is_empty());
+    assert_eq!(engine.state.enemies[0].entity.hp, 34);
+    assert!(engine.state.discard_pile.iter().any(|card| {
+        engine.card_registry.card_name(card.def_id) == "Strike"
+    }));
 
     let events = engine.take_event_log();
     assert!(events.iter().any(|record| {

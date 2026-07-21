@@ -2,7 +2,7 @@ use crate::decision::{
     RewardChoice, RewardItem, RewardItemKind, RewardItemState, RewardScreen, RewardScreenSource,
 };
 use crate::events::{typed_events_for_act, EventProgramOp, EventRuntimeStatus};
-use crate::run::{RunAction, RunEngine, RunPhase};
+use crate::run::{GameAction, RunEngine, RunPhase};
 
 fn typed_event(act: i32, name: &str) -> crate::events::TypedEventDef {
     typed_events_for_act(act)
@@ -13,7 +13,9 @@ fn typed_event(act: i32, name: &str) -> crate::events::TypedEventDef {
 
 #[test]
 fn secret_portal_transitions_into_boss_combat() {
-    let mut engine = RunEngine::new(73, 20);
+    let mut engine = RunEngine::new(73, 0);
+    engine.run_state.act = 3;
+    engine.run_state.floor = 42;
     let secret_portal = typed_event(3, "Secret Portal");
     assert!(matches!(
         secret_portal.options[0].status,
@@ -21,20 +23,24 @@ fn secret_portal_transitions_into_boss_combat() {
     ));
 
     engine.debug_set_typed_event_state(secret_portal);
-    let step = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(step.action_accepted);
+    let step = engine.step_game(&GameAction::EventChoice(0));
+    assert!(step.accepted());
     assert_eq!(engine.current_phase(), RunPhase::Combat);
+    assert_eq!(engine.run_state.floor, 43);
     assert!(engine.get_combat_engine().is_some());
 
     engine.debug_force_current_combat_outcome(true);
-    let reward = engine.debug_resolve_current_combat_outcome();
-    assert!(reward > 0.0);
-    let screen = engine
-        .current_reward_screen()
-        .expect("boss reward screen should open after Secret Portal boss combat");
-    assert_eq!(screen.source, RewardScreenSource::BossCombat);
-    assert_eq!(screen.items.len(), 1);
-    assert_eq!(screen.items[0].kind, RewardItemKind::Relic);
+    engine.debug_resolve_current_combat_outcome();
+    assert_eq!(engine.current_phase(), RunPhase::Transition);
+    assert_eq!(engine.run_state.floor, 43);
+    assert!(engine.step_game(&GameAction::Proceed).accepted());
+    assert_eq!(engine.current_phase(), RunPhase::Event);
+    assert_eq!(engine.run_state.floor, 44);
+    assert_eq!(
+        engine.debug_current_event().as_ref().map(|event| event.name.as_str()),
+        Some("Spire Heart")
+    );
+    assert!(engine.current_reward_screen().is_none());
 }
 
 #[test]
@@ -75,15 +81,22 @@ fn deck_selection_reward_screen_removes_the_chosen_card() {
         }],
     });
 
-    let open = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(open.action_accepted);
-    assert_eq!(open.decision_context.reward_screen.as_ref().and_then(|screen| screen.active_item), Some(0));
+    let open = engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(open.accepted());
+    assert_eq!(
+        open.next_decision
+            .context
+            .reward_screen
+            .as_ref()
+            .and_then(|screen| screen.active_item),
+        Some(0)
+    );
 
-    let choose = engine.step_with_result(&RunAction::ChooseRewardOption {
+    let choose = engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index: 1,
     });
-    assert!(choose.action_accepted);
+    assert!(choose.accepted());
     assert!(!engine.run_state.deck.iter().any(|card| card == "Wallop"));
     assert_eq!(engine.run_state.deck.len(), 2);
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);

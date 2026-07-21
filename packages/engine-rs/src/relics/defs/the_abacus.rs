@@ -9,6 +9,8 @@ static EFFECTS: [Effect; 1] = [
 ];
 
 static TRIGGERS: [TriggeredEffect; 1] = [
+    // Source: reference/extracted/methods/relic/Abacus.java
+    // onShuffle queues exactly 6 Block for the player.
     TriggeredEffect {
         trigger: Trigger::OnShuffle,
         condition: TriggerCondition::Always,

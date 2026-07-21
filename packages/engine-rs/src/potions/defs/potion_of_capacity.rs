@@ -4,6 +4,8 @@ use crate::status_ids::sid;
 static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::ManualActivation,
     condition: TriggerCondition::Always,
+    // Source: reference/extracted/methods/potion/PotionOfCapacity.java. The
+    // potion runs IncreaseMaxOrbAction for its constant potency of two.
     effects: &[E::Simple(SE::AddStatus(T::Player, sid::ORB_SLOTS, A::PotionPotency))],
     counter: None,
 }];

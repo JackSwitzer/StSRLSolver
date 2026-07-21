@@ -127,3 +127,29 @@ fn ironclad_wave8_searing_blow_and_ethereal_rules_still_hold_on_typed_surface() 
     end_turn(&mut carnage);
     assert_eq!(exhaust_prefix_count(&carnage, "Carnage"), 1);
 }
+
+#[test]
+fn carnage_deals_twenty_or_twenty_eight_and_equilibrium_cannot_save_it() {
+    // Carnage.java sets baseDamage=20, upgradeDamage(8), and isEthereal=true.
+    // DiscardAtEndOfTurnAction only moves explicitly retained cards to limbo;
+    // Equilibrium merely suppresses discard, leaving Carnage in hand for
+    // AbstractCard.triggerOnEndOfPlayerTurn to exhaust it.
+    let mut damage = one_enemy_engine("JawWorm", 60);
+    damage.state.energy = 4;
+    ensure_in_hand(&mut damage, "Carnage");
+    ensure_in_hand(&mut damage, "Carnage+");
+    assert!(play_on_enemy(&mut damage, "Carnage", 0));
+    assert!(play_on_enemy(&mut damage, "Carnage+", 0));
+    assert_eq!(damage.state.enemies[0].entity.hp, 12);
+
+    let mut ethereal = one_enemy_engine("JawWorm", 40);
+    ensure_in_hand(&mut ethereal, "Carnage");
+    ensure_in_hand(&mut ethereal, "Carnage+");
+    ethereal
+        .state
+        .player
+        .set_status(crate::status_ids::sid::RETAIN_HAND_FLAG, 1);
+    end_turn(&mut ethereal);
+    assert_eq!(exhaust_prefix_count(&ethereal, "Carnage"), 2);
+    assert_eq!(hand_prefix_count(&ethereal, "Carnage"), 0);
+}

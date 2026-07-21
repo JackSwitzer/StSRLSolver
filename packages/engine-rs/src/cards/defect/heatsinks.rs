@@ -1,6 +1,7 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
+    // Java: reference/extracted/methods/card/Heatsinks.java
     // Heatsinks: 1 cost, power, whenever you play a power draw 1 card
     insert(cards, CardDef {
         id: "Heatsinks", name: "Heatsinks", card_type: CardType::Power,

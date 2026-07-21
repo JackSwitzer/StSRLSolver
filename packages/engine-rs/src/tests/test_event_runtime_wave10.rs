@@ -1,6 +1,7 @@
 use crate::decision::{RewardItemKind, RewardScreenSource};
 use crate::events::{typed_events_for_act, typed_shrine_events, EventProgramOp, EventRuntimeStatus};
-use crate::run::{RunAction, RunEngine, RunPhase};
+use crate::run::{GameAction, RunEngine, RunPhase};
+use crate::status_ids::sid;
 
 // Java oracle:
 // - decompiled/java-src/com/megacrit/cardcrawl/events/shrines/Bonfire.java
@@ -40,8 +41,8 @@ fn bonfire_choice_opens_canonical_event_reward_selection() {
     ];
     engine.debug_set_typed_event_state(typed_shrine_event("Bonfire Elementals"));
 
-    let step = engine.step_with_result(&RunAction::EventChoice(0));
-    assert!(step.action_accepted);
+    let step = engine.step_game(&GameAction::EventChoice(0));
+    assert!(step.accepted());
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
 
     let screen = engine.current_reward_screen().expect("bonfire reward screen");
@@ -62,15 +63,15 @@ fn bonfire_common_offer_purges_card_and_heals_five() {
     engine.run_state.deck = vec!["Deflect".to_string()];
     engine.debug_set_typed_event_state(typed_shrine_event("Bonfire Elementals"));
 
-    engine.step_with_result(&RunAction::EventChoice(0));
-    let choose = engine.step_with_result(&RunAction::SelectRewardItem(0));
-    assert!(choose.action_accepted);
-    let resolve = engine.step_with_result(&RunAction::ChooseRewardOption {
+    engine.step_game(&GameAction::EventChoice(0));
+    let choose = engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(choose.accepted());
+    let resolve = engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index: 0,
     });
 
-    assert!(resolve.action_accepted);
+    assert!(resolve.accepted());
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert!(engine.run_state.deck.is_empty());
     assert_eq!(engine.run_state.current_hp, 56);
@@ -84,14 +85,14 @@ fn bonfire_uncommon_offer_heals_to_full() {
     engine.run_state.deck = vec!["Wallop".to_string()];
     engine.debug_set_typed_event_state(typed_shrine_event("Bonfire Elementals"));
 
-    engine.step_with_result(&RunAction::EventChoice(0));
-    engine.step_with_result(&RunAction::SelectRewardItem(0));
-    let resolve = engine.step_with_result(&RunAction::ChooseRewardOption {
+    engine.step_game(&GameAction::EventChoice(0));
+    engine.step_game(&GameAction::SelectRewardItem(0));
+    let resolve = engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index: 0,
     });
 
-    assert!(resolve.action_accepted);
+    assert!(resolve.accepted());
     assert_eq!(engine.run_state.current_hp, 70);
     assert!(engine.run_state.deck.is_empty());
 }
@@ -104,14 +105,14 @@ fn bonfire_rare_offer_increases_max_hp_and_heals_to_full() {
     engine.run_state.deck = vec!["Scrawl".to_string()];
     engine.debug_set_typed_event_state(typed_shrine_event("Bonfire Elementals"));
 
-    engine.step_with_result(&RunAction::EventChoice(0));
-    engine.step_with_result(&RunAction::SelectRewardItem(0));
-    let resolve = engine.step_with_result(&RunAction::ChooseRewardOption {
+    engine.step_game(&GameAction::EventChoice(0));
+    engine.step_game(&GameAction::SelectRewardItem(0));
+    let resolve = engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index: 0,
     });
 
-    assert!(resolve.action_accepted);
+    assert!(resolve.accepted());
     assert_eq!(engine.run_state.max_hp, 80);
     assert_eq!(engine.run_state.current_hp, 80);
     assert!(engine.run_state.deck.is_empty());
@@ -123,25 +124,61 @@ fn bonfire_curse_offer_grants_spirit_poop_then_circlet_if_repeated() {
     engine.run_state.deck = vec!["Pain".to_string()];
     engine.debug_set_typed_event_state(typed_shrine_event("Bonfire Elementals"));
 
-    engine.step_with_result(&RunAction::EventChoice(0));
-    engine.step_with_result(&RunAction::SelectRewardItem(0));
-    let first = engine.step_with_result(&RunAction::ChooseRewardOption {
+    engine.step_game(&GameAction::EventChoice(0));
+    engine.step_game(&GameAction::SelectRewardItem(0));
+    let first = engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index: 0,
     });
-    assert!(first.action_accepted);
+    assert!(first.accepted());
     assert!(engine.run_state.relics.iter().any(|relic| relic == "Spirit Poop"));
 
     engine.run_state.deck = vec!["Doubt".to_string()];
     engine.debug_set_typed_event_state(typed_shrine_event("Bonfire Elementals"));
-    engine.step_with_result(&RunAction::EventChoice(0));
-    engine.step_with_result(&RunAction::SelectRewardItem(0));
-    let second = engine.step_with_result(&RunAction::ChooseRewardOption {
+    engine.step_game(&GameAction::EventChoice(0));
+    engine.step_game(&GameAction::SelectRewardItem(0));
+    let second = engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index: 0,
     });
-    assert!(second.action_accepted);
+    assert!(second.accepted());
     assert!(engine.run_state.relics.iter().any(|relic| relic == "Circlet"));
+}
+
+#[test]
+fn spirit_poop_from_bonfire_has_no_gameplay_hook() {
+    // SpiritPoop.java contains only construction, description, and makeCopy;
+    // it has no equip, combat-start, turn, or reward callback.
+    let mut engine = RunEngine::new(77, 0);
+    engine.run_state.deck = vec!["Pain".to_string()];
+    engine.debug_set_typed_event_state(typed_shrine_event("Bonfire Elementals"));
+    engine.step_game(&GameAction::EventChoice(0));
+    engine.step_game(&GameAction::SelectRewardItem(0));
+    assert!(engine
+        .step_game(&GameAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .accepted());
+    assert!(engine.run_state.relics.iter().any(|relic| relic == "Spirit Poop"));
+
+    engine.run_state.deck = [
+        "Strike", "Strike", "Strike", "Strike", "Defend", "Defend", "Defend", "Defend",
+        "Eruption", "Vigilance",
+    ]
+    .iter()
+    .map(|card| (*card).to_string())
+    .collect();
+    engine
+        .run_state
+        .relics
+        .retain(|relic| matches!(relic.as_str(), "PureWater" | "Spirit Poop"));
+    engine.debug_enter_specific_combat(&["JawWorm"]);
+    let combat = engine.get_combat_engine().expect("Spirit Poop combat");
+    assert_eq!(combat.state.energy, 3);
+    assert_eq!(combat.state.hand.len(), 6); // ordinary draw plus Pure Water only
+    assert_eq!(combat.state.player.status(sid::STRENGTH), 0);
+    assert_eq!(combat.state.player.status(sid::DEXTERITY), 0);
 }
 
 #[test]

@@ -1,7 +1,10 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Ironclad Uncommon: Evolve ---- (cost 1, power, draw 1 when Status drawn; upgrade: draw 2)
+    // Evolve.java applies magicNumber stacks of EvolvePower; EvolvePower.java
+    // queues that many cards whenever a Status is drawn.
+    // Java: reference/extracted/methods/card/Evolve.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/EvolvePower.java
     insert(cards, CardDef {
                 id: "Evolve", name: "Evolve", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,

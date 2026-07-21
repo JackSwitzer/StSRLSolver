@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // ---- Silent Common: Slice ---- (cost 0, 6 dmg; +3 dmg)
+    // Slice.java deals 6 damage for zero energy; upgradeDamage(3) is its only
+    // upgrade change.
+    // Java: reference/extracted/methods/card/Slice.java
     insert(cards, CardDef {
         id: "Slice", name: "Slice", card_type: CardType::Attack,
         target: CardTarget::Enemy, cost: 0, base_damage: 6, base_block: -1,

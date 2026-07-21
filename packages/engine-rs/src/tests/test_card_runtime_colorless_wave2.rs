@@ -90,3 +90,43 @@ fn apotheosis_upgrades_all_cards_across_all_piles() {
         "exhaust pile cards should be upgraded"
     );
 }
+
+#[test]
+fn apotheosis_upgrade_changes_only_cost_and_does_not_upgrade_itself_in_limbo() {
+    // Apotheosis.java costs 2, exhausts, and its upgrade changes only base
+    // cost to 1. ApotheosisAction upgrades hand/draw/discard/exhaust groups;
+    // the currently played card is in limbo and therefore cannot upgrade itself.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Apotheosis.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ApotheosisAction.java
+    for (card_id, cost) in [("Apotheosis", 2), ("Apotheosis+", 1)] {
+        let mut engine = engine_without_start(
+            Vec::new(),
+            vec![enemy_no_intent("JawWorm", 40, 40)],
+            cost,
+        );
+        force_player_turn(&mut engine);
+        engine.state.hand = make_deck(&[card_id, "Dramatic Entrance"]);
+        engine.state.draw_pile = make_deck(&["Good Instincts"]);
+        engine.state.discard_pile = make_deck(&["Swift Strike"]);
+        engine.state.exhaust_pile = make_deck(&["Magnetism"]);
+        engine.state.energy = cost;
+
+        assert!(play_self(&mut engine, card_id));
+        assert_eq!(engine.state.energy, 0);
+        assert!(engine.state.hand.iter().all(|card| card.is_upgraded()));
+        assert!(engine.state.draw_pile.iter().all(|card| card.is_upgraded()));
+        assert!(engine.state.discard_pile.iter().all(|card| card.is_upgraded()));
+        assert!(engine.state.exhaust_pile.iter().any(|card| {
+            engine.card_registry.card_name(card.def_id) == "Magnetism+"
+        }));
+        assert!(engine.state.exhaust_pile.iter().any(|card| {
+            engine.card_registry.card_name(card.def_id) == card_id
+        }));
+        if card_id == "Apotheosis" {
+            assert!(engine.state.exhaust_pile.iter().any(|card| {
+                engine.card_registry.card_name(card.def_id) == "Apotheosis"
+                    && !card.is_upgraded()
+            }));
+        }
+    }
+}

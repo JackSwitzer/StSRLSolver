@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Uncommon: Swivel ---- (cost 2, 8 block, next attack costs 0; +3 block upgrade)
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Swivel.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/FreeAttackPower.java
+    // ApplyPowerAction stacks one FreeAttackPower charge per copy played.
     insert(cards, CardDef {
                 id: "Swivel", name: "Swivel", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 2, base_damage: -1, base_block: 8,

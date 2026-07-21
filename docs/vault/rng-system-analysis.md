@@ -1,253 +1,89 @@
-# Slay the Spire RNG System - Complete Analysis
+# RNG source index
 
-## Executive Summary
+This file is an index, not a parity claim. The decompiled game defines RNG
+semantics; committed Java traces are the behavioral oracle. Rust code and tests
+remain implementations to check against those sources.
 
-Slay the Spire uses **13 independent RNG streams**, all seeded from the same base seed but tracked independently. The game is fully deterministic given seed + player decisions.
+## Canonical trace keys
 
-## RNG Stream Inventory
+TraceLab emits these 13 counters from
+packages/harness-java/src/main/java/tracelab/TraceWriter.java:
 
-### Persistent Streams (Survive Entire Run)
-| Stream | Purpose | Key Consumers |
-|--------|---------|---------------|
-| `cardRng` | Card rewards, shop cards | Combat rewards, shop inventory, some events |
-| `monsterRng` | Encounter selection | Pre-generated per act |
-| `eventRng` | Event selection in ? rooms | EventRoom entry |
-| `relicRng` | Relic pool shuffles | Pool init (5 calls), tier rolls |
-| `treasureRng` | Chest type, gold variance | Treasure rooms, combat gold |
-| `potionRng` | Potion drops | Combat rewards, shops |
-| `merchantRng` | Shop prices, relic tiers | Shop generation |
+- card
+- cardRandom
+- shuffle
+- monster
+- monsterHp
+- ai
+- relic
+- treasure
+- event
+- merchant
+- potion
+- map
+- misc
 
-### Per-Floor Streams (Reset Each Floor)
-| Stream | Purpose | Seeding Formula |
-|--------|---------|-----------------|
-| `monsterHpRng` | Enemy HP variance | `seed + floorNum` |
-| `aiRng` | Enemy AI decisions | `seed + floorNum` |
-| `shuffleRng` | Card draw shuffle | `seed + floorNum` |
-| `cardRandomRng` | Card random effects | `seed + floorNum` |
-| `miscRng` | Event transforms, misc | `seed + floorNum` |
+The names above are the trace-schema vocabulary. Do not merge card and
+cardRandom, or monster and monsterHp.
 
-### Special Streams
-| Stream | Purpose | Notes |
-|--------|---------|-------|
-| `mapRng` | Map generation | Reseeded per act: `seed + actNum * multiplier` |
-| `NeowEvent.rng` | Neow options | Separate from cardRng, seeded with base seed |
+## Java authority
 
-## Critical Discovery: cardRng Snapping
+- decompiled/java-src/com/megacrit/cardcrawl/random/Random.java defines the
+  generator and counter behavior.
+- decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
+  declares the dungeon streams, initializes them from Settings.seed, restores
+  persistent counters from save data, and performs room-transition reseeding.
+- AbstractDungeon.nextRoomTransition reseeds monsterHp, ai, shuffle,
+  cardRandom, and misc with Settings.seed + floorNum. Other stream lifecycles
+  must be derived from their call sites rather than inferred from this list.
+- decompiled/java-src/com/megacrit/cardcrawl/helpers/SeedHelper.java defines
+  displayed-seed conversion.
 
-**At act transitions, cardRng counter snaps to fixed boundaries:**
-```
-counter 1-249   → snaps to 250
-counter 251-499 → snaps to 500
-counter 501-749 → snaps to 750
-```
+Search the full Java source for the exact stream at every random decision. A
+secondary randomBoolean, randomFloat, retry roll, singleton selection, or sound
+selection can be parity-significant because it advances the stream counter.
 
-This means card predictions for Act 2+ require knowing exact Act 1 cardRng state.
+## Local implementation and oracle
 
-## RNG Consumption by Game Element
+- packages/engine-rs/src/seed.rs implements private native ports of libGDX
+  `RandomXS128` and the 48-bit `java.util.Random` LCG. Public gameplay draws go
+  through `StsRandom`, which owns the Java wrapper counter and exposes one
+  named method per Java overload.
+- packages/engine-rs/src/engine.rs owns combat streams and exports trace
+  counters.
+- packages/engine-rs/src/run.rs owns run generation and transition logic.
+- packages/engine-rs/src/trace.rs defines the Rust trace schema.
+- packages/engine-rs/src/bin/trace_replay.rs replays scripts against goldens.
+- scripts/trace_diff.sh performs the offline comparison.
+- data/traces/java/ contains the protected Java goldens.
 
-### Shop (Most Complex)
-**cardRng: 12+ calls**
-- 5 rarity rolls (colored cards)
-- 5+ card selections (may retry on COLORLESS hit)
-- 2 colorless card selections
+Rust groups the seven run-persistent streams in `PersistentRngs` and the five
+`seed + floorNum` streams in `FloorRngs`. Combat receives explicit snapshots of
+the persistent `card` and `potion` streams plus all five floor streams, then
+returns them through one `CombatRngs::absorb_into` operation. Map and Neow each
+retain their independent streams. Raw generator transitions are private, and
+production gameplay code does not use `rand`, `RngCore`, `SliceRandom`, or
+generic sampling traits.
 
-**merchantRng: 17 calls**
-- 7 card price jitters
-- 1 sale card selection
-- 6 relic operations (3 tier + 3 price)
-- 3 potion price jitters
+`Collections.shuffle` has two distinct Java paths and Rust preserves both:
 
-**potionRng: 3 calls**
-- 1 per potion rarity
+- room assignment receives the wrapped `RandomXS128` directly, advancing raw
+  state without incrementing the StS wrapper counter;
+- card/relic shuffles first consume one signed `StsRandom.randomLong()`, then
+  seed a separate native `java.util.Random` for Fisher-Yates.
 
-### Events
-**Most events use miscRng (safe for cardRng):**
-- Transmogrifier, Designer, LivingWall, DrugDealer: miscRng transforms
+The current engine does not yet prove all 13 run-level streams independently.
+Exact native draws and ownership do not by themselves imply exact generated
+maps, pools, shops, events, rewards, or encounters.
+Use docs/work_units/audit-reports/engine-deep-audit.md and
+docs/work_units/sim-completion-map.md for the active gaps; do not turn this
+index into a hand-maintained parity table.
 
-**Events that consume cardRng:**
-- TheLibrary: **20+ calls** (generates 20 unique cards)
-- GremlinMatchGame: **~6 calls**
-- KnowingSkull: 1 call per colorless card selection
+## Verification rule
 
-### Combat Rewards
-**Order: Gold → Relic → Potion → Cards**
+For every RNG-sensitive change:
 
-| Reward | RNG Stream | Calls |
-|--------|-----------|-------|
-| Gold (elite/monster) | treasureRng | 1 |
-| Gold (boss) | miscRng | 1 |
-| Relic tier | relicRng | 1 |
-| Potion chance | potionRng | 1 |
-| Potion selection | potionRng | 1-3 (variable) |
-| Card rarity (×3) | cardRng | 3 |
-| Card selection (×3) | cardRng | 3 |
-| Card upgrade check (×3) | cardRng | 0-3 (rare cards skip) |
-
-**Total cardRng per combat: 6-9 calls**
-
-### Treasure Rooms
-- Use **treasureRng only** (not cardRng)
-- Chest type: 1 call
-- Gold variance: 1 call
-
-### Relic Pools
-- Shuffled **once at game start**: 5 `relicRng.randomLong()` per pool
-- FIFO consumption after shuffle
-- No RNG on individual draws (just pool.remove(0))
-
----
-
-## Three Implementation Hypotheses
-
-### Hypothesis 1: Counter-Based State Machine (RECOMMENDED)
-
-**Concept:** Track each RNG stream's counter independently. Simulate exact game flow.
-
-**Implementation:**
-```python
-class GameRNGState:
-    def __init__(self, seed: int):
-        self.seed = seed
-        self.counters = {
-            'card': 0, 'monster': 0, 'event': 0, 'relic': 0,
-            'treasure': 0, 'potion': 0, 'merchant': 0
-        }
-        self.floor_num = 0
-        self.act_num = 1
-
-    def get_rng(self, stream: str) -> Random:
-        return Random(self.seed, self.counters[stream])
-
-    def advance(self, stream: str, n: int = 1):
-        self.counters[stream] += n
-
-    def transition_act(self):
-        # Apply cardRng snapping
-        c = self.counters['card']
-        if 0 < c < 250: self.counters['card'] = 250
-        elif 250 < c < 500: self.counters['card'] = 500
-        elif 500 < c < 750: self.counters['card'] = 750
-        self.act_num += 1
-```
-
-**Pros:**
-- Exact game behavior reproduction
-- Handles all edge cases
-- Can predict any point in game given path
-
-**Cons:**
-- Requires tracking full path through game
-- Complex to implement all consumers
-
-### Hypothesis 2: Event-Driven Simulation
-
-**Concept:** Define each game event (combat, shop, event, etc.) as a function that consumes RNG.
-
-**Implementation:**
-```python
-class GameSimulator:
-    def __init__(self, seed: int):
-        self.state = GameRNGState(seed)
-
-    def simulate_combat(self, room_type: str):
-        # Gold
-        if room_type == 'boss':
-            self.state.advance('misc', 1)
-        else:
-            self.state.advance('treasure', 1)
-        # Relic (if elite)
-        if room_type == 'elite':
-            self.state.advance('relic', 1)
-        # Potion
-        self.state.advance('potion', 2)  # chance + selection
-        # Cards
-        self.state.advance('card', 9)  # 3 rarity + 3 select + 3 upgrade
-
-    def simulate_shop(self):
-        self.state.advance('card', 12)
-        self.state.advance('merchant', 17)
-        self.state.advance('potion', 3)
-```
-
-**Pros:**
-- Clean abstraction per event type
-- Easy to extend with new event types
-- Good for path simulation
-
-**Cons:**
-- Fixed consumption estimates may be inaccurate
-- Doesn't handle variable consumption (retries, duplicates)
-
-### Hypothesis 3: Delta-Based Prediction
-
-**Concept:** Pre-compute massive lookup tables for common paths.
-
-**Implementation:**
-```python
-# Pre-computed: how much each path element consumes
-PATH_DELTAS = {
-    'combat_normal': {'card': 9, 'treasure': 1, 'potion': 2},
-    'combat_elite': {'card': 9, 'treasure': 1, 'potion': 2, 'relic': 1},
-    'shop': {'card': 12, 'merchant': 17, 'potion': 3},
-    'event_library': {'card': 20},
-    'event_other': {},  # Most events don't affect cardRng
-    'treasure': {'treasure': 2},
-}
-
-def predict_cards_at_floor(seed, path: List[str], floor: int):
-    state = GameRNGState(seed)
-    for i, node in enumerate(path[:floor]):
-        delta = PATH_DELTAS.get(node, {})
-        for stream, count in delta.items():
-            state.advance(stream, count)
-    return generate_card_reward(state.get_rng('card'))
-```
-
-**Pros:**
-- Fast prediction once path is known
-- Simple to reason about
-- Easy to validate against game
-
-**Cons:**
-- Approximations may accumulate error
-- Doesn't handle variable consumption
-
----
-
-## Recommendation: Implement Hypothesis 1
-
-The counter-based state machine is the most accurate and flexible. It:
-1. Matches game behavior exactly
-2. Handles act transitions with cardRng snapping
-3. Can be extended to any RNG stream
-4. Supports save/load of state
-
-**Implementation Status: COMPLETE**
-- `packages/engine/state/game_rng.py` - GameRNGState class
-- **Test Results: 15/15 verified seeds passing (100%)**
-
-### Verified Neow Consumption Values
-| Neow Choice | cardRng Consumption |
-|-------------|---------------------|
-| Simple options (UPGRADE, GOLD, REMOVE, etc.) | 0 |
-| CURSE drawback | 1 |
-| RANDOM_COLORLESS | 3 |
-| CURSE + COLORLESS_2 | 4 |
-| Calling Bell boss swap | 9 |
-| Combat reward | ~9 |
-| Shop visit | ~12 |
-
-## Key Implementation Notes
-
-1. **All RNG streams start at counter 0** with same seed
-2. **Per-floor streams use seed + floorNum** (not counter-based)
-3. **cardRng snapping is CRITICAL** for multi-act prediction
-4. **Shop is the biggest cardRng consumer** (~12+ calls)
-5. **TheLibrary event is dangerous** (~20 cardRng calls)
-6. **Most events are safe** (use miscRng)
-
-## Files Referenced
-- AbstractDungeon.java: lines 129-141, 378-421, 1727-1731, 2542-2584
-- Merchant.java: lines 54-80
-- EventRoom.java: lines 22-27
-- Various event files in events/exordium/, events/city/, events/shrines/
+1. cite the exact Java call site;
+2. assert both the selected outcome and counter delta in an engine-path test;
+3. run the committed trace when one reaches the behavior; and
+4. request a new human-minted golden when source evidence is insufficient.

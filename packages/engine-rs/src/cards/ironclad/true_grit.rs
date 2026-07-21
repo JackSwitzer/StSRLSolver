@@ -1,10 +1,10 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // ---- Ironclad Common: True Grit ----
-    // Base True Grit keeps the typed block body and now uses the typed
-    // random-exhaust primitive; the upgrade already uses the typed
-    // choose-exhaust path.
+    // TrueGrit.java gains 7 Block then randomly exhausts one hand card. Upgrade
+    // raises Block to 9 and changes only the exhaust from random to selected.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/TrueGrit.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ExhaustAction.java
     insert(cards, CardDef {
         id: "True Grit",
         name: "True Grit",
@@ -34,6 +34,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         exhaust: false,
         enter_stance: None,
                 effect_data: &[
+            E::Simple(SE::GainBlock(A::Block)),
             E::ChooseCards {
                 source: P::Hand,
                 filter: crate::effects::declarative::CardFilter::All,

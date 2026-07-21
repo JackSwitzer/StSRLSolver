@@ -38,7 +38,7 @@ fn ironclad_wave14_registry_keeps_the_remaining_blockers_explicit() {
             E::ForEachInPile {
                 pile: P::Hand,
                 filter: CardFilter::All,
-                action: BulkAction::Exhaust,
+                action: BulkAction::ExhaustRandom,
             },
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::ExtraHits(A::HandSizeAtPlay),
@@ -147,7 +147,7 @@ fn ironclad_wave14_fiend_fire_uses_the_typed_exhaust_then_damage_surface() {
             E::ForEachInPile {
                 pile: P::Hand,
                 filter: CardFilter::All,
-                action: BulkAction::Exhaust,
+                action: BulkAction::ExhaustRandom,
             },
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
             E::ExtraHits(A::HandSizeAtPlay),

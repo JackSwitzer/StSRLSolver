@@ -1,4 +1,7 @@
 //! Magic Flower: Set MAGIC_FLOWER flag at combat start (+50% healing).
+//!
+//! Source: `reference/extracted/methods/relic/MagicFlower.java`
+//! (`onPlayerHeal` multiplies by 1.5 only while the room phase is COMBAT).
 
 use crate::effects::declarative::{Effect, SimpleEffect, Target, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
@@ -19,7 +22,7 @@ static TRIGGERS: [TriggeredEffect; 1] = [
 ];
 
 pub static DEF: EntityDef = EntityDef {
-    id: "MagicFlower",
+    id: "Magic Flower",
     name: "Magic Flower",
     kind: EntityKind::Relic,
     triggers: &TRIGGERS,

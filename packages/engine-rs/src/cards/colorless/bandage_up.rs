@@ -2,7 +2,8 @@ use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Colorless Uncommon ----
-        // Bandage Up: 0 cost, heal 4, exhaust
+        // Source: cards/colorless/BandageUp.java costs 0, heals for magic 4,
+        // Exhausts, and upgrades only that healing amount by 2.
     insert(cards, CardDef {
                 id: "Bandage Up", name: "Bandage Up", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,

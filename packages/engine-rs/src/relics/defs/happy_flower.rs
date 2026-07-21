@@ -1,4 +1,7 @@
 //! Happy Flower: Every 3 turns, gain 1 Energy.
+//!
+//! Source: `reference/extracted/methods/relic/HappyFlower.java` (`onEquip`
+//! starts at zero; each `atTurnStart` increments and the third grants 1 Energy).
 
 use crate::effects::declarative::{Effect, SimpleEffect, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};

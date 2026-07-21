@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Uncommon: Footwork ---- (cost 1, power, +2 dex; +1)
+        // Footwork.java applies DexterityPower(2); upgrading adds exactly 1
+        // to that magic amount and changes no other stat.
+        // Java: reference/extracted/methods/card/Footwork.java
     insert(cards, CardDef {
                 id: "Footwork", name: "Footwork", card_type: CardType::Power,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,

@@ -1,47 +1,43 @@
-# Slay the Spire RL Training Rebuild
+# Slay the Spire RL — Agent Orientation
 
-## Repo shape
+Read `AGENTS.md` first. Its source-of-truth, protected-path, testing, and branch
+rules are binding.
 
-Work happens on `main` plus per-unit branches (`claude/uNN-*` / `codex/uNN-*`) per
-`docs/goal/UNITS.md`; see `AGENTS.md` for agent rules.
+## Current state
 
-## Active System
+- `packages/engine-rs/` is the canonical simulator.
+- The 667-row card/monster/relic/potion source-verification sweep is complete.
+- Content verification is not full systems parity. Consult
+  `docs/work_units/audit-reports/engine-deep-audit.md`,
+  `docs/work_units/sim-completion-map.md`, and `docs/goal/FINDINGS.md` before
+  choosing work.
+- Training, app, and visualization consumers are being rebuilt. Do not restore or
+  advertise their superseded launch flows.
 
-Use the new artifact-first training stack only:
+## Working rules
 
-- `packages/engine-rs/`
-  - canonical Rust engine and training contract
-- `packages/training/`
-  - snapshot corpus generation, Rust PUCT collection, MLX policy/value training, manifests, frontier logging
-- `packages/app/SpireMonitor/`
-  - manifest/frontier/benchmark/replay monitor
-
-Do not reintroduce or document superseded training flows in this branch.
-
-## Commands
+1. Derive expected behavior from `reference/extracted/` or the full local
+   `decompiled/java-src/` tree, never from existing Rust alone.
+2. Preserve exact action ordering and RNG consumption.
+3. Add a source-cited test for every behavior change.
+4. Keep changes focused, preserve unrelated worktree edits, and do not touch the
+   protected paths listed in `AGENTS.md`.
+5. Run the full library suite for engine commits:
 
 ```bash
-./scripts/test_engine_rs.sh check --lib
-./scripts/test_engine_rs.sh test --lib training_contract -- --nocapture
-uv run pytest tests/training -q
-
-./scripts/training.sh print-corpus-plan
-./scripts/training.sh print-seed-suite
-./scripts/training.sh launch --log-file logs/active/training-launcher.log --pid-file logs/active/training-launcher.pid run-phase1-puct-overnight --output-dir logs/active --target-cases 500 --collection-passes 3 --epochs 1
+./scripts/test_engine_rs.sh test --lib
 ```
 
-## Key Docs
+Use `scripts/ledger.sh status` for content coverage and
+`scripts/trace_diff.sh <script.json>` only when a committed golden covers the
+scenario. Agents do not run `scripts/trace_java.sh` or otherwise launch the game.
 
-- `AGENTS.md` + `docs/goal/GOAL.md` — conversion goal spec: end state, unit queue, oracle tooling, inventory (the /goal loop)
-- `docs/CLAUDE-training.md`
-- `docs/training-log-shape.md`
-- `docs/work_units/combat-first-training-rebuild.md`
-- `docs/work_units/watcher-seed-validation-suite.md`
+## Canonical references
 
-## Current Phase
-
-- Watcher A0 combat first
-- artifact-first monitor output
-- mixed snapshot corpus plus reconstructed Act 1 validation seeds
-- MLX-only backend policy
-- strategic/pathing training deferred until the combat loop is stable
+- `docs/goal/GOAL.md` — end state and invariants
+- `docs/goal/UNITS.md` — infrastructure queue
+- `docs/goal/TOOLING.md` — trace/oracle contract
+- `docs/goal/BENCHMARKS.md` — benchmark ladder
+- `docs/goal/FINDINGS.md` — known baseline gaps
+- `docs/work_units/audit-reports/engine-deep-audit.md` — ranked audit findings
+- `docs/work_units/sim-completion-map.md` — gap map and sequencing

@@ -1,4 +1,5 @@
 //! Tungsten Rod: Reduce all HP loss by 1 (minimum 0).
+//! Java: decompiled/java-src/com/megacrit/cardcrawl/relics/TungstenRod.java
 //!
 //! Damage modifier: owned by the canonical inline damage pipeline.
 //! This EntityDef records the trigger surface for export/runtime snapshots.

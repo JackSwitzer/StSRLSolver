@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::combat_types::CardInstance;
-use crate::cards::CardDef;
+use crate::cards::{CardDef, CardType};
 use crate::engine::CombatEngine;
 
 pub type ComplexCardHook = fn(&mut CombatEngine, &CardPlayContext);
@@ -33,8 +33,12 @@ pub enum CanPlayRule {
 pub enum CostModifierRule {
     ReduceOnHpLoss,
     ReducePerPower,
-    ReduceOnDiscard,
     IncreaseOnHpLoss,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum StatefulCostRule {
+    ReduceOnDiscard,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -77,6 +81,7 @@ pub enum OnRetainRule {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OnExhaustRule {
     GainEnergy,
+    ReturnCopyToHand,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -103,6 +108,7 @@ pub enum WhileInHandRule {
 pub enum CardRuntimeTrigger {
     CanPlay(CanPlayRule),
     ModifyCost(CostModifierRule),
+    StatefulCost(StatefulCostRule),
     ModifyDamage(DamageModifierRule),
     OnDraw(OnDrawRule),
     OnDiscard(OnDiscardRule),
@@ -165,6 +171,10 @@ pub struct CardPlayContext<'a> {
     pub hand_size_at_play: usize,
     /// Count recorded by the most recent bulk pile operation in this card play.
     pub last_bulk_count: i32,
+    /// Types actually drawn by the most recent DrawCards effect in this play.
+    pub last_drawn_card_types: Vec<CardType>,
+    /// Manual-discard hooks queued behind a later effect in the same Java action.
+    pub deferred_manual_discards: Vec<OnDiscardEffect>,
 }
 
 /// Damage modifier returned by modify_damage hooks.

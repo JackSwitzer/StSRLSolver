@@ -8,6 +8,7 @@ mod beyond;
 mod shrines;
 
 pub(crate) use exordium::dead_adventurer_event;
+pub(crate) use shrines::nloth_trade_program;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventDef {
@@ -75,6 +76,7 @@ pub enum EventReward {
     Gold { amount: i32 },
     MaxHp { amount: i32 },
     Relic { label: String },
+    UniqueRelicOrCirclet { label: String },
     Potion { count: usize },
     Card { count: usize },
     StoredNoteCard,
@@ -120,10 +122,18 @@ pub enum EventProgramOp {
     AdjustGold { amount: i32 },
     AdjustMaxHp { amount: i32 },
     AdjustMaxHpPercent { percent: i32 },
+    AdjustMaxHpPercentByAscension {
+        base_percent: i32,
+        asc15_percent: i32,
+        minimum_loss: i32,
+    },
     DamageAndGold { damage: i32, gold: i32 },
     LosePercentHp { percent: i32 },
     ResolveJoustBet { bet_on_owner: bool },
+    ResolveFaceTraderTouch,
+    ObtainRandomFace,
     RemoveRelic { label: String },
+    ObtainRelic { label: String },
     DeckMutation(EventDeckMutation),
     Reward(EventReward),
     Nothing,
@@ -218,6 +228,18 @@ impl EventProgramOp {
         Self::AdjustMaxHpPercent { percent }
     }
 
+    pub fn max_hp_percent_by_ascension(
+        base_percent: i32,
+        asc15_percent: i32,
+        minimum_loss: i32,
+    ) -> Self {
+        Self::AdjustMaxHpPercentByAscension {
+            base_percent,
+            asc15_percent,
+            minimum_loss,
+        }
+    }
+
     pub fn damage_and_gold(damage: i32, gold: i32) -> Self {
         Self::DamageAndGold { damage, gold }
     }
@@ -230,8 +252,22 @@ impl EventProgramOp {
         Self::ResolveJoustBet { bet_on_owner }
     }
 
+    pub fn face_trader_touch() -> Self {
+        Self::ResolveFaceTraderTouch
+    }
+
+    pub fn obtain_random_face() -> Self {
+        Self::ObtainRandomFace
+    }
+
     pub fn remove_relic(label: impl Into<String>) -> Self {
         Self::RemoveRelic {
+            label: label.into(),
+        }
+    }
+
+    pub fn obtain_relic(label: impl Into<String>) -> Self {
+        Self::ObtainRelic {
             label: label.into(),
         }
     }
@@ -258,6 +294,12 @@ impl EventProgramOp {
 
     pub fn gain_relic(label: impl Into<String>) -> Self {
         Self::Reward(EventReward::Relic { label: label.into() })
+    }
+
+    pub fn gain_unique_relic_or_circlet(label: impl Into<String>) -> Self {
+        Self::Reward(EventReward::UniqueRelicOrCirclet {
+            label: label.into(),
+        })
     }
 
     pub fn gain_potion(count: usize) -> Self {
@@ -400,8 +442,8 @@ impl EventEffect {
             Self::Nothing => vec![EventProgramOp::Nothing],
             Self::UpgradeCard => vec![EventProgramOp::upgrade_card(1)],
             Self::GoldenIdolTake => vec![
-                EventProgramOp::LosePercentHp { percent: 25 },
-                EventProgramOp::AdjustGold { amount: 300 },
+                EventProgramOp::obtain_relic("Golden Idol"),
+                EventProgramOp::continue_event(exordium::golden_idol_consequence_event()),
             ],
             Self::TransformCard => vec![EventProgramOp::transform_card(1)],
             Self::DuplicateCard => vec![EventProgramOp::duplicate_card(1)],
@@ -443,23 +485,6 @@ pub fn typed_events_for_act(act: i32) -> Vec<TypedEventDef> {
 
 pub fn typed_shrine_events() -> Vec<TypedEventDef> {
     shrines::typed_shrine_events()
-}
-
-
-/// Get event list for the given act.
-pub fn events_for_act(act: i32) -> Vec<EventDef> {
-    typed_events_for_act(act)
-        .into_iter()
-        .map(|event| event.summary_event())
-        .collect()
-}
-
-/// Get shrine events (shared across all acts in Java).
-pub fn shrine_events() -> Vec<EventDef> {
-    typed_shrine_events()
-        .into_iter()
-        .map(|event| event.summary_event())
-        .collect()
 }
 
 #[cfg(test)]

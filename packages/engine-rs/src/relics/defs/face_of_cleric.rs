@@ -1,4 +1,7 @@
 //! Face of Cleric: +1 max HP on combat victory.
+//!
+//! Source: `reference/extracted/methods/relic/FaceOfCleric.java` — `onVictory`
+//! calls `increaseMaxHp(1, true)`, which also attempts to heal one HP.
 
 use crate::effects::declarative::{Effect, SimpleEffect, AmountSource};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};

@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Common: Poisoned Stab ---- (cost 1, 6 dmg, 3 poison; +1/+1)
+    // PoisonedStab.java queues DamageAction before ApplyPowerAction. Upgrade
+    // adds 2 damage and 1 Poison, from 6/3 to 8/4.
+    // Source: reference/extracted/methods/card/PoisonedStab.java
     insert(cards, CardDef {
                 id: "Poisoned Stab", name: "Poisoned Stab", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 6, base_block: -1,

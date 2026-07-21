@@ -1,5 +1,9 @@
 use crate::cards::prelude::*;
 
+// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Consecrate.java
+//   ctor: cost 0 multi-damage ATTACK targeting ALL_ENEMY, baseDamage 5.
+//   use(): damages every enemy once.
+//   upgrade(): upgradeDamage(3), producing baseDamage 8.
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // ---- Common: Consecrate ---- (cost 0, 5 dmg AoE, +3 upgrade)
     insert(cards, CardDef {

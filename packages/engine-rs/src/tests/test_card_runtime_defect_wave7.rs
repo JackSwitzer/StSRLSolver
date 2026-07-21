@@ -15,7 +15,8 @@ use crate::effects::types::{CardRuntimeTraits, CardBlockHint};
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
 use crate::tests::support::{
-    end_turn, enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_self,
+    discard_prefix_count, end_turn, enemy, enemy_no_intent, engine_with, engine_without_start,
+    exhaust_prefix_count, force_player_turn, hand_count, make_deck, make_deck_n, play_self,
 };
 
 fn one_enemy_engine(hp: i32) -> crate::engine::CombatEngine {
@@ -85,16 +86,21 @@ fn defect_wave7_registry_exports_match_typed_runtime_progress() {
 
 #[test]
 fn defect_wave7_auto_shields_boot_sequence_and_leap_follow_engine_path() {
+    // Source: AutoShields.java checks currentBlock == 0 before queuing its
+    // GainBlockAction, and upgrades its 11 base block by 4 without changing cost.
     let mut auto_shields_open = one_enemy_engine(40);
-    auto_shields_open.state.hand = make_deck(&["Auto Shields+"]);
-    assert!(play_self(&mut auto_shields_open, "Auto Shields+"));
-    assert_eq!(auto_shields_open.state.player.block, 15);
+    auto_shields_open.state.player.set_status(sid::DEXTERITY, 2);
+    auto_shields_open.state.hand = make_deck(&["Auto Shields"]);
+    assert!(play_self(&mut auto_shields_open, "Auto Shields"));
+    assert_eq!(auto_shields_open.state.player.block, 13);
+    assert_eq!(auto_shields_open.state.energy, 2);
 
     let mut auto_shields_blocked = one_enemy_engine(40);
     auto_shields_blocked.state.player.block = 3;
     auto_shields_blocked.state.hand = make_deck(&["Auto Shields+"]);
     assert!(play_self(&mut auto_shields_blocked, "Auto Shields+"));
     assert_eq!(auto_shields_blocked.state.player.block, 3);
+    assert_eq!(auto_shields_blocked.state.energy, 2);
 
     let mut boot_sequence = one_enemy_engine(40);
     boot_sequence.state.hand = make_deck(&["BootSequence+"]);
@@ -110,6 +116,43 @@ fn defect_wave7_auto_shields_boot_sequence_and_leap_follow_engine_path() {
     leap.state.hand = make_deck(&["Leap+"]);
     assert!(play_self(&mut leap, "Leap+"));
     assert_eq!(leap.state.player.block, 12);
+}
+
+#[test]
+fn leap_source_gains_modified_nine_or_twelve_block_for_one_energy() {
+    // Leap.java uses this.block in one GainBlockAction. Base Block is 9 and
+    // upgradeBlock(3) makes 12; Dexterity and Frail therefore modify each play
+    // independently through AbstractCard.applyPowers.
+    let mut engine = one_enemy_engine(40);
+    engine.state.hand = make_deck(&["Leap", "Leap+"]);
+    engine.state.energy = 2;
+    engine.state.player.set_status(sid::DEXTERITY, 1);
+    engine.state.player.set_status(sid::FRAIL, 1);
+
+    assert!(play_self(&mut engine, "Leap"));
+    assert_eq!(engine.state.player.block, 7); // floor((9 + 1) * 0.75)
+    assert!(play_self(&mut engine, "Leap+"));
+    assert_eq!(engine.state.player.block, 16); // + floor((12 + 1) * 0.75)
+    assert_eq!(engine.state.energy, 0);
+    assert_eq!(discard_prefix_count(&engine, "Leap"), 2);
+}
+
+#[test]
+fn boot_sequence_plus_starts_in_hand_blocks_for_free_and_exhausts() {
+    // Source: BootSequence.java sets Innate and Exhaust, costs 0, starts at 10
+    // block, and upgradeBlock(3) makes the upgraded block 13.
+    let mut deck = make_deck_n("Defend", 9);
+    deck.push(global_registry().make_card("BootSequence+"));
+    let mut engine = engine_with(deck, 40, 0);
+    engine.state.player.set_status(sid::DEXTERITY, 2);
+
+    assert_eq!(hand_count(&engine, "BootSequence+"), 1);
+    let energy_before = engine.state.energy;
+    assert!(play_self(&mut engine, "BootSequence+"));
+
+    assert_eq!(engine.state.player.block, 15);
+    assert_eq!(engine.state.energy, energy_before);
+    assert_eq!(exhaust_prefix_count(&engine, "BootSequence"), 1);
 }
 
 #[test]
@@ -135,7 +178,9 @@ fn defect_wave7_buffer_heatsinks_hello_world_and_loop_follow_engine_path() {
     assert_eq!(hello_world.state.player.status(sid::HELLO_WORLD), 1);
     end_turn(&mut hello_world);
     assert_eq!(hello_world.state.hand.len(), 1);
-    assert_eq!(
+    // Java: powers/HelloPower.java draws from commonCardPool, which excludes
+    // the BASIC Strike that the old approximation generated.
+    assert_ne!(
         hello_world.card_registry.card_name(hello_world.state.hand[0].def_id),
         "Strike"
     );
@@ -147,5 +192,93 @@ fn defect_wave7_buffer_heatsinks_hello_world_and_loop_follow_engine_path() {
     assert!(play_self(&mut loop_card, "Loop+"));
     assert_eq!(loop_card.state.player.status(sid::LOOP), 2);
     end_turn(&mut loop_card);
-    assert_eq!(loop_card.state.enemies[0].entity.hp, 54);
+    assert_eq!(loop_card.state.enemies[0].entity.hp, 51);
+}
+
+#[test]
+fn loop_source_frost_repeats_after_enemy_turn_and_old_block_clear() {
+    // LoopPower.atStartOfTurn invokes front-orb onStartOfTurn/onEndOfTurn once
+    // per amount. The ordinary Frost passive gives 2 Block before the enemy's
+    // 5-damage turn; Loop+ gives 4 fresh Block only at the following turn start,
+    // after GameActionManager has cleared the old Block.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy("JawWorm", 40, 40, 1, 5, 1)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.init_defect_orbs(1);
+    engine.channel_orb(OrbType::Frost);
+    engine.state.hand = make_deck(&["Loop+"]);
+    let hp_before = engine.state.player.hp;
+
+    assert!(play_self(&mut engine, "Loop+"));
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.hp, hp_before - 3);
+    assert_eq!(engine.state.player.block, 4);
+    assert_eq!(engine.state.player.status(sid::LOOP), 2);
+}
+
+#[test]
+fn heatsinks_triggers_with_preexisting_stacks_before_the_new_power_resolves() {
+    // HeatsinkPower.onUseCard queues a draw using its current amount before the
+    // played Power's use() action resolves. Therefore Heatsinks does not draw
+    // for itself, and a second Heatsinks draws using only the old stack count.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/HeatsinkPower.java
+    let mut engine = one_enemy_engine(50);
+    engine.state.hand = make_deck(&["Heatsinks", "Heatsinks+"]);
+    engine.state.draw_pile = make_deck(&[
+        "Strike",
+        "Defend",
+        "Defend",
+        "Defend",
+        "Buffer",
+    ]);
+    engine.state.energy = 5;
+
+    assert!(play_self(&mut engine, "Heatsinks"));
+    assert_eq!(engine.state.player.status(sid::HEATSINK), 1);
+    assert_eq!(engine.state.draw_pile.len(), 5, "first Heatsinks cannot trigger itself");
+
+    assert!(play_self(&mut engine, "Heatsinks+"));
+    assert_eq!(engine.state.player.status(sid::HEATSINK), 3);
+    assert_eq!(engine.state.draw_pile.len(), 4, "second Heatsinks draws from the old one stack");
+    assert_eq!(hand_count(&engine, "Buffer"), 1);
+
+    assert!(play_self(&mut engine, "Buffer"));
+    assert_eq!(engine.state.player.status(sid::BUFFER), 1);
+    assert_eq!(engine.state.draw_pile.len(), 1);
+    assert_eq!(engine.state.hand.len(), 3, "three Heatsink stacks draw three cards");
+}
+
+#[test]
+fn buffer_stacks_and_only_consumes_after_block_leaves_positive_damage() {
+    // Buffer.java applies magicNumber stacks (1, upgraded to 2). In
+    // AbstractPlayer.damage, block is decremented before
+    // BufferPower.onAttackedToChangeDamage; Buffer queues one stack reduction
+    // only when that per-hit damageAmount is still positive.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Buffer.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BufferPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy("Dummy", 40, 40, 1, 5, 2)],
+        4,
+    );
+    force_player_turn(&mut engine);
+    engine.state.hand = make_deck(&["Buffer", "Buffer+"]);
+
+    assert!(play_self(&mut engine, "Buffer"));
+    assert!(play_self(&mut engine, "Buffer+"));
+    assert_eq!(engine.state.player.status(sid::BUFFER), 3);
+    assert_eq!(engine.state.energy, 0);
+
+    engine.state.player.block = 5;
+    let hp_before = engine.state.player.hp;
+    end_turn(&mut engine);
+
+    assert_eq!(engine.state.player.hp, hp_before);
+    assert_eq!(engine.state.player.block, 0);
+    assert_eq!(engine.state.player.status(sid::BUFFER), 2);
 }

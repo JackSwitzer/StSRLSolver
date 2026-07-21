@@ -2,6 +2,8 @@ use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
         // ---- Silent Basic: Survivor ---- (cost 1, 8 block, discard 1; +3 block)
+    // GainBlockAction resolves before the mandatory non-random DiscardAction.
+    // Java: reference/extracted/methods/card/Survivor.java
     insert(cards, CardDef {
                 id: "Survivor", name: "Survivor", card_type: CardType::Skill,
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 8,

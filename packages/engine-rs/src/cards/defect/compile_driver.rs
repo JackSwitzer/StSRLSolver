@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Compile Driver: 1 cost, 7 dmg, draw 1 per unique orb
+        // Source: cards/blue/CompileDriver.java queues 7 damage before
+        // CompileDriverAction(1); upgradeDamage(3) leaves the draw multiplier unchanged.
     insert(cards, CardDef {
                 id: "Compile Driver", name: "Compile Driver", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 7, base_block: -1,

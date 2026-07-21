@@ -3,7 +3,9 @@
 // Java oracle references for this wave:
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ReinforcedBody.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Tempest.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/TempestAction.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Skewer.java
+// - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/SkewerAction.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/ConjureBlade.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Expunger.java
 
@@ -66,6 +68,32 @@ fn xcount_wave1_skewer_uses_declared_x_hits_and_consumes_all_energy() {
 }
 
 #[test]
+fn skewer_zero_chemical_x_and_free_play_follow_skewer_action() {
+    // SkewerAction starts from energyOnUse, adds exactly two for Chemical X,
+    // queues no DamageAction when the result is zero, and spends current
+    // energy only when freeToPlayOnce is false.
+    let mut zero = one_enemy_engine(80, 0);
+    zero.state.hand = make_deck(&["Skewer"]);
+    assert!(play_on_enemy(&mut zero, "Skewer", 0));
+    assert_eq!(zero.state.enemies[0].entity.hp, 80);
+    assert_eq!(zero.state.energy, 0);
+
+    let mut chemical = one_enemy_engine(80, 0);
+    chemical.state.relics.push("Chemical X".to_string());
+    chemical.state.hand = make_deck(&["Skewer"]);
+    assert!(play_on_enemy(&mut chemical, "Skewer", 0));
+    assert_eq!(chemical.state.enemies[0].entity.hp, 66);
+    assert_eq!(chemical.state.energy, 0);
+
+    let mut free = one_enemy_engine(80, 2);
+    free.state.relics.push("Chemical X".to_string());
+    free.state.hand = vec![free.card_registry.make_card("Skewer").set_free(true)];
+    assert!(play_on_enemy(&mut free, "Skewer", 0));
+    assert_eq!(free.state.enemies[0].entity.hp, 52);
+    assert_eq!(free.state.energy, 2);
+}
+
+#[test]
 fn xcount_wave1_tempest_plus_channels_x_plus_one_lightning_orbs() {
     let mut engine = one_enemy_engine(50, 5);
     engine.init_defect_orbs(4);
@@ -80,6 +108,35 @@ fn xcount_wave1_tempest_plus_channels_x_plus_one_lightning_orbs() {
     assert_eq!(engine.state.orb_slots.slots[1].orb_type, OrbType::Lightning);
     assert_eq!(engine.state.orb_slots.slots[2].orb_type, OrbType::Lightning);
     assert_eq!(exhaust_prefix_count(&engine, "Tempest"), 1);
+}
+
+#[test]
+fn tempest_zero_energy_and_chemical_x_follow_tempest_action_effect_count() {
+    // TempestAction starts from energyOnUse, adds two for Chemical X and one
+    // when upgraded, and queues channels only when the resulting effect is > 0.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/TempestAction.java
+    for (card_id, chemical_x, expected_orbs) in [
+        ("Tempest", false, 0),
+        ("Tempest", true, 2),
+        ("Tempest+", false, 1),
+    ] {
+        let mut engine = one_enemy_engine(50, 0);
+        engine.init_defect_orbs(4);
+        if chemical_x {
+            engine.state.relics.push("Chemical X".to_string());
+        }
+        engine.state.hand = make_deck(&[card_id]);
+
+        assert!(play_self(&mut engine, card_id));
+
+        assert_eq!(engine.state.energy, 0, "{card_id}, Chemical X={chemical_x}");
+        assert_eq!(
+            engine.state.orb_slots.occupied_count(),
+            expected_orbs,
+            "{card_id}, Chemical X={chemical_x}"
+        );
+        assert_eq!(exhaust_prefix_count(&engine, "Tempest"), 1);
+    }
 }
 
 #[test]

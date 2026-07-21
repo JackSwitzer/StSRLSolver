@@ -47,6 +47,27 @@ fn xcount_wave2_reinforced_body_applies_modified_block_per_energy_spent() {
 }
 
 #[test]
+fn reinforced_body_emits_one_block_gain_and_juggernaut_hit_per_x() {
+    // ReinforcedBodyAction loops X times and queues a separate GainBlockAction
+    // each iteration. JuggernautPower.onGainedBlock therefore queues three
+    // random-enemy hits here, each consuming a cardRandomRng tick even with a
+    // single living enemy.
+    // Sources: actions/defect/ReinforcedBodyAction.java,
+    // powers/JuggernautPower.java, and monsters/MonsterGroup.java.
+    let mut engine = one_enemy_engine(3);
+    engine.state.player.set_status(crate::status_ids::sid::JUGGERNAUT, 5);
+    ensure_in_hand(&mut engine, "Reinforced Body");
+    let card_random_before = engine.rng_counters()["cardRandom"];
+
+    assert!(play_self(&mut engine, "Reinforced Body"));
+
+    assert_eq!(engine.state.player.block, 21);
+    assert_eq!(engine.state.enemies[0].entity.hp, 35);
+    assert_eq!(engine.rng_counters()["cardRandom"], card_random_before + 3);
+    assert_eq!(engine.state.energy, 0);
+}
+
+#[test]
 fn xcount_wave2_expunger_moves_off_shared_status_bridge() {
     let expunger = global_registry().get("Expunger").expect("Expunger");
     assert_eq!(

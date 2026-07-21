@@ -1,7 +1,9 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-    // ---- Silent Uncommon: Calculated Gamble ---- (cost 0, discard hand draw that many, exhaust; upgrade: no exhaust)
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/CalculatedGamble.java
+    // and actions/unique/CalculatedGambleAction.java. Both versions pass `false`
+    // to the action, so the upgrade only removes Exhaust; it does not draw extra.
     insert(cards, CardDef {
         id: "Calculated Gamble", name: "Calculated Gamble", card_type: CardType::Skill,
         target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
@@ -26,7 +28,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 filter: CardFilter::All,
                 action: BulkAction::Discard,
             },
-            E::Simple(SE::DrawCards(A::HandSizeAtPlayPlus(1))),
+            E::Simple(SE::DrawCards(A::HandSizeAtPlay)),
         ],
         complex_hook: None,
     });

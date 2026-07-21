@@ -115,6 +115,9 @@ mod ironclad_wave4_card_runtime_tests {
         let ghostly_armor = card("Ghostly Armor");
         assert_eq!(ghostly_armor.card_type, CardType::Skill);
         assert!(ghostly_armor.has_test_marker("ethereal"));
+        let ghostly_armor_plus = card("Ghostly Armor+");
+        assert_eq!(ghostly_armor_plus.base_block, 13);
+        assert!(ghostly_armor_plus.has_test_marker("ethereal"));
 
         let headbutt = card("Headbutt");
         assert_eq!(
@@ -142,7 +145,25 @@ mod ironclad_wave4_card_runtime_tests {
     #[test]
     fn blood_for_blood_uses_the_hp_loss_cost_path_on_engine_play() {
         let mut engine = engine_for(&["Blood for Blood"], &[], &[], 60, 2);
-        engine.player_lose_hp(2);
+        // Sources: AbstractPlayer.java increments damagedThisCombat once for
+        // each positive damage event; BloodForBlood.java reduces cost by one
+        // from each tookDamage() callback, independent of damage amount.
+        engine.player_lose_hp(10);
+        let card_idx = engine
+            .state
+            .hand
+            .iter()
+            .position(|card| engine.card_registry.card_name(card.def_id) == "Blood for Blood")
+            .unwrap();
+        assert!(!engine.get_legal_actions().iter().any(|action| {
+            matches!(action, Action::PlayCard { card_idx: idx, .. } if *idx == card_idx)
+        }));
+
+        engine.player_lose_hp(1);
+        assert_eq!(engine.state.player.status(crate::status_ids::sid::HP_LOSS_THIS_COMBAT), 2);
+        assert!(engine.get_legal_actions().iter().any(|action| {
+            matches!(action, Action::PlayCard { card_idx: idx, .. } if *idx == card_idx)
+        }));
         let hp_before = engine.state.enemies[0].entity.hp;
 
         assert!(play_on_enemy(&mut engine, "Blood for Blood", 0));
@@ -163,8 +184,11 @@ mod ironclad_wave4_card_runtime_tests {
 
     #[test]
     fn burning_pact_exhausts_a_selected_card_and_draws_after_choice_resolution() {
+        // ExhaustAction auto-exhausts a singleton hand; two remaining cards
+        // are required for its manual selection screen.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ExhaustAction.java
         let mut engine = engine_for(
-            &["Burning Pact", "Strike"],
+            &["Burning Pact", "Strike", "Anger"],
             &["Defend", "Bash"],
             &[],
             50,
@@ -182,7 +206,12 @@ mod ironclad_wave4_card_runtime_tests {
 
         assert_eq!(engine.phase, CombatPhase::PlayerTurn);
         assert_eq!(exhaust_prefix_count(&engine, "Strike"), 1);
-        assert_eq!(engine.state.hand.len(), 2);
+        assert_eq!(engine.state.hand.len(), 3);
+        assert!(engine
+            .state
+            .hand
+            .iter()
+            .any(|card| engine.card_registry.card_name(card.def_id) == "Anger"));
         assert!(engine
             .state
             .hand
@@ -226,18 +255,27 @@ mod ironclad_wave4_card_runtime_tests {
 
     #[test]
     fn ghostly_armor_grants_block_and_exhausts_if_unplayed() {
-        let mut played = engine_for(&["Ghostly Armor"], &[], &[], 50, 3);
-        let block_before = played.state.player.block;
+        // GhostlyArmor.java grants its current block (10/13), and upgrade()
+        // only adds 3 block. Both versions keep isEthereal=true.
+        // Java: reference/extracted/methods/card/GhostlyArmor.java
+        let mut played = engine_for(&["Ghostly Armor", "Ghostly Armor+"], &[], &[], 50, 3);
 
         assert!(play_self(&mut played, "Ghostly Armor"));
+        assert_eq!(played.state.player.block, 10);
+        assert!(play_self(&mut played, "Ghostly Armor+"));
+        assert_eq!(played.state.player.block, 23);
+        assert_eq!(discard_prefix_count(&played, "Ghostly Armor"), 2);
 
-        assert!(played.state.player.block >= block_before + 10);
-        assert_eq!(discard_prefix_count(&played, "Ghostly Armor"), 1);
-
-        let mut held = engine_for(&["Ghostly Armor"], &["Strike"], &[], 50, 3);
+        let mut held = engine_for(
+            &["Ghostly Armor", "Ghostly Armor+"],
+            &["Strike", "Strike", "Strike", "Strike", "Strike"],
+            &[],
+            50,
+            3,
+        );
         held.execute_action(&Action::EndTurn);
 
-        assert_eq!(exhaust_prefix_count(&held, "Ghostly Armor"), 1);
+        assert_eq!(exhaust_prefix_count(&held, "Ghostly Armor"), 2);
         assert_eq!(discard_prefix_count(&held, "Ghostly Armor"), 0);
     }
 

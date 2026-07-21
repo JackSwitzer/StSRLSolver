@@ -1,7 +1,8 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Core Surge: 1 cost, 11 dmg, gain 1 Artifact, exhaust
+    // Source: reference/extracted/methods/card/CoreSurge.java queues 11 damage
+    // before 1 Artifact and Exhausts; its upgrade changes only damage by +4.
     insert(cards, CardDef {
                 id: "Core Surge", name: "Core Surge", card_type: CardType::Attack,
                 target: CardTarget::Enemy, cost: 1, base_damage: 11, base_block: -1,

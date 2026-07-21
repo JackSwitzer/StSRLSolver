@@ -21,13 +21,13 @@ mod deceivereality;
 mod deusexmachina;
 mod devaform;
 mod devotion;
+mod discipline;
 mod emptybody;
 mod emptyfist;
 mod emptymind;
 mod eruption;
 mod establishment;
 mod evaluate;
-mod expunger;
 mod fasting;
 mod fearnoevil;
 mod flurry;
@@ -73,6 +73,9 @@ mod tantrum;
 mod thirdeye;
 mod throughviolence;
 mod tranquility;
+// Unraveling.java is a leftover beta class and is intentionally omitted:
+// CardLibrary.addPurpleCards() does not import or register it.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
 mod vault;
 mod vengeance;
 mod vigilance;
@@ -107,13 +110,13 @@ pub fn register_watcher(cards: &mut HashMap<&'static str, CardDef>) {
     deusexmachina::register(cards);
     devaform::register(cards);
     devotion::register(cards);
+    discipline::register(cards);
     emptybody::register(cards);
     emptyfist::register(cards);
     emptymind::register(cards);
     eruption::register(cards);
     establishment::register(cards);
     evaluate::register(cards);
-    expunger::register(cards);
     fasting::register(cards);
     fearnoevil::register(cards);
     flurry::register(cards);
