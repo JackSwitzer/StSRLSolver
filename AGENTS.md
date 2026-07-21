@@ -54,9 +54,10 @@ gap:
   coverage, and extend the closest source-derived test when practical.
 - Base-class behavior lives under `reference/extracted/methods/base/`; consult it
   before reasoning about shared mechanics or RNG.
-- In-combat RNG streams must match Java tick-for-tick. Run-level generation still
-  has known stream-model gaps; do not hide those differences behind content-row
-  assertions.
+- Every RNG stream must match Java tick-for-tick. The native stream model is
+  implemented, but full-run certification still requires recorder-provided
+  process-global RNG initial states; do not hide that external condition behind
+  content-row assertions.
 - `create_enemy(id, hp, max_hp)` does not take ascension. Ascension-specific spawn
   adjustments belong at the run combat-entry site unless a scoped design change
   explicitly replaces that architecture.
@@ -70,7 +71,7 @@ A human runs `scripts/trace_java.sh`; agents never launch the game.
 ## Verify commands
 
 ```bash
-./scripts/test_engine_rs.sh test --lib          # 2,883 pass + 11 ignored audit repros (2026-07-15)
+./scripts/test_engine_rs.sh test --lib          # 3,110 pass, 0 ignored (2026-07-21)
 scripts/trace_diff.sh data/traces/scripts/<s>.json
 scripts/ledger.sh status                        # 667 verified, 0 unverified
 uv run pytest tests/training -q                 # only for authorized training changes

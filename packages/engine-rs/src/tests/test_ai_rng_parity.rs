@@ -83,7 +83,7 @@ mod ai_rng_parity_tests {
             bite: None,
         };
         let slaver = ConstructedEnemy {
-            id: if misc.random_bool() { "RedSlaver" } else { "BlueSlaver" },
+            id: if misc.random_bool() { "SlaverRed" } else { "SlaverBlue" },
             hp: monster_hp.random_int_range(46, 50),
             bite: None,
         };
@@ -355,7 +355,7 @@ mod ai_rng_parity_tests {
         let combat = run.get_combat_engine().expect("Reptomancer combat");
         assert_eq!(
             combat.state.enemies.iter().map(|enemy| enemy.id.as_str()).collect::<Vec<_>>(),
-            ["SnakeDagger", "Reptomancer", "SnakeDagger"]
+            ["Dagger", "Reptomancer", "Dagger"]
         );
         assert_eq!(
             combat.state.enemies.iter().map(|enemy| enemy.entity.hp).collect::<Vec<_>>(),

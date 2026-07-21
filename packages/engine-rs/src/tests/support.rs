@@ -21,7 +21,14 @@ pub(crate) fn make_deck_n(name: &str, n: usize) -> Vec<CardInstance> {
     vec![reg.make_card(name); n]
 }
 
-pub(crate) fn enemy(id: &str, hp: i32, max_hp: i32, move_id: i32, move_damage: i32, move_hits: i32) -> EnemyCombatState {
+pub(crate) fn enemy(
+    id: &str,
+    hp: i32,
+    max_hp: i32,
+    move_id: i32,
+    move_damage: i32,
+    move_hits: i32,
+) -> EnemyCombatState {
     let mut enemy = EnemyCombatState::new(id, hp, max_hp);
     enemy.set_move(move_id, move_damage, move_hits, 0);
     enemy
@@ -31,7 +38,11 @@ pub(crate) fn enemy_no_intent(id: &str, hp: i32, max_hp: i32) -> EnemyCombatStat
     EnemyCombatState::new(id, hp, max_hp)
 }
 
-pub(crate) fn combat_state_with(deck: Vec<CardInstance>, enemies: Vec<EnemyCombatState>, energy: i32) -> CombatState {
+pub(crate) fn combat_state_with(
+    deck: Vec<CardInstance>,
+    enemies: Vec<EnemyCombatState>,
+    energy: i32,
+) -> CombatState {
     CombatState::new(80, 80, enemies, deck, energy)
 }
 
@@ -49,11 +60,19 @@ pub(crate) fn engine_with(deck: Vec<CardInstance>, enemy_hp: i32, enemy_dmg: i32
     ))
 }
 
-pub(crate) fn engine_with_enemies(deck: Vec<CardInstance>, enemies: Vec<EnemyCombatState>, energy: i32) -> CombatEngine {
+pub(crate) fn engine_with_enemies(
+    deck: Vec<CardInstance>,
+    enemies: Vec<EnemyCombatState>,
+    energy: i32,
+) -> CombatEngine {
     engine_with_state(combat_state_with(deck, enemies, energy))
 }
 
-pub(crate) fn engine_without_start(deck: Vec<CardInstance>, enemies: Vec<EnemyCombatState>, energy: i32) -> CombatEngine {
+pub(crate) fn engine_without_start(
+    deck: Vec<CardInstance>,
+    enemies: Vec<EnemyCombatState>,
+    energy: i32,
+) -> CombatEngine {
     CombatEngine::new(combat_state_with(deck, enemies, energy), TEST_SEED)
 }
 
@@ -65,14 +84,30 @@ pub(crate) fn force_player_turn(engine: &mut CombatEngine) {
 }
 
 pub(crate) fn ensure_in_hand(engine: &mut CombatEngine, card_id: &str) {
-    if !engine.state.hand.iter().any(|c| engine.card_registry.card_name(c.def_id) == card_id) {
-        engine.state.hand.push(engine.card_registry.make_card(card_id));
+    if !engine
+        .state
+        .hand
+        .iter()
+        .any(|c| engine.card_registry.card_name(c.def_id) == card_id)
+    {
+        engine
+            .state
+            .hand
+            .push(engine.card_registry.make_card(card_id));
     }
 }
 
 pub(crate) fn play_card(engine: &mut CombatEngine, card_id: &str, target_idx: i32) -> bool {
-    if let Some(idx) = engine.state.hand.iter().position(|c| engine.card_registry.card_name(c.def_id) == card_id) {
-        engine.execute_action(&Action::PlayCard { card_idx: idx, target_idx });
+    if let Some(idx) = engine
+        .state
+        .hand
+        .iter()
+        .position(|c| engine.card_registry.card_name(c.def_id) == card_id)
+    {
+        engine.execute_action(&Action::PlayCard {
+            card_idx: idx,
+            target_idx,
+        });
         true
     } else {
         false
@@ -92,23 +127,48 @@ pub(crate) fn end_turn(engine: &mut CombatEngine) {
 }
 
 pub(crate) fn hand_count(engine: &CombatEngine, exact_id: &str) -> usize {
-    engine.state.hand.iter().filter(|c| engine.card_registry.card_name(c.def_id) == exact_id).count()
+    engine
+        .state
+        .hand
+        .iter()
+        .filter(|c| engine.card_registry.card_name(c.def_id) == exact_id)
+        .count()
 }
 
 pub(crate) fn hand_prefix_count(engine: &CombatEngine, prefix: &str) -> usize {
-    engine.state.hand.iter().filter(|c| engine.card_registry.card_name(c.def_id).starts_with(prefix)).count()
+    engine
+        .state
+        .hand
+        .iter()
+        .filter(|c| engine.card_registry.card_name(c.def_id).starts_with(prefix))
+        .count()
 }
 
 pub(crate) fn discard_prefix_count(engine: &CombatEngine, prefix: &str) -> usize {
-    engine.state.discard_pile.iter().filter(|c| engine.card_registry.card_name(c.def_id).starts_with(prefix)).count()
+    engine
+        .state
+        .discard_pile
+        .iter()
+        .filter(|c| engine.card_registry.card_name(c.def_id).starts_with(prefix))
+        .count()
 }
 
 pub(crate) fn exhaust_prefix_count(engine: &CombatEngine, prefix: &str) -> usize {
-    engine.state.exhaust_pile.iter().filter(|c| engine.card_registry.card_name(c.def_id).starts_with(prefix)).count()
+    engine
+        .state
+        .exhaust_pile
+        .iter()
+        .filter(|c| engine.card_registry.card_name(c.def_id).starts_with(prefix))
+        .count()
 }
 
 pub(crate) fn draw_prefix_count(engine: &CombatEngine, prefix: &str) -> usize {
-    engine.state.draw_pile.iter().filter(|c| engine.card_registry.card_name(c.def_id).starts_with(prefix)).count()
+    engine
+        .state
+        .draw_pile
+        .iter()
+        .filter(|c| engine.card_registry.card_name(c.def_id).starts_with(prefix))
+        .count()
 }
 
 pub(crate) fn set_stance(engine: &mut CombatEngine, stance: Stance) {
@@ -121,6 +181,10 @@ pub(crate) fn run_engine(seed: u64, ascension: i32) -> RunEngine {
 
 pub(crate) fn resolve_opening_neow(engine: &mut RunEngine) {
     if engine.current_phase() == RunPhase::Neow {
+        let intro = engine.step_game(&GameAction::Proceed);
+        assert!(intro.accepted());
+        assert!(!intro.is_terminal());
+
         let outcome = engine.step_game(&GameAction::ChooseNeowOption(1));
         assert!(outcome.accepted());
         assert!(!outcome.is_terminal());
@@ -135,9 +199,9 @@ pub(crate) fn resolve_opening_neow(engine: &mut RunEngine) {
                         .find(|action| matches!(action, GameAction::SelectRewardItem(_)))
                 })
                 .or_else(|| {
-                    actions.iter().find(|action| {
-                        matches!(action, GameAction::ChooseRewardOption { .. })
-                    })
+                    actions
+                        .iter()
+                        .find(|action| matches!(action, GameAction::ChooseRewardOption { .. }))
                 })
                 .or_else(|| {
                     actions
@@ -148,6 +212,10 @@ pub(crate) fn resolve_opening_neow(engine: &mut RunEngine) {
                 .expect("Neow follow-up must expose a reward action");
             engine.step_game(&action);
         }
+        assert_eq!(engine.current_phase(), RunPhase::Neow);
+        let exit = engine.step_game(&GameAction::Proceed);
+        assert!(exit.accepted());
+        assert!(!exit.is_terminal());
         assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     }
 }

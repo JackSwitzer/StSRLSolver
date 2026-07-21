@@ -38,7 +38,7 @@ fn hook(
     for idx in 0..engine.state.player.statuses.len() {
         let status = crate::ids::StatusId(idx as u16);
         if crate::powers::registry::status_is_debuff(status) {
-            engine.state.player.statuses[idx] = 0;
+            engine.state.player.set_status(status, 0);
         }
     }
     state.set(0, 0);

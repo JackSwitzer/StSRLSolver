@@ -90,8 +90,8 @@ mod event_java_parity_tests {
             cleric.options[1].program.ops.as_slice(),
             [
                 EventProgramOp::AdjustGold { amount: -50 },
-                EventProgramOp::DeckMutation(_)
-            ]
+                EventProgramOp::DeckSelection { label }
+            ] if label == "deck_selection_event_remove"
         ));
 
         let golden_shrine = typed_shrine_event("Golden Shrine");
@@ -122,8 +122,9 @@ mod event_java_parity_tests {
         ));
         assert!(matches!(
             dead_adventurer.options[0].program.ops.as_slice(),
-            [EventProgramOp::RandomOutcomeTable { outcomes }] if outcomes.len() == 6
+            [EventProgramOp::Nothing]
         ));
+        assert_eq!(dead_adventurer.options[0].text, "Initialize Dead Adventurer");
     }
 
     #[test]
@@ -246,23 +247,18 @@ mod event_java_parity_tests {
     }
 
     #[test]
-    fn blocked_placeholder_op_count_matches_remaining_shared_runtime_gaps() {
-        let match_and_keep = typed_shrine_event("Match and Keep!");
-        assert!(matches!(
-            match_and_keep.options[0].status,
-            EventRuntimeStatus::Supported
-        ));
-
-        let blocked_placeholder_count: usize = typed_events_for_act(1)
+    fn every_typed_catalog_option_has_an_executable_program() {
+        let options = typed_events_for_act(1)
             .into_iter()
             .chain(typed_events_for_act(2))
             .chain(typed_events_for_act(3))
             .chain(typed_shrine_events())
             .flat_map(|event| event.options.into_iter())
-            .flat_map(|option| option.program.ops.into_iter())
-            .filter(|op| matches!(op, EventProgramOp::BlockedPlaceholder { .. }))
-            .count();
-        assert_eq!(blocked_placeholder_count, 0);
+            .collect::<Vec<_>>();
+        assert!(!options.is_empty());
+        assert!(options
+            .iter()
+            .all(|option| !option.program.ops.is_empty()));
     }
 
 }

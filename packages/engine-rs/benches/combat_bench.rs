@@ -1,4 +1,4 @@
-//! Benchmarks for the combat engine — measures throughput for MCTS.
+//! Benchmarks for deterministic combat simulation throughput.
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use sts_engine::actions::Action;
@@ -26,7 +26,7 @@ fn bench_start_combat(c: &mut Criterion) {
     c.bench_function("start_combat", |b| {
         b.iter(|| {
             let state = make_bench_state();
-            let mut engine = CombatEngine::new(state, 42);
+            let mut engine = CombatEngine::new_benchmark_fixture(state, 42);
             engine.start_combat();
             black_box(&engine);
         });
@@ -37,7 +37,7 @@ fn bench_full_turn(c: &mut Criterion) {
     c.bench_function("full_turn_cycle", |b| {
         b.iter(|| {
             let state = make_bench_state();
-            let mut engine = CombatEngine::new(state, 42);
+            let mut engine = CombatEngine::new_benchmark_fixture(state, 42);
             engine.start_combat();
 
             // Play all affordable cards then end turn
@@ -65,10 +65,10 @@ fn bench_full_turn(c: &mut Criterion) {
 
 fn bench_clone_state(c: &mut Criterion) {
     let state = make_bench_state();
-    let mut engine = CombatEngine::new(state, 42);
+    let mut engine = CombatEngine::new_benchmark_fixture(state, 42);
     engine.start_combat();
 
-    c.bench_function("clone_for_mcts", |b| {
+    c.bench_function("clone_for_branch_simulation", |b| {
         b.iter(|| {
             let cloned = engine.clone_state();
             black_box(cloned);
@@ -78,7 +78,7 @@ fn bench_clone_state(c: &mut Criterion) {
 
 fn bench_get_legal_actions(c: &mut Criterion) {
     let state = make_bench_state();
-    let mut engine = CombatEngine::new(state, 42);
+    let mut engine = CombatEngine::new_benchmark_fixture(state, 42);
     engine.start_combat();
 
     c.bench_function("get_legal_actions", |b| {

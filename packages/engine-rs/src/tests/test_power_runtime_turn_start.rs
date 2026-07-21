@@ -34,6 +34,26 @@ const COLORLESS_POOL: &[&str] = &[
 ];
 
 #[test]
+fn green_and_blue_energized_powers_coexist_and_recharge_independently() {
+    // EnergizedPower and EnergizedBluePower have distinct IDs and each gains
+    // its own amount during onEnergyRecharge before removing itself.
+    let mut engine = engine_without_start(
+        make_deck(&["Strike", "Defend", "Strike", "Defend", "Strike"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    engine.start_combat();
+    engine.state.player.set_status(sid::ENERGIZED, 2);
+    engine.state.player.set_status(sid::ENERGIZED_BLUE, 3);
+
+    engine.execute_action(&Action::EndTurn);
+
+    assert_eq!(engine.state.energy, 8);
+    assert_eq!(engine.state.player.status(sid::ENERGIZED), 0);
+    assert_eq!(engine.state.player.status(sid::ENERGIZED_BLUE), 0);
+}
+
+#[test]
 fn hello_world_hook_rolls_every_stack_and_spills_past_hand_limit() {
     // HelloPower.atStartOfTurn calls getCard(COMMON, cardRandomRng) once per
     // stack. MakeTempCardInHandAction then puts overflow into the discard pile.

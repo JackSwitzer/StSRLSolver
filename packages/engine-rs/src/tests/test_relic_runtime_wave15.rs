@@ -116,4 +116,16 @@ fn relic_wave15_mutagenic_strength_applies_temporary_strength_at_combat_start() 
 
     assert_eq!(engine.state.player.status(sid::STRENGTH), 3);
     assert_eq!(engine.state.player.status(sid::LOSE_STRENGTH), 3);
+    assert_eq!(
+        engine
+            .state
+            .player
+            .status_order
+            .iter()
+            .copied()
+            .filter(|status| matches!(*status, sid::STRENGTH | sid::LOSE_STRENGTH))
+            .collect::<Vec<_>>(),
+        [sid::LOSE_STRENGTH, sid::STRENGTH],
+        "Java addToTop applies LoseStrength before Strength"
+    );
 }

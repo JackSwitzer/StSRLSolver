@@ -442,9 +442,6 @@ pub enum Effect {
     /// Covers: Discovery, Foreign Influence, Wish.
     Discover(&'static [&'static str]),
 
-    /// Present a named option menu for effects like Wish.
-    ChooseNamedOptions(&'static [&'static str]),
-
     /// Present a named option menu with a resolved runtime payload per option.
     /// Covers Java-correct Wish semantics.
     ChooseScaledNamedOptions(&'static [ScaledNamedOption]),

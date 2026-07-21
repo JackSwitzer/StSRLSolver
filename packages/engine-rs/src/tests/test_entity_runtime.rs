@@ -44,7 +44,7 @@ fn red_circlet_has_no_gameplay_hooks() {
     // overrides no combat or run hooks.
     let mut engine = engine_without_start(
         make_deck(&["Strike", "Defend"]),
-        vec![enemy_no_intent("TrainingDummy", 40, 40)],
+        vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
     engine.state.relics.push("Red Circlet".to_string());
@@ -567,9 +567,13 @@ fn brimstone_buffs_player_and_all_enemies_on_turn_start() {
 
 #[test]
 fn philosophers_stone_buffs_all_enemies_at_combat_start() {
+    let mut powered_enemy = enemy_no_intent("JawWorm", 40, 40);
+    powered_enemy
+        .entity
+        .set_status_direct(sid::REACTIVE, 1);
     let mut state = combat_state_with(
         Vec::new(),
-        vec![enemy_no_intent("Cultist", 24, 24), enemy_no_intent("JawWorm", 40, 40)],
+        vec![enemy_no_intent("Cultist", 24, 24), powered_enemy],
         4,
     );
     state.relics.push("Philosopher's Stone".to_string());
@@ -578,11 +582,31 @@ fn philosophers_stone_buffs_all_enemies_at_combat_start() {
 
     assert_eq!(engine.state.enemies[0].entity.strength(), 1);
     assert_eq!(engine.state.enemies[1].entity.strength(), 1);
+    assert_eq!(
+        engine.state.enemies[1]
+            .entity
+            .status_order
+            .iter()
+            .copied()
+            .filter(|status| matches!(*status, sid::REACTIVE | sid::STRENGTH))
+            .collect::<Vec<_>>(),
+        [sid::REACTIVE, sid::STRENGTH]
+    );
 
     // PhilosopherStone.java::onSpawnMonster applies the same +1 to enemies
     // created after atBattleStart (summons and slime splits).
-    engine.add_spawned_enemy(enemy_no_intent("TorchHead", 6, 6));
+    engine.add_spawned_enemy(crate::enemies::create_enemy("AcidSlime_L", 65, 65));
     assert_eq!(engine.state.enemies[2].entity.strength(), 1);
+    assert_eq!(
+        engine.state.enemies[2]
+            .entity
+            .status_order
+            .iter()
+            .copied()
+            .filter(|status| matches!(*status, sid::SPLIT_POWER | sid::STRENGTH))
+            .collect::<Vec<_>>(),
+        [sid::SPLIT_POWER, sid::STRENGTH]
+    );
 }
 
 #[test]

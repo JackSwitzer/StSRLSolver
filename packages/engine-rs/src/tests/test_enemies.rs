@@ -1,9 +1,77 @@
 #[cfg(test)]
 mod enemy_tests {
     use crate::enemies::*;
-    use crate::combat_types::mfx;
+    use crate::combat_types::{fx, mfx, Intent};
     use crate::status_ids::sid;
     use crate::enemies::move_ids::*;
+    use std::collections::BTreeSet;
+
+    #[test]
+    fn canonical_enemy_catalog_matches_verified_monster_ledger() {
+        // Source of truth: docs/goal/ledger.json contains the Java-derived
+        // monster inventory. Hexaghost's body and orbs are visual helpers,
+        // not targetable AbstractMonster instances.
+        let ledger: serde_json::Value =
+            serde_json::from_str(include_str!("../../../../docs/goal/ledger.json"))
+                .expect("ledger must contain valid JSON");
+        let expected: BTreeSet<String> = ledger["rows"]
+            .as_array()
+            .expect("ledger rows must be an array")
+            .iter()
+            .filter(|row| row["kind"] == "monster")
+            .filter_map(|row| row["id"].as_str())
+            .map(|id| id.strip_prefix("monster/").expect("monster ledger prefix"))
+            .filter(|id| !matches!(*id, "HexaghostBody" | "HexaghostOrb"))
+            .map(str::to_string)
+            .collect();
+        let actual: BTreeSet<String> = known_enemy_ids()
+            .iter()
+            .map(|(id, _)| (*id).to_string())
+            .collect();
+        let exported: BTreeSet<String> = gameplay_export_defs()
+            .into_iter()
+            .map(|def| def.id)
+            .collect();
+
+        assert_eq!(expected.len(), 66);
+        assert_eq!(actual, expected);
+        assert_eq!(exported, expected);
+        assert_eq!(
+            known_enemy_ids().len(),
+            actual.len(),
+            "catalog IDs must be unique"
+        );
+
+        for (id, _) in known_enemy_ids() {
+            let enemy = create_enemy(id, 1, 1);
+            assert_eq!(enemy.id, *id, "factory identity for {id}");
+        }
+    }
+
+    #[test]
+    fn enemy_aliases_resolve_to_canonical_java_identity() {
+        // Sources: SlaverBlue.java, SlaverRed.java, Champ.java, and
+        // SnakeDagger.java ID constants.
+        assert_eq!(ENEMY_ID_ALIASES.len(), 34);
+        for (alias, canonical) in ENEMY_ID_ALIASES {
+            assert_eq!(canonical_enemy_id(alias), Some(*canonical));
+            assert_eq!(create_enemy(alias, 20, 20).id, *canonical);
+        }
+
+        for (provided, canonical) in [
+            ("SlaverBlue", "SlaverBlue"),
+            ("BlueSlaver", "SlaverBlue"),
+            ("SlaverRed", "SlaverRed"),
+            ("RedSlaver", "SlaverRed"),
+            ("TheChamp", "Champ"),
+            ("Dagger", "Dagger"),
+            ("SnakeDagger", "Dagger"),
+        ] {
+            assert_eq!(canonical_enemy_id(provided), Some(canonical));
+            assert_eq!(create_enemy(provided, 20, 20).id, canonical);
+        }
+    }
+
 
     // ========== JawWorm ==========
 
@@ -186,6 +254,7 @@ mod enemy_tests {
             &mut web, 24, &mut crate::seed::StsRandom::new(0));
         assert_eq!(web.move_id, LOUSE_SPIT_WEB);
         assert_eq!(web.effect(mfx::WEAK), Some(2));
+        assert!(matches!(web.intent, crate::combat_types::Intent::Debuff { .. }));
         assert!(web.move_history.is_empty());
         let mut bite = create_enemy("GreenLouse", 14, 14);
         roll_initial_move_with_num_and_rng(
@@ -549,8 +618,13 @@ mod enemy_tests {
     // ========== Sentry ==========
 
     #[test] fn sentry_first_bolt() {
-        let e = create_enemy("Sentry", 38, 38);
+        // Source: reference/extracted/methods/monster/Sentry.java (`getMove`
+        // and `takeTurn`): Bolt is DEBUFF and adds Dazed to the discard pile.
+        let mut e = create_enemy("Sentry", 38, 38);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 0, &mut crate::seed::StsRandom::new(1));
         assert_eq!(e.move_id, SENTRY_BOLT);
+        assert_eq!(e.intent, Intent::Debuff { effects: fx::DAZE });
         assert_eq!(e.move_damage(), 0);
         assert_eq!(e.effect(mfx::DAZE), Some(2));
     }
@@ -563,6 +637,7 @@ mod enemy_tests {
         assert_eq!(e.move_damage(), 9);
         roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, SENTRY_BOLT);
+        assert_eq!(e.intent, Intent::Debuff { effects: fx::DAZE });
         assert_eq!(e.effect(mfx::DAZE), Some(2));
         roll_next_move(&mut e, &mut crate::seed::StsRandom::new(0));
         assert_eq!(e.move_id, SENTRY_BEAM);
@@ -688,19 +763,37 @@ mod enemy_tests {
     // ========== Slime Boss ==========
 
     #[test] fn sb_first_sticky() {
-        let e = create_enemy("SlimeBoss", 140, 140);
+        // Source: reference/extracted/methods/monster/SlimeBoss.java
+        // (`getMove`): Sticky is STRONG_DEBUFF and adds Slimed.
+        let mut e = create_enemy("SlimeBoss", 140, 140);
+        roll_initial_move_with_num_and_rng(
+            &mut e, 0, &mut crate::seed::StsRandom::new(1));
         assert_eq!(e.move_id, SB_STICKY);
+        assert_eq!(e.intent, Intent::StrongDebuff { effects: fx::SLIMED });
         assert_eq!(e.effect(mfx::SLIMED).unwrap(), 3);
     }
     #[test] fn sb_full_cycle() {
+        // Source: reference/extracted/methods/monster/SlimeBoss.java
+        // (`takeTurn`): Prep Slam is UNKNOWN and Slam returns to Sticky.
         let mut e = create_enemy("SlimeBoss", 140, 140);
         crate::enemies::act1::advance_slime_boss_after_turn(&mut e); // Prep
         assert_eq!(e.move_id, SB_PREP_SLAM);
+        assert_eq!(e.intent, Intent::Unknown);
         crate::enemies::act1::advance_slime_boss_after_turn(&mut e); // Slam
         assert_eq!(e.move_id, SB_SLAM);
         assert_eq!(e.move_damage(), 35);
         crate::enemies::act1::advance_slime_boss_after_turn(&mut e); // Sticky
         assert_eq!(e.move_id, SB_STICKY);
+        assert_eq!(e.intent, Intent::StrongDebuff { effects: fx::SLIMED });
+    }
+    #[test] fn sb_split_intent_is_unknown() {
+        // Source: reference/extracted/methods/monster/SlimeBoss.java (`damage`
+        // and `takeTurn` case 3): both Split assignments use UNKNOWN.
+        let mut e = create_enemy("SlimeBoss", 70, 140);
+        crate::enemies::act1::set_slime_boss_split(&mut e);
+        assert_eq!(e.move_id, SB_SPLIT);
+        assert_eq!(e.intent, Intent::Unknown);
+        assert!(e.move_effects.is_empty());
     }
     #[test] fn sb_split_at_50pct() {
         let mut e = create_enemy("SlimeBoss", 140, 140);
@@ -885,9 +978,10 @@ mod enemy_tests {
 
     // ========== Unknown enemy ==========
 
-    #[test] fn unknown_enemy_defaults() {
-        let e = create_enemy("SomeBoss", 100, 100);
-        assert_eq!(e.move_damage(), 6);
+    #[test]
+    #[should_panic(expected = "unknown enemy id: SomeBoss")]
+    fn unknown_enemy_fails_closed() {
+        let _ = create_enemy("SomeBoss", 100, 100);
     }
 
     // ========== Move history tracking ==========

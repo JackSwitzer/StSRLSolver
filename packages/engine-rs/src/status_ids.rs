@@ -323,11 +323,11 @@ pub mod sid {
     pub const FRAIL_JUST_APPLIED: StatusId = StatusId(255);
 
     // Silent delayed damage power. Appended to preserve every existing numeric
-    // ID used by trace/training snapshots.
+    // ID used by trace and causal-state snapshots.
     pub const PHANTASMAL: StatusId = StatusId(256);
 
     // Defect one-shot card destination power. Appended to preserve every
-    // existing numeric ID used by trace/training snapshots.
+    // existing numeric ID used by trace and causal-state snapshots.
     pub const REBOUND: StatusId = StatusId(257);
 
     // Enemy reactive power. Appended to preserve existing snapshot IDs.
@@ -341,8 +341,15 @@ pub mod sid {
     // the application round before the turn-based power begins decrementing.
     pub const DRAW_REDUCTION_JUST_APPLIED: StatusId = StatusId(260);
 
+    // Real Java powers appended after the original numeric-state migration.
+    // Keeping these distinct from PHASE/threshold backing state makes power
+    // identity and ordering causal instead of creature-name-derived.
+    pub const UNAWAKENED: StatusId = StatusId(261);
+    pub const SPLIT_POWER: StatusId = StatusId(262);
+    pub const ENERGIZED_BLUE: StatusId = StatusId(263);
+
     /// Total number of defined status IDs (exclusive upper bound).
-    pub const NUM_IDS: usize = 261;
+    pub const NUM_IDS: usize = 264;
 
     /// Array sizing constant (power of 2 for cache-friendly indexing).
     pub const MAX_STATUS_ID: usize = 512;
@@ -352,12 +359,12 @@ pub mod sid {
 // Reverse lookup tables
 // =========================================================================
 
-/// StatusId -> canonical string name (for PyO3 bridge and debug output).
+/// StatusId -> canonical string name for checkpoints and debug output.
 pub fn status_name(id: StatusId) -> &'static str {
     STATUS_NAMES.get(id.0 as usize).copied().unwrap_or("Unknown")
 }
 
-/// String name -> StatusId (for PyO3 bridge, test setup, deserialization).
+/// String name -> StatusId for test setup and deserialization.
 pub fn status_id_from_name(name: &str) -> Option<StatusId> {
     STATUS_NAMES
         .iter()
@@ -640,6 +647,9 @@ static STATUS_NAMES: &[&str] = &[
     "PainfulStabs",        // 258
     "HighAscensionAi",     // 259
     "DrawReductionJustApplied", // 260
+    "Unawakened",        // 261
+    "Split",             // 262
+    "EnergizedBlue",     // 263
 ];
 
 #[cfg(test)]

@@ -35,7 +35,11 @@ fn hook(
 
     let active = state.get(0) > 0 && hp <= max_hp / 2;
     if hp <= max_hp / 2 && !active {
-        engine.state.player.add_status(sid::STRENGTH, 3);
+        if event.kind == Trigger::CombatStart {
+            engine.state.player.add_status_direct(sid::STRENGTH, 3);
+        } else {
+            engine.state.player.add_status(sid::STRENGTH, 3);
+        }
         state.set(0, 1);
     } else if hp > max_hp / 2 && active {
         engine.state.player.add_status(sid::STRENGTH, -3);

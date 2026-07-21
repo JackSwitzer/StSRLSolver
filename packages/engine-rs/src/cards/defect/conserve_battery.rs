@@ -8,7 +8,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 7,
                 base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[
-                    E::Simple(SE::AddStatus(T::Player, sid::ENERGIZED, A::Fixed(1))),
+                    E::Simple(SE::AddStatus(T::Player, sid::ENERGIZED_BLUE, A::Fixed(1))),
                 ], complex_hook: None,
             });
     insert(cards, CardDef {
@@ -16,7 +16,7 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
                 target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 10,
                 base_magic: -1, exhaust: false, enter_stance: None,
                 effect_data: &[
-                    E::Simple(SE::AddStatus(T::Player, sid::ENERGIZED, A::Fixed(1))),
+                    E::Simple(SE::AddStatus(T::Player, sid::ENERGIZED_BLUE, A::Fixed(1))),
                 ], complex_hook: None,
             });
 }

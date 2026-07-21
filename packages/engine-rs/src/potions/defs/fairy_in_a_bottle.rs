@@ -2,7 +2,7 @@ use super::prelude::*;
 
 /// Fairy in a Bottle: passive death trigger, not manually activated.
 /// The existing check_fairy_revive / consume_fairy functions handle this.
-/// The EntityDef is a placeholder with no triggers (passive only).
+/// The EntityDef is a pipeline-owned passive marker, so it installs no trigger.
 pub static DEF: EntityDef = EntityDef {
     id: "FairyPotion",
     name: "Fairy in a Bottle",

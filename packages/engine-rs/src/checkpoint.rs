@@ -10,9 +10,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 use std::sync::OnceLock;
 
 pub const CORE_CHECKPOINT_SCHEMA: &str = "sts.core_checkpoint";
-pub const CORE_CHECKPOINT_MAJOR: u32 = 1;
+pub const CORE_CHECKPOINT_MAJOR: u32 = 2;
 pub const CORE_CHECKPOINT_MINOR: u32 = 0;
-pub const CORE_SEMANTICS_REVISION: &str = "java-rng-actions-v2-checkpoint-v1";
+pub const CORE_SEMANTICS_REVISION: &str = "java-rng-actions-v2-checkpoint-v3";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CheckpointVersion {
@@ -212,11 +212,13 @@ fn validate_semantics_fingerprint(fingerprint: &str) -> Result<(), String> {
 fn core_semantics_fingerprint() -> &'static str {
     static FINGERPRINT: OnceLock<String> = OnceLock::new();
     FINGERPRINT
-        .get_or_init(|| {
-            let catalog = format!("{:?}", crate::gameplay::global_registry().defs());
-            hash_bytes(format!("{CORE_SEMANTICS_REVISION}\n{catalog}").as_bytes())
-        })
+        .get_or_init(|| core_semantics_fingerprint_for_revision(CORE_SEMANTICS_REVISION))
         .as_str()
+}
+
+pub(crate) fn core_semantics_fingerprint_for_revision(revision: &str) -> String {
+    let catalog = format!("{:?}", crate::gameplay::global_registry().defs());
+    hash_bytes(format!("{revision}\n{catalog}").as_bytes())
 }
 
 fn causal_hash(engine: &RunEngine) -> Result<String, serde_json::Error> {

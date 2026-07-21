@@ -35,6 +35,7 @@ pub use complex::*;
 pub static POWER_DEFS: &[&EntityDef] = &[
     // -- Turn Start (simple) --
     &turn_start::DEF_ENERGIZED,
+    &turn_start::DEF_ENERGIZED_BLUE,
     &turn_start::DEF_PHANTASMAL,
     &turn_start::DEF_DEMON_FORM,
     &turn_start::DEF_NOXIOUS_FUMES,
@@ -116,6 +117,7 @@ pub static POWER_DEFS: &[&EntityDef] = &[
 /// excluded until their runtime hooks are migrated.
 pub static RUNTIME_PLAYER_POWER_DEFS: &[&EntityDef] = &[
     &turn_start::DEF_ENERGIZED,
+    &turn_start::DEF_ENERGIZED_BLUE,
     &turn_start::DEF_PHANTASMAL,
     &turn_start::DEF_DEMON_FORM,
     &turn_start::DEF_NOXIOUS_FUMES,
@@ -212,11 +214,13 @@ mod tests {
     }
 
     #[test]
-    fn test_all_defs_have_triggers_or_hooks() {
+    fn test_all_defs_have_runtime_or_pipeline_ownership() {
         for def in POWER_DEFS.iter() {
             assert!(
-                !def.triggers.is_empty() || def.complex_hook.is_some(),
-                "Power def '{}' has no triggers and no complex_hook",
+                !def.triggers.is_empty()
+                    || def.complex_hook.is_some()
+                    || matches!(def.id, "thorns" | "electrodynamics" | "static_discharge"),
+                "Power def '{}' has no runtime or pipeline owner",
                 def.id
             );
         }
@@ -262,9 +266,9 @@ mod tests {
     #[test]
     fn test_complex_defs_have_hooks() {
         let complex_ids = [
-            "echo_form", "double_tap", "burst", "thorns", "flame_barrier",
+            "echo_form", "double_tap", "burst", "flame_barrier",
             "creative_ai", "enter_divinity", "mayhem", "tools_of_the_trade",
-            "storm", "time_warp", "static_discharge", "dark_embrace",
+            "storm", "time_warp", "dark_embrace",
         ];
         for id in &complex_ids {
             let def = POWER_DEFS.iter().find(|d| d.id == *id);

@@ -72,9 +72,21 @@ generic sampling traits.
 - card/relic shuffles first consume one signed `StsRandom.randomLong()`, then
   seed a separate native `java.util.Random` for Fisher-Yates.
 
-The current engine does not yet prove all 13 run-level streams independently.
-Exact native draws and ownership do not by themselves imply exact generated
-maps, pools, shops, events, rewards, or encounters.
+The counted RNG implementation and ownership model are source-audited and
+fixture-tested across all named streams. This proves the native algorithms,
+counter contract, transfer/reset rules, and every currently covered call site;
+it does not turn unexercised generated maps, pools, shops, events, rewards, or
+encounters into full-run oracle evidence.
+
+The two process-global generators are a separate certification boundary. Rust
+implements their algorithms exactly and models deterministic semantic calls,
+but the desktop game also consumes `MathUtils.random` from frame-, animation-,
+audio-, and dialogue-dependent presentation code. A dungeon seed and action
+script therefore cannot reconstruct the later desktop ambient cursor. Exact
+desktop comparison requires the two-word MathUtils state and 48-bit default
+Collections state at every settled checkpoint, or an equivalent ordered draw
+witness. The headless simulator remains deterministic under its documented
+initialization policy.
 Use docs/work_units/audit-reports/engine-deep-audit.md and
 docs/work_units/sim-completion-map.md for the active gaps; do not turn this
 index into a hand-maintained parity table.

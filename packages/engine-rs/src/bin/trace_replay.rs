@@ -23,10 +23,11 @@
 use std::fs;
 use std::process::ExitCode;
 
-use sts_engine::trace::{
-    self, ActionScript, DivergenceStatus, TraceHeader, TraceRecord,
+use sts_engine::trace::bundle::{
+    compare_recording_bundle, load_recording_bundle, BundleComparisonStatus,
 };
 use sts_engine::trace::v2::{replay_action_script_v2, ActionScriptV2, TraceEnvelopeV2};
+use sts_engine::trace::{self, ActionScript, DivergenceStatus, TraceHeader, TraceRecord};
 
 fn main() -> ExitCode {
     match run() {
@@ -48,6 +49,7 @@ fn main() -> ExitCode {
 
 #[derive(Debug, Default)]
 struct Args {
+    bundle: Option<String>,
     script: Option<String>,
     java_trace: Option<String>,
     out: Option<String>,
@@ -66,6 +68,7 @@ fn parse_args(raw: &[String]) -> Result<Args, String> {
                 .ok_or_else(|| format!("{flag} requires a value"))
         };
         match flag.as_str() {
+            "--bundle" => args.bundle = Some(value(flag, &mut iter)?),
             "--script" => args.script = Some(value(flag, &mut iter)?),
             "--java-trace" => args.java_trace = Some(value(flag, &mut iter)?),
             "--out" => args.out = Some(value(flag, &mut iter)?),
@@ -79,7 +82,7 @@ fn parse_args(raw: &[String]) -> Result<Args, String> {
 }
 
 fn usage() -> &'static str {
-    "usage:\n  v1 compare: trace_replay --script <script.json> --java-trace <golden.jsonl> [--out <rust.jsonl>] --diff <report.json> [--masks <masks.json>]\n  v2 replay:  trace_replay --script <script-v2.json> --out <rust-v2.jsonl>"
+    "usage:\n  bundle:     trace_replay --bundle <recording-dir> --diff <report.json>\n  v1 compare: trace_replay --script <script.json> --java-trace <golden.jsonl> [--out <rust.jsonl>] --diff <report.json> [--masks <masks.json>]\n  v2 replay:  trace_replay --script <script-v2.json> --out <rust-v2.jsonl>"
 }
 
 // ===========================================================================
@@ -99,6 +102,34 @@ fn run() -> Result<DivergenceStatus, String> {
         });
     }
 
+    if let Some(bundle_path) = &args.bundle {
+        if args.script.is_some()
+            || args.java_trace.is_some()
+            || args.out.is_some()
+            || args.masks.is_some()
+        {
+            return Err(
+                "--bundle cannot be combined with script/trace/output/mask flags".to_string(),
+            );
+        }
+        let diff_path = args
+            .diff
+            .as_deref()
+            .ok_or_else(|| format!("--diff is required for bundle replay\n{}", usage()))?;
+        let bundle = load_recording_bundle(bundle_path)?;
+        let report = compare_recording_bundle(&bundle)?;
+        let report_json = serde_json::to_string_pretty(&report)
+            .map_err(|error| format!("failed to serialize bundle report: {error}"))?;
+        fs::write(diff_path, report_json)
+            .map_err(|error| format!("failed to write report '{diff_path}': {error}"))?;
+        return Ok(match report.status {
+            BundleComparisonStatus::Match => DivergenceStatus::Match,
+            BundleComparisonStatus::Uncertified => DivergenceStatus::Error,
+            BundleComparisonStatus::NoActions => DivergenceStatus::Error,
+            BundleComparisonStatus::Diverged => DivergenceStatus::Diverged,
+        });
+    }
+
     let script_path = args
         .script
         .as_ref()
@@ -112,9 +143,12 @@ fn run() -> Result<DivergenceStatus, String> {
         return replay_v2_script(&args, &script_path, &script_text);
     }
 
-    let java_trace_path =
-        args.java_trace.ok_or_else(|| format!("--java-trace is required\n{}", usage()))?;
-    let diff_path = args.diff.ok_or_else(|| format!("--diff is required\n{}", usage()))?;
+    let java_trace_path = args
+        .java_trace
+        .ok_or_else(|| format!("--java-trace is required\n{}", usage()))?;
+    let diff_path = args
+        .diff
+        .ok_or_else(|| format!("--diff is required\n{}", usage()))?;
     let script: ActionScript = serde_json::from_str(&script_text)
         .map_err(|err| format!("failed to parse script '{script_path}': {err}"))?;
     script.check_version()?;
@@ -140,7 +174,13 @@ fn run() -> Result<DivergenceStatus, String> {
     }
 
     let script_stem = script_stem_name(&script_path);
-    let report = trace::diff_records(&script_stem, &script.seed, &java_records, &rust_records, &masks);
+    let report = trace::diff_records(
+        &script_stem,
+        &script.seed,
+        &java_records,
+        &rust_records,
+        &masks,
+    );
 
     let report_json = serde_json::to_string_pretty(&report)
         .map_err(|err| format!("failed to serialize report: {err}"))?;

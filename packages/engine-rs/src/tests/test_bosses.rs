@@ -231,6 +231,10 @@ mod boss_java_parity_tests {
 
         assert_eq!(engine.state.enemies[0].entity.hp, 70);
         assert_eq!(engine.state.enemies[0].move_id, move_ids::SB_SPLIT);
+        assert_eq!(
+            engine.state.enemies[0].intent,
+            crate::combat_types::Intent::Unknown
+        );
         assert_eq!(engine.state.enemies.len(), 1);
 
         do_enemy_turns(&mut engine);

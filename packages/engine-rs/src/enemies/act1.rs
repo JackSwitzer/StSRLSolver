@@ -1,8 +1,8 @@
-use crate::state::EnemyCombatState;
-use crate::combat_types::mfx;
-use super::{last_move, last_two_moves};
 use super::move_ids;
+use super::{last_move, last_two_moves};
+use crate::combat_types::{fx, mfx, Intent};
 use crate::seed::StsRandom;
+use crate::state::EnemyCombatState;
 use crate::status_ids::sid;
 
 // =========================================================================
@@ -29,21 +29,40 @@ pub(super) fn roll_jaw_worm(enemy: &mut EnemyCombatState, num: i32, ai_rng: &mut
 
     if num < 25 {
         if last_move(enemy, move_ids::JW_CHOMP) {
-            if ai_rng.random_f32() < 0.5625 { bellow(enemy); } else { thrash(enemy); }
+            if ai_rng.random_f32() < 0.5625 {
+                bellow(enemy);
+            } else {
+                thrash(enemy);
+            }
         } else {
             chomp(enemy);
         }
     } else if num < 55 {
         if last_two_moves(enemy, move_ids::JW_THRASH) {
-            if ai_rng.random_f32() < 0.357 { chomp(enemy); } else { bellow(enemy); }
+            if ai_rng.random_f32() < 0.357 {
+                chomp(enemy);
+            } else {
+                bellow(enemy);
+            }
         } else {
             thrash(enemy);
         }
     } else if last_move(enemy, move_ids::JW_BELLOW) {
-        if ai_rng.random_f32() < 0.416 { chomp(enemy); } else { thrash(enemy); }
+        if ai_rng.random_f32() < 0.416 {
+            chomp(enemy);
+        } else {
+            thrash(enemy);
+        }
     } else {
         bellow(enemy);
     }
+}
+
+pub(super) fn roll_jaw_worm_initial(enemy: &mut EnemyCombatState) {
+    // JawWorm.getMove consumes the outer roll before firstMove forces CHOMP.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/exordium/JawWorm.java
+    let damage = enemy.entity.status(sid::STARTING_DMG).max(11);
+    enemy.set_move(move_ids::JW_CHOMP, damage, 1, 0);
 }
 
 // Java Cultist.getMove(int num) (decompiled monsters/exordium/Cultist.java):
@@ -88,8 +107,11 @@ pub(super) fn roll_red_louse(enemy: &mut EnemyCombatState, num: i32) {
     };
     let a17 = enemy.entity.status(sid::STR_AMT) >= 4;
     let choose_grow = if num < 25 {
-        if a17 { !last_move(enemy, move_ids::LOUSE_GROW) }
-        else { !last_two_moves(enemy, move_ids::LOUSE_GROW) }
+        if a17 {
+            !last_move(enemy, move_ids::LOUSE_GROW)
+        } else {
+            !last_two_moves(enemy, move_ids::LOUSE_GROW)
+        }
     } else {
         last_two_moves(enemy, move_ids::LOUSE_BITE)
     };
@@ -109,13 +131,19 @@ pub(super) fn roll_green_louse(enemy: &mut EnemyCombatState, num: i32) {
     };
     let a17 = enemy.entity.status(sid::STR_AMT) >= 4;
     let choose_web = if num < 25 {
-        if a17 { !last_move(enemy, move_ids::LOUSE_SPIT_WEB) }
-        else { !last_two_moves(enemy, move_ids::LOUSE_SPIT_WEB) }
+        if a17 {
+            !last_move(enemy, move_ids::LOUSE_SPIT_WEB)
+        } else {
+            !last_two_moves(enemy, move_ids::LOUSE_SPIT_WEB)
+        }
     } else {
         last_two_moves(enemy, move_ids::LOUSE_BITE)
     };
     if choose_web {
         enemy.set_move(move_ids::LOUSE_SPIT_WEB, 0, 0, 0);
+        enemy.intent = crate::combat_types::Intent::Debuff {
+            effects: crate::combat_types::fx::WEAK,
+        };
         enemy.add_effect(mfx::WEAK, 2);
     } else {
         enemy.set_move(move_ids::LOUSE_BITE, bite_damage, 1, 0);
@@ -177,11 +205,7 @@ pub(super) fn roll_red_slaver(enemy: &mut EnemyCombatState, num: i32) {
     }
 }
 
-pub(super) fn roll_acid_slime_s(
-    enemy: &mut EnemyCombatState,
-    _num: i32,
-    ai_rng: &mut StsRandom,
-) {
+pub(super) fn roll_acid_slime_s(enemy: &mut EnemyCombatState, _num: i32, ai_rng: &mut StsRandom) {
     // Source: reference/extracted/methods/monster/AcidSlime_S.java (`getMove`).
     let damage = enemy.entity.status(sid::STARTING_DMG).max(3);
     let tackle = if enemy.entity.status(sid::STR_AMT) >= 17 {
@@ -210,11 +234,7 @@ pub(crate) fn advance_acid_slime_s_after_turn(enemy: &mut EnemyCombatState) {
     }
 }
 
-pub(super) fn roll_acid_slime_m(
-    enemy: &mut EnemyCombatState,
-    num: i32,
-    ai_rng: &mut StsRandom,
-) {
+pub(super) fn roll_acid_slime_m(enemy: &mut EnemyCombatState, num: i32, ai_rng: &mut StsRandom) {
     // Source: reference/extracted/methods/monster/AcidSlime_M.java (`getMove`).
     let wound_damage = enemy.entity.status(sid::STARTING_DMG).max(7);
     let normal_damage = enemy.entity.status(sid::STR_AMT).max(10);
@@ -234,35 +254,65 @@ pub(super) fn roll_acid_slime_m(
     if a17 {
         if num < 40 {
             if last_two_moves(enemy, move_ids::AS_CORROSIVE_SPIT) {
-                if ai_rng.random_bool() { normal(enemy); } else { lick(enemy); }
-            } else { wound(enemy); }
+                if ai_rng.random_bool() {
+                    normal(enemy);
+                } else {
+                    lick(enemy);
+                }
+            } else {
+                wound(enemy);
+            }
         } else if num < 80 {
             if last_two_moves(enemy, move_ids::AS_TACKLE) {
-                if ai_rng.random_f32() < 0.5 { wound(enemy); } else { lick(enemy); }
-            } else { normal(enemy); }
+                if ai_rng.random_f32() < 0.5 {
+                    wound(enemy);
+                } else {
+                    lick(enemy);
+                }
+            } else {
+                normal(enemy);
+            }
         } else if last_move(enemy, move_ids::AS_LICK) {
-            if ai_rng.random_f32() < 0.4 { wound(enemy); } else { normal(enemy); }
-        } else { lick(enemy); }
+            if ai_rng.random_f32() < 0.4 {
+                wound(enemy);
+            } else {
+                normal(enemy);
+            }
+        } else {
+            lick(enemy);
+        }
     } else if num < 30 {
         if last_two_moves(enemy, move_ids::AS_CORROSIVE_SPIT) {
-            if ai_rng.random_bool() { normal(enemy); } else { lick(enemy); }
-        } else { wound(enemy); }
+            if ai_rng.random_bool() {
+                normal(enemy);
+            } else {
+                lick(enemy);
+            }
+        } else {
+            wound(enemy);
+        }
     } else if num < 70 {
         if last_move(enemy, move_ids::AS_TACKLE) {
-            if ai_rng.random_f32() < 0.4 { wound(enemy); } else { lick(enemy); }
-        } else { normal(enemy); }
+            if ai_rng.random_f32() < 0.4 {
+                wound(enemy);
+            } else {
+                lick(enemy);
+            }
+        } else {
+            normal(enemy);
+        }
     } else if last_two_moves(enemy, move_ids::AS_LICK) {
-        if ai_rng.random_f32() < 0.4 { wound(enemy); } else { normal(enemy); }
+        if ai_rng.random_f32() < 0.4 {
+            wound(enemy);
+        } else {
+            normal(enemy);
+        }
     } else {
         lick(enemy);
     }
 }
 
-pub(super) fn roll_acid_slime_l(
-    enemy: &mut EnemyCombatState,
-    num: i32,
-    ai_rng: &mut StsRandom,
-) {
+pub(super) fn roll_acid_slime_l(enemy: &mut EnemyCombatState, num: i32, ai_rng: &mut StsRandom) {
     // Source: reference/extracted/methods/monster/AcidSlime_L.java (`getMove`).
     let wound_damage = enemy.entity.status(sid::STARTING_DMG).max(11);
     let normal_damage = enemy.entity.status(sid::STR_AMT).max(16);
@@ -281,25 +331,59 @@ pub(super) fn roll_acid_slime_l(
     if a17 {
         if num < 40 {
             if last_two_moves(enemy, move_ids::AS_CORROSIVE_SPIT) {
-                if ai_rng.random_f32() < 0.6 { normal(enemy); } else { lick(enemy); }
-            } else { wound(enemy); }
+                if ai_rng.random_f32() < 0.6 {
+                    normal(enemy);
+                } else {
+                    lick(enemy);
+                }
+            } else {
+                wound(enemy);
+            }
         } else if num < 70 {
             if last_two_moves(enemy, move_ids::AS_TACKLE) {
-                if ai_rng.random_f32() < 0.6 { wound(enemy); } else { lick(enemy); }
-            } else { normal(enemy); }
+                if ai_rng.random_f32() < 0.6 {
+                    wound(enemy);
+                } else {
+                    lick(enemy);
+                }
+            } else {
+                normal(enemy);
+            }
         } else if last_move(enemy, move_ids::AS_LICK) {
-            if ai_rng.random_f32() < 0.4 { wound(enemy); } else { normal(enemy); }
-        } else { lick(enemy); }
+            if ai_rng.random_f32() < 0.4 {
+                wound(enemy);
+            } else {
+                normal(enemy);
+            }
+        } else {
+            lick(enemy);
+        }
     } else if num < 30 {
         if last_two_moves(enemy, move_ids::AS_CORROSIVE_SPIT) {
-            if ai_rng.random_bool() { normal(enemy); } else { lick(enemy); }
-        } else { wound(enemy); }
+            if ai_rng.random_bool() {
+                normal(enemy);
+            } else {
+                lick(enemy);
+            }
+        } else {
+            wound(enemy);
+        }
     } else if num < 70 {
         if last_move(enemy, move_ids::AS_TACKLE) {
-            if ai_rng.random_f32() < 0.4 { wound(enemy); } else { lick(enemy); }
-        } else { normal(enemy); }
+            if ai_rng.random_f32() < 0.4 {
+                wound(enemy);
+            } else {
+                lick(enemy);
+            }
+        } else {
+            normal(enemy);
+        }
     } else if last_two_moves(enemy, move_ids::AS_LICK) {
-        if ai_rng.random_f32() < 0.4 { wound(enemy); } else { normal(enemy); }
+        if ai_rng.random_f32() < 0.4 {
+            wound(enemy);
+        } else {
+            normal(enemy);
+        }
     } else {
         lick(enemy);
     }
@@ -464,10 +548,7 @@ pub(super) fn roll_gremlin_tsundere(enemy: &mut EnemyCombatState) {
     enemy.add_effect(mfx::BLOCK_RANDOM_OTHER, block);
 }
 
-pub fn advance_gremlin_tsundere_after_turn(
-    enemy: &mut EnemyCombatState,
-    alive_count: usize,
-) {
+pub fn advance_gremlin_tsundere_after_turn(enemy: &mut EnemyCombatState, alive_count: usize) {
     // Source: reference/extracted/methods/monster/GremlinTsundere.java (`takeTurn`).
     let damage = enemy.entity.status(sid::STARTING_DMG).max(6);
     let block = enemy.entity.status(sid::BLOCK_AMT).max(7) as i16;
@@ -488,17 +569,17 @@ pub(super) fn roll_gremlin_nob(enemy: &mut EnemyCombatState, num: i32) {
     if enemy.entity.status(sid::IS_FIRST_MOVE) == 0 {
         enemy.entity.set_status(sid::IS_FIRST_MOVE, 1);
         enemy.set_move(move_ids::NOB_BELLOW, 0, 0, 0);
-        enemy.add_effect(mfx::ENRAGE,
-            enemy.entity.status(sid::TURN_COUNT).max(2) as i16);
+        enemy.add_effect(
+            mfx::ENRAGE,
+            enemy.entity.status(sid::TURN_COUNT).max(2) as i16,
+        );
         return;
     }
     let a18 = enemy.entity.status(sid::BLOCK_AMT) >= 18;
     let choose_bash = if a18 {
         let last = enemy.move_history.last().copied();
         let before = enemy.move_history.iter().rev().nth(1).copied();
-        if last != Some(move_ids::NOB_SKULL_BASH)
-            && before != Some(move_ids::NOB_SKULL_BASH)
-        {
+        if last != Some(move_ids::NOB_SKULL_BASH) && before != Some(move_ids::NOB_SKULL_BASH) {
             true
         } else {
             last_two_moves(enemy, move_ids::NOB_RUSH)
@@ -600,7 +681,10 @@ pub(super) fn roll_sentry(enemy: &mut EnemyCombatState) {
         move_ids::SENTRY_BEAM
     };
     if move_id == move_ids::SENTRY_BOLT {
-        enemy.set_move(move_ids::SENTRY_BOLT, 0, 0, 0);
+        enemy.set_move_with_intent(
+            move_ids::SENTRY_BOLT,
+            Intent::Debuff { effects: fx::DAZE },
+        );
         enemy.add_effect(mfx::DAZE, daze);
     } else {
         enemy.set_move(move_ids::SENTRY_BEAM, damage, 1, 0);
@@ -664,12 +748,18 @@ pub fn advance_guardian_after_turn(enemy: &mut EnemyCombatState) {
 
 /// Check if Guardian should switch to defensive mode after taking damage.
 pub fn guardian_check_mode_shift(enemy: &mut EnemyCombatState, damage_dealt: i32) -> bool {
-    if enemy.entity.status(sid::PHASE) != 0 || enemy.entity.hp <= 0 { return false; }
+    if enemy.entity.status(sid::PHASE) != 0 || enemy.entity.hp <= 0 {
+        return false;
+    }
     let threshold = enemy.entity.status(sid::MODE_SHIFT);
-    if threshold <= 0 { return false; }
+    if threshold <= 0 {
+        return false;
+    }
 
     let current_taken = enemy.entity.status(sid::DAMAGE_TAKEN_THIS_MODE) + damage_dealt;
-    enemy.entity.set_status(sid::DAMAGE_TAKEN_THIS_MODE, current_taken);
+    enemy
+        .entity
+        .set_status(sid::DAMAGE_TAKEN_THIS_MODE, current_taken);
 
     if current_taken >= threshold {
         enemy.entity.set_status(sid::PHASE, 1);
@@ -677,8 +767,10 @@ pub fn guardian_check_mode_shift(enemy: &mut EnemyCombatState, damage_dealt: i32
         enemy.entity.set_status(sid::MODE_SHIFT, threshold + 10);
         enemy.entity.block += enemy.entity.status(sid::TURN_COUNT).max(20);
         enemy.set_move(move_ids::GUARD_CLOSE_UP, 0, 0, 0);
-        enemy.add_effect(mfx::SHARP_HIDE,
-            enemy.entity.status(sid::STR_AMT).max(3) as i16);
+        enemy.add_effect(
+            mfx::SHARP_HIDE,
+            enemy.entity.status(sid::STR_AMT).max(3) as i16,
+        );
         enemy.move_history.clear();
         true
     } else {
@@ -728,8 +820,10 @@ pub(super) fn roll_hexaghost(enemy: &mut EnemyCombatState) {
         }
         3 => {
             enemy.set_move(move_ids::HEX_INFLAME, 0, 0, 12);
-            enemy.add_effect(mfx::STRENGTH,
-                enemy.entity.status(sid::STR_AMT).max(2) as i16);
+            enemy.add_effect(
+                mfx::STRENGTH,
+                enemy.entity.status(sid::STR_AMT).max(2) as i16,
+            );
         }
         6 => {
             let damage = enemy.entity.status(sid::INFERNO_DMG).max(2);
@@ -779,9 +873,13 @@ pub(super) fn roll_slime_boss(enemy: &mut EnemyCombatState) {
     // Source: reference/extracted/methods/monster/SlimeBoss.java (`getMove`).
     if enemy.entity.status(sid::IS_FIRST_MOVE) == 0 {
         enemy.entity.set_status(sid::IS_FIRST_MOVE, 1);
-        enemy.set_move(move_ids::SB_STICKY, 0, 0, 0);
-        enemy.add_effect(mfx::SLIMED,
-            enemy.entity.status(sid::STR_AMT).max(3) as i16);
+        enemy.set_move_with_intent(
+            move_ids::SB_STICKY,
+            Intent::StrongDebuff {
+                effects: fx::SLIMED,
+            },
+        );
+        enemy.add_effect(mfx::SLIMED, enemy.entity.status(sid::STR_AMT).max(3) as i16);
     }
 }
 
@@ -791,13 +889,23 @@ pub fn advance_slime_boss_after_turn(enemy: &mut EnemyCombatState) {
     enemy.move_history.push(enemy.move_id);
     enemy.move_effects.clear();
     match enemy.move_id {
-        move_ids::SB_STICKY => enemy.set_move(move_ids::SB_PREP_SLAM, 0, 0, 0),
-        move_ids::SB_PREP_SLAM => enemy.set_move(move_ids::SB_SLAM,
-            enemy.entity.status(sid::SLAP_DMG).max(35), 1, 0),
+        move_ids::SB_STICKY => {
+            enemy.set_move_with_intent(move_ids::SB_PREP_SLAM, Intent::Unknown)
+        }
+        move_ids::SB_PREP_SLAM => enemy.set_move(
+            move_ids::SB_SLAM,
+            enemy.entity.status(sid::SLAP_DMG).max(35),
+            1,
+            0,
+        ),
         move_ids::SB_SLAM => {
-            enemy.set_move(move_ids::SB_STICKY, 0, 0, 0);
-            enemy.add_effect(mfx::SLIMED,
-                enemy.entity.status(sid::STR_AMT).max(3) as i16);
+            enemy.set_move_with_intent(
+                move_ids::SB_STICKY,
+                Intent::StrongDebuff {
+                    effects: fx::SLIMED,
+                },
+            );
+            enemy.add_effect(mfx::SLIMED, enemy.entity.status(sid::STR_AMT).max(3) as i16);
         }
         _ => {}
     }
@@ -826,6 +934,11 @@ pub fn advance_apology_slime_after_turn(enemy: &mut EnemyCombatState) {
     } else {
         enemy.set_move(move_ids::APOLOGY_TACKLE, 3, 1, 0);
     }
+}
+
+pub fn set_slime_boss_split(enemy: &mut EnemyCombatState) {
+    // Source: SlimeBoss.java `damage` and `takeTurn` case 3.
+    enemy.set_move_with_intent(move_ids::SB_SPLIT, Intent::Unknown);
 }
 
 /// Check if Slime Boss should split (HP <= 50%).

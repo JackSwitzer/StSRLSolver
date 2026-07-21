@@ -99,10 +99,10 @@ mod engine_integration_tests {
 
     // ---- Conclude hits all enemies ----
     #[test] fn conclude_all_enemy() {
-        let mut enemy2 = EnemyCombatState::new("E2", 50, 50);
+        let mut enemy2 = EnemyCombatState::new("Cultist", 50, 50);
         enemy2.set_move(1, 0, 0, 0);
         let mut state = CombatState::new(80, 80,
-            vec![EnemyCombatState::new("E1", 50, 50), enemy2],
+            vec![EnemyCombatState::new("JawWorm", 50, 50), enemy2],
             make_deck_n("Conclude", 5), 3);
         state.enemies[0].set_move(1, 0, 0, 0);
         let mut eng = CombatEngine::new(state, 42);
@@ -1243,6 +1243,9 @@ mod combat_engine_p0_p1_regression {
         if enemy_dmg > 0 {
             enemy.set_move(enemy.move_id, enemy_dmg, enemy_hits, 0);
         }
+        // This fixture supplies an already-settled synthetic intent; unlike a
+        // canonical run spawn it must not execute AbstractMonster.init again.
+        enemy.needs_initial_move_roll = false;
         let state = CombatState::new(80, 80, vec![enemy], deck, 3);
         CombatEngine::new(state, 42)
     }
@@ -2833,7 +2836,7 @@ mod effect_handler_tests {
         e.execute_action(&Action::EndTurn);
         assert_eq!(e.state.enemies.len(), 4,
             "baseline Reptomancer fills one of four dagger slots");
-        assert_eq!(e.state.enemies[3].id, "SnakeDagger");
+        assert_eq!(e.state.enemies[3].id, "Dagger");
         assert_eq!(e.state.enemies[3].entity.hp, expected_hp);
         assert!(e.state.enemies[3].is_minion);
         assert_eq!(e.rng_counters()["monsterHp"], counters_before["monsterHp"] + 1);
@@ -2880,8 +2883,8 @@ mod effect_handler_tests {
                 .map(|enemy| (enemy.id.as_str(), enemy.entity.hp, enemy.is_minion))
                 .collect::<Vec<_>>(),
             vec![
-                ("SnakeDagger", expected_hp[0], true),
-                ("SnakeDagger", expected_hp[1], true),
+                ("Dagger", expected_hp[0], true),
+                ("Dagger", expected_hp[1], true),
             ],
         );
         assert_eq!(e.monster_hp_rng, hp_oracle);

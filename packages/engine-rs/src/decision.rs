@@ -57,6 +57,7 @@ pub enum RewardItemKind {
     CardChoice,
     Relic,
     Gold,
+    StolenGold,
     Potion,
     Key {
         color: RewardKeyColor,
@@ -69,14 +70,8 @@ pub enum RewardItemKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RewardChoice {
-    Card {
-        index: usize,
-        card_id: String,
-    },
-    Named {
-        index: usize,
-        label: String,
-    },
+    Card { index: usize, card_id: String },
+    Named { index: usize, label: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -159,8 +154,9 @@ pub struct MapDecisionContext {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MapPathContext {
     pub choice: usize,
-    pub x: usize,
-    pub y: usize,
+    /// Java uses synthetic map nodes such as the standard boss node `(-1, 15)`.
+    pub x: i32,
+    pub y: i32,
     pub room_type: String,
     pub uses_winged_greaves: bool,
     pub has_emerald_key: bool,
@@ -175,6 +171,12 @@ pub struct ChestDecisionContext {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NeowOptionContext {
     pub index: usize,
+    /// Java `NeowReward(int category)` constructor category, 0 through 3.
+    pub category: u8,
+    /// Stable `NeowRewardType` enum name from Java.
+    pub reward_id: String,
+    /// Stable `NeowRewardDrawback` enum name from Java.
+    pub drawback_id: String,
     pub label: String,
 }
 
@@ -351,8 +353,11 @@ impl DecisionStack {
     }
 }
 
-
-pub(crate) fn build_shop_context(shop: &ShopState, gold: i32, deck_len: usize) -> ShopDecisionContext {
+pub(crate) fn build_shop_context(
+    shop: &ShopState,
+    gold: i32,
+    deck_len: usize,
+) -> ShopDecisionContext {
     ShopDecisionContext {
         offers: shop
             .cards
@@ -376,13 +381,24 @@ pub(crate) fn build_shop_context(shop: &ShopState, gold: i32, deck_len: usize) -
                 affordable: gold >= *price,
             })
             .collect(),
-        potion_offers: shop.potions.iter().enumerate()
+        potion_offers: shop
+            .potions
+            .iter()
+            .enumerate()
             .map(|(index, (potion_id, price))| ShopPotionOfferContext {
-                index, potion_id: potion_id.clone(), price: *price, affordable: gold >= *price,
-            }).collect(),
+                index,
+                potion_id: potion_id.clone(),
+                price: *price,
+                affordable: gold >= *price,
+            })
+            .collect(),
         remove_price: shop.remove_price,
         removal_used: shop.removal_used,
-        removable_cards: if !shop.removal_used && deck_len > 5 { deck_len } else { 0 },
+        removable_cards: if !shop.removal_used && deck_len > 5 {
+            deck_len
+        } else {
+            0
+        },
     }
 }
 
@@ -465,7 +481,6 @@ fn choice_reason_name(reason: &ChoiceReason) -> &'static str {
         ChoiceReason::PickFromDrawPile => "pick_from_draw_pile",
         ChoiceReason::DiscoverCard => "discover_card",
         ChoiceReason::PickOption => "pick_option",
-        ChoiceReason::PlayCardFree => "play_card_free",
         ChoiceReason::DualWield => "dual_wield",
         ChoiceReason::UpgradeCard => "upgrade_card",
         ChoiceReason::PickFromExhaust => "pick_from_exhaust",
@@ -587,6 +602,9 @@ mod tests {
         let frame = DecisionFrame::Neow(NeowDecisionContext {
             options: vec![NeowOptionContext {
                 index: 0,
+                category: 1,
+                reward_id: "HUNDRED_GOLD".to_string(),
+                drawback_id: "NONE".to_string(),
                 label: "Gain 100 gold".to_string(),
             }],
         });

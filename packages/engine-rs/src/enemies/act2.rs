@@ -1,7 +1,7 @@
-use crate::state::EnemyCombatState;
-use crate::combat_types::{fx, mfx, Intent};
-use super::{last_move, last_two_moves};
 use super::move_ids;
+use super::{last_move, last_two_moves};
+use crate::combat_types::{fx, mfx, Intent};
+use crate::state::EnemyCombatState;
 use crate::status_ids::sid;
 
 // =========================================================================
@@ -32,9 +32,7 @@ pub(super) fn roll_chosen(enemy: &mut EnemyCombatState, num: i32) {
         return;
     }
 
-    if !last_move(enemy, move_ids::CHOSEN_DEBILITATE)
-        && !last_move(enemy, move_ids::CHOSEN_DRAIN)
-    {
+    if !last_move(enemy, move_ids::CHOSEN_DEBILITATE) && !last_move(enemy, move_ids::CHOSEN_DRAIN) {
         if num < 50 {
             enemy.set_move(move_ids::CHOSEN_DEBILITATE, debilitate_damage, 1, 0);
             enemy.add_effect(mfx::VULNERABLE, 2);
@@ -248,8 +246,8 @@ pub(super) fn roll_snake_plant(enemy: &mut EnemyCombatState, num: i32) {
     // lower ascensions only inspect the immediately previous move.
     let chomp_damage = enemy.entity.status(sid::STARTING_DMG).max(7);
     let history_len = enemy.move_history.len();
-    let used_spores_two_moves_ago = history_len >= 2
-        && enemy.move_history[history_len - 2] == move_ids::SNAKE_SPORES;
+    let used_spores_two_moves_ago =
+        history_len >= 2 && enemy.move_history[history_len - 2] == move_ids::SNAKE_SPORES;
     let choose_chomp = if num < 65 {
         !last_two_moves(enemy, move_ids::SNAKE_CHOMP)
     } else if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
@@ -308,8 +306,7 @@ pub(super) fn roll_healer(enemy: &mut EnemyCombatState, num: i32) {
     let high_ai = enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0;
     let need_to_heal = enemy.entity.status(sid::COUNT);
 
-    if need_to_heal > if high_ai { 20 } else { 15 }
-        && !last_two_moves(enemy, move_ids::MYSTIC_HEAL)
+    if need_to_heal > if high_ai { 20 } else { 15 } && !last_two_moves(enemy, move_ids::MYSTIC_HEAL)
     {
         enemy.set_move(move_ids::MYSTIC_HEAL, 0, 0, 0);
         enemy.add_effect(mfx::HEAL_ALL, heal);
@@ -379,7 +376,11 @@ pub(super) fn roll_gremlin_leader(
 
     if alive == 0 {
         if num < 75 {
-            if !last_move(enemy, move_ids::GL_RALLY) { rally(enemy); } else { stab(enemy); }
+            if !last_move(enemy, move_ids::GL_RALLY) {
+                rally(enemy);
+            } else {
+                stab(enemy);
+            }
         } else if !last_move(enemy, move_ids::GL_STAB) {
             stab(enemy);
         } else {
@@ -394,7 +395,11 @@ pub(super) fn roll_gremlin_leader(
                 roll_gremlin_leader(enemy, retry, ai_rng);
             }
         } else if num < 80 {
-            if !last_move(enemy, move_ids::GL_ENCOURAGE) { encourage(enemy); } else { stab(enemy); }
+            if !last_move(enemy, move_ids::GL_ENCOURAGE) {
+                encourage(enemy);
+            } else {
+                stab(enemy);
+            }
         } else if !last_move(enemy, move_ids::GL_STAB) {
             stab(enemy);
         } else {
@@ -402,7 +407,11 @@ pub(super) fn roll_gremlin_leader(
             roll_gremlin_leader(enemy, retry, ai_rng);
         }
     } else if num < 66 {
-        if !last_move(enemy, move_ids::GL_ENCOURAGE) { encourage(enemy); } else { stab(enemy); }
+        if !last_move(enemy, move_ids::GL_ENCOURAGE) {
+            encourage(enemy);
+        } else {
+            stab(enemy);
+        }
     } else if !last_move(enemy, move_ids::GL_STAB) {
         stab(enemy);
     } else {
@@ -471,10 +480,7 @@ pub(super) fn roll_bear(enemy: &mut EnemyCombatState, _num: i32) {
     // intents are installed directly by takeTurn and never call rollMove.
     // Java: reference/extracted/methods/monster/BanditBear.java
     enemy.set_move(move_ids::BEAR_HUG, 0, 0, 0);
-    enemy.add_effect(
-        mfx::DEX_DOWN,
-        enemy.entity.status(sid::BLOCK_AMT) as i16,
-    );
+    enemy.add_effect(mfx::DEX_DOWN, enemy.entity.status(sid::BLOCK_AMT) as i16);
 }
 
 pub(crate) fn advance_bear_after_turn(enemy: &mut EnemyCombatState) {
@@ -552,10 +558,7 @@ pub(crate) fn advance_bandit_leader_after_turn(enemy: &mut EnemyCombatState) {
                 1,
                 0,
             );
-            enemy.add_effect(
-                mfx::WEAK,
-                enemy.entity.status(sid::BLOCK_AMT) as i16,
-            );
+            enemy.add_effect(mfx::WEAK, enemy.entity.status(sid::BLOCK_AMT) as i16);
         }
         _ => enemy.set_move(
             move_ids::BANDIT_CROSS_SLASH,
@@ -645,8 +648,8 @@ pub(super) fn roll_champ(enemy: &mut EnemyCombatState, num: i32) {
     }
 
     let history_len = enemy.move_history.len();
-    let last_move_before_execute = history_len >= 2
-        && enemy.move_history[history_len - 2] == move_ids::CHAMP_EXECUTE;
+    let last_move_before_execute =
+        history_len >= 2 && enemy.move_history[history_len - 2] == move_ids::CHAMP_EXECUTE;
     if enemy.entity.status(sid::THRESHOLD_REACHED) > 0
         && !last_move(enemy, move_ids::CHAMP_EXECUTE)
         && !last_move_before_execute
@@ -669,10 +672,7 @@ pub(super) fn roll_champ(enemy: &mut EnemyCombatState, num: i32) {
     } else {
         15
     };
-    if !last_move(enemy, move_ids::CHAMP_DEFENSIVE)
-        && forge_times < 2
-        && num <= forge_roll_max
-    {
+    if !last_move(enemy, move_ids::CHAMP_DEFENSIVE) && forge_times < 2 && num <= forge_roll_max {
         enemy.entity.set_status(sid::FORGE_TIMES, forge_times + 1);
         enemy.set_move(move_ids::CHAMP_DEFENSIVE, 0, 0, block_amt);
         enemy.add_effect(mfx::METALLICIZE, forge_amt as i16);
@@ -697,9 +697,30 @@ pub(super) fn roll_champ(enemy: &mut EnemyCombatState, num: i32) {
 
 pub(super) fn roll_collector(enemy: &mut EnemyCombatState, num: i32) {
     // Source: reference/extracted/methods/monster/TheCollector.java (`getMove`).
-    let fd = { let v = enemy.entity.status(sid::FIREBALL_DMG); if v > 0 { v } else { 18 } };
-    let sa = { let v = enemy.entity.status(sid::STR_AMT); if v > 0 { v } else { 3 } };
-    let ba = { let v = enemy.entity.status(sid::BLOCK_AMT); if v > 0 { v } else { 15 } };
+    let fd = {
+        let v = enemy.entity.status(sid::FIREBALL_DMG);
+        if v > 0 {
+            v
+        } else {
+            18
+        }
+    };
+    let sa = {
+        let v = enemy.entity.status(sid::STR_AMT);
+        if v > 0 {
+            v
+        } else {
+            3
+        }
+    };
+    let ba = {
+        let v = enemy.entity.status(sid::BLOCK_AMT);
+        if v > 0 {
+            v
+        } else {
+            15
+        }
+    };
     let mega = enemy.entity.status(sid::STARTING_DMG).max(3);
     if enemy.entity.status(sid::FIRST_MOVE) > 0 {
         enemy.set_move(move_ids::COLL_SPAWN, 0, 0, 0);

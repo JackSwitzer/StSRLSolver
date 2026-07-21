@@ -20,9 +20,9 @@ use crate::effects::types::CardPlayContext;
 use crate::orbs::{EvokeEffect, PassiveEffect};
 use crate::potions;
 use crate::powers;
-use crate::state::{CombatState, Stance};
 #[cfg(test)]
 use crate::state::EnemyCombatState;
+use crate::state::{CombatState, Stance};
 use crate::status_effects;
 use crate::status_ids::sid;
 
@@ -51,7 +51,6 @@ pub enum ChoiceReason {
     PickFromDrawPile,
     DiscoverCard,
     PickOption,
-    PlayCardFree,
     DualWield,
     UpgradeCard,
     PickFromExhaust,
@@ -162,6 +161,10 @@ pub struct CombatEngine {
     /// probabilistic intent branching (JawWorm, Chosen, ~20+ enemies). Kept separate
     /// from `rng` so card/shuffle draws do not perturb intent sequences.
     pub(crate) ai_rng: crate::seed::StsRandom,
+    /// Java's process-global libGDX `MathUtils.random`. Presentation and
+    /// gameplay call sites share this cursor, so combat must return it to the
+    /// run instead of reconstructing it at room boundaries.
+    pub(crate) ambient_math_rng: crate::seed::AmbientMathRng,
     /// Java's static default `java.util.Random` used by no-argument
     /// `Collections.shuffle`. Its natural Java seed is process/time-derived,
     /// so trace replay must inject its captured 48-bit state explicitly.
@@ -196,9 +199,19 @@ pub struct CombatEngine {
 }
 
 impl CombatEngine {
-    /// Create a new combat engine.
-    pub fn new(state: CombatState, seed: u64) -> Self {
+    /// Create a deterministic unit-test combat fixture.
+    ///
+    /// Faithful runs must enter combat through `RunEngine`, which transfers all
+    /// independently owned Java streams through `CombatRngs`.
+    pub(crate) fn new(state: CombatState, seed: u64) -> Self {
         Self::new_with_card_random_seed(state, seed, seed)
+    }
+
+    /// Benchmark-only fixture constructor. This deliberately does not model a
+    /// complete dungeon RNG topology; production simulation uses `RunEngine`.
+    #[doc(hidden)]
+    pub fn new_benchmark_fixture(state: CombatState, seed: u64) -> Self {
+        Self::new(state, seed)
     }
 
     pub(crate) fn new_with_card_random_seed(
@@ -218,15 +231,13 @@ impl CombatEngine {
                 // Standalone combat fixtures have no dungeon floor from which
                 // to derive Java's aiRng. RunEngine injects the real stream.
                 ai: crate::seed::StsRandom::new(seed.wrapping_add(0xA1A1_A1A1)),
+                ambient_math: crate::seed::AmbientMathRng::new(0),
                 java_collections: crate::seed::JavaCollectionsRng::deterministic_default(),
             },
         )
     }
 
-    pub(crate) fn new_with_rng_streams(
-        state: CombatState,
-        rngs: crate::seed::CombatRngs,
-    ) -> Self {
+    pub(crate) fn new_with_rng_streams(state: CombatState, rngs: crate::seed::CombatRngs) -> Self {
         let mut effect_runtime = crate::effects::runtime::EffectRuntime::default();
         effect_runtime.rebuild_from_state(&state);
         Self {
@@ -240,6 +251,7 @@ impl CombatEngine {
             potion_rng: rngs.potion,
             misc_rng: rngs.misc,
             ai_rng: rngs.ai,
+            ambient_math_rng: rngs.ambient_math,
             java_collections_rng: rngs.java_collections,
             choice: None,
             effect_runtime,
@@ -271,8 +283,17 @@ impl CombatEngine {
             potion: self.potion_rng.clone(),
             misc: self.misc_rng.clone(),
             ai: self.ai_rng.clone(),
+            ambient_math: self.ambient_math_rng.clone(),
             java_collections: self.java_collections_rng.clone(),
         }
+    }
+
+    pub fn ambient_math_rng_state(&self) -> (u64, u64) {
+        self.ambient_math_rng.state_tuple()
+    }
+
+    pub fn restore_ambient_math_rng_state(&mut self, state: (u64, u64)) {
+        self.ambient_math_rng.restore_state(state.0, state.1);
     }
 
     /// Capture the raw 48-bit state behind Java's no-argument
@@ -359,6 +380,16 @@ impl CombatEngine {
         if self.state.combat_over {
             return Err("active combat payload is already over".to_string());
         }
+        self.state
+            .player
+            .validate_status_order()
+            .map_err(|error| format!("player {error}"))?;
+        for (index, enemy) in self.state.enemies.iter().enumerate() {
+            enemy
+                .entity
+                .validate_status_order()
+                .map_err(|error| format!("enemy {index} {error}"))?;
+        }
 
         match self.phase {
             CombatPhase::PlayerTurn => {
@@ -379,10 +410,9 @@ impl CombatEngine {
                 }
             }
             CombatPhase::AwaitingChoice => {
-                let choice = self
-                    .choice
-                    .as_ref()
-                    .ok_or_else(|| "awaiting-choice combat is missing its choice payload".to_string())?;
+                let choice = self.choice.as_ref().ok_or_else(|| {
+                    "awaiting-choice combat is missing its choice payload".to_string()
+                })?;
                 if choice.min_picks > choice.max_picks || choice.max_picks > choice.options.len() {
                     return Err("combat choice cardinality is invalid".to_string());
                 }
@@ -421,7 +451,10 @@ impl CombatEngine {
                 return Err(format!("{owner} has a zero card instance id"));
             }
             if !ids.insert(card.instance_id) {
-                return Err(format!("independent live cards alias instance {}", card.instance_id));
+                return Err(format!(
+                    "independent live cards alias instance {}",
+                    card.instance_id
+                ));
             }
             Ok(())
         }
@@ -429,7 +462,9 @@ impl CombatEngine {
         let mut master_ids = std::collections::HashSet::new();
         for card in &self.state.master_deck {
             if card.instance_id == 0 || !master_ids.insert(card.instance_id) {
-                return Err("combat master-deck card instance ids must be unique and nonzero".to_string());
+                return Err(
+                    "combat master-deck card instance ids must be unique and nonzero".to_string(),
+                );
             }
         }
 
@@ -451,7 +486,8 @@ impl CombatEngine {
         }
         if let Some(choice) = &self.choice {
             for option in &choice.options {
-                if let ChoiceOption::RevealedCard(card) | ChoiceOption::GeneratedCard(card) = option {
+                if let ChoiceOption::RevealedCard(card) | ChoiceOption::GeneratedCard(card) = option
+                {
                     insert_unique(&mut live_ids, *card, "combat choice card")?;
                 }
             }
@@ -582,86 +618,69 @@ impl CombatEngine {
         if resuming_after_choice {
             self.pending_combat_start_resume = false;
         } else {
+            self.rebuild_effect_runtime();
 
-        self.rebuild_effect_runtime();
-
-        // Source: reference/extracted/methods/relic/PenNib.java
-        // Pen Nib's relic counter persists between combats; counter 9 applies
-        // its double-damage power at the next battle start.
-        if let Some(slot) = self.state.relics.iter().position(|id| id == "Pen Nib") {
-            let counter = self.hidden_effect_value(
-                "Pen Nib",
-                crate::effects::runtime::EffectOwner::PlayerRelic { slot: slot as u16 },
-                0,
-            );
-            self.state.player.set_status(sid::PEN_NIB_COUNTER, counter);
-        }
-
-        // Source: extracted FungiBeast/LouseNormal/LouseDefensive methods and
-        // methods/base/AbstractMonster.java (`init` -> `rollMove`). These
-        // monsters have no fixed opener; select it with empty move history.
-        let living_enemy_count = self.state.enemies.iter()
-            .filter(|enemy| enemy.is_alive()).count() as i32;
-        for enemy in self.state.enemies.iter_mut().filter(|e| matches!(e.id.as_str(),
-            "Cultist" | "FungiBeast" | "FuzzyLouseNormal" | "RedLouse"
-                | "FuzzyLouseDefensive" | "GreenLouse"
-                | "SlaverBlue" | "BlueSlaver" | "SlaverRed" | "RedSlaver"
-                | "AcidSlime_S" | "AcidSlime_M" | "AcidSlime_L"
-                | "SpikeSlime_S" | "SpikeSlime_M" | "SpikeSlime_L" | "Looter"
-                | "GremlinFat" | "GremlinThief" | "GremlinWarrior"
-                | "GremlinWizard" | "GremlinTsundere" | "GremlinNob"
-                | "Lagavulin" | "Sentry" | "TheGuardian" | "Hexaghost"
-                | "SlimeBoss" | "Apology Slime" | "ApologySlime"
-                | "AwakenedOne" | "Awakened One" | "BanditBear" | "Bear"
-                | "BanditChild" | "BanditPointy" | "Pointy" | "BanditLeader"
-                | "BookOfStabbing" | "Book of Stabbing"
-                | "BronzeAutomaton" | "Bronze Automaton"
-                | "BronzeOrb" | "Bronze Orb" | "Byrd" | "Centurion"
-                | "Champ" | "TheChamp" | "Chosen" | "Mugger"
-                | "TheCollector" | "Collector" | "TorchHead" | "Torch Head"
-                | "Shelled Parasite" | "ShelledParasite"
-                | "SlaverBoss" | "TaskMaster" | "Taskmaster"
-                | "CorruptHeart" | "Corrupt Heart"
-                | "SnakeDagger" | "Snake Dagger" | "Darkling" | "Deca" | "Donu"
-                | "Exploder" | "GiantHead" | "Giant Head"
-                | "GremlinLeader" | "Gremlin Leader" | "Healer" | "Mystic"
-                | "Maw" | "Nemesis" | "OrbWalker" | "Orb Walker"
-                | "Reptomancer" | "Repulsor" | "Serpent" | "SnakePlant" | "Snecko"
-                | "SphericGuardian" | "Spheric Guardian" | "Spiker"
-                | "SpireGrowth" | "Spire Growth" | "SpireShield" | "Spire Shield"
-                | "SpireSpear" | "Spire Spear" | "TimeEater" | "Time Eater"
-                | "Transient" | "WrithingMass" | "Writhing Mass")) {
-            if enemy.id == "Centurion" {
-                enemy.entity.set_status(sid::COUNT, living_enemy_count);
+            // Source: reference/extracted/methods/relic/PenNib.java
+            // Pen Nib's relic counter persists between combats; counter 9 applies
+            // its double-damage power at the next battle start.
+            if let Some(slot) = self.state.relics.iter().position(|id| id == "Pen Nib") {
+                let counter = self.hidden_effect_value(
+                    "Pen Nib",
+                    crate::effects::runtime::EffectOwner::PlayerRelic { slot: slot as u16 },
+                    0,
+                );
+                self.state.player.set_status(sid::PEN_NIB_COUNTER, counter);
             }
-            crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
-        }
 
-        // MonsterGroup initializes every member before AbstractPlayer calls
-        // usePreBattleAction on the group. Louse Curl Up therefore consumes its
-        // monsterHpRng draw only after all opening aiRng draws.
-        // Java: MonsterGroup.java (`initialize`, `usePreBattleAction`) and
-        // AbstractPlayer.java (`preBattlePrep`).
-        for enemy in self.state.enemies.iter_mut().filter(|enemy| matches!(enemy.id.as_str(),
-            "FuzzyLouseNormal" | "RedLouse" | "FuzzyLouseDefensive" | "GreenLouse"))
-        {
-            let curl_min = enemy.entity.status(sid::BLOCK_AMT);
-            if curl_min > 0 {
-                let curl_max = if curl_min == 9 { 12 } else { curl_min + 4 };
-                let curl_up = self.monster_hp_rng.random_int_range(curl_min, curl_max);
-                enemy.entity.set_status(sid::CURL_UP, curl_up);
-                enemy.entity.set_status(sid::BLOCK_AMT, 0);
+            // AbstractMonster.init calls rollMove for every initialized monster,
+            // including fixed openers that ignore the sampled number.
+            // Java: AbstractMonster.java::init/rollMove.
+            let living_enemy_count = self
+                .state
+                .enemies
+                .iter()
+                .filter(|enemy| enemy.is_alive())
+                .count() as i32;
+            for enemy in self
+                .state
+                .enemies
+                .iter_mut()
+                .filter(|enemy| enemy.is_alive() && enemy.needs_initial_move_roll)
+            {
+                if enemy.id == "Centurion" {
+                    enemy.entity.set_status(sid::COUNT, living_enemy_count);
+                }
+                crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
             }
-        }
 
-        // Apply combat-start relic + power effects via owner-aware runtime.
-        self.emit_event(crate::effects::runtime::GameEvent::empty(
-            crate::effects::trigger::Trigger::CombatStart,
-        ));
-        if self.phase == CombatPhase::AwaitingChoice {
-            self.pending_combat_start_resume = true;
-            return;
-        }
+            // MonsterGroup initializes every member before AbstractPlayer calls
+            // usePreBattleAction on the group. Louse Curl Up therefore consumes its
+            // monsterHpRng draw only after all opening aiRng draws.
+            // Java: MonsterGroup.java (`initialize`, `usePreBattleAction`) and
+            // AbstractPlayer.java (`preBattlePrep`).
+            for enemy in self.state.enemies.iter_mut().filter(|enemy| {
+                matches!(
+                    enemy.id.as_str(),
+                    "FuzzyLouseNormal" | "RedLouse" | "FuzzyLouseDefensive" | "GreenLouse"
+                )
+            }) {
+                let curl_min = enemy.entity.status(sid::BLOCK_AMT);
+                if curl_min > 0 {
+                    let curl_max = if curl_min == 9 { 12 } else { curl_min + 4 };
+                    let curl_up = self.monster_hp_rng.random_int_range(curl_min, curl_max);
+                    enemy.entity.set_status(sid::CURL_UP, curl_up);
+                    enemy.entity.set_status(sid::BLOCK_AMT, 0);
+                }
+            }
+
+            // Apply combat-start relic + power effects via owner-aware runtime.
+            self.emit_event(crate::effects::runtime::GameEvent::empty(
+                crate::effects::trigger::Trigger::CombatStart,
+            ));
+            if self.phase == CombatPhase::AwaitingChoice {
+                self.pending_combat_start_resume = true;
+                return;
+            }
         }
 
         // Shuffle draw pile
@@ -672,9 +691,7 @@ impl CombatEngine {
         let mut innate_indices = Vec::new();
         for (i, card) in self.state.draw_pile.iter().enumerate() {
             let def = self.card_registry.card_def_by_id(card.def_id);
-            if def.runtime_traits().innate
-                || card.flags & CardInstance::FLAG_INNATE != 0
-            {
+            if def.runtime_traits().innate || card.flags & CardInstance::FLAG_INNATE != 0 {
                 innate_indices.push(i);
             }
         }
@@ -708,8 +725,7 @@ impl CombatEngine {
                         actions.push(Action::Choose(i));
                     }
                 }
-                if (ctx.max_picks != 1 || ctx.min_picks == 0)
-                    && ctx.selected.len() >= ctx.min_picks
+                if (ctx.max_picks != 1 || ctx.min_picks == 0) && ctx.selected.len() >= ctx.min_picks
                 {
                     actions.push(Action::ConfirmSelection);
                 }
@@ -797,7 +813,7 @@ impl CombatEngine {
         }
     }
 
-    /// Deep clone for MCTS tree search.
+    /// Deep clone for deterministic branch simulation.
     pub fn clone_state(&self) -> CombatEngine {
         CombatEngine {
             state: self.state.clone(),
@@ -810,6 +826,7 @@ impl CombatEngine {
             potion_rng: self.potion_rng.clone(),
             misc_rng: self.misc_rng.clone(),
             ai_rng: self.ai_rng.clone(),
+            ambient_math_rng: self.ambient_math_rng.clone(),
             java_collections_rng: self.java_collections_rng.clone(),
             choice: self.choice.clone(),
             effect_runtime: self.effect_runtime.clone(),
@@ -985,7 +1002,6 @@ impl CombatEngine {
                 ChoiceReason::PickFromDrawPile => self.resolve_pick_from_draw(ctx),
                 ChoiceReason::DiscoverCard => self.resolve_discover(ctx),
                 ChoiceReason::PickOption => self.resolve_pick_option(ctx),
-                ChoiceReason::PlayCardFree => self.resolve_play_card_free(ctx),
                 ChoiceReason::DualWield => self.resolve_dual_wield(ctx),
                 ChoiceReason::UpgradeCard => self.resolve_upgrade_card(ctx),
                 ChoiceReason::PickFromExhaust => self.resolve_pick_from_exhaust(ctx),
@@ -1218,15 +1234,16 @@ impl CombatEngine {
 
     fn resolve_retain_from_hand(&mut self, ctx: ChoiceContext) {
         for option_idx in ctx.selected {
-            let Some(ChoiceOption::HandCard(hand_idx)) = ctx.options.get(option_idx)
-            else {
+            let Some(ChoiceOption::HandCard(hand_idx)) = ctx.options.get(option_idx) else {
                 continue;
             };
             let hand_idx = *hand_idx;
             if hand_idx >= self.state.hand.len() {
                 continue;
             }
-            let card = self.card_registry.card_def_by_id(self.state.hand[hand_idx].def_id);
+            let card = self
+                .card_registry
+                .card_def_by_id(self.state.hand[hand_idx].def_id);
             // RetainCardsAction permits selecting Ethereal cards but does not
             // set their retain flag, so they still exhaust later this turn.
             // Java: actions/unique/RetainCardsAction.java.
@@ -1344,21 +1361,7 @@ impl CombatEngine {
                     return;
                 }
 
-                match name.as_str() {
-                    "Strength" => {
-                        let current = self.state.player.status(sid::STRENGTH);
-                        self.state.player.set_status(sid::STRENGTH, current + 3);
-                    }
-                    "Gold" => {
-                        // Combat engine can't modify run gold; no-op for MCTS
-                        // (MCTS should prefer Strength or Plated Armor options)
-                    }
-                    "Plated Armor" => {
-                        let current = self.state.player.status(sid::PLATED_ARMOR);
-                        self.state.player.set_status(sid::PLATED_ARMOR, current + 3);
-                    }
-                    _ => {}
-                }
+                panic!("named choices require typed payloads: {name}");
             }
         }
     }
@@ -1396,10 +1399,7 @@ impl CombatEngine {
         if let Some(&sel) = ctx.selected.first() {
             if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
                 if idx < self.state.hand.len() {
-                    self.store_nightmare_copies(
-                        self.state.hand[idx],
-                        ctx.aux_count.max(1),
-                    );
+                    self.store_nightmare_copies(self.state.hand[idx], ctx.aux_count.max(1));
                 }
             }
         }
@@ -1412,9 +1412,8 @@ impl CombatEngine {
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NightmarePower.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/AbstractCard.java
         card.reset_cost_for_turn();
-        card.flags &= CardInstance::FLAG_UPGRADED
-            | CardInstance::FLAG_FREE
-            | CardInstance::FLAG_INNATE;
+        card.flags &=
+            CardInstance::FLAG_UPGRADED | CardInstance::FLAG_FREE | CardInstance::FLAG_INNATE;
         let card = self.fresh_stat_copy(card);
 
         // ApplyPowerAction stacks another NightmarePower with the same ID onto
@@ -1450,35 +1449,6 @@ impl CombatEngine {
         }
     }
 
-    fn resolve_play_card_free(&mut self, ctx: ChoiceContext) {
-        // Play selected card from hand for free
-        if let Some(&sel) = ctx.selected.first() {
-            if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
-                if idx < self.state.hand.len() {
-                    // Set card to free
-                    self.state.hand[idx].cost = 0;
-                    self.state.hand[idx].flags |= crate::combat_types::CardInstance::FLAG_FREE;
-                    // Play it (target -1 = self; for targeted cards MCTS will handle)
-                    let target = if matches!(
-                        self.card_registry
-                            .card_def_by_id(self.state.hand[idx].def_id)
-                            .target,
-                        CardTarget::Enemy | CardTarget::SelfAndEnemy
-                    ) {
-                        self.state
-                            .targetable_enemy_indices()
-                            .first()
-                            .copied()
-                            .unwrap_or(0) as i32
-                    } else {
-                        -1
-                    };
-                    self.play_card(idx, target);
-                }
-            }
-        }
-    }
-
     fn resolve_play_card_free_from_draw(&mut self, ctx: ChoiceContext) {
         // OmniscienceAction removes the selected original from draw, forces it
         // to exhaust, then queues the original plus one purge-on-use stat copy.
@@ -1497,8 +1467,7 @@ impl CombatEngine {
                     let purge_copy = self.fresh_stat_copy(purge_copy);
                     let parent_depth = self.runtime_play_stack.len();
                     self.omniscience_autoplay.push((card, parent_depth));
-                    self.omniscience_autoplay
-                        .push((purge_copy, parent_depth));
+                    self.omniscience_autoplay.push((purge_copy, parent_depth));
                 }
             }
         }
@@ -1515,22 +1484,19 @@ impl CombatEngine {
         };
         let (card, _) = self.omniscience_autoplay.remove(queue_idx);
         let def = self.card_registry.card_def_by_id(card.def_id).clone();
-        let target = if matches!(def.target, CardTarget::Enemy | CardTarget::SelfAndEnemy) {
-            let living = self.state.targetable_enemy_indices();
-            if living.is_empty() {
-                -1
-            } else {
-                // NewQueueCardAction(randomTarget=true) asks MonsterGroup for a
-                // random living target on each queued play, consuming
-                // cardRandomRng even when only one target exists.
-                // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
-                let selected = self
-                    .card_random_rng
-                    .random_int_range(0, (living.len() - 1) as i32) as usize;
-                living[selected] as i32
-            }
-        } else {
+        let living = self.state.targetable_enemy_indices();
+        let target = if living.is_empty() {
             -1
+        } else {
+            // Omniscience queues every copy with randomTarget=true. Java asks
+            // MonsterGroup for a random monster before canUse regardless of
+            // the card's target type, including self-target cards and a
+            // singleton enemy group.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+            let selected = self
+                .card_random_rng
+                .random_int_range(0, (living.len() - 1) as i32) as usize;
+            living[selected] as i32
         };
 
         if !self.can_play_card_inst(&def, card) {
@@ -1901,9 +1867,7 @@ impl CombatEngine {
             let player_poison = self.state.player.status(sid::POISON);
             if player_poison > 0 {
                 self.player_lose_hp_from_damage(player_poison);
-                self.state
-                    .player
-                    .set_status(sid::POISON, player_poison - 1);
+                self.state.player.set_status(sid::POISON, player_poison - 1);
                 if self.state.combat_over {
                     return;
                 }
@@ -2147,9 +2111,7 @@ impl CombatEngine {
     }
 
     pub(crate) fn schedule_the_bomb(&mut self, turns: i32, damage: i32) {
-        self.state
-            .pending_bombs
-            .push((turns as i16, damage as i16));
+        self.state.pending_bombs.push((turns as i16, damage as i16));
         self.sync_the_bomb_statuses();
     }
 
@@ -2226,8 +2188,8 @@ impl CombatEngine {
             // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RetainCardPower.java
             // and actions/unique/RetainCardsAction.java.
             let retain_amount = self.state.player.status(sid::RETAIN_CARDS).max(0) as usize;
-            let pyramid = self.state.has_relic("Runic Pyramid")
-                || self.state.has_relic("RunicPyramid");
+            let pyramid =
+                self.state.has_relic("Runic Pyramid") || self.state.has_relic("RunicPyramid");
             if retain_amount > 0
                 && !self.state.hand.is_empty()
                 && !pyramid
@@ -2315,6 +2277,7 @@ impl CombatEngine {
             }
             let hand = std::mem::take(&mut self.state.hand);
             let mut retained = Vec::new();
+            let mut discarded = Vec::new();
             for card_inst in hand {
                 let card = self.card_registry.card_def_by_id(card_inst.def_id);
                 // DiscardAtEndOfTurnAction first moves explicitly retained and
@@ -2336,9 +2299,13 @@ impl CombatEngine {
                     retained_inst.set_retained(true);
                     retained.push(retained_inst);
                 } else {
-                    self.state.discard_pile.push(card_inst);
+                    discarded.push(card_inst);
                 }
             }
+            // DiscardAction repeatedly removes CardGroup::getTopCard(), so
+            // non-retained cards enter the discard pile in reverse hand order.
+            // Java: DiscardAtEndOfTurnAction.java, DiscardAction.java.
+            self.state.discard_pile.extend(discarded.into_iter().rev());
             // Track retained cards for Establishment cost reduction
             self.state.retained_cards = retained.clone();
             self.state.hand = retained;
@@ -2625,9 +2592,7 @@ impl CombatEngine {
         let def = self.card_registry.card_def_by_id(card.def_id);
         match filter {
             CardFilter::All => true,
-            CardFilter::NonExhume => {
-                def.id.strip_suffix('+').unwrap_or(def.id) != "Exhume"
-            }
+            CardFilter::NonExhume => def.id.strip_suffix('+').unwrap_or(def.id) != "Exhume",
             CardFilter::Attacks => def.card_type == CardType::Attack,
             CardFilter::AttackOrPower => {
                 matches!(def.card_type, CardType::Attack | CardType::Power)
@@ -2642,9 +2607,7 @@ impl CombatEngine {
                 };
                 cost == 0 || card.is_free()
             }
-            CardFilter::Upgradeable => {
-                self.card_registry.can_upgrade_card(card)
-            }
+            CardFilter::Upgradeable => self.card_registry.can_upgrade_card(card),
         }
     }
 
@@ -3150,8 +3113,7 @@ impl CombatEngine {
 
         let exhausts_on_use = card.exhaust
             || card_inst.flags & CardInstance::FLAG_EXHAUST_ON_USE != 0
-            || (card.card_type == CardType::Skill
-                && self.state.player.status(sid::CORRUPTION) > 0);
+            || (card.card_type == CardType::Skill && self.state.player.status(sid::CORRUPTION) > 0);
         let spoon_saved = card_inst.flags & CardInstance::FLAG_PURGE == 0
             && card.card_type != CardType::Power
             && exhausts_on_use
@@ -3343,8 +3305,9 @@ impl CombatEngine {
             // resolve, so its own slot can already contain a replacement here.
             // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/panels/PotionPopUp.java
             // and actions/common/ObtainPotionAction.java
-            let entropic_refilled_own_slot = matches!(potion_id.as_str(), "EntropicBrew" | "Entropic Brew")
-                && !self.state.has_relic("Sozu");
+            let entropic_refilled_own_slot =
+                matches!(potion_id.as_str(), "EntropicBrew" | "Entropic Brew")
+                    && !self.state.has_relic("Sozu");
             if !entropic_refilled_own_slot {
                 self.state.potions[potion_idx] = String::new();
             }
@@ -3476,8 +3439,7 @@ impl CombatEngine {
             return;
         }
 
-        let tungsten = self.state.has_relic("Tungsten Rod")
-            || self.state.has_relic("TungstenRod");
+        let tungsten = self.state.has_relic("Tungsten Rod") || self.state.has_relic("TungstenRod");
         let hp_loss = damage::apply_hp_loss(after_intangible, false, tungsten);
         self.player_lose_hp_with_owner(hp_loss, true);
     }
@@ -3500,9 +3462,7 @@ impl CombatEngine {
         // cost once per event. The legacy status name stores that event count.
         // Source: AbstractPlayer.java::damage/updateCardsOnDamage and
         // cards/red/BloodForBlood.java.
-        self.state
-            .player
-            .add_status(sid::HP_LOSS_THIS_COMBAT, 1);
+        self.state.player.add_status(sid::HP_LOSS_THIS_COMBAT, 1);
 
         // Fire on_hp_loss relics via unified dispatch (Centennial Puzzle, Self-Forming Clay, Runic Cube, Red Skull)
         {
@@ -3588,9 +3548,7 @@ impl CombatEngine {
             .relics
             .iter()
             .position(|relic| relic == "Red Skull")
-            .map(|slot| crate::effects::runtime::EffectOwner::PlayerRelic {
-                slot: slot as u16,
-            });
+            .map(|slot| crate::effects::runtime::EffectOwner::PlayerRelic { slot: slot as u16 });
         if red_skull.is_some_and(|owner| {
             self.hidden_effect_value("Red Skull", owner, 0) > 0
                 && self.state.player.hp > self.state.player.max_hp / 2
@@ -3753,7 +3711,8 @@ impl CombatEngine {
         let special_rebirth_death = (matches!(
             self.state.enemies[enemy_idx].id.as_str(),
             "AwakenedOne" | "Awakened One"
-        ) && self.state.enemies[enemy_idx].entity.status(sid::PHASE) == 1)
+        ) && self.state.enemies[enemy_idx].entity.status(sid::PHASE)
+            == 1)
             || self.state.enemies[enemy_idx].id == "Darkling";
         if special_rebirth_death {
             combat_hooks::on_enemy_damaged(self, enemy_idx, hp_before);
@@ -3768,9 +3727,7 @@ impl CombatEngine {
     }
 
     fn apply_shifting_after_hit(&mut self, enemy_idx: usize, damage_amount: i32) {
-        if damage_amount <= 0
-            || self.state.enemies[enemy_idx].entity.status(sid::SHIFTING) <= 0
-        {
+        if damage_amount <= 0 || self.state.enemies[enemy_idx].entity.status(sid::SHIFTING) <= 0 {
             return;
         }
 
@@ -3779,9 +3736,13 @@ impl CombatEngine {
         // absent Artifact, GainStrengthPower restores it after the monster acts.
         let artifact = self.state.enemies[enemy_idx].entity.status(sid::ARTIFACT);
         if artifact > 0 {
-            self.state.enemies[enemy_idx].entity.set_status(sid::ARTIFACT, artifact - 1);
+            self.state.enemies[enemy_idx]
+                .entity
+                .set_status(sid::ARTIFACT, artifact - 1);
         } else {
-            self.state.enemies[enemy_idx].entity.add_status(sid::STRENGTH, -damage_amount);
+            self.state.enemies[enemy_idx]
+                .entity
+                .add_status(sid::STRENGTH, -damage_amount);
             self.state.enemies[enemy_idx]
                 .entity
                 .add_status(sid::TEMP_STRENGTH_LOSS, damage_amount);
@@ -3857,13 +3818,19 @@ impl CombatEngine {
             // PlatedArmorPower.wasHPLost loses one stack after unblocked,
             // non-THORNS/non-HP_LOSS damage from another creature.
             // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/PlatedArmorPower.java
-            let plated = self.state.enemies[enemy_idx].entity.status(sid::PLATED_ARMOR);
+            let plated = self.state.enemies[enemy_idx]
+                .entity
+                .status(sid::PLATED_ARMOR);
             if plated > 0 {
                 let remaining = plated - 1;
                 self.state.enemies[enemy_idx]
-                    .entity.set_status(sid::PLATED_ARMOR, remaining);
-                if remaining == 0 && matches!(self.state.enemies[enemy_idx].id.as_str(),
-                    "Shelled Parasite" | "ShelledParasite")
+                    .entity
+                    .set_status(sid::PLATED_ARMOR, remaining);
+                if remaining == 0
+                    && matches!(
+                        self.state.enemies[enemy_idx].id.as_str(),
+                        "Shelled Parasite" | "ShelledParasite"
+                    )
                 {
                     // Source: PlatedArmorPower.onRemove invokes
                     // ShelledParasite.changeState("ARMOR_BREAK"), which
@@ -3871,9 +3838,12 @@ impl CombatEngine {
                     // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/
                     // PlatedArmorPower.java.
                     self.state.enemies[enemy_idx].set_move(
-                        crate::enemies::move_ids::SP_STUNNED, 0, 0, 0);
-                    self.state.enemies[enemy_idx].intent =
-                        crate::combat_types::Intent::Stun;
+                        crate::enemies::move_ids::SP_STUNNED,
+                        0,
+                        0,
+                        0,
+                    );
+                    self.state.enemies[enemy_idx].intent = crate::combat_types::Intent::Stun;
                 }
             }
 
@@ -3882,12 +3852,18 @@ impl CombatEngine {
             // pure matrix too even though the first receive modifier was skipped.
             if flight > 0 && (hp_damage as f64 * 0.5) < hp_before as f64 {
                 let remaining = flight - 1;
-                self.state.enemies[enemy_idx].entity.set_status(sid::FLIGHT, remaining);
+                self.state.enemies[enemy_idx]
+                    .entity
+                    .set_status(sid::FLIGHT, remaining);
                 if remaining == 0 && self.state.enemies[enemy_idx].id == "Byrd" {
                     // FlightPower.onRemove -> Byrd.changeState("GROUNDED").
                     // Java: reference/extracted/methods/monster/Byrd.java.
                     self.state.enemies[enemy_idx].set_move(
-                        crate::enemies::move_ids::BYRD_STUNNED, 0, 0, 0);
+                        crate::enemies::move_ids::BYRD_STUNNED,
+                        0,
+                        0,
+                        0,
+                    );
                 }
             }
 
@@ -3927,9 +3903,7 @@ impl CombatEngine {
             // Source: decompiled ReactivePower.java. Only sourced, positive,
             // nonlethal NORMAL damage queues RollMoveAction; THORNS and HP_LOSS
             // use other damage paths and never reach this hook.
-            if enemy_alive
-                && self.state.enemies[enemy_idx].entity.status(sid::REACTIVE) > 0
-            {
+            if enemy_alive && self.state.enemies[enemy_idx].entity.status(sid::REACTIVE) > 0 {
                 crate::enemies::writhing_mass_reactive_reroll(
                     &mut self.state.enemies[enemy_idx],
                     &mut self.ai_rng,
@@ -3979,9 +3953,10 @@ impl CombatEngine {
             let _ = self.ai_rng.random_int(2);
         }
 
-        if matches!(self.state.enemies[enemy_idx].id.as_str(),
-            "SpireShield" | "Spire Shield" | "SpireSpear" | "Spire Spear")
-        {
+        if matches!(
+            self.state.enemies[enemy_idx].id.as_str(),
+            "SpireShield" | "Spire Shield" | "SpireSpear" | "Spire Spear"
+        ) {
             // Source: reference/extracted/methods/monster/SpireShield.java
             // (`die`). Once either partner dies, Surrounded and every
             // BackAttack power are removed from the encounter.
@@ -3990,9 +3965,10 @@ impl CombatEngine {
             }
         }
 
-        if matches!(self.state.enemies[enemy_idx].id.as_str(),
-            "GremlinLeader" | "Gremlin Leader")
-        {
+        if matches!(
+            self.state.enemies[enemy_idx].id.as_str(),
+            "GremlinLeader" | "Gremlin Leader"
+        ) {
             // Source: reference/extracted/methods/monster/GremlinLeader.java
             // (`die`): every surviving monster receives EscapeAction.
             for (idx, enemy) in self.state.enemies.iter_mut().enumerate() {
@@ -4004,13 +3980,18 @@ impl CombatEngine {
             }
         }
 
-        if matches!(self.state.enemies[enemy_idx].id.as_str(),
-            "TheCollector" | "Collector")
-        {
+        if matches!(
+            self.state.enemies[enemy_idx].id.as_str(),
+            "TheCollector" | "Collector"
+        ) {
             // Source: decompiled/java-src/com/megacrit/cardcrawl/monsters/
             // city/TheCollector.java (`die`). Every surviving minion receives
             // SuicideAction when the boss dies.
-            let victims: Vec<usize> = self.state.enemies.iter().enumerate()
+            let victims: Vec<usize> = self
+                .state
+                .enemies
+                .iter()
+                .enumerate()
                 .filter(|(idx, enemy)| *idx != enemy_idx && enemy.is_alive())
                 .map(|(idx, _)| idx)
                 .collect();
@@ -4024,7 +4005,11 @@ impl CombatEngine {
             // Source: decompiled/java-src/com/megacrit/cardcrawl/monsters/
             // beyond/Reptomancer.java (`die`): every surviving monster is
             // killed by SuicideAction.
-            let victims: Vec<usize> = self.state.enemies.iter().enumerate()
+            let victims: Vec<usize> = self
+                .state
+                .enemies
+                .iter()
+                .enumerate()
                 .filter(|(idx, enemy)| *idx != enemy_idx && enemy.is_alive())
                 .map(|(idx, _)| idx)
                 .collect();
@@ -4049,9 +4034,14 @@ impl CombatEngine {
         // (`deathReact`). A surviving gremlin immediately changes to Escape.
         for (idx, enemy) in self.state.enemies.iter_mut().enumerate() {
             if idx != enemy_idx
-                && matches!(enemy.id.as_str(),
-                    "GremlinFat" | "GremlinThief" | "GremlinWarrior"
-                        | "GremlinWizard" | "GremlinTsundere")
+                && matches!(
+                    enemy.id.as_str(),
+                    "GremlinFat"
+                        | "GremlinThief"
+                        | "GremlinWarrior"
+                        | "GremlinWizard"
+                        | "GremlinTsundere"
+                )
                 && enemy.is_alive()
                 && enemy.move_id != crate::enemies::move_ids::GREMLIN_ESCAPE
             {
@@ -4190,10 +4180,10 @@ impl CombatEngine {
         } else {
             permanent_cost
         };
-        let free_to_play_once = card_inst.is_free()
-            || self.state.player.status(sid::NEXT_ATTACK_FREE) > 0;
-        let wrist_blade_eligible = cost_for_turn == 0
-            || (free_to_play_once && permanent_cost != -1);
+        let free_to_play_once =
+            card_inst.is_free() || self.state.player.status(sid::NEXT_ATTACK_FREE) > 0;
+        let wrist_blade_eligible =
+            cost_for_turn == 0 || (free_to_play_once && permanent_cost != -1);
         if wrist_blade_eligible && self.state.has_relic("WristBlade") {
             damage += 4;
         }
@@ -4215,10 +4205,8 @@ impl CombatEngine {
     pub(crate) fn add_spawned_enemy(&mut self, mut enemy: crate::state::EnemyCombatState) {
         // Source: PhilosopherStone.java::onSpawnMonster grants the newly
         // spawned monster exactly 1 Strength before combat continues.
-        if self.state.has_relic("Philosopher's Stone")
-            || self.state.has_relic("PhilosopherStone")
-        {
-            enemy.entity.add_status(sid::STRENGTH, 1);
+        if self.state.has_relic("Philosopher's Stone") || self.state.has_relic("PhilosopherStone") {
+            enemy.entity.add_status_direct(sid::STRENGTH, 1);
         }
         self.state.enemies.push(enemy);
     }
@@ -4325,7 +4313,9 @@ impl CombatEngine {
         if hp_damage > 0 {
             let buffer = self.state.enemies[enemy_idx].entity.status(sid::BUFFER);
             if buffer > 0 {
-                self.state.enemies[enemy_idx].entity.set_status(sid::BUFFER, buffer - 1);
+                self.state.enemies[enemy_idx]
+                    .entity
+                    .set_status(sid::BUFFER, buffer - 1);
                 hp_damage = 0;
             }
         }
@@ -4362,7 +4352,9 @@ impl CombatEngine {
         // Sources: decompiled/java-src/com/megacrit/cardcrawl/powers/
         // SharpHidePower.java and actions/utility/UseCardAction.java.
         let sharp_hide_retaliations: Vec<i32> = if card.card_type == CardType::Attack {
-            self.state.enemies.iter()
+            self.state
+                .enemies
+                .iter()
                 .filter(|enemy| enemy.is_alive())
                 .map(|enemy| enemy.entity.status(sid::SHARP_HIDE))
                 .filter(|amount| *amount > 0)
@@ -4393,17 +4385,18 @@ impl CombatEngine {
         if !matches!(card.target, CardTarget::Enemy | CardTarget::SelfAndEnemy)
             || target_idx < 0
             || (target_idx as usize) >= self.state.enemies.len()
-            || !self.state.enemies.iter().any(|enemy|
-                matches!(enemy.id.as_str(), "SpireShield" | "Spire Shield")
-                    && enemy.is_alive())
+            || !self.state.enemies.iter().any(|enemy| {
+                matches!(enemy.id.as_str(), "SpireShield" | "Spire Shield") && enemy.is_alive()
+            })
         {
             return;
         }
 
         let target_idx = target_idx as usize;
-        if !matches!(self.state.enemies[target_idx].id.as_str(),
-            "SpireShield" | "Spire Shield" | "SpireSpear" | "Spire Spear")
-        {
+        if !matches!(
+            self.state.enemies[target_idx].id.as_str(),
+            "SpireShield" | "Spire Shield" | "SpireSpear" | "Spire Spear"
+        ) {
             return;
         }
 
@@ -4412,9 +4405,10 @@ impl CombatEngine {
         // monster turns the player toward it; AbstractMonster.applyBackAttack
         // then marks the monster on the opposite side.
         for (idx, enemy) in self.state.enemies.iter_mut().enumerate() {
-            if matches!(enemy.id.as_str(),
-                "SpireShield" | "Spire Shield" | "SpireSpear" | "Spire Spear")
-                && enemy.is_alive()
+            if matches!(
+                enemy.id.as_str(),
+                "SpireShield" | "Spire Shield" | "SpireSpear" | "Spire Spear"
+            ) && enemy.is_alive()
             {
                 enemy.back_attack = idx != target_idx;
             }
@@ -4422,7 +4416,9 @@ impl CombatEngine {
     }
 
     fn capture_enemy_choke_hp_losses(&self) -> Vec<(usize, i32)> {
-        self.state.enemies.iter()
+        self.state
+            .enemies
+            .iter()
             .enumerate()
             .filter(|(_, enemy)| enemy.is_alive())
             .filter_map(|(idx, enemy)| {
@@ -4672,15 +4668,13 @@ impl CombatEngine {
                         effects.push(crate::orbs::PassiveEffect::PlasmaEnergy(front.base_passive));
                     }
                     match front.orb_type {
-                        crate::orbs::OrbType::Lightning => effects.push(
-                            crate::orbs::PassiveEffect::LightningDamage(
+                        crate::orbs::OrbType::Lightning => {
+                            effects.push(crate::orbs::PassiveEffect::LightningDamage(
                                 front.passive_with_focus(focus),
-                            ),
-                        ),
+                            ))
+                        }
                         crate::orbs::OrbType::Frost => effects.push(
-                            crate::orbs::PassiveEffect::FrostBlock(
-                                front.passive_with_focus(focus),
-                            ),
+                            crate::orbs::PassiveEffect::FrostBlock(front.passive_with_focus(focus)),
                         ),
                         crate::orbs::OrbType::Dark => {
                             front.evoke_amount += front.passive_with_focus(focus);
@@ -4756,10 +4750,7 @@ impl CombatEngine {
                         // erasing Force Field reductions from earlier Power
                         // plays. Only later Power cards reduce this new cost.
                         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ConfusionPower.java
-                        drawn.misc = self
-                            .state
-                            .power_cards_played_this_combat
-                            .max(0);
+                        drawn.misc = self.state.power_cards_played_this_combat.max(0);
                     }
                     drawn.flags &= !CardInstance::FLAG_FREE;
                 }
@@ -4810,7 +4801,10 @@ impl CombatEngine {
         // Evolve: draw accumulated extra cards (recursive call handles further triggers)
         if extra_draws > 0 {
             if self.phase == CombatPhase::AwaitingChoice
-                && self.choice.as_ref().is_some_and(|choice| choice.reason == ChoiceReason::Scry)
+                && self
+                    .choice
+                    .as_ref()
+                    .is_some_and(|choice| choice.reason == ChoiceReason::Scry)
             {
                 if let Some(choice) = self.choice.as_mut() {
                     choice.post_choice_draw += extra_draws;
@@ -4862,9 +4856,7 @@ impl CombatEngine {
 
         // ShuffleAllAction iterates the pre-shuffled discard group from bottom
         // to top and Soul.shuffle adds each card to the top of the draw group.
-        self.state
-            .draw_pile
-            .append(&mut self.state.discard_pile);
+        self.state.draw_pile.append(&mut self.state.discard_pile);
 
         // Reboot then queues ShuffleAction(drawPile, false), which consumes a
         // second shuffleRng.randomLong() but does not trigger relics again.
@@ -4887,7 +4879,6 @@ impl CombatEngine {
     }
 
     pub(crate) fn play_top_card_of_draw_at_target(&mut self, target_idx: i32, exhausts: bool) {
-
         if self.state.draw_pile.is_empty() {
             if self.state.discard_pile.is_empty() {
                 return;
@@ -5074,7 +5065,9 @@ impl CombatEngine {
         if eligible.is_empty() {
             return None;
         }
-        let selected = self.misc_rng.random_int_range(0, (eligible.len() - 1) as i32) as usize;
+        let selected = self
+            .misc_rng
+            .random_int_range(0, (eligible.len() - 1) as i32) as usize;
         let deck_idx = eligible[selected];
         self.card_registry
             .upgrade_card(&mut self.state.master_deck[deck_idx]);
@@ -5252,8 +5245,7 @@ impl CombatEngine {
         // current Watcher pool's rarity/rejection algorithm.
         // Java: cards/green/Alchemize.java, dungeons/AbstractDungeon.java,
         // and actions/common/ObtainPotionAction.java.
-        let potion_id =
-            crate::potions::defs::entropic_brew::roll_limited_watcher_potion(self);
+        let potion_id = crate::potions::defs::entropic_brew::roll_limited_watcher_potion(self);
 
         if self.state.has_relic("Sozu") {
             return false;
@@ -5321,7 +5313,12 @@ impl CombatEngine {
             return;
         }
 
-        let Some(empty_idx) = self.state.orb_slots.slots.iter().position(|slot| slot.is_empty())
+        let Some(empty_idx) = self
+            .state
+            .orb_slots
+            .slots
+            .iter()
+            .position(|slot| slot.is_empty())
         else {
             return;
         };
@@ -5550,7 +5547,6 @@ mod test_relic_runtime_wave4 {
         );
     }
 }
-
 
 // ===========================================================================
 // Rust-only tests
@@ -6421,8 +6417,7 @@ mod tests {
     fn test_inner_peace_not_calm_enters_calm() {
         let mut state = make_test_state();
         state.stance = Stance::Neutral;
-        state.draw_pile =
-            make_deck(&["InnerPeace", "Strike", "Strike", "Strike", "Strike"]);
+        state.draw_pile = make_deck(&["InnerPeace", "Strike", "Strike", "Strike", "Strike"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();
@@ -6448,13 +6443,7 @@ mod tests {
     #[test]
     fn test_power_card_not_in_discard() {
         let mut state = make_test_state();
-        state.draw_pile = make_deck(&[
-            "MentalFortress",
-            "Strike",
-            "Strike",
-            "Strike",
-            "Strike",
-        ]);
+        state.draw_pile = make_deck(&["MentalFortress", "Strike", "Strike", "Strike", "Strike"]);
 
         let mut engine = CombatEngine::new(state, 42);
         engine.start_combat();

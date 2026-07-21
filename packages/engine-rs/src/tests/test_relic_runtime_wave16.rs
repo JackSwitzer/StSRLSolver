@@ -76,7 +76,7 @@ fn ring_of_the_serpent_draws_six_cards_on_every_turn() {
     // onEquip increments masterHandSize once; atTurnStart only flashes.
     let mut engine = engine_without_start(
         make_deck_n("Strike", 20),
-        vec![enemy_no_intent("TrainingDummy", 40, 40)],
+        vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
     engine.state.relics.push("Ring of the Serpent".to_string());

@@ -48,22 +48,133 @@ fixtures cover each nested family while preserving RNG-first diagnosis.
 - V1 remains read-only for the existing smoke golden. Its CAMPFIRE and
   `max_actions` nits must not be carried into the Java v2 adapter.
 
-## F9 — OPEN; human/Java boundary: v2 oracle projection and corpus mint
+## F9 — OPEN ON RECORDER: semantic v2 actions and causal checkpoints
 
-Rust v2 replay now accepts canonical action scripts and emits deterministic
-causal `CoreCheckpoint` chains. A `CoreCheckpoint` contains the Rust engine's
-private continuation representation, so it is not a language-neutral state
-shape that Java can emit faithfully. The Java recorder still needs the v2
-action adapter plus a frozen shared state/RNG projection before scarce human
-sessions can mint reliable full-run goldens. The handoff is registered at
-`data/traces/requests/watcher-a0-oracle-closure.json`; no agent may manufacture
-or write the protected Java corpus.
+Rust now owns the language-neutral `sts.oracle_state` v2 projection, strict
+schema validation, canonical actions, deterministic checkpoints, and offline
+multi-sitting bundle intake. The current Java recorder still emits UI commits,
+omits nested selections and leave/skip actions, and sometimes captures before
+the action queue settles. Those omissions are reported as action-mapping or
+coupled-checkpoint gaps, never matches. The current operator handoff is
+`data/traces/requests/wave3-recorder-needs.md`; no agent may manufacture or
+write the protected Java corpus. The strongest current legacy-bundle prefix is
+`51/607`; it stops at a relic-pool identity that cannot be certified without
+the missing profile/unlock snapshot. Because all readable legacy bundles lack
+that initialization witness, their strict Java-certified prefix is `0`. Four
+other A0 terminal bundles have a two-action comparable prefix and then stop on
+omitted Neow grid-card identity.
 
----
+## F10 — OPEN ORACLE INPUT: process-global ambient RNG state and draw witness
 
-## Resolved
+Java does not derive `MathUtils.random` or the default
+`Collections.shuffle` RNG from the dungeon seed, and it does not reset either
+stream between runs in one process. Rust implements both generators exactly
+and exposes a constructor accepting their captured states; the deterministic
+seed-zero defaults are simulation policy, not a Java oracle witness.
 
-_(none yet)_
+An initial state alone is not a sufficient desktop oracle. `MathUtils.random`
+appears in 327 Java source files and is shared by presentation-only animation,
+audio, and dialogue calls as well as gameplay-facing selectors such as shop
+card identity. Render cadence can therefore perturb the next semantic ambient
+draw even when the dungeon RNG streams remain identical. Full-run desktop
+certification requires settled checkpoints to include both ambient states (or
+an equivalent ordered ambient-draw witness) so presentation entropy is not
+mistaken for a simulator defect. Headless training remains deterministic under
+the documented simulator initialization policy.
+
+## F11 — RESOLVED: process-global RNG lifecycle across shops and run reset
+
+Successful card purchases now consume Java's speech-timer, voice, buy-message,
+side, and position `MathUtils.random` draws; relic and potion purchases consume
+the four shared speech draws. `RunEngine::reset` preserves both process-global
+RNG states while rebuilding every dungeon-owned stream from the new seed.
+Masked Bandits payment also consumes one ambient bandit-selection draw per
+current gold before removing it, which is proven to alter a later Courier
+refill if omitted. Consecutive Courier purchases and reset ownership have
+source-derived action-level tests.
+
+## F12 — RESOLVED: targetable enemy catalog and canonical identity
+
+The engine now derives a 66-entry targetable monster catalog from the verified
+68-row ledger, excluding only the two non-`AbstractMonster` Hexaghost visual
+helpers. Compatibility aliases normalize before construction, runtime state and
+exports use each Java `ID` constant, every catalog member constructs and rolls,
+and unknown IDs fail closed instead of becoming a fabricated generic attack.
+
+## F13 — RESOLVED: trace/checkpoint projection honesty
+
+Intent damage retains Java float ordering through the final floor, repeated
+Searing Blow upgrades validate against `misc`, unknown `?` rooms use settled
+recorder evidence instead of being forced to EVENT, Pandora keeps paired deck
+identity aligned, and checkpoint semantics revision v2 rejects older snapshots.
+
+## F14 — RESOLVED: mystery-combat room identity survives to rewards
+
+`EventRoom` monster rolls now store the concrete `MonsterRoom` identity with
+the active combat instead of re-reading the map's still-visible `?` symbol at
+victory. The typed identity replaces the duplicate boss boolean, serializes in
+causal checkpoints, and proves that Prayer Wheel creates two card rewards after
+a mystery-room hallway fight.
+
+## F15 — OPEN COVERAGE: uninterrupted canonical Neow-to-Heart replay
+
+The canonical action audit found no missing Watcher A0 player-decision family:
+`GameAction`, legal-action enumeration, and `step_game` cover Neow, pathing,
+combat and choices, rewards, potions, shops, events, campfires, chests,
+transitions, Act 4, and terminal state. However, no test or script currently
+drives that surface uninterrupted from Neow to the Heart. The core action test
+stops at the first combat, the v2 smoke script ends incomplete on floor 1, and
+the Act 4/Heart proof starts from test-injected Act 3 state and forces combat
+outcomes.
+
+Queued proof: `watcher_a0_v2_neow_to_heart_replays_deterministically`, using a
+complete semantic recorder script after F9 is fulfilled. It must replay twice
+to byte-identical transition envelopes and may not use debug state injection or
+forced combat outcomes.
+
+## F16 — OPEN PARITY: exact Java power-list mutation and dynamic identity
+
+**Area:** parity / architecture
+**Severity:** critical
+**Confidence:** high
+**Scope:** merge-gating for Java-clean trace and continuation parity
+
+**Evidence:** `AbstractCreature.powers` is an ordered list. Java
+`ApplyPowerAction` appends a new power and stable-sorts by `priority`, while
+`AbstractCreature.addPower` and direct `powers.add` append without sorting.
+Rust now preserves a required canonical power order, validates it in
+checkpoints, maps the common static Java IDs/amounts, and rebuilds runtime
+handlers from that order. `set_status` implements stable priority-sorted
+`ApplyPowerAction`; `set_status_direct` implements unsorted direct append. The
+Java-audited Watcher A0 direct-add sites for large slimes, Slime Boss,
+Philosopher's Stone, spawned enemies, and battle-start Red Skull are migrated
+and source-tested.
+
+**Problem:** cross-relic combat-start ordering still flattens Java's
+`addToTop`, `addToBot`, and direct-add queue distinctions. Dynamic or non-status
+power instances are also incomplete in the language-neutral projection:
+independent The Bomb IDs use Java's process-global `bombIdOffset`, while Minion,
+BackAttack, Stasis, and Pen Nib are not canonical status-backed entries. Rust
+suppresses the incorrect aggregate Bomb projection rather than emitting false
+evidence, but a trace can still have the right combat scalar state and an
+incomplete or wrongly ordered power list.
+
+**Recommended fix:** add typed queue placement to combat-start relic effects so
+top, bottom, and immediate operations resolve in Java action-manager order.
+Represent dynamic power instances with serialized identity and order, and
+capture the initial/per-checkpoint Bomb ID offset in the Java witness rather
+than guessing it.
+
+**Test mapping:** sorted-apply/direct-add trace and runtime tests, the six
+source-confirmed Watcher A0 callsite proofs, and Bomb suppression/checkpoint
+tests are landed. Extend `test_trace_oracle` with relic-slot/addToTop ordering,
+multiple exact Bomb identities, Minion, BackAttack, Stasis, and Pen Nib
+projection; extend `test_core_checkpoint` with dynamic-power identity
+continuation tests.
+
+**Worker slice:** `powers-order-and-dynamic-trace` across `state.rs`,
+`effects/runtime.rs`, `trace.rs`, relic combat-start definitions, and the two
+owning test suites.
 
 ## F8 — April 2026 parity stack: unmerged fix quarry (tag `april-2026-parity-stack`)
 

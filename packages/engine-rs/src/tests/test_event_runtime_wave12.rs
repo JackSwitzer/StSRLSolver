@@ -15,28 +15,22 @@ fn test_event_runtime_wave12_spire_heart_is_supported_in_the_typed_catalog() {
     let spire_heart = typed_event(3, "Spire Heart");
     assert_eq!(spire_heart.options.len(), 1);
     assert!(matches!(spire_heart.options[0].status, EventRuntimeStatus::Supported));
-    assert_eq!(
-        spire_heart.options[0]
-            .program
-            .ops
-            .iter()
-            .filter(|op| matches!(op, EventProgramOp::BlockedPlaceholder { .. }))
-            .count(),
-        0
-    );
+    assert!(matches!(
+        spire_heart.options[0].program.ops.as_slice(),
+        [EventProgramOp::ResolveFinalAct]
+    ));
 }
 
 #[test]
-fn spire_heart_is_supported_with_no_blocked_placeholder_ops() {
+fn spire_heart_option_is_the_only_supported_branch() {
     let spire_heart = typed_event(3, "Spire Heart");
     assert_eq!(spire_heart.options.len(), 1);
     assert!(matches!(
         spire_heart.options[0].status,
         EventRuntimeStatus::Supported
     ));
-    assert!(spire_heart.options[0]
-        .program
-        .ops
-        .iter()
-        .all(|op| !matches!(op, EventProgramOp::BlockedPlaceholder { .. })));
+    assert_eq!(
+        spire_heart.options[0].text,
+        "Approach (deal score dmg, end run or enter Act 4)"
+    );
 }

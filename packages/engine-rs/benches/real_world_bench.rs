@@ -90,7 +90,7 @@ fn scenarios() -> Vec<Scenario> {
 
 fn make_engine(scenario: &Scenario) -> CombatEngine {
     let state = CombatState::new(72, 72, scenario.enemies.clone(), scenario.deck.clone(), 3);
-    let mut engine = CombatEngine::new(state, scenario.seed);
+    let mut engine = CombatEngine::new_benchmark_fixture(state, scenario.seed);
     engine.start_combat();
     engine
 }
@@ -132,8 +132,8 @@ fn bench_real_world_turn_windows(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_real_world_clone_for_mcts(c: &mut Criterion) {
-    let mut group = c.benchmark_group("real_world_clone_for_mcts");
+fn bench_real_world_clone_for_branch_simulation(c: &mut Criterion) {
+    let mut group = c.benchmark_group("real_world_clone_for_branch_simulation");
     for scenario in scenarios() {
         let engine = make_engine(&scenario);
         group.bench_with_input(BenchmarkId::from_parameter(scenario.name), &engine, |b, engine| {
@@ -146,5 +146,9 @@ fn bench_real_world_clone_for_mcts(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(real_world_benches, bench_real_world_turn_windows, bench_real_world_clone_for_mcts);
+criterion_group!(
+    real_world_benches,
+    bench_real_world_turn_windows,
+    bench_real_world_clone_for_branch_simulation
+);
 criterion_main!(real_world_benches);

@@ -4,19 +4,19 @@ Everything below already exists. Read before building anything new; most "new" n
 
 ## Rust engine — USE (the product)
 
-- `packages/engine-rs/` — 3,016/3,016 lib tests green, zero ignored. Watcher A0 implementation is approximately 95% complete against known work but only about 9% real-game-corpus certified.
+- `packages/engine-rs/` — 3,110/3,110 lib tests green, zero ignored. The current rubric-backed engine-side readiness estimate is 90%; the deepest comparable legacy prefix is 51/607, while the strict Java-certified prefix remains 0 because profile initialization is absent.
   - `src/run.rs` — `RunEngine::new(seed, ascension)` + `step_game(&GameAction)`: canonical full-run surface (Neow/path/combat/rewards/shop/event/campfire/Act 4).
   - `src/seed.rs` — native libGDX `RandomXS128`, counted StS `Random`, Java-util LCG/shuffle, and typed persistent/floor/combat stream ownership.
   - `src/engine.rs`, `src/state.rs`, `src/combat_hooks.rs`, `src/card_effects.rs` — combat core; state structs already serde-derive.
   - Content ledger: 370 cards, 68 monsters, 186 relics, and 43 potions source-verified; card-owned secondary behavior uses typed metadata, with 12 intentionally imperative card hooks remaining.
   - Obsolete obs/search/training-contract/gameplay-session/PyO3 consumers are archived under `archive/2026-07-engine-consumers`; they are not core dependencies.
-  - `src/tests/` — 214 Rust files, including canonical run, RNG, checkpoint, trace, and source-derived content coverage.
+  - `src/tests/` — 219 Rust files, including canonical run, RNG, checkpoint, trace, recording-bundle, and source-derived content coverage.
 - `scripts/test_engine_rs.sh` — canonical cargo test/check/build runner for the engine crate.
 
 ## Audits & registers — MINE (they ARE the work queue)
 
 - `docs/work_units/comprehensive-audit-2026-04-17.md` — the gap list with Java citations: §1.1 enemy AI RNG (critical), §1.4 replay energy hardcode, §1.5 Neow TEN_PERCENT_HP_LOSS, §3 fix ordering. Units U08/U09 are lifted from it.
-- `docs/research/engine-rs-audits/` — `COMPLEX_HOOK_AUDIT.md` (the 71 fallback cards; 5 truly complex: Wish, Nightmare, Omniscience, Lesson Learned, Time Warp), `DECOMPILE_PARITY_ENDGAME.md`, `AUDIT_PARITY_STATUS.md`, `INCONSISTENCY_REPORT.md`.
+- `docs/work_units/audit-reports/watcher-a0-oracle-closure.md` — live canonical scorecard, corpus matrix, fixed findings, and remaining merge gates. Older audit derivations are historical evidence, not current branch truth.
 - `docs/work_units/parity-deviations-register.md` — existing intentional deviations (e.g. Neow exposes 4 choices). Becomes the `DEV-NNN` source of truth for masks.
 - `docs/canonical-status-keys.md`, `docs/DESIGN_DECISIONS.md` — ID ground truth + prior rulings.
 

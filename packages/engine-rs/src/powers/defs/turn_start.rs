@@ -48,6 +48,33 @@ pub static DEF_ENERGIZED: EntityDef = EntityDef {
     status_guard: Some(sid::ENERGIZED),
 };
 
+static ENERGIZED_BLUE_EFFECTS: [Effect; 2] = [
+    Effect::Simple(SimpleEffect::GainEnergy(AmountSource::StatusValue(
+        sid::ENERGIZED_BLUE,
+    ))),
+    Effect::Simple(SimpleEffect::SetStatus(
+        Target::Player,
+        sid::ENERGIZED_BLUE,
+        AmountSource::Fixed(0),
+    )),
+];
+
+static ENERGIZED_BLUE_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::TurnStart,
+    condition: TriggerCondition::Always,
+    effects: &ENERGIZED_BLUE_EFFECTS,
+    counter: None,
+}];
+
+pub static DEF_ENERGIZED_BLUE: EntityDef = EntityDef {
+    id: "energized_blue",
+    name: "Energized Blue",
+    kind: EntityKind::Power,
+    triggers: &ENERGIZED_BLUE_TRIGGERS,
+    complex_hook: None,
+    status_guard: Some(sid::ENERGIZED_BLUE),
+};
+
 fn hook_energy_down(
     engine: &mut CombatEngine,
     owner: EffectOwner,

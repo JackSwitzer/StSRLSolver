@@ -7,7 +7,7 @@ mod city;
 mod beyond;
 mod shrines;
 
-pub(crate) use exordium::dead_adventurer_event;
+pub(crate) use exordium::{dead_adventurer_event_with_state, DeadAdventurerReward};
 pub(crate) use shrines::nloth_trade_program;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,13 +74,20 @@ pub enum EventDeckMutation {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EventReward {
     Gold { amount: i32 },
+    GoldReward { amount: i32 },
     MaxHp { amount: i32 },
     Relic { label: String },
     UniqueRelicOrCirclet { label: String },
     Potion { count: usize },
     Card { count: usize },
+    ColorlessCard { count: usize },
     StoredNoteCard,
     SpecificCards { labels: Vec<String> },
+    SpecificCardCopiesByAscension {
+        label: String,
+        base_count: usize,
+        asc15_count: usize,
+    },
     Curse { label: String },
     Nothing,
 }
@@ -94,13 +101,28 @@ pub enum EventProgramOp {
     CombatBranch {
         enemies: Vec<String>,
         on_win: Box<EventProgram>,
+        precombat_random_gold: Option<(i32, i32)>,
+    },
+    PrepareCombatBranch {
+        enemies: Vec<String>,
+        on_win: Box<EventProgram>,
+        precombat_random_gold: Option<(i32, i32)>,
     },
     StartBossCombat,
     RandomOutcomeTable {
         outcomes: Vec<EventProgram>,
     },
+    RandomBooleanOutcome {
+        if_true: Box<EventProgram>,
+        if_false: Box<EventProgram>,
+        force_true_at_ascension15: bool,
+    },
     DeckSelection {
         label: String,
+    },
+    DeckSelectionMany {
+        label: String,
+        count: usize,
     },
     AdjustGoldByAct {
         exordium: i32,
@@ -119,9 +141,16 @@ pub enum EventProgramOp {
         asc15_percent: i32,
     },
     HealToFull,
+    LoseHpPercentRoundedByAscension {
+        base_percent: i32,
+        asc15_percent: i32,
+    },
+    ConsumeMiscLong,
+    ConsumeAmbientIntPerCurrentGold { max_inclusive: i32 },
     AdjustGold { amount: i32 },
     AdjustMaxHp { amount: i32 },
     AdjustMaxHpPercent { percent: i32 },
+    LoseMaxHpPercentCeil { percent: i32 },
     AdjustMaxHpPercentByAscension {
         base_percent: i32,
         asc15_percent: i32,
@@ -132,12 +161,21 @@ pub enum EventProgramOp {
     ResolveJoustBet { bet_on_owner: bool },
     ResolveFaceTraderTouch,
     ObtainRandomFace,
+    ReplaceStarterStrikes {
+        replacement: String,
+        count: usize,
+    },
     RemoveRelic { label: String },
     ObtainRelic { label: String },
     DeckMutation(EventDeckMutation),
+    UpgradeRandomCards { count: usize },
+    RemoveDeckCardInstance { instance_id: u32 },
+    RemoveOfferedDeckCardInstance { instance_id: u32 },
+    RemoveAllRemovableCurses,
+    RemovePotionSlot { slot: usize },
+    ObtainRandomScreenlessRelic,
     Reward(EventReward),
     Nothing,
-    BlockedPlaceholder { reason: String },
 }
 
 impl EventProgramOp {
@@ -158,6 +196,37 @@ impl EventProgramOp {
         Self::CombatBranch {
             enemies: enemies.into_iter().map(Into::into).collect(),
             on_win: Box::new(EventProgram::from_ops(on_win)),
+            precombat_random_gold: None,
+        }
+    }
+
+    /// Resolve a Java inclusive gold roll before combat, but grant the rolled
+    /// amount only after the combat is won.
+    pub fn combat_branch_with_random_gold(
+        enemies: impl IntoIterator<Item = impl Into<String>>,
+        min_gold: i32,
+        max_gold: i32,
+        on_win: Vec<EventProgramOp>,
+    ) -> Self {
+        Self::CombatBranch {
+            enemies: enemies.into_iter().map(Into::into).collect(),
+            on_win: Box::new(EventProgram::from_ops(on_win)),
+            precombat_random_gold: Some((min_gold, max_gold)),
+        }
+    }
+
+    /// Consume constructor/preparation RNG now, then expose a separate Fight
+    /// decision whose combat branch contains only concrete rewards.
+    pub fn prepare_combat_branch_with_random_gold(
+        enemies: impl IntoIterator<Item = impl Into<String>>,
+        min_gold: i32,
+        max_gold: i32,
+        on_win: Vec<EventProgramOp>,
+    ) -> Self {
+        Self::PrepareCombatBranch {
+            enemies: enemies.into_iter().map(Into::into).collect(),
+            on_win: Box::new(EventProgram::from_ops(on_win)),
+            precombat_random_gold: Some((min_gold, max_gold)),
         }
     }
 
@@ -174,9 +243,28 @@ impl EventProgramOp {
         }
     }
 
+    pub fn random_boolean_outcome(
+        if_true: Vec<EventProgramOp>,
+        if_false: Vec<EventProgramOp>,
+        force_true_at_ascension15: bool,
+    ) -> Self {
+        Self::RandomBooleanOutcome {
+            if_true: Box::new(EventProgram::from_ops(if_true)),
+            if_false: Box::new(EventProgram::from_ops(if_false)),
+            force_true_at_ascension15,
+        }
+    }
+
     pub fn deck_selection(label: impl Into<String>) -> Self {
         Self::DeckSelection {
             label: label.into(),
+        }
+    }
+
+    pub fn deck_selection_many(label: impl Into<String>, count: usize) -> Self {
+        Self::DeckSelectionMany {
+            label: label.into(),
+            count,
         }
     }
 
@@ -200,6 +288,10 @@ impl EventProgramOp {
         Self::AdjustGold { amount }
     }
 
+    pub fn ambient_int_per_current_gold(max_inclusive: i32) -> Self {
+        Self::ConsumeAmbientIntPerCurrentGold { max_inclusive }
+    }
+
     pub fn heal_percent_hp(percent: i32) -> Self {
         Self::HealPercentHp { percent }
     }
@@ -220,12 +312,30 @@ impl EventProgramOp {
         Self::HealToFull
     }
 
+    pub fn lose_hp_percent_rounded_by_ascension(
+        base_percent: i32,
+        asc15_percent: i32,
+    ) -> Self {
+        Self::LoseHpPercentRoundedByAscension {
+            base_percent,
+            asc15_percent,
+        }
+    }
+
+    pub fn consume_misc_long() -> Self {
+        Self::ConsumeMiscLong
+    }
+
     pub fn max_hp(amount: i32) -> Self {
         Self::AdjustMaxHp { amount }
     }
 
     pub fn max_hp_percent(percent: i32) -> Self {
         Self::AdjustMaxHpPercent { percent }
+    }
+
+    pub fn lose_max_hp_percent_ceil(percent: i32) -> Self {
+        Self::LoseMaxHpPercentCeil { percent }
     }
 
     pub fn max_hp_percent_by_ascension(
@@ -260,6 +370,13 @@ impl EventProgramOp {
         Self::ObtainRandomFace
     }
 
+    pub fn replace_starter_strikes(replacement: impl Into<String>, count: usize) -> Self {
+        Self::ReplaceStarterStrikes {
+            replacement: replacement.into(),
+            count,
+        }
+    }
+
     pub fn remove_relic(label: impl Into<String>) -> Self {
         Self::RemoveRelic {
             label: label.into(),
@@ -292,6 +409,30 @@ impl EventProgramOp {
         Self::DeckMutation(EventDeckMutation::UpgradeCard { count })
     }
 
+    pub fn upgrade_random_cards(count: usize) -> Self {
+        Self::UpgradeRandomCards { count }
+    }
+
+    pub fn remove_deck_card_instance(instance_id: u32) -> Self {
+        Self::RemoveDeckCardInstance { instance_id }
+    }
+
+    pub fn remove_offered_deck_card_instance(instance_id: u32) -> Self {
+        Self::RemoveOfferedDeckCardInstance { instance_id }
+    }
+
+    pub fn remove_all_removable_curses() -> Self {
+        Self::RemoveAllRemovableCurses
+    }
+
+    pub fn remove_potion_slot(slot: usize) -> Self {
+        Self::RemovePotionSlot { slot }
+    }
+
+    pub fn obtain_random_screenless_relic() -> Self {
+        Self::ObtainRandomScreenlessRelic
+    }
+
     pub fn gain_relic(label: impl Into<String>) -> Self {
         Self::Reward(EventReward::Relic { label: label.into() })
     }
@@ -310,6 +451,10 @@ impl EventProgramOp {
         Self::Reward(EventReward::Gold { amount })
     }
 
+    pub fn gain_gold_reward(amount: i32) -> Self {
+        Self::Reward(EventReward::GoldReward { amount })
+    }
+
     pub fn gain_max_hp(amount: i32) -> Self {
         Self::Reward(EventReward::MaxHp { amount })
     }
@@ -318,9 +463,25 @@ impl EventProgramOp {
         Self::Reward(EventReward::Card { count })
     }
 
+    pub fn gain_colorless_card_reward(count: usize) -> Self {
+        Self::Reward(EventReward::ColorlessCard { count })
+    }
+
     pub fn gain_specific_cards(labels: impl IntoIterator<Item = impl Into<String>>) -> Self {
         Self::Reward(EventReward::SpecificCards {
             labels: labels.into_iter().map(Into::into).collect(),
+        })
+    }
+
+    pub fn gain_specific_card_copies_by_ascension(
+        label: impl Into<String>,
+        base_count: usize,
+        asc15_count: usize,
+    ) -> Self {
+        Self::Reward(EventReward::SpecificCardCopiesByAscension {
+            label: label.into(),
+            base_count,
+            asc15_count,
         })
     }
 
@@ -332,11 +493,6 @@ impl EventProgramOp {
         Self::Nothing
     }
 
-    pub fn blocked(reason: impl Into<String>) -> Self {
-        Self::BlockedPlaceholder {
-            reason: reason.into(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

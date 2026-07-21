@@ -1,0 +1,18 @@
+{
+  "v": 1,
+  "kind": "operator_profile_attestation",
+  "attested_by": "JackSwitzer",
+  "attested_at": "2026-07-21",
+  "applies_to": "all recording bundles in this directory recorded on or before 2026-07-21 (the 14 legacy bundles)",
+  "profile": {
+    "v": 1,
+    "note_for_yourself_card": null,
+    "highest_unlocked_ascension": 20,
+    "is_daily_run": false,
+    "final_act_available": true,
+    "bosses_seen": ["GUARDIAN", "GHOST", "SLIME", "CHAMP", "AUTOMATON", "COLLECTOR", "CROW", "DONUT", "WIZARD"],
+    "locked_cards": [],
+    "locked_relics": []
+  },
+  "notes": "Operator confirms every character, card, relic, and ascension is unlocked on the recording profile; all bosses seen (multiple A20 clears incl. Defect victory). locked_cards/locked_relics are explicit empty arrays per the v1 contract. note_for_yourself_card unknown-null: treat per Java default (no note active) unless a bundle's Neow options contradict, in which case flag rather than guess."
+}

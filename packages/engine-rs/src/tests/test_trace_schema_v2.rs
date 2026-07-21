@@ -80,7 +80,9 @@ fn tiny_action_script() -> ActionScriptV2 {
         character: "WATCHER".to_string(),
         ascension: 0,
         actions: vec![
+            GameAction::Proceed,
             GameAction::ChooseNeowOption(1),
+            GameAction::Proceed,
             GameAction::ChoosePath(0),
             GameAction::CombatAction(Action::PlayCard {
                 card_idx: 3,

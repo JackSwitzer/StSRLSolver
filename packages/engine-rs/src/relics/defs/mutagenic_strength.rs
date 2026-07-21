@@ -8,9 +8,11 @@ use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::status_ids::sid;
 
+// Java queues Strength then LoseStrength with addToTop, so the LIFO action
+// manager applies LoseStrength first and Strength second.
 static EFFECTS: [Effect; 2] = [
-    Effect::Simple(SimpleEffect::AddStatus(Target::Player, sid::STRENGTH, AmountSource::Fixed(3))),
     Effect::Simple(SimpleEffect::AddStatus(Target::Player, sid::LOSE_STRENGTH, AmountSource::Fixed(3))),
+    Effect::Simple(SimpleEffect::AddStatus(Target::Player, sid::STRENGTH, AmountSource::Fixed(3))),
 ];
 
 static TRIGGERS: [TriggeredEffect; 1] = [

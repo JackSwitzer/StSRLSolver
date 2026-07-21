@@ -177,7 +177,9 @@ impl TracePayloadV2 {
             Self::Header(header) => {
                 let engine = header.initial_checkpoint.engine();
                 if header.seed_long as u64 != engine.seed {
-                    return Err("trace header seed does not match its initial checkpoint".to_string());
+                    return Err(
+                        "trace header seed does not match its initial checkpoint".to_string()
+                    );
                 }
                 if header.ascension != engine.run_state.ascension {
                     return Err(

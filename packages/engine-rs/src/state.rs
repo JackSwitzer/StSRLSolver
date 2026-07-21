@@ -1,7 +1,7 @@
-//! Combat state types — mirrors packages/engine/state/combat.py.
+//! Canonical combat state types for the Rust simulator.
 //!
-//! Design: all state is owned, Clone for MCTS tree copies. Statuses use a flat
-//! fixed array indexed by StatusId for O(1) access and fast cloning.
+//! Design: all state is owned and cloneable for deterministic branching.
+//! Statuses use a flat fixed array indexed by StatusId for O(1) access.
 
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -74,19 +74,28 @@ pub struct EntityState {
     /// All statuses as a flat array indexed by StatusId. Zero means absent.
     #[serde(with = "status_array_serde")]
     pub statuses: [i32; sid::MAX_STATUS_ID],
+    /// Canonical Java power-list order plus deterministic insertion order for
+    /// private backing statuses. Sorted applications reorder this list by
+    /// power priority; direct additions append without sorting.
+    pub status_order: SmallVec<[StatusId; 16]>,
 }
 
 mod status_array_serde {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    pub fn serialize<S>(statuses: &[i32; super::sid::MAX_STATUS_ID], serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(
+        statuses: &[i32; super::sid::MAX_STATUS_ID],
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         statuses.as_slice().serialize(serializer)
     }
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<[i32; super::sid::MAX_STATUS_ID], D::Error>
+    pub fn deserialize<'de, D>(
+        deserializer: D,
+    ) -> Result<[i32; super::sid::MAX_STATUS_ID], D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -104,10 +113,11 @@ impl EntityState {
             max_hp,
             block: 0,
             statuses: [0; sid::MAX_STATUS_ID],
+            status_order: SmallVec::new(),
         }
     }
 
-    // -- Convenience accessors (match Python properties) --
+    // -- Convenience accessors --
 
     pub fn strength(&self) -> i32 {
         self.statuses[sid::STRENGTH.0 as usize]
@@ -144,13 +154,97 @@ impl EntityState {
 
     /// Set a status value.
     pub fn set_status(&mut self, id: StatusId, value: i32) {
-        self.statuses[id.0 as usize] = value;
+        self.set_status_with_order(id, value, true);
+    }
+
+    /// Set a status through Java's direct `powers.add`/`addPower` path.
+    /// New powers append without the stable priority sort used by
+    /// `ApplyPowerAction`.
+    pub fn set_status_direct(&mut self, id: StatusId, value: i32) {
+        self.set_status_with_order(id, value, false);
+    }
+
+    fn set_status_with_order(&mut self, id: StatusId, value: i32, sort_new_power: bool) {
+        let slot = &mut self.statuses[id.0 as usize];
+        let was_present = *slot != 0;
+        let is_present = value != 0;
+        *slot = value;
+
+        match (was_present, is_present) {
+            (false, true) => {
+                self.status_order.push(id);
+                if sort_new_power && crate::powers::registry::is_java_power_status(id) {
+                    self.status_order.sort_by_key(|status| {
+                        crate::powers::registry::java_power_priority(*status)
+                    });
+                }
+            }
+            (true, false) => self.status_order.retain(|ordered| *ordered != id),
+            _ => {}
+        }
     }
 
     /// Add to a status value.
     pub fn add_status(&mut self, id: StatusId, amount: i32) {
-        let idx = id.0 as usize;
-        self.statuses[idx] = self.statuses[idx].wrapping_add(amount);
+        let value = self.status(id).wrapping_add(amount);
+        self.set_status(id, value);
+    }
+
+    pub fn add_status_direct(&mut self, id: StatusId, amount: i32) {
+        let value = self.status(id).wrapping_add(amount);
+        self.set_status_direct(id, value);
+    }
+
+    /// Return non-zero statuses in Java application order. Legacy/manual
+    /// states that predate `status_order` retain a deterministic numeric
+    /// fallback without duplicating entries already recorded in the order.
+    pub fn ordered_status_ids(&self) -> Vec<StatusId> {
+        let mut ordered = Vec::with_capacity(self.status_order.len());
+        for id in &self.status_order {
+            if (id.0 as usize) < sid::MAX_STATUS_ID
+                && self.status(*id) != 0
+                && !ordered.contains(id)
+            {
+                ordered.push(*id);
+            }
+        }
+        for (index, amount) in self.statuses.iter().enumerate() {
+            let id = StatusId(index as u16);
+            if *amount != 0 && !ordered.contains(&id) {
+                ordered.push(id);
+            }
+        }
+        ordered
+    }
+
+    pub fn clear_statuses(&mut self) {
+        self.statuses.fill(0);
+        self.status_order.clear();
+    }
+
+    pub fn validate_status_order(&self) -> Result<(), String> {
+        let mut seen = [false; sid::MAX_STATUS_ID];
+        for id in &self.status_order {
+            let index = id.0 as usize;
+            if index >= sid::MAX_STATUS_ID {
+                return Err(format!("status order contains out-of-range id {}", id.0));
+            }
+            if seen[index] {
+                return Err(format!("status order contains duplicate id {}", id.0));
+            }
+            if self.statuses[index] == 0 {
+                return Err(format!("status order contains inactive id {}", id.0));
+            }
+            seen[index] = true;
+        }
+        for (index, amount) in self.statuses.iter().enumerate() {
+            if *amount != 0 && !seen[index] {
+                return Err(format!(
+                    "active status id {index} is missing from status order"
+                ));
+            }
+        }
+        Ok(())
     }
 }
 
@@ -163,6 +257,11 @@ pub struct EnemyCombatState {
     pub entity: EntityState,
     pub id: String,
     pub name: String,
+    /// Canonical factory instances consume Java's `AbstractMonster.init`
+    /// opening `rollMove` exactly once. Restored or manually assembled states
+    /// may already contain their settled opening intent.
+    #[serde(default)]
+    pub needs_initial_move_roll: bool,
     /// Java BackAttack legality bit for Smoke Bomb and similar checks.
     pub back_attack: bool,
     /// Whether this enemy currently carries Java's MinionPower.
@@ -185,6 +284,7 @@ impl EnemyCombatState {
             entity: EntityState::new(hp, max_hp),
             id: id.to_string(),
             name: id.to_string(),
+            needs_initial_move_roll: false,
             back_attack: false,
             is_minion: false,
             move_id: -1,
@@ -212,70 +312,125 @@ impl EnemyCombatState {
     }
 
     pub fn is_attacking(&self) -> bool {
-        matches!(self.intent,
-            Intent::Attack { .. } | Intent::AttackBlock { .. } |
-            Intent::AttackBuff { .. } | Intent::AttackDebuff { .. })
+        matches!(
+            self.intent,
+            Intent::Attack { .. }
+                | Intent::AttackBlock { .. }
+                | Intent::AttackBuff { .. }
+                | Intent::AttackDebuff { .. }
+        )
     }
 
     pub fn total_incoming_damage(&self) -> i32 {
         match self.intent {
-            Intent::Attack { damage, hits, .. } |
-            Intent::AttackBlock { damage, hits, .. } |
-            Intent::AttackBuff { damage, hits, .. } |
-            Intent::AttackDebuff { damage, hits, .. } => {
-                damage as i32 * hits as i32
-            }
-            _ => 0,
+            Intent::Attack { damage, hits, .. }
+            | Intent::AttackBlock { damage, hits, .. }
+            | Intent::AttackBuff { damage, hits, .. }
+            | Intent::AttackDebuff { damage, hits, .. } => damage as i32 * hits as i32,
+            Intent::Block { .. }
+            | Intent::Buff { .. }
+            | Intent::Debuff { .. }
+            | Intent::StrongDebuff { .. }
+            | Intent::DefendBuff { .. }
+            | Intent::Spawn
+            | Intent::Escape
+            | Intent::Sleep
+            | Intent::Stun
+            | Intent::Unknown => 0,
         }
     }
 
     pub fn move_damage(&self) -> i32 {
         match self.intent {
-            Intent::Attack { damage, .. } |
-            Intent::AttackBlock { damage, .. } |
-            Intent::AttackBuff { damage, .. } |
-            Intent::AttackDebuff { damage, hits: _, .. } => damage as i32,
-            _ => 0,
+            Intent::Attack { damage, .. }
+            | Intent::AttackBlock { damage, .. }
+            | Intent::AttackBuff { damage, .. }
+            | Intent::AttackDebuff {
+                damage, hits: _, ..
+            } => damage as i32,
+            Intent::Block { .. }
+            | Intent::Buff { .. }
+            | Intent::Debuff { .. }
+            | Intent::StrongDebuff { .. }
+            | Intent::DefendBuff { .. }
+            | Intent::Spawn
+            | Intent::Escape
+            | Intent::Sleep
+            | Intent::Stun
+            | Intent::Unknown => 0,
         }
     }
 
     pub fn move_hits(&self) -> i32 {
         match self.intent {
-            Intent::Attack { hits, .. } |
-            Intent::AttackBlock { hits, .. } |
-            Intent::AttackBuff { hits, .. } |
-            Intent::AttackDebuff { hits, .. } => hits as i32,
-            _ => 0,
+            Intent::Attack { hits, .. }
+            | Intent::AttackBlock { hits, .. }
+            | Intent::AttackBuff { hits, .. }
+            | Intent::AttackDebuff { hits, .. } => hits as i32,
+            Intent::Block { .. }
+            | Intent::Buff { .. }
+            | Intent::Debuff { .. }
+            | Intent::StrongDebuff { .. }
+            | Intent::DefendBuff { .. }
+            | Intent::Spawn
+            | Intent::Escape
+            | Intent::Sleep
+            | Intent::Stun
+            | Intent::Unknown => 0,
         }
     }
 
     pub fn move_block(&self) -> i32 {
         match self.intent {
-            Intent::Block { amount, .. } |
-            Intent::AttackBlock { block: amount, .. } |
-            Intent::DefendBuff { block: amount, .. } => amount as i32,
-            _ => 0,
+            Intent::Block { amount, .. }
+            | Intent::AttackBlock { block: amount, .. }
+            | Intent::DefendBuff { block: amount, .. } => amount as i32,
+            Intent::Attack { .. }
+            | Intent::Buff { .. }
+            | Intent::Debuff { .. }
+            | Intent::StrongDebuff { .. }
+            | Intent::AttackBuff { .. }
+            | Intent::AttackDebuff { .. }
+            | Intent::Spawn
+            | Intent::Escape
+            | Intent::Sleep
+            | Intent::Stun
+            | Intent::Unknown => 0,
         }
+    }
+
+    /// Set a move whose Java intent cannot be inferred from damage and block.
+    pub fn set_move_with_intent(&mut self, move_id: i32, intent: Intent) {
+        self.move_id = move_id;
+        self.move_effects.clear();
+        self.intent = intent;
     }
 
     /// Set the enemy's next move (clears effects).
     pub fn set_move(&mut self, move_id: i32, damage: i32, hits: i32, block: i32) {
-        self.move_id = move_id;
-        self.move_effects.clear();
         // Convert to Intent based on damage/block
-        if damage > 0 && block > 0 {
-            self.intent = Intent::AttackBlock {
-                damage: damage as i16, hits: hits as u8, block: block as i16, effects: 0
-            };
+        let intent = if damage > 0 && block > 0 {
+            Intent::AttackBlock {
+                damage: damage as i16,
+                hits: hits as u8,
+                block: block as i16,
+                effects: 0,
+            }
         } else if damage > 0 {
-            self.intent = Intent::Attack {
-                damage: damage as i16, hits: hits as u8, effects: 0
-            };
+            Intent::Attack {
+                damage: damage as i16,
+                hits: hits as u8,
+                effects: 0,
+            }
         } else if block > 0 {
-            self.intent = Intent::Block { amount: block as i16, effects: 0 };
+            Intent::Block {
+                amount: block as i16,
+                effects: 0,
+            }
         } else {
-            self.intent = Intent::Buff { effects: 0 };
-        }
+            Intent::Buff { effects: 0 }
+        };
+        self.set_move_with_intent(move_id, intent);
     }
 
     /// Add a move effect (replaces HashMap insert).
@@ -291,7 +446,8 @@ impl EnemyCombatState {
 
     /// Get a move effect amount (replaces HashMap get).
     pub fn effect(&self, effect_id: u8) -> Option<i16> {
-        self.move_effects.iter()
+        self.move_effects
+            .iter()
             .find(|e| e.0 == effect_id)
             .map(|e| e.1)
     }
@@ -377,7 +533,6 @@ pub struct CombatState {
     /// Cross-combat relic counters (Nunchaku, Incense Burner, Ink Bottle, Happy Flower, etc.)
     /// Indexed by relic_flags::counter::* constants. Synced from/to RunState.relic_flags.
     pub relic_counters: [i16; crate::relic_flags::counter::NUM_COUNTERS],
-
 }
 
 impl CombatState {
@@ -445,7 +600,9 @@ impl CombatState {
     }
 
     pub fn is_victory(&self) -> bool {
-        self.enemies.iter().all(|e| e.entity.is_dead() && e.entity.status(sid::REBIRTH_PENDING) == 0)
+        self.enemies
+            .iter()
+            .all(|e| e.entity.is_dead() && e.entity.status(sid::REBIRTH_PENDING) == 0)
     }
 
     pub fn is_defeat(&self) -> bool {
@@ -490,7 +647,11 @@ impl CombatState {
         if amount <= 0 {
             return;
         }
-        if self.player.status(crate::status_ids::sid::HAS_MARK_OF_BLOOM) > 0 {
+        if self
+            .player
+            .status(crate::status_ids::sid::HAS_MARK_OF_BLOOM)
+            > 0
+        {
             return;
         }
         let mut heal = amount;
@@ -508,8 +669,7 @@ fn default_next_card_instance_id() -> u64 {
 
 fn take_card_instance_id(next: &mut u64) -> u32 {
     let current = (*next).max(1);
-    let instance_id = u32::try_from(current)
-        .expect("card instance identity space exhausted");
+    let instance_id = u32::try_from(current).expect("card instance identity space exhausted");
     *next = current + 1;
     instance_id
 }
