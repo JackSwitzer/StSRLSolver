@@ -2,18 +2,22 @@
 
 What gets built between here and the Definition of Done. One pipeline, seven tools. Game launches happen only at mint time (left box); everything an agent loop runs is offline (right side).
 
-## V2 Status — 2026-07-19
+## V2 Status — 2026-07-20
 
 Schema v1 remains frozen for the existing smoke golden. Rust schema v2 now
 serializes the canonical `GameAction` directly, covers all current run actions,
 and replays deterministic pre/post causal checkpoints. The stable action wire
 contract is [`docs/work_units/script-schema-v2.md`](../work_units/script-schema-v2.md).
 
-The Java recorder does not yet implement v2, and Rust `CoreCheckpoint` is a
-continuation artifact rather than a language-neutral Java/Rust state DTO. V2
-Java diff flags are intentionally rejected until that shared projection is
-frozen. The human mint request lives at
-`data/traces/requests/watcher-a0-oracle-closure.json`.
+The language-neutral `sts.oracle_state` v2 projection is frozen in
+[`docs/work_units/oracle-state-v2.md`](../work_units/oracle-state-v2.md). The
+offline bundle path `trace_replay --bundle <dir> --diff <report>` adapts the
+current Java recorder dialect into a partial oracle comparison and reports
+every field absent from that legacy dialect. Rust `CoreCheckpoint` remains a
+private continuation artifact. The Java recorder still needs semantic v2
+actions, complete initial conditions, and settled causal checkpoints; the
+operator request is
+[`data/traces/requests/wave3-recorder-needs.md`](../../data/traces/requests/wave3-recorder-needs.md).
 
 ```
 [real game + TraceLab mod]                        [any agent, sandboxed]
@@ -81,8 +85,10 @@ V1 maps legacy script actions to `GameAction`, steps `RunEngine`, emits the v1
 state projection, and diffs field-by-field in canonical order (**rng counters
 first**). Exit 0 means `"status":"match"` (masked-only diffs still exit 0 but
 list `masked`). V2 replays the canonical action script to JSONL with
-`--script <v2.json> --out <rust-v2.jsonl>`; cross-language v2 comparison stays
-disabled until the shared projection and Java adapter land.
+`--script <v2.json> --out <rust-v2.jsonl>`. Record-mode bundles use
+`--bundle <bundle-dir> --diff <report.json>`; framing/schema errors fail hard,
+while action or gameplay differences produce a report-only first divergence
+with explicit skipped-field counts.
 
 ```json
 {"status":"diverged","script":"act1-jawworm-3turn","seed":"3LGMWP6QYAWB",

@@ -6,21 +6,22 @@
 
 **Register size:** 35 findings — 13 P0, 13 P1, 9 P2
 
-## Closure update — 2026-07-19
+## Closure update — 2026-07-20
 
 This document is the historical derivation register. The five-layer RNG,
 generation, action, checkpoint, and pure-core stack has since closed its active
 P0 reproducers and architecture findings with source-derived tests. The live
 freeze result is [watcher-a0-oracle-closure.md](watcher-a0-oracle-closure.md):
-3,016 passed, zero
+3,081 passed, zero
 ignored, native Java RNG ownership, causal checkpoints, and no active
 obs/search/training/PyO3 dependency in the core.
 
 Do not use the old “2,883 + 11 ignored” snapshot below as current branch state.
 The serialized v1 differ surface and Rust v2 canonical action replay are now
-complete. The remaining merge gate is cross-language oracle certification: a
-Java v2 action adapter, a language-neutral full-state projection, and expansion
-from one golden to the full Watcher A0 corpus.
+complete. The language-neutral full-state projection and offline adapter now
+process all 14 human bundles. The remaining merge gate is cross-language oracle
+certification after the recorder emits complete semantic actions, initial
+conditions, and settled checkpoints.
 
 ## Ranked top 10
 

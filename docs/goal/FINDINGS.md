@@ -48,22 +48,84 @@ fixtures cover each nested family while preserving RNG-first diagnosis.
 - V1 remains read-only for the existing smoke golden. Its CAMPFIRE and
   `max_actions` nits must not be carried into the Java v2 adapter.
 
-## F9 — OPEN; human/Java boundary: v2 oracle projection and corpus mint
+## F9 — OPEN ON RECORDER: semantic v2 actions and causal checkpoints
 
-Rust v2 replay now accepts canonical action scripts and emits deterministic
-causal `CoreCheckpoint` chains. A `CoreCheckpoint` contains the Rust engine's
-private continuation representation, so it is not a language-neutral state
-shape that Java can emit faithfully. The Java recorder still needs the v2
-action adapter plus a frozen shared state/RNG projection before scarce human
-sessions can mint reliable full-run goldens. The handoff is registered at
-`data/traces/requests/watcher-a0-oracle-closure.json`; no agent may manufacture
-or write the protected Java corpus.
+Rust now owns the language-neutral `sts.oracle_state` v2 projection, strict
+schema validation, canonical actions, deterministic checkpoints, and offline
+multi-sitting bundle intake. The current Java recorder still emits UI commits,
+omits nested selections and leave/skip actions, and sometimes captures before
+the action queue settles. Those omissions are reported as action-mapping or
+coupled-checkpoint gaps, never matches. The current operator handoff is
+`data/traces/requests/wave3-recorder-needs.md`; no agent may manufacture or
+write the protected Java corpus.
 
----
+## F10 — OPEN ORACLE INPUT: process-global ambient RNG state and draw witness
 
-## Resolved
+Java does not derive `MathUtils.random` or the default
+`Collections.shuffle` RNG from the dungeon seed, and it does not reset either
+stream between runs in one process. Rust implements both generators exactly
+and exposes a constructor accepting their captured states; the deterministic
+seed-zero defaults are simulation policy, not a Java oracle witness.
 
-_(none yet)_
+An initial state alone is not a sufficient desktop oracle. `MathUtils.random`
+appears in 327 Java source files and is shared by presentation-only animation,
+audio, and dialogue calls as well as gameplay-facing selectors such as shop
+card identity. Render cadence can therefore perturb the next semantic ambient
+draw even when the dungeon RNG streams remain identical. Full-run desktop
+certification requires settled checkpoints to include both ambient states (or
+an equivalent ordered ambient-draw witness) so presentation entropy is not
+mistaken for a simulator defect. Headless training remains deterministic under
+the documented simulator initialization policy.
+
+## F11 — RESOLVED: process-global RNG lifecycle across shops and run reset
+
+Successful card purchases now consume Java's speech-timer, voice, buy-message,
+side, and position `MathUtils.random` draws; relic and potion purchases consume
+the four shared speech draws. `RunEngine::reset` preserves both process-global
+RNG states while rebuilding every dungeon-owned stream from the new seed.
+Masked Bandits payment also consumes one ambient bandit-selection draw per
+current gold before removing it, which is proven to alter a later Courier
+refill if omitted. Consecutive Courier purchases and reset ownership have
+source-derived action-level tests.
+
+## F12 — RESOLVED: targetable enemy catalog and canonical identity
+
+The engine now derives a 66-entry targetable monster catalog from the verified
+68-row ledger, excluding only the two non-`AbstractMonster` Hexaghost visual
+helpers. Compatibility aliases normalize before construction, runtime state and
+exports use each Java `ID` constant, every catalog member constructs and rolls,
+and unknown IDs fail closed instead of becoming a fabricated generic attack.
+
+## F13 — RESOLVED: trace/checkpoint projection honesty
+
+Intent damage retains Java float ordering through the final floor, repeated
+Searing Blow upgrades validate against `misc`, unknown `?` rooms use settled
+recorder evidence instead of being forced to EVENT, Pandora keeps paired deck
+identity aligned, and checkpoint semantics revision v2 rejects older snapshots.
+
+## F14 — RESOLVED: mystery-combat room identity survives to rewards
+
+`EventRoom` monster rolls now store the concrete `MonsterRoom` identity with
+the active combat instead of re-reading the map's still-visible `?` symbol at
+victory. The typed identity replaces the duplicate boss boolean, serializes in
+causal checkpoints, and proves that Prayer Wheel creates two card rewards after
+a mystery-room hallway fight.
+
+## F15 — OPEN COVERAGE: uninterrupted canonical Neow-to-Heart replay
+
+The canonical action audit found no missing Watcher A0 player-decision family:
+`GameAction`, legal-action enumeration, and `step_game` cover Neow, pathing,
+combat and choices, rewards, potions, shops, events, campfires, chests,
+transitions, Act 4, and terminal state. However, no test or script currently
+drives that surface uninterrupted from Neow to the Heart. The core action test
+stops at the first combat, the v2 smoke script ends incomplete on floor 1, and
+the Act 4/Heart proof starts from test-injected Act 3 state and forces combat
+outcomes.
+
+Queued proof: `watcher_a0_v2_neow_to_heart_replays_deterministically`, using a
+complete semantic recorder script after F9 is fulfilled. It must replay twice
+to byte-identical transition envelopes and may not use debug state injection or
+forced combat outcomes.
 
 ## F8 — April 2026 parity stack: unmerged fix quarry (tag `april-2026-parity-stack`)
 
