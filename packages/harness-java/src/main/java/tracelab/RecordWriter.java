@@ -47,6 +47,76 @@ final class RecordWriter {
     private final Writer traceOut;
     private int idx;
 
+    // meta.profile v1 per data/traces/requests/wave3-recorder-needs.md: resolved
+    // UnlockTracker state, not unlock-level guesses; locked_* always explicit.
+    private static Map<String, Object> buildProfile() {
+        Map<String, Object> p = new LinkedHashMap<String, Object>();
+        p.put("v", 1);
+        String note = null;
+        try {
+            note = CardCrawlGame.playerPref.getString("NOTE_CARD", null);
+            if (note != null && note.trim().isEmpty()) note = null;
+        } catch (Exception ignored) {
+        }
+        p.put("note_for_yourself_card", note);
+        int asc = 0;
+        try {
+            asc = CardCrawlGame.characterManager.getCharacter(
+                    com.megacrit.cardcrawl.core.CardCrawlGame.chosenCharacter)
+                    .getPrefs().getInteger("ASCENSION_LEVEL", 0);
+        } catch (Exception ignored) {
+        }
+        p.put("highest_unlocked_ascension", asc);
+        p.put("is_daily_run", com.megacrit.cardcrawl.core.Settings.isDailyRun);
+        p.put("is_trial", com.megacrit.cardcrawl.core.Settings.isTrial);
+        p.put("final_act_available", com.megacrit.cardcrawl.core.Settings.isFinalActAvailable);
+        List<String> bosses = new ArrayList<String>();
+        try {
+            for (String b : new String[]{"GUARDIAN", "GHOST", "SLIME", "CHAMP", "AUTOMATON",
+                    "COLLECTOR", "CROW", "DONUT", "WIZARD"}) {
+                if (com.megacrit.cardcrawl.unlock.UnlockTracker.bossSeenPref.getInteger(b, 0) > 0) {
+                    bosses.add(b);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        p.put("bosses_seen", bosses);
+        p.put("locked_cards", com.megacrit.cardcrawl.unlock.UnlockTracker.lockedCards != null
+                ? new ArrayList<String>(com.megacrit.cardcrawl.unlock.UnlockTracker.lockedCards)
+                : new ArrayList<String>());
+        p.put("locked_relics", com.megacrit.cardcrawl.unlock.UnlockTracker.lockedRelics != null
+                ? new ArrayList<String>(com.megacrit.cardcrawl.unlock.UnlockTracker.lockedRelics)
+                : new ArrayList<String>());
+        return p;
+    }
+
+    // initial conditions tranche 1: mode flags, key state, 13 stream counters,
+    // ambient MathUtils.random RandomXS128 state. Collections.shuffle ambient
+    // Random and realized pools/map are tranche 2 (see wave3-recorder-needs).
+    private static Map<String, Object> buildInitialConditions() {
+        Map<String, Object> init = new LinkedHashMap<String, Object>();
+        init.put("v", 1);
+        // Captured on the first in-run frame, i.e. AFTER Act 1 dungeon
+        // generation has already consumed its RNG. This is a post-generation
+        // checkpoint, not the pre-seed state; a pre-generation hook is tranche 2.
+        init.put("captured_at", "first_run_frame_post_generation");
+        init.put("seed_set", com.megacrit.cardcrawl.core.Settings.seedSet);
+        init.put("has_ruby_key", com.megacrit.cardcrawl.core.Settings.hasRubyKey);
+        init.put("has_emerald_key", com.megacrit.cardcrawl.core.Settings.hasEmeraldKey);
+        init.put("has_sapphire_key", com.megacrit.cardcrawl.core.Settings.hasSapphireKey);
+        init.put("rng", TraceWriter.rngCountersView());
+        try {
+            com.badlogic.gdx.math.RandomXS128 amb =
+                    (com.badlogic.gdx.math.RandomXS128) com.badlogic.gdx.math.MathUtils.random;
+            Map<String, Object> a = new LinkedHashMap<String, Object>();
+            a.put("seed0", Long.toString(amb.getState(0)));
+            a.put("seed1", Long.toString(amb.getState(1)));
+            init.put("ambient_mathutils", a);
+        } catch (Exception ignored) {
+        }
+        return init;
+    }
+
     private RecordWriter(File dir, Map<String, Object> meta, boolean append) throws IOException {
         this.dir = dir;
         this.meta = meta;
@@ -93,9 +163,12 @@ final class RecordWriter {
         List<String> sittings = new ArrayList<String>();
         sittings.add(TS.format(new Date()));
         meta.put("sittings", sittings);
+        meta.put("profile", buildProfile());
+        meta.put("initial", buildInitialConditions());
 
         RecordWriter writer = new RecordWriter(dir, meta, false);
         writer.flushMeta();
+        writer.writeHeader();
         System.out.println("[TraceLab] recording to " + dir);
         return writer;
     }
@@ -219,6 +292,26 @@ final class RecordWriter {
         idx++;
         meta.put("records", idx);
         flushMeta();
+    }
+
+    // First trace line: self-describing header so the trace stands alone
+    // without meta.json — seed identity, run params, and the profile/initial
+    // envelopes. seed_set distinguishes a normal random seed (false) from an
+    // operator-entered seed (true).
+    private void writeHeader() {
+        Map<String, Object> h = new LinkedHashMap<String, Object>();
+        h.put("v", 1);
+        h.put("kind", "header");
+        h.put("seed_long", meta.get("seed_long"));
+        h.put("seed_display", meta.get("seed_display"));
+        h.put("seed_set", Settings.seedSet);
+        h.put("character", meta.get("character"));
+        h.put("ascension", meta.get("ascension"));
+        h.put("game_version", meta.get("game_version"));
+        h.put("recorded", true);
+        h.put("profile", meta.get("profile"));
+        h.put("initial", meta.get("initial"));
+        writeTraceLine(h);
     }
 
     void writeLifecycle(String type, Object... kv) {
