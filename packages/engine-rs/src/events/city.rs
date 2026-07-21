@@ -137,8 +137,12 @@ pub fn typed_act2_events() -> Vec<TypedEventDef> {
                 supported(
                     "Accept (gain 5 Apparitions, lose max HP)",
                     vec![
-                        EventProgramOp::max_hp(-5),
-                        EventProgramOp::gain_card_reward(5),
+                        EventProgramOp::lose_max_hp_percent_ceil(50),
+                        EventProgramOp::gain_specific_card_copies_by_ascension(
+                            "Apparition",
+                            5,
+                            3,
+                        ),
                     ],
                     EventEffect::MaxHp(-5),
                 ),
@@ -150,10 +154,22 @@ pub fn typed_act2_events() -> Vec<TypedEventDef> {
             vec![
                 supported(
                     "Pay (lose all gold)",
-                    vec![EventProgramOp::gold(-999)],
+                    vec![
+                        EventProgramOp::ambient_int_per_current_gold(2),
+                        EventProgramOp::gold(-999),
+                    ],
                     EventEffect::Gold(-999),
                 ),
-                supported("Fight", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Fight",
+                    vec![EventProgramOp::combat_branch_with_random_gold(
+                        ["BanditChild", "BanditLeader", "BanditBear"],
+                        25,
+                        35,
+                        vec![EventProgramOp::gain_unique_relic_or_circlet("Red Mask")],
+                    )],
+                    EventEffect::GainRelic,
+                ),
             ],
         ),
         event(
@@ -176,8 +192,16 @@ pub fn typed_act2_events() -> Vec<TypedEventDef> {
                 supported(
                     "Accept (remove Strikes, gain Bites)",
                     vec![
-                        EventProgramOp::remove_card(1),
-                        EventProgramOp::gain_card(5),
+                        EventProgramOp::lose_max_hp_percent_ceil(30),
+                        EventProgramOp::replace_starter_strikes("Bite", 5),
+                    ],
+                    EventEffect::RemoveCard,
+                ),
+                supported(
+                    "Offer Blood Vial (remove Strikes, gain Bites)",
+                    vec![
+                        EventProgramOp::remove_relic("Blood Vial"),
+                        EventProgramOp::replace_starter_strikes("Bite", 5),
                     ],
                     EventEffect::RemoveCard,
                 ),
@@ -213,7 +237,9 @@ pub fn typed_act2_events() -> Vec<TypedEventDef> {
             vec![
                 supported(
                     "Elegance (remove a card)",
-                    vec![EventProgramOp::remove_card(1)],
+                    vec![EventProgramOp::deck_selection(
+                        "deck_selection_event_remove",
+                    )],
                     EventEffect::RemoveCard,
                 ),
                 supported(
@@ -230,7 +256,7 @@ pub fn typed_act2_events() -> Vec<TypedEventDef> {
                     "Donate (pay 75 gold, remove a card)",
                     vec![
                         EventProgramOp::gold(-75),
-                        EventProgramOp::remove_card(1),
+                        EventProgramOp::deck_selection("deck_selection_event_remove"),
                     ],
                     EventEffect::RemoveCard,
                 ),
@@ -270,7 +296,10 @@ pub fn typed_act2_events() -> Vec<TypedEventDef> {
                 ),
                 supported(
                     "Become test subject (transform 2 cards)",
-                    vec![EventProgramOp::transform_card(2)],
+                    vec![EventProgramOp::deck_selection_many(
+                        "deck_selection_event_transform",
+                        2,
+                    )],
                     EventEffect::TransformCard,
                 ),
                 supported(
@@ -336,12 +365,16 @@ pub fn typed_act2_events() -> Vec<TypedEventDef> {
             vec![
                 supported(
                     "Open (gain relic, maybe gain Writhe curse)",
-                    vec![
-                        EventProgramOp::gain_relic("random relic"),
-                        EventProgramOp::Reward(EventReward::Curse {
-                            label: "Writhe".to_string(),
-                        }),
-                    ],
+                    vec![EventProgramOp::random_boolean_outcome(
+                        vec![
+                            EventProgramOp::obtain_random_screenless_relic(),
+                            EventProgramOp::Reward(EventReward::Curse {
+                                label: "Writhe".to_string(),
+                            }),
+                        ],
+                        vec![EventProgramOp::obtain_random_screenless_relic()],
+                        true,
+                    )],
                     EventEffect::GainRelic,
                 ),
                 supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),

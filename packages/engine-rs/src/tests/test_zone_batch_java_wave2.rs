@@ -156,7 +156,7 @@ fn fiend_fire_exhausts_the_hand_and_fires_exhaust_triggers_for_each_card() {
     engine.state.player.set_status(sid::DARK_EMBRACE, 1);
     let hp_before = engine.state.enemies[0].entity.hp;
     let rng_before = engine.card_random_rng.counter;
-    let mut oracle = engine.card_random_rng.copy();
+    let mut oracle = engine.card_random_rng.clone();
     let mut candidates = vec!["Strike", "Defend"];
     let mut expected_exhaust_order = Vec::new();
     while !candidates.is_empty() {

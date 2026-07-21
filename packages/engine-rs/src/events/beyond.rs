@@ -93,17 +93,7 @@ pub fn typed_act3_events() -> Vec<TypedEventDef> {
                 supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
             ],
         ),
-        event(
-            "Sensory Stone",
-            vec![
-                supported(
-                    "Focus (gain a card)",
-                    vec![EventProgramOp::gain_card_reward(1)],
-                    EventEffect::GainCard,
-                ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
-            ],
-        ),
+        sensory_stone_event(),
         event(
             "Secret Portal",
             vec![
@@ -117,23 +107,11 @@ pub fn typed_act3_events() -> Vec<TypedEventDef> {
         ),
         event(
             "Falling",
-            vec![
-                supported(
-                    "Land on skill (lose a skill card)",
-                    vec![EventProgramOp::remove_card(1)],
-                    EventEffect::RemoveCard,
-                ),
-                supported(
-                    "Land on power (lose a power card)",
-                    vec![EventProgramOp::remove_card(1)],
-                    EventEffect::RemoveCard,
-                ),
-                supported(
-                    "Land on attack (lose an attack card)",
-                    vec![EventProgramOp::remove_card(1)],
-                    EventEffect::RemoveCard,
-                ),
-            ],
+            vec![supported(
+                "Continue",
+                vec![EventProgramOp::nothing()],
+                EventEffect::Nothing,
+            )],
         ),
         event(
             "The Moai Head",
@@ -197,4 +175,46 @@ pub fn typed_act3_events() -> Vec<TypedEventDef> {
             ],
         ),
     ]
+}
+
+fn sensory_stone_event() -> TypedEventDef {
+    let choice = event(
+        "Sensory Stone",
+        vec![
+            supported(
+                "Recall 1 memory (gain 1 colorless card reward)",
+                vec![
+                    EventProgramOp::consume_misc_long(),
+                    EventProgramOp::gain_colorless_card_reward(1),
+                ],
+                EventEffect::GainCard,
+            ),
+            supported(
+                "Recall 2 memories (lose 5 HP, gain 2 colorless card rewards)",
+                vec![
+                    EventProgramOp::consume_misc_long(),
+                    EventProgramOp::hp(-5),
+                    EventProgramOp::gain_colorless_card_reward(2),
+                ],
+                EventEffect::Hp(-5),
+            ),
+            supported(
+                "Recall 3 memories (lose 10 HP, gain 3 colorless card rewards)",
+                vec![
+                    EventProgramOp::consume_misc_long(),
+                    EventProgramOp::hp(-10),
+                    EventProgramOp::gain_colorless_card_reward(3),
+                ],
+                EventEffect::Hp(-10),
+            ),
+        ],
+    );
+    event(
+        "Sensory Stone",
+        vec![supported(
+            "Recall",
+            vec![EventProgramOp::continue_event(choice)],
+            EventEffect::Nothing,
+        )],
+    )
 }

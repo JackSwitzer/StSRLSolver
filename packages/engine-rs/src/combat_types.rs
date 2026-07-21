@@ -1,5 +1,5 @@
 //! Core combat types — CardInstance, Intent, effect bitfields, DamageSource.
-//! All types are Copy-friendly for MCTS cloning.
+//! All types are Copy-friendly for deterministic state branching.
 
 use serde::{Serialize, Deserialize};
 

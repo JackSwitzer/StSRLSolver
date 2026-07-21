@@ -1,13 +1,13 @@
 # Design Decisions
 
-Last updated: 2026-04-15  
-Branch: `codex/universal-gameplay-runtime`
+Last updated: 2026-07-20
+Branch: `codex/oracle-loop-wave3`
 
 This file records durable, intentional runtime decisions so parity review can distinguish “we chose this” from “we missed this.”
 
 ## 1. Neow Always Exposes 4 Choices
 
-Status: intentional RL-facing deviation
+Status: intentional action-surface deviation
 
 Policy:
 
@@ -16,16 +16,16 @@ Policy:
 
 Why we do this:
 
-- it gives bots the widest consistent start-of-run action surface
-- it avoids training on an artificially narrowed opening distribution
+- it gives every consumer the widest consistent start-of-run action surface
+- it avoids coupling simulation legality to external profile progression
 - it keeps seed-conditioned opening decisions stable across evaluation/training contexts
 
 Canonical surfaces:
 
-- [run.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/run.rs:1)
-- [decision.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/decision.rs:1)
-- [test_run_parity.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_run_parity.rs:1)
-- [test_rl_contract.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_rl_contract.rs:1)
+- [`src/run.rs`](src/run.rs)
+- [`src/decision.rs`](src/decision.rs)
+- [`src/tests/test_run_parity.rs`](src/tests/test_run_parity.rs)
+- [`../docs/work_units/parity-deviations-register.md`](../../docs/work_units/parity-deviations-register.md)
 
 ## 2. `NoteForYourself` Cross-Run Card Persistence
 
@@ -39,22 +39,23 @@ Policy:
   - claim the stored card
   - choose one current deck card to save for a future run
 
-Current implementation decision:
+State-boundary decision:
 
-- the stored note card persists across runs inside the engine runtime process
-- it defaults to `IronWave`
+- each simulation root receives the stored card through `ProfileSnapshot`
+- the event emits `ProfileUpdate::StoreNoteForYourselfCard`; the core never mutates process-global profile state
+- the default profile card is `IronWave`
 - it is surfaced through the canonical event reward + deck-selection flow rather than a side channel
 
 Why this shape:
 
 - it keeps the mechanic inside the same typed event/reward runtime as the rest of the engine
-- it gives training/evaluation runs stable future-run behavior without depending on external profile-save plumbing
+- callers can persist or isolate profile updates explicitly without cross-root contamination
 
 Canonical surfaces:
 
-- [shrines.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/events/shrines.rs:1)
-- [run.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/run.rs:1)
-- [test_event_runtime_wave21.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_event_runtime_wave21.rs:1)
+- [`src/events/shrines.rs`](src/events/shrines.rs)
+- [`src/run.rs`](src/run.rs)
+- [`src/tests/test_event_runtime_wave21.rs`](src/tests/test_event_runtime_wave21.rs)
 
 ## 3. `Match and Keep!`
 
@@ -74,7 +75,42 @@ Why this choice:
 
 Canonical surfaces:
 
-- [shrines.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/events/shrines.rs:1)
-- [run.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/run.rs:1)
-- [test_event_runtime_wave19.rs](/Users/jackswitzer/Desktop/SlayTheSpireRL/packages/engine-rs/src/tests/test_event_runtime_wave19.rs:1)
-- Java oracle: `/Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/events/shrines/GremlinMatchGame.java`
+- [`src/events/shrines.rs`](src/events/shrines.rs)
+- [`src/run.rs`](src/run.rs)
+- [`src/tests/test_event_runtime_wave19.rs`](src/tests/test_event_runtime_wave19.rs)
+- Java oracle: `decompiled/java-src/com/megacrit/cardcrawl/events/shrines/GremlinMatchGame.java`
+
+## 4. Core Legality And Smoke Bomb
+
+Status: Java-faithful core policy
+
+Policy:
+
+- the Rust core enumerates only actions that the game permits
+- `SmokeBomb` is usable in ordinary combat, but is not a legal use action in boss combat or while an enemy has Java's `BackAttack` flag
+- a potion can still be discarded when its use is illegal
+- curriculum restrictions such as "take no card rewards" belong in a future consumer-side action mask, never in core legality
+
+Canonical surfaces:
+
+- [`src/potions/mod.rs`](src/potions/mod.rs)
+- [`src/tests/test_potion_runtime_wave7.rs`](src/tests/test_potion_runtime_wave7.rs)
+- [`src/tests/test_potion_runtime_action_path.rs`](src/tests/test_potion_runtime_action_path.rs)
+- Java oracle: `decompiled/java-src/com/megacrit/cardcrawl/potions/SmokeBomb.java`
+
+## 5. Process-Global RNG Inputs
+
+Status: explicit oracle boundary
+
+Policy:
+
+- dungeon-owned RNG streams are derived and advanced exactly like Java
+- libGDX `MathUtils.random` and the default `Collections.shuffle` LCG are separate process-global streams
+- deterministic simulation constructors use documented defaults; oracle replay must inject captured raw global states
+- a missing desktop ambient-state witness is reported as absent evidence, never treated as a Java match
+
+Canonical surfaces:
+
+- [`src/seed.rs`](src/seed.rs)
+- [`src/trace/oracle_v2.rs`](src/trace/oracle_v2.rs)
+- [`../docs/work_units/oracle-state-v2.md`](../../docs/work_units/oracle-state-v2.md)

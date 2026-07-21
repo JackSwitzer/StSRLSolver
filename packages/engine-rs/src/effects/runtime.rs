@@ -873,9 +873,6 @@ impl EffectRuntime {
                     };
                     self.execute_effects(engine, instance_idx, owner, branch, event);
                 }
-                Effect::ChooseNamedOptions(option_names) => {
-                    self.execute_choose_named_options(engine, option_names);
-                }
                 Effect::ChooseScaledNamedOptions(option_specs) => {
                     self.execute_choose_scaled_named_options(engine, instance_idx, owner, option_specs);
                 }
@@ -1348,23 +1345,6 @@ impl EffectRuntime {
                 engine.upgrade_random_master_deck_card();
             }
         }
-    }
-
-    fn execute_choose_named_options(
-        &self,
-        engine: &mut CombatEngine,
-        option_names: &[&'static str],
-    ) {
-        if option_names.is_empty() {
-            return;
-        }
-        let options = option_names
-            .iter()
-            .copied()
-            .map(str::to_string)
-            .map(ChoiceOption::Named)
-            .collect();
-        engine.begin_choice(ChoiceReason::PickOption, options, 1, 1);
     }
 
     fn execute_choose_scaled_named_options(

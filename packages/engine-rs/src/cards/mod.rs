@@ -46,7 +46,7 @@ pub(crate) fn insert(map: &mut HashMap<&'static str, CardSpec>, card: CardSpec) 
 
 
 // ---------------------------------------------------------------------------
-// Card types (match Python enums)
+// Canonical card types
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -522,7 +522,7 @@ fn collect_test_markers_from_effects(effects: &[Effect], markers: &mut Vec<&'sta
                 },
                 _ => {}
             },
-            Effect::Discover(_) | Effect::ChooseNamedOptions(_) | Effect::ChooseScaledNamedOptions(_) => {
+            Effect::Discover(_) | Effect::ChooseScaledNamedOptions(_) => {
                 add_test_marker(markers, "choice");
             }
             Effect::GenerateRandomCardsToHand { pool, .. } => {
@@ -1139,7 +1139,6 @@ fn collect_declared_x_cost_amounts(effects: &[Effect], amounts: &mut Vec<AmountS
             }
             Effect::ForEachInPile { .. }
             | Effect::Discover(_)
-            | Effect::ChooseNamedOptions(_)
             | Effect::ChooseScaledNamedOptions(_)
             | Effect::GenerateRandomCardsToHand { .. }
             | Effect::GenerateRandomCardsToDraw { .. }
@@ -1235,7 +1234,6 @@ fn effect_uses_x_cost(effect: &Effect) -> bool {
         } => amount_uses_x_cost(min_picks) || amount_uses_x_cost(max_picks),
         Effect::ForEachInPile { .. }
         | Effect::Discover(_)
-        | Effect::ChooseNamedOptions(_)
         | Effect::ChooseScaledNamedOptions(_)
         | Effect::GenerateRandomCardsToHand { .. }
         | Effect::GenerateRandomCardsToDraw { .. }
@@ -1334,7 +1332,7 @@ impl CardRegistry {
     pub fn new() -> Self {
         let mut card_specs: HashMap<&'static str, CardSpec> = HashMap::new();
 
-        // Universal Strike/Defend starters (replaces per-class Strike_R/G/B/P + Defend_*)
+        // Generic fixture starters plus canonical per-class Java IDs.
         starters::register(&mut card_specs);
         watcher::register_watcher(&mut card_specs);
         ironclad::register_ironclad(&mut card_specs);

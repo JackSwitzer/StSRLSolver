@@ -86,6 +86,9 @@ fn omniscience_uses_the_typed_draw_pile_free_play_surface() {
         ChoiceReason::PlayCardFreeFromDraw
     );
 
+    let mut expected_card_random = engine.card_random_rng.clone();
+    expected_card_random.random_int_range(0, 0);
+    expected_card_random.random_int_range(0, 0);
     engine.execute_action(&crate::actions::Action::Choose(0));
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
@@ -96,4 +99,9 @@ fn omniscience_uses_the_typed_draw_pile_free_play_surface() {
     assert_eq!(engine.state.player.block, 10);
     assert!(engine.state.exhaust_pile.iter().any(|card| engine.card_registry.card_name(card.def_id) == "Defend"));
     assert_eq!(engine.state.draw_pile.len(), 1);
+    assert_eq!(
+        engine.card_random_rng.state_tuple(),
+        expected_card_random.state_tuple(),
+        "NewQueueCardAction(randomTarget=true) consumes one cardRandomRng draw per copy even for Defend",
+    );
 }

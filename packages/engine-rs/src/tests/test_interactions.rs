@@ -460,8 +460,8 @@ mod interaction_tests {
     #[test]
     fn whirlwind_x_cost_aoe() {
         let enemies = vec![
-            enemy("Louse1", 50, 50, 1, 0, 1),
-            enemy("Louse2", 50, 50, 1, 0, 1),
+            enemy("JawWorm", 50, 50, 1, 0, 1),
+            enemy("Cultist", 50, 50, 1, 0, 1),
         ];
         let mut engine = engine_with_enemies(make_deck_n("Whirlwind", 5), enemies, 3);
         ensure_in_hand(&mut engine, "Whirlwind");
@@ -607,8 +607,8 @@ mod interaction_tests {
     #[test]
     fn noxious_fumes_two_enemies() {
         let enemies = vec![
-            enemy("Louse1", 50, 50, 1, 0, 1),
-            enemy("Louse2", 50, 50, 1, 0, 1),
+            enemy("JawWorm", 50, 50, 1, 0, 1),
+            enemy("Cultist", 50, 50, 1, 0, 1),
         ];
         let mut engine = engine_with_enemies(make_deck_n("Strike", 10), enemies, 3);
         engine.state.energy = 5;

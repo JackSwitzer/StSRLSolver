@@ -159,8 +159,9 @@ pub struct MapDecisionContext {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MapPathContext {
     pub choice: usize,
-    pub x: usize,
-    pub y: usize,
+    /// Java uses synthetic map nodes such as the standard boss node `(-1, 15)`.
+    pub x: i32,
+    pub y: i32,
     pub room_type: String,
     pub uses_winged_greaves: bool,
     pub has_emerald_key: bool,
@@ -175,6 +176,12 @@ pub struct ChestDecisionContext {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NeowOptionContext {
     pub index: usize,
+    /// Java `NeowReward(int category)` constructor category, 0 through 3.
+    pub category: u8,
+    /// Stable `NeowRewardType` enum name from Java.
+    pub reward_id: String,
+    /// Stable `NeowRewardDrawback` enum name from Java.
+    pub drawback_id: String,
     pub label: String,
 }
 
@@ -465,7 +472,6 @@ fn choice_reason_name(reason: &ChoiceReason) -> &'static str {
         ChoiceReason::PickFromDrawPile => "pick_from_draw_pile",
         ChoiceReason::DiscoverCard => "discover_card",
         ChoiceReason::PickOption => "pick_option",
-        ChoiceReason::PlayCardFree => "play_card_free",
         ChoiceReason::DualWield => "dual_wield",
         ChoiceReason::UpgradeCard => "upgrade_card",
         ChoiceReason::PickFromExhaust => "pick_from_exhaust",
@@ -587,6 +593,9 @@ mod tests {
         let frame = DecisionFrame::Neow(NeowDecisionContext {
             options: vec![NeowOptionContext {
                 index: 0,
+                category: 1,
+                reward_id: "HUNDRED_GOLD".to_string(),
+                drawback_id: "NONE".to_string(),
                 label: "Gain 100 gold".to_string(),
             }],
         });

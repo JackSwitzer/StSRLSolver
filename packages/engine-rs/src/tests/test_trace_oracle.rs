@@ -16,6 +16,7 @@
 
 use std::fs;
 
+use crate::run::GameAction;
 use crate::trace::{diff_records, ActionScript, DivergenceStatus, ScriptStopCondition, TraceAction};
 
 #[test]
@@ -39,8 +40,12 @@ fn run_trace_exposes_every_java_rng_counter_before_and_during_combat() {
     assert!(before["monster"] > 0);
     assert!(before["map"] > 0);
 
-    run.step_game(&crate::run::GameAction::ChooseNeowOption(1));
-    run.step_game(&crate::run::GameAction::ChoosePath(0));
+    assert_eq!(run.get_legal_actions(), vec![GameAction::Proceed]);
+    assert!(run.step_game(&GameAction::Proceed).accepted());
+    assert!(run.step_game(&GameAction::ChooseNeowOption(1)).accepted());
+    assert_eq!(run.get_legal_actions(), vec![GameAction::Proceed]);
+    assert!(run.step_game(&GameAction::Proceed).accepted());
+    assert!(run.step_game(&GameAction::ChoosePath(0)).accepted());
     let combat = run.rng_counters();
     assert_eq!(
         combat.keys().map(String::as_str).collect::<std::collections::BTreeSet<_>>(),
@@ -281,6 +286,9 @@ fn synthetic_self_diff_matches() {
     let script = tiny_fixture_script();
     let rust_records = crate::trace::replay_script(&script).expect("fixture script must replay cleanly");
     assert_eq!(rust_records.len(), 4, "expected one record per scripted action");
+    assert_eq!(rust_records[0].action, TraceAction::Neow { choice: 1 });
+    assert_eq!(rust_records[0].phase, "NEOW");
+    assert_eq!(rust_records[1].phase, "COMBAT");
 
     // Treat an identical clone as the "java" side.
     let java_records = rust_records.clone();

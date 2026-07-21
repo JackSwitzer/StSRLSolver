@@ -1,6 +1,6 @@
-//! Damage and block calculation — mirrors packages/engine/calc/damage.py.
+//! Damage and block calculation derived from the Java combat pipeline.
 //!
-//! Pure functions, no side effects. Optimized for millions of calls in MCTS.
+//! Pure functions with no side effects, suitable for repeated branch simulation.
 //!
 //! Calculation order (from Java AbstractCard.calculateCardDamage):
 //! 1. Base damage
@@ -11,7 +11,7 @@
 //! 6. Intangible cap (max 1)
 //! 7. Floor to i32, minimum 0
 
-// ---- Constants (match Python exactly) ----
+// ---- Java combat constants ----
 
 pub const WEAK_MULT: f64 = 0.75;
 pub const WEAK_MULT_PAPER_CRANE: f64 = 0.60;

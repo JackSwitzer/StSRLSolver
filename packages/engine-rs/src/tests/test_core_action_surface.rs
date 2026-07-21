@@ -52,13 +52,31 @@ fn frozen_eye_alone_exposes_the_actual_draw_order() {
 #[test]
 fn step_outcome_matches_the_canonical_next_decision() {
     let mut engine = RunEngine::new(7, 20);
-    assert_eq!(
-        engine.current_decision_state().kind,
-        DecisionKind::NeowChoice
-    );
-    assert_eq!(engine.get_legal_actions().len(), 4);
+    assert_eq!(engine.current_decision_state().kind, DecisionKind::Proceed);
+    assert_eq!(engine.get_legal_actions(), vec![GameAction::Proceed]);
 
-    resolve_opening_neow(&mut engine);
+    // NeowEvent commits intro, reward choice, and screen-99 exit separately.
+    // Java: NeowEvent.java:160-219,236-238.
+    let intro = engine.step_game(&GameAction::Proceed);
+    assert!(intro.accepted());
+    assert_eq!(intro.next_decision.state, engine.current_decision_state());
+    assert_eq!(intro.next_decision.state.kind, DecisionKind::NeowChoice);
+    assert_eq!(intro.next_decision.legal_actions.len(), 4);
+
+    let choice = engine.step_game(&GameAction::ChooseNeowOption(1));
+    assert!(choice.accepted());
+    assert_eq!(choice.next_decision.state, engine.current_decision_state());
+    assert_eq!(choice.next_decision.state.kind, DecisionKind::Proceed);
+    assert_eq!(
+        choice.next_decision.legal_actions,
+        vec![GameAction::Proceed]
+    );
+
+    let exit = engine.step_game(&GameAction::Proceed);
+    assert!(exit.accepted());
+    assert_eq!(exit.next_decision.state, engine.current_decision_state());
+    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+
     let map_action = engine.get_legal_actions()[0].clone();
     let outcome = engine.step_game(&map_action);
 

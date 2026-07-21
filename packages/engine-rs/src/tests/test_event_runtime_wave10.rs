@@ -182,20 +182,14 @@ fn spirit_poop_from_bonfire_has_no_gameplay_hook() {
 }
 
 #[test]
-fn spire_heart_no_longer_uses_blocked_placeholder_ops() {
-    let events = [typed_event(3, "Spire Heart")];
-
-    let placeholder_count: usize = events
-        .iter()
-        .map(|event| {
-            event.options[0]
-                .program
-                .ops
-                .iter()
-                .filter(|op| matches!(op, EventProgramOp::BlockedPlaceholder { .. }))
-                .count()
-        })
-        .sum();
-    assert_eq!(placeholder_count, 0);
-    assert!(matches!(events[0].options[0].status, EventRuntimeStatus::Supported));
+fn spire_heart_uses_the_canonical_final_act_operation() {
+    let spire_heart = typed_event(3, "Spire Heart");
+    assert!(matches!(
+        spire_heart.options[0].program.ops.as_slice(),
+        [EventProgramOp::ResolveFinalAct]
+    ));
+    assert!(matches!(
+        spire_heart.options[0].status,
+        EventRuntimeStatus::Supported
+    ));
 }

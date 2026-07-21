@@ -1,18 +1,15 @@
-use crate::state::EnemyCombatState;
-use crate::combat_types::{mfx, Intent};
 use super::last_move;
 use super::move_ids;
+use crate::combat_types::{mfx, Intent};
 use crate::seed::StsRandom;
+use crate::state::EnemyCombatState;
 use crate::status_ids::sid;
 
 // =========================================================================
 // Act 4 — The Ending
 // =========================================================================
 
-pub(super) fn roll_spire_shield(
-    enemy: &mut EnemyCombatState,
-    ai_rng: &mut StsRandom,
-) {
+pub(super) fn roll_spire_shield(enemy: &mut EnemyCombatState, ai_rng: &mut StsRandom) {
     // Source: reference/extracted/methods/monster/SpireShield.java (`getMove`).
     // Slot zero consumes a conditional randomBoolean in addition to the
     // AbstractMonster.rollMove integer; slots one and two consume no extra RNG.
@@ -62,10 +59,7 @@ pub(super) fn roll_spire_shield(
     enemy.entity.set_status(sid::MOVE_COUNT, mc + 1);
 }
 
-pub(super) fn roll_spire_spear(
-    enemy: &mut EnemyCombatState,
-    ai_rng: &mut StsRandom,
-) {
+pub(super) fn roll_spire_spear(enemy: &mut EnemyCombatState, ai_rng: &mut StsRandom) {
     // Source: reference/extracted/methods/monster/SpireSpear.java (`getMove`).
     // Only slot two consumes a conditional randomBoolean in addition to the
     // AbstractMonster.rollMove integer.
@@ -111,11 +105,7 @@ pub(super) fn roll_spire_spear(
     enemy.entity.set_status(sid::MOVE_COUNT, mc + 1);
 }
 
-pub(super) fn roll_corrupt_heart(
-    enemy: &mut EnemyCombatState,
-    _num: i32,
-    ai_rng: &mut StsRandom,
-) {
+pub(super) fn roll_corrupt_heart(enemy: &mut EnemyCombatState, _num: i32, ai_rng: &mut StsRandom) {
     // Source: reference/extracted/methods/monster/CorruptHeart.java (`getMove`).
     // AbstractMonster.rollMove has already consumed `num`. The first call
     // returns Debilitate without advancing moveCount; cycle slot zero consumes

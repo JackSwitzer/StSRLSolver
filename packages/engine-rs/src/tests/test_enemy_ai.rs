@@ -1645,7 +1645,7 @@ mod enemy_ai_java_parity_tests {
 
         let act1_strong = enter_specific_combat(1, 0, &["BlueSlaver"]);
         let combat = act1_strong.get_combat_engine().expect("combat engine");
-        assert_eq!(combat.state.enemies[0].id, "BlueSlaver");
+        assert_eq!(combat.state.enemies[0].id, "SlaverBlue");
         // SlaverBlue.java uses inclusive setHp(46, 50), not a fixed 46.
         assert!((46..=50).contains(&combat.state.enemies[0].entity.hp));
 

@@ -394,13 +394,23 @@ fn rng_collections_001_run_carries_state_across_combat_boundaries() {
     // The no-argument Collections.shuffle stream is process-global in Java.
     // RunEngine must absorb the post-combat LCG state and inject that same
     // state into the next combat instead of rebuilding Java seed zero.
-    let mut run = crate::run::RunEngine::new(42, 0);
+    let mut run = crate::run::RunEngine::new_with_ambient_states(
+        42,
+        0,
+        (0x1234_5678_9ABC_DEF0, 0x0FED_CBA9_8765_4321),
+        0x5DEECE66D,
+    );
+    assert_eq!(
+        run.ambient_math_rng_state(),
+        (0x1234_5678_9ABC_DEF0, 0x0FED_CBA9_8765_4321)
+    );
+    assert_eq!(run.java_collections_rng_state(), 0x5DEECE66D);
     run.debug_enter_specific_combat(&["JawWorm"]);
 
     let state_after_first_shuffle = {
         let combat = run.debug_combat_engine_mut();
         combat.state.hand = make_deck(&["Strike", "Defend", "Eruption", "Burn"]);
-        combat.restore_java_collections_rng_state(0x5DEECE66D);
+        assert_eq!(combat.java_collections_rng_state(), 0x5DEECE66D);
         assert!(!crate::status_effects::process_end_turn_hand_cards(combat));
         combat.java_collections_rng_state()
     };
@@ -472,6 +482,41 @@ fn regret_uses_the_hand_size_after_explicitly_retained_cards_leave_hand() {
 
     assert_eq!(engine.state.player.hp, hp_before - 2);
     assert_eq!(engine.state.player.block, 20);
+}
+
+#[test]
+fn end_turn_discards_non_retained_cards_from_hand_top_to_bottom() {
+    // DiscardAtEndOfTurnAction queues DiscardAction, whose all-cards branch
+    // repeatedly moves CardGroup.getTopCard() to the discard pile.
+    // Java: actions/common/{DiscardAtEndOfTurnAction,DiscardAction}.java.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    let registry = global_registry();
+    let mut retained = registry.make_card("Miracle");
+    retained.set_retained(true);
+    engine.state.hand = vec![
+        retained,
+        registry.make_card("Strike_P"),
+        registry.make_card("Defend_P"),
+        registry.make_card("Vigilance"),
+    ];
+    engine.state.draw_pile = make_deck(&[
+        "Strike_P", "Strike_P", "Defend_P", "Defend_P", "Eruption",
+    ]);
+
+    end_turn(&mut engine);
+
+    let discarded: Vec<_> = engine
+        .state
+        .discard_pile
+        .iter()
+        .map(|card| engine.card_registry.card_name(card.def_id))
+        .collect();
+    assert_eq!(discarded, ["Vigilance", "Defend_P", "Strike_P"]);
 }
 
 #[test]
@@ -621,7 +666,7 @@ fn burn_variants_use_thorns_block_then_buffer_order_at_end_of_turn() {
     // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BufferPower.java
     let mut ordinary = engine_without_start(
         Vec::new(),
-        vec![enemy_no_intent("Dummy", 40, 40)],
+        vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
     force_player_turn(&mut ordinary);
@@ -633,7 +678,7 @@ fn burn_variants_use_thorns_block_then_buffer_order_at_end_of_turn() {
 
     let mut mitigated = engine_without_start(
         Vec::new(),
-        vec![enemy_no_intent("Dummy", 40, 40)],
+        vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
     force_player_turn(&mut mitigated);

@@ -23,8 +23,17 @@ fn test_event_runtime_wave4_golden_wing_feed_is_runtime_supported_and_removes_a_
     engine.debug_set_typed_event_state(golden_wing);
     let step = engine.step_game(&GameAction::EventChoice(0));
     assert!(step.accepted());
-    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+    assert_eq!(engine.current_phase(), RunPhase::CardReward);
     assert_eq!(engine.run_state.current_hp, hp_before - 7);
+    assert_eq!(engine.run_state.deck.len(), deck_before);
+    assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
+    assert!(engine
+        .step_game(&GameAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .accepted());
+    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(engine.run_state.deck.len(), deck_before - 1);
 }
 

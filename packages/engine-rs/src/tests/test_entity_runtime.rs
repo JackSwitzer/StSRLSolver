@@ -44,7 +44,7 @@ fn red_circlet_has_no_gameplay_hooks() {
     // overrides no combat or run hooks.
     let mut engine = engine_without_start(
         make_deck(&["Strike", "Defend"]),
-        vec![enemy_no_intent("TrainingDummy", 40, 40)],
+        vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
     engine.state.relics.push("Red Circlet".to_string());

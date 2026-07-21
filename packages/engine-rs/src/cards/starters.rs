@@ -2,9 +2,8 @@
 //!
 //! Java ships 4 class-specific copies (`Strike_R`/`Strike_G`/`Strike_B`/
 //! `Strike_P`, same for `Defend`) that are byte-identical except for the
-//! `id` string and class color. The generic `Strike`/`Defend` pair remains
-//! for existing Watcher run state, while canonical per-class IDs are registered
-//! so source/trace-facing paths can preserve the real card identity.
+//! `id` string and class color. The generic `Strike`/`Defend` pair remains for
+//! isolated combat fixtures; run state uses canonical class-specific IDs.
 
 use crate::cards::prelude::*;
 
@@ -18,11 +17,11 @@ mod test_card_runtime_defect_wave6;
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // Watcher ground truth: Strike_Purple.java uses cost 1, base damage 6,
     // upgradeDamage(3), and an ordinary single-target DamageAction. The
-    // runtime intentionally shares this identical behavior under Strike.
+    // Isolated combat fixtures may share this identical behavior under Strike.
     // decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Strike_Purple.java
     // Watcher ground truth: Defend_Watcher.java uses cost 1, base block 5,
     // and upgradeBlock(3). The runtime intentionally shares this identical
-    // behavior under the unified Defend/Defend+ starter definitions.
+    // behavior under generic Defend/Defend+ fixture definitions.
     // decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Defend_Watcher.java
     insert(
         cards,

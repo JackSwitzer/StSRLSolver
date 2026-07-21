@@ -77,7 +77,9 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
             vec![
                 supported(
                     "Forge (upgrade a card)",
-                    vec![EventProgramOp::upgrade_card(1)],
+                    vec![EventProgramOp::deck_selection(
+                        "deck_selection_event_upgrade",
+                    )],
                     EventEffect::UpgradeCard,
                 ),
                 supported(
@@ -143,7 +145,9 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
             vec![
                 supported(
                     "Pray (duplicate a card)",
-                    vec![EventProgramOp::duplicate_card(1)],
+                    vec![EventProgramOp::deck_selection(
+                        "deck_selection_event_duplicate",
+                    )],
                     EventEffect::DuplicateCard,
                 ),
                 supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
@@ -167,7 +171,7 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
             vec![
                 supported(
                     "Drink (remove all removable curses)",
-                    vec![EventProgramOp::remove_card(999)],
+                    vec![EventProgramOp::remove_all_removable_curses()],
                     EventEffect::RemoveCard,
                 ),
                 supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
@@ -268,7 +272,9 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
             vec![
                 supported(
                     "Pray (remove a card)",
-                    vec![EventProgramOp::remove_card(1)],
+                    vec![EventProgramOp::deck_selection(
+                        "deck_selection_event_remove",
+                    )],
                     EventEffect::RemoveCard,
                 ),
                 supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
@@ -279,7 +285,9 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
             vec![
                 supported(
                     "Pray (transform a card)",
-                    vec![EventProgramOp::transform_card(1)],
+                    vec![EventProgramOp::deck_selection(
+                        "deck_selection_event_transform",
+                    )],
                     EventEffect::TransformCard,
                 ),
                 supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
@@ -290,7 +298,9 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
             vec![
                 supported(
                     "Pray (upgrade a card)",
-                    vec![EventProgramOp::upgrade_card(1)],
+                    vec![EventProgramOp::deck_selection(
+                        "deck_selection_event_upgrade",
+                    )],
                     EventEffect::UpgradeCard,
                 ),
                 supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),

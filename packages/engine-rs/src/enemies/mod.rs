@@ -1,8 +1,8 @@
-//! Enemy AI system — All 4 acts (73 enemies) for MCTS simulations.
+//! Java-derived enemy construction, intent selection, and turn behavior.
 //!
-//! Each enemy has a deterministic move pattern that mirrors the Java implementations.
-//! For MCTS, we use simplified AI: no RNG-based move selection, instead we use
-//! the most common/expected move pattern for fast simulation.
+//! Every supported monster consumes the native dungeon RNG streams in Java
+//! order, including deterministic move patterns whose ignored roll is still
+//! observable in `aiRng`.
 
 use crate::state::EnemyCombatState;
 use crate::combat_types::{fx, mfx, Intent};
@@ -14,60 +14,137 @@ pub mod act2;
 pub mod act3;
 pub mod act4;
 
-/// Enemy ids currently reachable through the Rust run/combat engine.
+/// Canonical IDs from each Java monster's `ID` constant.
 ///
-/// This list is intentionally scoped to the current encounter catalog rather
-/// than the full game database, and provides a stable registry surface for the
-/// universal gameplay export.
-pub fn known_enemy_ids() -> &'static [(&'static str, &'static str)] {
-    // Sources: HexaghostBody.java implements Disposable and HexaghostOrb.java
-    // is a plain visual helper. Neither extends AbstractMonster, so neither is
-    // a targetable gameplay entity in this registry.
-    &[
-        ("Cultist", "Cultist"),
-        ("JawWorm", "Jaw Worm"),
-        ("FuzzyLouseNormal", "Red Louse"),
-        ("FuzzyLouseDefensive", "Green Louse"),
-        ("AcidSlime_S", "Acid Slime (S)"),
-        ("SpikeSlime_M", "Spike Slime (M)"),
-        ("BlueSlaver", "Blue Slaver"),
-        ("RedSlaver", "Red Slaver"),
-        ("FungiBeast", "Fungi Beast"),
-        ("AcidSlime_L", "Acid Slime (L)"),
-        ("SpikeSlime_L", "Spike Slime (L)"),
-        ("AcidSlime_M", "Acid Slime (M)"),
-        ("GremlinNob", "Gremlin Nob"),
-        ("Lagavulin", "Lagavulin"),
-        ("Sentry", "Sentry"),
-        ("TheGuardian", "The Guardian"),
-        ("Hexaghost", "Hexaghost"),
-        ("SlimeBoss", "Slime Boss"),
-        ("Byrd", "Byrd"),
-        ("Chosen", "Chosen"),
-    ("Shelled Parasite", "Shelled Parasite"),
-        ("SnakePlant", "Snake Plant"),
-        ("Centurion", "Centurion"),
-        ("Healer", "Mystic"),
-        ("GremlinLeader", "Gremlin Leader"),
-        ("BookOfStabbing", "Book of Stabbing"),
-    ("SlaverBoss", "Taskmaster"),
-        ("Darkling", "Darkling"),
-        ("Orb Walker", "Orb Walker"),
-        ("Repulsor", "Repulsor"),
-        ("WrithingMass", "Writhing Mass"),
-        ("GiantHead", "Giant Head"),
-        ("Nemesis", "Nemesis"),
-        ("Reptomancer", "Reptomancer"),
-        ("Transient", "Transient"),
-        ("Maw", "Maw"),
+/// This is the 68-row monster ledger minus `HexaghostBody` and
+/// `HexaghostOrb`: both are visual helpers and neither is a targetable
+/// `AbstractMonster`.
+pub const CANONICAL_ENEMIES: &[(&str, &str)] = &[
+    ("AcidSlime_L", "Acid Slime (L)"),
+    ("AcidSlime_M", "Acid Slime (M)"),
+    ("AcidSlime_S", "Acid Slime (S)"),
+    ("Apology Slime", "Apology Slime"),
+    ("AwakenedOne", "Awakened One"),
+    ("BanditBear", "Bear"),
+    ("BanditChild", "Pointy"),
+    ("BanditLeader", "Romeo"),
+    ("BookOfStabbing", "Book of Stabbing"),
+    ("BronzeAutomaton", "Bronze Automaton"),
+    ("BronzeOrb", "Bronze Orb"),
+    ("Byrd", "Byrd"),
+    ("Centurion", "Centurion"),
+    ("Champ", "The Champ"),
+    ("Chosen", "Chosen"),
+    ("CorruptHeart", "Corrupt Heart"),
+    ("Cultist", "Cultist"),
+    ("Dagger", "Dagger"),
+    ("Darkling", "Darkling"),
+    ("Deca", "Deca"),
+    ("Donu", "Donu"),
+    ("Exploder", "Exploder"),
+    ("FungiBeast", "Fungi Beast"),
+    ("FuzzyLouseDefensive", "Green Louse"),
+    ("FuzzyLouseNormal", "Red Louse"),
+    ("GiantHead", "Giant Head"),
+    ("GremlinFat", "Mad Gremlin"),
+    ("GremlinLeader", "Gremlin Leader"),
+    ("GremlinNob", "Gremlin Nob"),
+    ("GremlinThief", "Sneaky Gremlin"),
+    ("GremlinTsundere", "Shield Gremlin"),
+    ("GremlinWarrior", "Angry Gremlin"),
+    ("GremlinWizard", "Gremlin Wizard"),
+    ("Healer", "Mystic"),
+    ("Hexaghost", "Hexaghost"),
+    ("JawWorm", "Jaw Worm"),
+    ("Lagavulin", "Lagavulin"),
+    ("Looter", "Looter"),
+    ("Maw", "The Maw"),
+    ("Mugger", "Mugger"),
+    ("Nemesis", "Nemesis"),
+    ("Orb Walker", "Orb Walker"),
+    ("Reptomancer", "Reptomancer"),
+    ("Repulsor", "Repulsor"),
+    ("Sentry", "Sentry"),
     ("Serpent", "Spire Growth"),
-        ("SpireShield", "Spire Shield"),
-        ("SpireSpear", "Spire Spear"),
-    ]
+    ("Shelled Parasite", "Shelled Parasite"),
+    ("SlaverBlue", "Blue Slaver"),
+    ("SlaverBoss", "Taskmaster"),
+    ("SlaverRed", "Red Slaver"),
+    ("SlimeBoss", "Slime Boss"),
+    ("SnakePlant", "Snake Plant"),
+    ("Snecko", "Snecko"),
+    ("SphericGuardian", "Spheric Guardian"),
+    ("SpikeSlime_L", "Spike Slime (L)"),
+    ("SpikeSlime_M", "Spike Slime (M)"),
+    ("SpikeSlime_S", "Spike Slime (S)"),
+    ("Spiker", "Spiker"),
+    ("SpireShield", "Spire Shield"),
+    ("SpireSpear", "Spire Spear"),
+    ("TheCollector", "The Collector"),
+    ("TheGuardian", "The Guardian"),
+    ("TimeEater", "Time Eater"),
+    ("TorchHead", "Torch Head"),
+    ("Transient", "Transient"),
+    ("WrithingMass", "Writhing Mass"),
+];
+
+pub fn known_enemy_ids() -> &'static [(&'static str, &'static str)] {
+    CANONICAL_ENEMIES
+}
+
+pub const ENEMY_ID_ALIASES: &[(&str, &str)] = &[
+    ("RedLouse", "FuzzyLouseNormal"),
+    ("GreenLouse", "FuzzyLouseDefensive"),
+    ("BlueSlaver", "SlaverBlue"),
+    ("RedSlaver", "SlaverRed"),
+    ("GremlinSneaky", "GremlinTsundere"),
+    ("Gremlin Nob", "GremlinNob"),
+    ("ApologySlime", "Apology Slime"),
+    ("ShelledParasite", "Shelled Parasite"),
+    ("Mystic", "Healer"),
+    ("Book of Stabbing", "BookOfStabbing"),
+    ("Gremlin Leader", "GremlinLeader"),
+    ("TaskMaster", "SlaverBoss"),
+    ("Taskmaster", "SlaverBoss"),
+    ("Spheric Guardian", "SphericGuardian"),
+    ("Bear", "BanditBear"),
+    ("BanditPointy", "BanditChild"),
+    ("Pointy", "BanditChild"),
+    ("Bronze Automaton", "BronzeAutomaton"),
+    ("Bronze Orb", "BronzeOrb"),
+    ("Torch Head", "TorchHead"),
+    ("TheChamp", "Champ"),
+    ("Collector", "TheCollector"),
+    ("OrbWalker", "Orb Walker"),
+    ("Writhing Mass", "WrithingMass"),
+    ("SpireGrowth", "Serpent"),
+    ("Spire Growth", "Serpent"),
+    ("Giant Head", "GiantHead"),
+    ("SnakeDagger", "Dagger"),
+    ("Snake Dagger", "Dagger"),
+    ("Awakened One", "AwakenedOne"),
+    ("Time Eater", "TimeEater"),
+    ("Spire Shield", "SpireShield"),
+    ("Spire Spear", "SpireSpear"),
+    ("Corrupt Heart", "CorruptHeart"),
+];
+
+fn resolve_enemy_alias(enemy_id: &str) -> Option<&'static str> {
+    ENEMY_ID_ALIASES
+        .iter()
+        .find_map(|(alias, canonical)| (*alias == enemy_id).then_some(*canonical))
+}
+
+/// Resolve a canonical Java enemy ID or one of the factory's compatibility aliases.
+pub fn canonical_enemy_id(enemy_id: &str) -> Option<&'static str> {
+    CANONICAL_ENEMIES
+        .iter()
+        .find_map(|(canonical, _)| (*canonical == enemy_id).then_some(*canonical))
+        .or_else(|| resolve_enemy_alias(enemy_id))
 }
 
 pub fn gameplay_def(enemy_id: &str) -> Option<&'static crate::gameplay::GameplayDef> {
-    crate::gameplay::global_registry().enemy(enemy_id)
+    canonical_enemy_id(enemy_id).and_then(|id| crate::gameplay::global_registry().enemy(id))
 }
 
 pub fn gameplay_export_defs() -> Vec<crate::gameplay::GameplayDef> {
@@ -413,9 +490,11 @@ pub mod move_ids {
 }
 
 pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
-    let mut enemy = EnemyCombatState::new(enemy_id, hp, max_hp);
+    let canonical_id = canonical_enemy_id(enemy_id)
+        .unwrap_or_else(|| panic!("unknown enemy id: {enemy_id}"));
+    let mut enemy = EnemyCombatState::new(canonical_id, hp, max_hp);
 
-    match enemy_id {
+    match canonical_id {
         // =================================================================
         // Act 1 — Exordium
         // =================================================================
@@ -442,26 +521,26 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::FB_BITE, 6, 1, 0);
             enemy.entity.set_status(sid::SPORE_CLOUD, 2);
         }
-        "FuzzyLouseNormal" | "RedLouse" => {
+        "FuzzyLouseNormal" => {
             enemy.entity.set_status(sid::STARTING_DMG, 6);
             enemy.entity.set_status(sid::STR_AMT, 3);
             enemy.set_move(move_ids::LOUSE_BITE, 6, 1, 0);
             enemy.entity.set_status(sid::CURL_UP, 5);
         }
-        "FuzzyLouseDefensive" | "GreenLouse" => {
+        "FuzzyLouseDefensive" => {
             enemy.entity.set_status(sid::STARTING_DMG, 6);
             // Also marks the A17 getMove rule at value 4 in the run layer.
             enemy.entity.set_status(sid::STR_AMT, 3);
             enemy.set_move(move_ids::LOUSE_BITE, 6, 1, 0);
             enemy.entity.set_status(sid::CURL_UP, 5);
         }
-        "SlaverBlue" | "BlueSlaver" => {
+        "SlaverBlue" => {
             enemy.entity.set_status(sid::STARTING_DMG, 12);
             enemy.entity.set_status(sid::STR_AMT, 7);
             enemy.entity.set_status(sid::BLOCK_AMT, 1);
             enemy.set_move(move_ids::BS_STAB, 12, 1, 0);
         }
-        "SlaverRed" | "RedSlaver" => {
+        "SlaverRed" => {
             enemy.entity.set_status(sid::STARTING_DMG, 13);
             enemy.entity.set_status(sid::STR_AMT, 8);
             enemy.entity.set_status(sid::BLOCK_AMT, 1);
@@ -532,13 +611,13 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::BLOCK_AMT, 0);
             enemy.set_move(move_ids::GREMLIN_PROTECT, 0, 0, 0);
         }
-        "GremlinTsundere" | "GremlinSneaky" => {
+        "GremlinTsundere" => {
             enemy.entity.set_status(sid::STARTING_DMG, 6);
             enemy.entity.set_status(sid::BLOCK_AMT, 7);
             enemy.set_move(move_ids::GREMLIN_TSUNDERE_PROTECT, 0, 0, 0);
             enemy.add_effect(mfx::BLOCK_RANDOM_OTHER, 7);
         }
-        "GremlinNob" | "Gremlin Nob" => {
+        "GremlinNob" => {
             enemy.entity.set_status(sid::STARTING_DMG, 14);
             enemy.entity.set_status(sid::STR_AMT, 6);
             enemy.entity.set_status(sid::TURN_COUNT, 2);
@@ -596,7 +675,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::SB_STICKY, 0, 0, 0);
             enemy.add_effect(mfx::SLIMED, 3);
         }
-        "Apology Slime" | "ApologySlime" => {
+        "Apology Slime" => {
             enemy.set_move(move_ids::APOLOGY_TACKLE, 3, 1, 0);
         }
 
@@ -635,7 +714,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::BLOCK_AMT, 3);
             enemy.entity.set_status(sid::FLIGHT, 3);
         }
-        "Shelled Parasite" | "ShelledParasite" => {
+        "Shelled Parasite" => {
             // Source: reference/extracted/methods/monster/ShelledParasite.java.
             enemy.set_move(move_ids::SP_DOUBLE_STRIKE, 6, 2, 0);
             enemy.entity.set_status(sid::PLATED_ARMOR, 14);
@@ -665,7 +744,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::BLOCK_AMT, 15);
             enemy.entity.set_status(sid::COUNT, 2);
         }
-        "Mystic" | "Healer" => {
+        "Healer" => {
             // Source: reference/extracted/methods/monster/Healer.java.
             // The real opener is rolled during combat initialization.
             enemy.set_move(move_ids::MYSTIC_ATTACK, 8, 1, 0);
@@ -676,7 +755,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::COUNT, 0);
             enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
-        "BookOfStabbing" | "Book of Stabbing" => {
+        "BookOfStabbing" => {
             // A0 constructor and pre-battle values. The actual opener is
             // selected by getMove during CombatEngine::start_combat.
             // Java: reference/extracted/methods/monster/BookOfStabbing.java
@@ -687,7 +766,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::PAINFUL_STABS, 1);
             enemy.set_move(move_ids::BOOK_STAB, 6, 1, 0);
         }
-        "GremlinLeader" | "Gremlin Leader" => {
+        "GremlinLeader" => {
             // Source: reference/extracted/methods/monster/GremlinLeader.java.
             // The encounter spawn site patches ascension and alive-gremlin
             // state before the opening roll.
@@ -697,7 +776,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::COUNT, 0);
             enemy.entity.set_status(sid::STARTING_DMG, 0);
         }
-        "SlaverBoss" | "TaskMaster" | "Taskmaster" => {
+        "SlaverBoss" => {
             // Source: reference/extracted/methods/monster/Taskmaster.java.
             enemy.set_move(move_ids::TASK_SCOURING_WHIP, 7, 1, 0);
             enemy.add_effect(mfx::WOUND, 1);
@@ -710,7 +789,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::BLOCK_AMT, 1);
             enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
-        "SphericGuardian" | "Spheric Guardian" => {
+        "SphericGuardian" => {
             // Source: reference/extracted/methods/monster/SphericGuardian.java.
             // Pre-battle grants Barricade, Artifact 3, and 40 Block. The
             // source-rolled opening Activate gains another 25 at A0.
@@ -726,7 +805,8 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         }
         "Snecko" => {
             // Source: reference/extracted/methods/monster/Snecko.java.
-            // This is a placeholder for the source-rolled forced Glare opener.
+            // Provisional intent matches the forced Glare opener and is
+            // replaced through the ordinary source-rolled move path.
             enemy.set_move(move_ids::SNECKO_GLARE, 0, 0, 0);
             enemy.add_effect(mfx::CONFUSED, 1);
             enemy.entity.set_status(sid::FIRST_MOVE, 1);
@@ -734,7 +814,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::STR_AMT, 8);
             enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
-        "BanditBear" | "Bear" => {
+        "BanditBear" => {
             // A0 constructor values. Ascension variants are patched at the
             // RunEngine spawn site, where ascension is available.
             // Java: reference/extracted/methods/monster/BanditBear.java
@@ -753,14 +833,14 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::BLOCK_AMT, 2);
             enemy.set_move(move_ids::BANDIT_MOCK, 0, 0, 0);
         }
-        "BanditChild" | "BanditPointy" | "Pointy" => {
+        "BanditChild" => {
             // The Java class is BanditPointy, but its canonical game ID is
             // BanditChild. A2 damage is patched at the RunEngine spawn site.
             // Java: reference/extracted/methods/monster/BanditPointy.java
             enemy.entity.set_status(sid::STARTING_DMG, 5);
             enemy.set_move(move_ids::POINTY_STAB, 5, 2, 0);
         }
-        "BronzeAutomaton" | "Bronze Automaton" => {
+        "BronzeAutomaton" => {
             // A0 constructor/pre-battle values. Independent A4/A9/A19 gates
             // are patched at the RunEngine spawn site.
             // Java: reference/extracted/methods/monster/BronzeAutomaton.java
@@ -774,7 +854,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
             enemy.entity.set_status(sid::ARTIFACT, 3);
         }
-        "BronzeOrb" | "Bronze Orb" => {
+        "BronzeOrb" => {
             // Placeholder intent; SpawnMonsterAction/init performs the source
             // opening roll. FIRST_MOVE represents usedStasis.
             // Java: reference/extracted/methods/monster/BronzeOrb.java
@@ -782,11 +862,11 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.set_move(move_ids::BO_STASIS, 0, 0, 0);
             enemy.add_effect(mfx::STASIS, 1);
         }
-        "TorchHead" | "Torch Head" => {
+        "TorchHead" => {
             // Always: Tackle (7 damage)
             enemy.set_move(move_ids::TORCH_TACKLE, 7, 1, 0);
         }
-        "Champ" | "TheChamp" => {
+        "Champ" => {
             // A0 constructor values. Independent A4/A9/A19 thresholds are
             // patched at the run spawn site.
             // Java: reference/extracted/methods/monster/Champ.java.
@@ -805,7 +885,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::SLAP_DMG, slap_dmg);
             enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
-        "TheCollector" | "Collector" => {
+        "TheCollector" => {
             // Source: reference/extracted/methods/monster/TheCollector.java.
             // A0 constructor state; independent A4/A9/A19 values are patched
             // at the run spawn site.
@@ -836,7 +916,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::COUNT, 0);
             enemy.entity.set_status(sid::REGROW, 1);
         }
-        "OrbWalker" | "Orb Walker" => {
+        "Orb Walker" => {
             // Source: reference/extracted/methods/monster/OrbWalker.java.
             enemy.set_move(move_ids::OW_LASER, 10, 1, 0);
             enemy.add_effect(mfx::BURN_DRAW_DISCARD, 1);
@@ -871,9 +951,9 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::STARTING_DMG, 9);
             enemy.entity.set_status(sid::EXPLOSIVE, 3);
         }
-        "WrithingMass" | "Writhing Mass" => {
+        "WrithingMass" => {
             // Base factory represents A0; RunEngine applies ascension stats.
-            // AbstractMonster.init replaces this placeholder with a random
+            // AbstractMonster.init replaces this provisional intent with a random
             // first intent from WrithingMass.getMove.
             enemy.set_move(move_ids::WM_MULTI_HIT, 7, 3, 0);
             enemy.entity.set_status(sid::REACTIVE, 1);
@@ -885,7 +965,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::HEAD_SLAM_DMG, 10);
             enemy.entity.set_status(sid::USED_MEGA_DEBUFF, 0);
         }
-        "Serpent" | "SpireGrowth" | "Spire Growth" => {
+        "Serpent" => {
             // Source: reference/extracted/methods/monster/SpireGrowth.java.
             enemy.set_move(move_ids::SG_QUICK_TACKLE, 16, 1, 0);
             enemy.entity.set_status(sid::STARTING_DMG, 16);
@@ -918,7 +998,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // Base factory represents A0; RunEngine applies ascension thresholds.
             enemy.entity.set_status(sid::FADING, 5);
         }
-        "GiantHead" | "Giant Head" => {
+        "GiantHead" => {
             // Countdown to It Is Time. Glare/Count cycle. Count starts at 5 (A18: 4).
             // startingDeathDmg: A3+ = 40, else 30. Has Slow power.
             // First getMove decrements count, so first turn is count=4 (or 3 at A18).
@@ -945,13 +1025,13 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::BLOCK_AMT, 1);
             enemy.entity.set_status(sid::COUNT, 0);
         }
-        "SnakeDagger" | "Snake Dagger" => {
+        "Dagger" => {
             // Source: reference/extracted/methods/monster/SnakeDagger.java.
             enemy.set_move(move_ids::SD_WOUND, 9, 1, 0);
             enemy.add_effect(mfx::WOUND, 1);
             enemy.entity.set_status(sid::FIRST_MOVE, 1);
         }
-        "AwakenedOne" | "Awakened One" => {
+        "AwakenedOne" => {
             // Ascension-dependent pre-battle values are patched at the run
             // spawn site. These are the A0 constructor/usePreBattle defaults.
             // Java: reference/extracted/methods/monster/AwakenedOne.java
@@ -979,7 +1059,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::BEAM_DMG, 10);
             enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
-        "TimeEater" | "Time Eater" => {
+        "TimeEater" => {
             // Source: reference/extracted/methods/monster/TimeEater.java.
             // A0 defaults; the run spawn site patches independent A4/A9/A19
             // thresholds before the source-random opening roll.
@@ -995,7 +1075,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         // =================================================================
         // Act 4 — The Ending
         // =================================================================
-        "SpireShield" | "Spire Shield" => {
+        "SpireShield" => {
             // Source: reference/extracted/methods/monster/SpireShield.java.
             // These are the A0 constructor/pre-battle defaults; run spawning
             // patches the independent A3/A8/A18 thresholds.
@@ -1011,7 +1091,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::ARTIFACT, 1);
             enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
-        "SpireSpear" | "Spire Spear" => {
+        "SpireSpear" => {
             // Source: reference/extracted/methods/monster/SpireSpear.java.
             // A0 constructor and pre-battle defaults; the run spawn site owns
             // the independent A3/A8/A18 thresholds.
@@ -1028,7 +1108,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::ARTIFACT, 1);
             enemy.entity.set_status(sid::HIGH_ASCENSION_AI, 0);
         }
-        "CorruptHeart" | "Corrupt Heart" => {
+        "CorruptHeart" => {
             // Source: reference/extracted/methods/monster/CorruptHeart.java.
             // Ascension-dependent constructor/pre-battle values are patched at
             // the run spawn site because create_enemy has no ascension input.
@@ -1046,10 +1126,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::ECHO_DMG, 40);
         }
 
-        _ => {
-            // Unknown enemy: generic 6 damage attack
-            enemy.set_move(1, 6, 1, 0);
-        }
+        _ => unreachable!("canonical enemy catalog and factory arms must stay in sync"),
     }
 
     enemy
@@ -1069,7 +1146,7 @@ pub fn roll_next_move(enemy: &mut EnemyCombatState, ai_rng: &mut crate::seed::St
 
 /// Select a monster's opening intent without recording a placeholder move in
 /// history. Java calls `rollMove()` from `AbstractMonster.init()` while history
-/// is empty. This is currently used only for source-verified random openers.
+/// is empty, including deterministic monsters that ignore the rolled value.
 pub fn roll_initial_move(enemy: &mut EnemyCombatState, ai_rng: &mut crate::seed::StsRandom) {
     let num = ai_rng.random_int(99);
     roll_initial_move_with_num_and_rng(enemy, num, ai_rng);
@@ -1092,7 +1169,8 @@ pub fn roll_initial_move_with_num_and_rng(
 /// Test-friendly entry point: advance enemy intent using an explicit `num` (0..=99)
 /// and a deterministic secondary RNG. Production code should call `roll_next_move`;
 /// RNG-sensitive tests should call `roll_next_move_with_num_and_rng`.
-pub fn roll_next_move_with_num(enemy: &mut EnemyCombatState, num: i32) {
+#[cfg(test)]
+pub(crate) fn roll_next_move_with_num(enemy: &mut EnemyCombatState, num: i32) {
     let mut secondary_rng = crate::seed::StsRandom::new(0);
     roll_next_move_with_num_and_rng(enemy, num, &mut secondary_rng);
 }
@@ -1119,10 +1197,10 @@ fn select_move(
         "JawWorm" => act1::roll_jaw_worm(enemy, num, ai_rng),
         "Cultist" => act1::roll_cultist(enemy, num),
         "FungiBeast" => act1::roll_fungi_beast(enemy, num),
-        "FuzzyLouseNormal" | "RedLouse" => act1::roll_red_louse(enemy, num),
-        "FuzzyLouseDefensive" | "GreenLouse" => act1::roll_green_louse(enemy, num),
-        "SlaverBlue" | "BlueSlaver" => act1::roll_blue_slaver(enemy, num),
-        "SlaverRed" | "RedSlaver" => act1::roll_red_slaver(enemy, num),
+        "FuzzyLouseNormal" => act1::roll_red_louse(enemy, num),
+        "FuzzyLouseDefensive" => act1::roll_green_louse(enemy, num),
+        "SlaverBlue" => act1::roll_blue_slaver(enemy, num),
+        "SlaverRed" => act1::roll_red_slaver(enemy, num),
         "AcidSlime_S" => act1::roll_acid_slime_s(enemy, num, ai_rng),
         "AcidSlime_M" => act1::roll_acid_slime_m(enemy, num, ai_rng),
         "AcidSlime_L" => act1::roll_acid_slime_l(enemy, num, ai_rng),
@@ -1134,76 +1212,70 @@ fn select_move(
         "GremlinThief" => act1::roll_gremlin_thief(enemy),
         "GremlinWarrior" => act1::roll_gremlin_warrior(enemy),
         "GremlinWizard" => act1::roll_gremlin_wizard(enemy),
-        "GremlinTsundere" | "GremlinSneaky" => act1::roll_gremlin_tsundere(enemy),
-        "GremlinNob" | "Gremlin Nob" => act1::roll_gremlin_nob(enemy, num),
+        "GremlinTsundere" => act1::roll_gremlin_tsundere(enemy),
+        "GremlinNob" => act1::roll_gremlin_nob(enemy, num),
         "Lagavulin" => act1::roll_lagavulin(enemy),
         "Sentry" => act1::roll_sentry(enemy),
         "TheGuardian" => act1::roll_guardian(enemy),
         "Hexaghost" => act1::roll_hexaghost(enemy),
         "SlimeBoss" => act1::roll_slime_boss(enemy),
-        "Apology Slime" | "ApologySlime" => act1::roll_apology_slime(enemy, ai_rng),
+        "Apology Slime" => act1::roll_apology_slime(enemy, ai_rng),
         // Act 2
         "Chosen" => act2::roll_chosen(enemy, num),
         "Mugger" => act2::roll_mugger(enemy, num),
         "Byrd" => act2::roll_byrd(enemy, num, ai_rng),
-        "Shelled Parasite" | "ShelledParasite" => {
+        "Shelled Parasite" => {
             act2::roll_shelled_parasite(enemy, num, ai_rng)
         }
         "SnakePlant" => act2::roll_snake_plant(enemy, num),
         "Centurion" => act2::roll_centurion(enemy, num),
-        "Mystic" | "Healer" => act2::roll_healer(enemy, num),
-        "BookOfStabbing" | "Book of Stabbing" => act2::roll_book_of_stabbing(enemy, num),
-        "GremlinLeader" | "Gremlin Leader" => {
+        "Healer" => act2::roll_healer(enemy, num),
+        "BookOfStabbing" => act2::roll_book_of_stabbing(enemy, num),
+        "GremlinLeader" => {
             act2::roll_gremlin_leader(enemy, num, ai_rng)
         }
-        "SlaverBoss" | "TaskMaster" | "Taskmaster" => {
+        "SlaverBoss" => {
             act2::roll_taskmaster(enemy, num)
         }
-        "SphericGuardian" | "Spheric Guardian" => act2::roll_spheric_guardian(enemy),
+        "SphericGuardian" => act2::roll_spheric_guardian(enemy),
         "Snecko" => act2::roll_snecko(enemy, num),
-        "BanditBear" | "Bear" => act2::roll_bear(enemy, num),
+        "BanditBear" => act2::roll_bear(enemy, num),
         "BanditLeader" => act2::roll_bandit_leader(enemy, num),
-        "BanditChild" | "BanditPointy" | "Pointy" => {
+        "BanditChild" => {
             act2::roll_bandit_pointy(enemy, num)
         }
-        "BronzeAutomaton" | "Bronze Automaton" => act2::roll_bronze_automaton(enemy, num),
-        "BronzeOrb" | "Bronze Orb" => act2::roll_bronze_orb(enemy, num),
-        "TorchHead" | "Torch Head" => { /* Always Tackle 7 */ }
-        "Champ" | "TheChamp" => act2::roll_champ(enemy, num),
-        "TheCollector" | "Collector" => act2::roll_collector(enemy, num),
+        "BronzeAutomaton" => act2::roll_bronze_automaton(enemy, num),
+        "BronzeOrb" => act2::roll_bronze_orb(enemy, num),
+        "TorchHead" => { /* Always Tackle 7 */ }
+        "Champ" => act2::roll_champ(enemy, num),
+        "TheCollector" => act2::roll_collector(enemy, num),
         // Act 3
         "Darkling" => act3::roll_darkling(enemy, num, ai_rng),
-        "OrbWalker" | "Orb Walker" => act3::roll_orb_walker(enemy, num),
+        "Orb Walker" => act3::roll_orb_walker(enemy, num),
         "Spiker" => act3::roll_spiker(enemy, num),
         "Repulsor" => act3::roll_repulsor(enemy, num),
         "Exploder" => act3::roll_exploder(enemy, num),
-        "WrithingMass" | "Writhing Mass" => {
+        "WrithingMass" => {
             act3::roll_writhing_mass(enemy, num, ai_rng)
         }
-        "Serpent" | "SpireGrowth" | "Spire Growth" => {
+        "Serpent" => {
             act3::roll_spire_growth(enemy, num)
         }
         "Maw" => act3::roll_maw(enemy, num),
         "Transient" => act3::roll_transient(enemy, num),
-        "GiantHead" | "Giant Head" => act3::roll_giant_head(enemy, num),
+        "GiantHead" => act3::roll_giant_head(enemy, num),
         "Nemesis" => act3::roll_nemesis(enemy, num, ai_rng),
         "Reptomancer" => act3::roll_reptomancer(enemy, num, ai_rng),
-        "SnakeDagger" | "Snake Dagger" => act3::roll_snake_dagger(enemy, num),
-        "AwakenedOne" | "Awakened One" => act3::roll_awakened_one(enemy, num),
+        "Dagger" => act3::roll_snake_dagger(enemy, num),
+        "AwakenedOne" => act3::roll_awakened_one(enemy, num),
         "Donu" => act3::roll_donu(enemy, num),
         "Deca" => act3::roll_deca(enemy, num),
-        "TimeEater" | "Time Eater" => act3::roll_time_eater(enemy, num, ai_rng),
+        "TimeEater" => act3::roll_time_eater(enemy, num, ai_rng),
         // Act 4
-        "SpireShield" | "Spire Shield" => act4::roll_spire_shield(enemy, ai_rng),
-        "SpireSpear" | "Spire Spear" => act4::roll_spire_spear(enemy, ai_rng),
-        "CorruptHeart" | "Corrupt Heart" => act4::roll_corrupt_heart(enemy, num, ai_rng),
-        _ => {
-            if enemy.move_damage() > 0 {
-                enemy.set_move(2, 0, 0, 5);
-            } else {
-                enemy.set_move(1, 6, 1, 0);
-            }
-        }
+        "SpireShield" => act4::roll_spire_shield(enemy, ai_rng),
+        "SpireSpear" => act4::roll_spire_spear(enemy, ai_rng),
+        "CorruptHeart" => act4::roll_corrupt_heart(enemy, num, ai_rng),
+        _ => panic!("unknown enemy id during intent selection: {}", enemy.id),
     }
 }
 
@@ -2063,74 +2135,17 @@ mod tests {
     /// Test all enemy IDs can be created without panicking
     #[test]
     fn test_all_enemies_create() {
-        let ids = vec![
-            // Act 1
-            "JawWorm", "Cultist", "FungiBeast", "FuzzyLouseNormal",
-            "FuzzyLouseDefensive", "SlaverBlue", "SlaverRed",
-            "AcidSlime_S", "AcidSlime_M", "AcidSlime_L",
-            "SpikeSlime_S", "SpikeSlime_M", "SpikeSlime_L",
-            "Looter", "GremlinFat", "GremlinThief", "GremlinWarrior",
-            "GremlinWizard", "GremlinTsundere",
-            "GremlinNob", "Lagavulin", "Sentry",
-            "TheGuardian", "Hexaghost", "SlimeBoss",
-            // Act 2
-            "Chosen", "Mugger", "Byrd", "Shelled Parasite", "SnakePlant",
-            "Centurion", "Healer", "BookOfStabbing", "GremlinLeader",
-            "SlaverBoss", "SphericGuardian", "Snecko",
-            "BanditBear", "BanditLeader", "BanditChild",
-            "BronzeAutomaton", "BronzeOrb", "TorchHead",
-            "Champ", "TheCollector",
-            // Act 3
-            "Darkling", "OrbWalker", "Spiker", "Repulsor", "Exploder",
-            "WrithingMass", "Serpent", "Maw", "Transient",
-            "GiantHead", "Nemesis", "Reptomancer", "SnakeDagger",
-            "AwakenedOne", "Donu", "Deca", "TimeEater",
-            // Act 4
-            "SpireShield", "SpireSpear", "CorruptHeart",
-        ];
-        for id in &ids {
+        for &(id, _) in known_enemy_ids() {
             let enemy = create_enemy(id, 100, 100);
-            assert_eq!(enemy.id, *id, "Enemy ID mismatch for {}", id);
-            // Should not use fallback generic move
-            assert!(
-                enemy.move_id != 1 || ["GremlinFat", "GremlinThief", "GremlinWarrior",
-                    "SpikeSlime_S", "AcidSlime_S", "SpikeSlime_L",
-                    "SpikeSlime_M", "AcidSlime_M", "AcidSlime_L"].contains(id)
-                || enemy.move_id == move_ids::GREMLIN_ATTACK
-                || enemy.move_id == move_ids::SS_TACKLE
-                || enemy.move_id == move_ids::AS_CORROSIVE_SPIT
-                || enemy.move_id == move_ids::AS_TACKLE,
-                "Enemy {} has fallback move_id=1 (generic), expected a specific move", id
-            );
+            assert_eq!(enemy.id, id, "Enemy ID mismatch for {id}");
         }
-        assert_eq!(ids.len(), 65, "Should have 65 unique IDs covering all enemies");
+        assert_eq!(known_enemy_ids().len(), 66);
     }
 
     /// Test all enemies can roll at least 5 moves without panicking
     #[test]
     fn test_all_enemies_roll() {
-        let ids = vec![
-            "JawWorm", "Cultist", "FungiBeast", "FuzzyLouseNormal",
-            "FuzzyLouseDefensive", "SlaverBlue", "SlaverRed",
-            "AcidSlime_S", "AcidSlime_M", "AcidSlime_L",
-            "SpikeSlime_S", "SpikeSlime_M", "SpikeSlime_L",
-            "Looter", "GremlinFat", "GremlinThief", "GremlinWarrior",
-            "GremlinWizard", "GremlinTsundere",
-            "GremlinNob", "Lagavulin", "Sentry",
-            "TheGuardian", "Hexaghost", "SlimeBoss",
-            "Chosen", "Mugger", "Byrd", "Shelled Parasite", "SnakePlant",
-            "Centurion", "Healer", "BookOfStabbing", "GremlinLeader",
-            "SlaverBoss", "SphericGuardian", "Snecko",
-            "BanditBear", "BanditLeader", "BanditChild",
-            "BronzeAutomaton", "BronzeOrb", "TorchHead",
-            "Champ", "TheCollector",
-            "Darkling", "OrbWalker", "Spiker", "Repulsor", "Exploder",
-            "WrithingMass", "Serpent", "Maw", "Transient",
-            "GiantHead", "Nemesis", "Reptomancer", "SnakeDagger",
-            "AwakenedOne", "Donu", "Deca", "TimeEater",
-            "SpireShield", "SpireSpear", "CorruptHeart",
-        ];
-        for id in &ids {
+        for &(id, _) in known_enemy_ids() {
             let mut enemy = create_enemy(id, 100, 100);
             for _ in 0..5 {
                 roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));

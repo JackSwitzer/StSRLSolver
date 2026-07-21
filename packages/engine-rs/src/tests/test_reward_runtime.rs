@@ -448,6 +448,41 @@ fn prayer_wheel_and_question_card_expand_reward_structure() {
 }
 
 #[test]
+fn mystery_monster_prayer_wheel_uses_resolved_monster_room_rewards() {
+    // EventRoom.onPlayerEntry replaces the map's EventRoom with the concrete
+    // MonsterRoom returned by EventHelper.generateRoom. CombatRewardScreen
+    // therefore observes a MonsterRoom and PrayerWheel adds a second card
+    // reward even though the map node still displays `?`.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/rooms/EventRoom.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/EventHelper.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/PrayerWheel.java
+    let mut engine = RunEngine::new(42, 0);
+    engine.run_state.relics.push("Prayer Wheel".to_string());
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
+    engine.debug_force_event_rolls(&[0]);
+
+    engine.debug_enter_mystery_room();
+    assert_eq!(engine.current_phase(), crate::run::RunPhase::Combat);
+    engine.debug_force_current_combat_outcome(true);
+    engine.debug_resolve_current_combat_outcome();
+
+    let screen = engine
+        .current_reward_screen()
+        .expect("mystery monster combat should open normal rewards");
+    assert_eq!(
+        screen
+            .items
+            .iter()
+            .filter(|item| item.kind == RewardItemKind::CardChoice)
+            .count(),
+        2,
+    );
+}
+
+#[test]
 fn claiming_egg_relic_upgrades_later_card_reward_choice() {
     // Source: MoltenEgg2.java uses canonical ID "Molten Egg 2" and onEquip
     // upgrades already-visible Attack cards through onPreviewObtainCard.
@@ -748,7 +783,7 @@ fn boss_reward_screen_requires_relic_choice_and_transitions_to_act_two() {
     assert_eq!(engine.run_state.act, 2);
     assert_eq!(engine.run_state.floor, 17);
     assert_eq!(engine.run_state.current_hp, 56);
-    assert_eq!(engine.run_state.map_x, -1);
+    assert_eq!(engine.run_state.map_x, 0);
     assert_eq!(engine.run_state.map_y, -1);
     assert!(!engine.run_state.run_won);
     assert!(!engine.run_state.run_over);

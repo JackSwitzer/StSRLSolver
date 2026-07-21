@@ -44,8 +44,15 @@ fn active_combat_run() -> RunEngine {
 }
 
 #[test]
-fn checkpoint_round_trip_continues_identically_from_neow() {
+fn checkpoint_round_trip_continues_identically_from_neow_intro() {
     let engine = RunEngine::new_with_ambient_seed(42, 0, 99);
+    assert_same_continuation(engine, GameAction::Proceed);
+}
+
+#[test]
+fn checkpoint_round_trip_continues_identically_from_neow_choice() {
+    let mut engine = RunEngine::new_with_ambient_seed(42, 0, 99);
+    assert!(engine.step_game(&GameAction::Proceed).accepted());
     assert_same_continuation(engine, GameAction::ChooseNeowOption(1));
 }
 
@@ -55,6 +62,7 @@ fn checkpoint_preserves_an_open_reward_subchoice() {
     'seed: for seed in 0..256 {
         for neow_choice in 0..4 {
             let mut engine = RunEngine::new(seed, 0);
+            assert!(engine.step_game(&GameAction::Proceed).accepted());
             engine.step_game(&GameAction::ChooseNeowOption(neow_choice));
             if engine.current_phase() != RunPhase::CardReward {
                 continue;
@@ -111,8 +119,7 @@ fn checkpoint_rejects_inconsistent_combat_decision_boundaries() {
 fn checkpoint_rejects_duplicate_independent_live_combat_identity() {
     let checkpoint = CoreCheckpoint::capture(&active_combat_run()).unwrap();
     let mut value = serde_json::to_value(checkpoint).unwrap();
-    let hand_id = value["engine"]["combat_engine"]["state"]["hand"][0]["instance_id"]
-        .clone();
+    let hand_id = value["engine"]["combat_engine"]["state"]["hand"][0]["instance_id"].clone();
     value["engine"]["combat_engine"]["state"]["draw_pile"][0]["instance_id"] = hand_id;
 
     let error = serde_json::from_value::<CoreCheckpoint>(value).unwrap_err();
@@ -199,6 +206,21 @@ fn checkpoint_rejects_a_different_core_semantics_fingerprint() {
 }
 
 #[test]
+fn checkpoint_rejects_the_prior_causal_semantics_revision() {
+    let checkpoint = CoreCheckpoint::capture(&RunEngine::new(42, 0)).unwrap();
+    let mut value = serde_json::to_value(checkpoint).unwrap();
+    let prior = crate::checkpoint::core_semantics_fingerprint_for_revision(
+        "java-rng-actions-v2-checkpoint-v1",
+    );
+    value["semantics_fingerprint"] = serde_json::json!(prior);
+
+    let error = serde_json::from_value::<CoreCheckpoint>(value).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("checkpoint semantics fingerprint mismatch"));
+}
+
+#[test]
 fn checkpoint_rejects_missing_master_deck_state_before_normalization() {
     let checkpoint = CoreCheckpoint::capture(&RunEngine::new(42, 0)).unwrap();
     let mut value = serde_json::to_value(checkpoint).unwrap();
@@ -235,7 +257,9 @@ fn checkpoint_rejects_valid_state_edits_without_a_matching_hash() {
     value["engine"]["run_state"]["gold"] = serde_json::json!(1234);
 
     let error = serde_json::from_value::<CoreCheckpoint>(value).unwrap_err();
-    assert!(error.to_string().contains("checkpoint causal hash mismatch"));
+    assert!(error
+        .to_string()
+        .contains("checkpoint causal hash mismatch"));
 }
 
 #[test]
@@ -260,6 +284,23 @@ fn checkpoint_rejects_missing_phase_owned_payloads() {
 }
 
 #[test]
+fn checkpoint_rejects_an_invalid_neow_selection_witness() {
+    let mut engine = RunEngine::new(42, 0);
+    assert!(engine.step_game(&GameAction::Proceed).accepted());
+    assert!(engine
+        .step_game(&GameAction::ChooseNeowOption(1))
+        .accepted());
+    let checkpoint = CoreCheckpoint::capture(&engine).unwrap();
+    let mut value = serde_json::to_value(checkpoint).unwrap();
+    value["engine"]["neow_selection_witness"]["selected_index"] = serde_json::json!(4);
+
+    let error = serde_json::from_value::<CoreCheckpoint>(value).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("Neow selection witness index is out of bounds"));
+}
+
+#[test]
 fn card_instance_allocator_exhausts_instead_of_reusing_an_identity() {
     let mut state = crate::state::CombatState::new(80, 80, Vec::new(), Vec::new(), 3);
     state.next_card_instance_id = u64::from(u32::MAX);
@@ -274,8 +315,7 @@ fn card_instance_allocator_exhausts_instead_of_reusing_an_identity() {
 fn checkpoint_rejects_duplicate_master_card_identity() {
     let checkpoint = CoreCheckpoint::capture(&RunEngine::new(42, 0)).unwrap();
     let mut value = serde_json::to_value(checkpoint).unwrap();
-    let first_id = value["engine"]["run_state"]["deck_card_states"][0]["instance_id"]
-        .clone();
+    let first_id = value["engine"]["run_state"]["deck_card_states"][0]["instance_id"].clone();
     value["engine"]["run_state"]["deck_card_states"][1]["instance_id"] = first_id;
 
     let error = serde_json::from_value::<CoreCheckpoint>(value).unwrap_err();

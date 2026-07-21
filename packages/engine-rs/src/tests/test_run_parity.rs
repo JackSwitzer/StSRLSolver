@@ -22,6 +22,10 @@ mod run_java_parity_tests {
 
     fn resolve_opening_neow(engine: &mut RunEngine) {
         if engine.current_phase() == RunPhase::Neow {
+            let intro = engine.step_game(&GameAction::Proceed);
+            assert!(intro.accepted());
+            assert!(!intro.is_terminal());
+
             let outcome = engine.step_game(&GameAction::ChooseNeowOption(1));
             assert!(outcome.accepted());
             assert!(!outcome.is_terminal());
@@ -36,14 +40,23 @@ mod run_java_parity_tests {
                             .find(|action| matches!(action, GameAction::SelectRewardItem(_)))
                     })
                     .or_else(|| {
-                        actions.iter().find(|action| {
-                            matches!(action, GameAction::ChooseRewardOption { .. })
-                        })
+                        actions
+                            .iter()
+                            .find(|action| matches!(action, GameAction::ChooseRewardOption { .. }))
+                    })
+                    .or_else(|| {
+                        actions
+                            .iter()
+                            .find(|action| matches!(action, GameAction::LeaveRewards))
                     })
                     .cloned()
                     .expect("Neow follow-up must expose a reward action");
                 engine.step_game(&action);
             }
+            assert_eq!(engine.current_phase(), RunPhase::Neow);
+            let exit = engine.step_game(&GameAction::Proceed);
+            assert!(exit.accepted());
+            assert!(!exit.is_terminal());
             assert_eq!(engine.current_phase(), RunPhase::MapChoice);
         }
     }
@@ -80,15 +93,18 @@ mod run_java_parity_tests {
         // and reward rolls. AbstractChest.open is a separate click that runs
         // relic callbacks, curse creation, gold, and relic reward generation.
         let mut engine = RunEngine::new(39, 0);
-        engine.run_state.relics.extend([
-            "Cursed Key".to_string(),
-            "Matryoshka".to_string(),
-        ]);
+        engine
+            .run_state
+            .relics
+            .extend(["Cursed Key".to_string(), "Matryoshka".to_string()]);
         engine
             .run_state
             .relic_flags
             .rebuild(&engine.run_state.relics);
-        engine.run_state.relic_flags.init_relic_counter("Matryoshka");
+        engine
+            .run_state
+            .relic_flags
+            .init_relic_counter("Matryoshka");
         resolve_opening_neow(&mut engine);
         set_first_reachable_room(&mut engine, RoomType::Treasure);
 
@@ -99,8 +115,7 @@ mod run_java_parity_tests {
         assert_eq!(engine.rng_counters()["treasure"], 2);
         assert_eq!(engine.run_state.deck.len(), deck_before);
         assert_eq!(
-            engine.run_state.relic_flags.counters
-                [crate::relic_flags::counter::MATRYOSHKA_USES],
+            engine.run_state.relic_flags.counters[crate::relic_flags::counter::MATRYOSHKA_USES],
             2
         );
         assert_eq!(
@@ -113,7 +128,10 @@ mod run_java_parity_tests {
         assert_eq!(engine.phase, RunPhase::CardReward);
         let screen = engine.current_reward_screen().expect("treasure rewards");
         assert_eq!(screen.source, crate::decision::RewardScreenSource::Treasure);
-        assert!(screen.items.iter().any(|item| item.kind == crate::decision::RewardItemKind::Relic));
+        assert!(screen
+            .items
+            .iter()
+            .any(|item| item.kind == crate::decision::RewardItemKind::Relic));
         assert!(screen.items.iter().any(|item| matches!(
             item.kind,
             crate::decision::RewardItemKind::Key {
@@ -124,8 +142,7 @@ mod run_java_parity_tests {
         assert_eq!(engine.rng_counters()["treasure"], 2);
         assert_eq!(engine.run_state.deck.len(), deck_before + 1);
         assert_eq!(
-            engine.run_state.relic_flags.counters
-                [crate::relic_flags::counter::MATRYOSHKA_USES],
+            engine.run_state.relic_flags.counters[crate::relic_flags::counter::MATRYOSHKA_USES],
             1
         );
     }
@@ -135,15 +152,18 @@ mod run_java_parity_tests {
         // TreasureRoom's Proceed button permits leaving without opening.
         // Java: TreasureRoom.java::onPlayerEntry, AbstractChest.java::open.
         let mut engine = RunEngine::new(39, 0);
-        engine.run_state.relics.extend([
-            "Cursed Key".to_string(),
-            "Matryoshka".to_string(),
-        ]);
+        engine
+            .run_state
+            .relics
+            .extend(["Cursed Key".to_string(), "Matryoshka".to_string()]);
         engine
             .run_state
             .relic_flags
             .rebuild(&engine.run_state.relics);
-        engine.run_state.relic_flags.init_relic_counter("Matryoshka");
+        engine
+            .run_state
+            .relic_flags
+            .init_relic_counter("Matryoshka");
         resolve_opening_neow(&mut engine);
         set_first_reachable_room(&mut engine, RoomType::Treasure);
 
@@ -159,8 +179,7 @@ mod run_java_parity_tests {
         assert_eq!(engine.debug_relic_pool_lengths(), relic_pool_before);
         assert_eq!(engine.run_state.deck, deck_before);
         assert_eq!(
-            engine.run_state.relic_flags.counters
-                [crate::relic_flags::counter::MATRYOSHKA_USES],
+            engine.run_state.relic_flags.counters[crate::relic_flags::counter::MATRYOSHKA_USES],
             2
         );
     }
@@ -176,13 +195,15 @@ mod run_java_parity_tests {
         let key_index = screen
             .items
             .iter()
-            .position(|item| matches!(
-                item.kind,
-                crate::decision::RewardItemKind::Key {
-                    color: crate::decision::RewardKeyColor::Sapphire,
-                    ..
-                }
-            ))
+            .position(|item| {
+                matches!(
+                    item.kind,
+                    crate::decision::RewardItemKind::Key {
+                        color: crate::decision::RewardKeyColor::Sapphire,
+                        ..
+                    }
+                )
+            })
             .expect("sapphire key reward");
         let linked_relic = match screen.items[key_index].kind {
             crate::decision::RewardItemKind::Key {
@@ -196,23 +217,35 @@ mod run_java_parity_tests {
             .step_game(&GameAction::SelectRewardItem(key_index))
             .accepted());
         assert!(take_key.run_state.has_sapphire_key);
-        let screen = take_key.current_reward_screen().expect("reward screen stays open");
-        assert_eq!(screen.items[key_index].state, crate::decision::RewardItemState::Claimed);
-        assert_eq!(screen.items[linked_relic].state, crate::decision::RewardItemState::Disabled);
+        let screen = take_key
+            .current_reward_screen()
+            .expect("reward screen stays open");
+        assert_eq!(
+            screen.items[key_index].state,
+            crate::decision::RewardItemState::Claimed
+        );
+        assert_eq!(
+            screen.items[linked_relic].state,
+            crate::decision::RewardItemState::Disabled
+        );
 
         let mut take_relic = RunEngine::new(39, 0);
         take_relic.debug_build_treasure_reward_screen();
-        let screen = take_relic.current_reward_screen().expect("treasure rewards");
+        let screen = take_relic
+            .current_reward_screen()
+            .expect("treasure rewards");
         let key_index = screen
             .items
             .iter()
-            .position(|item| matches!(
-                item.kind,
-                crate::decision::RewardItemKind::Key {
-                    color: crate::decision::RewardKeyColor::Sapphire,
-                    ..
-                }
-            ))
+            .position(|item| {
+                matches!(
+                    item.kind,
+                    crate::decision::RewardItemKind::Key {
+                        color: crate::decision::RewardKeyColor::Sapphire,
+                        ..
+                    }
+                )
+            })
             .expect("sapphire key reward");
         let linked_relic = match screen.items[key_index].kind {
             crate::decision::RewardItemKind::Key {
@@ -225,9 +258,17 @@ mod run_java_parity_tests {
             .step_game(&GameAction::SelectRewardItem(linked_relic))
             .accepted());
         assert!(!take_relic.run_state.has_sapphire_key);
-        let screen = take_relic.current_reward_screen().expect("reward screen stays open");
-        assert_eq!(screen.items[linked_relic].state, crate::decision::RewardItemState::Claimed);
-        assert_eq!(screen.items[key_index].state, crate::decision::RewardItemState::Disabled);
+        let screen = take_relic
+            .current_reward_screen()
+            .expect("reward screen stays open");
+        assert_eq!(
+            screen.items[linked_relic].state,
+            crate::decision::RewardItemState::Claimed
+        );
+        assert_eq!(
+            screen.items[key_index].state,
+            crate::decision::RewardItemState::Disabled
+        );
     }
 
     #[test]
@@ -252,9 +293,7 @@ mod run_java_parity_tests {
             .accepted());
         assert_eq!(engine.run_state.gold, gold_before + gold_amount);
         assert_eq!(engine.phase, RunPhase::CardReward);
-        assert!(engine
-            .step_game(&GameAction::LeaveRewards)
-            .accepted());
+        assert!(engine.step_game(&GameAction::LeaveRewards).accepted());
         assert_eq!(engine.phase, RunPhase::MapChoice);
     }
 
@@ -268,22 +307,21 @@ mod run_java_parity_tests {
         let mut engine = RunEngine::new(42, 0);
         engine.debug_build_combat_reward_screen(RoomType::Boss);
         assert_eq!(
-            engine.current_reward_screen().expect("boss combat rewards").source,
+            engine
+                .current_reward_screen()
+                .expect("boss combat rewards")
+                .source,
             crate::decision::RewardScreenSource::BossCombat
         );
 
-        assert!(engine
-            .step_game(&GameAction::LeaveRewards)
-            .accepted());
+        assert!(engine.step_game(&GameAction::LeaveRewards).accepted());
         assert_eq!(engine.phase, RunPhase::Chest);
         assert_eq!(
             engine.get_legal_actions(),
             vec![GameAction::OpenChest, GameAction::LeaveChest]
         );
 
-        assert!(engine
-            .step_game(&GameAction::OpenChest)
-            .accepted());
+        assert!(engine.step_game(&GameAction::OpenChest).accepted());
         let first_choices = engine
             .current_reward_screen()
             .expect("boss relic screen")
@@ -294,14 +332,10 @@ mod run_java_parity_tests {
         assert!(engine
             .step_game(&GameAction::SelectRewardItem(0))
             .accepted());
-        assert!(engine
-            .step_game(&GameAction::SkipRewardItem(0))
-            .accepted());
+        assert!(engine.step_game(&GameAction::SkipRewardItem(0)).accepted());
         assert_eq!(engine.phase, RunPhase::Chest);
 
-        assert!(engine
-            .step_game(&GameAction::OpenChest)
-            .accepted());
+        assert!(engine.step_game(&GameAction::OpenChest).accepted());
         assert_eq!(
             engine
                 .current_reward_screen()
@@ -320,8 +354,7 @@ mod run_java_parity_tests {
         // Java: CampfireUI.java:84-102, AbstractDungeon.java::setEmeraldElite.
         let mut unavailable_profile = ProfileSnapshot::default();
         unavailable_profile.final_act_available = false;
-        let mut unavailable =
-            RunEngine::new_with_profile(42, 0, unavailable_profile);
+        let mut unavailable = RunEngine::new_with_profile(42, 0, unavailable_profile);
         assert!(unavailable
             .map
             .rows
@@ -336,9 +369,7 @@ mod run_java_parity_tests {
         let mut available = RunEngine::new(42, 0);
         available.phase = RunPhase::Campfire;
         let rng_before = available.rng_counters();
-        assert!(available
-            .step_game(&GameAction::CampfireRecall)
-            .accepted());
+        assert!(available.step_game(&GameAction::CampfireRecall).accepted());
         assert!(available.run_state.has_ruby_key);
         assert_eq!(available.rng_counters(), rng_before);
         assert_eq!(available.phase, RunPhase::MapChoice);
@@ -359,9 +390,14 @@ mod run_java_parity_tests {
 
         let context = engine.current_decision_context();
         let map = context.map.expect("map decision context");
-        assert!(map.paths.iter().any(|path| {
-            path.x == start_x && path.y == start_y && path.has_emerald_key
-        }));
+        assert!(map
+            .paths
+            .iter()
+            .any(|path| {
+                path.x == start_x as i32
+                    && path.y == start_y as i32
+                    && path.has_emerald_key
+            }));
     }
 
     #[test]
@@ -386,24 +422,20 @@ mod run_java_parity_tests {
         assert_eq!(engine.phase, RunPhase::MapChoice);
         assert_eq!(engine.rng_counters()["card"], 250);
         assert_eq!(engine.rng_counters()["map"], 0);
-        for stream in ["monster", "event", "relic", "treasure", "potion", "merchant"] {
+        for stream in [
+            "monster", "event", "relic", "treasure", "potion", "merchant",
+        ] {
             assert_eq!(engine.rng_counters()[stream], before[stream], "{stream}");
         }
         let starts = engine.map.get_start_nodes();
         assert_eq!(starts.len(), 1);
         assert_eq!(starts[0].room_type, RoomType::Rest);
 
-        assert!(engine
-            .step_game(&GameAction::ChoosePath(0))
-            .accepted());
+        assert!(engine.step_game(&GameAction::ChoosePath(0)).accepted());
         assert_eq!(engine.run_state.floor, 52);
         assert_eq!(engine.phase, RunPhase::Campfire);
-        assert!(engine
-            .step_game(&GameAction::CampfireRest)
-            .accepted());
-        assert!(engine
-            .step_game(&GameAction::ChoosePath(0))
-            .accepted());
+        assert!(engine.step_game(&GameAction::CampfireRest).accepted());
+        assert!(engine.step_game(&GameAction::ChoosePath(0)).accepted());
         assert_eq!(engine.run_state.floor, 53);
         assert_eq!(engine.phase, RunPhase::Shop);
     }
@@ -422,9 +454,7 @@ mod run_java_parity_tests {
         let expected_buff = engine.debug_peek_map_rng_int3();
         let map_counter_before = engine.rng_counters()["map"];
 
-        assert!(engine
-            .step_game(&GameAction::ChoosePath(0))
-            .accepted());
+        assert!(engine.step_game(&GameAction::ChoosePath(0)).accepted());
         assert_eq!(engine.rng_counters()["map"], map_counter_before + 1);
         let combat = engine.get_combat_engine().expect("burning elite combat");
         for enemy in &combat.state.enemies {
@@ -457,17 +487,23 @@ mod run_java_parity_tests {
         let key_index = screen
             .items
             .iter()
-            .position(|item| matches!(
-                item.kind,
-                crate::decision::RewardItemKind::Key {
-                    color: crate::decision::RewardKeyColor::Emerald,
-                    linked_item_index: None,
-                }
-            ))
+            .position(|item| {
+                matches!(
+                    item.kind,
+                    crate::decision::RewardItemKind::Key {
+                        color: crate::decision::RewardKeyColor::Emerald,
+                        linked_item_index: None,
+                    }
+                )
+            })
             .expect("emerald key");
         rewards.step_game(&GameAction::SelectRewardItem(relic_index));
         assert_eq!(
-            rewards.current_reward_screen().expect("elite rewards").items[key_index].state,
+            rewards
+                .current_reward_screen()
+                .expect("elite rewards")
+                .items[key_index]
+                .state,
             crate::decision::RewardItemState::Available
         );
         rewards.step_game(&GameAction::SelectRewardItem(key_index));
@@ -486,8 +522,7 @@ mod run_java_parity_tests {
             .run_state
             .relic_flags
             .rebuild(&engine.run_state.relics);
-        engine.run_state.relic_flags.counters
-            [crate::relic_flags::counter::NLOTHS_MASK] = 1;
+        engine.run_state.relic_flags.counters[crate::relic_flags::counter::NLOTHS_MASK] = 1;
 
         engine.debug_build_treasure_reward_screen();
 
@@ -503,8 +538,7 @@ mod run_java_parity_tests {
                 )
         }));
         assert_eq!(
-            engine.run_state.relic_flags.counters
-                [crate::relic_flags::counter::NLOTHS_MASK],
+            engine.run_state.relic_flags.counters[crate::relic_flags::counter::NLOTHS_MASK],
             -2
         );
     }
@@ -545,14 +579,20 @@ mod run_java_parity_tests {
         let actions = engine.get_legal_actions();
         engine.step_game(&actions[0]);
 
-        assert_eq!(engine.get_shop().expect("shop should exist").remove_price, 75);
+        assert_eq!(
+            engine.get_shop().expect("shop should exist").remove_price,
+            75
+        );
         engine.step_game(&GameAction::ShopRemoveCard(0));
         assert_eq!(engine.run_state.purge_cost, 100);
         engine.step_game(&GameAction::ShopLeave);
 
         engine.run_state.relics.push("The Courier".to_string());
         engine.run_state.relics.push("Membership Card".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_enter_shop();
 
         let shop = engine.get_shop().expect("shop should exist");
@@ -602,12 +642,10 @@ mod run_java_parity_tests {
         assert_eq!(engine.run_state.gold, 999 - remove_price);
         let shop = engine.get_shop().expect("shop stays open");
         assert!(shop.removal_used);
-        assert!(
-            !engine
-                .get_legal_actions()
-                .iter()
-                .any(|action| matches!(action, GameAction::ShopRemoveCard(_)))
-        );
+        assert!(!engine
+            .get_legal_actions()
+            .iter()
+            .any(|action| matches!(action, GameAction::ShopRemoveCard(_))));
     }
 
     #[test]
@@ -699,7 +737,11 @@ mod run_java_parity_tests {
         assert_eq!(engine.phase, RunPhase::MapChoice);
         assert!(engine.run_state.current_hp >= 0);
         assert!(engine.run_state.gold >= 0);
-        assert!(engine.run_state.current_hp != before_hp || engine.run_state.gold != before_gold || engine.phase == RunPhase::MapChoice);
+        assert!(
+            engine.run_state.current_hp != before_hp
+                || engine.run_state.gold != before_gold
+                || engine.phase == RunPhase::MapChoice
+        );
     }
 
     #[test]
@@ -722,7 +764,10 @@ mod run_java_parity_tests {
         engine.run_state.max_hp = 72;
         engine.run_state.current_hp = 20;
         engine.run_state.relics.push("Regal Pillow".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.step_game(&GameAction::CampfireRest);
         assert_eq!(engine.run_state.current_hp, 56);
     }
@@ -762,7 +807,10 @@ mod run_java_parity_tests {
     #[test]
     fn boss_name_is_one_of_java_act_one_bosses() {
         let engine = RunEngine::new(42, 0);
-        assert!(matches!(engine.boss_name(), "TheGuardian" | "Hexaghost" | "SlimeBoss"));
+        assert!(matches!(
+            engine.boss_name(),
+            "TheGuardian" | "Hexaghost" | "SlimeBoss"
+        ));
     }
 
     #[test]
@@ -777,11 +825,21 @@ mod run_java_parity_tests {
 
     #[test]
     fn java_neow_rewards_exist_and_rust_run_exposes_the_start_phase() {
-        let engine = RunEngine::new(42, 0);
+        let mut engine = RunEngine::new(42, 0);
         assert_eq!(engine.phase, RunPhase::Neow);
         assert_eq!(engine.current_room_type(), "neow");
+        assert_eq!(engine.current_choice_count(), 1);
+        assert_eq!(engine.get_legal_actions(), vec![GameAction::Proceed]);
+        assert!(engine.step_game(&GameAction::Proceed).accepted());
         assert_eq!(engine.current_choice_count(), 4);
-        assert_eq!(engine.run_state.floor, 0, "Rust run begins before the first map choice");
+        assert!(engine
+            .get_legal_actions()
+            .iter()
+            .all(|action| matches!(action, GameAction::ChooseNeowOption(_))));
+        assert_eq!(
+            engine.run_state.floor, 0,
+            "Rust run begins before the first map choice"
+        );
     }
 
     #[test]
@@ -950,11 +1008,7 @@ mod run_java_parity_tests {
         let cases: &[(i32, &[BossSeenId], &str)] = &[
             (1, &[], "TheGuardian"),
             (1, &[BossSeenId::Guardian], "Hexaghost"),
-            (
-                1,
-                &[BossSeenId::Guardian, BossSeenId::Ghost],
-                "SlimeBoss",
-            ),
+            (1, &[BossSeenId::Guardian, BossSeenId::Ghost], "SlimeBoss"),
             (2, &[], "TheChamp"),
             (2, &[BossSeenId::Champ], "BronzeAutomaton"),
             (
@@ -964,11 +1018,7 @@ mod run_java_parity_tests {
             ),
             (3, &[], "AwakenedOne"),
             (3, &[BossSeenId::Crow], "DonuAndDeca"),
-            (
-                3,
-                &[BossSeenId::Crow, BossSeenId::Donut],
-                "TimeEater",
-            ),
+            (3, &[BossSeenId::Crow, BossSeenId::Donut], "TimeEater"),
         ];
 
         for &(act, seen, expected) in cases {
@@ -1043,7 +1093,10 @@ mod run_java_parity_tests {
         );
 
         engine.debug_enter_boss_room();
-        assert_eq!(engine.debug_boss_sequence(), vec!["AwakenedOne".to_string()]);
+        assert_eq!(
+            engine.debug_boss_sequence(),
+            vec!["AwakenedOne".to_string()]
+        );
         engine.debug_force_current_combat_outcome(true);
         engine.debug_resolve_current_combat_outcome();
 
@@ -1080,9 +1133,7 @@ mod run_java_parity_tests {
             .expect("Secret Portal must be registered");
         engine.debug_set_typed_event_state(portal);
 
-        assert!(engine
-            .step_game(&GameAction::EventChoice(0))
-            .accepted());
+        assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
 
         assert_eq!(engine.current_phase(), RunPhase::Combat);
         // The Awakened One encounter expands to two Cultists plus the boss;
@@ -1113,7 +1164,13 @@ mod run_java_parity_tests {
             }]
         );
         assert_eq!(engine.current_phase(), RunPhase::Combat);
-        assert!(!engine.get_combat_engine().expect("boss combat").state.combat_over);
+        assert!(
+            !engine
+                .get_combat_engine()
+                .expect("boss combat")
+                .state
+                .combat_over
+        );
     }
 
     #[test]

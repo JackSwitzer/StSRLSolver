@@ -4,6 +4,9 @@
 //! These use `complex_hook` fn pointers for their primary logic.
 //! The triggers array may still contain declarative parts where applicable.
 //!
+//! Pipeline-owned marker powers may have neither triggers nor a hook here;
+//! their behavior is implemented at the typed damage/orb boundary.
+//!
 //! Complex powers include:
 //! - Card replay logic: Echo Form, Double Tap, Burst, Necronomicon
 //! - On-attacked reactions: Thorns, Flame Barrier
@@ -19,15 +22,8 @@ use crate::status_ids::sid;
 // ===========================================================================
 // Complex hooks
 // ===========================================================================
-// Migrated powers implement owner-aware hooks here. Remaining no-op hooks mark
-// the surfaces that still execute inline in `engine.rs` / `combat_hooks.rs`.
-
-fn hook_noop(
-    _engine: &mut CombatEngine,
-    _owner: EffectOwner,
-    _event: &GameEvent,
-    _state: &mut EffectState,
-) {}
+// Migrated powers implement owner-aware hooks here. Pipeline-owned markers do
+// not install empty adapter callbacks.
 
 fn hook_flame_barrier(
     engine: &mut CombatEngine,
@@ -619,7 +615,7 @@ pub static DEF_THORNS: EntityDef = EntityDef {
     name: "Thorns",
     kind: EntityKind::Power,
     triggers: &[],
-    complex_hook: Some(hook_noop),
+    complex_hook: None,
     status_guard: Some(sid::THORNS),
 };
 
@@ -734,7 +730,7 @@ pub static DEF_ELECTRODYNAMICS: EntityDef = EntityDef {
     name: "Electrodynamics",
     kind: EntityKind::Power,
     triggers: &[],
-    complex_hook: Some(hook_noop),
+    complex_hook: None,
     status_guard: Some(sid::ELECTRODYNAMICS),
 };
 
@@ -762,7 +758,7 @@ pub static DEF_STATIC_DISCHARGE: EntityDef = EntityDef {
     name: "Static Discharge",
     kind: EntityKind::Power,
     triggers: &[],
-    complex_hook: Some(hook_noop),
+    complex_hook: None,
     status_guard: Some(sid::STATIC_DISCHARGE),
 };
 
@@ -778,10 +774,9 @@ mod tests {
     fn test_all_complex_have_hooks() {
         let defs = [
             &DEF_ECHO_FORM, &DEF_DOUBLE_TAP, &DEF_BURST,
-            &DEF_THORNS, &DEF_FLAME_BARRIER, &DEF_ENVENOM,
+            &DEF_FLAME_BARRIER, &DEF_ENVENOM,
             &DEF_SADISTIC_NATURE, &DEF_THOUSAND_CUTS,
-            &DEF_PANACHE, &DEF_ELECTRODYNAMICS,
-            &DEF_TIME_WARP, &DEF_STATIC_DISCHARGE,
+            &DEF_PANACHE, &DEF_TIME_WARP,
         ];
         for def in &defs {
             assert!(
@@ -793,15 +788,13 @@ mod tests {
     }
 
     #[test]
-    fn test_complex_have_empty_triggers() {
-        // These remaining hook-only powers still have no declarative trigger surface.
-        let defs = [&DEF_THORNS, &DEF_STATIC_DISCHARGE];
+    fn test_pipeline_owned_markers_have_no_fake_dispatch() {
+        // Thorns and Static Discharge resolve at the sourced damage boundary;
+        // Electrodynamics is queried by the orb targeting pipeline.
+        let defs = [&DEF_THORNS, &DEF_ELECTRODYNAMICS, &DEF_STATIC_DISCHARGE];
         for def in &defs {
-            assert!(
-                def.triggers.is_empty(),
-                "Complex power '{}' should have empty triggers (logic is in hook)",
-                def.id
-            );
+            assert!(def.triggers.is_empty());
+            assert!(def.complex_hook.is_none());
         }
 
         // FlameBarrierPower has inline onAttacked handling plus a runtime

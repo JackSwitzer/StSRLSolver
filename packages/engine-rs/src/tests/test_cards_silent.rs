@@ -1072,7 +1072,7 @@ mod silent_card_java_parity_tests {
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BurstPower.java
         let mut upgraded = engine_with_enemies(
             Vec::new(),
-            vec![enemy("Dummy", 80, 80, 1, 0, 1)],
+            vec![enemy("JawWorm", 80, 80, 1, 0, 1)],
             4,
         );
         upgraded.state.hand = make_deck(&["Burst+", "Defend", "Backflip"]);
@@ -1091,7 +1091,7 @@ mod silent_card_java_parity_tests {
 
         let mut expires = engine_with_enemies(
             Vec::new(),
-            vec![enemy("Dummy", 80, 80, 1, 0, 1)],
+            vec![enemy("JawWorm", 80, 80, 1, 0, 1)],
             1,
         );
         expires.state.hand = make_deck(&["Burst"]);
@@ -1103,7 +1103,7 @@ mod silent_card_java_parity_tests {
 
         let mut x_skill = engine_with_enemies(
             Vec::new(),
-            vec![enemy("Dummy", 80, 80, 1, 0, 1)],
+            vec![enemy("JawWorm", 80, 80, 1, 0, 1)],
             4,
         );
         x_skill.state.hand = make_deck(&["Burst", "Malaise"]);
@@ -1625,7 +1625,7 @@ mod silent_card_java_parity_tests {
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NoDrawPower.java
         let mut engine = engine_with_enemies(
             Vec::new(),
-            vec![enemy("Dummy", 50, 50, 1, 0, 1)],
+            vec![enemy("JawWorm", 50, 50, 1, 0, 1)],
             4,
         );
         engine.state.hand = make_deck(&["Bullet Time", "Strike", "Skewer"]);
@@ -1649,7 +1649,7 @@ mod silent_card_java_parity_tests {
 
         let mut artifact = engine_with_enemies(
             Vec::new(),
-            vec![enemy("Dummy", 50, 50, 1, 0, 1)],
+            vec![enemy("JawWorm", 50, 50, 1, 0, 1)],
             2,
         );
         artifact.state.hand = make_deck(&["Bullet Time+", "Strike"]);

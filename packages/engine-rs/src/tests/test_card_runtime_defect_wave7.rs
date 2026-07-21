@@ -263,7 +263,7 @@ fn buffer_stacks_and_only_consumes_after_block_leaves_positive_damage() {
     // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
     let mut engine = engine_without_start(
         Vec::new(),
-        vec![enemy("Dummy", 40, 40, 1, 5, 2)],
+        vec![enemy("JawWorm", 40, 40, 1, 5, 2)],
         4,
     );
     force_player_turn(&mut engine);

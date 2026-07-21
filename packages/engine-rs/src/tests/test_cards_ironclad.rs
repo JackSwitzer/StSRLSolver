@@ -367,7 +367,7 @@ mod ironclad_card_java_parity_tests {
             &["Burning Pact+"],
             &["Strike", "Defend", "Bash"],
             &[],
-            vec![enemy_no_intent("Dummy", 50, 50)],
+            vec![enemy_no_intent("JawWorm", 50, 50)],
             1,
         );
         assert!(play_self(&mut empty, "Burning Pact+"));
@@ -379,7 +379,7 @@ mod ironclad_card_java_parity_tests {
             &["Burning Pact", "Strike"],
             &["Defend", "Bash"],
             &[],
-            vec![enemy_no_intent("Dummy", 50, 50)],
+            vec![enemy_no_intent("JawWorm", 50, 50)],
             1,
         );
         assert!(play_self(&mut singleton, "Burning Pact"));
@@ -391,7 +391,7 @@ mod ironclad_card_java_parity_tests {
             &["Burning Pact+", "Strike", "Defend"],
             &["Anger", "Cleave", "Bash"],
             &[],
-            vec![enemy_no_intent("Dummy", 50, 50)],
+            vec![enemy_no_intent("JawWorm", 50, 50)],
             1,
         );
         assert!(play_self(&mut choice, "Burning Pact+"));
@@ -1053,7 +1053,7 @@ mod ironclad_card_java_parity_tests {
                 &[card_id],
                 &["Strike", "Defend", "Bash", "Inflame", "Anger", "Cleave"],
                 &[],
-                vec![enemy_no_intent("Dummy", 60, 60)],
+                vec![enemy_no_intent("JawWorm", 60, 60)],
                 0,
             );
             if buffered {

@@ -1,8 +1,8 @@
-use crate::state::EnemyCombatState;
-use crate::combat_types::{fx, mfx, Intent};
-use super::{last_move, last_two_moves};
 use super::move_ids;
+use super::{last_move, last_two_moves};
+use crate::combat_types::{fx, mfx, Intent};
 use crate::seed::StsRandom;
+use crate::state::EnemyCombatState;
 use crate::status_ids::sid;
 
 // =========================================================================
@@ -42,9 +42,7 @@ pub(super) fn roll_darkling(
     let mut roll = num;
     loop {
         if roll < 40 {
-            if !last_move(enemy, move_ids::DARK_CHOMP)
-                && enemy.entity.status(sid::COUNT) % 2 == 0
-            {
+            if !last_move(enemy, move_ids::DARK_CHOMP) && enemy.entity.status(sid::COUNT) % 2 == 0 {
                 enemy.set_move(move_ids::DARK_CHOMP, chomp, 2, 0);
                 return;
             }
@@ -85,8 +83,11 @@ pub(super) fn roll_orb_walker(enemy: &mut EnemyCombatState, num: i32) {
     };
 
     if num < 40 {
-        if !last_two_moves(enemy, move_ids::OW_CLAW) { claw(enemy); }
-        else { laser(enemy); }
+        if !last_two_moves(enemy, move_ids::OW_CLAW) {
+            claw(enemy);
+        } else {
+            laser(enemy);
+        }
     } else if !last_two_moves(enemy, move_ids::OW_LASER) {
         laser(enemy);
     } else {
@@ -131,11 +132,7 @@ pub(super) fn roll_exploder(enemy: &mut EnemyCombatState, _num: i32) {
     }
 }
 
-pub(super) fn roll_writhing_mass(
-    enemy: &mut EnemyCombatState,
-    num: i32,
-    ai_rng: &mut StsRandom,
-) {
+pub(super) fn roll_writhing_mass(enemy: &mut EnemyCombatState, num: i32, ai_rng: &mut StsRandom) {
     // Source: reference/extracted/methods/monster/WrithingMass.java (`getMove`).
     let big = enemy.entity.status(sid::STARTING_DMG).max(32);
     let multi = enemy.entity.status(sid::STR_AMT).max(7);
@@ -221,10 +218,7 @@ pub(super) fn roll_writhing_mass(
 }
 
 /// ReactivePower queues RollMoveAction without recording the unexecuted intent.
-pub fn writhing_mass_reactive_reroll(
-    enemy: &mut EnemyCombatState,
-    ai_rng: &mut StsRandom,
-) {
+pub fn writhing_mass_reactive_reroll(enemy: &mut EnemyCombatState, ai_rng: &mut StsRandom) {
     let num = ai_rng.random_int(99);
     roll_writhing_mass(enemy, num, ai_rng);
 }
@@ -242,9 +236,7 @@ pub(super) fn roll_spire_growth(enemy: &mut EnemyCombatState, num: i32) {
         enemy.intent = Intent::Debuff { effects: 0 };
     };
 
-    if high_ascension && !player_constricted
-        && !last_move(enemy, move_ids::SG_CONSTRICT)
-    {
+    if high_ascension && !player_constricted && !last_move(enemy, move_ids::SG_CONSTRICT) {
         set_constrict(enemy);
     } else if num < 50 && !last_two_moves(enemy, move_ids::SG_QUICK_TACKLE) {
         enemy.set_move(move_ids::SG_QUICK_TACKLE, tackle, 1, 0);
@@ -275,9 +267,7 @@ pub(super) fn roll_maw(enemy: &mut EnemyCombatState, num: i32) {
         enemy.add_effect(mfx::FRAIL, terrify);
     } else if num < 50 && !last_move(enemy, move_ids::MAW_NOM) {
         enemy.set_move(move_ids::MAW_NOM, 5, (turn_count / 2).max(1), 0);
-    } else if last_move(enemy, move_ids::MAW_SLAM)
-        || last_move(enemy, move_ids::MAW_NOM)
-    {
+    } else if last_move(enemy, move_ids::MAW_SLAM) || last_move(enemy, move_ids::MAW_NOM) {
         enemy.set_move(move_ids::MAW_DROOL, 0, 0, 0);
         enemy.add_effect(mfx::STRENGTH, strength);
     } else {
@@ -306,7 +296,11 @@ pub(super) fn roll_giant_head(enemy: &mut EnemyCombatState, num: i32) {
     let count = enemy.entity.status(sid::COUNT);
     let starting_death_dmg = {
         let v = enemy.entity.status(sid::STARTING_DEATH_DMG);
-        if v > 0 { v } else { 30 }
+        if v > 0 {
+            v
+        } else {
+            30
+        }
     };
 
     if count <= 1 {
@@ -359,7 +353,11 @@ pub(super) fn roll_nemesis(
 
     if enemy.entity.status(sid::FIRST_MOVE) > 0 {
         enemy.entity.set_status(sid::FIRST_MOVE, 0);
-        if num < 50 { tri_attack(enemy); } else { burn(enemy); }
+        if num < 50 {
+            tri_attack(enemy);
+        } else {
+            burn(enemy);
+        }
         return;
     }
 
@@ -543,7 +541,14 @@ pub(super) fn roll_donu(enemy: &mut EnemyCombatState, _num: i32) {
     // Source: reference/extracted/methods/monster/Donu.java (`getMove` and
     // `takeTurn`). Donu starts with Circle and alternates after execution.
     if last_move(enemy, move_ids::DONU_CIRCLE) {
-        let bd = { let v = enemy.entity.status(sid::BEAM_DMG); if v > 0 { v } else { 10 } };
+        let bd = {
+            let v = enemy.entity.status(sid::BEAM_DMG);
+            if v > 0 {
+                v
+            } else {
+                10
+            }
+        };
         enemy.set_move(move_ids::DONU_BEAM, bd, 2, 0);
     } else {
         enemy.set_move(move_ids::DONU_CIRCLE, 0, 0, 0);
@@ -562,27 +567,38 @@ pub(super) fn roll_deca(enemy: &mut EnemyCombatState, _num: i32) {
             enemy.add_effect(mfx::PLATED_ARMOR_ALL, 3);
         }
     } else {
-        let bd = { let v = enemy.entity.status(sid::BEAM_DMG); if v > 0 { v } else { 10 } };
+        let bd = {
+            let v = enemy.entity.status(sid::BEAM_DMG);
+            if v > 0 {
+                v
+            } else {
+                10
+            }
+        };
         enemy.set_move(move_ids::DECA_BEAM, bd, 2, 0);
         enemy.add_effect(mfx::DAZE, 2);
     }
 }
 
-pub(super) fn roll_time_eater(
-    enemy: &mut EnemyCombatState,
-    num: i32,
-    ai_rng: &mut StsRandom,
-) {
+pub(super) fn roll_time_eater(enemy: &mut EnemyCombatState, num: i32, ai_rng: &mut StsRandom) {
     // Source: reference/extracted/methods/monster/TimeEater.java (`getMove`).
     // Repeated Reverberate/Ripple branches recursively draw replacement nums;
     // repeated Head Slam consumes a 0.66 probability float.
     let reverb_dmg = {
         let v = enemy.entity.status(sid::REVERB_DMG);
-        if v > 0 { v } else { 7 }
+        if v > 0 {
+            v
+        } else {
+            7
+        }
     };
     let head_slam_dmg = {
         let v = enemy.entity.status(sid::HEAD_SLAM_DMG);
-        if v > 0 { v } else { 26 }
+        if v > 0 {
+            v
+        } else {
+            26
+        }
     };
 
     if enemy.entity.hp < enemy.entity.max_hp / 2 && enemy.entity.status(sid::USED_HASTE) == 0 {

@@ -323,11 +323,11 @@ pub mod sid {
     pub const FRAIL_JUST_APPLIED: StatusId = StatusId(255);
 
     // Silent delayed damage power. Appended to preserve every existing numeric
-    // ID used by trace/training snapshots.
+    // ID used by trace and causal-state snapshots.
     pub const PHANTASMAL: StatusId = StatusId(256);
 
     // Defect one-shot card destination power. Appended to preserve every
-    // existing numeric ID used by trace/training snapshots.
+    // existing numeric ID used by trace and causal-state snapshots.
     pub const REBOUND: StatusId = StatusId(257);
 
     // Enemy reactive power. Appended to preserve existing snapshot IDs.
@@ -352,12 +352,12 @@ pub mod sid {
 // Reverse lookup tables
 // =========================================================================
 
-/// StatusId -> canonical string name (for PyO3 bridge and debug output).
+/// StatusId -> canonical string name for checkpoints and debug output.
 pub fn status_name(id: StatusId) -> &'static str {
     STATUS_NAMES.get(id.0 as usize).copied().unwrap_or("Unknown")
 }
 
-/// String name -> StatusId (for PyO3 bridge, test setup, deserialization).
+/// String name -> StatusId for test setup and deserialization.
 pub fn status_id_from_name(name: &str) -> Option<StatusId> {
     STATUS_NAMES
         .iter()

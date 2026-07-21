@@ -15,22 +15,18 @@ fn search_branch_counts(engine: &mut RunEngine) -> (usize, usize) {
     let event = engine
         .debug_current_event()
         .expect("expected a normalized Dead Adventurer event");
-    let EventProgramOp::RandomOutcomeTable { outcomes } = &event.options[0].program.ops[0] else {
-        panic!("expected top-level shuffled reward-order table");
-    };
-    let first_order = &outcomes[0];
-    let Some(EventProgramOp::RandomOutcomeTable {
+    let EventProgramOp::RandomOutcomeTable {
         outcomes: search_outcomes,
-    }) = first_order.ops.first()
+    } = &event.options[0].program.ops[0]
     else {
-        panic!("expected search chance table inside Dead Adventurer order");
+        panic!("expected search chance table inside Dead Adventurer page");
     };
     let fight_count = search_outcomes
         .iter()
         .filter(|program| {
             matches!(
-                program.ops.as_slice(),
-                [EventProgramOp::RandomOutcomeTable { .. }]
+                program.ops.first(),
+                Some(EventProgramOp::PrepareCombatBranch { .. })
             )
         })
         .count();
@@ -40,7 +36,9 @@ fn search_branch_counts(engine: &mut RunEngine) -> (usize, usize) {
 #[test]
 fn dead_adventurer_uses_the_35_percent_initial_search_roll_at_asc15() {
     let mut engine = RunEngine::new(101, 15);
+    let misc_before = engine.rng_counters()["misc"];
     engine.debug_set_typed_event_state(typed_event(1, "Dead Adventurer"));
+    assert_eq!(engine.rng_counters()["misc"], misc_before + 2);
     let (fight_count, reward_count) = search_branch_counts(&mut engine);
     assert_eq!(fight_count, 35);
     assert_eq!(reward_count, 65);

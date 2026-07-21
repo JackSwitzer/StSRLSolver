@@ -1,4 +1,5 @@
 use crate::events::{typed_shrine_events, EventRuntimeStatus, TypedEventDef};
+use crate::checkpoint::CoreCheckpoint;
 use crate::run::{GameAction, RunEngine, RunPhase};
 use std::collections::HashMap;
 
@@ -115,6 +116,40 @@ fn match_and_keep_uses_the_current_run_class_for_the_starter_pair() {
 
     assert_eq!(counts.get("Neutralize"), Some(&2));
     assert!(!counts.contains_key("Eruption"));
+}
+
+#[test]
+fn match_and_keep_checkpoint_preserves_reveal_board_pools_and_rng_continuation() {
+    // GremlinMatchGame is a multi-action event. A causal checkpoint after the
+    // first reveal must preserve the mutable colorless-pool shuffle, the board,
+    // attempts, pending pick, and all RNG stream states.
+    let mut original = RunEngine::new(811, 0);
+    enter_match_and_keep(&mut original);
+    let board = original.debug_match_and_keep_board().expect("match board");
+    let first = 0;
+    let mate = board
+        .iter()
+        .enumerate()
+        .find_map(|(index, card)| (index != first && card == &board[first]).then_some(index))
+        .expect("paired card");
+    assert!(original.step_game(&GameAction::EventChoice(first)).accepted());
+
+    let checkpoint = CoreCheckpoint::capture(&original).expect("quiescent event decision");
+    let json = checkpoint.to_json().expect("serialize match checkpoint");
+    let mut restored = CoreCheckpoint::from_json(&json)
+        .expect("deserialize match checkpoint")
+        .restore()
+        .expect("restore match checkpoint");
+    assert_eq!(restored.get_legal_actions(), original.get_legal_actions());
+    assert_eq!(restored.debug_match_and_keep_board(), original.debug_match_and_keep_board());
+    assert_eq!(restored.rng_counters(), original.rng_counters());
+
+    assert!(original.step_game(&GameAction::EventChoice(mate)).accepted());
+    assert!(restored.step_game(&GameAction::EventChoice(mate)).accepted());
+    assert_eq!(
+        CoreCheckpoint::capture(&restored).unwrap(),
+        CoreCheckpoint::capture(&original).unwrap()
+    );
 }
 
 #[test]

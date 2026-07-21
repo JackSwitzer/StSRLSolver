@@ -45,6 +45,8 @@ use std::collections::BTreeMap;
 /// Additive trace-v2 schema types. The existing definitions in this file stay
 /// frozen as the read-only v1 contract.
 pub mod v2;
+pub mod oracle_v2;
+pub mod bundle;
 
 /// Current trace schema version. Every header/record carries `v` so a
 /// consumer can immediately detect drift instead of silently misparsing.
@@ -1080,9 +1082,20 @@ pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
         statuses
             .iter()
             .enumerate()
-            .filter(|(_, &amt)| amt != 0)
+            .filter(|(index, &amt)| {
+                amt != 0
+                    && !matches!(
+                        *index as u16,
+                        value if value == crate::status_ids::sid::STARTING_DMG.0
+                            || value == crate::status_ids::sid::STR_AMT.0
+                            || value == crate::status_ids::sid::HIGH_ASCENSION_AI.0
+                    )
+            })
             .map(|(i, &amt)| PowerPostState {
-                id: crate::status_ids::status_name(crate::ids::StatusId(i as u16)).to_string(),
+                id: trace_power_id(crate::status_ids::status_name(crate::ids::StatusId(
+                    i as u16,
+                )))
+                .to_string(),
                 amt,
             })
             .collect()
@@ -1100,12 +1113,26 @@ pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
             block: enemy.entity.block,
             intent: IntentPostState {
                 move_id: enemy.move_id,
-                name: String::new(),
-                dmg: enemy.move_damage(),
-                hits: enemy.move_hits(),
+                name: trace_intent_name(enemy.intent).to_string(),
+                // AbstractMonster keeps -1 for non-attack intent damage and
+                // the recorder reports one hit whenever isMultiDmg is false.
+                // Java: AbstractMonster.java::{getIntentDmg,createIntent}.
+                dmg: trace_intent_damage(combat, enemy),
+                hits: if enemy.move_hits() > 1 {
+                    enemy.move_hits()
+                } else {
+                    1
+                },
             },
             powers: powers_from_statuses(&enemy.entity.statuses),
-            move_history: enemy.move_history.clone(),
+            // Rust keeps completed moves in history and the selected current
+            // move in `move_id`; Java appends current in setMove().
+            move_history: enemy
+                .move_history
+                .iter()
+                .copied()
+                .chain((enemy.move_id >= 0).then_some(enemy.move_id))
+                .collect(),
         })
         .collect();
 
@@ -1157,6 +1184,69 @@ pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
     }
 }
 
+fn trace_intent_name(intent: crate::combat_types::Intent) -> &'static str {
+    use crate::combat_types::Intent;
+    match intent {
+        Intent::Attack { .. } => "ATTACK",
+        Intent::Block { .. } => "DEFEND",
+        Intent::Buff { .. } => "BUFF",
+        Intent::Debuff { .. } => "DEBUFF",
+        Intent::AttackBlock { .. } => "ATTACK_DEFEND",
+        Intent::AttackBuff { .. } => "ATTACK_BUFF",
+        Intent::AttackDebuff { .. } => "ATTACK_DEBUFF",
+        Intent::DefendBuff { .. } => "DEFEND_BUFF",
+        Intent::Escape => "ESCAPE",
+        Intent::Sleep => "SLEEP",
+        Intent::Stun => "STUN",
+        Intent::Spawn | Intent::Unknown => "UNKNOWN",
+    }
+}
+
+fn trace_power_id(runtime_id: &str) -> &str {
+    match runtime_id {
+        // CurlUpPower.java declares `POWER_ID = "Curl Up"`.
+        "CurlUp" => "Curl Up",
+        _ => runtime_id,
+    }
+}
+
+fn trace_intent_damage(
+    combat: &crate::engine::CombatEngine,
+    enemy: &crate::state::EnemyCombatState,
+) -> i32 {
+    if !enemy.is_attacking() {
+        return -1;
+    }
+    // AbstractMonster.calculateDamage carries one Java float through the
+    // atDamageGive/Receive and stance pipeline, applies BackAttack's explicit
+    // integer cast, then runs final modifiers such as Intangible before the
+    // single final floor.
+    let mut damage = (enemy.move_damage() + enemy.entity.strength()) as f32;
+    if enemy.entity.is_weak() {
+        let multiplier = if combat.state.has_relic("Paper Crane") {
+            crate::damage::WEAK_MULT_PAPER_CRANE
+        } else {
+            crate::damage::WEAK_MULT
+        };
+        damage *= multiplier as f32;
+    }
+    if combat.state.player.is_vulnerable() {
+        damage *= if combat.state.has_relic("Odd Mushroom") {
+            crate::damage::VULN_MULT_ODD_MUSHROOM as f32
+        } else {
+            crate::damage::VULN_MULT as f32
+        };
+    }
+    damage *= combat.state.stance.incoming_mult() as f32;
+    if enemy.back_attack {
+        damage = (damage * 1.5) as i32 as f32;
+    }
+    if combat.state.player.status(crate::status_ids::sid::INTANGIBLE) > 0 && damage > 1.0 {
+        damage = 1.0;
+    }
+    damage.floor().max(0.0) as i32
+}
+
 /// Replay an [`ActionScript`] in-process through a fresh [`crate::run::RunEngine`],
 /// returning one [`TraceRecord`] per executed action. Stops early on the
 /// script's stop condition or run completion. Errors (unsupported action,
@@ -1165,8 +1255,15 @@ pub fn replay_script(script: &ActionScript) -> Result<Vec<TraceRecord>, String> 
     let seed = parse_script_seed(&script.seed);
     let mut engine = crate::run::RunEngine::new(seed, script.ascension);
     let mut records = Vec::with_capacity(script.actions.len());
+    let mut legacy_neow_selection_pending = false;
 
     for (idx, action) in script.actions.iter().enumerate() {
+        if matches!(action, TraceAction::Neow { .. }) {
+            // Frozen v1 has one semantic Neow action and cannot encode the
+            // canonical Intro Proceed. Supply only that unambiguous frame;
+            // v2 records the core actions directly.
+            step_legacy_neow_proceed(&mut engine, idx, "intro")?;
+        }
         let run_action = map_action(&engine, action)?;
         let legal = engine.get_legal_actions();
         if !legal.contains(&run_action) {
@@ -1177,6 +1274,20 @@ pub fn replay_script(script: &ActionScript) -> Result<Vec<TraceRecord>, String> 
         }
         engine.step_game(&run_action);
         records.push(build_trace_record(&engine, idx as u64, action.clone()));
+
+        if matches!(action, TraceAction::Neow { .. }) {
+            legacy_neow_selection_pending = true;
+        }
+        if legacy_neow_selection_pending
+            && engine.current_phase() == crate::run::RunPhase::Neow
+            && engine.get_legal_actions() == vec![crate::run::GameAction::Proceed]
+        {
+            // Keep the v1 record at the semantic selection checkpoint, matching
+            // the frozen wire contract, then consume the otherwise unencodable
+            // Exit Proceed before the next scripted action.
+            step_legacy_neow_proceed(&mut engine, idx, "exit")?;
+            legacy_neow_selection_pending = false;
+        }
 
         if let Some(max_floor) = script.stop.max_floor {
             // Match the Java harness's stop semantics exactly
@@ -1200,6 +1311,29 @@ pub fn replay_script(script: &ActionScript) -> Result<Vec<TraceRecord>, String> 
     }
 
     Ok(records)
+}
+
+fn step_legacy_neow_proceed(
+    engine: &mut crate::run::RunEngine,
+    idx: usize,
+    frame: &str,
+) -> Result<(), String> {
+    let legal = engine.get_legal_actions();
+    if engine.current_phase() != crate::run::RunPhase::Neow
+        || legal != vec![crate::run::GameAction::Proceed]
+    {
+        return Err(format!(
+            "legacy v1 action {idx} cannot adapt Neow {frame}: expected sole legal Proceed, got {legal:?} in phase {:?}",
+            engine.current_phase()
+        ));
+    }
+    let outcome = engine.step_game(&crate::run::GameAction::Proceed);
+    if !outcome.accepted() {
+        return Err(format!(
+            "legacy v1 action {idx} could not execute Neow {frame} Proceed"
+        ));
+    }
+    Ok(())
 }
 
 /// Build a [`TraceHeader`] for a replayed script (Rust-produced trace).

@@ -88,11 +88,25 @@ fn drug_dealer_all_three_supported_branches_use_canonical_runtime_paths() {
 
     let mut transform_engine = RunEngine::new(23, 20);
     let deck_before = transform_engine.run_state.deck.len();
+    let misc_before = transform_engine.rng_counters()["misc"];
     transform_engine.debug_set_typed_event_state(dealer.clone());
     let transform_step = transform_engine.step_game(&GameAction::EventChoice(1));
     assert!(transform_step.accepted());
+    assert_eq!(transform_engine.current_phase(), RunPhase::CardReward);
+    for _ in 0..2 {
+        assert!(transform_engine
+            .step_game(&GameAction::SelectRewardItem(0))
+            .accepted());
+        assert!(transform_engine
+            .step_game(&GameAction::ChooseRewardOption {
+                item_index: 0,
+                choice_index: 0,
+            })
+            .accepted());
+    }
     assert_eq!(transform_engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(transform_engine.run_state.deck.len(), deck_before);
+    assert_eq!(transform_engine.rng_counters()["misc"], misc_before + 2);
 
     let mut relic_engine = RunEngine::new(31, 20);
     relic_engine.debug_set_typed_event_state(dealer);
@@ -582,6 +596,11 @@ fn nest_branches_cover_direct_gold_and_specific_card_reward() {
 fn sensory_stone_focus_and_tomb_of_lord_red_mask_flow_through_event_rewards() {
     let mut sensory_engine = RunEngine::new(43, 20);
     sensory_engine.debug_set_typed_event_state(typed_event(3, "Sensory Stone"));
+    // SensoryStone first reveals its three costed memory choices, then opens
+    // the selected colorless reward sequence.
+    assert!(sensory_engine
+        .step_game(&GameAction::EventChoice(0))
+        .accepted());
     let sensory = sensory_engine.step_game(&GameAction::EventChoice(0));
     assert!(sensory.accepted());
     assert_eq!(sensory_engine.current_phase(), RunPhase::CardReward);

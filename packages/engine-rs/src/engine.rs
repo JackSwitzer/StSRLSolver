@@ -51,7 +51,6 @@ pub enum ChoiceReason {
     PickFromDrawPile,
     DiscoverCard,
     PickOption,
-    PlayCardFree,
     DualWield,
     UpgradeCard,
     PickFromExhaust,
@@ -162,6 +161,10 @@ pub struct CombatEngine {
     /// probabilistic intent branching (JawWorm, Chosen, ~20+ enemies). Kept separate
     /// from `rng` so card/shuffle draws do not perturb intent sequences.
     pub(crate) ai_rng: crate::seed::StsRandom,
+    /// Java's process-global libGDX `MathUtils.random`. Presentation and
+    /// gameplay call sites share this cursor, so combat must return it to the
+    /// run instead of reconstructing it at room boundaries.
+    pub(crate) ambient_math_rng: crate::seed::AmbientMathRng,
     /// Java's static default `java.util.Random` used by no-argument
     /// `Collections.shuffle`. Its natural Java seed is process/time-derived,
     /// so trace replay must inject its captured 48-bit state explicitly.
@@ -196,9 +199,19 @@ pub struct CombatEngine {
 }
 
 impl CombatEngine {
-    /// Create a new combat engine.
-    pub fn new(state: CombatState, seed: u64) -> Self {
+    /// Create a deterministic unit-test combat fixture.
+    ///
+    /// Faithful runs must enter combat through `RunEngine`, which transfers all
+    /// independently owned Java streams through `CombatRngs`.
+    pub(crate) fn new(state: CombatState, seed: u64) -> Self {
         Self::new_with_card_random_seed(state, seed, seed)
+    }
+
+    /// Benchmark-only fixture constructor. This deliberately does not model a
+    /// complete dungeon RNG topology; production simulation uses `RunEngine`.
+    #[doc(hidden)]
+    pub fn new_benchmark_fixture(state: CombatState, seed: u64) -> Self {
+        Self::new(state, seed)
     }
 
     pub(crate) fn new_with_card_random_seed(
@@ -218,6 +231,7 @@ impl CombatEngine {
                 // Standalone combat fixtures have no dungeon floor from which
                 // to derive Java's aiRng. RunEngine injects the real stream.
                 ai: crate::seed::StsRandom::new(seed.wrapping_add(0xA1A1_A1A1)),
+                ambient_math: crate::seed::AmbientMathRng::new(0),
                 java_collections: crate::seed::JavaCollectionsRng::deterministic_default(),
             },
         )
@@ -240,6 +254,7 @@ impl CombatEngine {
             potion_rng: rngs.potion,
             misc_rng: rngs.misc,
             ai_rng: rngs.ai,
+            ambient_math_rng: rngs.ambient_math,
             java_collections_rng: rngs.java_collections,
             choice: None,
             effect_runtime,
@@ -271,8 +286,17 @@ impl CombatEngine {
             potion: self.potion_rng.clone(),
             misc: self.misc_rng.clone(),
             ai: self.ai_rng.clone(),
+            ambient_math: self.ambient_math_rng.clone(),
             java_collections: self.java_collections_rng.clone(),
         }
+    }
+
+    pub fn ambient_math_rng_state(&self) -> (u64, u64) {
+        self.ambient_math_rng.state_tuple()
+    }
+
+    pub fn restore_ambient_math_rng_state(&mut self, state: (u64, u64)) {
+        self.ambient_math_rng.restore_state(state.0, state.1);
     }
 
     /// Capture the raw 48-bit state behind Java's no-argument
@@ -622,7 +646,7 @@ impl CombatEngine {
                 | "Shelled Parasite" | "ShelledParasite"
                 | "SlaverBoss" | "TaskMaster" | "Taskmaster"
                 | "CorruptHeart" | "Corrupt Heart"
-                | "SnakeDagger" | "Snake Dagger" | "Darkling" | "Deca" | "Donu"
+                | "Dagger" | "Darkling" | "Deca" | "Donu"
                 | "Exploder" | "GiantHead" | "Giant Head"
                 | "GremlinLeader" | "Gremlin Leader" | "Healer" | "Mystic"
                 | "Maw" | "Nemesis" | "OrbWalker" | "Orb Walker"
@@ -797,7 +821,7 @@ impl CombatEngine {
         }
     }
 
-    /// Deep clone for MCTS tree search.
+    /// Deep clone for deterministic branch simulation.
     pub fn clone_state(&self) -> CombatEngine {
         CombatEngine {
             state: self.state.clone(),
@@ -810,6 +834,7 @@ impl CombatEngine {
             potion_rng: self.potion_rng.clone(),
             misc_rng: self.misc_rng.clone(),
             ai_rng: self.ai_rng.clone(),
+            ambient_math_rng: self.ambient_math_rng.clone(),
             java_collections_rng: self.java_collections_rng.clone(),
             choice: self.choice.clone(),
             effect_runtime: self.effect_runtime.clone(),
@@ -985,7 +1010,6 @@ impl CombatEngine {
                 ChoiceReason::PickFromDrawPile => self.resolve_pick_from_draw(ctx),
                 ChoiceReason::DiscoverCard => self.resolve_discover(ctx),
                 ChoiceReason::PickOption => self.resolve_pick_option(ctx),
-                ChoiceReason::PlayCardFree => self.resolve_play_card_free(ctx),
                 ChoiceReason::DualWield => self.resolve_dual_wield(ctx),
                 ChoiceReason::UpgradeCard => self.resolve_upgrade_card(ctx),
                 ChoiceReason::PickFromExhaust => self.resolve_pick_from_exhaust(ctx),
@@ -1344,21 +1368,7 @@ impl CombatEngine {
                     return;
                 }
 
-                match name.as_str() {
-                    "Strength" => {
-                        let current = self.state.player.status(sid::STRENGTH);
-                        self.state.player.set_status(sid::STRENGTH, current + 3);
-                    }
-                    "Gold" => {
-                        // Combat engine can't modify run gold; no-op for MCTS
-                        // (MCTS should prefer Strength or Plated Armor options)
-                    }
-                    "Plated Armor" => {
-                        let current = self.state.player.status(sid::PLATED_ARMOR);
-                        self.state.player.set_status(sid::PLATED_ARMOR, current + 3);
-                    }
-                    _ => {}
-                }
+                panic!("named choices require typed payloads: {name}");
             }
         }
     }
@@ -1450,35 +1460,6 @@ impl CombatEngine {
         }
     }
 
-    fn resolve_play_card_free(&mut self, ctx: ChoiceContext) {
-        // Play selected card from hand for free
-        if let Some(&sel) = ctx.selected.first() {
-            if let ChoiceOption::HandCard(idx) = ctx.options[sel] {
-                if idx < self.state.hand.len() {
-                    // Set card to free
-                    self.state.hand[idx].cost = 0;
-                    self.state.hand[idx].flags |= crate::combat_types::CardInstance::FLAG_FREE;
-                    // Play it (target -1 = self; for targeted cards MCTS will handle)
-                    let target = if matches!(
-                        self.card_registry
-                            .card_def_by_id(self.state.hand[idx].def_id)
-                            .target,
-                        CardTarget::Enemy | CardTarget::SelfAndEnemy
-                    ) {
-                        self.state
-                            .targetable_enemy_indices()
-                            .first()
-                            .copied()
-                            .unwrap_or(0) as i32
-                    } else {
-                        -1
-                    };
-                    self.play_card(idx, target);
-                }
-            }
-        }
-    }
-
     fn resolve_play_card_free_from_draw(&mut self, ctx: ChoiceContext) {
         // OmniscienceAction removes the selected original from draw, forces it
         // to exhaust, then queues the original plus one purge-on-use stat copy.
@@ -1515,22 +1496,19 @@ impl CombatEngine {
         };
         let (card, _) = self.omniscience_autoplay.remove(queue_idx);
         let def = self.card_registry.card_def_by_id(card.def_id).clone();
-        let target = if matches!(def.target, CardTarget::Enemy | CardTarget::SelfAndEnemy) {
-            let living = self.state.targetable_enemy_indices();
-            if living.is_empty() {
-                -1
-            } else {
-                // NewQueueCardAction(randomTarget=true) asks MonsterGroup for a
-                // random living target on each queued play, consuming
-                // cardRandomRng even when only one target exists.
-                // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
-                let selected = self
-                    .card_random_rng
-                    .random_int_range(0, (living.len() - 1) as i32) as usize;
-                living[selected] as i32
-            }
-        } else {
+        let living = self.state.targetable_enemy_indices();
+        let target = if living.is_empty() {
             -1
+        } else {
+            // Omniscience queues every copy with randomTarget=true. Java asks
+            // MonsterGroup for a random monster before canUse regardless of
+            // the card's target type, including self-target cards and a
+            // singleton enemy group.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+            let selected = self
+                .card_random_rng
+                .random_int_range(0, (living.len() - 1) as i32) as usize;
+            living[selected] as i32
         };
 
         if !self.can_play_card_inst(&def, card) {
@@ -2315,6 +2293,7 @@ impl CombatEngine {
             }
             let hand = std::mem::take(&mut self.state.hand);
             let mut retained = Vec::new();
+            let mut discarded = Vec::new();
             for card_inst in hand {
                 let card = self.card_registry.card_def_by_id(card_inst.def_id);
                 // DiscardAtEndOfTurnAction first moves explicitly retained and
@@ -2336,9 +2315,13 @@ impl CombatEngine {
                     retained_inst.set_retained(true);
                     retained.push(retained_inst);
                 } else {
-                    self.state.discard_pile.push(card_inst);
+                    discarded.push(card_inst);
                 }
             }
+            // DiscardAction repeatedly removes CardGroup::getTopCard(), so
+            // non-retained cards enter the discard pile in reverse hand order.
+            // Java: DiscardAtEndOfTurnAction.java, DiscardAction.java.
+            self.state.discard_pile.extend(discarded.into_iter().rev());
             // Track retained cards for Establishment cost reduction
             self.state.retained_cards = retained.clone();
             self.state.hand = retained;

@@ -13,6 +13,24 @@ fn event(name: &str, options: Vec<TypedEventOption>) -> TypedEventDef {
     }
 }
 
+fn mushrooms_fight_event() -> TypedEventDef {
+    event(
+        "Mushrooms",
+        vec![supported(
+            "Fight",
+            vec![EventProgramOp::combat_branch_with_random_gold(
+                ["FungiBeast", "FungiBeast", "FungiBeast"],
+                20,
+                30,
+                vec![EventProgramOp::gain_unique_relic_or_circlet(
+                    "Odd Mushroom",
+                )],
+            )],
+            EventEffect::GainRelic,
+        )],
+    )
+}
+
 pub(super) fn golden_idol_consequence_event() -> TypedEventDef {
     event(
         "Golden Idol",
@@ -38,16 +56,26 @@ pub(super) fn golden_idol_consequence_event() -> TypedEventDef {
     )
 }
 
-#[derive(Clone, Copy)]
-enum DeadAdventurerReward {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DeadAdventurerReward {
     Gold,
     Nothing,
     Relic,
 }
 
-fn dead_adventurer_reward_ops(reward: DeadAdventurerReward) -> Vec<EventProgramOp> {
+fn dead_adventurer_search_reward_ops(reward: DeadAdventurerReward) -> Vec<EventProgramOp> {
     match reward {
         DeadAdventurerReward::Gold => vec![EventProgramOp::gold(30)],
+        DeadAdventurerReward::Nothing => vec![EventProgramOp::nothing()],
+        DeadAdventurerReward::Relic => {
+            vec![EventProgramOp::obtain_random_screenless_relic()]
+        }
+    }
+}
+
+fn dead_adventurer_fight_reward_ops(reward: DeadAdventurerReward) -> Vec<EventProgramOp> {
+    match reward {
+        DeadAdventurerReward::Gold => vec![EventProgramOp::gain_gold_reward(30)],
         DeadAdventurerReward::Nothing => vec![EventProgramOp::nothing()],
         DeadAdventurerReward::Relic => vec![EventProgramOp::gain_relic("random relic")],
     }
@@ -59,27 +87,22 @@ fn dead_adventurer_suffix_ops(
 ) -> Vec<EventProgramOp> {
     rewards[start..]
         .iter()
-        .flat_map(|reward| dead_adventurer_reward_ops(*reward))
+        .flat_map(|reward| dead_adventurer_fight_reward_ops(*reward))
         .collect()
 }
 
-fn dead_adventurer_fight_program(rewards: &[DeadAdventurerReward], start: usize) -> EventProgram {
+fn dead_adventurer_fight_program(
+    rewards: &[DeadAdventurerReward],
+    start: usize,
+    enemy: &str,
+) -> EventProgram {
     let suffix_ops = dead_adventurer_suffix_ops(rewards, start);
-    let outcomes = vec![
-        vec![EventProgramOp::combat_branch(
-            ["3 Sentries"],
-            suffix_ops.clone(),
-        )],
-        vec![EventProgramOp::combat_branch(
-            ["GremlinNob"],
-            suffix_ops.clone(),
-        )],
-        vec![EventProgramOp::combat_branch(
-            ["Lagavulin Event"],
-            suffix_ops,
-        )],
-    ];
-    EventProgram::from_ops(vec![EventProgramOp::random_outcome_table(outcomes)])
+    EventProgram::from_ops(vec![EventProgramOp::prepare_combat_branch_with_random_gold(
+        [enemy],
+        25,
+        35,
+        suffix_ops,
+    )])
 }
 
 fn dead_adventurer_search_program(
@@ -87,9 +110,10 @@ fn dead_adventurer_search_program(
     start: usize,
     next_event: TypedEventDef,
     encounter_chance: usize,
+    enemy: &str,
 ) -> EventProgram {
-    let fight_program = dead_adventurer_fight_program(rewards, start);
-    let mut reward_ops = dead_adventurer_reward_ops(rewards[start]);
+    let fight_program = dead_adventurer_fight_program(rewards, start, enemy);
+    let mut reward_ops = dead_adventurer_search_reward_ops(rewards[start]);
     reward_ops.push(EventProgramOp::continue_event(next_event));
 
     let mut outcomes = Vec::with_capacity(100);
@@ -108,13 +132,24 @@ fn dead_adventurer_page(
     start: usize,
     next_event: TypedEventDef,
     encounter_chance: usize,
+    enemy: &str,
 ) -> TypedEventDef {
     event(
         "Dead Adventurer",
         vec![
             supported(
-                "Search (risk elite fight, gain gold/relic)",
-                dead_adventurer_search_program(&rewards, start, next_event, encounter_chance).ops,
+                format!(
+                    "Search ({}% elite fight; otherwise gain gold/relic)",
+                    encounter_chance
+                ),
+                dead_adventurer_search_program(
+                    &rewards,
+                    start,
+                    next_event,
+                    encounter_chance,
+                    enemy,
+                )
+                .ops,
                 EventEffect::DamageAndGold(0, 30),
             ),
             supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
@@ -122,41 +157,23 @@ fn dead_adventurer_page(
     )
 }
 
-pub(crate) fn dead_adventurer_event(ascension_level: i32) -> TypedEventDef {
+pub(crate) fn dead_adventurer_event_with_state(
+    ascension_level: i32,
+    rewards: [DeadAdventurerReward; 3],
+    enemy: &str,
+) -> TypedEventDef {
     let encounter_chance = if ascension_level >= 15 { 35 } else { 25 };
-    use DeadAdventurerReward::{Gold, Nothing, Relic};
-
-    let permutations = [
-        [Gold, Nothing, Relic],
-        [Gold, Relic, Nothing],
-        [Nothing, Gold, Relic],
-        [Nothing, Relic, Gold],
-        [Relic, Gold, Nothing],
-        [Relic, Nothing, Gold],
-    ];
-
-    let mut outcomes = Vec::with_capacity(permutations.len());
-    for rewards in permutations {
-        let success = event(
-            "Dead Adventurer",
-            vec![supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing)],
-        );
-        let page3 = dead_adventurer_page(rewards, 2, success, 75);
-        let page2 = dead_adventurer_page(rewards, 1, page3, 50);
-        let page1 = dead_adventurer_page(rewards, 0, page2, encounter_chance);
-        outcomes.push(page1.options[0].program.ops.clone());
-    }
+    let success = event(
+        "Dead Adventurer",
+        vec![supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing)],
+    );
+    let page3 = dead_adventurer_page(rewards, 2, success, 75, enemy);
+    let page2 = dead_adventurer_page(rewards, 1, page3, 50, enemy);
+    let page1 = dead_adventurer_page(rewards, 0, page2, encounter_chance, enemy);
 
     event(
         "Dead Adventurer",
-        vec![
-            supported(
-                "Search (risk elite fight, gain gold/relic)",
-                vec![EventProgramOp::random_outcome_table(outcomes)],
-                EventEffect::DamageAndGold(0, 30),
-            ),
-            supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
-        ],
+        page1.options,
     )
 }
 
@@ -206,12 +223,12 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
             "Shining Light",
             vec![
                 supported(
-                    "Enter (upgrade 2 cards, take 10 dmg)",
+                    "Enter (upgrade 2 random cards, take 20% max HP damage)",
                     vec![
-                        EventProgramOp::damage_and_gold(-10, 0),
-                        EventProgramOp::upgrade_card(2),
+                        EventProgramOp::lose_hp_percent_rounded_by_ascension(20, 30),
+                        EventProgramOp::upgrade_random_cards(2),
                     ],
-                    EventEffect::DamageAndGold(-10, 0),
+                    EventEffect::UpgradeCard,
                 ),
                 supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
             ],
@@ -221,12 +238,16 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
             vec![
                 supported(
                     "Upgrade (upgrade a card)",
-                    vec![EventProgramOp::upgrade_card(1)],
+                    vec![EventProgramOp::deck_selection(
+                        "deck_selection_event_upgrade",
+                    )],
                     EventEffect::UpgradeCard,
                 ),
                 supported(
                     "Remove (remove a card)",
-                    vec![EventProgramOp::remove_card(1)],
+                    vec![EventProgramOp::deck_selection(
+                        "deck_selection_event_remove",
+                    )],
                     EventEffect::RemoveCard,
                 ),
                 supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
@@ -245,7 +266,10 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
                 ),
                 supported(
                     "Purify (pay 50 gold, remove a card)",
-                    vec![EventProgramOp::gold(-50), EventProgramOp::remove_card(1)],
+                    vec![
+                        EventProgramOp::gold(-50),
+                        EventProgramOp::deck_selection("deck_selection_event_remove"),
+                    ],
                     EventEffect::RemoveCard,
                 ),
                 supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
@@ -253,7 +277,11 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
         ),
         event(
             "Dead Adventurer",
-            dead_adventurer_event(25).options,
+            vec![supported(
+                "Initialize Dead Adventurer",
+                vec![EventProgramOp::nothing()],
+                EventEffect::Nothing,
+            )],
         ),
         event(
             "Golden Wing",
@@ -262,7 +290,7 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
                     "Feed (take 7 dmg, remove a card)",
                     vec![
                         EventProgramOp::damage_and_gold(-7, 0),
-                        EventProgramOp::remove_card(1),
+                        EventProgramOp::deck_selection("deck_selection_event_remove"),
                     ],
                     EventEffect::RemoveCard,
                 ),
@@ -301,24 +329,8 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
             vec![
                 supported(
                     "Stomp (fight, gain Odd Mushroom relic)",
-                    vec![
-                        EventProgramOp::combat_branch(
-                            ["FungiBeast", "FungiBeast", "FungiBeast"],
-                            vec![
-                                // Mushrooms.java rolls inclusive 20..30 gold
-                                // after the fight, then rewards Odd Mushroom or
-                                // Circlet when the special relic is already owned.
-                                // Java: decompiled/java-src/com/megacrit/cardcrawl/events/exordium/Mushrooms.java
-                                EventProgramOp::random_outcome_table(
-                                    (20..=30)
-                                        .map(|gold| vec![EventProgramOp::gold(gold)])
-                                        .collect(),
-                                ),
-                                EventProgramOp::gain_unique_relic_or_circlet("Odd Mushroom"),
-                            ],
-                        ),
-                    ],
-                    EventEffect::GainRelic,
+                    vec![EventProgramOp::continue_event(mushrooms_fight_event())],
+                    EventEffect::Nothing,
                 ),
                 supported(
                     "Eat (heal 25% max HP, gain Parasite curse)",

@@ -1,7 +1,7 @@
-//! Combat state types — mirrors packages/engine/state/combat.py.
+//! Canonical combat state types for the Rust simulator.
 //!
-//! Design: all state is owned, Clone for MCTS tree copies. Statuses use a flat
-//! fixed array indexed by StatusId for O(1) access and fast cloning.
+//! Design: all state is owned and cloneable for deterministic branching.
+//! Statuses use a flat fixed array indexed by StatusId for O(1) access.
 
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -107,7 +107,7 @@ impl EntityState {
         }
     }
 
-    // -- Convenience accessors (match Python properties) --
+    // -- Convenience accessors --
 
     pub fn strength(&self) -> i32 {
         self.statuses[sid::STRENGTH.0 as usize]

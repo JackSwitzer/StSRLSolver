@@ -78,10 +78,6 @@ fn execute_one(engine: &mut CombatEngine, ctx: &mut CardPlayContext, effect: &Ef
             execute_discover(engine, ctx, card_names);
         }
 
-        Effect::ChooseNamedOptions(option_names) => {
-            execute_choose_named_options(engine, option_names);
-        }
-
         Effect::ChooseScaledNamedOptions(option_specs) => {
             execute_choose_scaled_named_options(engine, ctx, option_specs);
         }
@@ -1943,7 +1939,7 @@ fn choice_reason_for_action(action: ChoiceAction, source: Pile) -> ChoiceReason 
         },
         ChoiceAction::PlayForFree => match source {
             Pile::Draw => ChoiceReason::PlayCardFreeFromDraw,
-            _ => ChoiceReason::PlayCardFree,
+            _ => panic!("PlayForFree is only valid for the draw pile"),
         },
         ChoiceAction::Upgrade => ChoiceReason::UpgradeCard,
         ChoiceAction::CopyToHand => ChoiceReason::DualWield,
@@ -2283,19 +2279,6 @@ fn execute_discover(
     if !options.is_empty() {
         engine.begin_choice(ChoiceReason::DiscoverCard, options, 1, 1);
     }
-}
-
-fn execute_choose_named_options(engine: &mut CombatEngine, option_names: &[&'static str]) {
-    if option_names.is_empty() {
-        return;
-    }
-    let options = option_names
-        .iter()
-        .copied()
-        .map(str::to_string)
-        .map(crate::engine::ChoiceOption::Named)
-        .collect();
-    engine.begin_choice(ChoiceReason::PickOption, options, 1, 1);
 }
 
 fn execute_choose_scaled_named_options(

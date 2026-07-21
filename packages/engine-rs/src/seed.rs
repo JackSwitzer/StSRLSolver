@@ -134,9 +134,37 @@ impl AmbientMathRng {
         self.inner = RandomXs128::from_state(seed0, seed1);
     }
 
+    /// Match libGDX `MathUtils.random(long range)` for the positive ranges used
+    /// by the game. Unlike `RandomXS128.nextLong(long)`, this uses `nextDouble`.
+    #[allow(dead_code)] // Required by the source-complete MathUtils oracle surface.
+    fn random_long(&mut self, max_exclusive: i64) -> i64 {
+        (self.inner.next_f64() * max_exclusive as f64) as i64
+    }
+
+    /// Match the signed result of libGDX `RandomXS128.nextLong()`.
+    #[allow(dead_code)] // Required by the source-complete MathUtils oracle surface.
+    pub(crate) fn random_long_unbounded(&mut self) -> i64 {
+        self.inner.next_long() as i64
+    }
+
     /// Match libGDX `MathUtils.random(int range)`: both endpoints are inclusive.
     pub(crate) fn random_int(&mut self, max_inclusive: i32) -> i32 {
         self.inner.next_int(max_inclusive.wrapping_add(1))
+    }
+
+    /// Match libGDX `MathUtils.randomBoolean()`.
+    pub(crate) fn random_bool(&mut self) -> bool {
+        self.inner.next_bool()
+    }
+
+    /// Match libGDX `MathUtils.random()`.
+    pub(crate) fn random_f32(&mut self) -> f32 {
+        self.inner.next_f32()
+    }
+
+    /// Match libGDX `MathUtils.random(float start, float end)`.
+    pub(crate) fn random_f32_range(&mut self, start: f32, end: f32) -> f32 {
+        start + self.inner.next_f32() * (end - start)
     }
 }
 
@@ -200,8 +228,9 @@ impl FloorRngs {
 
     #[cfg(test)]
     pub(crate) fn combat_snapshot(&self, persistent: &PersistentRngs) -> CombatRngs {
-        self.combat_snapshot_with_collections(
+        self.combat_snapshot_with_globals(
             persistent,
+            AmbientMathRng::new(0),
             JavaCollectionsRng::deterministic_default(),
         )
     }
@@ -209,9 +238,10 @@ impl FloorRngs {
     /// Transfer the process-global Collections RNG into combat alongside the
     /// dungeon streams. `RunEngine` owns this ambient LCG and must use this path
     /// rather than reconstructing the deterministic test default per combat.
-    pub(crate) fn combat_snapshot_with_collections(
+    pub(crate) fn combat_snapshot_with_globals(
         &self,
         persistent: &PersistentRngs,
+        ambient_math: AmbientMathRng,
         java_collections: JavaCollectionsRng,
     ) -> CombatRngs {
         CombatRngs {
@@ -222,6 +252,7 @@ impl FloorRngs {
             potion: persistent.potion.clone(),
             misc: self.misc.clone(),
             ai: self.ai.clone(),
+            ambient_math,
             java_collections,
         }
     }
@@ -237,6 +268,7 @@ pub(crate) struct CombatRngs {
     pub potion: StsRandom,
     pub misc: StsRandom,
     pub ai: StsRandom,
+    pub ambient_math: AmbientMathRng,
     pub java_collections: JavaCollectionsRng,
 }
 
@@ -248,7 +280,7 @@ impl CombatRngs {
         self,
         persistent: &mut PersistentRngs,
         floor: &mut FloorRngs,
-    ) -> JavaCollectionsRng {
+    ) -> (AmbientMathRng, JavaCollectionsRng) {
         persistent.card = self.card;
         persistent.potion = self.potion;
         floor.monster_hp = self.monster_hp;
@@ -256,7 +288,7 @@ impl CombatRngs {
         floor.card_random = self.card_random;
         floor.misc = self.misc;
         floor.ai = self.ai;
-        self.java_collections
+        (self.ambient_math, self.java_collections)
     }
 }
 
@@ -266,6 +298,18 @@ impl StsRandom {
             inner: RandomXs128::new(seed),
             counter: 0,
         }
+    }
+
+    /// Model Java's no-argument `Random()` constructor, including its two
+    /// process-global `MathUtils.random` draws in Java's left-to-right order.
+    ///
+    /// Source: decompiled/java-src/com/megacrit/cardcrawl/random/Random.java:22-24
+    /// and the shipped libGDX `MathUtils.random(long/int)` overloads.
+    #[allow(dead_code)] // Java API parity; no faithful live call site currently constructs this way.
+    fn from_ambient(ambient: &mut AmbientMathRng) -> Self {
+        let seed = ambient.random_long(9_999);
+        let counter = ambient.random_int(99);
+        Self::with_counter(seed as u64, counter)
     }
 
     /// Java's `Random(Long seed, int counter)` constructor advances by calling
@@ -290,11 +334,16 @@ impl StsRandom {
         (seed0, seed1, self.counter)
     }
 
-    pub fn copy(&self) -> Self {
-        // Random.copy() constructs and then overwrites a temporary wrapper.
-        // No game code calls it, and its incidental global MathUtils.random
-        // consumption is not part of the copied stream's observable state.
-        self.clone()
+    /// Match Java `Random.copy()`: constructing the temporary copy consumes
+    /// two ambient draws before its local state and counter are overwritten.
+    ///
+    /// Source: decompiled/java-src/com/megacrit/cardcrawl/random/Random.java:37-41.
+    #[allow(dead_code)] // Java API parity; retained for fixtures and future exact copy call sites.
+    pub(crate) fn copy(&self, ambient: &mut AmbientMathRng) -> Self {
+        let mut copied = Self::from_ambient(ambient);
+        copied.inner = self.inner.clone();
+        copied.counter = self.counter;
+        copied
     }
 
     /// Match Java `Random.random(int range)`: both endpoints are inclusive.
@@ -599,12 +648,12 @@ mod tests {
     }
 
     #[test]
-    fn sts_random_copy() {
+    fn sts_random_clone_preserves_stream_state() {
         let mut rng = StsRandom::new(42);
         for _ in 0..10 {
             rng.random_long_unbounded();
         }
-        let mut copy = rng.copy();
+        let mut copy = rng.clone();
         for _ in 0..100 {
             assert_eq!(rng.random_long_unbounded(), copy.random_long_unbounded());
         }
@@ -691,12 +740,15 @@ mod tests {
         let mut persistent = PersistentRngs::new(42);
         let mut floor = FloorRngs::new(43);
         let injected = JavaCollectionsRng::from_state(0x1234_5678_9ABC);
+        let ambient = AmbientMathRng::from_state(0x1111, 0x2222);
 
-        let combat = floor.combat_snapshot_with_collections(&persistent, injected);
+        let combat = floor.combat_snapshot_with_globals(&persistent, ambient, injected);
         assert_eq!(combat.java_collections.state(), 0x1234_5678_9ABC);
+        assert_eq!(combat.ambient_math.state_tuple(), (0x1111, 0x2222));
 
-        let returned = combat.absorb_into(&mut persistent, &mut floor);
-        assert_eq!(returned.state(), 0x1234_5678_9ABC);
+        let (ambient, collections) = combat.absorb_into(&mut persistent, &mut floor);
+        assert_eq!(ambient.state_tuple(), (0x1111, 0x2222));
+        assert_eq!(collections.state(), 0x1234_5678_9ABC);
     }
 
     #[test]
@@ -839,11 +891,23 @@ mod tests {
             rng.state_tuple(),
             (0x8f78_0810_af31_a493, 0xd1f9_a22a_f8e8_3383)
         );
-        assert_eq!(rng.inner.next_long() as i64, 2_940_871_956_904_845_945);
+        assert_eq!(rng.random_long_unbounded(), 2_940_871_956_904_845_945);
         assert_eq!(
             rng.state_tuple(),
             (0xd1f9_a22a_f8e8_3383, 0x56d6_714b_a850_6ef6)
         );
+    }
+
+    #[test]
+    fn ambient_math_rng_unbounded_long_preserves_libgdx_signed_result() {
+        // Oracle: shipped libGDX 1.9.5 RandomXS128.nextLong().
+        let cases = [
+            (42, 3_553_440_125_194_606_449_i64),
+            (u64::MAX, -7_651_268_203_606_709_133_i64),
+        ];
+        for (seed, expected) in cases {
+            assert_eq!(AmbientMathRng::new(seed).random_long_unbounded(), expected);
+        }
     }
 
     #[test]
@@ -868,6 +932,45 @@ mod tests {
         restored.restore_state(initial.0, initial.1);
         assert_eq!(restored, original);
         assert_eq!(restored.random_int(9), 2);
+    }
+
+    #[test]
+    fn no_arg_sts_random_consumes_ambient_seed_then_counter() {
+        // Oracle: Random.java:22-24. With shipped MathUtils/RandomXS128 seeded
+        // to 42, random(long 9999) returns 1926 before random(int 99) returns 41.
+        let mut ambient = AmbientMathRng::new(42);
+        let constructed = StsRandom::from_ambient(&mut ambient);
+
+        assert_eq!(
+            constructed.state_tuple(),
+            (0xacc1_a75d_2515_14a3, 0x42fa_4c3f_20af_7e63, 41),
+        );
+        assert_eq!(
+            ambient.state_tuple(),
+            (0x0042_8d49_06e5_8ed6, 0xe60f_ca85_4041_3235),
+        );
+    }
+
+    #[test]
+    fn sts_random_copy_consumes_ambient_constructor_draws_before_overwrite() {
+        // Oracle: Random.java:37-41 constructs `new Random()` first, then
+        // replaces that temporary's RandomXS128 state and wrapper counter.
+        let mut source = StsRandom::new(73);
+        source.random_int(999);
+        source.random_bool();
+        assert_eq!(
+            source.state_tuple(),
+            (0xe119_9a87_b502_5022, 0xe038_c969_1899_ff69, 2),
+        );
+
+        let mut ambient = AmbientMathRng::new(42);
+        let copied = source.copy(&mut ambient);
+
+        assert_eq!(copied, source);
+        assert_eq!(
+            ambient.state_tuple(),
+            (0x0042_8d49_06e5_8ed6, 0xe60f_ca85_4041_3235),
+        );
     }
 
     #[test]
@@ -1072,6 +1175,59 @@ mod tests {
         let mut random = JavaUtilRandom::new(0);
         assert_eq!(random.next_int(1_073_741_825), 516_548_029);
         assert_eq!(random.next_i32(), -1_690_734_402);
+    }
+
+    #[test]
+    fn java_util_random_seed_boundaries_and_state_restore_match_jdk8() {
+        // Oracle: JDK 8 java.util.Random.setSeed/next and the JRE bundled with
+        // Slay the Spire. Constructor seeding keeps only the low 48 bits.
+        let cases = [
+            (
+                0_i64,
+                0x0005_deec_e66d,
+                -1_155_484_576,
+                0xbb20_b460_0a74,
+                -723_955_400,
+            ),
+            (
+                42_i64,
+                0x0005_deec_e647,
+                -1_170_105_035,
+                0xba41_9d35_d646,
+                234_785_527,
+            ),
+            (
+                -42_i64,
+                0xfffa_2113_19bb,
+                1_170_874_531,
+                0x45ca_20a3_f6aa,
+                1_757_677_092,
+            ),
+            (
+                i64::MIN,
+                0x0005_deec_e66d,
+                -1_155_484_576,
+                0xbb20_b460_0a74,
+                -723_955_400,
+            ),
+            (
+                i64::MAX,
+                0xfffa_2113_1992,
+                1_155_099_827,
+                0x44d9_6cb3_0f35,
+                1_887_904_451,
+            ),
+        ];
+
+        for (seed, initial_state, first, state_after_first, second) in cases {
+            let mut random = JavaUtilRandom::new(seed);
+            assert_eq!(random.internal_state(), initial_state, "seed {seed}");
+            assert_eq!(random.next_i32(), first, "seed {seed}");
+            assert_eq!(random.internal_state(), state_after_first, "seed {seed}");
+
+            let mut restored = JavaUtilRandom::from_internal_state(state_after_first);
+            assert_eq!(restored.next_i32(), second, "restored seed {seed}");
+        }
     }
 
     #[test]

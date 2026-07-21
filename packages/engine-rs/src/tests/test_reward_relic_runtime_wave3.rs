@@ -151,7 +151,10 @@ fn holy_water_is_offered_only_with_pure_water_and_replaces_it_when_chosen() {
     for seed in 0..16 {
         let mut engine = RunEngine::new(seed, 0);
         engine.run_state.relics.clear();
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_boss_reward_screen();
         assert!(engine.current_reward_screen().is_some_and(|screen| {
             screen.items[0]
@@ -210,44 +213,64 @@ fn sozu_is_boss_reachable_grants_energy_and_blocks_obtaining_not_reward_generati
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_boss_reward_screen();
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items[0].choices.iter().any(|choice| {
-                matches!(choice, RewardChoice::Named { label, .. } if label == "Sozu")
-            })
+            screen.items[0].choices.iter().any(
+                |choice| matches!(choice, RewardChoice::Named { label, .. } if label == "Sozu"),
+            )
         })
     }));
 
     let mut engine = RunEngine::new(1401, 0);
     engine.debug_set_reward_screen(relic_choice_reward_screen(&["Sozu"]));
-    assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
-    assert!(engine.step_game(&GameAction::ChooseRewardOption {
-        item_index: 0,
-        choice_index: 0,
-    }).accepted());
+    assert!(engine
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
+    assert!(engine
+        .step_game(&GameAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .accepted());
     engine.debug_enter_specific_combat(&["JawWorm"]);
     let combat = engine.get_combat_engine().expect("Sozu combat");
     assert_eq!((combat.state.max_energy, combat.state.energy), (4, 4));
 
-    engine.run_state.relics.push("White Beast Statue".to_string());
-    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine
+        .run_state
+        .relics
+        .push("White Beast Statue".to_string());
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
     engine.debug_build_combat_reward_screen(RoomType::Monster);
-    let potion_index = engine.current_reward_screen().expect("rewards").items.iter()
+    let potion_index = engine
+        .current_reward_screen()
+        .expect("rewards")
+        .items
+        .iter()
         .position(|item| item.kind == RewardItemKind::Potion)
         .expect("Sozu must not suppress potion generation");
     let potions_before = engine.run_state.potions.clone();
-    assert!(engine.step_game(&GameAction::SelectRewardItem(potion_index)).accepted());
+    assert!(engine
+        .step_game(&GameAction::SelectRewardItem(potion_index))
+        .accepted());
     assert_eq!(engine.run_state.potions, potions_before);
 
     engine.run_state.gold = 10_000;
     engine.debug_enter_shop();
     assert_eq!(engine.get_shop().expect("shop").potions.len(), 3);
-    assert!(engine.get_legal_actions().iter()
+    assert!(engine
+        .get_legal_actions()
+        .iter()
         .all(|action| !matches!(action, GameAction::ShopBuyPotion(_))));
 }
 
 #[test]
 fn pandoras_box_is_reachable_from_the_watcher_boss_relic_pool() {
     // PandorasBox.java constructs canonical ID "Pandora's Box" at BOSS tier.
-    assert!(crate::gameplay::global_registry().relic("Pandora's Box").is_some());
+    assert!(crate::gameplay::global_registry()
+        .relic("Pandora's Box")
+        .is_some());
     assert!((0..128).any(|seed| {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_boss_reward_screen();
@@ -262,7 +285,9 @@ fn pandoras_box_is_reachable_from_the_watcher_boss_relic_pool() {
 #[test]
 fn slavers_collar_is_reachable_from_the_watcher_boss_relic_pool() {
     // SlaversCollar.java constructs canonical ID SlaversCollar at BOSS tier.
-    assert!(crate::gameplay::global_registry().relic("SlaversCollar").is_some());
+    assert!(crate::gameplay::global_registry()
+        .relic("SlaversCollar")
+        .is_some());
     assert!((0..128).any(|seed| {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_boss_reward_screen();
@@ -282,17 +307,35 @@ fn neows_lament_choice_initializes_three_persistent_one_hp_combats() {
     // Java: decompiled/java-src/com/megacrit/cardcrawl/neow/NeowReward.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/NeowsLament.java
     let mut engine = RunEngine::new(4, 0);
-    let option = engine.current_decision_context().neow.expect("Neow").options
-        .iter().find(|option| option.label.contains("next three combats"))
-        .expect("Neow's Lament option").index;
-    assert!(engine.step_game(&GameAction::ChooseNeowOption(option)).accepted());
-    assert!(engine.run_state.relics.contains(&"NeowsBlessing".to_string()));
-    assert_eq!(engine.run_state.relic_flags.counters[crate::relic_flags::counter::NEOWS_LAMENT], 3);
+    assert!(engine.step_game(&GameAction::Proceed).accepted());
+    let option = engine
+        .current_decision_context()
+        .neow
+        .expect("Neow")
+        .options
+        .iter()
+        .find(|option| option.label.contains("next three combats"))
+        .expect("Neow's Lament option")
+        .index;
+    assert!(engine
+        .step_game(&GameAction::ChooseNeowOption(option))
+        .accepted());
+    assert!(engine
+        .run_state
+        .relics
+        .contains(&"NeowsBlessing".to_string()));
+    assert_eq!(
+        engine.run_state.relic_flags.counters[crate::relic_flags::counter::NEOWS_LAMENT],
+        3
+    );
 
     engine.debug_enter_specific_combat(&["JawWorm"]);
     let combat = engine.get_combat_engine().expect("lament combat");
     assert_eq!(combat.state.enemies[0].entity.hp, 1);
-    assert_eq!(combat.state.relic_counters[crate::relic_flags::counter::NEOWS_LAMENT], 2);
+    assert_eq!(
+        combat.state.relic_counters[crate::relic_flags::counter::NEOWS_LAMENT],
+        2
+    );
 }
 
 #[test]
@@ -353,7 +396,10 @@ fn runic_dome_grants_energy_and_hides_intents_from_the_rl_surface() {
 
     // RunicDome.java::onUnequip decrements energyMaster. RunEngine derives the
     // next combat's master energy from current ownership, so removal restores 3.
-    engine.run_state.relics.retain(|relic| relic != "Runic Dome");
+    engine
+        .run_state
+        .relics
+        .retain(|relic| relic != "Runic Dome");
     engine
         .run_state
         .relic_flags
@@ -543,7 +589,10 @@ fn busted_crown_is_reachable_and_subtracts_two_card_reward_choices() {
     assert_eq!(choices, 1);
 
     engine.run_state.relics.push("Question Card".to_string());
-    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
     engine.debug_build_combat_reward_screen(RoomType::Monster);
     let choices = engine
         .current_reward_screen()
@@ -590,12 +639,16 @@ fn coffee_dripper_is_reachable_and_disables_only_campfire_rest() {
         .has(crate::relic_flags::flag::COFFEE_DRIPPER));
 
     engine.debug_set_campfire_phase();
-    assert!(!engine.get_legal_actions().contains(&GameAction::CampfireRest));
     assert!(!engine
-        .current_decision_context()
-        .campfire
-        .expect("campfire context")
-        .can_rest);
+        .get_legal_actions()
+        .contains(&GameAction::CampfireRest));
+    assert!(
+        !engine
+            .current_decision_context()
+            .campfire
+            .expect("campfire context")
+            .can_rest
+    );
     assert!(engine
         .get_legal_actions()
         .iter()
@@ -662,16 +715,14 @@ fn cursed_key_is_reachable_and_nonboss_chests_obtain_one_random_curse() {
         .run_state
         .relic_flags
         .rebuild(&protected.run_state.relics);
-    protected.run_state.relic_flags.counters
-        [crate::relic_flags::counter::OMAMORI_USES] = 1;
+    protected.run_state.relic_flags.counters[crate::relic_flags::counter::OMAMORI_USES] = 1;
     let deck_before = protected.run_state.deck.len();
     let gold_before = protected.run_state.gold;
     protected.debug_build_treasure_reward_screen();
     assert_eq!(protected.run_state.deck.len(), deck_before);
     assert_eq!(protected.run_state.gold, gold_before);
     assert_eq!(
-        protected.run_state.relic_flags.counters
-            [crate::relic_flags::counter::OMAMORI_USES],
+        protected.run_state.relic_flags.counters[crate::relic_flags::counter::OMAMORI_USES],
         0
     );
 }
@@ -681,15 +732,18 @@ fn omamori_is_reachable_through_floor_forty_eight_and_blocks_exactly_two_curses(
     // Sources: Omamori.java constructs a COMMON relic with counter 2 and
     // excludes non-endless floors after 48. ShowCardAndObtainEffect.java calls
     // Omamori.use only for CURSE cards while the counter is nonzero.
-    assert!(crate::gameplay::global_registry().relic("Omamori").is_some());
+    assert!(crate::gameplay::global_registry()
+        .relic("Omamori")
+        .is_some());
     let offered = (0..2048).any(|seed| {
         let mut engine = RunEngine::new(seed, 0);
         engine.run_state.floor = 48;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Omamori"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Omamori")
         })
     });
     assert!(offered);
@@ -698,9 +752,9 @@ fn omamori_is_reachable_through_floor_forty_eight_and_blocks_exactly_two_curses(
         let mut engine = RunEngine::new(seed, 0);
         engine.run_state.floor = 49;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Omamori")
-        }));
+        assert!(engine
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "Omamori") }));
     }
 
     let mut engine = RunEngine::new(42, 0);
@@ -709,8 +763,7 @@ fn omamori_is_reachable_through_floor_forty_eight_and_blocks_exactly_two_curses(
         .step_game(&GameAction::SelectRewardItem(0))
         .accepted());
     assert_eq!(
-        engine.run_state.relic_flags.counters
-            [crate::relic_flags::counter::OMAMORI_USES],
+        engine.run_state.relic_flags.counters[crate::relic_flags::counter::OMAMORI_USES],
         2
     );
 
@@ -733,8 +786,7 @@ fn omamori_is_reachable_through_floor_forty_eight_and_blocks_exactly_two_curses(
             .accepted());
         assert_eq!(engine.run_state.deck.len(), expected_deck_size);
         assert_eq!(
-            engine.run_state.relic_flags.counters
-                [crate::relic_flags::counter::OMAMORI_USES],
+            engine.run_state.relic_flags.counters[crate::relic_flags::counter::OMAMORI_USES],
             expected_uses
         );
     }
@@ -750,9 +802,10 @@ fn darkstone_periapt_is_reachable_and_an_obtained_curse_grants_six_max_hp() {
         engine.run_state.floor = 48;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Darkstone Periapt"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Darkstone Periapt")
         })
     });
     assert!(offered);
@@ -762,13 +815,22 @@ fn darkstone_periapt_is_reachable_and_an_obtained_curse_grants_six_max_hp() {
         engine.run_state.floor = 49;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Darkstone Periapt")
+            screen
+                .items
+                .iter()
+                .all(|item| item.label != "Darkstone Periapt")
         }));
     }
 
     let mut engine = RunEngine::new(47, 0);
-    engine.run_state.relics.push("Darkstone Periapt".to_string());
-    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine
+        .run_state
+        .relics
+        .push("Darkstone Periapt".to_string());
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
     engine.run_state.current_hp = 40;
     engine.debug_set_card_reward_screen(vec!["Regret".to_string()]);
     assert!(engine
@@ -782,19 +844,21 @@ fn darkstone_periapt_is_reachable_and_an_obtained_curse_grants_six_max_hp() {
         .accepted());
     assert_eq!(engine.run_state.max_hp, 78);
     assert_eq!(engine.run_state.current_hp, 46);
-    assert_eq!(engine.run_state.deck.last().map(String::as_str), Some("Regret"));
+    assert_eq!(
+        engine.run_state.deck.last().map(String::as_str),
+        Some("Regret")
+    );
 
     let mut protected = RunEngine::new(49, 0);
-    protected.run_state.relics.extend([
-        "Darkstone Periapt".to_string(),
-        "Omamori".to_string(),
-    ]);
+    protected
+        .run_state
+        .relics
+        .extend(["Darkstone Periapt".to_string(), "Omamori".to_string()]);
     protected
         .run_state
         .relic_flags
         .rebuild(&protected.run_state.relics);
-    protected.run_state.relic_flags.counters
-        [crate::relic_flags::counter::OMAMORI_USES] = 1;
+    protected.run_state.relic_flags.counters[crate::relic_flags::counter::OMAMORI_USES] = 1;
     protected.debug_set_card_reward_screen(vec!["Regret".to_string()]);
     assert!(protected
         .step_game(&GameAction::SelectRewardItem(0))
@@ -818,9 +882,10 @@ fn dream_catcher_is_reachable_and_opens_a_card_reward_only_after_resting() {
         engine.run_state.floor = 48;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Dream Catcher"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Dream Catcher")
         })
     });
     assert!(offered);
@@ -830,7 +895,10 @@ fn dream_catcher_is_reachable_and_opens_a_card_reward_only_after_resting() {
         engine.run_state.floor = 49;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Dream Catcher")
+            screen
+                .items
+                .iter()
+                .all(|item| item.label != "Dream Catcher")
         }));
     }
 
@@ -838,9 +906,7 @@ fn dream_catcher_is_reachable_and_opens_a_card_reward_only_after_resting() {
     rest.run_state.relics.push("Dream Catcher".to_string());
     rest.run_state.relic_flags.rebuild(&rest.run_state.relics);
     rest.debug_set_campfire_phase();
-    assert!(rest
-        .step_game(&GameAction::CampfireRest)
-        .accepted());
+    assert!(rest.step_game(&GameAction::CampfireRest).accepted());
     assert_eq!(rest.current_phase(), RunPhase::CardReward);
     let screen = rest.current_reward_screen().expect("Dream Catcher reward");
     assert_eq!(screen.items.len(), 1);
@@ -915,9 +981,7 @@ fn ectoplasm_is_act_one_only_blocks_gold_gains_and_still_allows_spending() {
         remove_price: 75,
         removal_used: false,
     });
-    assert!(engine
-        .step_game(&GameAction::ShopBuyCard(0))
-        .accepted());
+    assert!(engine.step_game(&GameAction::ShopBuyCard(0)).accepted());
     assert_eq!(engine.run_state.gold, 60);
 }
 
@@ -929,9 +993,10 @@ fn du_vu_doll_is_reachable_from_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Du-Vu Doll"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Du-Vu Doll")
         })
     });
     assert!(offered);
@@ -945,24 +1010,26 @@ fn eternal_feather_is_reachable_and_heals_on_rest_room_entry_before_choice() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Eternal Feather"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Eternal Feather")
         })
     });
     assert!(offered);
 
     let mut engine = RunEngine::new(67, 0);
     engine.run_state.relics.push("Eternal Feather".to_string());
-    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
     engine.run_state.deck = vec!["Strike".to_string(); 14];
     engine.run_state.current_hp = 40;
 
     engine.debug_set_campfire_phase();
     assert_eq!(engine.run_state.current_hp, 46);
-    assert!(engine
-        .step_game(&GameAction::CampfireUpgrade(0))
-        .accepted());
+    assert!(engine.step_game(&GameAction::CampfireUpgrade(0)).accepted());
     assert_eq!(engine.run_state.current_hp, 46);
 }
 
@@ -994,7 +1061,9 @@ fn fusion_hammer_is_reachable_and_disables_only_campfire_upgrades() {
         .accepted());
 
     engine.debug_set_campfire_phase();
-    assert!(engine.get_legal_actions().contains(&GameAction::CampfireRest));
+    assert!(engine
+        .get_legal_actions()
+        .contains(&GameAction::CampfireRest));
     assert!(!engine
         .get_legal_actions()
         .iter()
@@ -1015,9 +1084,10 @@ fn ginger_is_reachable_from_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Ginger"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Ginger")
         })
     });
     assert!(offered);
@@ -1031,9 +1101,10 @@ fn fossilized_helix_is_reachable_under_its_canonical_java_id() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "FossilizedHelix"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "FossilizedHelix")
         })
     });
     assert!(offered);
@@ -1050,9 +1121,10 @@ fn egg_relics_use_canonical_ids_floor_cutoffs_and_upgrade_all_obtain_paths() {
             engine.run_state.floor = 48;
             engine.debug_build_combat_reward_screen(RoomType::Elite);
             engine.current_reward_screen().is_some_and(|screen| {
-                screen.items.iter().any(|item| {
-                    item.kind == RewardItemKind::Relic && item.label == relic_id
-                })
+                screen
+                    .items
+                    .iter()
+                    .any(|item| item.kind == RewardItemKind::Relic && item.label == relic_id)
             })
         });
         assert!(offered, "{relic_id} should be reachable through floor 48");
@@ -1061,9 +1133,9 @@ fn egg_relics_use_canonical_ids_floor_cutoffs_and_upgrade_all_obtain_paths() {
             let mut engine = RunEngine::new(seed, 0);
             engine.run_state.floor = 49;
             engine.debug_build_combat_reward_screen(RoomType::Elite);
-            assert!(engine.current_reward_screen().is_some_and(|screen| {
-                screen.items.iter().all(|item| item.label != relic_id)
-            }));
+            assert!(engine
+                .current_reward_screen()
+                .is_some_and(|screen| { screen.items.iter().all(|item| item.label != relic_id) }));
         }
     }
 
@@ -1074,7 +1146,10 @@ fn egg_relics_use_canonical_ids_floor_cutoffs_and_upgrade_all_obtain_paths() {
     ] {
         let mut engine = RunEngine::new(73, 0);
         engine.run_state.relics.push(relic_id.to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.run_state.gold = 100;
         engine.debug_set_shop_state(ShopState {
             cards: vec![(card_id.to_string(), 40)],
@@ -1083,9 +1158,7 @@ fn egg_relics_use_canonical_ids_floor_cutoffs_and_upgrade_all_obtain_paths() {
             remove_price: 75,
             removal_used: false,
         });
-        assert!(engine
-            .step_game(&GameAction::ShopBuyCard(0))
-            .accepted());
+        assert!(engine.step_game(&GameAction::ShopBuyCard(0)).accepted());
         assert_eq!(
             engine.run_state.deck.last().map(String::as_str),
             Some(upgraded_id)
@@ -1119,9 +1192,10 @@ fn ice_cream_is_reachable_from_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Ice Cream"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Ice Cream")
         })
     });
     assert!(offered);
@@ -1133,32 +1207,56 @@ fn horn_cleat_is_watcher_reachable_and_grants_fourteen_block_only_on_turn_two() 
     // at battle start, increments it at each turn start, and grants exactly 14
     // Block when the counter reaches two before disabling itself for combat.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/HornCleat.java
-    let seed = (0..2048).find(|seed| {
-        let mut engine = RunEngine::new(*seed, 0);
-        engine.debug_build_combat_reward_screen(RoomType::Elite);
-        engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| item.label == "HornCleat")
+    let seed = (0..2048)
+        .find(|seed| {
+            let mut engine = RunEngine::new(*seed, 0);
+            engine.debug_build_combat_reward_screen(RoomType::Elite);
+            engine
+                .current_reward_screen()
+                .is_some_and(|screen| screen.items.iter().any(|item| item.label == "HornCleat"))
         })
-    }).expect("HornCleat reward seed");
+        .expect("HornCleat reward seed");
 
     let mut engine = RunEngine::new(seed, 0);
     engine.debug_build_combat_reward_screen(RoomType::Elite);
-    let relic_index = engine.current_reward_screen().expect("elite rewards").items.iter()
+    let relic_index = engine
+        .current_reward_screen()
+        .expect("elite rewards")
+        .items
+        .iter()
         .position(|item| item.label == "HornCleat")
         .expect("HornCleat reward");
-    assert!(engine.step_game(&GameAction::SelectRewardItem(relic_index)).accepted());
-    assert!(engine.run_state.relics.iter().any(|relic| relic == "HornCleat"));
+    assert!(engine
+        .step_game(&GameAction::SelectRewardItem(relic_index))
+        .accepted());
+    assert!(engine
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == "HornCleat"));
 
     engine.debug_enter_specific_combat(&["JawWorm"]);
     let combat = engine.debug_combat_engine_mut();
     assert_eq!(combat.state.turn, 1);
-    assert_eq!(combat.hidden_effect_value(
-        "HornCleat", crate::effects::runtime::EffectOwner::PlayerRelic { slot: 1 }, 0), 1);
+    assert_eq!(
+        combat.hidden_effect_value(
+            "HornCleat",
+            crate::effects::runtime::EffectOwner::PlayerRelic { slot: 1 },
+            0
+        ),
+        1
+    );
     combat.execute_action(&Action::EndTurn);
     assert_eq!(combat.state.turn, 2);
     assert_eq!(combat.state.player.block, 14);
-    assert_eq!(combat.hidden_effect_value(
-        "HornCleat", crate::effects::runtime::EffectOwner::PlayerRelic { slot: 1 }, 0), -1);
+    assert_eq!(
+        combat.hidden_effect_value(
+            "HornCleat",
+            crate::effects::runtime::EffectOwner::PlayerRelic { slot: 1 },
+            0
+        ),
+        -1
+    );
     combat.execute_action(&Action::EndTurn);
     assert_eq!(combat.state.turn, 3);
     assert_eq!(combat.state.player.block, 0);
@@ -1170,20 +1268,28 @@ fn gremlin_horn_is_watcher_reachable_and_suppresses_the_final_enemy_proc() {
     // queues one Energy then one draw only when another monster is not
     // basically dead; killing the final enemy must not grant either effect.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/GremlinHorn.java
-    let seed = (0..2048).find(|seed| {
-        let mut engine = RunEngine::new(*seed, 0);
-        engine.debug_build_combat_reward_screen(RoomType::Elite);
-        engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| item.label == "Gremlin Horn")
+    let seed = (0..2048)
+        .find(|seed| {
+            let mut engine = RunEngine::new(*seed, 0);
+            engine.debug_build_combat_reward_screen(RoomType::Elite);
+            engine
+                .current_reward_screen()
+                .is_some_and(|screen| screen.items.iter().any(|item| item.label == "Gremlin Horn"))
         })
-    }).expect("Gremlin Horn reward seed");
+        .expect("Gremlin Horn reward seed");
 
     let mut engine = RunEngine::new(seed, 0);
     engine.debug_build_combat_reward_screen(RoomType::Elite);
-    let relic_index = engine.current_reward_screen().expect("elite rewards").items.iter()
+    let relic_index = engine
+        .current_reward_screen()
+        .expect("elite rewards")
+        .items
+        .iter()
         .position(|item| item.label == "Gremlin Horn")
         .expect("Gremlin Horn reward");
-    assert!(engine.step_game(&GameAction::SelectRewardItem(relic_index)).accepted());
+    assert!(engine
+        .step_game(&GameAction::SelectRewardItem(relic_index))
+        .accepted());
     engine.debug_enter_specific_combat(&["JawWorm", "Cultist"]);
 
     let combat = engine.debug_combat_engine_mut();
@@ -1210,20 +1316,28 @@ fn dead_branch_is_watcher_reachable_and_generates_on_nonterminal_exhausts() {
     // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/DeadBranch.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
-    let seed = (0..4096).find(|seed| {
-        let mut engine = RunEngine::new(*seed, 0);
-        engine.debug_build_combat_reward_screen(RoomType::Elite);
-        engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| item.label == "Dead Branch")
+    let seed = (0..4096)
+        .find(|seed| {
+            let mut engine = RunEngine::new(*seed, 0);
+            engine.debug_build_combat_reward_screen(RoomType::Elite);
+            engine
+                .current_reward_screen()
+                .is_some_and(|screen| screen.items.iter().any(|item| item.label == "Dead Branch"))
         })
-    }).expect("Dead Branch reward seed");
+        .expect("Dead Branch reward seed");
 
     let mut engine = RunEngine::new(seed, 0);
     engine.debug_build_combat_reward_screen(RoomType::Elite);
-    let relic_index = engine.current_reward_screen().expect("elite rewards").items.iter()
+    let relic_index = engine
+        .current_reward_screen()
+        .expect("elite rewards")
+        .items
+        .iter()
         .position(|item| item.label == "Dead Branch")
         .expect("Dead Branch reward");
-    assert!(engine.step_game(&GameAction::SelectRewardItem(relic_index)).accepted());
+    assert!(engine
+        .step_game(&GameAction::SelectRewardItem(relic_index))
+        .accepted());
     engine.debug_enter_specific_combat(&["JawWorm"]);
 
     let combat = engine.debug_combat_engine_mut();
@@ -1231,14 +1345,23 @@ fn dead_branch_is_watcher_reachable_and_generates_on_nonterminal_exhausts() {
     combat.state.draw_pile.clear();
     combat.state.discard_pile.clear();
     let card_random_before = combat.rng_counters()["cardRandom"];
-    combat.execute_action(&Action::PlayCard { card_idx: 0, target_idx: -1 });
+    combat.execute_action(&Action::PlayCard {
+        card_idx: 0,
+        target_idx: -1,
+    });
     assert_eq!(combat.rng_counters()["cardRandom"], card_random_before + 1);
     assert_eq!(combat.state.hand.len(), 1);
     let generated = combat.state.hand[0];
-    assert_ne!(combat.card_registry.card_name(generated.def_id), "LessonLearned");
+    assert_ne!(
+        combat.card_registry.card_name(generated.def_id),
+        "LessonLearned"
+    );
     assert!(!generated.is_upgraded());
 
-    combat.state.player.set_status(crate::status_ids::sid::MASTER_REALITY, 1);
+    combat
+        .state
+        .player
+        .set_status(crate::status_ids::sid::MASTER_REALITY, 1);
     combat.state.hand = crate::tests::support::make_deck(&["Defend"; 10]);
     let discard_before = combat.state.discard_pile.len();
     let card_random_before = combat.rng_counters()["cardRandom"];
@@ -1246,14 +1369,22 @@ fn dead_branch_is_watcher_reachable_and_generates_on_nonterminal_exhausts() {
     assert_eq!(combat.rng_counters()["cardRandom"], card_random_before + 1);
     assert_eq!(combat.state.hand.len(), 10);
     assert_eq!(combat.state.discard_pile.len(), discard_before + 1);
-    assert!(combat.state.discard_pile.last().expect("overflow card").is_upgraded());
+    assert!(combat
+        .state
+        .discard_pile
+        .last()
+        .expect("overflow card")
+        .is_upgraded());
 
     combat.state.enemies[0].entity.hp = 0;
     let zones_before = (combat.state.hand.len(), combat.state.discard_pile.len());
     let card_random_before = combat.rng_counters()["cardRandom"];
     combat.trigger_on_exhaust();
     assert_eq!(combat.rng_counters()["cardRandom"], card_random_before);
-    assert_eq!((combat.state.hand.len(), combat.state.discard_pile.len()), zones_before);
+    assert_eq!(
+        (combat.state.hand.len(), combat.state.discard_pile.len()),
+        zones_before
+    );
 }
 
 #[test]
@@ -1264,20 +1395,31 @@ fn gambling_chip_is_watcher_reachable_and_redraws_selected_opening_cards() {
     // count after moving them to discard.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/GamblingChip.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/GamblingChipAction.java
-    let seed = (0..4096).find(|seed| {
-        let mut engine = RunEngine::new(*seed, 0);
-        engine.debug_build_combat_reward_screen(RoomType::Elite);
-        engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| item.label == "Gambling Chip")
+    let seed = (0..4096)
+        .find(|seed| {
+            let mut engine = RunEngine::new(*seed, 0);
+            engine.debug_build_combat_reward_screen(RoomType::Elite);
+            engine.current_reward_screen().is_some_and(|screen| {
+                screen
+                    .items
+                    .iter()
+                    .any(|item| item.label == "Gambling Chip")
+            })
         })
-    }).expect("Gambling Chip reward seed");
+        .expect("Gambling Chip reward seed");
 
     let mut engine = RunEngine::new(seed, 0);
     engine.debug_build_combat_reward_screen(RoomType::Elite);
-    let relic_index = engine.current_reward_screen().expect("elite rewards").items.iter()
+    let relic_index = engine
+        .current_reward_screen()
+        .expect("elite rewards")
+        .items
+        .iter()
         .position(|item| item.label == "Gambling Chip")
         .expect("Gambling Chip reward");
-    assert!(engine.step_game(&GameAction::SelectRewardItem(relic_index)).accepted());
+    assert!(engine
+        .step_game(&GameAction::SelectRewardItem(relic_index))
+        .accepted());
     engine.debug_enter_specific_combat(&["JawWorm"]);
 
     let combat = engine.debug_combat_engine_mut();
@@ -1305,7 +1447,8 @@ fn warped_tongs_rummage_grants_the_fixed_relic_and_upgrades_only_eligible_cards(
     // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/WarpedTongs.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/UpgradeRandomCardAction.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
-    let event = crate::events::typed_shrine_events().into_iter()
+    let event = crate::events::typed_shrine_events()
+        .into_iter()
         .find(|event| event.name == "Accursed Blacksmith")
         .expect("Accursed Blacksmith event");
     let mut engine = RunEngine::new(42, 0);
@@ -1315,19 +1458,34 @@ fn warped_tongs_rummage_grants_the_fixed_relic_and_upgrades_only_eligible_cards(
     let screen = engine.current_reward_screen().expect("Warped Tongs reward");
     assert_eq!(screen.items.len(), 1);
     assert_eq!(screen.items[0].label, "WarpedTongs");
-    assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
-    assert!(engine.run_state.relics.iter().any(|relic| relic == "WarpedTongs"));
+    assert!(engine
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
+    assert!(engine
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == "WarpedTongs"));
 
     engine.run_state.deck = vec![
         "Burn".to_string(),
         "Strike+".to_string(),
         "Defend".to_string(),
     ];
-    engine.run_state.relics.retain(|relic| relic == "WarpedTongs");
-    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine
+        .run_state
+        .relics
+        .retain(|relic| relic == "WarpedTongs");
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
     engine.debug_enter_specific_combat(&["JawWorm"]);
     let combat = engine.debug_combat_engine_mut();
-    let hand_names = combat.state.hand.iter()
+    let hand_names = combat
+        .state
+        .hand
+        .iter()
         .map(|card| combat.card_registry.card_name(card.def_id))
         .collect::<Vec<_>>();
     assert!(hand_names.contains(&"Burn"));
@@ -1346,7 +1504,10 @@ fn warped_tongs_rummage_grants_the_fixed_relic_and_upgrades_only_eligible_cards(
     ));
     assert_eq!(combat.rng_counters()["shuffle"], shuffle_before);
     assert!(combat.state.hand.iter().all(|card| {
-        matches!(combat.card_registry.card_name(card.def_id), "Burn" | "Strike+")
+        matches!(
+            combat.card_registry.card_name(card.def_id),
+            "Burn" | "Strike+"
+        )
     }));
 }
 
@@ -1358,9 +1519,10 @@ fn incense_burner_is_reachable_from_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Incense Burner"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Incense Burner")
         })
     });
     assert!(offered);
@@ -1374,9 +1536,10 @@ fn ink_bottle_is_reachable_from_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "InkBottle"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "InkBottle")
         })
     });
     assert!(offered);
@@ -1390,9 +1553,10 @@ fn kunai_is_reachable_from_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Kunai"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Kunai")
         })
     });
     assert!(offered);
@@ -1406,9 +1570,10 @@ fn lantern_is_reachable_from_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Lantern"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Lantern")
         })
     });
     assert!(offered);
@@ -1422,9 +1587,10 @@ fn letter_opener_is_reachable_from_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Letter Opener"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Letter Opener")
         })
     });
     assert!(offered);
@@ -1438,9 +1604,10 @@ fn lizard_tail_is_reachable_from_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Lizard Tail"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Lizard Tail")
         })
     });
     assert!(offered);
@@ -1455,9 +1622,10 @@ fn magic_flower_is_excluded_from_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Magic Flower"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Magic Flower")
         })
     });
     assert!(!offered);
@@ -1471,9 +1639,10 @@ fn mango_is_reachable_and_increases_max_hp_by_fourteen_on_pickup() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Mango"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Mango")
         })
     });
     assert!(offered);
@@ -1492,7 +1661,10 @@ fn mango_is_reachable_and_increases_max_hp_by_fourteen_on_pickup() {
     let mut blocked = RunEngine::new(43, 0);
     blocked.run_state.current_hp = 40;
     blocked.run_state.max_hp = 80;
-    blocked.run_state.relics.push("Mark of the Bloom".to_string());
+    blocked
+        .run_state
+        .relics
+        .push("Mark of the Bloom".to_string());
     blocked
         .run_state
         .relic_flags
@@ -1514,9 +1686,10 @@ fn old_coin_is_rare_reachable_through_floor_forty_eight_only() {
         engine.run_state.floor = 48;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Old Coin"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Old Coin")
         })
     });
     assert!(offered);
@@ -1525,17 +1698,17 @@ fn old_coin_is_rare_reachable_through_floor_forty_eight_only() {
         let mut engine = RunEngine::new(seed, 0);
         engine.run_state.floor = 49;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Old Coin")
-        }));
+        assert!(engine
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "Old Coin") }));
     }
 
     for seed in 0..256 {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_enter_shop();
-        assert!(engine.get_shop().is_some_and(|shop| {
-            shop.relics.iter().all(|(relic, _)| relic != "Old Coin")
-        }));
+        assert!(engine
+            .get_shop()
+            .is_some_and(|shop| { shop.relics.iter().all(|(relic, _)| relic != "Old Coin") }));
     }
 }
 
@@ -1579,9 +1752,10 @@ fn smiling_mask_is_common_reachable_through_floor_forty_eight_but_not_in_shops()
         engine.run_state.floor = 48;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Smiling Mask"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Smiling Mask")
         })
     });
     assert!(offered);
@@ -1595,11 +1769,9 @@ fn smiling_mask_is_common_reachable_through_floor_forty_eight_but_not_in_shops()
         }));
 
         engine.debug_enter_shop();
-        assert!(engine.get_shop().is_some_and(|shop| {
-            shop.relics
-                .iter()
-                .all(|(relic, _)| relic != "Smiling Mask")
-        }));
+        assert!(engine
+            .get_shop()
+            .is_some_and(|shop| { shop.relics.iter().all(|(relic, _)| relic != "Smiling Mask") }));
     }
 }
 
@@ -1622,9 +1794,7 @@ fn smiling_mask_keeps_card_removal_at_fifty_after_other_discounts_and_ramp() {
     engine.debug_enter_shop();
 
     assert_eq!(engine.get_shop().expect("shop").remove_price, 50);
-    assert!(engine
-        .step_game(&GameAction::ShopRemoveCard(0))
-        .accepted());
+    assert!(engine.step_game(&GameAction::ShopRemoveCard(0)).accepted());
     assert_eq!(engine.run_state.purge_cost, 150);
     assert_eq!(engine.get_shop().expect("shop").remove_price, 50);
 }
@@ -1670,21 +1840,24 @@ fn courier_discounts_and_refills_every_shop_stock_kind_in_place() {
         engine.run_state.floor = 48;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| item.kind == RewardItemKind::Relic && item.label == "The Courier")
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "The Courier")
         })
     }));
     for seed in 0..256 {
         let mut late = RunEngine::new(seed, 0);
         late.run_state.floor = 49;
         late.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(late.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "The Courier")
-        }));
+        assert!(late
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "The Courier") }));
         let mut shop = RunEngine::new(seed, 0);
         shop.debug_enter_shop();
-        assert!(shop.get_shop().is_some_and(|stock| {
-            stock.relics.iter().all(|(relic, _)| relic != "The Courier")
-        }));
+        assert!(shop
+            .get_shop()
+            .is_some_and(|stock| { stock.relics.iter().all(|(relic, _)| relic != "The Courier") }));
     }
 
     let mut baseline = RunEngine::new(1301, 0);
@@ -1695,11 +1868,22 @@ fn courier_discounts_and_refills_every_shop_stock_kind_in_place() {
     let mut engine = RunEngine::new(1301, 0);
     engine.run_state.gold = 10_000;
     engine.debug_set_reward_screen(single_relic_reward_screen("The Courier"));
-    assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
+    assert!(engine
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     engine.debug_enter_shop();
     let discounted = engine.get_shop().expect("Courier shop").clone();
-    assert_eq!((discounted.cards.len(), discounted.relics.len(), discounted.potions.len()), (7, 3, 3));
-    assert!(engine.get_legal_actions().contains(&GameAction::ShopBuyPotion(0)));
+    assert_eq!(
+        (
+            discounted.cards.len(),
+            discounted.relics.len(),
+            discounted.potions.len()
+        ),
+        (7, 3, 3)
+    );
+    assert!(engine
+        .get_legal_actions()
+        .contains(&GameAction::ShopBuyPotion(0)));
     for ((_, full), (_, courier)) in baseline_stock.cards.iter().zip(&discounted.cards) {
         assert_eq!(*courier, ((*full as f32) * 0.8).round() as i32);
     }
@@ -1713,15 +1897,22 @@ fn courier_discounts_and_refills_every_shop_stock_kind_in_place() {
     let bought_card = discounted.cards[0].clone();
     let bought_type = crate::cards::global_registry()
         .get(bought_card.0.strip_suffix('+').unwrap_or(&bought_card.0))
-        .expect("shop card definition").card_type;
+        .expect("shop card definition")
+        .card_type;
     let gold_before = engine.run_state.gold;
     assert!(engine.step_game(&GameAction::ShopBuyCard(0)).accepted());
     let after_card = engine.get_shop().expect("shop after card");
     assert_eq!(after_card.cards.len(), 7);
     assert_eq!(engine.run_state.gold, gold_before - bought_card.1);
     let replacement_type = crate::cards::global_registry()
-        .get(after_card.cards[0].0.strip_suffix('+').unwrap_or(&after_card.cards[0].0))
-        .expect("replacement card definition").card_type;
+        .get(
+            after_card.cards[0]
+                .0
+                .strip_suffix('+')
+                .unwrap_or(&after_card.cards[0].0),
+        )
+        .expect("replacement card definition")
+        .card_type;
     assert_eq!(replacement_type, bought_type);
 
     let potion_price = engine.get_shop().expect("shop").potions[0].1;
@@ -1729,7 +1920,11 @@ fn courier_discounts_and_refills_every_shop_stock_kind_in_place() {
     assert!(engine.step_game(&GameAction::ShopBuyPotion(0)).accepted());
     assert_eq!(engine.get_shop().expect("shop").potions.len(), 3);
     assert_eq!(engine.run_state.gold, gold_before - potion_price);
-    assert!(engine.run_state.potions.iter().any(|potion| !potion.is_empty()));
+    assert!(engine
+        .run_state
+        .potions
+        .iter()
+        .any(|potion| !potion.is_empty()));
 
     let bought_relic = engine.get_shop().expect("shop").relics[0].clone();
     let gold_before = engine.run_state.gold;
@@ -1737,16 +1932,21 @@ fn courier_discounts_and_refills_every_shop_stock_kind_in_place() {
     assert_eq!(engine.get_shop().expect("shop").relics.len(), 3);
     assert_eq!(engine.run_state.gold, gold_before - bought_relic.1);
     assert!(engine.run_state.relics.contains(&bought_relic.0));
-    assert!(!matches!(engine.get_shop().expect("shop").relics[0].0.as_str(),
-        "Old Coin" | "Smiling Mask" | "MawBank" | "The Courier"));
+    assert!(!matches!(
+        engine.get_shop().expect("shop").relics[0].0.as_str(),
+        "Old Coin" | "Smiling Mask" | "MawBank" | "The Courier"
+    ));
 
     // StoreRelic checks the purchased ID too, so buying Courier refills its
     // own slot even when it was not owned before the purchase.
     let mut direct = RunEngine::new(1303, 0);
     direct.run_state.gold = 500;
     direct.debug_set_shop_state(ShopState {
-        cards: Vec::new(), relics: vec![("The Courier".to_string(), 150)],
-        potions: Vec::new(), remove_price: 75, removal_used: false,
+        cards: Vec::new(),
+        relics: vec![("The Courier".to_string(), 150)],
+        potions: Vec::new(),
+        remove_price: 75,
+        removal_used: false,
     });
     assert!(direct.step_game(&GameAction::ShopBuyRelic(0)).accepted());
     assert_eq!(direct.get_shop().expect("shop").relics.len(), 1);
@@ -1762,9 +1962,10 @@ fn peace_pipe_is_rare_reachable_before_floor_forty_eight_with_at_most_one_campfi
         engine.run_state.floor = 47;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Peace Pipe"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Peace Pipe")
         })
     });
     assert!(offered);
@@ -1773,20 +1974,20 @@ fn peace_pipe_is_rare_reachable_before_floor_forty_eight_with_at_most_one_campfi
         let mut late = RunEngine::new(seed, 0);
         late.run_state.floor = 48;
         late.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(late.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Peace Pipe")
-        }));
+        assert!(late
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "Peace Pipe") }));
 
         let mut capped = RunEngine::new(seed, 0);
         capped.run_state.floor = 20;
-        capped.run_state.relics.extend([
-            "Girya".to_string(),
-            "Shovel".to_string(),
-        ]);
+        capped
+            .run_state
+            .relics
+            .extend(["Girya".to_string(), "Shovel".to_string()]);
         capped.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(capped.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Peace Pipe")
-        }));
+        assert!(capped
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "Peace Pipe") }));
     }
 }
 
@@ -1809,7 +2010,9 @@ fn peace_pipe_toke_selects_one_purgeable_non_bottled_card_and_is_rl_visible() {
         .rebuild(&engine.run_state.relics);
     engine.phase = RunPhase::Campfire;
 
-    assert!(engine.get_legal_actions().contains(&GameAction::CampfireToke));
+    assert!(engine
+        .get_legal_actions()
+        .contains(&GameAction::CampfireToke));
     assert!(engine
         .get_legal_actions()
         .contains(&GameAction::CampfireToke));
@@ -1822,9 +2025,7 @@ fn peace_pipe_toke_selects_one_purgeable_non_bottled_card_and_is_rl_visible() {
         vec![0]
     );
 
-    assert!(engine
-        .step_game(&GameAction::CampfireToke)
-        .accepted());
+    assert!(engine.step_game(&GameAction::CampfireToke).accepted());
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
     let screen = engine.current_reward_screen().expect("Toke selection");
     assert_eq!(screen.source, crate::decision::RewardScreenSource::Campfire);
@@ -1841,7 +2042,9 @@ fn peace_pipe_toke_selects_one_purgeable_non_bottled_card_and_is_rl_visible() {
 
     assert_eq!(engine.run_state.deck, vec!["Wallop", "CurseOfTheBell"]);
     engine.phase = RunPhase::Campfire;
-    assert!(!engine.get_legal_actions().contains(&GameAction::CampfireToke));
+    assert!(!engine
+        .get_legal_actions()
+        .contains(&GameAction::CampfireToke));
 }
 
 #[test]
@@ -1854,14 +2057,15 @@ fn bottle_identity_excludes_only_the_selected_duplicate_and_survives_other_upgra
     let bottled_id = test_master_card_id(&engine, 0);
     engine.run_state.bottled_flame_card_instance_id = Some(bottled_id);
     engine.run_state.relics.push("Peace Pipe".to_string());
-    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
     engine.phase = RunPhase::Campfire;
 
     let campfire = engine.current_decision_context().campfire.unwrap();
     assert_eq!(campfire.removable_cards, vec![1]);
-    assert!(engine
-        .step_game(&GameAction::CampfireUpgrade(1))
-        .accepted());
+    assert!(engine.step_game(&GameAction::CampfireUpgrade(1)).accepted());
     assert_eq!(engine.run_state.deck, vec!["Wallop", "Wallop+"]);
     assert_eq!(
         engine.run_state.bottled_flame_card_instance_id,
@@ -1879,9 +2083,10 @@ fn girya_is_rare_reachable_before_floor_forty_eight_with_at_most_one_campfire_re
         engine.run_state.floor = 47;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Girya"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Girya")
         })
     });
     assert!(offered);
@@ -1890,20 +2095,20 @@ fn girya_is_rare_reachable_before_floor_forty_eight_with_at_most_one_campfire_re
         let mut late = RunEngine::new(seed, 0);
         late.run_state.floor = 48;
         late.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(late.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Girya")
-        }));
+        assert!(late
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "Girya") }));
 
         let mut capped = RunEngine::new(seed, 0);
         capped.run_state.floor = 20;
-        capped.run_state.relics.extend([
-            "Peace Pipe".to_string(),
-            "Shovel".to_string(),
-        ]);
+        capped
+            .run_state
+            .relics
+            .extend(["Peace Pipe".to_string(), "Shovel".to_string()]);
         capped.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(capped.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Girya")
-        }));
+        assert!(capped
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "Girya") }));
     }
 }
 
@@ -1921,18 +2126,20 @@ fn girya_lifts_cap_at_three_and_transfer_as_combat_start_strength() {
 
     for expected in 1..=3 {
         engine.phase = RunPhase::Campfire;
-        assert!(engine.get_legal_actions().contains(&GameAction::CampfireLift));
         assert!(engine
             .get_legal_actions()
             .contains(&GameAction::CampfireLift));
         assert!(engine
-            .current_decision_context()
-            .campfire
-            .expect("campfire context")
-            .can_lift);
-        assert!(engine
-            .step_game(&GameAction::CampfireLift)
-            .accepted());
+            .get_legal_actions()
+            .contains(&GameAction::CampfireLift));
+        assert!(
+            engine
+                .current_decision_context()
+                .campfire
+                .expect("campfire context")
+                .can_lift
+        );
+        assert!(engine.step_game(&GameAction::CampfireLift).accepted());
         assert_eq!(
             engine.run_state.relic_flags.counters[crate::relic_flags::counter::GIRYA],
             expected
@@ -1940,10 +2147,10 @@ fn girya_lifts_cap_at_three_and_transfer_as_combat_start_strength() {
     }
 
     engine.phase = RunPhase::Campfire;
-    assert!(!engine.get_legal_actions().contains(&GameAction::CampfireLift));
     assert!(!engine
-        .step_game(&GameAction::CampfireLift)
-        .accepted());
+        .get_legal_actions()
+        .contains(&GameAction::CampfireLift));
+    assert!(!engine.step_game(&GameAction::CampfireLift).accepted());
     engine.debug_enter_specific_combat(&["Cultist"]);
     assert_eq!(
         engine
@@ -1965,9 +2172,10 @@ fn shovel_is_rare_reachable_before_floor_forty_eight_with_at_most_one_campfire_r
         engine.run_state.floor = 47;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Shovel"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Shovel")
         })
     });
     assert!(offered);
@@ -1976,20 +2184,20 @@ fn shovel_is_rare_reachable_before_floor_forty_eight_with_at_most_one_campfire_r
         let mut late = RunEngine::new(seed, 0);
         late.run_state.floor = 48;
         late.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(late.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Shovel")
-        }));
+        assert!(late
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "Shovel") }));
 
         let mut capped = RunEngine::new(seed, 0);
         capped.run_state.floor = 20;
-        capped.run_state.relics.extend([
-            "Peace Pipe".to_string(),
-            "Girya".to_string(),
-        ]);
+        capped
+            .run_state
+            .relics
+            .extend(["Peace Pipe".to_string(), "Girya".to_string()]);
         capped.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(capped.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Shovel")
-        }));
+        assert!(capped
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "Shovel") }));
     }
 }
 
@@ -2011,18 +2219,20 @@ fn shovel_dig_opens_one_claimable_tiered_relic_reward_and_is_rl_visible() {
             .rebuild(&engine.run_state.relics);
         engine.phase = RunPhase::Campfire;
 
-        assert!(engine.get_legal_actions().contains(&GameAction::CampfireDig));
         assert!(engine
             .get_legal_actions()
             .contains(&GameAction::CampfireDig));
         assert!(engine
-            .current_decision_context()
-            .campfire
-            .expect("campfire context")
-            .can_dig);
-        assert!(engine
-            .step_game(&GameAction::CampfireDig)
-            .accepted());
+            .get_legal_actions()
+            .contains(&GameAction::CampfireDig));
+        assert!(
+            engine
+                .current_decision_context()
+                .campfire
+                .expect("campfire context")
+                .can_dig
+        );
+        assert!(engine.step_game(&GameAction::CampfireDig).accepted());
 
         let screen = engine.current_reward_screen().expect("Dig reward");
         assert_eq!(screen.source, crate::decision::RewardScreenSource::Campfire);
@@ -2033,20 +2243,40 @@ fn shovel_dig_opens_one_claimable_tiered_relic_reward_and_is_rl_visible() {
         let relic = screen.items[0].label.clone();
         saw_common |= matches!(
             relic.as_str(),
-            "Akabeko" | "Anchor" | "Art of War" | "Bag of Marbles"
-                | "Bag of Preparation" | "Blood Vial" | "Boot" | "Bronze Scales"
-                | "Lantern" | "Vajra"
+            "Akabeko"
+                | "Anchor"
+                | "Art of War"
+                | "Bag of Marbles"
+                | "Bag of Preparation"
+                | "Blood Vial"
+                | "Boot"
+                | "Bronze Scales"
+                | "Lantern"
+                | "Vajra"
         );
         saw_uncommon |= matches!(
             relic.as_str(),
-            "Blue Candle" | "Darkstone Periapt" | "Eternal Feather" | "InkBottle"
-                | "Kunai" | "Letter Opener" | "Ornamental Fan"
+            "Blue Candle"
+                | "Darkstone Periapt"
+                | "Eternal Feather"
+                | "InkBottle"
+                | "Kunai"
+                | "Letter Opener"
+                | "Ornamental Fan"
         );
         saw_rare |= matches!(
             relic.as_str(),
-            "Bird Faced Urn" | "Calipers" | "Du-Vu Doll" | "FossilizedHelix"
-                | "Ginger" | "Ice Cream" | "Incense Burner" | "Old Coin"
-                | "Thread and Needle" | "Tough Bandages" | "TungstenRod"
+            "Bird Faced Urn"
+                | "Calipers"
+                | "Du-Vu Doll"
+                | "FossilizedHelix"
+                | "Ginger"
+                | "Ice Cream"
+                | "Incense Burner"
+                | "Old Coin"
+                | "Thread and Needle"
+                | "Tough Bandages"
+                | "TungstenRod"
         );
 
         assert!(engine
@@ -2066,9 +2296,10 @@ fn pantograph_is_reachable_from_uncommon_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Pantograph"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Pantograph")
         })
     });
     assert!(offered);
@@ -2082,9 +2313,10 @@ fn pocketwatch_is_reachable_from_rare_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Pocketwatch"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Pocketwatch")
         })
     });
     assert!(offered);
@@ -2098,9 +2330,10 @@ fn shuriken_is_reachable_from_uncommon_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Shuriken"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Shuriken")
         })
     });
     assert!(offered);
@@ -2114,9 +2347,10 @@ fn torii_is_reachable_from_rare_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Torii"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Torii")
         })
     });
     assert!(offered);
@@ -2129,9 +2363,10 @@ fn tungsten_rod_is_reachable_under_its_canonical_java_id() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "TungstenRod"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "TungstenRod")
         })
     });
     assert!(offered);
@@ -2145,9 +2380,10 @@ fn turnip_is_reachable_from_rare_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Turnip"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Turnip")
         })
     });
     assert!(offered);
@@ -2161,9 +2397,10 @@ fn toy_ornithopter_is_common_reachable_and_heals_for_noncombat_potion_use() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Toy Ornithopter"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Toy Ornithopter")
         })
     });
     assert!(offered);
@@ -2173,9 +2410,7 @@ fn toy_ornithopter_is_common_reachable_and_heals_for_noncombat_potion_use() {
     engine.run_state.max_hp = 80;
     engine.run_state.relics.push("Toy Ornithopter".to_string());
     engine.run_state.potions[0] = "Fruit Juice".to_string();
-    assert!(engine
-        .step_game(&GameAction::UsePotion(0))
-        .accepted());
+    assert!(engine.step_game(&GameAction::UsePotion(0)).accepted());
     assert_eq!(engine.run_state.max_hp, 85);
     assert_eq!(engine.run_state.current_hp, 60);
     assert!(engine.run_state.potions[0].is_empty());
@@ -2189,9 +2424,10 @@ fn unceasing_top_is_reachable_from_rare_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Unceasing Top"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Unceasing Top")
         })
     });
     assert!(offered);
@@ -2205,9 +2441,10 @@ fn stone_calendar_is_reachable_under_its_canonical_java_id() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "StoneCalendar"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "StoneCalendar")
         })
     });
     assert!(offered);
@@ -2221,9 +2458,10 @@ fn sundial_is_reachable_from_uncommon_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Sundial"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Sundial")
         })
     });
     assert!(offered);
@@ -2238,9 +2476,10 @@ fn tiny_chest_is_common_reachable_through_floor_thirty_five_only() {
         engine.run_state.floor = 35;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Tiny Chest"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Tiny Chest")
         })
     });
     assert!(offered);
@@ -2249,9 +2488,9 @@ fn tiny_chest_is_common_reachable_through_floor_thirty_five_only() {
         let mut engine = RunEngine::new(seed, 0);
         engine.run_state.floor = 36;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Tiny Chest")
-        }));
+        assert!(engine
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "Tiny Chest") }));
     }
 }
 
@@ -2266,7 +2505,10 @@ fn tiny_chest_forces_every_fourth_mystery_room_to_treasure_and_resets() {
         .run_state
         .relic_flags
         .rebuild(&engine.run_state.relics);
-    engine.run_state.relic_flags.init_relic_counter("Tiny Chest");
+    engine
+        .run_state
+        .relic_flags
+        .init_relic_counter("Tiny Chest");
     engine.debug_force_event_rolls(&[99, 99, 99, 99]);
 
     for expected in 1..=3 {
@@ -2281,13 +2523,14 @@ fn tiny_chest_forces_every_fourth_mystery_room_to_treasure_and_resets() {
 
     engine.debug_enter_mystery_room();
     assert_eq!(engine.current_phase(), RunPhase::Chest);
-    assert!(engine
-        .step_game(&GameAction::OpenChest)
-        .accepted());
+    assert!(engine.step_game(&GameAction::OpenChest).accepted());
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
     assert!(engine.current_reward_screen().is_some_and(|screen| {
         screen.source == RewardScreenSource::Treasure
-            && screen.items.iter().any(|item| item.kind == RewardItemKind::Relic)
+            && screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic)
     }));
     assert_eq!(
         engine.run_state.relic_flags.counters[crate::relic_flags::counter::TINY_CHEST],
@@ -2303,9 +2546,10 @@ fn tough_bandages_is_excluded_from_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Tough Bandages"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Tough Bandages")
         })
     });
     assert!(!offered);
@@ -2319,9 +2563,10 @@ fn tingsha_is_excluded_from_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Tingsha"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Tingsha")
         })
     });
     assert!(!offered);
@@ -2335,9 +2580,10 @@ fn yang_is_reachable_from_uncommon_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Yang"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Yang")
         })
     });
     assert!(offered);
@@ -2352,9 +2598,10 @@ fn matryoshka_is_reachable_only_through_floor_forty() {
         engine.run_state.floor = 40;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Matryoshka"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Matryoshka")
         })
     });
     assert!(offered);
@@ -2363,9 +2610,9 @@ fn matryoshka_is_reachable_only_through_floor_forty() {
         let mut engine = RunEngine::new(seed, 0);
         engine.run_state.floor = 41;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Matryoshka")
-        }));
+        assert!(engine
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "Matryoshka") }));
     }
 }
 
@@ -2378,9 +2625,10 @@ fn maw_bank_is_reachable_only_through_floor_forty_eight() {
         engine.run_state.floor = 48;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "MawBank"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "MawBank")
         })
     });
     assert!(offered);
@@ -2389,9 +2637,9 @@ fn maw_bank_is_reachable_only_through_floor_forty_eight() {
         let mut engine = RunEngine::new(seed, 0);
         engine.run_state.floor = 49;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "MawBank")
-        }));
+        assert!(engine
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "MawBank") }));
     }
 }
 
@@ -2404,9 +2652,10 @@ fn meal_ticket_is_reachable_only_through_floor_forty_eight() {
         engine.run_state.floor = 48;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "MealTicket"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "MealTicket")
         })
     });
     assert!(offered);
@@ -2415,9 +2664,9 @@ fn meal_ticket_is_reachable_only_through_floor_forty_eight() {
         let mut engine = RunEngine::new(seed, 0);
         engine.run_state.floor = 49;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "MealTicket")
-        }));
+        assert!(engine
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "MealTicket") }));
     }
 }
 
@@ -2430,9 +2679,10 @@ fn meat_on_the_bone_is_reachable_only_through_floor_forty_eight() {
         engine.run_state.floor = 48;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Meat on the Bone"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Meat on the Bone")
         })
     });
     assert!(offered);
@@ -2442,7 +2692,10 @@ fn meat_on_the_bone_is_reachable_only_through_floor_forty_eight() {
         engine.run_state.floor = 49;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Meat on the Bone")
+            screen
+                .items
+                .iter()
+                .all(|item| item.label != "Meat on the Bone")
         }));
     }
 }
@@ -2455,9 +2708,10 @@ fn happy_flower_is_reachable_from_common_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Happy Flower"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Happy Flower")
         })
     });
     assert!(offered);
@@ -2472,9 +2726,10 @@ fn juzu_bracelet_is_reachable_only_through_floor_forty_eight() {
         engine.run_state.floor = 48;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Juzu Bracelet"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Juzu Bracelet")
         })
     });
     assert!(offered);
@@ -2484,7 +2739,10 @@ fn juzu_bracelet_is_reachable_only_through_floor_forty_eight() {
         engine.run_state.floor = 49;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Juzu Bracelet")
+            screen
+                .items
+                .iter()
+                .all(|item| item.label != "Juzu Bracelet")
         }));
     }
 }
@@ -2501,21 +2759,28 @@ fn lees_waffle_is_shop_only_and_applies_its_two_step_on_equip_heal() {
         }));
     }
 
-    let offered_seed = (0..1024).find(|seed| {
-        let mut engine = RunEngine::new(*seed, 0);
-        engine.debug_enter_shop();
-        engine.get_shop().is_some_and(|shop| {
-            shop.relics.iter().any(|(relic, _)| relic == "Lee's Waffle")
+    let offered_seed = (0..1024)
+        .find(|seed| {
+            let mut engine = RunEngine::new(*seed, 0);
+            engine.debug_enter_shop();
+            engine
+                .get_shop()
+                .is_some_and(|shop| shop.relics.iter().any(|(relic, _)| relic == "Lee's Waffle"))
         })
-    }).expect("Lee's Waffle should be reachable from the SHOP-tier slot");
+        .expect("Lee's Waffle should be reachable from the SHOP-tier slot");
 
     let mut engine = RunEngine::new(offered_seed, 0);
     engine.run_state.gold = 999;
     engine.run_state.current_hp = 40;
     engine.run_state.max_hp = 80;
     engine.debug_enter_shop();
-    let idx = engine.get_shop().expect("shop").relics.iter()
-        .position(|(relic, _)| relic == "Lee's Waffle").expect("waffle offer");
+    let idx = engine
+        .get_shop()
+        .expect("shop")
+        .relics
+        .iter()
+        .position(|(relic, _)| relic == "Lee's Waffle")
+        .expect("waffle offer");
     assert!(engine.step_game(&GameAction::ShopBuyRelic(idx)).accepted());
     assert_eq!(engine.run_state.max_hp, 87);
     assert_eq!(engine.run_state.current_hp, 87);
@@ -2524,11 +2789,22 @@ fn lees_waffle_is_shop_only_and_applies_its_two_step_on_equip_heal() {
     blocked.run_state.gold = 999;
     blocked.run_state.current_hp = 40;
     blocked.run_state.max_hp = 80;
-    blocked.run_state.relics.push("Mark of the Bloom".to_string());
-    blocked.run_state.relic_flags.rebuild(&blocked.run_state.relics);
+    blocked
+        .run_state
+        .relics
+        .push("Mark of the Bloom".to_string());
+    blocked
+        .run_state
+        .relic_flags
+        .rebuild(&blocked.run_state.relics);
     blocked.debug_enter_shop();
-    let idx = blocked.get_shop().expect("shop").relics.iter()
-        .position(|(relic, _)| relic == "Lee's Waffle").expect("waffle offer");
+    let idx = blocked
+        .get_shop()
+        .expect("shop")
+        .relics
+        .iter()
+        .position(|(relic, _)| relic == "Lee's Waffle")
+        .expect("waffle offer");
     assert!(blocked.step_game(&GameAction::ShopBuyRelic(idx)).accepted());
     assert_eq!(blocked.run_state.max_hp, 87);
     assert_eq!(blocked.run_state.current_hp, 40);
@@ -2539,20 +2815,27 @@ fn membership_card_purchase_immediately_rounds_all_visible_shop_prices_in_half()
     // MembershipCard.java is SHOP tier; StoreRelic.java purchases it at the
     // current price, then ShopScreen.applyDiscount(0.5f, true) reprices cards,
     // relics, and purge using MathUtils.round.
-    let offered_seed = (0..2048).find(|seed| {
-        let mut engine = RunEngine::new(*seed, 0);
-        engine.debug_enter_shop();
-        engine.get_shop().is_some_and(|shop| {
-            shop.relics.iter().any(|(relic, _)| relic == "Membership Card")
+    let offered_seed = (0..2048)
+        .find(|seed| {
+            let mut engine = RunEngine::new(*seed, 0);
+            engine.debug_enter_shop();
+            engine.get_shop().is_some_and(|shop| {
+                shop.relics
+                    .iter()
+                    .any(|(relic, _)| relic == "Membership Card")
+            })
         })
-    }).expect("Membership Card SHOP-tier offer");
+        .expect("Membership Card SHOP-tier offer");
 
     let mut engine = RunEngine::new(offered_seed, 0);
     engine.run_state.gold = 999;
     engine.debug_enter_shop();
     let before = engine.get_shop().expect("shop").clone();
-    let membership_idx = before.relics.iter()
-        .position(|(relic, _)| relic == "Membership Card").expect("membership offer");
+    let membership_idx = before
+        .relics
+        .iter()
+        .position(|(relic, _)| relic == "Membership Card")
+        .expect("membership offer");
     assert!(engine
         .step_game(&GameAction::ShopBuyRelic(membership_idx))
         .accepted());
@@ -2562,7 +2845,11 @@ fn membership_card_purchase_immediately_rounds_all_visible_shop_prices_in_half()
         assert_eq!(*after_price, ((*before_price as f32) * 0.5).round() as i32);
     }
     for (after_idx, (_, after_price)) in after.relics.iter().enumerate() {
-        let before_idx = if after_idx >= membership_idx { after_idx + 1 } else { after_idx };
+        let before_idx = if after_idx >= membership_idx {
+            after_idx + 1
+        } else {
+            after_idx
+        };
         assert_eq!(
             *after_price,
             ((before.relics[before_idx].1 as f32) * 0.5).round() as i32
@@ -2586,9 +2873,10 @@ fn mercury_hourglass_is_reachable_from_uncommon_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Mercury Hourglass"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Mercury Hourglass")
         })
     });
     assert!(offered);
@@ -2602,9 +2890,10 @@ fn mummified_hand_is_reachable_from_uncommon_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Mummified Hand"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Mummified Hand")
         })
     });
     assert!(offered);
@@ -2618,9 +2907,10 @@ fn nunchaku_is_reachable_from_common_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Nunchaku"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Nunchaku")
         })
     });
     assert!(offered);
@@ -2650,9 +2940,10 @@ fn orichalcum_is_reachable_from_common_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Orichalcum"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Orichalcum")
         })
     });
     assert!(offered);
@@ -2666,9 +2957,10 @@ fn ornamental_fan_is_reachable_from_uncommon_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Ornamental Fan"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Ornamental Fan")
         })
     });
     assert!(offered);
@@ -2682,9 +2974,10 @@ fn pen_nib_is_reachable_from_common_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Pen Nib"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Pen Nib")
         })
     });
     assert!(offered);
@@ -2698,9 +2991,10 @@ fn pear_is_reachable_and_increases_max_hp_by_ten_on_pickup() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Pear"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Pear")
         })
     });
     assert!(offered);
@@ -2743,9 +3037,10 @@ fn potion_belt_is_reachable_through_floor_forty_eight_and_adds_two_slots() {
         engine.run_state.floor = 48;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Potion Belt"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Potion Belt")
         })
     });
     assert!(offered);
@@ -2754,9 +3049,9 @@ fn potion_belt_is_reachable_through_floor_forty_eight_and_adds_two_slots() {
         let mut engine = RunEngine::new(seed, 0);
         engine.run_state.floor = 49;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Potion Belt")
-        }));
+        assert!(engine
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "Potion Belt") }));
     }
 
     let mut engine = RunEngine::new(42, 20);
@@ -2781,9 +3076,10 @@ fn preserved_insect_is_reachable_only_through_floor_fifty_two() {
         engine.run_state.floor = 52;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "PreservedInsect"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "PreservedInsect")
         })
     });
     assert!(offered);
@@ -2793,7 +3089,10 @@ fn preserved_insect_is_reachable_only_through_floor_fifty_two() {
         engine.run_state.floor = 53;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "PreservedInsect")
+            screen
+                .items
+                .iter()
+                .all(|item| item.label != "PreservedInsect")
         }));
     }
 }
@@ -2806,9 +3105,10 @@ fn strawberry_is_reachable_and_increases_max_hp_by_seven_on_pickup() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Strawberry"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Strawberry")
         })
     });
     assert!(offered);
@@ -2849,18 +3149,20 @@ fn medical_kit_is_reachable_only_from_the_shop_relic_slot() {
     for seed in 0..128 {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Medical Kit")
-        }));
+        assert!(engine
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "Medical Kit") }));
     }
 
-    let offered_seed = (0..512).find(|seed| {
-        let mut engine = RunEngine::new(*seed, 0);
-        engine.debug_enter_shop();
-        engine.get_shop().is_some_and(|shop| {
-            shop.relics.iter().any(|(relic, _)| relic == "Medical Kit")
+    let offered_seed = (0..512)
+        .find(|seed| {
+            let mut engine = RunEngine::new(*seed, 0);
+            engine.debug_enter_shop();
+            engine
+                .get_shop()
+                .is_some_and(|shop| shop.relics.iter().any(|(relic, _)| relic == "Medical Kit"))
         })
-    }).expect("Medical Kit should be reachable from the SHOP-tier slot");
+        .expect("Medical Kit should be reachable from the SHOP-tier slot");
 
     let mut engine = RunEngine::new(offered_seed, 0);
     engine.run_state.gold = 999;
@@ -2872,9 +3174,7 @@ fn medical_kit_is_reachable_only_from_the_shop_relic_slot() {
         .iter()
         .position(|(relic, _)| relic == "Medical Kit")
         .expect("Medical Kit offer");
-    assert!(engine
-        .step_game(&GameAction::ShopBuyRelic(idx))
-        .accepted());
+    assert!(engine.step_game(&GameAction::ShopBuyRelic(idx)).accepted());
     assert!(engine
         .run_state
         .relics
@@ -2890,7 +3190,10 @@ fn clockwork_souvenir_is_reachable_only_from_the_shop_relic_slot() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "ClockworkSouvenir")
+            screen
+                .items
+                .iter()
+                .all(|item| item.label != "ClockworkSouvenir")
         }));
     }
 
@@ -2916,9 +3219,7 @@ fn clockwork_souvenir_is_reachable_only_from_the_shop_relic_slot() {
         .iter()
         .position(|(relic, _)| relic == "ClockworkSouvenir")
         .expect("ClockworkSouvenir offer");
-    assert!(engine
-        .step_game(&GameAction::ShopBuyRelic(idx))
-        .accepted());
+    assert!(engine.step_game(&GameAction::ShopBuyRelic(idx)).accepted());
     assert!(engine
         .run_state
         .relics
@@ -2934,18 +3235,18 @@ fn toolbox_is_shop_only_and_resolves_three_colorless_choices_before_opening_draw
     for seed in 0..128 {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Toolbox")
-        }));
+        assert!(engine
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "Toolbox") }));
     }
 
     let offered_seed = (0..1024)
         .find(|seed| {
             let mut engine = RunEngine::new(*seed, 0);
             engine.debug_enter_shop();
-            engine.get_shop().is_some_and(|shop| {
-                shop.relics.iter().any(|(relic, _)| relic == "Toolbox")
-            })
+            engine
+                .get_shop()
+                .is_some_and(|shop| shop.relics.iter().any(|(relic, _)| relic == "Toolbox"))
         })
         .expect("Toolbox should be reachable from the SHOP-tier slot");
 
@@ -2983,7 +3284,11 @@ fn toolbox_is_shop_only_and_resolves_three_colorless_choices_before_opening_draw
     combat.execute_action(&Action::Choose(0));
     assert_eq!(combat.phase, crate::engine::CombatPhase::PlayerTurn);
     assert_eq!(combat.state.hand.len(), 7); // Miracle + selected card + five-card draw
-    assert!(combat.state.hand.iter().any(|card| card.def_id == offered[0]));
+    assert!(combat
+        .state
+        .hand
+        .iter()
+        .any(|card| card.def_id == offered[0]));
 }
 
 #[test]
@@ -2995,7 +3300,10 @@ fn prismatic_shard_is_shop_only_adds_orb_slot_and_all_color_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "PrismaticShard")
+            screen
+                .items
+                .iter()
+                .all(|item| item.label != "PrismaticShard")
         }));
     }
     let offered_seed = (0..1024)
@@ -3050,19 +3358,27 @@ fn winged_greaves_offers_three_nonedge_map_jumps_then_expires() {
     // WingBoots.java constructs WingedGreaves with counter 3 and canSpawn
     // through floor 40. MapRoomNode permits every visible node on the next row;
     // only a non-edge choice decrements the counter, with the third setting -2.
-    let offered_seed = (0..2048).find(|seed| {
-        let mut candidate = RunEngine::new(*seed, 0);
-        candidate.run_state.floor = 40;
-        candidate.debug_build_combat_reward_screen(RoomType::Elite);
-        candidate.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| item.label == "WingedGreaves")
+    let offered_seed = (0..2048)
+        .find(|seed| {
+            let mut candidate = RunEngine::new(*seed, 0);
+            candidate.run_state.floor = 40;
+            candidate.debug_build_combat_reward_screen(RoomType::Elite);
+            candidate.current_reward_screen().is_some_and(|screen| {
+                screen
+                    .items
+                    .iter()
+                    .any(|item| item.label == "WingedGreaves")
+            })
         })
-    }).expect("WingedGreaves reachable seed");
+        .expect("WingedGreaves reachable seed");
     let mut after_cutoff = RunEngine::new(offered_seed, 0);
     after_cutoff.run_state.floor = 41;
     after_cutoff.debug_build_combat_reward_screen(RoomType::Elite);
     assert!(after_cutoff.current_reward_screen().is_some_and(|screen| {
-        screen.items.iter().all(|item| item.label != "WingedGreaves")
+        screen
+            .items
+            .iter()
+            .all(|item| item.label != "WingedGreaves")
     }));
 
     let mut engine = RunEngine::new(offered_seed, 0);
@@ -3091,8 +3407,7 @@ fn winged_greaves_offers_three_nonedge_map_jumps_then_expires() {
             .step_game(&GameAction::ChoosePath(normal_count))
             .accepted());
         assert_eq!(
-            engine.run_state.relic_flags.counters
-                [crate::relic_flags::counter::WINGED_GREAVES],
+            engine.run_state.relic_flags.counters[crate::relic_flags::counter::WINGED_GREAVES],
             expected_counter
         );
     }
@@ -3107,37 +3422,58 @@ fn cauldron_is_shop_reachable_and_opens_five_ordered_potion_rewards() {
     // opens the reward screen, removes any card reward, and returns to the
     // underlying shop after the ordered rewards resolve.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Cauldron.java
-    let seed = (0..256).find(|seed| {
-        let mut engine = RunEngine::new(*seed, 0);
-        engine.debug_enter_shop();
-        engine.get_shop().is_some_and(|shop| {
-            shop.relics.iter().any(|(relic, _)| relic == "Cauldron")
+    let seed = (0..256)
+        .find(|seed| {
+            let mut engine = RunEngine::new(*seed, 0);
+            engine.debug_enter_shop();
+            engine
+                .get_shop()
+                .is_some_and(|shop| shop.relics.iter().any(|(relic, _)| relic == "Cauldron"))
         })
-    }).expect("Cauldron shop seed");
+        .expect("Cauldron shop seed");
 
     let mut engine = RunEngine::new(seed, 0);
     engine.run_state.gold = 10_000;
     engine.debug_enter_shop();
-    let relic_index = engine.get_shop().expect("shop").relics.iter()
+    let relic_index = engine
+        .get_shop()
+        .expect("shop")
+        .relics
+        .iter()
         .position(|(relic, _)| relic == "Cauldron")
         .expect("Cauldron offer");
-    assert!(engine.step_game(&GameAction::ShopBuyRelic(relic_index)).accepted());
+    assert!(engine
+        .step_game(&GameAction::ShopBuyRelic(relic_index))
+        .accepted());
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
     let screen = engine.current_reward_screen().expect("Cauldron rewards");
     assert_eq!(screen.source, RewardScreenSource::Shop);
     assert_eq!(screen.items.len(), 5);
-    assert!(screen.items.iter().all(|item| item.kind == RewardItemKind::Potion));
+    assert!(screen
+        .items
+        .iter()
+        .all(|item| item.kind == RewardItemKind::Potion));
 
     for item_index in 0..3 {
-        assert!(engine.step_game(&GameAction::SelectRewardItem(item_index)).accepted());
+        assert!(engine
+            .step_game(&GameAction::SelectRewardItem(item_index))
+            .accepted());
     }
-    assert!(engine.run_state.potions.iter().all(|potion| !potion.is_empty()));
+    assert!(engine
+        .run_state
+        .potions
+        .iter()
+        .all(|potion| !potion.is_empty()));
 
     // AbstractPlayer.obtainPotion returns false when full, leaving the reward
     // available; it can still be skipped to finish Cauldron's screen.
-    assert!(engine.step_game(&GameAction::SelectRewardItem(3)).accepted());
-    assert_eq!(engine.current_reward_screen().expect("reward").items[3].state,
-        RewardItemState::Available);
+    assert!(engine
+        .step_game(&GameAction::SelectRewardItem(3))
+        .accepted());
+    assert_eq!(
+        engine.current_reward_screen().expect("reward").items[3].state,
+        RewardItemState::Available
+    );
     assert!(engine.step_game(&GameAction::LeaveRewards).accepted());
     assert_eq!(engine.current_phase(), RunPhase::Shop);
     assert!(engine.get_shop().is_some());
@@ -3149,25 +3485,30 @@ fn dollys_mirror_is_shop_reachable_and_obtains_one_unbottled_card_copy() {
     // equivalent copy, clears all bottle flags, then ShowCardAndObtainEffect
     // dispatches normal card-obtain callbacks before returning to the shop.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/DollysMirror.java
-    let seed = (0..256).find(|seed| {
-        let mut engine = RunEngine::new(*seed, 0);
-        // Shop generation consumes RNG while building all offers, so seed
-        // discovery must reproduce the complete purchase setup below.
-        engine.run_state.deck = vec![
-            "Strike".to_string(),
-            "Defend".to_string(),
-            "Wallop+".to_string(),
-        ];
-        sync_test_master_deck(&mut engine);
-        engine.run_state.bottled_flame_card_instance_id = Some(test_master_card_id(&engine, 2));
-        engine.run_state.relics.push("CeramicFish".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
-        engine.run_state.gold = 10_000;
-        engine.debug_enter_shop();
-        engine.get_shop().is_some_and(|shop| {
-            shop.relics.iter().any(|(relic, _)| relic == "DollysMirror")
+    let seed = (0..256)
+        .find(|seed| {
+            let mut engine = RunEngine::new(*seed, 0);
+            // Shop generation consumes RNG while building all offers, so seed
+            // discovery must reproduce the complete purchase setup below.
+            engine.run_state.deck = vec![
+                "Strike".to_string(),
+                "Defend".to_string(),
+                "Wallop+".to_string(),
+            ];
+            sync_test_master_deck(&mut engine);
+            engine.run_state.bottled_flame_card_instance_id = Some(test_master_card_id(&engine, 2));
+            engine.run_state.relics.push("CeramicFish".to_string());
+            engine
+                .run_state
+                .relic_flags
+                .rebuild(&engine.run_state.relics);
+            engine.run_state.gold = 10_000;
+            engine.debug_enter_shop();
+            engine
+                .get_shop()
+                .is_some_and(|shop| shop.relics.iter().any(|(relic, _)| relic == "DollysMirror"))
         })
-    }).expect("DollysMirror shop seed");
+        .expect("DollysMirror shop seed");
 
     let mut engine = RunEngine::new(seed, 0);
     engine.run_state.deck = vec![
@@ -3178,36 +3519,66 @@ fn dollys_mirror_is_shop_reachable_and_obtains_one_unbottled_card_copy() {
     sync_test_master_deck(&mut engine);
     engine.run_state.bottled_flame_card_instance_id = Some(test_master_card_id(&engine, 2));
     engine.run_state.relics.push("CeramicFish".to_string());
-    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
     engine.run_state.gold = 10_000;
     engine.debug_enter_shop();
-    let relic_index = engine.get_shop().expect("shop").relics.iter()
+    let relic_index = engine
+        .get_shop()
+        .expect("shop")
+        .relics
+        .iter()
         .position(|(relic, _)| relic == "DollysMirror")
         .expect("DollysMirror offer");
-    assert!(engine.step_game(&GameAction::ShopBuyRelic(relic_index)).accepted());
+    assert!(engine
+        .step_game(&GameAction::ShopBuyRelic(relic_index))
+        .accepted());
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
     let gold_after_purchase = engine.run_state.gold;
     let screen = engine.current_reward_screen().expect("mirror selection");
     assert_eq!(screen.source, RewardScreenSource::Shop);
     assert!(!screen.items[0].skip_allowed);
-    let wallop_choice = screen.items[0].choices.iter().position(|choice| {
-        matches!(choice, RewardChoice::Card { card_id, .. } if card_id == "Wallop+")
-    }).expect("Wallop+ choice");
-    assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
-    assert!(engine.step_game(&GameAction::ChooseRewardOption {
-        item_index: 0,
-        choice_index: wallop_choice,
-    }).accepted());
+    let wallop_choice = screen.items[0]
+        .choices
+        .iter()
+        .position(
+            |choice| matches!(choice, RewardChoice::Card { card_id, .. } if card_id == "Wallop+"),
+        )
+        .expect("Wallop+ choice");
+    assert!(engine
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
+    assert!(engine
+        .step_game(&GameAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: wallop_choice,
+        })
+        .accepted());
     assert_eq!(engine.current_phase(), RunPhase::Shop);
-    assert_eq!(engine.run_state.deck.iter().filter(|card| *card == "Wallop+").count(), 2);
+    assert_eq!(
+        engine
+            .run_state
+            .deck
+            .iter()
+            .filter(|card| *card == "Wallop+")
+            .count(),
+        2
+    );
     assert_eq!(engine.run_state.gold, gold_after_purchase + 9);
 
     engine.debug_enter_specific_combat(&["JawWorm"]);
     let combat = engine.get_combat_engine().expect("mirror combat");
-    let innate_wallops = combat.state.master_deck.iter().filter(|card| {
-        combat.card_registry.card_name(card.def_id) == "Wallop+"
-            && card.flags & crate::combat_types::CardInstance::FLAG_INNATE != 0
-    }).count();
+    let innate_wallops = combat
+        .state
+        .master_deck
+        .iter()
+        .filter(|card| {
+            combat.card_registry.card_name(card.def_id) == "Wallop+"
+                && card.flags & crate::combat_types::CardInstance::FLAG_INNATE != 0
+        })
+        .count();
     assert_eq!(innate_wallops, 1);
 }
 
@@ -3220,12 +3591,9 @@ fn dollys_mirror_preserves_mutable_card_state_with_fresh_identity() {
         .find(|seed| {
             let mut engine = RunEngine::new(*seed, 0);
             engine.debug_enter_shop();
-            engine.get_shop().is_some_and(|shop| {
-                shop
-                    .relics
-                    .iter()
-                    .any(|(relic, _)| relic == "DollysMirror")
-            })
+            engine
+                .get_shop()
+                .is_some_and(|shop| shop.relics.iter().any(|(relic, _)| relic == "DollysMirror"))
         })
         .expect("DollysMirror shop seed");
 
@@ -3280,20 +3648,25 @@ fn orrery_is_shop_reachable_and_opens_five_independent_card_rewards() {
     // Each RewardItem constructs its own choices through getRewardCards.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Orrery.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/screens/CombatRewardScreen.java
-    let seed = (0..256).find(|seed| {
-        let mut engine = RunEngine::new(*seed, 0);
-        engine.run_state.relics.extend([
-            "Frozen Egg 2".to_string(),
-            "Molten Egg 2".to_string(),
-            "Toxic Egg 2".to_string(),
-            "CeramicFish".to_string(),
-        ]);
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
-        engine.debug_enter_shop();
-        engine.get_shop().is_some_and(|shop| {
-            shop.relics.iter().any(|(relic, _)| relic == "Orrery")
+    let seed = (0..256)
+        .find(|seed| {
+            let mut engine = RunEngine::new(*seed, 0);
+            engine.run_state.relics.extend([
+                "Frozen Egg 2".to_string(),
+                "Molten Egg 2".to_string(),
+                "Toxic Egg 2".to_string(),
+                "CeramicFish".to_string(),
+            ]);
+            engine
+                .run_state
+                .relic_flags
+                .rebuild(&engine.run_state.relics);
+            engine.debug_enter_shop();
+            engine
+                .get_shop()
+                .is_some_and(|shop| shop.relics.iter().any(|(relic, _)| relic == "Orrery"))
         })
-    }).expect("Orrery shop seed");
+        .expect("Orrery shop seed");
 
     let mut engine = RunEngine::new(seed, 0);
     engine.run_state.gold = 10_000;
@@ -3303,12 +3676,21 @@ fn orrery_is_shop_reachable_and_opens_five_independent_card_rewards() {
         "Toxic Egg 2".to_string(),
         "CeramicFish".to_string(),
     ]);
-    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
     engine.debug_enter_shop();
-    let relic_index = engine.get_shop().expect("shop").relics.iter()
+    let relic_index = engine
+        .get_shop()
+        .expect("shop")
+        .relics
+        .iter()
         .position(|(relic, _)| relic == "Orrery")
         .expect("Orrery offer");
-    assert!(engine.step_game(&GameAction::ShopBuyRelic(relic_index)).accepted());
+    assert!(engine
+        .step_game(&GameAction::ShopBuyRelic(relic_index))
+        .accepted());
 
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
     let gold_after_purchase = engine.run_state.gold;
@@ -3324,15 +3706,19 @@ fn orrery_is_shop_reachable_and_opens_five_independent_card_rewards() {
             })
     }));
 
-    assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
+    assert!(engine
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     let selected_card = match &engine.current_reward_screen().expect("reward").items[0].choices[0] {
         RewardChoice::Card { card_id, .. } => card_id.clone(),
         _ => panic!("Orrery must offer cards"),
     };
-    assert!(engine.step_game(&GameAction::ChooseRewardOption {
-        item_index: 0,
-        choice_index: 0,
-    }).accepted());
+    assert!(engine
+        .step_game(&GameAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 0,
+        })
+        .accepted());
     assert!(engine.run_state.deck.contains(&selected_card));
     assert_eq!(engine.run_state.gold, gold_after_purchase + 9);
 
@@ -3348,20 +3734,18 @@ fn chemical_x_is_reachable_only_from_the_shop_relic_slot() {
     for seed in 0..128 {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Chemical X")
-        }));
+        assert!(engine
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "Chemical X") }));
     }
 
     let offered_seed = (0..512)
         .find(|seed| {
             let mut engine = RunEngine::new(*seed, 0);
             engine.debug_enter_shop();
-            engine.get_shop().is_some_and(|shop| {
-                shop.relics
-                    .iter()
-                    .any(|(relic, _)| relic == "Chemical X")
-            })
+            engine
+                .get_shop()
+                .is_some_and(|shop| shop.relics.iter().any(|(relic, _)| relic == "Chemical X"))
         })
         .expect("Chemical X should be reachable from the SHOP-tier slot");
 
@@ -3375,9 +3759,7 @@ fn chemical_x_is_reachable_only_from_the_shop_relic_slot() {
         .iter()
         .position(|(relic, _)| relic == "Chemical X")
         .expect("Chemical X offer");
-    assert!(engine
-        .step_game(&GameAction::ShopBuyRelic(idx))
-        .accepted());
+    assert!(engine.step_game(&GameAction::ShopBuyRelic(idx)).accepted());
     assert!(engine
         .run_state
         .relics
@@ -3392,18 +3774,18 @@ fn frozen_eye_is_reachable_only_from_the_shop_relic_slot() {
     for seed in 0..128 {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Frozen Eye")
-        }));
+        assert!(engine
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "Frozen Eye") }));
     }
 
     let offered_seed = (0..512)
         .find(|seed| {
             let mut engine = RunEngine::new(*seed, 0);
             engine.debug_enter_shop();
-            engine.get_shop().is_some_and(|shop| {
-                shop.relics.iter().any(|(relic, _)| relic == "Frozen Eye")
-            })
+            engine
+                .get_shop()
+                .is_some_and(|shop| shop.relics.iter().any(|(relic, _)| relic == "Frozen Eye"))
         })
         .expect("Frozen Eye should be reachable from the SHOP-tier slot");
 
@@ -3417,9 +3799,7 @@ fn frozen_eye_is_reachable_only_from_the_shop_relic_slot() {
         .iter()
         .position(|(relic, _)| relic == "Frozen Eye")
         .expect("Frozen Eye offer");
-    assert!(engine
-        .step_game(&GameAction::ShopBuyRelic(idx))
-        .accepted());
+    assert!(engine.step_game(&GameAction::ShopBuyRelic(idx)).accepted());
     assert!(engine
         .run_state
         .relics
@@ -3434,18 +3814,18 @@ fn hand_drill_is_reachable_only_from_the_shop_relic_slot() {
     for seed in 0..128 {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "HandDrill")
-        }));
+        assert!(engine
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "HandDrill") }));
     }
 
     let offered_seed = (0..512)
         .find(|seed| {
             let mut engine = RunEngine::new(*seed, 0);
             engine.debug_enter_shop();
-            engine.get_shop().is_some_and(|shop| {
-                shop.relics.iter().any(|(relic, _)| relic == "HandDrill")
-            })
+            engine
+                .get_shop()
+                .is_some_and(|shop| shop.relics.iter().any(|(relic, _)| relic == "HandDrill"))
         })
         .expect("HandDrill should be reachable from the SHOP-tier slot");
 
@@ -3459,9 +3839,7 @@ fn hand_drill_is_reachable_only_from_the_shop_relic_slot() {
         .iter()
         .position(|(relic, _)| relic == "HandDrill")
         .expect("HandDrill offer");
-    assert!(engine
-        .step_game(&GameAction::ShopBuyRelic(idx))
-        .accepted());
+    assert!(engine.step_game(&GameAction::ShopBuyRelic(idx)).accepted());
     assert!(engine
         .run_state
         .relics
@@ -3476,18 +3854,18 @@ fn the_abacus_is_reachable_only_from_the_shop_relic_slot() {
     for seed in 0..128 {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "TheAbacus")
-        }));
+        assert!(engine
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "TheAbacus") }));
     }
 
     let offered_seed = (0..512)
         .find(|seed| {
             let mut engine = RunEngine::new(*seed, 0);
             engine.debug_enter_shop();
-            engine.get_shop().is_some_and(|shop| {
-                shop.relics.iter().any(|(relic, _)| relic == "TheAbacus")
-            })
+            engine
+                .get_shop()
+                .is_some_and(|shop| shop.relics.iter().any(|(relic, _)| relic == "TheAbacus"))
         })
         .expect("TheAbacus should be reachable from the SHOP-tier slot");
 
@@ -3501,9 +3879,7 @@ fn the_abacus_is_reachable_only_from_the_shop_relic_slot() {
         .iter()
         .position(|(relic, _)| relic == "TheAbacus")
         .expect("TheAbacus offer");
-    assert!(engine
-        .step_game(&GameAction::ShopBuyRelic(idx))
-        .accepted());
+    assert!(engine.step_game(&GameAction::ShopBuyRelic(idx)).accepted());
     assert!(engine
         .run_state
         .relics
@@ -3517,18 +3893,18 @@ fn sling_is_reachable_only_from_the_shop_relic_slot() {
     for seed in 0..128 {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Sling")
-        }));
+        assert!(engine
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "Sling") }));
     }
 
     let offered_seed = (0..512)
         .find(|seed| {
             let mut engine = RunEngine::new(*seed, 0);
             engine.debug_enter_shop();
-            engine.get_shop().is_some_and(|shop| {
-                shop.relics.iter().any(|(relic, _)| relic == "Sling")
-            })
+            engine
+                .get_shop()
+                .is_some_and(|shop| shop.relics.iter().any(|(relic, _)| relic == "Sling"))
         })
         .expect("Sling should be reachable from the SHOP-tier slot");
 
@@ -3542,9 +3918,7 @@ fn sling_is_reachable_only_from_the_shop_relic_slot() {
         .iter()
         .position(|(relic, _)| relic == "Sling")
         .expect("Sling offer");
-    assert!(engine
-        .step_game(&GameAction::ShopBuyRelic(idx))
-        .accepted());
+    assert!(engine.step_game(&GameAction::ShopBuyRelic(idx)).accepted());
     assert!(engine.run_state.relics.iter().any(|relic| relic == "Sling"));
 }
 
@@ -3556,7 +3930,10 @@ fn strange_spoon_is_reachable_only_from_the_shop_relic_slot() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Strange Spoon")
+            screen
+                .items
+                .iter()
+                .all(|item| item.label != "Strange Spoon")
         }));
     }
 
@@ -3582,9 +3959,7 @@ fn strange_spoon_is_reachable_only_from_the_shop_relic_slot() {
         .iter()
         .position(|(relic, _)| relic == "Strange Spoon")
         .expect("Strange Spoon offer");
-    assert!(engine
-        .step_game(&GameAction::ShopBuyRelic(idx))
-        .accepted());
+    assert!(engine.step_game(&GameAction::ShopBuyRelic(idx)).accepted());
     assert!(engine
         .run_state
         .relics
@@ -3600,7 +3975,10 @@ fn orange_pellets_is_reachable_only_from_the_shop_relic_slot() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "OrangePellets")
+            screen
+                .items
+                .iter()
+                .all(|item| item.label != "OrangePellets")
         }));
     }
 
@@ -3626,9 +4004,7 @@ fn orange_pellets_is_reachable_only_from_the_shop_relic_slot() {
         .iter()
         .position(|(relic, _)| relic == "OrangePellets")
         .expect("OrangePellets offer");
-    assert!(engine
-        .step_game(&GameAction::ShopBuyRelic(idx))
-        .accepted());
+    assert!(engine.step_game(&GameAction::ShopBuyRelic(idx)).accepted());
     assert!(engine
         .run_state
         .relics
@@ -3643,18 +4019,20 @@ fn melange_is_reachable_only_from_the_shop_relic_slot() {
     for seed in 0..128 {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Melange")
-        }));
+        assert!(engine
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "Melange") }));
     }
 
-    let offered_seed = (0..512).find(|seed| {
-        let mut engine = RunEngine::new(*seed, 0);
-        engine.debug_enter_shop();
-        engine.get_shop().is_some_and(|shop| {
-            shop.relics.iter().any(|(relic, _)| relic == "Melange")
+    let offered_seed = (0..512)
+        .find(|seed| {
+            let mut engine = RunEngine::new(*seed, 0);
+            engine.debug_enter_shop();
+            engine
+                .get_shop()
+                .is_some_and(|shop| shop.relics.iter().any(|(relic, _)| relic == "Melange"))
         })
-    }).expect("Melange should be reachable from the SHOP-tier slot");
+        .expect("Melange should be reachable from the SHOP-tier slot");
 
     let mut engine = RunEngine::new(offered_seed, 0);
     engine.run_state.gold = 999;
@@ -3666,10 +4044,12 @@ fn melange_is_reachable_only_from_the_shop_relic_slot() {
         .iter()
         .position(|(relic, _)| relic == "Melange")
         .expect("Melange offer");
+    assert!(engine.step_game(&GameAction::ShopBuyRelic(idx)).accepted());
     assert!(engine
-        .step_game(&GameAction::ShopBuyRelic(idx))
-        .accepted());
-    assert!(engine.run_state.relics.iter().any(|relic| relic == "Melange"));
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == "Melange"));
 }
 
 #[test]
@@ -3757,9 +4137,10 @@ fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
         assert!(engine
             .step_game(&GameAction::SelectRewardItem(item_index))
             .accepted());
-        if engine.current_reward_screen().is_some_and(|screen| {
-            screen.items[0].label.starts_with("deck_selection_bottled_")
-        }) {
+        if engine
+            .current_reward_screen()
+            .is_some_and(|screen| screen.items[0].label.starts_with("deck_selection_bottled_"))
+        {
             assert!(engine
                 .step_game(&GameAction::SelectRewardItem(0))
                 .accepted());
@@ -3801,7 +4182,9 @@ fn astrolabe_is_reachable_and_transforms_three_selected_cards_upgraded() {
     let mut engine = RunEngine::new(42, 0);
     let original_len = engine.run_state.deck.len();
     engine.debug_set_reward_screen(relic_choice_reward_screen(&["Astrolabe"]));
-    assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
+    assert!(engine
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert!(engine
         .step_game(&GameAction::ChooseRewardOption {
             item_index: 0,
@@ -3810,7 +4193,9 @@ fn astrolabe_is_reachable_and_transforms_three_selected_cards_upgraded() {
         .accepted());
 
     for _ in 0..3 {
-        assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
+        assert!(engine
+            .step_game(&GameAction::SelectRewardItem(0))
+            .accepted());
         assert!(engine
             .step_game(&GameAction::ChooseRewardOption {
                 item_index: 0,
@@ -3829,7 +4214,11 @@ fn astrolabe_is_reachable_and_transforms_three_selected_cards_upgraded() {
             .count(),
         3
     );
-    assert!(engine.run_state.relics.iter().any(|relic| relic == "Astrolabe"));
+    assert!(engine
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == "Astrolabe"));
 
     // Java skips the grid when at most three purgeable cards exist and gives
     // those transforms immediately; unpurgeable curses are not candidates.
@@ -3912,9 +4301,10 @@ fn ancient_tea_set_reward_obeys_its_java_floor_cutoff() {
         engine.run_state.floor = 48;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Ancient Tea Set"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Ancient Tea Set")
         })
     });
     assert!(offered_before_cutoff);
@@ -3924,9 +4314,10 @@ fn ancient_tea_set_reward_obeys_its_java_floor_cutoff() {
         engine.run_state.floor = 49;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| {
-                item.kind != RewardItemKind::Relic || item.label != "Ancient Tea Set"
-            })
+            screen
+                .items
+                .iter()
+                .all(|item| item.kind != RewardItemKind::Relic || item.label != "Ancient Tea Set")
         }));
     }
 }
@@ -3957,9 +4348,10 @@ fn bag_of_marbles_is_reachable_under_its_canonical_java_id() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Bag of Marbles"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Bag of Marbles")
         })
     });
     assert!(offered);
@@ -3989,9 +4381,10 @@ fn bird_faced_urn_is_reachable_from_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Bird Faced Urn"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Bird Faced Urn")
         })
     });
     assert!(offered);
@@ -4057,7 +4450,10 @@ fn bottled_flame_requires_a_nonbasic_attack_then_selects_any_purgeable_attack() 
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Bottled Flame")
+            screen
+                .items
+                .iter()
+                .all(|item| item.label != "Bottled Flame")
         }));
     }
 
@@ -4066,7 +4462,10 @@ fn bottled_flame_requires_a_nonbasic_attack_then_selects_any_purgeable_attack() 
         engine.run_state.deck.push("Wallop".to_string());
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| item.label == "Bottled Flame")
+            screen
+                .items
+                .iter()
+                .any(|item| item.label == "Bottled Flame")
         })
     });
     assert!(offered);
@@ -4081,12 +4480,14 @@ fn bottled_flame_requires_a_nonbasic_attack_then_selects_any_purgeable_attack() 
         .current_reward_screen()
         .expect("bottle selection should replace the relic reward");
     assert!(screen.items[0].choices.iter().all(|choice| {
-        !matches!(choice, RewardChoice::Card { card_id, .. } if card_id == "Defend")
+        !matches!(choice, RewardChoice::Card { card_id, .. } if card_id == "Defend_P")
     }));
     let wallop_choice = screen.items[0]
         .choices
         .iter()
-        .position(|choice| matches!(choice, RewardChoice::Card { card_id, .. } if card_id == "Wallop"))
+        .position(
+            |choice| matches!(choice, RewardChoice::Card { card_id, .. } if card_id == "Wallop"),
+        )
         .expect("Wallop should be bottle-eligible");
     assert!(engine
         .step_game(&GameAction::SelectRewardItem(0))
@@ -4117,7 +4518,10 @@ fn bottled_lightning_requires_a_nonbasic_skill_then_selects_any_purgeable_skill(
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Bottled Lightning")
+            screen
+                .items
+                .iter()
+                .all(|item| item.label != "Bottled Lightning")
         }));
     }
 
@@ -4126,7 +4530,10 @@ fn bottled_lightning_requires_a_nonbasic_skill_then_selects_any_purgeable_skill(
         engine.run_state.deck.push("ThirdEye".to_string());
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| item.label == "Bottled Lightning")
+            screen
+                .items
+                .iter()
+                .any(|item| item.label == "Bottled Lightning")
         })
     });
     assert!(offered);
@@ -4137,14 +4544,18 @@ fn bottled_lightning_requires_a_nonbasic_skill_then_selects_any_purgeable_skill(
     assert!(engine
         .step_game(&GameAction::SelectRewardItem(0))
         .accepted());
-    let screen = engine.current_reward_screen().expect("skill selection should open");
+    let screen = engine
+        .current_reward_screen()
+        .expect("skill selection should open");
     assert!(screen.items[0].choices.iter().all(|choice| {
-        !matches!(choice, RewardChoice::Card { card_id, .. } if card_id == "Strike")
+        !matches!(choice, RewardChoice::Card { card_id, .. } if card_id == "Strike_P")
     }));
     let choice_index = screen.items[0]
         .choices
         .iter()
-        .position(|choice| matches!(choice, RewardChoice::Card { card_id, .. } if card_id == "ThirdEye"))
+        .position(
+            |choice| matches!(choice, RewardChoice::Card { card_id, .. } if card_id == "ThirdEye"),
+        )
         .expect("Third Eye should be bottle-eligible");
     assert!(engine
         .step_game(&GameAction::SelectRewardItem(0))
@@ -4175,7 +4586,10 @@ fn bottled_tornado_requires_and_selects_a_purgeable_power() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Bottled Tornado")
+            screen
+                .items
+                .iter()
+                .all(|item| item.label != "Bottled Tornado")
         }));
     }
 
@@ -4184,7 +4598,10 @@ fn bottled_tornado_requires_and_selects_a_purgeable_power() {
         engine.run_state.deck.push("Devotion".to_string());
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| item.label == "Bottled Tornado")
+            screen
+                .items
+                .iter()
+                .any(|item| item.label == "Bottled Tornado")
         })
     });
     assert!(offered);
@@ -4195,7 +4612,9 @@ fn bottled_tornado_requires_and_selects_a_purgeable_power() {
     assert!(engine
         .step_game(&GameAction::SelectRewardItem(0))
         .accepted());
-    let screen = engine.current_reward_screen().expect("power selection should open");
+    let screen = engine
+        .current_reward_screen()
+        .expect("power selection should open");
     assert_eq!(screen.items[0].choices.len(), 1);
     assert!(matches!(
         &screen.items[0].choices[0],
@@ -4264,9 +4683,10 @@ fn centennial_puzzle_is_reachable_from_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Centennial Puzzle"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Centennial Puzzle")
         })
     });
     assert!(offered);
@@ -4282,9 +4702,10 @@ fn ceramic_fish_is_reachable_before_floor_49_and_pays_for_shop_card_obtains() {
         engine.run_state.floor = 48;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "CeramicFish"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "CeramicFish")
         })
     });
     assert!(offered);
@@ -4293,14 +4714,17 @@ fn ceramic_fish_is_reachable_before_floor_49_and_pays_for_shop_card_obtains() {
         let mut engine = RunEngine::new(seed, 0);
         engine.run_state.floor = 49;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
-        assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "CeramicFish")
-        }));
+        assert!(engine
+            .current_reward_screen()
+            .is_some_and(|screen| { screen.items.iter().all(|item| item.label != "CeramicFish") }));
     }
 
     let mut engine = RunEngine::new(42, 0);
     engine.run_state.relics.push("CeramicFish".to_string());
-    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
     engine.run_state.gold = 100;
     engine.debug_set_shop_state(ShopState {
         cards: vec![("Strike".to_string(), 50)],
@@ -4312,7 +4736,10 @@ fn ceramic_fish_is_reachable_before_floor_49_and_pays_for_shop_card_obtains() {
 
     let step = engine.step_game(&GameAction::ShopBuyCard(0));
     assert!(step.accepted());
-    assert_eq!(engine.run_state.deck.last().map(String::as_str), Some("Strike"));
+    assert_eq!(
+        engine.run_state.deck.last().map(String::as_str),
+        Some("Strike")
+    );
     assert_eq!(engine.run_state.gold, 59);
 }
 
@@ -4326,7 +4753,10 @@ fn ambrosia_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
             screen
@@ -4347,12 +4777,16 @@ fn bottled_miracle_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "BottledMiracle"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "BottledMiracle")
         })
     });
     assert!(offered);
@@ -4367,12 +4801,16 @@ fn stance_potion_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "StancePotion"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "StancePotion")
         })
     });
     assert!(offered);
@@ -4387,12 +4825,16 @@ fn ancient_potion_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "Ancient Potion"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "Ancient Potion")
         })
     });
     assert!(offered);
@@ -4407,7 +4849,10 @@ fn blessing_of_the_forge_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
             screen.items.iter().any(|item| {
@@ -4427,12 +4872,16 @@ fn colorless_potion_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "ColorlessPotion"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "ColorlessPotion")
         })
     });
     assert!(offered);
@@ -4447,12 +4896,16 @@ fn cultist_potion_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "CultistPotion"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "CultistPotion")
         })
     });
     assert!(offered);
@@ -4469,12 +4922,16 @@ fn distilled_chaos_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "DistilledChaos"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "DistilledChaos")
         })
     });
     assert!(offered);
@@ -4491,7 +4948,10 @@ fn duplication_potion_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
             screen.items.iter().any(|item| {
@@ -4512,12 +4972,16 @@ fn fruit_juice_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "Fruit Juice"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "Fruit Juice")
         })
     });
     assert!(offered);
@@ -4533,12 +4997,16 @@ fn gamblers_brew_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "GamblersBrew"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "GamblersBrew")
         })
     });
     assert!(offered);
@@ -4554,12 +5022,16 @@ fn liquid_bronze_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "LiquidBronze"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "LiquidBronze")
         })
     });
     assert!(offered);
@@ -4575,12 +5047,16 @@ fn liquid_memories_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "LiquidMemories"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "LiquidMemories")
         })
     });
     assert!(offered);
@@ -4596,12 +5072,16 @@ fn regen_potion_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "Regen Potion"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "Regen Potion")
         })
     });
     assert!(offered);
@@ -4617,12 +5097,16 @@ fn smoke_bomb_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "SmokeBomb"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "SmokeBomb")
         })
     });
     assert!(offered);
@@ -4638,12 +5122,16 @@ fn snecko_oil_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "SneckoOil"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "SneckoOil")
         })
     });
     assert!(offered);
@@ -4659,12 +5147,16 @@ fn speed_potion_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "SpeedPotion"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "SpeedPotion")
         })
     });
     assert!(offered);
@@ -4680,12 +5172,16 @@ fn steroid_potion_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "SteroidPotion"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "SteroidPotion")
         })
     });
     assert!(offered);
@@ -4701,12 +5197,16 @@ fn strength_potion_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "Strength Potion"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "Strength Potion")
         })
     });
     assert!(offered);
@@ -4722,12 +5222,16 @@ fn swift_potion_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "Swift Potion"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "Swift Potion")
         })
     });
     assert!(offered);
@@ -4743,12 +5247,16 @@ fn weak_potion_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "Weak Potion"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "Weak Potion")
         })
     });
     assert!(offered);
@@ -4764,12 +5272,16 @@ fn power_potion_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "PowerPotion"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "PowerPotion")
         })
     });
     assert!(offered);
@@ -4785,12 +5297,16 @@ fn skill_potion_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "SkillPotion"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "SkillPotion")
         })
     });
     assert!(offered);
@@ -4807,12 +5323,16 @@ fn energy_potion_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "Energy Potion"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "Energy Potion")
         })
     });
     assert!(offered);
@@ -4828,12 +5348,16 @@ fn entropic_brew_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "EntropicBrew"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "EntropicBrew")
         })
     });
     assert!(offered);
@@ -4849,12 +5373,16 @@ fn essence_of_steel_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "EssenceOfSteel"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "EssenceOfSteel")
         })
     });
     assert!(offered);
@@ -4870,12 +5398,16 @@ fn explosive_potion_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "Explosive Potion"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "Explosive Potion")
         })
     });
     assert!(offered);
@@ -4891,12 +5423,16 @@ fn fairy_potion_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "FairyPotion"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "FairyPotion")
         })
     });
     assert!(offered);
@@ -4912,12 +5448,16 @@ fn fear_potion_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "FearPotion"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "FearPotion")
         })
     });
     assert!(offered);
@@ -4933,12 +5473,16 @@ fn fire_potion_is_reachable_from_watcher_potion_rewards() {
             .run_state
             .relics
             .push("White Beast Statue".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
         engine.debug_build_combat_reward_screen(RoomType::Monster);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Potion && item.label == "Fire Potion"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Potion && item.label == "Fire Potion")
         })
     });
     assert!(offered);
@@ -4967,7 +5511,7 @@ fn claiming_question_card_expands_later_card_reward_choices() {
     assert_eq!(screen.items[1].choices.len(), 4);
     assert!(engine
         .get_legal_actions()
-        .contains(&GameAction::SelectRewardItem(1 )));
+        .contains(&GameAction::SelectRewardItem(1)));
 }
 
 #[test]
@@ -4979,9 +5523,10 @@ fn question_card_is_reachable_only_through_floor_forty_eight() {
         engine.run_state.floor = 48;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Question Card"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Question Card")
         })
     });
     assert!(offered);
@@ -4991,7 +5536,10 @@ fn question_card_is_reachable_only_through_floor_forty_eight() {
         engine.run_state.floor = 49;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         assert!(engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().all(|item| item.label != "Question Card")
+            screen
+                .items
+                .iter()
+                .all(|item| item.label != "Question Card")
         }));
     }
 }
@@ -5023,7 +5571,9 @@ fn claiming_prayer_wheel_adds_second_ordered_card_reward_item() {
     let screen = engine
         .current_reward_screen()
         .expect("prayer wheel should mutate later combat rewards");
-    let card_indices: Vec<usize> = screen.items.iter()
+    let card_indices: Vec<usize> = screen
+        .items
+        .iter()
         .filter(|item| item.kind == RewardItemKind::CardChoice)
         .map(|item| item.index)
         .collect();
@@ -5035,9 +5585,10 @@ fn claiming_prayer_wheel_adds_second_ordered_card_reward_item() {
         choice_index: 0,
     });
     assert!(pick_first.accepted());
-    assert!(pick_first.next_decision.legal_actions.contains(
-        &GameAction::SelectRewardItem(card_indices[1] )
-    ));
+    assert!(pick_first
+        .next_decision
+        .legal_actions
+        .contains(&GameAction::SelectRewardItem(card_indices[1])));
 }
 
 #[test]
@@ -5049,9 +5600,10 @@ fn prayer_wheel_is_reachable_only_through_floor_forty_eight() {
         engine.run_state.floor = 48;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Prayer Wheel"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Prayer Wheel")
         })
     });
     assert!(offered);
@@ -5075,9 +5627,10 @@ fn regal_pillow_is_reachable_only_through_floor_forty_eight() {
         engine.run_state.floor = 48;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Regal Pillow"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Regal Pillow")
         })
     });
     assert!(offered);
@@ -5111,7 +5664,13 @@ fn claiming_singing_bowl_turns_future_card_skip_into_max_hp() {
 
     let open = engine.step_game(&GameAction::SelectRewardItem(0));
     assert!(open.accepted());
-    assert!(open.next_decision.legal_actions.contains(&GameAction::ChooseRewardOption { item_index: 0, choice_index: 2, }));
+    assert!(open
+        .next_decision
+        .legal_actions
+        .contains(&GameAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 2,
+        }));
     let bowl = engine.step_game(&GameAction::ChooseRewardOption {
         item_index: 0,
         choice_index: 2,
@@ -5130,9 +5689,10 @@ fn singing_bowl_is_reachable_only_through_floor_forty_eight() {
         engine.run_state.floor = 48;
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Singing Bowl"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Singing Bowl")
         })
     });
     assert!(offered);
@@ -5169,7 +5729,10 @@ fn whetstone_upgrades_only_eligible_attacks_and_syncs_a_bottled_attack() {
         engine.run_state.deck,
         vec!["Strike+", "Defend", "Eruption+"]
     );
-    assert_eq!(engine.run_state.bottled_flame_card_instance_id, Some(bottled_id));
+    assert_eq!(
+        engine.run_state.bottled_flame_card_instance_id,
+        Some(bottled_id)
+    );
 }
 
 #[test]
@@ -5180,9 +5743,10 @@ fn whetstone_is_reachable_from_common_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Whetstone"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Whetstone")
         })
     });
     assert!(offered);
@@ -5210,7 +5774,10 @@ fn war_paint_upgrades_only_eligible_skills_and_syncs_a_bottled_skill() {
         engine.run_state.deck,
         vec!["Defend+", "Strike", "Vigilance+"]
     );
-    assert_eq!(engine.run_state.bottled_lightning_card_instance_id, Some(bottled_id));
+    assert_eq!(
+        engine.run_state.bottled_lightning_card_instance_id,
+        Some(bottled_id)
+    );
 }
 
 #[test]
@@ -5221,9 +5788,10 @@ fn war_paint_is_reachable_from_common_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "War Paint"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "War Paint")
         })
     });
     assert!(offered);
@@ -5236,9 +5804,10 @@ fn vajra_is_reachable_from_common_watcher_relic_rewards() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Vajra"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Vajra")
         })
     });
     assert!(offered);
@@ -5252,9 +5821,10 @@ fn thread_and_needle_is_reachable_as_rare_and_never_calling_bell_uncommon() {
         let mut engine = RunEngine::new(seed, 0);
         engine.debug_build_combat_reward_screen(RoomType::Elite);
         engine.current_reward_screen().is_some_and(|screen| {
-            screen.items.iter().any(|item| {
-                item.kind == RewardItemKind::Relic && item.label == "Thread and Needle"
-            })
+            screen
+                .items
+                .iter()
+                .any(|item| item.kind == RewardItemKind::Relic && item.label == "Thread and Needle")
         })
     });
     assert!(offered);
@@ -5272,7 +5842,9 @@ fn thread_and_needle_is_reachable_as_rare_and_never_calling_bell_uncommon() {
                 choice_index: 0,
             })
             .accepted());
-        let screen = engine.current_reward_screen().expect("Calling Bell rewards");
+        let screen = engine
+            .current_reward_screen()
+            .expect("Calling Bell rewards");
         assert_ne!(screen.items[2].label, "Thread and Needle");
         if screen.items[3].label == "Thread and Needle" {
             saw_calling_bell_thread = true;
@@ -5299,9 +5871,18 @@ fn choosing_black_star_from_relic_choice_doubles_future_elite_relic_rewards() {
     assert_eq!(
         open.next_decision.legal_actions,
         vec![
-            GameAction::ChooseRewardOption { item_index: 0, choice_index: 0, },
-            GameAction::ChooseRewardOption { item_index: 0, choice_index: 1, },
-            GameAction::ChooseRewardOption { item_index: 0, choice_index: 2, },
+            GameAction::ChooseRewardOption {
+                item_index: 0,
+                choice_index: 0,
+            },
+            GameAction::ChooseRewardOption {
+                item_index: 0,
+                choice_index: 1,
+            },
+            GameAction::ChooseRewardOption {
+                item_index: 0,
+                choice_index: 2,
+            },
         ]
     );
 
@@ -5310,7 +5891,10 @@ fn choosing_black_star_from_relic_choice_doubles_future_elite_relic_rewards() {
         choice_index: 0,
     });
     assert!(choose.accepted());
-    assert!(engine.run_state.relic_flags.has(crate::relic_flags::flag::BLACK_STAR));
+    assert!(engine
+        .run_state
+        .relic_flags
+        .has(crate::relic_flags::flag::BLACK_STAR));
 
     engine.debug_build_combat_reward_screen(RoomType::Elite);
     let screen = engine
@@ -5332,7 +5916,10 @@ fn white_beast_statue_flag_guarantees_potion_reward_on_ordered_screen() {
     engine.debug_set_reward_screen(single_relic_reward_screen("White Beast Statue"));
     let claim = engine.step_game(&GameAction::SelectRewardItem(0));
     assert!(claim.accepted());
-    assert!(engine.run_state.relic_flags.has(crate::relic_flags::flag::WHITE_BEAST));
+    assert!(engine
+        .run_state
+        .relic_flags
+        .has(crate::relic_flags::flag::WHITE_BEAST));
 
     engine.debug_build_combat_reward_screen(RoomType::Monster);
     let screen = engine
@@ -5375,7 +5962,14 @@ fn choosing_sacred_bark_uses_only_real_reward_choice_actions() {
 
     let open = engine.step_game(&GameAction::SelectRewardItem(0));
     assert!(open.accepted());
-    assert_eq!(open.next_decision.context.reward_screen.as_ref().and_then(|s| s.active_item), Some(0));
+    assert_eq!(
+        open.next_decision
+            .context
+            .reward_screen
+            .as_ref()
+            .and_then(|s| s.active_item),
+        Some(0)
+    );
     assert_eq!(open.next_decision.legal_actions.len(), 3);
 
     let choose = engine.step_game(&GameAction::ChooseRewardOption {
@@ -5383,7 +5977,10 @@ fn choosing_sacred_bark_uses_only_real_reward_choice_actions() {
         choice_index: 1,
     });
     assert!(choose.accepted());
-    assert!(engine.run_state.relic_flags.has(crate::relic_flags::flag::SACRED_BARK));
+    assert!(engine
+        .run_state
+        .relic_flags
+        .has(crate::relic_flags::flag::SACRED_BARK));
     assert_eq!(engine.current_phase(), RunPhase::Transition);
     assert_eq!(engine.run_state.act, 1);
     assert!(engine.step_game(&GameAction::Proceed).accepted());
@@ -5481,11 +6078,17 @@ fn tiny_house_applies_immediate_stats_then_opens_ordered_gold_and_potion_rewards
         .accepted());
 
     assert_eq!(engine.run_state.deck, vec!["Eruption+".to_string()]);
-    assert_eq!((engine.run_state.current_hp, engine.run_state.max_hp), (45, 77));
+    assert_eq!(
+        (engine.run_state.current_hp, engine.run_state.max_hp),
+        (45, 77)
+    );
     assert_eq!(engine.run_state.gold, gold_before);
     let screen = engine.current_reward_screen().expect("Tiny House rewards");
     assert_eq!(screen.items.len(), 2);
-    assert_eq!((screen.items[0].kind, screen.items[0].label.as_str()), (RewardItemKind::Gold, "50"));
+    assert_eq!(
+        (screen.items[0].kind, screen.items[0].label.as_str()),
+        (RewardItemKind::Gold, "50")
+    );
     assert_eq!(screen.items[1].kind, RewardItemKind::Potion);
     assert!(screen.items[0].claimable);
     assert!(!screen.items[1].claimable);
@@ -5497,7 +6100,11 @@ fn tiny_house_applies_immediate_stats_then_opens_ordered_gold_and_potion_rewards
     assert!(engine
         .step_game(&GameAction::SelectRewardItem(1))
         .accepted());
-    assert!(engine.run_state.potions.iter().any(|potion| !potion.is_empty()));
+    assert!(engine
+        .run_state
+        .potions
+        .iter()
+        .any(|potion| !potion.is_empty()));
 }
 
 #[test]
@@ -5595,7 +6202,11 @@ fn claiming_matryoshka_mutates_next_two_chests_then_expires() {
         .current_reward_screen()
         .expect("first treasure reward screen should exist");
     assert_eq!(
-        first.items.iter().filter(|item| item.kind == RewardItemKind::Relic).count(),
+        first
+            .items
+            .iter()
+            .filter(|item| item.kind == RewardItemKind::Relic)
+            .count(),
         2
     );
     assert_eq!(
@@ -5608,7 +6219,11 @@ fn claiming_matryoshka_mutates_next_two_chests_then_expires() {
         .current_reward_screen()
         .expect("second treasure reward screen should exist");
     assert_eq!(
-        second.items.iter().filter(|item| item.kind == RewardItemKind::Relic).count(),
+        second
+            .items
+            .iter()
+            .filter(|item| item.kind == RewardItemKind::Relic)
+            .count(),
         2
     );
     assert_eq!(
@@ -5621,7 +6236,11 @@ fn claiming_matryoshka_mutates_next_two_chests_then_expires() {
         .current_reward_screen()
         .expect("third treasure reward screen should exist");
     assert_eq!(
-        third.items.iter().filter(|item| item.kind == RewardItemKind::Relic).count(),
+        third
+            .items
+            .iter()
+            .filter(|item| item.kind == RewardItemKind::Relic)
+            .count(),
         1
     );
     assert_eq!(

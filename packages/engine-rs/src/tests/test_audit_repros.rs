@@ -8,7 +8,9 @@ use crate::tests::support::{
     make_deck, play_on_enemy,
 };
 
-fn without_card_instance_ids(cards: &[crate::combat_types::CardInstance]) -> Vec<crate::combat_types::CardInstance> {
+fn without_card_instance_ids(
+    cards: &[crate::combat_types::CardInstance],
+) -> Vec<crate::combat_types::CardInstance> {
     cards
         .iter()
         .copied()
@@ -250,14 +252,14 @@ fn eda_005_first_weak_encounter_must_follow_monster_rng() {
     // decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:390,1054-1084
     // decompiled/java-src/com/megacrit/cardcrawl/monsters/MonsterInfo.java:27-47
     let mut run = crate::run::RunEngine::new(4, 0);
-    assert!(
-        run.step_game(&crate::run::GameAction::ChooseNeowOption(1))
-            .accepted()
-    );
-    assert!(
-        run.step_game(&crate::run::GameAction::ChoosePath(0))
-            .accepted()
-    );
+    assert!(run.step_game(&crate::run::GameAction::Proceed).accepted());
+    assert!(run
+        .step_game(&crate::run::GameAction::ChooseNeowOption(1))
+        .accepted());
+    assert!(run.step_game(&crate::run::GameAction::Proceed).accepted());
+    assert!(run
+        .step_game(&crate::run::GameAction::ChoosePath(0))
+        .accepted());
 
     assert_eq!(run.debug_current_enemy_ids(), vec!["JawWorm".to_string()]);
 }
@@ -374,10 +376,10 @@ fn eda_008_necronomicon_x_replay_reuses_energy_on_use_and_chemical_x() {
     let mut engine =
         engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 200, 200)], 2);
     force_player_turn(&mut engine);
-    engine.state.relics.extend([
-        "Necronomicon".to_string(),
-        "Chemical X".to_string(),
-    ]);
+    engine
+        .state
+        .relics
+        .extend(["Necronomicon".to_string(), "Chemical X".to_string()]);
     engine.state.hand = make_deck(&["Whirlwind"]);
     engine.rebuild_effect_runtime();
 
@@ -543,11 +545,7 @@ fn eda_012_opening_draw_and_empty_deck_reshuffle_share_the_java_contract() {
         .map(|_| expected_opening.pop().expect("six-card opening deck"))
         .collect::<Vec<_>>();
 
-    let state = combat_state_with(
-        cards.clone(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let state = combat_state_with(cards.clone(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     let mut opening = crate::engine::CombatEngine::new(state, 91);
     opening.start_combat();
     assert_eq!(
@@ -631,6 +629,7 @@ fn f4_neow_option_index_must_match_java_blessing_categories() {
     // decompiled/java-src/com/megacrit/cardcrawl/neow/NeowEvent.java:359-369
     // decompiled/java-src/com/megacrit/cardcrawl/neow/NeowReward.java:54-115,249-256
     let mut run = crate::run::RunEngine::new(57_554_006_466, 0);
+    assert!(run.step_game(&crate::run::GameAction::Proceed).accepted());
     let labels = run
         .current_decision_context()
         .neow
@@ -651,8 +650,10 @@ fn f4_neow_option_index_must_match_java_blessing_categories() {
 
     let result = run.step_game(&crate::run::GameAction::ChooseNeowOption(1));
     assert!(result.accepted());
-    assert_eq!(run.current_phase(), crate::run::RunPhase::MapChoice);
+    assert_eq!(run.current_phase(), crate::run::RunPhase::Neow);
     assert_eq!(run.run_state.current_hp, 79);
     assert_eq!(run.run_state.max_hp, 79);
     assert_eq!(run.run_state.gold, 99);
+    assert!(run.step_game(&crate::run::GameAction::Proceed).accepted());
+    assert_eq!(run.current_phase(), crate::run::RunPhase::MapChoice);
 }

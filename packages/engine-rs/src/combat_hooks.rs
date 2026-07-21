@@ -1168,8 +1168,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 // (`takeTurn`) fills up to four tracked dagger slots, one at
                 // baseline and two at ascension 18.
                 let alive_daggers = engine.state.enemies.iter().filter(|enemy|
-                    matches!(enemy.id.as_str(), "SnakeDagger" | "Snake Dagger")
-                        && enemy.is_alive()).count();
+                    enemy.id == "Dagger" && enemy.is_alive()).count();
                 let per_spawn = engine.state.enemies[enemy_idx]
                     .entity.status(sid::BLOCK_AMT).max(1) as usize;
                 let spawn_count = (4usize.saturating_sub(alive_daggers)).min(per_spawn);
@@ -1180,7 +1179,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                     // Java: reference/extracted/methods/monster/SnakeDagger.java
                     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/SpawnMonsterAction.java
                     let hp = engine.monster_hp_rng.random_int_range(20, 25);
-                    let mut minion = enemies::create_enemy("SnakeDagger", hp, hp);
+                    let mut minion = enemies::create_enemy("Dagger", hp, hp);
                     minion.is_minion = true;
                     daggers.push(minion);
                 }
@@ -1316,8 +1315,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         return;
     }
 
-    if matches!(engine.state.enemies[enemy_idx].id.as_str(),
-        "SnakeDagger" | "Snake Dagger")
+    if engine.state.enemies[enemy_idx].id == "Dagger"
         && engine.state.enemies[enemy_idx].move_id == enemies::move_ids::SD_EXPLODE
     {
         // Source: reference/extracted/methods/monster/SnakeDagger.java
