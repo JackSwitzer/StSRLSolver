@@ -594,27 +594,60 @@ fn record_field_diffs(
         }
     }
 
-    // 2. Player.
+    // 2. Record identity and the executed action.
+    push_diff(&mut diffs, "idx", java.idx, rust.idx);
+    push_diff(&mut diffs, "floor", java.floor, rust.floor);
+    push_diff(&mut diffs, "turn", java.turn, rust.turn);
+    push_diff_str(&mut diffs, "phase", &java.phase, &rust.phase);
+    push_diff(&mut diffs, "action", &java.action, &rust.action);
+
+    // 3. Player.
     push_diff(&mut diffs, "post.player.hp", java.post.player.hp, rust.post.player.hp);
     push_diff(&mut diffs, "post.player.max_hp", java.post.player.max_hp, rust.post.player.max_hp);
     push_diff(&mut diffs, "post.player.block", java.post.player.block, rust.post.player.block);
     push_diff(&mut diffs, "post.player.energy", java.post.player.energy, rust.post.player.energy);
     push_diff_str(&mut diffs, "post.player.stance", &java.post.player.stance, &rust.post.player.stance);
     push_diff(&mut diffs, "post.player.gold", java.post.player.gold, rust.post.player.gold);
+    push_power_diffs(
+        &mut diffs,
+        "post.player.powers",
+        &java.post.player.powers,
+        &rust.post.player.powers,
+    );
+    push_orb_diffs(
+        &mut diffs,
+        "post.player.orbs",
+        &java.post.player.orbs,
+        &rust.post.player.orbs,
+    );
 
-    // 3. Enemies (index-aligned).
+    // 4. Enemies (index-aligned).
     let enemy_count = java.post.enemies.len().max(rust.post.enemies.len());
     for idx in 0..enemy_count {
         let base = format!("post.enemies[{idx}]");
         match (java.post.enemies.get(idx), rust.post.enemies.get(idx)) {
             (Some(je), Some(re)) => {
                 push_diff_str(&mut diffs, &format!("{base}.id"), &je.id, &re.id);
+                push_diff(&mut diffs, &format!("{base}.idx"), je.idx, re.idx);
                 push_diff(&mut diffs, &format!("{base}.hp"), je.hp, re.hp);
                 push_diff(&mut diffs, &format!("{base}.max_hp"), je.max_hp, re.max_hp);
                 push_diff(&mut diffs, &format!("{base}.block"), je.block, re.block);
                 push_diff(&mut diffs, &format!("{base}.intent.move_id"), je.intent.move_id, re.intent.move_id);
+                push_diff_str(&mut diffs, &format!("{base}.intent.name"), &je.intent.name, &re.intent.name);
                 push_diff(&mut diffs, &format!("{base}.intent.dmg"), je.intent.dmg, re.intent.dmg);
                 push_diff(&mut diffs, &format!("{base}.intent.hits"), je.intent.hits, re.intent.hits);
+                push_power_diffs(
+                    &mut diffs,
+                    &format!("{base}.powers"),
+                    &je.powers,
+                    &re.powers,
+                );
+                push_diff(
+                    &mut diffs,
+                    &format!("{base}.move_history"),
+                    &je.move_history,
+                    &re.move_history,
+                );
             }
             (Some(_), None) => {
                 diffs.push((base, serde_json::json!("present"), serde_json::json!("absent")))
@@ -626,7 +659,7 @@ fn record_field_diffs(
         }
     }
 
-    // 4. Piles.
+    // 5. Piles.
     push_diff_vec(&mut diffs, "post.piles.hand", &java.post.piles.hand, &rust.post.piles.hand);
     push_diff_vec(
         &mut diffs,
@@ -637,7 +670,7 @@ fn record_field_diffs(
     push_diff_vec(&mut diffs, "post.piles.discard", &java.post.piles.discard, &rust.post.piles.discard);
     push_diff_vec(&mut diffs, "post.piles.exhaust", &java.post.piles.exhaust, &rust.post.piles.exhaust);
 
-    // 5. Relics + potions.
+    // 6. Relics + potions.
     let relic_count = java.post.relics.len().max(rust.post.relics.len());
     for idx in 0..relic_count {
         let base = format!("post.relics[{idx}]");
@@ -658,6 +691,75 @@ fn record_field_diffs(
     push_diff_vec(&mut diffs, "post.potions", &java.post.potions, &rust.post.potions);
 
     diffs
+}
+
+fn push_power_diffs(
+    diffs: &mut Vec<(String, serde_json::Value, serde_json::Value)>,
+    base: &str,
+    java: &[PowerPostState],
+    rust: &[PowerPostState],
+) {
+    let count = java.len().max(rust.len());
+    for idx in 0..count {
+        let path = format!("{base}[{idx}]");
+        match (java.get(idx), rust.get(idx)) {
+            (Some(jp), Some(rp)) => {
+                push_diff_str(diffs, &format!("{path}.id"), &jp.id, &rp.id);
+                push_diff(diffs, &format!("{path}.amt"), jp.amt, rp.amt);
+            }
+            (Some(_), None) => diffs.push((
+                path,
+                serde_json::json!("present"),
+                serde_json::json!("absent"),
+            )),
+            (None, Some(_)) => diffs.push((
+                path,
+                serde_json::json!("absent"),
+                serde_json::json!("present"),
+            )),
+            (None, None) => {}
+        }
+    }
+}
+
+fn push_orb_diffs(
+    diffs: &mut Vec<(String, serde_json::Value, serde_json::Value)>,
+    base: &str,
+    java: &[OrbPostState],
+    rust: &[OrbPostState],
+) {
+    let count = java.len().max(rust.len());
+    for idx in 0..count {
+        let path = format!("{base}[{idx}]");
+        match (java.get(idx), rust.get(idx)) {
+            (Some(jo), Some(ro)) => {
+                push_diff_str(diffs, &format!("{path}.id"), &jo.id, &ro.id);
+                push_diff(
+                    diffs,
+                    &format!("{path}.evoke_amount"),
+                    jo.evoke_amount,
+                    ro.evoke_amount,
+                );
+                push_diff(
+                    diffs,
+                    &format!("{path}.passive_amount"),
+                    jo.passive_amount,
+                    ro.passive_amount,
+                );
+            }
+            (Some(_), None) => diffs.push((
+                path,
+                serde_json::json!("present"),
+                serde_json::json!("absent"),
+            )),
+            (None, Some(_)) => diffs.push((
+                path,
+                serde_json::json!("absent"),
+                serde_json::json!("present"),
+            )),
+            (None, None) => {}
+        }
+    }
 }
 
 fn push_diff<T: PartialEq + serde::Serialize>(

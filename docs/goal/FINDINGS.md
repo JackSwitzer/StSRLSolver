@@ -31,20 +31,33 @@ four category constructors and RNG consumption are source-tested.
 Rust trace emission now serializes empty slots as Java's stable `"Potion Slot"`
 ID both outside and during combat, with source-derived regression coverage.
 
-## F6 — PARTIALLY RESOLVED: relic counters compare; powers/orbs/history remain
+## F6 — RESOLVED: every serialized v1 record field participates in the differ
 
-`trace.rs::record_field_diffs` now compares real relic counters, and negative
-fixtures prove counter-only corruption diverges. It still does not compare
-`player.powers`, `player.orbs`, `enemies[].powers`, or
-`enemies[].move_history`, although both post-state producers expose them. This
-is the first task in the oracle-closure PR; RNG-first ordering must remain.
+`trace.rs::record_field_diffs` compares record identity and action, every RNG
+counter, player scalars/powers/orbs, enemy identity/scalars/intents/powers/move
+history, all piles, relic IDs/counters, and potion slots. One-field corruption
+fixtures cover each nested family while preserving RNG-first diagnosis.
 
-## F7 — Java/Rust harness contract nits (flagged, not yet biting)
+## F7 — RESOLVED ON RUST; superseded by the v2 Java adapter handoff
 
 - Resolved: `PostState.rng` and the differ use `BTreeMap<String, i64>`, so Java's
   `-1` null-stream marker and signed counter overflow round-trip correctly.
-- `Script.Action.choice` is `Integer` in the Java harness, while the Rust `TraceAction::Campfire` and the TOOLING T2 example use a string (`"REST"`). CAMPFIRE isn't implemented in the harness yet (`execute()` rejects it); whoever adds it must reconcile the type first.
-- Rust `ScriptStopCondition.max_actions` has no Java-side counterpart; scripts relying on it will produce longer Java goldens than Rust replays. Use `max_floor` (semantics: stop once floor *exceeds* max_floor — actions on the max floor still run) or trim the action list.
+- V2 serializes the canonical `GameAction` directly, covers all 27 current run
+  variants, and has no stop-condition mismatch. The exhaustive schema test pins
+  every serialized variant to `docs/work_units/script-schema-v2.md`.
+- V1 remains read-only for the existing smoke golden. Its CAMPFIRE and
+  `max_actions` nits must not be carried into the Java v2 adapter.
+
+## F9 — OPEN; human/Java boundary: v2 oracle projection and corpus mint
+
+Rust v2 replay now accepts canonical action scripts and emits deterministic
+causal `CoreCheckpoint` chains. A `CoreCheckpoint` contains the Rust engine's
+private continuation representation, so it is not a language-neutral state
+shape that Java can emit faithfully. The Java recorder still needs the v2
+action adapter plus a frozen shared state/RNG projection before scarce human
+sessions can mint reliable full-run goldens. The handoff is registered at
+`data/traces/requests/watcher-a0-oracle-closure.json`; no agent may manufacture
+or write the protected Java corpus.
 
 ---
 

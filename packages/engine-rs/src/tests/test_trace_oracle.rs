@@ -161,6 +161,102 @@ fn trace_diff_reports_relic_counter_mismatches() {
     assert_eq!(first.rust, serde_json::json!(-1));
 }
 
+fn assert_record_mutation_path(
+    label: &str,
+    record_index: usize,
+    expected_path: &str,
+    mutate: impl FnOnce(&mut crate::trace::TraceRecord, &mut crate::trace::TraceRecord),
+) {
+    let script = tiny_fixture_script();
+    let rust_records = crate::trace::replay_script(&script).expect("fixture replay");
+    let mut java_records = rust_records.clone();
+    let mut comparison_records = rust_records;
+    mutate(
+        &mut java_records[record_index],
+        &mut comparison_records[record_index],
+    );
+
+    let report = diff_records(label, &script.seed, &java_records, &comparison_records, &[]);
+    let first = report.first_divergence.expect("mutation must diverge");
+    assert_eq!(first.path, expected_path);
+}
+
+#[test]
+fn trace_diff_covers_record_identity_and_action() {
+    assert_record_mutation_path("idx", 1, "idx", |java, _| java.idx += 1);
+    assert_record_mutation_path("floor", 1, "floor", |java, _| java.floor += 1);
+    assert_record_mutation_path("turn", 2, "turn", |java, _| java.turn += 1);
+    assert_record_mutation_path("phase", 2, "phase", |java, _| java.phase = "EVENT".to_string());
+    assert_record_mutation_path("action", 2, "action", |java, _| {
+        java.action = TraceAction::EndTurn;
+    });
+}
+
+#[test]
+fn trace_diff_covers_every_nested_post_state_family() {
+    assert_record_mutation_path(
+        "player-power",
+        2,
+        "post.player.powers[0].amt",
+        |java, rust| {
+            let power = crate::trace::PowerPostState {
+                id: "Vigor".to_string(),
+                amt: 8,
+            };
+            java.post.player.powers = vec![power.clone()];
+            rust.post.player.powers = vec![power];
+            java.post.player.powers[0].amt = 9;
+        },
+    );
+    assert_record_mutation_path(
+        "player-orb",
+        2,
+        "post.player.orbs[0].passive_amount",
+        |java, rust| {
+            let orb = crate::trace::OrbPostState {
+                id: "Lightning".to_string(),
+                evoke_amount: 8,
+                passive_amount: 3,
+            };
+            java.post.player.orbs = vec![orb.clone()];
+            rust.post.player.orbs = vec![orb];
+            java.post.player.orbs[0].passive_amount = 4;
+        },
+    );
+    assert_record_mutation_path(
+        "enemy-index",
+        2,
+        "post.enemies[0].idx",
+        |java, _| java.post.enemies[0].idx += 1,
+    );
+    assert_record_mutation_path(
+        "intent-name",
+        2,
+        "post.enemies[0].intent.name",
+        |java, _| java.post.enemies[0].intent.name.push_str("_DOCTORED"),
+    );
+    assert_record_mutation_path(
+        "enemy-power",
+        2,
+        "post.enemies[0].powers[0].id",
+        |java, rust| {
+            let power = crate::trace::PowerPostState {
+                id: "Ritual".to_string(),
+                amt: 3,
+            };
+            java.post.enemies[0].powers = vec![power.clone()];
+            rust.post.enemies[0].powers = vec![power];
+            java.post.enemies[0].powers[0].id = "Strength".to_string();
+        },
+    );
+    assert_record_mutation_path(
+        "move-history",
+        3,
+        "post.enemies[0].move_history",
+        |java, _| java.post.enemies[0].move_history.push(99),
+    );
+}
+
 /// The tiny scripted sequence used by both tests below: resolve Neow, take
 /// the first map path into floor 1 combat (vs a lone Jaw Worm for seed 4),
 /// play the first Defend in Java-shuffled opening-hand order, then end the turn.

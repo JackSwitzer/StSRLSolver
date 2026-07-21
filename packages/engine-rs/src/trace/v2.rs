@@ -1,12 +1,54 @@
 //! Trace schema v2 wire types.
 //!
 use crate::checkpoint::CoreCheckpoint;
-use crate::run::GameAction;
+use crate::run::{GameAction, RunEngine, RunOutcome};
 use serde::{Deserialize, Deserializer, Serialize};
 
 pub const TRACE_SCHEMA_NAME: &str = "sts.trace";
 pub const TRACE_SCHEMA_MAJOR: u32 = 2;
 pub const TRACE_SCHEMA_MINOR: u32 = 0;
+
+/// Canonical v2 action script consumed directly by the pure Rust simulator.
+///
+/// Unlike v1, this format does not define a trace-only action vocabulary.
+/// Java recording tooling must emit the same serialized [`GameAction`] values
+/// so one script can drive both implementations without semantic adapters.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ActionScriptV2 {
+    #[serde(default)]
+    pub schema: SchemaVersion,
+    pub trace_id: String,
+    pub seed: String,
+    pub seed_long: i64,
+    pub character: String,
+    pub ascension: i32,
+    pub actions: Vec<GameAction>,
+}
+
+impl ActionScriptV2 {
+    pub fn validate(&self) -> Result<(), String> {
+        self.schema.validate()?;
+        if self.trace_id.trim().is_empty() {
+            return Err("v2 action script trace_id must not be empty".to_string());
+        }
+        if crate::trace::parse_script_seed(&self.seed) != self.seed_long as u64 {
+            return Err("v2 action script seed and seed_long disagree".to_string());
+        }
+        if self.character != "WATCHER" {
+            return Err(format!(
+                "unsupported v2 action script character {:?} (expected \"WATCHER\")",
+                self.character
+            ));
+        }
+        if !(0..=20).contains(&self.ascension) {
+            return Err(format!(
+                "unsupported v2 action script ascension {} (expected 0 through 20)",
+                self.ascension
+            ));
+        }
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SchemaVersion {
@@ -198,4 +240,100 @@ pub struct EndV2 {
     pub transition_count: u64,
     pub result: String,
     pub final_checkpoint: CoreCheckpoint,
+}
+
+/// Replay a canonical action script through a fresh pure-core run.
+///
+/// A script is an assertion that every listed action is legal at that exact
+/// checkpoint. Rejection therefore returns an indexed error rather than
+/// emitting a partial trace that could be mistaken for an oracle result.
+pub fn replay_action_script_v2(script: &ActionScriptV2) -> Result<Vec<TraceEnvelopeV2>, String> {
+    script.validate()?;
+
+    let capabilities = Capabilities(vec![
+        "direct_game_action".to_string(),
+        "action_outcomes".to_string(),
+        "core_checkpoints".to_string(),
+    ]);
+    let producer = Producer {
+        name: "engine-rs".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        git_commit: None,
+    };
+    let mut engine = RunEngine::new(script.seed_long as u64, script.ascension);
+    let initial_checkpoint = CoreCheckpoint::capture(&engine)?;
+    let mut envelopes = Vec::with_capacity(script.actions.len() + 2);
+    envelopes.push(TraceEnvelopeV2::new(
+        capabilities.clone(),
+        producer.clone(),
+        TracePayloadV2::Header(HeaderV2 {
+            trace_id: script.trace_id.clone(),
+            seed: script.seed.clone(),
+            seed_long: script.seed_long,
+            character: script.character.clone(),
+            ascension: script.ascension,
+            game_version: "rust-sim".to_string(),
+            mods: Vec::new(),
+            initial_checkpoint,
+        }),
+    ));
+
+    let mut terminal = None;
+    for (idx, action) in script.actions.iter().enumerate() {
+        let pre = CoreCheckpoint::capture(&engine)?;
+        let outcome = engine.step_game(action);
+        let post = CoreCheckpoint::capture(&engine)?;
+        if !outcome.accepted() {
+            if pre != post {
+                return Err(format!(
+                    "action {idx} ({action:?}) was rejected after mutating causal state"
+                ));
+            }
+            return Err(format!(
+                "action {idx} ({action:?}) is not legal in the current engine state (phase={:?})",
+                engine.current_phase()
+            ));
+        }
+
+        terminal = outcome.terminal;
+        envelopes.push(TraceEnvelopeV2::new(
+            capabilities.clone(),
+            producer.clone(),
+            TracePayloadV2::Transition(TransitionV2 {
+                idx: idx as u64,
+                action: action.clone(),
+                outcome: ActionOutcome::Accepted,
+                pre,
+                post,
+            }),
+        ));
+
+        if terminal.is_some() {
+            if idx + 1 != script.actions.len() {
+                return Err(format!(
+                    "action script contains {} trailing action(s) after terminal transition {idx}",
+                    script.actions.len() - idx - 1
+                ));
+            }
+            break;
+        }
+    }
+
+    let final_checkpoint = CoreCheckpoint::capture(&engine)?;
+    let result = match terminal {
+        Some(RunOutcome::Victory) => "victory",
+        Some(RunOutcome::Defeat) => "defeat",
+        None => "incomplete",
+    };
+    envelopes.push(TraceEnvelopeV2::new(
+        capabilities,
+        producer,
+        TracePayloadV2::End(EndV2 {
+            transition_count: script.actions.len() as u64,
+            result: result.to_string(),
+            final_checkpoint,
+        }),
+    ));
+
+    Ok(envelopes)
 }

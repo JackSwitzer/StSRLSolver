@@ -6,19 +6,21 @@
 
 **Register size:** 35 findings — 13 P0, 13 P1, 9 P2
 
-## Closure update — 2026-07-18
+## Closure update — 2026-07-19
 
 This document is the historical derivation register. The five-layer RNG,
 generation, action, checkpoint, and pure-core stack has since closed its active
 P0 reproducers and architecture findings with source-derived tests. The live
-freeze result is [pure-sim-freeze.md](pure-sim-freeze.md): 3,011 passed, zero
+freeze result is [watcher-a0-oracle-closure.md](watcher-a0-oracle-closure.md):
+3,016 passed, zero
 ignored, native Java RNG ownership, causal checkpoints, and no active
 obs/search/training/PyO3 dependency in the core.
 
 Do not use the old “2,883 + 11 ignored” snapshot below as current branch state.
-The remaining merge gate is oracle certification, including the still-open
-power/orb/move-history trace comparisons and expansion from one golden to the
-full Watcher A0 corpus.
+The serialized v1 differ surface and Rust v2 canonical action replay are now
+complete. The remaining merge gate is cross-language oracle certification: a
+Java v2 action adapter, a language-neutral full-state projection, and expansion
+from one golden to the full Watcher A0 corpus.
 
 ## Ranked top 10
 
@@ -323,15 +325,22 @@ Exact struct construction and monolithic integer versions turn harmless additive
 
 **Effort:** M.
 
-## EDA-023 — Trace replay cannot express a full run
+## EDA-023 — RESOLVED IN RUST; Java v2 adapter remains in F9
 
-**Evidence:** `packages/engine-rs/src/trace.rs:706-733` maps only a subset of `RunAction` and rejects reward, event, campfire, shop, key, and other transition choices. F7 owns already-known action-schema nits, and F4 owns the Neow mapping mismatch.
+**Evidence:** `GameAction` is the single run vocabulary, `ActionScriptV2`
+serializes it directly, all 27 variants round-trip, and `trace_replay` executes
+v2 scripts without the old mapping layer. The schema/document tripwire is in
+`test_trace_schema_v2`; F9 owns the Java adapter/projection boundary.
 
-The only end-to-end oracle cannot drive the decisions needed for a Watcher A0 run through Heart. This is a vocabulary/adapter gap, not a mechanics finding.
+Rust can express and execute every current run decision without a trace-only
+adapter. A complete human-authored Neow-to-Heart script and Java execution path
+remain corpus work, not a Rust vocabulary blocker.
 
-**Smallest repro:** serialize and replay one action of each missing run decision variant; the mapper returns unsupported before simulation.
+**Regression:** serialize every canonical variant and replay a deterministic
+script twice; action bytes and causal checkpoints must match.
 
-**Proposed fix:** define one stable typed action vocabulary shared by script validation and Java/Rust adapters, complete every run phase, and add one compatibility fixture per variant.
+**Remaining handoff:** implement the frozen schema in the Java recorder without
+reintroducing a second semantic action enum.
 
 **Effort:** M.
 
@@ -447,7 +456,10 @@ The public namespace exposes implementation details well beyond construct/step/s
 
 ## EDA-033 — One smoke golden cannot certify the target corpus
 
-**Evidence:** only `data/traces/scripts/smoke-neow-floor1.json` and its one protected golden exist, while `docs/goal/GOAL.md` and `docs/goal/UNITS.md` target roughly ten complete A0 runs plus seed `1776347657`. F6 separately owns omitted comparison fields.
+**Evidence:** v1 and v2 Rust smoke scripts now exist, but only the v1 smoke has
+a protected Java golden. `docs/goal/GOAL.md` and `docs/goal/UNITS.md` target
+roughly ten complete A0 runs plus seed `1776347657`. F6 is resolved; F9 owns
+the remaining Java v2 boundary.
 
 The oracle plumbing exists, but a single short trajectory cannot expose the combinatorial ordering, RNG, event, reward, boss, Act 4, and long-run state interactions required by the finish gate.
 

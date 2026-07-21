@@ -1,0 +1,14 @@
+{
+  "schema": {"name": "sts.trace", "major": 2, "minor": 0},
+  "trace_id": "smoke-v2-neow-floor1",
+  "seed": "4",
+  "seed_long": 4,
+  "character": "WATCHER",
+  "ascension": 0,
+  "actions": [
+    {"ChooseNeowOption": 1},
+    {"ChoosePath": 0},
+    {"CombatAction": {"PlayCard": {"card_idx": 3, "target_idx": -1}}},
+    {"CombatAction": "EndTurn"}
+  ]
+}

@@ -1,6 +1,7 @@
 # Pure Simulation Freeze Audit
 
-**Snapshot:** `codex/pure-sim-freeze`, 2026-07-18
+**Snapshot:** `codex/pure-sim-freeze`, updated at stacked oracle-closure tip,
+2026-07-19
 
 **Authority:** decompiled Java for behavior; committed Java traces for integration parity
 
@@ -9,11 +10,11 @@
 | Gate | Current result | Evidence |
 |---|---:|---|
 | Source-verified content ledger | 667/667 verified | `scripts/ledger.sh status` |
-| Rust core regression suite | 3,011 passed, 0 failed, 0 ignored | `./scripts/test_engine_rs.sh test --lib` |
+| Rust core regression suite | 3,016 passed, 0 failed, 0 ignored | `./scripts/test_engine_rs.sh test --lib` |
 | All Rust targets | Green | `./scripts/test_engine_rs.sh check --all-targets` |
 | Generic gameplay RNG | Zero production uses | source scan for `rand`, `RngCore`, and `SliceRandom` |
 | Legacy consumer semantics in core | Zero active references | source scan for PyO3, obs, search, training contract, and legacy action/result types |
-| Java trace corpus | 1 script / 1 golden | `data/traces/scripts`, `data/traces/java` |
+| Trace scripts / Java goldens | 2 scripts / 1 golden | v1 and v2 smoke scripts; one protected v1 Java golden |
 | Target full-run corpus | 1/11, about 9% | `docs/goal/GOAL.md` B3 target |
 
 The implementation is approximately **95% complete for the currently known
@@ -45,9 +46,9 @@ continuity, and blocked campfire legality. The resulting total is 3,011.
 
 ### Merge-gating for oracle closure
 
-1. `trace.rs::record_field_diffs` still needs to compare player powers, player
-   orbs, enemy powers, and enemy move history. Relic counters and potion-slot
-   normalization are already complete and have negative fixtures.
+1. The Java recorder needs the canonical v2 action adapter and a
+   language-neutral full-state/RNG projection. Rust-private `CoreCheckpoint`
+   serialization is continuation proof, not a cross-language oracle format.
 2. The human workflow must remint a Watcher A0 trace pack after the action/RNG
    schema changes. Agents must not launch the game or modify protected goldens.
 3. Every first divergence from the reminted corpus must be fixed or registered
@@ -73,8 +74,9 @@ thread-scaling are training-architecture work rather than parity claims.
 
 ## Readiness verdict
 
-The branch is **pure-core ready** and **zero-skip regression ready**. It is not
+The branch is **pure-core ready**, **zero-skip regression ready**, and the Rust
+v1 differ is complete over its serialized state. It is not
 yet **full-run Java certified** or ready to merge the complete stack to `main`.
-The only honest next parity layer is trace-differ completion plus human-minted
-Watcher A0 oracle closure; training design may proceed in parallel on top of
-this immutable core contract.
+The only honest next parity layer is the Java v2 recorder/projection followed
+by human-minted Watcher A0 oracle closure; training design may proceed in
+parallel on top of this immutable core contract.

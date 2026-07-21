@@ -3,8 +3,9 @@ use crate::checkpoint::CoreCheckpoint;
 use crate::run::GameAction;
 use crate::run::RunEngine;
 use crate::trace::v2::{
-    ActionOutcome, Capabilities, EndV2, HeaderV2, Producer, SchemaVersion, TraceEnvelopeV2,
-    TracePayloadV2, TransitionV2, TRACE_SCHEMA_MAJOR, TRACE_SCHEMA_MINOR, TRACE_SCHEMA_NAME,
+    replay_action_script_v2, ActionOutcome, ActionScriptV2, Capabilities, EndV2, HeaderV2,
+    Producer, SchemaVersion, TraceEnvelopeV2, TracePayloadV2, TransitionV2,
+    TRACE_SCHEMA_MAJOR, TRACE_SCHEMA_MINOR, TRACE_SCHEMA_NAME,
 };
 use serde_json::{json, Value};
 
@@ -68,6 +69,26 @@ fn all_current_game_actions() -> Vec<GameAction> {
         GameAction::UsePotion(15),
         GameAction::DiscardPotion(16),
     ]
+}
+
+fn tiny_action_script() -> ActionScriptV2 {
+    ActionScriptV2 {
+        schema: SchemaVersion::current(),
+        trace_id: "watcher-a0-v2-smoke".to_string(),
+        seed: crate::seed::seed_to_string(4),
+        seed_long: 4,
+        character: "WATCHER".to_string(),
+        ascension: 0,
+        actions: vec![
+            GameAction::ChooseNeowOption(1),
+            GameAction::ChoosePath(0),
+            GameAction::CombatAction(Action::PlayCard {
+                card_idx: 3,
+                target_idx: -1,
+            }),
+            GameAction::CombatAction(Action::EndTurn),
+        ],
+    }
 }
 
 fn transition_envelope(action: GameAction, outcome: ActionOutcome) -> TraceEnvelopeV2 {
@@ -274,4 +295,69 @@ fn v2_schema_identity_is_explicit_and_does_not_replace_v1() {
 
     let value: Value = serde_json::to_value(version).unwrap();
     assert_eq!(value, json!({"name": "sts.trace", "major": 2, "minor": 0}));
+}
+
+#[test]
+fn v2_action_script_replays_deterministically_with_causal_chain() {
+    let script = tiny_action_script();
+    let first = replay_action_script_v2(&script).expect("v2 script must replay");
+    let second = replay_action_script_v2(&script).expect("v2 script must replay twice");
+
+    assert_eq!(first.len(), script.actions.len() + 2);
+    assert_eq!(serde_json::to_vec(&first).unwrap(), serde_json::to_vec(&second).unwrap());
+
+    let TracePayloadV2::Header(header) = &first[0].payload else {
+        panic!("first envelope must be a header");
+    };
+    assert_eq!(header.seed_long, 4);
+
+    let mut previous = &header.initial_checkpoint;
+    for (idx, envelope) in first[1..=script.actions.len()].iter().enumerate() {
+        let TracePayloadV2::Transition(transition) = &envelope.payload else {
+            panic!("action envelope must be a transition");
+        };
+        assert_eq!(transition.idx, idx as u64);
+        assert_eq!(transition.action, script.actions[idx]);
+        assert_eq!(&transition.pre, previous);
+        previous = &transition.post;
+    }
+
+    let TracePayloadV2::End(end) = &first.last().unwrap().payload else {
+        panic!("last envelope must be an end record");
+    };
+    assert_eq!(end.transition_count, script.actions.len() as u64);
+    assert_eq!(end.result, "incomplete");
+    assert_eq!(&end.final_checkpoint, previous);
+}
+
+#[test]
+fn v2_action_script_rejects_identity_drift_and_illegal_actions() {
+    let mut script = tiny_action_script();
+    script.seed_long = 5;
+    assert!(replay_action_script_v2(&script)
+        .unwrap_err()
+        .contains("seed and seed_long disagree"));
+
+    let mut script = tiny_action_script();
+    script.actions[0] = GameAction::ChoosePath(0);
+    let error = replay_action_script_v2(&script).unwrap_err();
+    assert!(error.contains("action 0"));
+    assert!(error.contains("not legal"));
+}
+
+#[test]
+fn script_schema_document_names_every_serialized_game_action_variant() {
+    let contract = include_str!("../../../../docs/work_units/script-schema-v2.md");
+    for action in all_current_game_actions() {
+        let encoded = serde_json::to_value(action).unwrap();
+        let variant = match encoded {
+            Value::String(name) => name,
+            Value::Object(fields) => fields.into_iter().next().unwrap().0,
+            other => panic!("unexpected GameAction serialization: {other}"),
+        };
+        assert!(
+            contract.contains(&format!("| `{variant}` |")),
+            "script schema document is missing {variant}"
+        );
+    }
 }

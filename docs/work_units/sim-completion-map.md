@@ -6,20 +6,21 @@
 
 **Behavioral authority:** decompiled Java first; frozen real-game traces are the integration oracle
 
-## 2026-07-18 stack update
+## 2026-07-19 stack update
 
 Layers 1-3 and the pure-core portion of Layer 6 have landed in the RNG through
-pure-sim stack. Current proof is 3,011 passing tests, zero ignored, native Java
+pure-sim stack. Current proof is 3,016 passing tests, zero ignored, native Java
 RNG/stream ownership, canonical full-run actions, causal checkpoints, and no
 active Python/observation/search/training dependency in `engine-rs`.
 
 The detailed tables below preserve the 2026-07-15 derivation and should not be
-read as current source descriptions. The live remaining gate is Layer 5:
-complete the trace differ's power/orb/move-history comparisons, remint the
-human-attended Watcher corpus, and burn down first divergences. See
-[`pure-sim-freeze.md`](audit-reports/pure-sim-freeze.md).
+read as current source descriptions. The v1 differ and Rust v2 action replay
+are complete. The live Layer 5 gate is a Java v2 adapter, language-neutral
+oracle-state projection, human-attended Watcher corpus mint, and first-
+divergence burn-down. See
+[`watcher-a0-oracle-closure.md`](audit-reports/watcher-a0-oracle-closure.md).
 
-This is the execution map from the completed 667-row source-verification sweep to a finished Watcher simulator. It is deliberately not a claim that “667 verified” means parity is complete. The ledger currently proves source-derived coverage for four item kinds; the corpus, run RNG topology, missing content domains, and consumer boundaries are still open. Known oracle findings F1-F8 remain owned by [`docs/goal/FINDINGS.md`](../goal/FINDINGS.md) and are referenced here rather than re-derived.
+This is the execution map from the completed 667-row source-verification sweep to a finished Watcher simulator. It is deliberately not a claim that “667 verified” means parity is complete. The ledger currently proves source-derived coverage for four item kinds; the corpus and missing content-domain evidence remain open. Known oracle findings remain owned by [`docs/goal/FINDINGS.md`](../goal/FINDINGS.md) and are referenced here rather than re-derived.
 
 Effort estimates include implementation and engine-path tests, but not queue time for a human-attended game session:
 
@@ -32,10 +33,10 @@ Effort estimates include implementation and engine-path tests, but not queue tim
 | Surface | Proven state | Evidence | What this does **not** prove |
 |---|---|---|---|
 | Source-verification ledger | All 667 current rows are `verified`: 370 cards, 68 monsters, 43 potions, 186 relics. | `docs/goal/ledger.json`; `scripts/ledger.sh status` reports no next unverified row. | The ledger has no event, Neow, map-generation, or power rows and no corpus-reachability stamp. |
-| Unit suite | The audit began at 2,989 green tests. Accounted dead-helper cleanup now leaves 2,883 passing tests plus 11 ignored audit reproducers. | `AUDIT_PROMPT.md` branch snapshot; cleanup commits retired exactly 106 subject-only tests; `packages/engine-rs/src/tests/` contains 213 `test*.rs` files (215 Rust files total) and 60,616 lines. | Tests alone do not prove full-run ordering or RNG counters; some use private state/setup paths. |
+| Unit suite | 3,016 passing tests, zero ignored. | `./scripts/test_engine_rs.sh test --lib`; 214 Rust files under `src/tests`. | Tests alone do not replace the missing full-run Java corpus. |
 | Combat content registry | Card and gameplay registries are process-wide immutable values returned by `&'static` reference. | `packages/engine-rs/src/cards/mod.rs:1253-1258`; `packages/engine-rs/src/gameplay/registry.rs:102-105`; `CombatEngine` stores the card registry by static reference at `engine.rs:191-204`. | All state is not yet state-local: Note for Yourself uses a process-global mutex, and string IDs still allocate inside snapshots. |
-| Trace pipeline | Java capture, Rust replay/diff, schema types, and an offline smoke golden exist. B0 is achieved. | `docs/goal/BENCHMARKS.md` B0; `data/traces/scripts/smoke-neow-floor1.json`; `data/traces/java/smoke-neow-floor1.jsonl`. | The target corpus is about ten A0 runs plus seed `1776347657`; only one script/golden exists and the differ omits fields identified by F6. |
-| Performance baseline | Current engine operations are already small enough to measure meaningfully: simple full-turn about 4.14-4.28 us, legal actions about 96.6-104.9 ns, real-world clone cases about 568-776 ns, real-world turn windows about 7.87-11.13 us on the audit M4. | `packages/engine-rs/benches/combat_bench.rs`; `packages/engine-rs/benches/real_world_bench.rs`; 2026-07-15 audit Criterion run. | There is no batch API, allocation budget, thread-scaling benchmark, or pure-core build; PyO3 is unconditional. |
+| Trace pipeline | V1 Java capture/Rust diff, complete field comparison, canonical v2 Rust action replay, and one smoke golden exist. B0 is achieved. | `test_trace_oracle`; `test_trace_schema_v2`; both smoke scripts; one protected Java golden. | The target corpus is about ten A0 runs plus seed `1776347657`; Java v2 adaptation/projection and full-run goldens remain open. |
+| Performance baseline | Full turn 4.43-4.45 us, clone 620-624 ns, legal actions 92-93 ns on the audit host. | `packages/engine-rs/benches`; 2026-07-18 pure-core freeze run. | There is no batch API, allocation budget, or thread-scaling benchmark yet. |
 
 Finding IDs below resolve to the ranked register at
 [`audit-reports/engine-deep-audit.md`](audit-reports/engine-deep-audit.md).
@@ -72,7 +73,7 @@ The run engine implements Neow, map choice, combat, reward, campfire, shop, even
 | **R1. Normalize `RunEngine` into explicit phase state.** | One cloneable struct carries reward, event, shop, combat, encounter, Neow, and many `pending_*` fields (`run.rs:758-811`). | `RunSnapshot` owns stable run state and an enum owns exactly one phase payload. Relic/event continuations are typed decision frames, not unrelated booleans. Transitions are exhaustively matched and source-tested. | API1 public core API design; preserve trace action identity. | L | EDA-027. |
 | **R2. Establish one canonical deck and relic representation.** | Deck strings are reconciled to aligned `CardInstance`s by base-name search (`run.rs:616-638`); relic flags are omitted by serde (`run.rs:384-390`). | Deck entries carry stable instance IDs and persistent card state in one vector. Relics are canonical typed instances with flags/counters derived or rebuilt on load. Round-trip serialization cannot attach `misc` to the wrong duplicate or lose relic capability state. | API2 typed content IDs; API4 versioned snapshots. | L | EDA-020, EDA-026. |
 | **R3. Remove cross-state global gameplay data.** | Note for Yourself is stored in `OnceLock<Mutex<String>>` (`run.rs:27-43`). Parallel simulations can therefore affect one another. | Profile/save-derived inputs are an immutable `ProfileSnapshot` supplied to a root run; profile updates are explicit outputs outside rollout state. No gameplay outcome reads mutable process-global data. | API1 design. | S | EDA-019. |
-| **R4. Finish run transition semantics and trace action coverage.** | The trace mapper documents only play, end turn, potion, Neow, and path mappings and rejects other actions (`trace.rs:706-712`); F4 records a known Neow mapping mismatch. | Every run decision used by a Watcher A0 full run has a stable typed action and Java/Rust mapping: rewards, events, campfires, shops, keys, chests, boss transitions, and Act 4. Illegal actions are deterministic and do not consume RNG. | R1 decision model, G1 RNG model, T1 trace schema. | L | FINDINGS F4/F7; EDA-023. |
+| **R4. Finish run transition semantics and trace action coverage.** | **Rust complete:** canonical `GameAction` covers every current run phase; v2 replays it directly; illegal actions preserve state and RNG. | Implement the same frozen vocabulary in Java and prove it with full-run scripts. | Human/Java F9 handoff. | L | FINDINGS F4/F9; EDA-023. |
 | **R5. Verify phase transitions as behaviors, not incidental side effects.** | The four-kind item ledger cannot express floor transition, room generation, reward ordering, or save/profile behavior. | Source-derived scenario tests cover Neow-to-map, every room phase, boss/act changes, keys/Act 4, event combat resume, shop refill, reward sequencing, death, and run victory. Each scenario has a ledger row or generator invariant. | Coverage layer K1 and G1 RNG model. | L | FINDINGS F2/F4; EDA-032. |
 | **R6. Port canonical seeded encounter queues.** | `run.rs:216-300` has incomplete simplified encounter arrays and `run.rs:1656-1685` rotates them by ordinal, independent of seed. The EDA-005 seed-4 repro selects Cultist where Java's weighted queue selects Jaw Worm. | Every act uses Java's names, compositions, weights, first-strong exclusions, and repeat rejection with a dedicated persistent `monsterRng`. Queue contents/counters match source-derived seed fixtures and route through canonical `MonsterHelper` encounter expansion. | G1 typed run RNG ownership; K1 generator-invariant rows. | L | EDA-005. |
 
@@ -114,7 +115,7 @@ The current ledger is complete only for extracted cards, monsters, potions, and 
 | **K1. Extend extraction and the ledger to missing domains.** | `ledger.json` contains only `card`, `monster`, `potion`, and `relic`. | `scripts/extract.sh` deterministically emits event, Neow, map/generator, and power rows with Java/method references. Existing statuses survive regeneration. Generator behaviors that do not map 1:1 to a class are named invariant rows with explicit source ranges. | Agree row identity and reachability rules; no engine refactor required. | M | EDA-032. |
 | **K2. Compute Watcher reachability.** | “Watcher-reachable” is a prose condition in GOAL, not data in each row. | A deterministic reachability pass records character/act/ascension gates and explains exclusions. Coverage status commands distinguish `verified`, `quarantined`, `unverified`, `unreachable`, and `not exercised`. | K1; content catalog IDs from API2 help but are not required. | M | EDA-032. |
 | **K3. Verify the new domains from Java.** | Events and powers have implementations/tests, but no ledger evidence contract equivalent to the completed four families. | Every reachable row has a Java citation, source-derived engine-path test, and `verified`/`quarantined` status. Powers are tested on the correct owner and event family. Event rows cover option legality, mutations, continuations, RNG draws, and event combat resume. | K1; C3 for power dispatch; G1 for stochastic content; R1/R5 for events. | L | EDA-032. |
-| **K4. Join source verification to corpus coverage.** | U07/`scripts/goal.sh coverage` is still future in canonical docs; the one golden cannot cover the catalog. | Each trace action stamps observed content/invariant rows via stable IDs. The dashboard lists reachable-but-unexercised rows and drives targeted scripts; a row is never called corpus-covered by a test-only reference. | T4 corpus and K1 row identity. | M | `docs/goal/UNITS.md` U07; FINDINGS F6. |
+| **K4. Join source verification to corpus coverage.** | U07/`scripts/goal.sh coverage` is still future in canonical docs; the one golden cannot cover the catalog. | Each trace action stamps observed content/invariant rows via stable IDs. The dashboard lists reachable-but-unexercised rows and drives targeted scripts; a row is never called corpus-covered by a test-only reference. | T4 corpus and K1 row identity. | M | `docs/goal/UNITS.md` U07; FINDINGS F9. |
 
 **Coverage exit tests**
 
@@ -127,14 +128,20 @@ The current ledger is complete only for extracted cards, monsters, potions, and 
 
 ### Current shape
 
-The schema is hard-versioned at `v:1` (`packages/engine-rs/src/trace.rs:45-60`). The differ compares RNG, player scalars, enemy scalars/intents, piles, relic IDs, and potions (`trace.rs:561-634`), while F6 lists missing power/history/counter fields. Rust hardcodes relic counters to `-1` in snapshots (`trace.rs:770-800`). Only `smoke-neow-floor1` has both a script and golden; GOAL requires roughly ten A0 coverage seeds plus seed `1776347657`.
+V1 remains the read-only format for the one protected Java smoke golden. Its
+differ now compares every serialized record field and has one-field corruption
+tests. V2 has an additive envelope, direct canonical `GameAction` scripts,
+complete Rust replay, and causal checkpoints. The Java recorder does not yet
+implement v2, and a Rust-private `CoreCheckpoint` is not the shared state DTO.
+Only `smoke-neow-floor1` has a Java golden; GOAL requires roughly ten A0
+coverage seeds plus seed `1776347657`.
 
 | Gap | Current evidence | Done looks like | Blocking dependencies | Effort | Feeds from |
 |---|---|---|---|---|---|
-| **T1. Define an additive-tolerant trace v2.** | `check_version` rejects every value except exactly 1 (`trace.rs:49-60`); action contracts contain unresolved type nits in F7. | An envelope declares schema name, major/minor, capabilities, and producer. Unknown additive fields survive or are ignored by projection; incompatible majors fail clearly. Canonical field ordering is specified for deterministic JSONL. | API4 shared versioning policy; action vocabulary from R4. | M | FINDINGS F7; EDA-022. |
-| **T2. Complete Rust and Java action vocabulary.** | The Rust mapper rejects reward/event/campfire/shop actions beyond its documented subset (`trace.rs:706-712`). | All actions needed by the corpus have one canonical typed representation and equivalent Java/Rust execution. Schema fixtures cover every variant and invalid payload. | R4; T1. | M | FINDINGS F7; EDA-023. |
-| **T3. Make emitted and compared state complete.** | Relic counters are `-1`; F6 identifies powers, orbs, move history, and counters omitted from comparison. | Rust emits real counters and normalized IDs. The differ compares every GOAL field, with RNG first, and contains negative fixtures proving a single-field regression cannot report `match`. | R2 canonical relics; C3 power ownership; G1 counters. | M | FINDINGS F6; EDA-020. |
-| **T4. Build the full A0 corpus.** | One smoke script/golden exists versus the target of about eleven full runs. | Coverage-oriented scripts exist for about ten A0 seeds plus `1776347657`; each has a human-minted A/B deterministic golden and an offline oracle test. Targeted short scripts cover otherwise unreachable edge cases. | T1/T2 for usable scripts. Minting itself is human-attended; engine matching can proceed incrementally after G1. | L plus human sessions | `docs/goal/UNITS.md` U06; FINDINGS F4/F6; EDA-033. |
+| **T1. Define an additive-tolerant trace v2.** | **Rust complete:** named major/minor envelope, capabilities, producer, additive current-minor fields, deterministic JSONL. | Freeze the language-neutral Java/Rust state projection without exposing private continuation representation. | Java adapter/projection handoff. | M | FINDINGS F9; EDA-022. |
+| **T2. Complete Rust and Java action vocabulary.** | **Rust complete:** all 27 `GameAction` variants serialize directly, are documented, and replay without a mapper. | Implement the exact frozen action shapes in Java and record Neow option payloads. | Human/Java work. | M | FINDINGS F4/F9; EDA-023. |
+| **T3. Make emitted and compared state complete.** | **V1 complete:** real counters plus mutation tests for every serialized field; RNG remains first. | Define and validate the equivalent language-neutral v2 full-state projection. | T1 Java/Rust projection. | M | FINDINGS F6/F9; EDA-020. |
+| **T4. Build the full A0 corpus.** | Two Rust scripts exist, but only one short v1 Java golden exists versus the target of about eleven full runs. | Coverage-oriented scripts exist for about ten A0 seeds plus `1776347657`; each has a human-minted A/B deterministic golden and an offline oracle test. Targeted short scripts cover otherwise unreachable edge cases. | T1/T2 Java handoff. Minting itself is human-attended. | L plus human sessions | `docs/goal/UNITS.md` U06; FINDINGS F4/F9; EDA-033. |
 | **T5. Burn down divergences to B3.** | B0 is achieved; B1+ are not established by a complete corpus. | Every committed script returns `match` or a narrow reviewed `DEV` mask; all 13 counters and complete post-state agree after every action. First-divergence reports remain reproducible offline. | G1-G3, K3, T3/T4. | L | All correctness EDA entries plus FINDINGS F1-F7. |
 
 **Oracle exit tests**

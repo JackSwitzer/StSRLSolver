@@ -26,6 +26,7 @@ use std::process::ExitCode;
 use sts_engine::trace::{
     self, ActionScript, DivergenceStatus, TraceHeader, TraceRecord,
 };
+use sts_engine::trace::v2::{replay_action_script_v2, ActionScriptV2, TraceEnvelopeV2};
 
 fn main() -> ExitCode {
     match run() {
@@ -78,7 +79,7 @@ fn parse_args(raw: &[String]) -> Result<Args, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: trace_replay --script <script.json> --java-trace <golden.jsonl> [--out <rust.jsonl>] --diff <report.json> [--masks <masks.json>]"
+    "usage:\n  v1 compare: trace_replay --script <script.json> --java-trace <golden.jsonl> [--out <rust.jsonl>] --diff <report.json> [--masks <masks.json>]\n  v2 replay:  trace_replay --script <script-v2.json> --out <rust-v2.jsonl>"
 }
 
 // ===========================================================================
@@ -98,13 +99,22 @@ fn run() -> Result<DivergenceStatus, String> {
         });
     }
 
-    let script_path = args.script.ok_or_else(|| format!("--script is required\n{}", usage()))?;
+    let script_path = args
+        .script
+        .as_ref()
+        .cloned()
+        .ok_or_else(|| format!("--script is required\n{}", usage()))?;
+    let script_text = fs::read_to_string(&script_path)
+        .map_err(|err| format!("failed to read script '{script_path}': {err}"))?;
+    let script_value: serde_json::Value = serde_json::from_str(&script_text)
+        .map_err(|err| format!("failed to parse script '{script_path}': {err}"))?;
+    if script_value.get("schema").is_some() {
+        return replay_v2_script(&args, &script_path, &script_text);
+    }
+
     let java_trace_path =
         args.java_trace.ok_or_else(|| format!("--java-trace is required\n{}", usage()))?;
     let diff_path = args.diff.ok_or_else(|| format!("--diff is required\n{}", usage()))?;
-
-    let script_text = fs::read_to_string(&script_path)
-        .map_err(|err| format!("failed to read script '{script_path}': {err}"))?;
     let script: ActionScript = serde_json::from_str(&script_text)
         .map_err(|err| format!("failed to parse script '{script_path}': {err}"))?;
     script.check_version()?;
@@ -140,6 +150,28 @@ fn run() -> Result<DivergenceStatus, String> {
     Ok(report.status)
 }
 
+fn replay_v2_script(
+    args: &Args,
+    script_path: &str,
+    script_text: &str,
+) -> Result<DivergenceStatus, String> {
+    if args.java_trace.is_some() || args.diff.is_some() || args.masks.is_some() {
+        return Err(
+            "v2 Java comparison is not available until the language-neutral oracle projection is frozen; replay with --out only"
+                .to_string(),
+        );
+    }
+    let out_path = args
+        .out
+        .as_deref()
+        .ok_or_else(|| format!("--out is required for a v2 replay\n{}", usage()))?;
+    let script: ActionScriptV2 = serde_json::from_str(script_text)
+        .map_err(|err| format!("failed to parse v2 script '{script_path}': {err}"))?;
+    let envelopes = replay_action_script_v2(&script)?;
+    write_v2_jsonl(out_path, &envelopes)?;
+    Ok(DivergenceStatus::Match)
+}
+
 fn script_stem_name(path: &str) -> String {
     std::path::Path::new(path)
         .file_stem()
@@ -153,6 +185,15 @@ fn write_jsonl(path: &str, script: &ActionScript, records: &[TraceRecord]) -> Re
     out.push('\n');
     for record in records {
         out.push_str(&serde_json::to_string(record).map_err(|err| err.to_string())?);
+        out.push('\n');
+    }
+    fs::write(path, out).map_err(|err| format!("failed to write '{path}': {err}"))
+}
+
+fn write_v2_jsonl(path: &str, envelopes: &[TraceEnvelopeV2]) -> Result<(), String> {
+    let mut out = String::new();
+    for envelope in envelopes {
+        out.push_str(&serde_json::to_string(envelope).map_err(|err| err.to_string())?);
         out.push('\n');
     }
     fs::write(path, out).map_err(|err| format!("failed to write '{path}': {err}"))
