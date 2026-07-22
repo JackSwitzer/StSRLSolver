@@ -8,9 +8,14 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/ForeignInfluenceAction.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, Effect as E, GeneratedCardPool, GeneratedCostRule, Pile as P};
+use crate::effects::declarative::{
+    AmountSource as A, CardFilter, ChoiceAction, Effect as E, GeneratedCardPool, GeneratedCostRule,
+    Pile as P,
+};
 use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
-use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_state, ensure_in_hand, play_self};
+use crate::tests::support::{
+    combat_state_with, enemy_no_intent, engine_with_state, ensure_in_hand, play_self,
+};
 
 fn watcher_engine() -> crate::engine::CombatEngine {
     engine_with_state(combat_state_with(
@@ -73,7 +78,10 @@ fn watcher_wave17_foreign_influence_preserves_base_cost_and_zeros_upgraded_cost(
     assert!(play_self(&mut engine, "ForeignInfluence"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
 
-    let choice = engine.choice.as_ref().expect("Foreign Influence should open a generated choice");
+    let choice = engine
+        .choice
+        .as_ref()
+        .expect("Foreign Influence should open a generated choice");
     assert_eq!(choice.reason, ChoiceReason::DiscoverCard);
     assert_eq!(choice.options.len(), 3);
     for option in &choice.options {

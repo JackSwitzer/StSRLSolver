@@ -8,14 +8,18 @@
 
 use crate::actions::Action;
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::tests::support::*;
 
 #[test]
 fn silent_wave9_registry_exports_show_clean_primary_typed_effects() {
     let registry = global_registry();
 
-    let endless_agony = registry.get("Endless Agony").expect("Endless Agony should exist");
+    let endless_agony = registry
+        .get("Endless Agony")
+        .expect("Endless Agony should exist");
     assert_eq!(endless_agony.card_type, CardType::Attack);
     assert_eq!(endless_agony.target, CardTarget::Enemy);
     assert!(endless_agony.exhaust);
@@ -25,7 +29,9 @@ fn silent_wave9_registry_exports_show_clean_primary_typed_effects() {
         &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
     );
 
-    let grand_finale = registry.get("Grand Finale").expect("Grand Finale should exist");
+    let grand_finale = registry
+        .get("Grand Finale")
+        .expect("Grand Finale should exist");
     assert_eq!(grand_finale.target, CardTarget::AllEnemy);
     assert!(grand_finale.has_test_marker("only_empty_draw"));
     assert_eq!(
@@ -45,7 +51,6 @@ fn silent_wave9_registry_exports_show_clean_primary_typed_effects() {
     let alchemize = registry.get("Alchemize").expect("Alchemize should exist");
     assert_eq!(alchemize.effect_data, &[E::Simple(SE::ObtainRandomPotion)]);
     assert!(alchemize.complex_hook.is_none());
-
 }
 
 #[test]
@@ -61,7 +66,10 @@ fn silent_wave9_primary_typed_damage_cards_follow_engine_path() {
     finale_engine.state.hand = make_deck(&["Grand Finale"]);
     finale_engine.state.draw_pile.clear();
     finale_engine.state.discard_pile.clear();
-    finale_engine.state.enemies.push(enemy_no_intent("Cultist", 55, 55));
+    finale_engine
+        .state
+        .enemies
+        .push(enemy_no_intent("Cultist", 55, 55));
     assert!(play_self(&mut finale_engine, "Grand Finale"));
     assert_eq!(finale_engine.state.enemies[0].entity.hp, 20);
     assert_eq!(finale_engine.state.enemies[1].entity.hp, 5);
@@ -79,11 +87,7 @@ fn masterful_stab_source_updates_existing_piles_once_per_damage_event() {
     // MasterfulStab.tookDamage calls updateCost(1), and
     // AbstractPlayer.updateCardsOnDamage calls it once per positive event on
     // cards in hand, discard, and draw. Seven HP in one event is still +1.
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 50, 50)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 50, 50)], 3);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Masterful Stab"]);
     engine.state.discard_pile = make_deck(&["Masterful Stab+"]);
@@ -100,7 +104,10 @@ fn masterful_stab_source_updates_existing_piles_once_per_damage_event() {
     assert_eq!(engine.state.draw_pile[0].cost, 2);
 
     // A card created after those callbacks starts at the constructor's cost 0.
-    engine.state.hand.push(engine.card_registry.make_card("Masterful Stab"));
+    engine
+        .state
+        .hand
+        .push(engine.card_registry.make_card("Masterful Stab"));
     assert_eq!(engine.state.hand[1].cost, -1);
     assert_eq!(engine.state.hand[1].base_cost, 0);
 }
@@ -114,14 +121,23 @@ fn grand_finale_requires_an_empty_draw_pile_and_upgrade_deals_sixty_to_all() {
     blocked.state.draw_pile = make_deck(&["Strike"]);
     blocked.state.discard_pile.clear();
     assert!(!blocked.get_legal_actions().iter().any(|action| {
-        matches!(action, Action::PlayCard { card_idx: 0, target_idx: -1 })
+        matches!(
+            action,
+            Action::PlayCard {
+                card_idx: 0,
+                target_idx: -1
+            }
+        )
     }));
 
     let mut upgraded = engine_with(Vec::new(), 100, 0);
     upgraded.state.hand = make_deck(&["Grand Finale+"]);
     upgraded.state.draw_pile.clear();
     upgraded.state.discard_pile.clear();
-    upgraded.state.enemies.push(enemy_no_intent("Cultist", 80, 80));
+    upgraded
+        .state
+        .enemies
+        .push(enemy_no_intent("Cultist", 80, 80));
     upgraded.state.energy = 2;
 
     assert!(play_self(&mut upgraded, "Grand Finale+"));
@@ -152,8 +168,7 @@ fn silent_wave9_existing_runtime_tags_still_drive_residual_semantics() {
         3,
     );
     overflow.state.hand = make_deck(&[
-        "Defend", "Defend", "Defend", "Defend", "Defend",
-        "Defend", "Defend", "Defend", "Defend",
+        "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend",
     ]);
 
     overflow.draw_cards(1);

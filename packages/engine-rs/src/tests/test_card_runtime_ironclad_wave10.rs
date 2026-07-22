@@ -43,7 +43,10 @@ fn ironclad_wave10_registry_exports_promote_the_typed_primary_surface() {
             "{card_id} should use the typed primary preamble"
         );
         assert!(card.has_test_marker("rampage"));
-        assert!(card.complex_hook.is_none(), "{card_id} should be fully typed");
+        assert!(
+            card.complex_hook.is_none(),
+            "{card_id} should be fully typed"
+        );
     }
 
     let true_grit = global_registry()
@@ -91,7 +94,10 @@ fn ironclad_wave10_rampage_and_true_grit_follow_the_typed_primary_surface() {
         .discard_pile
         .last()
         .expect("played Rampage+ should be in discard");
-    assert_eq!(played_once.misc, 16, "Rampage+ should store its next damage on the played copy");
+    assert_eq!(
+        played_once.misc, 16,
+        "Rampage+ should store its next damage on the played copy"
+    );
 
     let mut true_grit = one_enemy_engine(40, 3);
     true_grit.state.hand = make_deck(&["True Grit", "Strike", "Defend"]);
@@ -136,7 +142,9 @@ fn ironclad_wave10_feed_and_reaper_follow_the_typed_attack_surface() {
     );
     assert!(feed.complex_hook.is_none());
 
-    let reaper = global_registry().get("Reaper").expect("Reaper should exist");
+    let reaper = global_registry()
+        .get("Reaper")
+        .expect("Reaper should exist");
     assert_eq!(
         reaper.effect_data,
         &[

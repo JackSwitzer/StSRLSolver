@@ -23,9 +23,17 @@ pub(super) fn roll_darkling(
     let chomp = enemy.entity.status(sid::STARTING_DMG).max(8);
     let nip = enemy.entity.status(sid::STR_AMT).max(7);
     let harden = |enemy: &mut EnemyCombatState| {
-        enemy.set_move(move_ids::DARK_HARDEN, 0, 0, 12);
         if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
+            enemy.set_move_with_intent(
+                move_ids::DARK_HARDEN,
+                Intent::DefendBuff {
+                    block: 12,
+                    effects: fx::STRENGTH,
+                },
+            );
             enemy.add_effect(mfx::STRENGTH, 2);
+        } else {
+            enemy.set_move(move_ids::DARK_HARDEN, 0, 0, 12);
         }
     };
 
@@ -125,7 +133,7 @@ pub(super) fn roll_exploder(enemy: &mut EnemyCombatState, _num: i32) {
     // Source: reference/extracted/methods/monster/Exploder.java (`getMove`).
     // turnCount increments in takeTurn, before the queued RollMoveAction.
     if enemy.entity.status(sid::TURN_COUNT) >= 2 {
-        enemy.set_move(move_ids::EXPLODER_EXPLODE, 0, 0, 0);
+        enemy.set_move_with_intent(move_ids::EXPLODER_EXPLODE, Intent::Unknown);
     } else {
         let damage = enemy.entity.status(sid::STARTING_DMG).max(9);
         enemy.set_move(move_ids::EXPLODER_ATTACK, damage, 1, 0);
@@ -182,8 +190,10 @@ pub(super) fn roll_writhing_mass(enemy: &mut EnemyCombatState, num: i32, ai_rng:
         if enemy.entity.status(sid::USED_MEGA_DEBUFF) == 0
             && !last_move(enemy, move_ids::WM_MEGA_DEBUFF)
         {
-            enemy.set_move(move_ids::WM_MEGA_DEBUFF, 0, 0, 0);
-            enemy.intent = crate::combat_types::Intent::Debuff { effects: 0 };
+            enemy.set_move_with_intent(
+                move_ids::WM_MEGA_DEBUFF,
+                Intent::StrongDebuff { effects: 0 },
+            );
         } else if ai_rng.random_f32() < 0.1 {
             set_big(enemy);
         } else {
@@ -231,9 +241,8 @@ pub(super) fn roll_spire_growth(enemy: &mut EnemyCombatState, num: i32) {
     let player_constricted = enemy.entity.status(sid::COUNT) > 0;
     let high_ascension = enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0;
     let set_constrict = |enemy: &mut EnemyCombatState| {
-        enemy.set_move(move_ids::SG_CONSTRICT, 0, 0, 0);
+        enemy.set_move_with_intent(move_ids::SG_CONSTRICT, Intent::StrongDebuff { effects: 0 });
         enemy.add_effect(mfx::CONSTRICT, constrict);
-        enemy.intent = Intent::Debuff { effects: 0 };
     };
 
     if high_ascension && !player_constricted && !last_move(enemy, move_ids::SG_CONSTRICT) {
@@ -262,7 +271,7 @@ pub(super) fn roll_maw(enemy: &mut EnemyCombatState, num: i32) {
     // FIRST_MOVE mirrors the constructor's `roared` boolean: zero until the
     // Roar intent executes, then one for the rest of combat.
     if enemy.entity.status(sid::FIRST_MOVE) == 0 {
-        enemy.set_move(move_ids::MAW_ROAR, 0, 0, 0);
+        enemy.set_move_with_intent(move_ids::MAW_ROAR, Intent::StrongDebuff { effects: 0 });
         enemy.add_effect(mfx::WEAK, terrify);
         enemy.add_effect(mfx::FRAIL, terrify);
     } else if num < 50 && !last_move(enemy, move_ids::MAW_NOM) {
@@ -314,7 +323,8 @@ pub(super) fn roll_giant_head(enemy: &mut EnemyCombatState, num: i32) {
         enemy.entity.set_status(sid::COUNT, new_count);
         if num < 50 {
             if !last_two_moves(enemy, move_ids::GH_GLARE) {
-                enemy.set_move(move_ids::GH_GLARE, 0, 0, 0);
+                enemy
+                    .set_move_with_intent(move_ids::GH_GLARE, Intent::Debuff { effects: fx::WEAK });
                 enemy.add_effect(mfx::WEAK, 1);
             } else {
                 enemy.set_move(move_ids::GH_COUNT, 13, 1, 0);
@@ -322,7 +332,7 @@ pub(super) fn roll_giant_head(enemy: &mut EnemyCombatState, num: i32) {
         } else if !last_two_moves(enemy, move_ids::GH_COUNT) {
             enemy.set_move(move_ids::GH_COUNT, 13, 1, 0);
         } else {
-            enemy.set_move(move_ids::GH_GLARE, 0, 0, 0);
+            enemy.set_move_with_intent(move_ids::GH_GLARE, Intent::Debuff { effects: fx::WEAK });
             enemy.add_effect(mfx::WEAK, 1);
         }
     }
@@ -343,7 +353,7 @@ pub(super) fn roll_nemesis(
         enemy.set_move(move_ids::NEM_TRI_ATTACK, fire_dmg, 3, 0);
     };
     let burn = |enemy: &mut EnemyCombatState| {
-        enemy.set_move(move_ids::NEM_BURN, 0, 0, 0);
+        enemy.set_move_with_intent(move_ids::NEM_BURN, Intent::Debuff { effects: fx::BURN });
         enemy.add_effect(mfx::BURN, burn_count);
     };
     let scythe = |enemy: &mut EnemyCombatState| {
@@ -459,6 +469,11 @@ pub(super) fn roll_snake_dagger(enemy: &mut EnemyCombatState, _num: i32) {
         enemy.entity.set_status(sid::FIRST_MOVE, 0);
         enemy.set_move(move_ids::SD_WOUND, 9, 1, 0);
         enemy.add_effect(mfx::WOUND, 1);
+        enemy.intent = Intent::AttackDebuff {
+            damage: 9,
+            hits: 1,
+            effects: fx::WOUND,
+        };
     } else {
         enemy.set_move(move_ids::SD_EXPLODE, 25, 1, 0);
     }
@@ -494,11 +509,19 @@ pub(super) fn roll_awakened_one(enemy: &mut EnemyCombatState, num: i32) {
         // 50 chooses Sludge unless it would be the third; num >= 50 chooses
         // Tackle unless it would be the third.
         // Java: reference/extracted/methods/monster/AwakenedOne.java
-        if enemy.move_history.is_empty() {
+        if enemy.entity.status(sid::FIRST_TURN) > 0 {
+            enemy.entity.set_status(sid::FIRST_TURN, 0);
             enemy.set_move(move_ids::AO_DARK_ECHO, 40, 1, 0);
         } else if num < 50 {
             if !last_two_moves(enemy, move_ids::AO_SLUDGE) {
-                enemy.set_move(move_ids::AO_SLUDGE, 18, 1, 0);
+                enemy.set_move_with_intent(
+                    move_ids::AO_SLUDGE,
+                    Intent::AttackDebuff {
+                        damage: 18,
+                        hits: 1,
+                        effects: 0,
+                    },
+                );
                 enemy.add_effect(mfx::VOID, 1);
             } else {
                 enemy.set_move(move_ids::AO_TACKLE, 10, 3, 0);
@@ -506,7 +529,14 @@ pub(super) fn roll_awakened_one(enemy: &mut EnemyCombatState, num: i32) {
         } else if !last_two_moves(enemy, move_ids::AO_TACKLE) {
             enemy.set_move(move_ids::AO_TACKLE, 10, 3, 0);
         } else {
-            enemy.set_move(move_ids::AO_SLUDGE, 18, 1, 0);
+            enemy.set_move_with_intent(
+                move_ids::AO_SLUDGE,
+                Intent::AttackDebuff {
+                    damage: 18,
+                    hits: 1,
+                    effects: 0,
+                },
+            );
             enemy.add_effect(mfx::VOID, 1);
         }
     }
@@ -533,9 +563,10 @@ pub fn awakened_one_rebirth(enemy: &mut EnemyCombatState) {
     }
     // Heal to full (second form HP)
     enemy.entity.hp = enemy.entity.max_hp;
-    enemy.move_history.clear();
-    // First move of Phase 2: Dark Echo
-    enemy.set_move(move_ids::AO_DARK_ECHO, 40, 1, 0);
+    // changeState("REBIRTH") does not alter moveHistory or select the next
+    // move. The RollMoveAction queued by takeTurn runs afterward and appends
+    // phase two's first Dark Echo through getMove.
+    // Java: reference/extracted/methods/monster/AwakenedOne.java
 }
 
 pub(super) fn roll_donu(enemy: &mut EnemyCombatState, _num: i32) {
@@ -562,7 +593,17 @@ pub(super) fn roll_deca(enemy: &mut EnemyCombatState, _num: i32) {
     // Source: reference/extracted/methods/monster/Deca.java (`getMove` and
     // `takeTurn`). Deca starts attacking and alternates after each execution.
     if last_move(enemy, move_ids::DECA_BEAM) {
-        enemy.set_move(move_ids::DECA_SQUARE, 0, 0, 16);
+        if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
+            enemy.set_move_with_intent(
+                move_ids::DECA_SQUARE,
+                Intent::DefendBuff {
+                    block: 16,
+                    effects: 0,
+                },
+            );
+        } else {
+            enemy.set_move(move_ids::DECA_SQUARE, 0, 0, 16);
+        }
         enemy.add_effect(mfx::BLOCK_ALL_ALLIES, 16);
         if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
             enemy.add_effect(mfx::PLATED_ARMOR_ALL, 3);
@@ -576,7 +617,14 @@ pub(super) fn roll_deca(enemy: &mut EnemyCombatState, _num: i32) {
                 10
             }
         };
-        enemy.set_move(move_ids::DECA_BEAM, bd, 2, 0);
+        enemy.set_move_with_intent(
+            move_ids::DECA_BEAM,
+            Intent::AttackDebuff {
+                damage: bd as i16,
+                hits: 2,
+                effects: fx::DAZE,
+            },
+        );
         enemy.add_effect(mfx::DAZE, 2);
     }
 }
@@ -650,10 +698,21 @@ pub(super) fn roll_time_eater(enemy: &mut EnemyCombatState, num: i32, ai_rng: &m
 }
 
 fn set_time_eater_ripple(enemy: &mut EnemyCombatState) {
-    enemy.set_move(move_ids::TE_RIPPLE, 0, 0, 20);
+    // Source: TimeEater.java `getMove` installs DEFEND_DEBUFF, while
+    // `takeTurn` separately gains 20 block and applies Vulnerable/Weak/Frail.
+    let high_ascension = enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0;
+    let effects = if high_ascension {
+        fx::VULNERABLE | fx::WEAK | fx::FRAIL
+    } else {
+        fx::VULNERABLE | fx::WEAK
+    };
+    enemy.set_move_with_intent(
+        move_ids::TE_RIPPLE,
+        Intent::DefendDebuff { block: 20, effects },
+    );
     enemy.add_effect(mfx::VULNERABLE, 1);
     enemy.add_effect(mfx::WEAK, 1);
-    if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
+    if high_ascension {
         enemy.add_effect(mfx::FRAIL, 1);
     }
 }

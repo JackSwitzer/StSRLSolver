@@ -18,32 +18,38 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // through cardRandomRng (two independently when upgraded), then queues a
     // one-card MakeTempCardInHandAction for each selection. Overflow spills to
     // discard, and the card exhausts.
-    insert(cards, CardDef {
-        id: "Jack Of All Trades",
-        name: "Jack Of All Trades",
-        card_type: CardType::Skill,
-        target: CardTarget::None,
-        cost: 0,
-        base_damage: -1,
-        base_block: -1,
-        base_magic: 1,
-        exhaust: true,
-        enter_stance: None,
-                effect_data: &JACK_OF_ALL_TRADES,
-        complex_hook: None,
-    });
-    insert(cards, CardDef {
-        id: "Jack Of All Trades+",
-        name: "Jack Of All Trades+",
-        card_type: CardType::Skill,
-        target: CardTarget::None,
-        cost: 0,
-        base_damage: -1,
-        base_block: -1,
-        base_magic: 2,
-        exhaust: true,
-        enter_stance: None,
-                effect_data: &JACK_OF_ALL_TRADES_PLUS,
-        complex_hook: None,
-    });
+    insert(
+        cards,
+        CardDef {
+            id: "Jack Of All Trades",
+            name: "Jack Of All Trades",
+            card_type: CardType::Skill,
+            target: CardTarget::None,
+            cost: 0,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: 1,
+            exhaust: true,
+            enter_stance: None,
+            effect_data: &JACK_OF_ALL_TRADES,
+            complex_hook: None,
+        },
+    );
+    insert(
+        cards,
+        CardDef {
+            id: "Jack Of All Trades+",
+            name: "Jack Of All Trades+",
+            card_type: CardType::Skill,
+            target: CardTarget::None,
+            cost: 0,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: 2,
+            exhaust: true,
+            enter_stance: None,
+            effect_data: &JACK_OF_ALL_TRADES_PLUS,
+            complex_hook: None,
+        },
+    );
 }

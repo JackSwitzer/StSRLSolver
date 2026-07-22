@@ -65,6 +65,9 @@ pub struct GameplayStateField {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GameplayEventKind {
+    CombatSetup,
+    CombatStartDirect,
+    CombatStartTop,
     CombatStart,
     CombatStartPreDraw,
     TurnStart,
@@ -121,7 +124,7 @@ pub enum GameplayEventKind {
     CampfireAction,
     MapAdvance,
     TurnStartLate,
-    TurnEndPostOrbs,
+    TurnEndPreCard,
     CardCommitted,
     CardUsed,
     CardAfterUse,
@@ -131,20 +134,24 @@ pub enum GameplayEventKind {
     PowerCardPlayed,
     AnyCardPlayed,
     PoisonApplied,
+    EnergyRecharge,
     RoundEnd,
 }
 
 impl From<crate::effects::trigger::Trigger> for GameplayEventKind {
     fn from(value: crate::effects::trigger::Trigger) -> Self {
         match value {
+            crate::effects::trigger::Trigger::CombatSetup => Self::CombatSetup,
+            crate::effects::trigger::Trigger::CombatStartDirect => Self::CombatStartDirect,
+            crate::effects::trigger::Trigger::CombatStartTop => Self::CombatStartTop,
             crate::effects::trigger::Trigger::CombatStart => Self::CombatStart,
             crate::effects::trigger::Trigger::CombatStartPreDraw => Self::CombatStartPreDraw,
             crate::effects::trigger::Trigger::TurnStart => Self::TurnStart,
             crate::effects::trigger::Trigger::TurnStartPreDraw => Self::TurnStartPreDraw,
             crate::effects::trigger::Trigger::TurnStartPostDraw => Self::TurnStartPostDraw,
             crate::effects::trigger::Trigger::TurnStartPostDrawLate => Self::TurnStartLate,
+            crate::effects::trigger::Trigger::TurnEndPreCard => Self::TurnEndPreCard,
             crate::effects::trigger::Trigger::TurnEnd => Self::TurnEnd,
-            crate::effects::trigger::Trigger::TurnEndPostOrbs => Self::TurnEndPostOrbs,
             crate::effects::trigger::Trigger::RoundEnd => Self::RoundEnd,
             crate::effects::trigger::Trigger::CombatVictory => Self::CombatVictory,
             crate::effects::trigger::Trigger::OnCardPlayedPre => Self::CardPrePlay,
@@ -172,6 +179,7 @@ impl From<crate::effects::trigger::Trigger> for GameplayEventKind {
             crate::effects::trigger::Trigger::OnBlockBroken => Self::BlockBroken,
             crate::effects::trigger::Trigger::DamageCalculation => Self::OutgoingHitCalculated,
             crate::effects::trigger::Trigger::OnPoisonApplied => Self::PoisonApplied,
+            crate::effects::trigger::Trigger::EnergyRecharge => Self::EnergyRecharge,
         }
     }
 }

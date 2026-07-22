@@ -2,9 +2,11 @@
 mod potion_tests {
     use crate::actions::Action;
     use crate::potions::*;
-    use crate::status_ids::sid;
     use crate::state::{CombatState, EnemyCombatState};
-    use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_state, make_deck_n};
+    use crate::status_ids::sid;
+    use crate::tests::support::{
+        combat_state_with, enemy_no_intent, engine_with_state, make_deck_n,
+    };
 
     fn state() -> CombatState {
         let e = EnemyCombatState::new("Test", 50, 50);
@@ -49,18 +51,21 @@ mod potion_tests {
         assert_eq!(e.event_log.len(), event_count);
 
         let context = crate::decision::build_combat_context(&e);
-        assert!(context.potions.iter().all(|slot| {
-            !slot.occupied && slot.potion_id.is_empty() && !slot.requires_target
-        }));
+        assert!(context
+            .potions
+            .iter()
+            .all(|slot| { !slot.occupied && slot.potion_id.is_empty() && !slot.requires_target }));
     }
 
-    #[test] fn fire_20_dmg() {
+    #[test]
+    fn fire_20_dmg() {
         let mut e = engine();
         e.state.potions[0] = "Fire Potion".to_string();
         use_potion(&mut e, 0, 0);
         assert_eq!(e.state.enemies[0].entity.hp, 30);
     }
-    #[test] fn fire_through_block() {
+    #[test]
+    fn fire_through_block() {
         let mut e = engine();
         e.state.potions[0] = "Fire Potion".to_string();
         e.state.enemies[0].entity.block = 8;
@@ -68,23 +73,33 @@ mod potion_tests {
         assert_eq!(e.state.enemies[0].entity.hp, 38);
         assert_eq!(e.state.enemies[0].entity.block, 0);
     }
-    #[test] fn fire_kills_enemy() {
+    #[test]
+    fn fire_kills_enemy() {
         let mut e = engine();
         e.state.potions[0] = "Fire Potion".to_string();
         e.state.enemies[0].entity.hp = 15;
         use_potion(&mut e, 0, 0);
         assert_eq!(e.state.enemies[0].entity.hp, 0);
     }
-    #[test] fn fire_bad_target() {
+    #[test]
+    fn fire_bad_target() {
         let e = engine();
-        assert!(!e.get_legal_actions().contains(&Action::UsePotion { potion_idx: 0, target_idx: 5 }));
+        assert!(!e.get_legal_actions().contains(&Action::UsePotion {
+            potion_idx: 0,
+            target_idx: 5
+        }));
     }
-    #[test] fn fire_neg_target() {
+    #[test]
+    fn fire_neg_target() {
         let mut e = engine();
         e.state.potions[0] = "Fire Potion".to_string();
-        assert!(!e.get_legal_actions().contains(&Action::UsePotion { potion_idx: 0, target_idx: -1 }));
+        assert!(!e.get_legal_actions().contains(&Action::UsePotion {
+            potion_idx: 0,
+            target_idx: -1
+        }));
     }
-    #[test] fn fire_tracks_damage() {
+    #[test]
+    fn fire_tracks_damage() {
         let mut e = engine();
         e.state.potions[0] = "Fire Potion".to_string();
         use_potion(&mut e, 0, 0);
@@ -92,13 +107,15 @@ mod potion_tests {
     }
 
     // ---- Block Potion ----
-    #[test] fn block_12() {
+    #[test]
+    fn block_12() {
         let mut e = engine();
         e.state.potions[0] = "Block Potion".to_string();
         use_potion(&mut e, 0, -1);
         assert_eq!(e.state.player.block, 12);
     }
-    #[test] fn block_stacks() {
+    #[test]
+    fn block_stacks() {
         let mut e = engine();
         e.state.potions[0] = "Block Potion".to_string();
         e.state.player.block = 5;
@@ -107,13 +124,15 @@ mod potion_tests {
     }
 
     // ---- Strength Potion ----
-    #[test] fn str_2() {
+    #[test]
+    fn str_2() {
         let mut e = engine();
         e.state.potions[0] = "Strength Potion".to_string();
         use_potion(&mut e, 0, -1);
         assert_eq!(e.state.player.strength(), 2);
     }
-    #[test] fn str_stacks() {
+    #[test]
+    fn str_stacks() {
         let mut e = engine();
         e.state.potions[0] = "Strength Potion".to_string();
         e.state.player.set_status(sid::STRENGTH, 3);
@@ -122,7 +141,8 @@ mod potion_tests {
     }
 
     // ---- Dexterity Potion ----
-    #[test] fn dex_2() {
+    #[test]
+    fn dex_2() {
         let mut e = engine();
         e.state.potions[0] = "Dexterity Potion".to_string();
         use_potion(&mut e, 0, -1);
@@ -130,7 +150,8 @@ mod potion_tests {
     }
 
     // ---- Energy Potion ----
-    #[test] fn energy_2() {
+    #[test]
+    fn energy_2() {
         let mut e = engine();
         e.state.potions[0] = "Energy Potion".to_string();
         use_potion(&mut e, 0, -1);
@@ -138,20 +159,26 @@ mod potion_tests {
     }
 
     // ---- Weak Potion ----
-    #[test] fn weak_3() {
+    #[test]
+    fn weak_3() {
         let mut e = engine();
         e.state.potions[0] = "Weak Potion".to_string();
         use_potion(&mut e, 0, 0);
         assert_eq!(e.state.enemies[0].entity.status(sid::WEAKENED), 3);
     }
-    #[test] fn weak_bad_target() {
+    #[test]
+    fn weak_bad_target() {
         let mut e = engine();
         e.state.potions[0] = "Weak Potion".to_string();
-        assert!(!e.get_legal_actions().contains(&Action::UsePotion { potion_idx: 0, target_idx: 5 }));
+        assert!(!e.get_legal_actions().contains(&Action::UsePotion {
+            potion_idx: 0,
+            target_idx: 5
+        }));
     }
 
     // ---- Fear Potion ----
-    #[test] fn fear_3() {
+    #[test]
+    fn fear_3() {
         let mut e = engine();
         e.state.potions[0] = "FearPotion".to_string();
         use_potion(&mut e, 0, 0);
@@ -159,7 +186,8 @@ mod potion_tests {
     }
 
     // ---- Poison Potion ----
-    #[test] fn poison_6() {
+    #[test]
+    fn poison_6() {
         // Source: reference/extracted/methods/potion/PoisonPotion.java.
         let mut e = engine();
         e.state.potions[0] = "Poison Potion".to_string();
@@ -168,10 +196,14 @@ mod potion_tests {
     }
 
     // ---- Explosive Potion ----
-    #[test] fn explosive_all() {
+    #[test]
+    fn explosive_all() {
         let mut e = engine_with_state(combat_state_with(
             make_deck_n("Strike", 5),
-            vec![enemy_no_intent("Test", 50, 50), enemy_no_intent("T2", 40, 40)],
+            vec![
+                enemy_no_intent("Test", 50, 50),
+                enemy_no_intent("T2", 40, 40),
+            ],
             3,
         ));
         e.state.potions = vec!["Explosive Potion".to_string(), String::new(), String::new()];
@@ -179,7 +211,8 @@ mod potion_tests {
         assert_eq!(e.state.enemies[0].entity.hp, 40);
         assert_eq!(e.state.enemies[1].entity.hp, 30);
     }
-    #[test] fn explosive_kills() {
+    #[test]
+    fn explosive_kills() {
         let mut e = engine();
         e.state.potions[0] = "Explosive Potion".to_string();
         e.state.enemies[0].entity.hp = 5;
@@ -188,24 +221,31 @@ mod potion_tests {
     }
 
     // ---- Fairy ----
-    #[test] fn fairy_check_none() { assert_eq!(check_fairy_revive(&state()), 0); }
-    #[test] fn fairy_check_present() {
+    #[test]
+    fn fairy_check_none() {
+        assert_eq!(check_fairy_revive(&state()), 0);
+    }
+    #[test]
+    fn fairy_check_present() {
         let mut s = state();
         s.potions[0] = "FairyPotion".to_string();
         assert_eq!(check_fairy_revive(&s), 24);
     }
-    #[test] fn fairy_check_alt_name() {
+    #[test]
+    fn fairy_check_alt_name() {
         let mut s = state();
         s.potions[1] = "Fairy in a Bottle".to_string();
         assert_eq!(check_fairy_revive(&s), 24);
     }
-    #[test] fn fairy_consume_slot() {
+    #[test]
+    fn fairy_consume_slot() {
         let mut s = state();
         s.potions[2] = "FairyPotion".to_string();
         consume_fairy(&mut s);
         assert!(s.potions[2].is_empty());
     }
-    #[test] fn fairy_30pct_values() {
+    #[test]
+    fn fairy_30pct_values() {
         let mut s = state();
         s.potions[0] = "FairyPotion".to_string();
         s.player.max_hp = 100;
@@ -213,39 +253,70 @@ mod potion_tests {
     }
 
     // ---- requires_target ----
-    #[test] fn target_fire() { assert!(potion_requires_target("Fire Potion")); }
-    #[test] fn target_weak() { assert!(potion_requires_target("Weak Potion")); }
-    #[test] fn target_fear() { assert!(potion_requires_target("FearPotion")); }
-    #[test] fn target_poison() { assert!(potion_requires_target("Poison Potion")); }
-    #[test] fn no_target_block() { assert!(!potion_requires_target("Block Potion")); }
-    #[test] fn no_target_str() { assert!(!potion_requires_target("Strength Potion")); }
-    #[test] fn no_target_energy() { assert!(!potion_requires_target("Energy Potion")); }
-    #[test] fn no_target_dex() { assert!(!potion_requires_target("Dexterity Potion")); }
-    #[test] fn no_target_explosive() { assert!(!potion_requires_target("Explosive Potion")); }
+    #[test]
+    fn target_fire() {
+        assert!(potion_requires_target("Fire Potion"));
+    }
+    #[test]
+    fn target_weak() {
+        assert!(potion_requires_target("Weak Potion"));
+    }
+    #[test]
+    fn target_fear() {
+        assert!(potion_requires_target("FearPotion"));
+    }
+    #[test]
+    fn target_poison() {
+        assert!(potion_requires_target("Poison Potion"));
+    }
+    #[test]
+    fn no_target_block() {
+        assert!(!potion_requires_target("Block Potion"));
+    }
+    #[test]
+    fn no_target_str() {
+        assert!(!potion_requires_target("Strength Potion"));
+    }
+    #[test]
+    fn no_target_energy() {
+        assert!(!potion_requires_target("Energy Potion"));
+    }
+    #[test]
+    fn no_target_dex() {
+        assert!(!potion_requires_target("Dexterity Potion"));
+    }
+    #[test]
+    fn no_target_explosive() {
+        assert!(!potion_requires_target("Explosive Potion"));
+    }
 
     // ---- Sacred Bark doubles potions ----
-    #[test] fn bark_doubles_weakness() {
+    #[test]
+    fn bark_doubles_weakness() {
         let mut e = engine();
         e.state.relics.push("SacredBark".to_string());
         e.state.potions[0] = "Weak Potion".to_string();
         use_potion(&mut e, 0, 0);
         assert_eq!(e.state.enemies[0].entity.status(sid::WEAKENED), 6); // 3*2
     }
-    #[test] fn bark_doubles_poison() {
+    #[test]
+    fn bark_doubles_poison() {
         let mut e = engine();
         e.state.relics.push("SacredBark".to_string());
         e.state.potions[0] = "Poison Potion".to_string();
         use_potion(&mut e, 0, 0);
         assert_eq!(e.state.enemies[0].entity.status(sid::POISON), 12); // 6*2
     }
-    #[test] fn bark_doubles_energy() {
+    #[test]
+    fn bark_doubles_energy() {
         let mut e = engine();
         e.state.relics.push("SacredBark".to_string());
         e.state.potions[0] = "Energy Potion".to_string();
         use_potion(&mut e, 0, -1);
         assert_eq!(e.state.energy, 7); // 3 base + 2*2
     }
-    #[test] fn bark_doubles_explosive() {
+    #[test]
+    fn bark_doubles_explosive() {
         let mut e = engine();
         e.state.relics.push("SacredBark".to_string());
         e.state.potions[0] = "Explosive Potion".to_string();

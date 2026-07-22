@@ -44,8 +44,7 @@ pub(crate) fn trace_power_spec(status: StatusId) -> Option<TracePowerSpec> {
             | 247
             | 251
             | 256..=258
-            | 261..=262
-            | 263
+            | 261..=269
     );
     if !visible {
         return None;
@@ -119,12 +118,18 @@ pub(crate) fn trace_power_spec(status: StatusId) -> Option<TracePowerSpec> {
         sid::UNAWAKENED => "Unawakened",
         sid::SPLIT_POWER => "Split",
         sid::ENERGIZED_BLUE => "EnergizedBlue",
+        sid::MINION_POWER => "Minion",
+        sid::BACK_ATTACK_POWER => "BackAttack",
+        sid::STASIS_POWER => "Stasis",
+        sid::PEN_NIB_POWER => "Pen Nib",
+        sid::SURROUNDED_POWER => "Surrounded",
+        sid::THIEVERY => "Thievery",
         _ => status_name(status),
     };
 
     let priority = match status {
         sid::CONFUSION => 0,
-        sid::DOUBLE_DAMAGE => 6,
+        sid::DOUBLE_DAMAGE | sid::PEN_NIB_POWER => 6,
         sid::FRAIL => 10,
         sid::DRAW_CARD | sid::DOPPELGANGER_DRAW => 20,
         sid::TOOLS_OF_THE_TRADE | sid::ESTABLISHMENT => 25,
@@ -153,6 +158,10 @@ pub(crate) fn trace_power_spec(status: StatusId) -> Option<TracePowerSpec> {
             | sid::PAINFUL_STABS
             | sid::UNAWAKENED
             | sid::SPLIT_POWER
+            | sid::MINION_POWER
+            | sid::BACK_ATTACK_POWER
+            | sid::STASIS_POWER
+            | sid::SURROUNDED_POWER
     ) {
         TracePowerAmount::Marker
     } else if status == sid::WRAITH_FORM {
@@ -218,15 +227,40 @@ mod tests {
         let visible = (0..sid::NUM_IDS)
             .filter(|index| trace_power_spec(StatusId(*index as u16)).is_some())
             .count();
-        assert_eq!(visible, 131);
+        assert_eq!(visible, 137);
         for index in sid::NUM_IDS..sid::MAX_STATUS_ID {
             assert!(trace_power_spec(StatusId(index as u16)).is_none());
         }
-        assert_eq!(trace_power_spec(sid::SPORE_CLOUD).unwrap().java_id, "Spore Cloud");
-        assert_eq!(trace_power_spec(sid::RUSHDOWN).unwrap().java_id, "Adaptation");
+        assert_eq!(
+            trace_power_spec(sid::SPORE_CLOUD).unwrap().java_id,
+            "Spore Cloud"
+        );
+        assert_eq!(
+            trace_power_spec(sid::RUSHDOWN).unwrap().java_id,
+            "Adaptation"
+        );
+        assert_eq!(trace_power_spec(sid::MANTRA).unwrap().java_id, "Mantra");
         assert!(trace_power_spec(sid::FIRST_MOVE).is_none());
         assert!(trace_power_spec(sid::PEN_NIB_COUNTER).is_none());
         assert!(trace_power_spec(sid::THE_BOMB).is_none());
         assert!(trace_power_spec(sid::HIGH_ASCENSION_AI).is_none());
+        assert_eq!(
+            trace_power_spec(sid::MINION_POWER).unwrap().java_id,
+            "Minion"
+        );
+        assert_eq!(
+            trace_power_spec(sid::BACK_ATTACK_POWER).unwrap().java_id,
+            "BackAttack"
+        );
+        assert_eq!(
+            trace_power_spec(sid::STASIS_POWER).unwrap().java_id,
+            "Stasis"
+        );
+        assert_eq!(
+            trace_power_spec(sid::SURROUNDED_POWER).unwrap().java_id,
+            "Surrounded"
+        );
+        assert_eq!(trace_power_spec(sid::THIEVERY).unwrap().java_id, "Thievery");
+        assert_eq!(trace_power_spec(sid::PEN_NIB_POWER).unwrap().priority, 6);
     }
 }

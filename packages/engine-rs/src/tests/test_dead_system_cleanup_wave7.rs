@@ -11,7 +11,9 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/Inserter.java
 
 use crate::effects::runtime::EffectOwner;
-use crate::tests::support::{combat_state_with, end_turn, enemy_no_intent, engine_with_state, make_deck_n};
+use crate::tests::support::{
+    combat_state_with, end_turn, enemy_no_intent, engine_with_state, make_deck_n,
+};
 
 #[test]
 fn dead_cleanup_wave7_runtime_relics_cover_deleted_helper_families() {
@@ -29,9 +31,18 @@ fn dead_cleanup_wave7_runtime_relics_cover_deleted_helper_families() {
     let mut engine = engine_with_state(state);
 
     assert_eq!(engine.state.mantra, 1);
-    assert_eq!(engine.hidden_effect_value("Inserter", EffectOwner::PlayerRelic { slot: 1 }, 0), 1);
+    assert_eq!(
+        engine.hidden_effect_value("Inserter", EffectOwner::PlayerRelic { slot: 1 }, 0),
+        1
+    );
     end_turn(&mut engine);
-    assert_eq!(engine.state.player.status(crate::status_ids::sid::ORB_SLOTS), 1);
+    assert_eq!(
+        engine
+            .state
+            .player
+            .status(crate::status_ids::sid::ORB_SLOTS),
+        1
+    );
     assert_eq!(engine.state.player.block, 14);
 }
 

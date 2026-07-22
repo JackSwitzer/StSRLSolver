@@ -27,9 +27,13 @@ public class RecordHooks {
             if (!ScriptRunner.recording()) {
                 return;
             }
+            int handIdx = __instance.hand.group.indexOf(c);
+            if (c.dontTriggerOnUseCard || handIdx < 0) {
+                return;
+            }
             Script.Action a = new Script.Action();
             a.type = "PLAY_CARD";
-            a.hand_idx = __instance.hand.group.indexOf(c);
+            a.hand_idx = handIdx;
             a.card_id = c.cardID;
             a.target = monster != null && AbstractDungeon.getMonsters() != null
                     ? AbstractDungeon.getMonsters().monsters.indexOf(monster) : null;

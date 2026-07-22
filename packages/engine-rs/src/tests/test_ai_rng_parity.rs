@@ -17,8 +17,10 @@
 
 #[cfg(test)]
 mod ai_rng_parity_tests {
-    use crate::enemies::{create_enemy, move_ids, roll_next_move, roll_next_move_with_num,
-        roll_next_move_with_num_and_rng};
+    use crate::enemies::{
+        create_enemy, move_ids, roll_next_move, roll_next_move_with_num,
+        roll_next_move_with_num_and_rng,
+    };
     use crate::run::RunEngine;
     use crate::seed::StsRandom;
     use crate::state::EnemyCombatState;
@@ -83,7 +85,11 @@ mod ai_rng_parity_tests {
             bite: None,
         };
         let slaver = ConstructedEnemy {
-            id: if misc.random_bool() { "SlaverRed" } else { "SlaverBlue" },
+            id: if misc.random_bool() {
+                "SlaverRed"
+            } else {
+                "SlaverBlue"
+            },
             hp: monster_hp.random_int_range(46, 50),
             bite: None,
         };
@@ -120,10 +126,12 @@ mod ai_rng_parity_tests {
     // The three num windows depend on history; three cases consume another
     // aiRng.randomBoolean draw instead of forming a simple 25/30/45 split.
     fn seed_for_float(predicate: fn(f32) -> bool) -> u64 {
-        (1..10_000).find(|&seed| {
-            let mut rng = StsRandom::new(seed);
-            predicate(rng.random_f32())
-        }).expect("seed satisfying probability branch")
+        (1..10_000)
+            .find(|&seed| {
+                let mut rng = StsRandom::new(seed);
+                predicate(rng.random_f32())
+            })
+            .expect("seed satisfying probability branch")
     }
 
     #[test]
@@ -136,7 +144,14 @@ mod ai_rng_parity_tests {
             let mut rng = StsRandom::new(seed_for_float(predicate));
             let mut e = create_enemy("JawWorm", 44, 44);
             roll_next_move_with_num_and_rng(&mut e, 0, &mut rng);
-            assert_eq!(e.move_id, if take_bellow { move_ids::JW_BELLOW } else { move_ids::JW_THRASH });
+            assert_eq!(
+                e.move_id,
+                if take_bellow {
+                    move_ids::JW_BELLOW
+                } else {
+                    move_ids::JW_THRASH
+                }
+            );
             assert_eq!(rng.counter, 1);
         }
     }
@@ -166,7 +181,14 @@ mod ai_rng_parity_tests {
             e.set_move(move_ids::JW_THRASH, 7, 1, 5);
             let mut rng = StsRandom::new(seed_for_float(predicate));
             roll_next_move_with_num_and_rng(&mut e, 25, &mut rng);
-            assert_eq!(e.move_id, if take_chomp { move_ids::JW_CHOMP } else { move_ids::JW_BELLOW });
+            assert_eq!(
+                e.move_id,
+                if take_chomp {
+                    move_ids::JW_CHOMP
+                } else {
+                    move_ids::JW_BELLOW
+                }
+            );
             assert_eq!(rng.counter, 1);
         }
     }
@@ -182,7 +204,14 @@ mod ai_rng_parity_tests {
             e.set_move(move_ids::JW_BELLOW, 0, 0, 6);
             let mut rng = StsRandom::new(seed_for_float(predicate));
             roll_next_move_with_num_and_rng(&mut e, 55, &mut rng);
-            assert_eq!(e.move_id, if take_chomp { move_ids::JW_CHOMP } else { move_ids::JW_THRASH });
+            assert_eq!(
+                e.move_id,
+                if take_chomp {
+                    move_ids::JW_CHOMP
+                } else {
+                    move_ids::JW_THRASH
+                }
+            );
             assert_eq!(rng.counter, 1);
         }
     }
@@ -312,7 +341,11 @@ mod ai_rng_parity_tests {
             run.debug_enter_specific_combat(&[id]);
             let combat = run.get_combat_engine().expect("specific combat");
             assert_eq!(combat.state.enemies[0].entity.hp, hp, "{id}");
-            assert_eq!(run.debug_floor_rng_states()[0], oracle.state_tuple(), "{id}");
+            assert_eq!(
+                run.debug_floor_rng_states()[0],
+                oracle.state_tuple(),
+                "{id}"
+            );
         }
     }
 
@@ -335,7 +368,11 @@ mod ai_rng_parity_tests {
             run.debug_enter_specific_combat(&[id]);
             let combat = run.get_combat_engine().expect("specific combat");
             assert_eq!(combat.state.enemies[0].entity.hp, expected_hp, "{id}");
-            assert_eq!(run.debug_floor_rng_states()[0], oracle.state_tuple(), "{id}");
+            assert_eq!(
+                run.debug_floor_rng_states()[0],
+                oracle.state_tuple(),
+                "{id}"
+            );
         }
     }
 
@@ -354,11 +391,21 @@ mod ai_rng_parity_tests {
         run.debug_enter_specific_combat(&["Reptomancer"]);
         let combat = run.get_combat_engine().expect("Reptomancer combat");
         assert_eq!(
-            combat.state.enemies.iter().map(|enemy| enemy.id.as_str()).collect::<Vec<_>>(),
+            combat
+                .state
+                .enemies
+                .iter()
+                .map(|enemy| enemy.id.as_str())
+                .collect::<Vec<_>>(),
             ["Dagger", "Reptomancer", "Dagger"]
         );
         assert_eq!(
-            combat.state.enemies.iter().map(|enemy| enemy.entity.hp).collect::<Vec<_>>(),
+            combat
+                .state
+                .enemies
+                .iter()
+                .map(|enemy| enemy.entity.hp)
+                .collect::<Vec<_>>(),
             [left_hp, reptomancer_hp, right_hp]
         );
         assert_eq!(run.debug_floor_rng_states()[0], oracle.state_tuple());
@@ -409,7 +456,11 @@ mod ai_rng_parity_tests {
                 expected[index].bite.expect("Louse Bite"),
                 "member {index}"
             );
-            assert_eq!(enemy.entity.status(sid::CURL_UP), curls[index], "member {index}");
+            assert_eq!(
+                enemy.entity.status(sid::CURL_UP),
+                curls[index],
+                "member {index}"
+            );
         }
         let states = run.debug_floor_rng_states();
         assert_eq!(states[0], hp_oracle.state_tuple());
@@ -490,7 +541,11 @@ mod ai_rng_parity_tests {
         for (index, enemy) in combat.state.enemies.iter().enumerate() {
             assert_eq!(enemy.id, "Darkling", "member {index}");
             assert_eq!(enemy.entity.hp, expected[index].0, "member {index}");
-            assert_eq!(enemy.entity.status(sid::STR_AMT), expected[index].1, "member {index}");
+            assert_eq!(
+                enemy.entity.status(sid::STR_AMT),
+                expected[index].1,
+                "member {index}"
+            );
         }
         assert_eq!(run.debug_floor_rng_states()[0], oracle.state_tuple());
     }
@@ -527,10 +582,17 @@ mod ai_rng_parity_tests {
             assert_eq!(combat.state.enemies.len(), expected.len());
             for (index, enemy) in combat.state.enemies.iter().enumerate() {
                 assert_eq!(enemy.id, expected[index].id, "{encounter} member {index}");
-                assert_eq!(enemy.entity.hp, expected[index].hp, "{encounter} member {index}");
+                assert_eq!(
+                    enemy.entity.hp, expected[index].hp,
+                    "{encounter} member {index}"
+                );
             }
             let states = run.debug_floor_rng_states();
-            assert_eq!(states[0], hp_oracle.state_tuple(), "{encounter} monsterHpRng");
+            assert_eq!(
+                states[0],
+                hp_oracle.state_tuple(),
+                "{encounter} monsterHpRng"
+            );
             assert_eq!(states[4], misc_oracle.state_tuple(), "{encounter} miscRng");
         }
     }

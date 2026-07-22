@@ -13,7 +13,10 @@ fn set_first_reachable_room(engine: &mut RunEngine, room_type: RoomType) {
 fn black_star_elite_rewards_include_two_independently_claimable_relics() {
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.relics.push("BlackStar".to_string());
-    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
     engine.debug_build_combat_reward_screen(RoomType::Elite);
 
     let screen = engine
@@ -32,16 +35,26 @@ fn black_star_elite_rewards_include_two_independently_claimable_relics() {
     let second_relic = screen.items[2].label.clone();
     let claim = engine.step_game(&GameAction::SelectRewardItem(2));
     assert!(claim.accepted());
-    assert!(engine.run_state.relics.iter().any(|relic| relic == &second_relic));
-    assert!(claim.next_decision.legal_actions.contains(
-        &GameAction::SelectRewardItem(1 )
-    ));
+    assert!(engine
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == &second_relic));
+    assert!(claim
+        .next_decision
+        .legal_actions
+        .contains(&GameAction::SelectRewardItem(1)));
 
     let claim_second = engine.step_game(&GameAction::SelectRewardItem(1));
     assert!(claim_second.accepted());
-    assert!(engine.run_state.relics.iter().any(|relic| relic == &first_relic));
+    assert!(engine
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == &first_relic));
     assert!(claim_second
-        .next_decision.legal_actions
+        .next_decision
+        .legal_actions
         .contains(&GameAction::LeaveRewards));
 }
 
@@ -51,7 +64,10 @@ fn maw_bank_pays_on_shop_entry_then_is_used_up_by_the_first_purchase() {
     // a ShopRoom; onSpendGold then permanently sets its counter to used-up.
     let mut engine = RunEngine::new(42, 0);
     engine.run_state.relics.push("MawBank".to_string());
-    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
     engine.run_state.gold = 999;
     resolve_opening_neow(&mut engine);
     set_first_reachable_room(&mut engine, RoomType::Shop);
@@ -66,9 +82,7 @@ fn maw_bank_pays_on_shop_entry_then_is_used_up_by_the_first_purchase() {
         0
     );
 
-    assert!(engine
-        .step_game(&GameAction::ShopBuyCard(0))
-        .accepted());
+    assert!(engine.step_game(&GameAction::ShopBuyCard(0)).accepted());
     assert_eq!(
         engine.run_state.relic_flags.counters[crate::relic_flags::counter::MAW_BANK_GOLD],
         -2
@@ -80,11 +94,14 @@ fn meal_ticket_heals_exactly_fifteen_on_shop_entry() {
     // MealTicket.java::justEnteredRoom heals 15 only for ShopRoom. Because the
     // room is not in COMBAT, MagicFlower.java does not multiply this heal.
     let mut engine = RunEngine::new(44, 0);
-    engine.run_state.relics.extend([
-        "MealTicket".to_string(),
-        "Magic Flower".to_string(),
-    ]);
-    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
+    engine
+        .run_state
+        .relics
+        .extend(["MealTicket".to_string(), "Magic Flower".to_string()]);
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
     engine.run_state.current_hp = 40;
     resolve_opening_neow(&mut engine);
     set_first_reachable_room(&mut engine, RoomType::Shop);
@@ -127,8 +144,14 @@ fn juzu_bracelet_converts_a_mystery_monster_roll_into_an_event() {
 fn matryoshka_treasure_room_defers_open_then_builds_unordered_rewards() {
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.relics.push("Matryoshka".to_string());
-    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
-    engine.run_state.relic_flags.init_relic_counter("Matryoshka");
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
+    engine
+        .run_state
+        .relic_flags
+        .init_relic_counter("Matryoshka");
     resolve_opening_neow(&mut engine);
     set_first_reachable_room(&mut engine, RoomType::Treasure);
 
@@ -158,16 +181,23 @@ fn matryoshka_treasure_room_defers_open_then_builds_unordered_rewards() {
         "opening the chest should consume one Matryoshka use"
     );
     assert!(open
-        .next_decision.legal_actions
-        .contains(&GameAction::SelectRewardItem(0 )));
+        .next_decision
+        .legal_actions
+        .contains(&GameAction::SelectRewardItem(0)));
 }
 
 #[test]
 fn matryoshka_chest_rewards_preserve_extra_then_gold_then_chest_relic_order() {
     let mut engine = RunEngine::new(42, 20);
     engine.run_state.relics.push("Matryoshka".to_string());
-    engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
-    engine.run_state.relic_flags.init_relic_counter("Matryoshka");
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
+    engine
+        .run_state
+        .relic_flags
+        .init_relic_counter("Matryoshka");
     resolve_opening_neow(&mut engine);
     set_first_reachable_room(&mut engine, RoomType::Treasure);
 
@@ -187,25 +217,33 @@ fn matryoshka_chest_rewards_preserve_extra_then_gold_then_chest_relic_order() {
 
     let claim_extra = engine.step_game(&GameAction::SelectRewardItem(0));
     assert!(claim_extra.accepted());
-    assert!(engine.run_state.relics.iter().any(|relic| relic == &extra_relic));
-    assert!(claim_extra.next_decision.legal_actions.contains(
-        &GameAction::SelectRewardItem(1 )
-    ));
+    assert!(engine
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == &extra_relic));
+    assert!(claim_extra
+        .next_decision
+        .legal_actions
+        .contains(&GameAction::SelectRewardItem(1)));
 
     let claim_gold = engine.step_game(&GameAction::SelectRewardItem(1));
     assert!(claim_gold.accepted());
     assert_eq!(engine.run_state.gold, gold_before + gold_amount);
-    assert!(claim_gold.next_decision.legal_actions.contains(
-        &GameAction::SelectRewardItem(2 )
-    ));
+    assert!(claim_gold
+        .next_decision
+        .legal_actions
+        .contains(&GameAction::SelectRewardItem(2)));
 
     let claim_chest_relic = engine.step_game(&GameAction::SelectRewardItem(2));
     assert!(claim_chest_relic.accepted());
-    assert!(engine.run_state.relics.iter().any(|relic| relic == &chest_relic));
-    assert_eq!(engine.current_phase(), RunPhase::CardReward);
     assert!(engine
-        .step_game(&GameAction::LeaveRewards)
-        .accepted());
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == &chest_relic));
+    assert_eq!(engine.current_phase(), RunPhase::CardReward);
+    assert!(engine.step_game(&GameAction::LeaveRewards).accepted());
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert!(engine.current_reward_screen().is_none());
 }
@@ -215,30 +253,85 @@ fn matryoshka_extra_chest_reward_uses_only_common_or_uncommon_tiers() {
     // Matryoshka.java::onChestOpen rolls COMMON at 75%, otherwise UNCOMMON;
     // it never adds a RARE relic. Exercise both branches on treasure screens.
     const COMMON: &[&str] = &[
-        "Whetstone", "Boot", "Blood Vial", "MealTicket", "Pen Nib", "Akabeko",
-        "Lantern", "Regal Pillow", "Bag of Preparation", "Ancient Tea Set",
-        "Smiling Mask", "Potion Belt", "PreservedInsect", "Omamori", "MawBank",
-        "Art of War", "Toy Ornithopter", "CeramicFish", "Vajra",
-        "Centennial Puzzle", "Strawberry", "Happy Flower", "Oddly Smooth Stone",
-        "War Paint", "Bronze Scales", "Juzu Bracelet", "Dream Catcher", "Nunchaku",
-        "Tiny Chest", "Orichalcum", "Anchor", "Bag of Marbles", "Damaru",
+        "Whetstone",
+        "Boot",
+        "Blood Vial",
+        "MealTicket",
+        "Pen Nib",
+        "Akabeko",
+        "Lantern",
+        "Regal Pillow",
+        "Bag of Preparation",
+        "Ancient Tea Set",
+        "Smiling Mask",
+        "Potion Belt",
+        "PreservedInsect",
+        "Omamori",
+        "MawBank",
+        "Art of War",
+        "Toy Ornithopter",
+        "CeramicFish",
+        "Vajra",
+        "Centennial Puzzle",
+        "Strawberry",
+        "Happy Flower",
+        "Oddly Smooth Stone",
+        "War Paint",
+        "Bronze Scales",
+        "Juzu Bracelet",
+        "Dream Catcher",
+        "Nunchaku",
+        "Tiny Chest",
+        "Orichalcum",
+        "Anchor",
+        "Bag of Marbles",
+        "Damaru",
     ];
     const UNCOMMON: &[&str] = &[
-        "Bottled Tornado", "Sundial", "Kunai", "Pear", "Blue Candle",
-        "Eternal Feather", "StrikeDummy", "Singing Bowl", "Matryoshka", "InkBottle",
-        "The Courier", "Frozen Egg 2", "Ornamental Fan", "Bottled Lightning",
-        "Gremlin Horn", "HornCleat", "Toxic Egg 2", "Letter Opener", "Question Card",
-        "Bottled Flame", "Shuriken", "Molten Egg 2", "Meat on the Bone",
-        "Darkstone Periapt", "Mummified Hand", "Pantograph", "White Beast Statue",
-        "Mercury Hourglass", "Yang", "TeardropLocket",
+        "Bottled Tornado",
+        "Sundial",
+        "Kunai",
+        "Pear",
+        "Blue Candle",
+        "Eternal Feather",
+        "StrikeDummy",
+        "Singing Bowl",
+        "Matryoshka",
+        "InkBottle",
+        "The Courier",
+        "Frozen Egg 2",
+        "Ornamental Fan",
+        "Bottled Lightning",
+        "Gremlin Horn",
+        "HornCleat",
+        "Toxic Egg 2",
+        "Letter Opener",
+        "Question Card",
+        "Bottled Flame",
+        "Shuriken",
+        "Molten Egg 2",
+        "Meat on the Bone",
+        "Darkstone Periapt",
+        "Mummified Hand",
+        "Pantograph",
+        "White Beast Statue",
+        "Mercury Hourglass",
+        "Yang",
+        "TeardropLocket",
     ];
     let mut saw_common = false;
     let mut saw_uncommon = false;
     for seed in 0..256 {
         let mut engine = RunEngine::new(seed, 0);
         engine.run_state.relics.push("Matryoshka".to_string());
-        engine.run_state.relic_flags.rebuild(&engine.run_state.relics);
-        engine.run_state.relic_flags.init_relic_counter("Matryoshka");
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
+        engine
+            .run_state
+            .relic_flags
+            .init_relic_counter("Matryoshka");
         engine.debug_build_treasure_reward_screen();
         let extra = &engine.current_reward_screen().expect("treasure").items[0].label;
         saw_common |= COMMON.contains(&extra.as_str());

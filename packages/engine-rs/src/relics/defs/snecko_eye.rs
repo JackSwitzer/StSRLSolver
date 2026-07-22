@@ -16,14 +16,12 @@ fn hook(
     engine.state.player.set_status(sid::CONFUSION, 1);
 }
 
-static TRIGGERS: [TriggeredEffect; 1] = [
-    TriggeredEffect {
-        trigger: Trigger::CombatStart,
-        condition: TriggerCondition::Always,
-        effects: &[],
-        counter: None,
-    },
-];
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::CombatSetup,
+    condition: TriggerCondition::Always,
+    effects: &[],
+    counter: None,
+}];
 
 pub static DEF: EntityDef = EntityDef {
     id: "Snecko Eye",

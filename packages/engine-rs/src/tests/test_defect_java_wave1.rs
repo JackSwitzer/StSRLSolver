@@ -58,7 +58,11 @@ fn streamline_reduces_only_one_copy_instead_of_broadcasting_to_all_copies() {
             .discard_pile
             .last()
             .copied()
-            .map(|card| if card.cost >= 0 { card.cost as i32 } else { engine.card_registry.card_def_by_id(card.def_id).cost }),
+            .map(|card| if card.cost >= 0 {
+                card.cost as i32
+            } else {
+                engine.card_registry.card_def_by_id(card.def_id).cost
+            }),
         Some(1),
         "Java ReduceCostAction targets the played Streamline instance by UUID"
     );
@@ -79,7 +83,10 @@ fn liquid_memories_returns_discard_cards_with_zero_cost() {
     engine.execute_action(&Action::Choose(1));
 
     assert_eq!(engine.state.hand.len(), 1);
-    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Bash");
+    assert_eq!(
+        engine.card_registry.card_name(engine.state.hand[0].def_id),
+        "Bash"
+    );
     assert_eq!(engine.state.hand[0].cost, 0);
     assert_eq!(engine.state.discard_pile.len(), 1);
 }
@@ -98,7 +105,10 @@ fn distilled_chaos_now_plays_top_draw_cards_through_the_runtime_path() {
     use_potion(&mut engine, 0, -1);
 
     assert_eq!(engine.state.hand.len(), 1);
-    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Bash");
+    assert_eq!(
+        engine.card_registry.card_name(engine.state.hand[0].def_id),
+        "Bash"
+    );
     assert_eq!(engine.state.draw_pile.len(), 0);
     assert_eq!(engine.state.player.block, 13);
     assert_eq!(engine.state.enemies[0].entity.hp, 34);

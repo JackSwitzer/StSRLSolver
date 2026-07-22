@@ -1,5 +1,5 @@
 use crate::checkpoint::CoreCheckpoint;
-use crate::events::{typed_events_for_act, typed_shrine_events, EventRuntimeStatus, TypedEventDef};
+use crate::events::{typed_events_for_act, typed_shrine_events, TypedEventDef};
 use crate::run::{GameAction, RunEngine, RunPhase};
 
 fn act_event(act: i32, name: &str) -> TypedEventDef {
@@ -37,10 +37,31 @@ fn vampires_replaces_every_starter_strike_with_five_fixed_bites_without_rng() {
     let rng_before = relevant_rng(&engine);
     engine.debug_set_typed_event_state(act_event(2, "Vampires"));
 
-    assert!(matches!(
-        engine.debug_current_event().expect("Vampires").options[1].status,
-        EventRuntimeStatus::Blocked { .. }
-    ));
+    assert_eq!(
+        engine
+            .debug_current_event()
+            .expect("Vampires")
+            .options
+            .len(),
+        2
+    );
+    assert_eq!(
+        engine.get_legal_actions(),
+        vec![GameAction::EventChoice(0), GameAction::EventChoice(1)]
+    );
+
+    let mut refusal = engine.clone();
+    let refusal_deck = refusal.run_state.deck.clone();
+    let refusal_max_hp = refusal.run_state.max_hp;
+    let refusal_relics = refusal.run_state.relics.clone();
+    let refusal_rng = relevant_rng(&refusal);
+    assert!(refusal.step_game(&GameAction::EventChoice(1)).accepted());
+    assert_eq!(refusal.current_phase(), RunPhase::MapChoice);
+    assert_eq!(refusal.run_state.deck, refusal_deck);
+    assert_eq!(refusal.run_state.max_hp, refusal_max_hp);
+    assert_eq!(refusal.run_state.relics, refusal_relics);
+    assert_eq!(relevant_rng(&refusal), refusal_rng);
+
     assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
 
     assert_eq!(
@@ -113,7 +134,7 @@ fn council_of_ghosts_grants_fixed_apparitions_without_card_rng() {
 
         assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
 
-        assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+        assert_eq!(engine.current_phase(), RunPhase::Event);
         let expected_hp = initial_max_hp / 2;
         assert_eq!(
             (engine.run_state.max_hp, engine.run_state.current_hp),
@@ -124,11 +145,13 @@ fn council_of_ghosts_grants_fixed_apparitions_without_card_rng() {
                 .run_state
                 .deck
                 .iter()
-                .filter(|card| card.as_str() == "Apparition")
+                .filter(|card| card.as_str() == "Ghostly")
                 .count(),
             expected_count
         );
         assert_eq!(relevant_rng(&engine), rng_before);
+        assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
+        assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     }
 }
 

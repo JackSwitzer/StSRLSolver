@@ -16,9 +16,16 @@ use serde::{Deserialize, Serialize};
 /// When a triggered effect should fire.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Trigger {
-    /// At the start of combat (before initial draw).
+    /// Java `atPreBattle`, after deck initialization and monster setup.
+    CombatSetup,
+    /// Synchronous state mutation performed while Java walks every
+    /// `atBattleStart` callback, before any queued top/bottom action drains.
+    CombatStartDirect,
+    /// LIFO actions queued with `addToTop` by Java `atBattleStart` callbacks.
+    CombatStartTop,
+    /// FIFO actions queued by Java `atBattleStart`, after the initial draw.
     CombatStart,
-    /// At combat start, before the pre-draw phase.
+    /// Java `atBattleStartPreDraw`, after top actions and before initial draw.
     CombatStartPreDraw,
     /// At the start of each player turn (before draw).
     TurnStart,
@@ -28,10 +35,12 @@ pub enum Trigger {
     TurnStartPostDraw,
     /// Late start of turn, after post-draw power/setup effects have resolved.
     TurnStartPostDrawLate,
-    /// At the end of each player turn.
+    /// Java relic `onPlayerEndTurn` and power
+    /// `atEndOfTurnPreEndTurnCards`, before orb passives and status autoplay.
+    TurnEndPreCard,
+    /// Java player-power `atEndOfTurn`, after status autoplay and before the
+    /// discard/retain action sequence.
     TurnEnd,
-    /// Late end of turn, after orb passives and Loop have resolved.
-    TurnEndPostOrbs,
     /// When combat is won.
     CombatVictory,
     /// Before a card is played (can modify).
@@ -89,6 +98,8 @@ pub enum Trigger {
     /// When Poison is applied (for Snecko Skull bonus).
     /// Called inline; not dispatched via dispatch_trigger.
     OnPoisonApplied,
+    /// PlayerTurnEffect/GainEnergyAndEnableControlsAction energy recharge.
+    EnergyRecharge,
     /// After the enemy turn and end-of-round power processing.
     RoundEnd,
 }
@@ -203,6 +214,10 @@ mod tests {
     fn test_trigger_condition_size() {
         let size = std::mem::size_of::<TriggerCondition>();
         // Contains StatusId (2 bytes) or Stance enum — should be small
-        assert!(size <= 8, "TriggerCondition is {} bytes, expected <= 8", size);
+        assert!(
+            size <= 8,
+            "TriggerCondition is {} bytes, expected <= 8",
+            size
+        );
     }
 }

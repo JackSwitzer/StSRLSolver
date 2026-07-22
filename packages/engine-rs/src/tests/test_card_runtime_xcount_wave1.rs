@@ -9,7 +9,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/ConjureBlade.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Expunger.java
 
-use crate::cards::{CardTarget, CardType, global_registry};
+use crate::cards::{global_registry, CardTarget, CardType};
 use crate::effects::declarative::{AmountSource as A, Effect as E, Pile as P, SimpleEffect as SE};
 use crate::orbs::OrbType;
 use crate::tests::support::*;

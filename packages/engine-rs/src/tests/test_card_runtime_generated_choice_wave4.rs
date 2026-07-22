@@ -13,18 +13,54 @@
 
 use crate::actions::Action;
 use crate::cards::global_registry;
-use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
 use crate::effects::declarative::{Effect, GeneratedCardPool, GeneratedCostRule};
-use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_state, make_deck, play_self};
+use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
+use crate::tests::support::{
+    combat_state_with, enemy_no_intent, engine_with_state, make_deck, play_self,
+};
 
 const COLORLESS_CHOICES: &[&str] = &[
-    "Apotheosis", "Bandage Up", "Bite", "Blind", "Chrysalis", "Dark Shackles", "Deep Breath",
-    "Defend", "Discovery", "Dramatic Entrance", "Enlightenment", "Finesse", "Flash of Steel",
-    "Forethought", "Ghostly", "Good Instincts", "HandOfGreed", "Impatience", "J.A.X.",
-    "Jack Of All Trades", "Madness", "Magnetism", "Master of Strategy", "Mayhem",
-    "Metamorphosis", "Mind Blast", "Panacea", "Panache", "PanicButton", "Purity",
-    "RitualDagger", "Sadistic Nature", "Secret Technique", "Secret Weapon", "Strike",
-    "Swift Strike", "The Bomb", "Thinking Ahead", "Transmutation", "Trip", "Violence",
+    "Apotheosis",
+    "Bandage Up",
+    "Bite",
+    "Blind",
+    "Chrysalis",
+    "Dark Shackles",
+    "Deep Breath",
+    "Defend",
+    "Discovery",
+    "Dramatic Entrance",
+    "Enlightenment",
+    "Finesse",
+    "Flash of Steel",
+    "Forethought",
+    "Ghostly",
+    "Good Instincts",
+    "HandOfGreed",
+    "Impatience",
+    "J.A.X.",
+    "Jack Of All Trades",
+    "Madness",
+    "Magnetism",
+    "Master of Strategy",
+    "Mayhem",
+    "Metamorphosis",
+    "Mind Blast",
+    "Panacea",
+    "Panache",
+    "PanicButton",
+    "Purity",
+    "RitualDagger",
+    "Sadistic Nature",
+    "Secret Technique",
+    "Secret Weapon",
+    "Strike",
+    "Swift Strike",
+    "The Bomb",
+    "Thinking Ahead",
+    "Transmutation",
+    "Trip",
+    "Violence",
 ];
 
 #[test]
@@ -33,7 +69,10 @@ fn discovery_offers_watcher_cards_and_resolves_the_selection_at_zero_cost() {
     // a type filter. DiscoveryAction therefore samples the current character's
     // normal pools, previews base-cost cards, and sets the selected copy to 0.
     assert_eq!(
-        global_registry().get("Discovery").expect("Discovery").effect_data,
+        global_registry()
+            .get("Discovery")
+            .expect("Discovery")
+            .effect_data,
         &[Effect::GenerateDiscoveryChoice {
             pool: GeneratedCardPool::WatcherAny,
             option_count: 3,
@@ -51,7 +90,10 @@ fn discovery_offers_watcher_cards_and_resolves_the_selection_at_zero_cost() {
     assert!(play_self(&mut engine, "Discovery"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
 
-    let choice = engine.choice.as_ref().expect("Discovery should open a generated choice");
+    let choice = engine
+        .choice
+        .as_ref()
+        .expect("Discovery should open a generated choice");
     assert_eq!(choice.reason, ChoiceReason::DiscoverCard);
     assert_eq!(choice.options.len(), 3);
     for option in &choice.options {
@@ -88,15 +130,16 @@ fn discovery_plus_keeps_the_same_choice_runtime_without_exhausting() {
     ));
 
     assert!(play_self(&mut engine, "Discovery+"));
-    let choice = engine.choice.as_ref().expect("Discovery+ should open a generated choice");
+    let choice = engine
+        .choice
+        .as_ref()
+        .expect("Discovery+ should open a generated choice");
     assert_eq!(choice.reason, ChoiceReason::DiscoverCard);
     engine.execute_action(&Action::Choose(0));
 
-    assert!(
-        !engine
-            .state
-            .exhaust_pile
-            .iter()
-            .any(|card| engine.card_registry.card_name(card.def_id) == "Discovery+")
-    );
+    assert!(!engine
+        .state
+        .exhaust_pile
+        .iter()
+        .any(|card| engine.card_registry.card_name(card.def_id) == "Discovery+"));
 }

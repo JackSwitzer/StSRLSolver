@@ -14,7 +14,10 @@ fn typed_event(act: i32, name: &str) -> TypedEventDef {
 fn test_event_runtime_wave12_spire_heart_is_supported_in_the_typed_catalog() {
     let spire_heart = typed_event(3, "Spire Heart");
     assert_eq!(spire_heart.options.len(), 1);
-    assert!(matches!(spire_heart.options[0].status, EventRuntimeStatus::Supported));
+    assert!(matches!(
+        spire_heart.options[0].status,
+        EventRuntimeStatus::Supported
+    ));
     assert!(matches!(
         spire_heart.options[0].program.ops.as_slice(),
         [EventProgramOp::ResolveFinalAct]

@@ -9,8 +9,10 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/cards/red/IronWave.java
 // - decompiled/java-src/com/megacrit/cardcrawl/cards/red/SearingBlow.java
 
-use crate::cards::{CardTarget, CardType, global_registry};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::cards::{global_registry, CardTarget, CardType};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::tests::support::*;
 
 fn one_enemy_engine(enemy_id: &str, hp: i32) -> crate::engine::CombatEngine {
@@ -35,7 +37,9 @@ fn ironclad_wave8_registry_exports_use_typed_primary_ops() {
         "Searing Blow",
         "Searing Blow+",
     ] {
-        let card = registry.get(card_id).unwrap_or_else(|| panic!("{card_id} should exist"));
+        let card = registry
+            .get(card_id)
+            .unwrap_or_else(|| panic!("{card_id} should exist"));
         assert_eq!(card.card_type, CardType::Attack);
         assert_eq!(card.target, CardTarget::Enemy);
         assert_eq!(
@@ -50,7 +54,9 @@ fn ironclad_wave8_registry_exports_use_typed_primary_ops() {
     }
 
     for card_id in ["Impervious", "Impervious+"] {
-        let card = registry.get(card_id).unwrap_or_else(|| panic!("{card_id} should exist"));
+        let card = registry
+            .get(card_id)
+            .unwrap_or_else(|| panic!("{card_id} should exist"));
         assert_eq!(card.card_type, CardType::Skill);
         assert_eq!(card.target, CardTarget::SelfTarget);
         assert_eq!(card.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
@@ -61,7 +67,9 @@ fn ironclad_wave8_registry_exports_use_typed_primary_ops() {
     }
 
     for (card_id, block, damage) in [("Iron Wave", 5, 5), ("Iron Wave+", 7, 7)] {
-        let card = registry.get(card_id).unwrap_or_else(|| panic!("{card_id} should exist"));
+        let card = registry
+            .get(card_id)
+            .unwrap_or_else(|| panic!("{card_id} should exist"));
         assert_eq!(card.card_type, CardType::Attack);
         assert_eq!(card.base_block, block);
         assert_eq!(card.base_damage, damage);

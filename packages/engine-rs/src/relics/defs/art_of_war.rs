@@ -4,7 +4,7 @@
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerCondition};
-use crate::engine::CombatEngine;
+use crate::engine::{CombatEngine, TurnStartQueuedAction};
 
 fn hook(
     engine: &mut CombatEngine,
@@ -13,10 +13,14 @@ fn hook(
     state: &mut EffectState,
 ) {
     match event.kind {
-        Trigger::CombatStart => state.set(0, 1),
+        Trigger::CombatSetup => state.set(0, 1),
         Trigger::TurnStart => {
             if state.get(0) > 0 && engine.state.turn > 1 {
-                engine.state.energy += 1;
+                if engine.is_collecting_turn_start_actions() {
+                    engine.queue_turn_start_action_bottom(TurnStartQueuedAction::GainEnergy(1));
+                } else {
+                    engine.state.energy += 1;
+                }
             }
             state.set(0, 1);
         }
@@ -30,7 +34,7 @@ fn hook(
 
 static TRIGGERS: [TriggeredEffect; 4] = [
     TriggeredEffect {
-        trigger: Trigger::CombatStart,
+        trigger: Trigger::CombatSetup,
         condition: TriggerCondition::Always,
         effects: &[],
         counter: None,

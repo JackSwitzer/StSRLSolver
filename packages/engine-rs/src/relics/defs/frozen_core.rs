@@ -15,7 +15,13 @@ fn hook(
     _event: &GameEvent,
     _state: &mut EffectState,
 ) {
-    if engine.state.orb_slots.slots.iter().any(|orb| orb.is_empty()) {
+    if engine
+        .state
+        .orb_slots
+        .slots
+        .iter()
+        .any(|orb| orb.is_empty())
+    {
         engine.channel_orb(OrbType::Frost);
     }
 }
@@ -24,7 +30,7 @@ static TRIGGERS: [TriggeredEffect; 1] = [
     // FrozenCore.java::onPlayerEndTurn runs before GameActionManager queues
     // TriggerEndOfTurnOrbsAction, so the new Frost immediately gains Block.
     TriggeredEffect {
-        trigger: Trigger::TurnEnd,
+        trigger: Trigger::TurnEndPreCard,
         condition: TriggerCondition::Always,
         effects: &[],
         counter: None,

@@ -141,7 +141,10 @@ pub mod sid {
     pub const THORNS: StatusId = StatusId(91);
     pub const RITUAL: StatusId = StatusId(92);
     pub const CURL_UP: StatusId = StatusId(93);
-    pub const ENRAGE: StatusId = StatusId(94);
+    /// Gremlin Nob's Java `AngerPower.POWER_ID` is exactly `"Anger"`.
+    pub const ANGER: StatusId = StatusId(94);
+    /// Internal compatibility alias retained for existing engine call sites.
+    pub const ENRAGE: StatusId = ANGER;
     pub const INTANGIBLE: StatusId = StatusId(95);
     pub const PLATED_ARMOR: StatusId = StatusId(96);
     pub const SHARP_HIDE: StatusId = StatusId(97);
@@ -347,9 +350,15 @@ pub mod sid {
     pub const UNAWAKENED: StatusId = StatusId(261);
     pub const SPLIT_POWER: StatusId = StatusId(262);
     pub const ENERGIZED_BLUE: StatusId = StatusId(263);
+    pub const MINION_POWER: StatusId = StatusId(264);
+    pub const BACK_ATTACK_POWER: StatusId = StatusId(265);
+    pub const STASIS_POWER: StatusId = StatusId(266);
+    pub const PEN_NIB_POWER: StatusId = StatusId(267);
+    pub const SURROUNDED_POWER: StatusId = StatusId(268);
+    pub const THIEVERY: StatusId = StatusId(269);
 
     /// Total number of defined status IDs (exclusive upper bound).
-    pub const NUM_IDS: usize = 264;
+    pub const NUM_IDS: usize = 270;
 
     /// Array sizing constant (power of 2 for cache-friendly indexing).
     pub const MAX_STATUS_ID: usize = 512;
@@ -361,7 +370,10 @@ pub mod sid {
 
 /// StatusId -> canonical string name for checkpoints and debug output.
 pub fn status_name(id: StatusId) -> &'static str {
-    STATUS_NAMES.get(id.0 as usize).copied().unwrap_or("Unknown")
+    STATUS_NAMES
+        .get(id.0 as usize)
+        .copied()
+        .unwrap_or("Unknown")
 }
 
 /// String name -> StatusId for test setup and deserialization.
@@ -375,281 +387,287 @@ pub fn status_id_from_name(name: &str) -> Option<StatusId> {
 /// Reverse table indexed by StatusId.0. Must match sid:: constants exactly.
 static STATUS_NAMES: &[&str] = &[
     // Core combat stats (0-4)
-    "Strength",          // 0
-    "Dexterity",         // 1
-    "Focus",             // 2
-    "Vigor",             // 3
-    "Mantra",            // 4
+    "Strength",  // 0
+    "Dexterity", // 1
+    "Focus",     // 2
+    "Vigor",     // 3
+    "Mantra",    // 4
     // Debuffs (5-14)
-    "Vulnerable",        // 5
-    "Weakened",          // 6
-    "Frail",             // 7
-    "Poison",            // 8
-    "Constricted",       // 9
-    "Entangled",         // 10
-    "Hex",               // 11
-    "Confusion",         // 12
-    "NoDraw",            // 13
-    "DrawReduction",     // 14
+    "Vulnerable",    // 5
+    "Weakened",      // 6
+    "Frail",         // 7
+    "Poison",        // 8
+    "Constricted",   // 9
+    "Entangled",     // 10
+    "Hex",           // 11
+    "Confusion",     // 12
+    "NoDraw",        // 13
+    "DrawReduction", // 14
     // Ironclad powers (15-29)
-    "Barricade",         // 15
-    "DemonForm",         // 16
-    "Corruption",        // 17
-    "DarkEmbrace",       // 18
-    "FeelNoPain",        // 19
-    "Brutality",         // 20
-    "Combust",           // 21
-    "Evolve",            // 22
-    "FireBreathing",     // 23
-    "Juggernaut",        // 24
-    "Metallicize",       // 25
-    "Rupture",           // 26
-    "Berserk",           // 27
-    "Rage",              // 28
-    "FlameBarrier",      // 29
+    "Barricade",     // 15
+    "DemonForm",     // 16
+    "Corruption",    // 17
+    "DarkEmbrace",   // 18
+    "FeelNoPain",    // 19
+    "Brutality",     // 20
+    "Combust",       // 21
+    "Evolve",        // 22
+    "FireBreathing", // 23
+    "Juggernaut",    // 24
+    "Metallicize",   // 25
+    "Rupture",       // 26
+    "Berserk",       // 27
+    "Rage",          // 28
+    "FlameBarrier",  // 29
     // Silent powers (30-37)
-    "AfterImage",        // 30
-    "ThousandCuts",      // 31
-    "NoxiousFumes",      // 32
-    "InfiniteBlades",    // 33
-    "Envenom",           // 34
-    "Accuracy",          // 35
-    "ToolsOfTheTrade",   // 36
-    "RetainCards",       // 37  (alias: WellLaidPlans)
+    "AfterImage",      // 30
+    "ThousandCuts",    // 31
+    "NoxiousFumes",    // 32
+    "InfiniteBlades",  // 33
+    "Envenom",         // 34
+    "Accuracy",        // 35
+    "ToolsOfTheTrade", // 36
+    "RetainCards",     // 37  (alias: WellLaidPlans)
     // Watcher powers (38-51)
-    "BattleHymn",        // 38
-    "Devotion",          // 39
-    "DevaForm",          // 40
-    "Establishment",     // 41
-    "Fasting",           // 42
-    "LikeWater",         // 43
-    "MasterReality",     // 44
-    "MentalFortress",    // 45
-    "Nirvana",           // 46
-    "Omega",             // 47
-    "Rushdown",          // 48
-    "Study",             // 49
-    "WaveOfTheHand",     // 50
-    "WraithForm",        // 51
+    "BattleHymn",     // 38
+    "Devotion",       // 39
+    "DevaForm",       // 40
+    "Establishment",  // 41
+    "Fasting",        // 42
+    "LikeWater",      // 43
+    "MasterReality",  // 44
+    "MentalFortress", // 45
+    "Nirvana",        // 46
+    "Omega",          // 47
+    "Rushdown",       // 48
+    "Study",          // 49
+    "WaveOfTheHand",  // 50
+    "WraithForm",     // 51
     // Defect powers (52-61)
-    "Buffer",            // 52
-    "CreativeAI",        // 53
-    "EchoForm",          // 54
-    "Electro",           // 55
-    "Electrodynamics",   // 56
-    "Heatsink",          // 57
-    "HelloWorld",        // 58
-    "Loop",              // 59
-    "Storm",             // 60
-    "StaticDischarge",   // 61
+    "Buffer",          // 52
+    "CreativeAI",      // 53
+    "EchoForm",        // 54
+    "Electro",         // 55
+    "Electrodynamics", // 56
+    "Heatsink",        // 57
+    "HelloWorld",      // 58
+    "Loop",            // 59
+    "Storm",           // 60
+    "StaticDischarge", // 61
     // Colorless / universal powers (62-65)
-    "Panache",           // 62
-    "SadisticNature",    // 63
-    "Magnetism",         // 64
-    "Mayhem",            // 65
+    "Panache",        // 62
+    "SadisticNature", // 63
+    "Magnetism",      // 64
+    "Mayhem",         // 65
     // Temporary / turn-scoped effects (66-88)
-    "TempStrength",      // 66
-    "TempStrengthLoss",  // 67
-    "NextAttackFree",    // 68
-    "BulletTime",        // 69
-    "DoubleTap",         // 70
-    "Burst",             // 71
-    "LoseStrength",      // 72
-    "LoseDexterity",     // 73
-    "DoubleDamage",      // 74
-    "NoBlock",           // 75
-    "Equilibrium",       // 76
-    "Energized",         // 77
-    "EnergyDown",        // 78
-    "Draw",              // 79
-    "DrawCard",          // 80
-    "NextTurnBlock",     // 81
-    "WrathNextTurn",     // 82
+    "TempStrength",       // 66
+    "TempStrengthLoss",   // 67
+    "NextAttackFree",     // 68
+    "BulletTime",         // 69
+    "DoubleTap",          // 70
+    "Burst",              // 71
+    "LoseStrength",       // 72
+    "LoseDexterity",      // 73
+    "DoubleDamage",       // 74
+    "NoBlock",            // 75
+    "Equilibrium",        // 76
+    "Energized",          // 77
+    "EnergyDown",         // 78
+    "Draw",               // 79
+    "DrawCard",           // 80
+    "NextTurnBlock",      // 81
+    "WrathNextTurn",      // 82
     "CannotChangeStance", // 83
-    "EndTurnDeath",      // 84
-    "FreeAttackPower",   // 85
-    "NoSkillsPower",     // 86
-    "DoppelgangerDraw",  // 87
+    "EndTurnDeath",       // 84
+    "FreeAttackPower",    // 85
+    "NoSkillsPower",      // 86
+    "DoppelgangerDraw",   // 87
     "DoppelgangerEnergy", // 88
     // Enemy powers (89-126)
-    "Artifact",          // 89
-    "BeatOfDeath",       // 90
-    "Thorns",            // 91
-    "Ritual",            // 92
-    "CurlUp",            // 93
-    "Enrage",            // 94
-    "Intangible",        // 95
-    "PlatedArmor",       // 96
-    "SharpHide",         // 97
-    "ModeShift",         // 98
-    "Invincible",        // 99
+    "Artifact",              // 89
+    "BeatOfDeath",           // 90
+    "Thorns",                // 91
+    "Ritual",                // 92
+    "CurlUp",                // 93
+    "Anger",                 // 94 — AngerPower.POWER_ID
+    "Intangible",            // 95
+    "PlatedArmor",           // 96
+    "SharpHide",             // 97
+    "ModeShift",             // 98
+    "Invincible",            // 99
     "InvincibleDamageTaken", // 100
-    "Malleable",         // 101
-    "Reactive",          // 102
-    "Slow",              // 103
-    "TimeWarp",          // 104
-    "TimeWarpActive",    // 105
-    "Shifting",          // 106
-    "Angry",             // 107
-    "Curiosity",         // 108
-    "GenericStrengthUp", // 109
-    "Fading",            // 110
-    "Explosive",         // 111
-    "Growth",            // 112
-    "SporeCloud",        // 113
-    "Regrow",            // 114
-    "Regeneration",      // 115
-    "TheBomb",           // 116
-    "TheBombTurns",      // 117
-    "RebirthPending",    // 118
-    "SleepTurns",        // 119
-    "Phase",             // 120
-    "ThresholdReached",  // 121
-    "SkillBurn",         // 122
-    "Forcefield",        // 123
-    "Flight",            // 124
-    "Blur",              // 125
-    "Lock-On",           // 126
+    "Malleable",             // 101
+    "Reactive",              // 102
+    "Slow",                  // 103
+    "TimeWarp",              // 104
+    "TimeWarpActive",        // 105
+    "Shifting",              // 106
+    "Angry",                 // 107
+    "Curiosity",             // 108
+    "GenericStrengthUp",     // 109
+    "Fading",                // 110
+    "Explosive",             // 111
+    "Growth",                // 112
+    "SporeCloud",            // 113
+    "Regrow",                // 114
+    "Regeneration",          // 115
+    "TheBomb",               // 116
+    "TheBombTurns",          // 117
+    "RebirthPending",        // 118
+    "SleepTurns",            // 119
+    "Phase",                 // 120
+    "ThresholdReached",      // 121
+    "SkillBurn",             // 122
+    "Forcefield",            // 123
+    "Flight",                // 124
+    "Blur",                  // 125
+    "Lock-On",               // 126
     // Card/mechanic tracking (127-131)
-    "BlockReturn",       // 127
-    "Mark",              // 128
-    "ExpungerHits",      // 129
-    "MantraGained",      // 130
-    "LiveForever",       // 131
+    "BlockReturn",  // 127
+    "Mark",         // 128
+    "ExpungerHits", // 129
+    "MantraGained", // 130
+    "LiveForever",  // 131
     // Relic counters & flags (132-173)
-    "LanternReady",      // 132
-    "BagOfPrepDraw",     // 133
-    "PenNibCounter",     // 134
-    "OrnamentalFanCounter", // 135
-    "KunaiCounter",      // 136
-    "ShurikenCounter",   // 137
-    "NunchakuCounter",   // 138
-    "LetterOpenerCounter", // 139
-    "HappyFlowerCounter", // 140
-    "IncenseBurnerCounter", // 141
-    "HornCleatCounter",  // 142
-    "CaptainsWheelCounter", // 143
-    "StoneCalendarCounter", // 144
-    "StoneCalendarFired", // 145
-    "VelvetChokerCounter", // 146
-    "PocketwatchCounter", // 147
-    "PocketwatchFirstTurn", // 148
-    "VioletLotus",       // 149
-    "EmotionChipReady",  // 150
+    "LanternReady",          // 132
+    "BagOfPrepDraw",         // 133
+    "PenNibCounter",         // 134
+    "OrnamentalFanCounter",  // 135
+    "KunaiCounter",          // 136
+    "ShurikenCounter",       // 137
+    "NunchakuCounter",       // 138
+    "LetterOpenerCounter",   // 139
+    "HappyFlowerCounter",    // 140
+    "IncenseBurnerCounter",  // 141
+    "HornCleatCounter",      // 142
+    "CaptainsWheelCounter",  // 143
+    "StoneCalendarCounter",  // 144
+    "StoneCalendarFired",    // 145
+    "VelvetChokerCounter",   // 146
+    "PocketwatchCounter",    // 147
+    "PocketwatchFirstTurn",  // 148
+    "VioletLotus",           // 149
+    "EmotionChipReady",      // 150
     "CentennialPuzzleReady", // 151
-    "ArtOfWarReady",     // 152
-    "SneckoEye",         // 153
-    "SlingElite",        // 154
-    "PreservedInsectElite", // 155
-    "NeowsLamentCounter", // 156
-    "DuVuDollCurses",    // 157
-    "GiryaCounter",      // 158
-    "RedSkullActive",    // 159
-    "OPAttack",          // 160
-    "OPSkill",           // 161
-    "OPPower",           // 162
-    "TurnStartExtraDraw", // 163
-    "InkBottleCounter",  // 164
-    "InkBottleDraw",     // 165
-    "MummifiedHandTrigger", // 166
-    "EnterDivinity",     // 167
-    "InserterCounter",   // 168
-    "OrbSlots",          // 169
-    "FrozenCoreTrigger", // 170
-    "MutagenicStrength", // 171
-    "PanacheCount",      // 172
-    "DevaFormEnergy",    // 173
+    "ArtOfWarReady",         // 152
+    "SneckoEye",             // 153
+    "SlingElite",            // 154
+    "PreservedInsectElite",  // 155
+    "NeowsLamentCounter",    // 156
+    "DuVuDollCurses",        // 157
+    "GiryaCounter",          // 158
+    "RedSkullActive",        // 159
+    "OPAttack",              // 160
+    "OPSkill",               // 161
+    "OPPower",               // 162
+    "TurnStartExtraDraw",    // 163
+    "InkBottleCounter",      // 164
+    "InkBottleDraw",         // 165
+    "MummifiedHandTrigger",  // 166
+    "EnterDivinity",         // 167
+    "InserterCounter",       // 168
+    "OrbSlots",              // 169
+    "FrozenCoreTrigger",     // 170
+    "MutagenicStrength",     // 171
+    "PanacheCount",          // 172
+    "DevaFormEnergy",        // 173
     // Enemy AI tracking (174-220)
-    "AttackCount",       // 174
-    "BeamDmg",           // 175
-    "BlockAmt",          // 176
-    "BloodHitCount",     // 177
-    "BuffCount",         // 178
-    "CardCount",         // 179
-    "CentennialPuzzleDraw", // 180
-    "Count",             // 181
-    "DamageTakenThisMode", // 182
-    "Duplication",       // 183
-    "EchoDmg",           // 184
-    "EmotionChipTrigger", // 185
-    "FierceBashDmg",     // 186
-    "FireTackleDmg",     // 187
-    "FireballDmg",       // 188
-    "FirstMove",         // 189
-    "FirstTurn",         // 190
-    "FlailDmg",          // 191
-    "ForgeAmt",          // 192
-    "ForgeTimes",        // 193
-    "GremlinHornDraw",   // 194
-    "HeadSlamDmg",       // 195
-    "InfernoDmg",        // 196
-    "IsFirstMove",       // 197
-    "LightningChanneled", // 198
-    "MoveCount",         // 199
-    "NecronomiconUsed",  // 200
-    "NumTurns",          // 201
-    "PotionDraw",        // 202
-    "Regenerate",        // 203
-    "ReverbDmg",         // 204
-    "RollDmg",           // 205
-    "RunicCubeDraw",     // 206
-    "ScytheCooldown",    // 207
-    "SearBurnCount",     // 208
-    "SkewerCount",       // 209
-    "SlapDmg",           // 210
-    "SlashDmg",          // 211
-    "StabCount",         // 212
-    "StartingDeathDmg",  // 213
-    "StartingDmg",       // 214
-    "StrAmt",            // 215
-    "SundialCounter",    // 216
-    "TurnCount",         // 217
-    "UsedHaste",         // 218
-    "UsedMegaDebuff",    // 219
-    "Weak",              // 220
-    "MysticHealUsed",    // 221
-    "HasGinger",         // 222
-    "HasTurnip",         // 223
-    "HasMarkOfBloom",    // 224
-    "HasMagicFlower",    // 225
-    "LizardTailUsed",   // 226
-    "ChannelDarkStart",  // 227
-    "ChannelLightningStart", // 228
-    "ChannelPlasmaStart", // 229
-    "RingOfSerpentDraw", // 230
-    "SlaversCollarEnergy", // 231
-    "GamblingChipActive", // 232
-    "Foresight",          // 233
-    "DiscardedThisTurn",  // 234
-    "PerseveranceBonus",  // 235
-    "WindmillStrikeBonus", // 236
-    "RampageBonus",       // 237
-    "GlassKnifePenalty",  // 238
-    "GeneticAlgBonus",    // 239
-    "RitualDaggerBonus",  // 240
-    "Amplify",            // 241
-    "SelfRepair",         // 242
-    "CorpseExplosion",    // 243
-    "RetainHandFlag",     // 244
-    "BiasedCogFocusLoss", // 245
-    "HpLossThisCombat",   // 246
-    "CollectMiracles",    // 247
-    "SimmeringFury",      // 248
-    "FrostChanneled",     // 249
-    "ClawBonus",          // 250
-    "DisciplinePower",    // 251
-    "SteamBarrierLoss",   // 252
-    "WeakenedJustApplied", // 253
-    "VulnerableJustApplied", // 254
-    "FrailJustApplied",   // 255
-    "Phantasmal",         // 256
-    "Rebound",            // 257
-    "PainfulStabs",        // 258
-    "HighAscensionAi",     // 259
+    "AttackCount",              // 174
+    "BeamDmg",                  // 175
+    "BlockAmt",                 // 176
+    "BloodHitCount",            // 177
+    "BuffCount",                // 178
+    "CardCount",                // 179
+    "CentennialPuzzleDraw",     // 180
+    "Count",                    // 181
+    "DamageTakenThisMode",      // 182
+    "Duplication",              // 183
+    "EchoDmg",                  // 184
+    "EmotionChipTrigger",       // 185
+    "FierceBashDmg",            // 186
+    "FireTackleDmg",            // 187
+    "FireballDmg",              // 188
+    "FirstMove",                // 189
+    "FirstTurn",                // 190
+    "FlailDmg",                 // 191
+    "ForgeAmt",                 // 192
+    "ForgeTimes",               // 193
+    "GremlinHornDraw",          // 194
+    "HeadSlamDmg",              // 195
+    "InfernoDmg",               // 196
+    "IsFirstMove",              // 197
+    "LightningChanneled",       // 198
+    "MoveCount",                // 199
+    "NecronomiconUsed",         // 200
+    "NumTurns",                 // 201
+    "PotionDraw",               // 202
+    "Regenerate",               // 203
+    "ReverbDmg",                // 204
+    "RollDmg",                  // 205
+    "RunicCubeDraw",            // 206
+    "ScytheCooldown",           // 207
+    "SearBurnCount",            // 208
+    "SkewerCount",              // 209
+    "SlapDmg",                  // 210
+    "SlashDmg",                 // 211
+    "StabCount",                // 212
+    "StartingDeathDmg",         // 213
+    "StartingDmg",              // 214
+    "StrAmt",                   // 215
+    "SundialCounter",           // 216
+    "TurnCount",                // 217
+    "UsedHaste",                // 218
+    "UsedMegaDebuff",           // 219
+    "Weak",                     // 220
+    "MysticHealUsed",           // 221
+    "HasGinger",                // 222
+    "HasTurnip",                // 223
+    "HasMarkOfBloom",           // 224
+    "HasMagicFlower",           // 225
+    "LizardTailUsed",           // 226
+    "ChannelDarkStart",         // 227
+    "ChannelLightningStart",    // 228
+    "ChannelPlasmaStart",       // 229
+    "RingOfSerpentDraw",        // 230
+    "SlaversCollarEnergy",      // 231
+    "GamblingChipActive",       // 232
+    "Foresight",                // 233
+    "DiscardedThisTurn",        // 234
+    "PerseveranceBonus",        // 235
+    "WindmillStrikeBonus",      // 236
+    "RampageBonus",             // 237
+    "GlassKnifePenalty",        // 238
+    "GeneticAlgBonus",          // 239
+    "RitualDaggerBonus",        // 240
+    "Amplify",                  // 241
+    "SelfRepair",               // 242
+    "CorpseExplosion",          // 243
+    "RetainHandFlag",           // 244
+    "BiasedCogFocusLoss",       // 245
+    "HpLossThisCombat",         // 246
+    "CollectMiracles",          // 247
+    "SimmeringFury",            // 248
+    "FrostChanneled",           // 249
+    "ClawBonus",                // 250
+    "DisciplinePower",          // 251
+    "SteamBarrierLoss",         // 252
+    "WeakenedJustApplied",      // 253
+    "VulnerableJustApplied",    // 254
+    "FrailJustApplied",         // 255
+    "Phantasmal",               // 256
+    "Rebound",                  // 257
+    "PainfulStabs",             // 258
+    "HighAscensionAi",          // 259
     "DrawReductionJustApplied", // 260
-    "Unawakened",        // 261
-    "Split",             // 262
-    "EnergizedBlue",     // 263
+    "Unawakened",               // 261
+    "Split",                    // 262
+    "EnergizedBlue",            // 263
+    "Minion",                   // 264
+    "BackAttack",               // 265
+    "Stasis",                   // 266
+    "PenNibPower",              // 267
+    "Surrounded",               // 268
+    "Thievery",                 // 269
 ];
 
 #[cfg(test)]
@@ -663,6 +681,7 @@ mod tests {
         assert_eq!(status_name(sid::VULNERABLE), "Vulnerable");
         assert_eq!(status_name(sid::LOCK_ON), "Lock-On");
         assert_eq!(status_name(sid::DEVA_FORM_ENERGY), "DevaFormEnergy");
+        assert_eq!(status_name(sid::ANGER), "Anger");
     }
 
     #[test]

@@ -1,9 +1,9 @@
-use crate::decision::{RewardItemKind, RewardScreenSource};
-use crate::events::{typed_events_for_act, typed_shrine_events, EventRuntimeStatus, TypedEventDef};
-use crate::run::{GameAction, RunEngine, RunPhase};
 use crate::actions::Action;
 use crate::cards::CardType;
+use crate::decision::{RewardItemKind, RewardScreenSource};
 use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
+use crate::events::{typed_events_for_act, typed_shrine_events, EventRuntimeStatus, TypedEventDef};
+use crate::run::{GameAction, RunEngine, RunPhase};
 use crate::status_ids::sid;
 use crate::tests::support::{ensure_in_hand, play_on_enemy};
 
@@ -53,7 +53,10 @@ fn colosseum_is_supported_and_uses_event_continuation_plus_two_combats() {
     let intro = engine.step_game(&GameAction::EventChoice(0));
     assert!(intro.accepted());
     assert_eq!(engine.current_phase(), RunPhase::Event);
-    let intro_ctx = engine.current_decision_context().event.expect("colosseum follow-up event");
+    let intro_ctx = engine
+        .current_decision_context()
+        .event
+        .expect("colosseum follow-up event");
     assert_eq!(intro_ctx.name, "Colosseum");
     assert_eq!(intro_ctx.options.len(), 1);
     assert_floor_rngs(&engine, seed, floor, event_room_counters);
@@ -63,15 +66,26 @@ fn colosseum_is_supported_and_uses_event_continuation_plus_two_combats() {
     assert_eq!(engine.current_phase(), RunPhase::Combat);
     let combat = engine.get_combat_engine().expect("slavers combat");
     assert_eq!(combat.state.enemies.len(), 2);
-    assert!(combat.state.enemies.iter().any(|enemy| enemy.id == "SlaverBlue"));
-    assert!(combat.state.enemies.iter().any(|enemy| enemy.id == "SlaverRed"));
+    assert!(combat
+        .state
+        .enemies
+        .iter()
+        .any(|enemy| enemy.id == "SlaverBlue"));
+    assert!(combat
+        .state
+        .enemies
+        .iter()
+        .any(|enemy| enemy.id == "SlaverRed"));
     let first_combat_counters = [5, 7, 8, 11, 13];
     assert_floor_rngs(&engine, seed, floor, first_combat_counters);
 
     engine.debug_force_current_combat_outcome(true);
     engine.debug_resolve_current_combat_outcome();
     assert_eq!(engine.current_phase(), RunPhase::Event);
-    let post_ctx = engine.current_decision_context().event.expect("colosseum post combat");
+    let post_ctx = engine
+        .current_decision_context()
+        .event
+        .expect("colosseum post combat");
     assert_eq!(post_ctx.name, "Colosseum");
     assert_eq!(post_ctx.options.len(), 2);
     assert_floor_rngs(&engine, seed, floor, first_combat_counters);
@@ -81,8 +95,16 @@ fn colosseum_is_supported_and_uses_event_continuation_plus_two_combats() {
     assert_eq!(engine.current_phase(), RunPhase::Combat);
     let combat = engine.get_combat_engine().expect("nobs combat");
     assert_eq!(combat.state.enemies.len(), 2);
-    assert!(combat.state.enemies.iter().any(|enemy| enemy.id == "SlaverBoss"));
-    assert!(combat.state.enemies.iter().any(|enemy| enemy.id == "GremlinNob"));
+    assert!(combat
+        .state
+        .enemies
+        .iter()
+        .any(|enemy| enemy.id == "SlaverBoss"));
+    assert!(combat
+        .state
+        .enemies
+        .iter()
+        .any(|enemy| enemy.id == "GremlinNob"));
 
     // Taskmaster consumes a constructor HP roll and then an overwritten
     // setHp roll; Gremlin Nob consumes one setHp roll.
@@ -96,10 +118,15 @@ fn colosseum_is_supported_and_uses_event_continuation_plus_two_combats() {
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
     assert_eq!(engine.run_state.gold, gold_before + 100);
 
-    let screen = engine.current_reward_screen().expect("colosseum reward screen");
+    let screen = engine
+        .current_reward_screen()
+        .expect("colosseum reward screen");
     assert_eq!(screen.source, RewardScreenSource::Event);
     assert_eq!(screen.items.len(), 2);
-    assert!(screen.items.iter().all(|item| item.kind == RewardItemKind::Relic));
+    assert!(screen
+        .items
+        .iter()
+        .all(|item| item.kind == RewardItemKind::Relic));
 }
 
 #[test]
@@ -171,26 +198,44 @@ fn cursed_tome_enchiridion_adds_one_zero_cost_watcher_power_prebattle() {
     // roll from the Watcher's source Power pools, sets non-X cost to zero for
     // the turn, and adds the copy before the normal opening draw.
     let mut engine = RunEngine::new(97, 20);
-    engine.run_state.relics.extend([
-        "Necronomicon".to_string(),
-        "Nilry's Codex".to_string(),
-    ]);
+    engine
+        .run_state
+        .relics
+        .extend(["Necronomicon".to_string(), "Nilry's Codex".to_string()]);
     engine.debug_set_typed_event_state(typed_event(2, "Cursed Tome"));
     for _ in 0..4 {
         assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
     }
     assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
-    let screen = engine.current_reward_screen().expect("forced Enchiridion reward");
+    let screen = engine
+        .current_reward_screen()
+        .expect("forced Enchiridion reward");
     assert_eq!(screen.items[0].label, "Enchiridion");
-    assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
-    assert!(engine.run_state.relics.iter().any(|relic| relic == "Enchiridion"));
+    assert!(engine
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
+    assert!(engine
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == "Enchiridion"));
 
     engine.debug_enter_specific_combat(&["JawWorm"]);
     let combat = engine.get_combat_engine().expect("Enchiridion combat");
     const WATCHER_POWERS: &[&str] = &[
-        "BattleHymn", "DevaForm", "Devotion", "Discipline", "Establishment",
-        "Fasting2", "Wireheading", "LikeWater", "MasterReality",
-        "MentalFortress", "Nirvana", "Adaptation", "Study",
+        "BattleHymn",
+        "DevaForm",
+        "Devotion",
+        "Discipline",
+        "Establishment",
+        "Fasting2",
+        "Wireheading",
+        "LikeWater",
+        "MasterReality",
+        "MentalFortress",
+        "Nirvana",
+        "Adaptation",
+        "Study",
     ];
     let generated = combat
         .state
@@ -212,18 +257,26 @@ fn cursed_tome_necronomicon_obtains_curse_and_replays_normal_and_x_attacks_once(
     // the first Attack each turn whose turn cost is at least two, or whose
     // X-cost energyOnUse is at least two, using the original target and X.
     let mut engine = RunEngine::new(99, 20);
-    engine.run_state.relics.extend([
-        "Enchiridion".to_string(),
-        "Nilry's Codex".to_string(),
-    ]);
+    engine
+        .run_state
+        .relics
+        .extend(["Enchiridion".to_string(), "Nilry's Codex".to_string()]);
     engine.debug_set_typed_event_state(typed_event(2, "Cursed Tome"));
     for _ in 0..5 {
         assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
     }
-    let screen = engine.current_reward_screen().expect("forced Necronomicon reward");
+    let screen = engine
+        .current_reward_screen()
+        .expect("forced Necronomicon reward");
     assert_eq!(screen.items[0].label, "Necronomicon");
-    assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
-    assert!(engine.run_state.relics.iter().any(|relic| relic == "Necronomicon"));
+    assert!(engine
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
+    assert!(engine
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == "Necronomicon"));
     assert_eq!(
         engine
             .run_state
@@ -281,8 +334,16 @@ fn cursed_tome_necronomicon_obtains_curse_and_replays_normal_and_x_attacks_once(
     assert!(traded
         .step_game(&GameAction::EventChoice(trade_index))
         .accepted());
-    assert!(!traded.run_state.relics.iter().any(|relic| relic == "Necronomicon"));
-    assert!(!traded.run_state.deck.iter().any(|card| card == "Necronomicurse"));
+    assert!(!traded
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == "Necronomicon"));
+    assert!(!traded
+        .run_state
+        .deck
+        .iter()
+        .any(|card| card == "Necronomicurse"));
 }
 
 #[test]
@@ -292,17 +353,19 @@ fn cursed_tome_nilrys_codex_pauses_end_turn_for_three_card_draw_pile_choice() {
     // consumes cardRandom rolls until it has three distinct source-pool cards;
     // the selected copy is then inserted at a random draw-pile position.
     let mut engine = RunEngine::new(105, 20);
-    engine.run_state.relics.extend([
-        "Necronomicon".to_string(),
-        "Enchiridion".to_string(),
-    ]);
+    engine
+        .run_state
+        .relics
+        .extend(["Necronomicon".to_string(), "Enchiridion".to_string()]);
     engine.debug_set_typed_event_state(typed_event(2, "Cursed Tome"));
     for _ in 0..5 {
         assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
     }
     let screen = engine.current_reward_screen().expect("forced Codex reward");
     assert_eq!(screen.items[0].label, "Nilry's Codex");
-    assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
+    assert!(engine
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
 
     engine.debug_enter_specific_combat(&["JawWorm"]);
     let combat = engine.debug_combat_engine_mut();

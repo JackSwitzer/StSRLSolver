@@ -2,8 +2,8 @@
 
 use crate::status_ids::sid;
 use crate::tests::support::{
-    combat_state_with, enemy_no_intent, engine_with, engine_with_state, ensure_in_hand,
-    make_deck, play_on_enemy,
+    combat_state_with, enemy_no_intent, engine_with, engine_with_state, ensure_in_hand, make_deck,
+    play_on_enemy,
 };
 
 #[test]
@@ -76,8 +76,14 @@ fn the_specimen_uses_card_random_rng_instead_of_always_picking_first_alive_enemy
         }
     }
 
-    assert!(hit_left, "expected at least one seed to target the left enemy");
-    assert!(hit_right, "expected at least one seed to target the right enemy");
+    assert!(
+        hit_left,
+        "expected at least one seed to target the left enemy"
+    );
+    assert!(
+        hit_right,
+        "expected at least one seed to target the right enemy"
+    );
 }
 
 #[test]
@@ -99,7 +105,9 @@ fn corpse_explosion_resolves_before_the_specimen_selects_a_target() {
     state.relics.push("The Specimen".to_string());
     let mut engine = engine_with_state(state);
     engine.state.enemies[0].entity.set_status(sid::POISON, 5);
-    engine.state.enemies[0].entity.set_status(sid::CORPSE_EXPLOSION, 1);
+    engine.state.enemies[0]
+        .entity
+        .set_status(sid::CORPSE_EXPLOSION, 1);
     engine.state.enemies[0].entity.hp = 0;
     let card_random_before = engine.rng_counters()["cardRandom"];
 
@@ -150,9 +158,7 @@ fn centennial_puzzle_draws_three_cards_only_on_first_hp_loss() {
         1
     );
     engine.state.hand.clear();
-    engine.state.draw_pile = make_deck(&[
-        "Strike", "Defend", "Bash", "Strike", "Defend", "Strike",
-    ]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Bash", "Strike", "Defend", "Strike"]);
 
     engine.player_lose_hp(4);
     assert_eq!(engine.state.hand.len(), 3);

@@ -16,10 +16,7 @@ fn shuffle_discard_twice_then_draw(
             crate::effects::trigger::Trigger::OnShuffle,
         ));
 
-        crate::seed::card_group_shuffle(
-            &mut engine.state.discard_pile,
-            &mut engine.shuffle_rng,
-        );
+        crate::seed::card_group_shuffle(&mut engine.state.discard_pile, &mut engine.shuffle_rng);
         engine
             .state
             .draw_pile
@@ -33,16 +30,38 @@ fn shuffle_discard_twice_then_draw(
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // Source: reference/extracted/methods/card/DeepBreath.java costs 0, shuffles
     // only when discard is nonempty, then draws 1 (2 upgraded).
-    insert(cards, CardDef {
-                id: "Deep Breath", name: "Deep Breath", card_type: CardType::Skill,
-                target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
-                base_magic: 1, exhaust: false, enter_stance: None,
-                effect_data: &[], complex_hook: Some(shuffle_discard_twice_then_draw),
-            });
-    insert(cards, CardDef {
-                id: "Deep Breath+", name: "Deep Breath+", card_type: CardType::Skill,
-                target: CardTarget::SelfTarget, cost: 0, base_damage: -1, base_block: -1,
-                base_magic: 2, exhaust: false, enter_stance: None,
-                effect_data: &[], complex_hook: Some(shuffle_discard_twice_then_draw),
-            });
+    insert(
+        cards,
+        CardDef {
+            id: "Deep Breath",
+            name: "Deep Breath",
+            card_type: CardType::Skill,
+            target: CardTarget::SelfTarget,
+            cost: 0,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: 1,
+            exhaust: false,
+            enter_stance: None,
+            effect_data: &[],
+            complex_hook: Some(shuffle_discard_twice_then_draw),
+        },
+    );
+    insert(
+        cards,
+        CardDef {
+            id: "Deep Breath+",
+            name: "Deep Breath+",
+            card_type: CardType::Skill,
+            target: CardTarget::SelfTarget,
+            cost: 0,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: 2,
+            exhaust: false,
+            enter_stance: None,
+            effect_data: &[],
+            complex_hook: Some(shuffle_discard_twice_then_draw),
+        },
+    );
 }

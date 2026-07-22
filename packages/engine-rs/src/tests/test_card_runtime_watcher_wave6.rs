@@ -10,9 +10,9 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Nirvana.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/LikeWater.java
 
+use crate::actions::Action;
 use crate::cards::global_registry;
 use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE};
-use crate::actions::Action;
 use crate::engine::CombatPhase;
 use crate::state::Stance;
 use crate::status_ids::sid;
@@ -41,24 +41,40 @@ fn two_enemy_engine(a: (&str, i32, i32), b: (&str, i32, i32)) -> crate::engine::
 fn watcher_wave6_registry_exports_match_declared_runtime_surface() {
     let registry = global_registry();
 
-    let flying_sleeves = registry.get("FlyingSleeves").expect("FlyingSleeves should be registered");
+    let flying_sleeves = registry
+        .get("FlyingSleeves")
+        .expect("FlyingSleeves should be registered");
     assert!(flying_sleeves.has_test_marker("retain"));
     assert_eq!(flying_sleeves.declared_extra_hits(), Some(A::Fixed(2)));
 
-    let vigilance = registry.get("Vigilance").expect("Vigilance should be registered");
+    let vigilance = registry
+        .get("Vigilance")
+        .expect("Vigilance should be registered");
     assert_eq!(vigilance.enter_stance, Some("Calm"));
     assert_eq!(vigilance.declared_stance_change(), Some(Stance::Calm));
 
-    let nirvana = registry.get("Nirvana").expect("Nirvana should be registered");
+    let nirvana = registry
+        .get("Nirvana")
+        .expect("Nirvana should be registered");
     assert_eq!(
         nirvana.effect_data,
-        &[E::Simple(SE::AddStatus(crate::effects::declarative::Target::Player, sid::NIRVANA, A::Magic))]
+        &[E::Simple(SE::AddStatus(
+            crate::effects::declarative::Target::Player,
+            sid::NIRVANA,
+            A::Magic
+        ))]
     );
 
-    let like_water = registry.get("LikeWater").expect("LikeWater should be registered");
+    let like_water = registry
+        .get("LikeWater")
+        .expect("LikeWater should be registered");
     assert_eq!(
         like_water.effect_data,
-        &[E::Simple(SE::AddStatus(crate::effects::declarative::Target::Player, sid::LIKE_WATER, A::Magic))]
+        &[E::Simple(SE::AddStatus(
+            crate::effects::declarative::Target::Player,
+            sid::LIKE_WATER,
+            A::Magic
+        ))]
     );
 }
 
@@ -82,7 +98,10 @@ fn watcher_wave6_bril_consecrate_and_crush_joints_follow_java_behavior() {
     assert!(play_self(&mut crush_joints, "Defend"));
     assert!(play_on_enemy(&mut crush_joints, "CrushJoints+", 0));
     assert_eq!(crush_joints.state.enemies[0].entity.hp, 40);
-    assert_eq!(crush_joints.state.enemies[0].entity.status(sid::VULNERABLE), 2);
+    assert_eq!(
+        crush_joints.state.enemies[0].entity.status(sid::VULNERABLE),
+        2
+    );
 }
 
 #[test]
@@ -100,7 +119,10 @@ fn watcher_wave6_flying_sleeves_retains_and_windmill_strike_scales_on_retain() {
     let mut windmill = one_enemy_engine("JawWorm", 80, 0);
     ensure_in_hand(&mut windmill, "WindmillStrike");
     end_turn(&mut windmill);
-    let retained = windmill.state.hand.iter()
+    let retained = windmill
+        .state
+        .hand
+        .iter()
         .find(|card| windmill.card_registry.card_name(card.def_id) == "WindmillStrike")
         .expect("Windmill Strike retained");
     assert_eq!(retained.misc, 11);

@@ -4,9 +4,7 @@ use super::prelude::*;
 // GainBlockAction grants raw potion potency to the player; getPotency always
 // returns 12, independent of ascension.
 
-static EFFECTS: [E; 1] = [
-    E::Simple(SE::GainBlock(A::PotionPotency)),
-];
+static EFFECTS: [E; 1] = [E::Simple(SE::GainBlock(A::PotionPotency))];
 
 static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::ManualActivation,

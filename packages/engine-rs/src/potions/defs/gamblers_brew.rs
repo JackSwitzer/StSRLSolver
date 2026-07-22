@@ -27,11 +27,13 @@ fn gamblers_brew_hook(
     // manually discards only the selected cards and draws the same count.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/GamblersBrew.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/GamblingChipAction.java
-    engine.begin_choice(crate::engine::ChoiceReason::DiscardFromHand, options, 0, count);
-    engine
-        .state
-        .player
-        .set_status(sid::GAMBLING_CHIP_ACTIVE, 1);
+    engine.begin_choice(
+        crate::engine::ChoiceReason::DiscardFromHand,
+        options,
+        0,
+        count,
+    );
+    engine.state.player.set_status(sid::GAMBLING_CHIP_ACTIVE, 1);
 }
 
 pub static DEF: EntityDef = EntityDef {

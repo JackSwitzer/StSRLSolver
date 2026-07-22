@@ -6,10 +6,10 @@
 //! with fn pointers only for irreducible logic.
 
 use crate::effects::declarative::Effect;
+use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::engine::CombatEngine;
 use crate::ids::StatusId;
-use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 
 // ===========================================================================
 // TriggeredEffect — a single trigger -> effects binding
@@ -78,7 +78,7 @@ pub struct EntityDef {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::effects::declarative::{SimpleEffect, AmountSource};
+    use crate::effects::declarative::{AmountSource, SimpleEffect};
     use crate::status_ids::sid;
 
     #[test]
@@ -90,9 +90,9 @@ mod tests {
 
     #[test]
     fn test_triggered_effect_is_copy() {
-        static EFFECTS: [Effect; 1] = [
-            Effect::Simple(SimpleEffect::GainEnergy(AmountSource::Fixed(1))),
-        ];
+        static EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::GainEnergy(
+            AmountSource::Fixed(1),
+        ))];
         let te = TriggeredEffect {
             trigger: Trigger::TurnStart,
             condition: TriggerCondition::Always,
@@ -105,24 +105,22 @@ mod tests {
 
     #[test]
     fn test_entity_def_static_construction() {
-        static TRIGGER_EFFECTS: [Effect; 1] = [
-            Effect::Simple(SimpleEffect::DrawCards(AmountSource::Fixed(1))),
-        ];
-        static TRIGGERS: [TriggeredEffect; 1] = [
-            TriggeredEffect {
-                trigger: Trigger::TurnStart,
-                condition: TriggerCondition::Always,
-                effects: &TRIGGER_EFFECTS,
-                counter: None,
-            },
-        ];
+        static TRIGGER_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::DrawCards(
+            AmountSource::Fixed(1),
+        ))];
+        static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+            trigger: Trigger::TurnStart,
+            condition: TriggerCondition::Always,
+            effects: &TRIGGER_EFFECTS,
+            counter: None,
+        }];
         static DEF: EntityDef = EntityDef {
             id: "test_relic",
             name: "Test Relic",
             kind: EntityKind::Relic,
             triggers: &TRIGGERS,
             complex_hook: None,
-    status_guard: None,
+            status_guard: None,
         };
         assert_eq!(DEF.id, "test_relic");
         assert_eq!(DEF.kind, EntityKind::Relic);
@@ -132,17 +130,15 @@ mod tests {
 
     #[test]
     fn test_entity_def_with_counter() {
-        static EFFECTS: [Effect; 1] = [
-            Effect::Simple(SimpleEffect::GainEnergy(AmountSource::Fixed(1))),
-        ];
-        static TRIGGERS: [TriggeredEffect; 1] = [
-            TriggeredEffect {
-                trigger: Trigger::OnAnyCardPlayed,
-                condition: TriggerCondition::Always,
-                effects: &EFFECTS,
-                counter: Some((sid::PEN_NIB_COUNTER, 10)),
-            },
-        ];
+        static EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::GainEnergy(
+            AmountSource::Fixed(1),
+        ))];
+        static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+            trigger: Trigger::OnAnyCardPlayed,
+            condition: TriggerCondition::Always,
+            effects: &EFFECTS,
+            counter: Some((sid::PEN_NIB_COUNTER, 10)),
+        }];
         let te = TRIGGERS[0];
         assert_eq!(te.counter, Some((sid::PEN_NIB_COUNTER, 10)));
     }

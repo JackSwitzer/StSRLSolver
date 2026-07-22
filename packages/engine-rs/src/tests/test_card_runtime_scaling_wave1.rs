@@ -7,7 +7,9 @@
 
 use crate::cards::{global_registry, CardType};
 use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE};
-use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy};
+use crate::tests::support::{
+    enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy,
+};
 
 fn single_enemy_engine() -> crate::engine::CombatEngine {
     let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
@@ -24,7 +26,10 @@ fn scaling_wave1_registry_exports_typed_played_instance_damage_mutation_surface(
     assert_eq!(
         rampage.effect_data,
         &[
-            E::Simple(SE::DealDamage(crate::effects::declarative::Target::SelectedEnemy, A::Damage)),
+            E::Simple(SE::DealDamage(
+                crate::effects::declarative::Target::SelectedEnemy,
+                A::Damage
+            )),
             E::Simple(SE::ModifyPlayedCardDamage(A::Magic)),
         ]
     );
@@ -35,7 +40,10 @@ fn scaling_wave1_registry_exports_typed_played_instance_damage_mutation_surface(
     assert_eq!(
         rampage_plus.effect_data,
         &[
-            E::Simple(SE::DealDamage(crate::effects::declarative::Target::SelectedEnemy, A::Damage)),
+            E::Simple(SE::DealDamage(
+                crate::effects::declarative::Target::SelectedEnemy,
+                A::Damage
+            )),
             E::Simple(SE::ModifyPlayedCardDamage(A::Magic)),
         ]
     );
@@ -45,7 +53,10 @@ fn scaling_wave1_registry_exports_typed_played_instance_damage_mutation_surface(
     assert_eq!(
         glass_knife.effect_data,
         &[
-            E::Simple(SE::DealDamage(crate::effects::declarative::Target::SelectedEnemy, A::Damage)),
+            E::Simple(SE::DealDamage(
+                crate::effects::declarative::Target::SelectedEnemy,
+                A::Damage
+            )),
             E::Simple(SE::ModifyPlayedCardDamage(A::Fixed(-2))),
         ]
     );
@@ -56,7 +67,10 @@ fn scaling_wave1_registry_exports_typed_played_instance_damage_mutation_surface(
     assert_eq!(
         glass_knife_plus.effect_data,
         &[
-            E::Simple(SE::DealDamage(crate::effects::declarative::Target::SelectedEnemy, A::Damage)),
+            E::Simple(SE::DealDamage(
+                crate::effects::declarative::Target::SelectedEnemy,
+                A::Damage
+            )),
             E::Simple(SE::ModifyPlayedCardDamage(A::Fixed(-2))),
         ]
     );
@@ -108,11 +122,8 @@ fn rampage_and_glass_knife_update_the_played_instance_damage_seed_for_future_pla
     // GlassKnife.upgrade() calls upgradeDamage(4), so the upgraded card deals
     // 12 twice, stores 10, then deals 10 twice on its next play.
     // Java: reference/extracted/methods/card/GlassKnife.java
-    let mut upgraded = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 100, 100)],
-        3,
-    );
+    let mut upgraded =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 100, 100)], 3);
     force_player_turn(&mut upgraded);
     upgraded.state.hand = make_deck(&["Glass Knife+"]);
 
@@ -149,21 +160,27 @@ fn rampage_does_not_grow_when_its_damage_kills_the_final_monster() {
     nonterminal.state.hand = make_deck(&["Rampage"]);
     assert!(play_on_enemy(&mut nonterminal, "Rampage", 0));
     assert_eq!(
-        nonterminal.state.discard_pile.last().expect("played Rampage").misc,
+        nonterminal
+            .state
+            .discard_pile
+            .last()
+            .expect("played Rampage")
+            .misc,
         13
     );
 
-    let mut terminal = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 8, 8)],
-        3,
-    );
+    let mut terminal = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 8, 8)], 3);
     force_player_turn(&mut terminal);
     terminal.state.hand = make_deck(&["Rampage"]);
     assert!(play_on_enemy(&mut terminal, "Rampage", 0));
     assert!(terminal.state.combat_over);
     assert_eq!(
-        terminal.state.discard_pile.last().expect("played Rampage").misc,
+        terminal
+            .state
+            .discard_pile
+            .last()
+            .expect("played Rampage")
+            .misc,
         -1
     );
 }

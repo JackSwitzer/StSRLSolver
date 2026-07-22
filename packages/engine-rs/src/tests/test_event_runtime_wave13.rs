@@ -62,7 +62,10 @@ fn spire_heart_with_keys_starts_act_four_on_event_runtime_path() {
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     assert_eq!(engine.run_state.act, 4);
     assert_eq!(engine.boss_name(), "CorruptHeart");
-    assert_eq!(engine.map.get_start_nodes()[0].room_type, crate::map::RoomType::Rest);
+    assert_eq!(
+        engine.map.get_start_nodes()[0].room_type,
+        crate::map::RoomType::Rest
+    );
     assert!(engine.pending_event_combat_summary().is_none());
 }
 
@@ -97,7 +100,10 @@ fn spire_heart_act_four_chain_reaches_heart_and_ends_without_boss_reward() {
     let heart_room = engine.get_legal_actions()[0].clone();
     assert!(engine.step_game(&heart_room).accepted());
     assert_eq!(engine.current_phase(), RunPhase::Combat);
-    assert_eq!(engine.debug_current_enemy_ids(), vec!["CorruptHeart".to_string()]);
+    assert_eq!(
+        engine.debug_current_enemy_ids(),
+        vec!["CorruptHeart".to_string()]
+    );
 
     let heart_floor = engine.run_state.floor;
     engine.debug_force_current_combat_outcome(true);
@@ -154,7 +160,10 @@ fn spire_heart_each_causal_screen_is_checkpoint_safe() {
         let checkpoint = crate::checkpoint::CoreCheckpoint::capture(&engine).unwrap();
         let mut restored = checkpoint.restore().unwrap();
         assert_eq!(restored.get_legal_actions(), engine.get_legal_actions());
-        assert_eq!(restored.ambient_math_rng_state(), engine.ambient_math_rng_state());
+        assert_eq!(
+            restored.ambient_math_rng_state(),
+            engine.ambient_math_rng_state()
+        );
         let action = GameAction::EventChoice(0);
         assert!(restored.step_game(&action).accepted());
         assert!(engine.step_game(&action).accepted());

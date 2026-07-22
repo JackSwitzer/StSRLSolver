@@ -15,7 +15,12 @@ use crate::effects::declarative::{
 };
 use crate::tests::support::*;
 
-fn engine_for(hand: &[&str], draw: &[&str], discard: &[&str], energy: i32) -> crate::engine::CombatEngine {
+fn engine_for(
+    hand: &[&str],
+    draw: &[&str],
+    discard: &[&str],
+    energy: i32,
+) -> crate::engine::CombatEngine {
     let mut state = combat_state_with(
         make_deck(draw),
         vec![enemy_no_intent("JawWorm", 60, 60)],
@@ -78,7 +83,9 @@ fn ironclad_wave12_registry_exports_promote_the_typed_surface_where_supported() 
     assert_eq!(havoc.effect_data, &[E::Simple(SE::PlayTopCardOfDraw)]);
     assert!(havoc.complex_hook.is_none());
 
-    let true_grit = global_registry().get("True Grit").expect("True Grit should exist");
+    let true_grit = global_registry()
+        .get("True Grit")
+        .expect("True Grit should exist");
     assert_eq!(
         true_grit.effect_data,
         &[
@@ -88,7 +95,9 @@ fn ironclad_wave12_registry_exports_promote_the_typed_surface_where_supported() 
     );
     assert!(true_grit.complex_hook.is_none());
 
-    let dual_wield = global_registry().get("Dual Wield").expect("Dual Wield should exist");
+    let dual_wield = global_registry()
+        .get("Dual Wield")
+        .expect("Dual Wield should exist");
     assert_eq!(
         dual_wield.effect_data,
         &[E::ChooseCards {
@@ -102,7 +111,9 @@ fn ironclad_wave12_registry_exports_promote_the_typed_surface_where_supported() 
     );
     assert!(dual_wield.complex_hook.is_none());
 
-    let fiend_fire = global_registry().get("Fiend Fire").expect("Fiend Fire should exist");
+    let fiend_fire = global_registry()
+        .get("Fiend Fire")
+        .expect("Fiend Fire should exist");
     assert_eq!(
         fiend_fire.effect_data,
         &[
@@ -136,7 +147,10 @@ fn ironclad_wave12_burning_pact_uses_declarative_choice_and_deferred_draw() {
 
     assert!(play_self(&mut engine, "Burning Pact"));
     assert_eq!(engine.phase, crate::engine::CombatPhase::AwaitingChoice);
-    assert_eq!(engine.choice.as_ref().unwrap().reason, crate::engine::ChoiceReason::ExhaustFromHand);
+    assert_eq!(
+        engine.choice.as_ref().unwrap().reason,
+        crate::engine::ChoiceReason::ExhaustFromHand
+    );
 
     engine.execute_action(&crate::actions::Action::Choose(0));
 
@@ -159,9 +173,14 @@ fn ironclad_wave12_sword_boomerang_uses_typed_random_enemy_extra_hits() {
     assert_eq!(engine.state.enemies[0].entity.hp, hp_before - 9);
     assert_eq!(engine.state.discard_pile.len(), 1);
     assert_eq!(
-        engine
-            .card_registry
-            .card_name(engine.state.discard_pile.last().expect("discarded sword boomerang").def_id),
+        engine.card_registry.card_name(
+            engine
+                .state
+                .discard_pile
+                .last()
+                .expect("discarded sword boomerang")
+                .def_id
+        ),
         "Sword Boomerang"
     );
 }
@@ -198,7 +217,9 @@ fn ironclad_wave12_dual_wield_uses_the_typed_attack_or_power_choice_surface() {
 
 #[test]
 fn ironclad_wave12_fiend_fire_uses_the_typed_exhaust_then_damage_surface() {
-    let fiend_fire = global_registry().get("Fiend Fire").expect("Fiend Fire should exist");
+    let fiend_fire = global_registry()
+        .get("Fiend Fire")
+        .expect("Fiend Fire should exist");
     assert_eq!(
         fiend_fire.effect_data,
         &[

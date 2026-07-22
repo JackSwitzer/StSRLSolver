@@ -7,10 +7,14 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Melter.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
-use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_self};
+use crate::tests::support::{
+    enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_self,
+};
 
 fn total_enemy_hp(engine: &crate::engine::CombatEngine) -> i32 {
     engine
@@ -26,22 +30,32 @@ fn defect_wave15_registry_exports_typed_and_blocked_cards_honestly() {
     let blizzard = global_registry().get("Blizzard").expect("Blizzard");
     assert_eq!(
         blizzard.effect_data,
-        &[E::Simple(SE::DealDamage(T::AllEnemies, A::StatusValueTimesMagic(sid::FROST_CHANNELED)))]
+        &[E::Simple(SE::DealDamage(
+            T::AllEnemies,
+            A::StatusValueTimesMagic(sid::FROST_CHANNELED)
+        ))]
     );
     assert!(blizzard.complex_hook.is_none());
 
     let blizzard_plus = global_registry().get("Blizzard+").expect("Blizzard+");
     assert_eq!(
         blizzard_plus.effect_data,
-        &[E::Simple(SE::DealDamage(T::AllEnemies, A::StatusValueTimesMagic(sid::FROST_CHANNELED)))]
+        &[E::Simple(SE::DealDamage(
+            T::AllEnemies,
+            A::StatusValueTimesMagic(sid::FROST_CHANNELED)
+        ))]
     );
     assert!(blizzard_plus.complex_hook.is_none());
 
-    let double_energy = global_registry().get("Double Energy").expect("Double Energy");
+    let double_energy = global_registry()
+        .get("Double Energy")
+        .expect("Double Energy");
     assert_eq!(double_energy.effect_data, &[E::Simple(SE::DoubleEnergy)]);
     assert!(double_energy.complex_hook.is_none());
 
-    let genetic = global_registry().get("Genetic Algorithm").expect("Genetic Algorithm");
+    let genetic = global_registry()
+        .get("Genetic Algorithm")
+        .expect("Genetic Algorithm");
     assert_eq!(
         genetic.effect_data,
         &[
@@ -64,11 +78,7 @@ fn defect_wave15_registry_exports_typed_and_blocked_cards_honestly() {
 
 #[test]
 fn blizzard_does_nothing_without_frost_channeled_this_combat() {
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Blizzard"]);
     let hp_before = total_enemy_hp(&engine);
@@ -122,7 +132,9 @@ fn blizzard_plus_uses_historical_frost_count_and_normal_attack_modifiers() {
     assert_eq!(engine.state.orb_slots.occupied_count(), 0);
     assert_eq!(engine.state.player.status(sid::FROST_CHANNELED), 3);
     engine.state.player.set_status(sid::STRENGTH, 2);
-    engine.state.enemies[0].entity.set_status(sid::VULNERABLE, 1);
+    engine.state.enemies[0]
+        .entity
+        .set_status(sid::VULNERABLE, 1);
     engine.state.hand = make_deck(&["Blizzard+"]);
 
     assert!(play_self(&mut engine, "Blizzard+"));
@@ -137,7 +149,10 @@ fn blizzard_typed_registry_surface_is_present() {
     let blizzard = global_registry().get("Blizzard").expect("Blizzard");
     assert_eq!(
         blizzard.effect_data,
-        &[E::Simple(SE::DealDamage(T::AllEnemies, A::StatusValueTimesMagic(sid::FROST_CHANNELED)))]
+        &[E::Simple(SE::DealDamage(
+            T::AllEnemies,
+            A::StatusValueTimesMagic(sid::FROST_CHANNELED)
+        ))]
     );
     assert!(blizzard.complex_hook.is_none());
 }

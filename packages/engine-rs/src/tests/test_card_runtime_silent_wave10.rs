@@ -9,17 +9,19 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/GlassKnife.java
 
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::status_ids::sid;
 use crate::effects::declarative::{
     AmountSource as A, Condition as Cond, Effect as E, Pile as P, SimpleEffect as SE, Target as T,
 };
+use crate::status_ids::sid;
 use crate::tests::support::*;
 
 #[test]
 fn silent_wave10_registry_exports_show_typed_primary_surfaces() {
     let registry = global_registry();
 
-    let all_out_attack = registry.get("All Out Attack").expect("All Out Attack should exist");
+    let all_out_attack = registry
+        .get("All Out Attack")
+        .expect("All Out Attack should exist");
     assert_eq!(all_out_attack.card_type, CardType::Attack);
     assert_eq!(all_out_attack.target, CardTarget::AllEnemy);
     assert_eq!(
@@ -51,7 +53,9 @@ fn silent_wave10_registry_exports_show_typed_primary_surfaces() {
     );
     assert!(bane.complex_hook.is_none());
 
-    let escape_plan = registry.get("Escape Plan").expect("Escape Plan should exist");
+    let escape_plan = registry
+        .get("Escape Plan")
+        .expect("Escape Plan should exist");
     assert_eq!(escape_plan.card_type, CardType::Skill);
     assert_eq!(escape_plan.target, CardTarget::SelfTarget);
     assert_eq!(
@@ -74,7 +78,9 @@ fn silent_wave10_registry_exports_show_typed_primary_surfaces() {
         ]
     );
 
-    let glass_knife = registry.get("Glass Knife").expect("Glass Knife should exist");
+    let glass_knife = registry
+        .get("Glass Knife")
+        .expect("Glass Knife should exist");
     assert_eq!(glass_knife.card_type, CardType::Attack);
     assert_eq!(glass_knife.target, CardTarget::Enemy);
     assert_eq!(
@@ -98,7 +104,10 @@ fn silent_wave10_registry_exports_show_typed_primary_surfaces() {
 fn silent_wave10_typed_primary_surfaces_follow_java_oracle_on_engine_path() {
     let mut aoa = engine_without_start(
         Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40), enemy_no_intent("Cultist", 40, 40)],
+        vec![
+            enemy_no_intent("JawWorm", 40, 40),
+            enemy_no_intent("Cultist", 40, 40),
+        ],
         3,
     );
     force_player_turn(&mut aoa);
@@ -113,11 +122,7 @@ fn silent_wave10_typed_primary_surfaces_follow_java_oracle_on_engine_path() {
     assert_eq!(aoa.state.hand.len(), 1);
     assert_eq!(aoa.state.player.status(sid::DISCARDED_THIS_TURN), 1);
 
-    let mut bane = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut bane = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut bane);
     bane.state.hand = make_deck(&["Bane"]);
     bane.state.enemies[0].entity.set_status(sid::POISON, 2);
@@ -125,36 +130,30 @@ fn silent_wave10_typed_primary_surfaces_follow_java_oracle_on_engine_path() {
     assert!(play_on_enemy(&mut bane, "Bane", 0));
     assert_eq!(bane.state.enemies[0].entity.hp, hp_before - 14);
 
-    let mut escape_plan = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut escape_plan =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut escape_plan);
     escape_plan.state.hand = make_deck(&["Escape Plan"]);
     escape_plan.state.draw_pile.clear();
-    escape_plan.state.draw_pile.push(escape_plan.card_registry.make_card("Defend"));
+    escape_plan
+        .state
+        .draw_pile
+        .push(escape_plan.card_registry.make_card("Defend"));
     assert!(play_self(&mut escape_plan, "Escape Plan"));
     assert_eq!(escape_plan.state.player.block, 3);
     assert_eq!(hand_count(&escape_plan, "Defend"), 1);
     assert_eq!(discard_prefix_count(&escape_plan, "Escape Plan"), 1);
 
-    let mut flechettes = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut flechettes =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut flechettes);
     flechettes.state.hand = make_deck(&["Flechettes", "Defend", "Escape Plan", "Strike"]);
     let flechettes_hp = flechettes.state.enemies[0].entity.hp;
     assert!(play_on_enemy(&mut flechettes, "Flechettes", 0));
     assert_eq!(flechettes.state.enemies[0].entity.hp, flechettes_hp - 8);
 
-    let mut glass_knife = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 60, 60)],
-        3,
-    );
+    let mut glass_knife =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 60, 60)], 3);
     force_player_turn(&mut glass_knife);
     glass_knife.state.hand = make_deck(&["Glass Knife"]);
     let glass_hp = glass_knife.state.enemies[0].entity.hp;
@@ -176,21 +175,13 @@ fn flechettes_deals_exactly_one_hit_per_remaining_skill_including_zero() {
     // upgraded card.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Flechettes.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/FlechetteAction.java
-    let mut zero = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        1,
-    );
+    let mut zero = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 1);
     force_player_turn(&mut zero);
     zero.state.hand = make_deck(&["Flechettes", "Strike"]);
     assert!(play_on_enemy(&mut zero, "Flechettes", 0));
     assert_eq!(zero.state.enemies[0].entity.hp, 40);
 
-    let mut two = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        1,
-    );
+    let mut two = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 1);
     force_player_turn(&mut two);
     two.state.hand = make_deck(&["Flechettes+", "Defend", "Escape Plan", "Strike"]);
     assert!(play_on_enemy(&mut two, "Flechettes+", 0));
@@ -206,7 +197,8 @@ fn silent_wave10_expertise_draws_to_n_on_engine_path() {
     );
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Expertise"]);
-    engine.state.draw_pile = make_deck(&["Strike", "Strike", "Strike", "Strike", "Strike", "Strike"]);
+    engine.state.draw_pile =
+        make_deck(&["Strike", "Strike", "Strike", "Strike", "Strike", "Strike"]);
 
     assert!(play_self(&mut engine, "Expertise"));
     assert_eq!(engine.state.hand.len(), 6);

@@ -12,14 +12,19 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/defect/DoubleEnergyAction.java
 
 use crate::cards::{global_registry, CardTarget, CardType};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::engine::CombatEngine;
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
-use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self};
+use crate::tests::support::{
+    enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self,
+};
 
 fn one_enemy_engine(hp: i32, energy: i32) -> crate::engine::CombatEngine {
-    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", hp, hp)], energy);
+    let mut engine =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", hp, hp)], energy);
     force_player_turn(&mut engine);
     engine
 }
@@ -135,7 +140,12 @@ fn defect_wave12_chaos_uses_java_orb_order_and_card_random_rng() {
     engine.init_defect_orbs(3);
     engine.state.hand = make_deck(&["Chaos", "Chaos+"]);
 
-    let java_orbs = [OrbType::Dark, OrbType::Frost, OrbType::Lightning, OrbType::Plasma];
+    let java_orbs = [
+        OrbType::Dark,
+        OrbType::Frost,
+        OrbType::Lightning,
+        OrbType::Plasma,
+    ];
     let mut oracle = engine.card_random_rng.clone();
     let expected: Vec<OrbType> = (0..3)
         .map(|_| java_orbs[oracle.random_int(3) as usize])
@@ -219,7 +229,10 @@ fn defect_wave12_rip_and_tear_chooses_a_fresh_random_target_for_each_hit() {
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Rip and Tear"]);
     assert!(play_on_enemy(&mut engine, "Rip and Tear", 0));
-    assert_eq!(engine.state.enemies[0].entity.hp + engine.state.enemies[1].entity.hp, 46);
+    assert_eq!(
+        engine.state.enemies[0].entity.hp + engine.state.enemies[1].entity.hp,
+        46
+    );
     assert!(engine.state.enemies[0].entity.hp < 30);
     assert!(engine.state.enemies[1].entity.hp < 30);
 }
@@ -321,7 +334,10 @@ fn defect_wave12_thunder_strike_chooses_a_fresh_random_target_for_each_lightning
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Thunder Strike"]);
     assert!(play_on_enemy(&mut engine, "Thunder Strike", 0));
-    assert_eq!(engine.state.enemies[0].entity.hp + engine.state.enemies[1].entity.hp, 39);
+    assert_eq!(
+        engine.state.enemies[0].entity.hp + engine.state.enemies[1].entity.hp,
+        39
+    );
     assert!(engine.state.enemies[0].entity.hp < 30);
     assert!(engine.state.enemies[1].entity.hp < 30);
 }

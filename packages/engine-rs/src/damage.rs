@@ -171,7 +171,11 @@ pub fn calculate_incoming_damage(
     // 2. Vulnerable (Odd Mushroom: 1.25 instead of 1.50).
     // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/VulnerablePower.java
     if vulnerable {
-        final_damage *= if odd_mushroom { VULN_MULT_ODD_MUSHROOM } else { VULN_MULT };
+        final_damage *= if odd_mushroom {
+            VULN_MULT_ODD_MUSHROOM
+        } else {
+            VULN_MULT
+        };
     }
 
     // 3. Floor
@@ -252,7 +256,10 @@ mod tests {
 
     #[test]
     fn test_damage_in_divinity() {
-        assert_eq!(calculate_damage(6, 0, false, DIVINITY_MULT, false, false), 18);
+        assert_eq!(
+            calculate_damage(6, 0, false, DIVINITY_MULT, false, false),
+            18
+        );
     }
 
     #[test]
@@ -281,7 +288,9 @@ mod tests {
     #[test]
     fn test_damage_full_pen_nib() {
         assert_eq!(
-            calculate_damage_full(6, 0, 0, false, false, true, false, 1.0, false, false, false, false),
+            calculate_damage_full(
+                6, 0, 0, false, false, true, false, 1.0, false, false, false, false
+            ),
             12
         );
     }
@@ -289,7 +298,9 @@ mod tests {
     #[test]
     fn test_damage_full_vigor() {
         assert_eq!(
-            calculate_damage_full(6, 3, 5, false, false, false, false, 1.0, false, false, false, false),
+            calculate_damage_full(
+                6, 3, 5, false, false, false, false, 1.0, false, false, false, false
+            ),
             14
         );
     }
@@ -298,7 +309,9 @@ mod tests {
     fn test_damage_full_flight() {
         // 10 * 0.5 = 5
         assert_eq!(
-            calculate_damage_full(10, 0, 0, false, false, false, false, 1.0, false, false, true, false),
+            calculate_damage_full(
+                10, 0, 0, false, false, false, false, 1.0, false, false, true, false
+            ),
             5
         );
     }
@@ -307,7 +320,9 @@ mod tests {
     fn test_damage_full_paper_frog_vuln() {
         // 10 * 1.75 = 17.5 -> 17
         assert_eq!(
-            calculate_damage_full(10, 0, 0, false, false, false, false, 1.0, true, true, false, false),
+            calculate_damage_full(
+                10, 0, 0, false, false, false, false, 1.0, true, true, false, false
+            ),
             17
         );
     }

@@ -13,17 +13,21 @@
 use crate::actions::Action;
 use crate::cards::global_registry;
 use crate::effects::declarative::{
-    AmountSource as A, ChoiceAction, CardFilter, Condition as Cond, Effect as E, Pile as P,
+    AmountSource as A, CardFilter, ChoiceAction, Condition as Cond, Effect as E, Pile as P,
     SimpleEffect as SE, Target as T,
 };
 use crate::engine::CombatPhase;
-use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_self};
+use crate::tests::support::{
+    enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_self,
+};
 
 #[test]
 fn colorless_wave3_registry_exports_match_typed_surface() {
     let registry = global_registry();
 
-    let forethought_plus = registry.get("Forethought+").expect("Forethought+ should exist");
+    let forethought_plus = registry
+        .get("Forethought+")
+        .expect("Forethought+ should exist");
     assert_eq!(
         forethought_plus.effect_data,
         &[E::ChooseCards {
@@ -37,7 +41,9 @@ fn colorless_wave3_registry_exports_match_typed_surface() {
     );
     assert!(forethought_plus.complex_hook.is_none());
 
-    let ritual_dagger = registry.get("RitualDagger").expect("RitualDagger should exist");
+    let ritual_dagger = registry
+        .get("RitualDagger")
+        .expect("RitualDagger should exist");
     assert_eq!(
         ritual_dagger.effect_data,
         &[
@@ -54,11 +60,7 @@ fn colorless_wave3_registry_exports_match_typed_surface() {
 
 #[test]
 fn forethought_plus_puts_selected_positive_cost_cards_free_on_bottom() {
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Forethought+", "Strike", "Defend"]);
 
@@ -69,8 +71,16 @@ fn forethought_plus_puts_selected_positive_cost_cards_free_on_bottom() {
     engine.execute_action(&Action::ConfirmSelection);
 
     assert_eq!(engine.state.hand.len(), 1);
-    assert_eq!(engine.card_registry.card_name(engine.state.draw_pile[0].def_id), "Strike");
+    assert_eq!(
+        engine
+            .card_registry
+            .card_name(engine.state.draw_pile[0].def_id),
+        "Strike"
+    );
     assert_eq!(engine.state.draw_pile[0].cost, -1);
     assert!(engine.state.draw_pile[0].is_free());
-    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Defend");
+    assert_eq!(
+        engine.card_registry.card_name(engine.state.hand[0].def_id),
+        "Defend"
+    );
 }

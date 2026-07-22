@@ -8,7 +8,9 @@
 // per turn and resets the used flag at turn start.
 
 use crate::status_ids::sid;
-use crate::tests::support::{enemy_no_intent, ensure_in_hand, engine_without_start, make_deck, play_on_enemy};
+use crate::tests::support::{
+    enemy_no_intent, engine_without_start, ensure_in_hand, make_deck, play_on_enemy,
+};
 
 #[test]
 fn relic_dead_helper_cleanup_wave21_necronomicon_replay_and_reset_are_inline_on_engine_path() {

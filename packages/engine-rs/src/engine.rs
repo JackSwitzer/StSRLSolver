@@ -97,6 +97,121 @@ pub struct DeferredScryCardEffects {
     pub deal_damage: bool,
 }
 
+/// Card movement queued by a combat callback behind the current Java action.
+///
+/// These operations live on the engine rather than a card-play frame because
+/// an interactive action can suspend the current card before the queue drains.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum DeferredCombatOp {
+    MoveCard {
+        card: CardInstance,
+        route: DeferredCardRoute,
+    },
+    RemovePower {
+        owner: DeferredPowerOwner,
+        status: crate::ids::StatusId,
+    },
+    DrawCards {
+        count: i32,
+    },
+    EscapeEnemy {
+        enemy_idx: usize,
+    },
+    PlayTopCard {
+        target_idx: i32,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum DeferredCardRoute {
+    HandWithOverflowToDiscard,
+    Discard,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum DeferredPowerOwner {
+    Player,
+    Enemy(usize),
+}
+
+/// Continuation point for an end-turn sequence suspended by a Java-owned
+/// choice action. Nilry's Codex can pause while pre-card callbacks are still
+/// draining; RetainCardPower can pause immediately before discard.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum EndTurnResumeStage {
+    PreCardActions,
+    PostCardActions,
+}
+
+/// Actions enqueued by Java's turn-start callback walks. Relic callbacks run
+/// in inventory order and power callbacks in canonical `power_order`, but
+/// their addToTop/addToBot actions do not execute until every callback has
+/// returned. Interactive actions leave the remaining queue intact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum TurnStartQueuedAction {
+    OpeningEnergy,
+    DrawCards(i32),
+    GainEnergy(i32),
+    LoseEnergy(i32),
+    GainBlock(i32),
+    HealPlayer(i32),
+    ChangeStance(Stance),
+    IncreaseOrbSlots(i32),
+    AddPlayerStatus(crate::ids::StatusId, i32),
+    AddEnemyStatus(usize, crate::ids::StatusId, i32),
+    ApplyEnemyDebuff(usize, crate::ids::StatusId, i32),
+    AddCardToHand(CardInstance),
+    AddCardToRandomDrawSpot(CardInstance),
+    ApplyPhantasmal(i32),
+    ReducePlayerPower(crate::ids::StatusId, i32),
+    ApplyPlayerDebuff(crate::ids::StatusId, i32),
+    DamageAllEnemiesThorns(i32),
+    PlayerLoseHp(i32),
+    RemovePlayerPower(crate::ids::StatusId),
+    UpgradeRandomCard,
+    GamblingChip,
+    Scry(i32),
+    ShuffleDrawPile,
+    MayhemWrapper,
+    PlayTopCard { target_idx: i32 },
+    DiscardFromHand(usize),
+    GainDevotion(i32),
+    EnterDivinity,
+    NightmareCopies(u32),
+    EnterWrathNextTurn,
+    PlayerPoisonTick(i32),
+    TriggerOrbImpulse,
+    OrbLightning { damage: i32, hit_all: bool },
+    GainMantra(i32),
+    ToolboxChoice,
+}
+
+/// Java end-turn callbacks collect actions synchronously, then
+/// `GameActionManager` drains the shared top/bottom queue. Keeping that queue
+/// explicit prevents one callback's action from changing a later callback's
+/// condition (Cloak Clasp followed by Orichalcum is the canonical example).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum EndTurnQueuedAction {
+    GainBlock(i32),
+    DamageAllEnemies(i32),
+    PlayerLoseHp(i32),
+    ApplyDexterityLoss(i32),
+    AddInsightsToRandomDrawSpots(i32),
+    RemovePlayerPower(crate::ids::StatusId),
+    AddPlayerPower(crate::ids::StatusId, i32),
+    AddPlayerStrength(i32),
+    ApplyPlayerStrengthLoss(i32),
+    ApplyPlayerDexterityLoss(i32),
+    DamagePlayerThorns(i32),
+    PlayerRegeneration(i32),
+    ReduceBomb(i32),
+    RetainCards(usize),
+    MakeStatEquivalentCopyInDrawPile(CardInstance),
+    TriggerEndOfTurnOrbs,
+    ResolveLightningEndTurn { damage: i32, hit_all: bool },
+    NilrysCodex,
+}
+
 /// Context for an in-progress player choice.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChoiceContext {
@@ -134,6 +249,10 @@ pub struct ChoiceContext {
 }
 
 /// The Rust combat engine. Wraps CombatState + card registry + RNG.
+fn default_next_enemy_instance_id() -> u64 {
+    1
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct CombatEngine {
     pub state: CombatState,
@@ -169,6 +288,25 @@ pub struct CombatEngine {
     /// `Collections.shuffle`. Its natural Java seed is process/time-derived,
     /// so trace replay must inject its captured 48-bit state explicitly.
     java_collections_rng: crate::seed::JavaCollectionsRng,
+    /// Process-global suffix allocated by `TheBombPower`'s constructor.
+    the_bomb_id_offset: i32,
+    /// Current `TheCollector.enemySlots` references, indexed by Java's slot
+    /// keys 1 and 2. `MonsterGroup` retains dead Torch Head corpses when a
+    /// replacement is spawned, so identity cannot be reconstructed by merely
+    /// scanning every Torch Head in the public enemy list.
+    #[serde(default)]
+    pub(crate) collector_torch_slots: [Option<usize>; 2],
+    /// Current `GremlinLeader.gremlins` references for Java slots 0..2.
+    /// SummonGremlinAction replaces a slot reference in its constructor, then
+    /// retains the old corpse in MonsterGroup when its update smart-inserts
+    /// the replacement at the same draw position.
+    #[serde(default)]
+    pub(crate) gremlin_leader_slots: [Option<usize>; 3],
+    /// Current `Reptomancer.daggers` references for Java slots 0..3.
+    #[serde(default)]
+    pub(crate) reptomancer_dagger_slots: [Option<usize>; 4],
+    #[serde(default = "default_next_enemy_instance_id")]
+    next_enemy_instance_id: u64,
     pub choice: Option<ChoiceContext>,
     pub effect_runtime: crate::effects::runtime::EffectRuntime,
     pub(crate) nightmare_pending_copies: Vec<(CardInstance, usize)>,
@@ -185,15 +323,33 @@ pub struct CombatEngine {
     pub runtime_played_card: Option<CardInstance>,
     pub(crate) runtime_play_target_idx: Option<i32>,
     pub(crate) runtime_play_stack: Vec<(CardInstance, i32, bool)>,
+    /// Bottom-queued card movement that resolves after the current
+    /// UseCardAction, including StasisPower's held-card return.
+    pub(crate) deferred_combat_ops: Vec<DeferredCombatOp>,
     /// UseCardAction.reboundCard for the active card-resolution frame.
     pub(crate) runtime_rebound_card: bool,
     pub runtime_replay_window: bool,
+    /// Time Warp clears Java's queued follow-up cards immediately, but the
+    /// current UseCardAction still moves its card before the early end-turn
+    /// sequence runs.
+    #[serde(default)]
+    pub(crate) runtime_force_end_turn_after_card: bool,
     /// Raw energyOnUse captured for the current X-cost card. Necronomicon's
     /// queued copy reuses this value without spending energy a second time.
     pub(crate) runtime_last_x_energy_on_use: i32,
     pub(crate) runtime_x_energy_override: Option<i32>,
-    pub(crate) pending_combat_start_resume: bool,
-    pub(crate) pending_end_turn_resume: bool,
+    /// True only while Java turn-start callbacks are collecting actions.
+    #[serde(default)]
+    pub(crate) collecting_turn_start_actions: bool,
+    /// Remaining Java turn-start actions after an interactive action pauses.
+    #[serde(default)]
+    pub(crate) turn_start_actions: Vec<TurnStartQueuedAction>,
+    #[serde(default)]
+    pub(crate) pending_turn_start_resume: bool,
+    #[serde(default)]
+    pub(crate) end_turn_resume: Option<EndTurnResumeStage>,
+    #[serde(default)]
+    pub(crate) end_turn_actions: Vec<EndTurnQueuedAction>,
     pub runtime_card_total_unblocked_damage: i32,
     pub runtime_card_enemy_killed: bool,
 }
@@ -237,10 +393,17 @@ impl CombatEngine {
         )
     }
 
-    pub(crate) fn new_with_rng_streams(state: CombatState, rngs: crate::seed::CombatRngs) -> Self {
+    pub(crate) fn new_with_rng_streams(
+        mut state: CombatState,
+        rngs: crate::seed::CombatRngs,
+    ) -> Self {
+        for (index, enemy) in state.enemies.iter_mut().enumerate() {
+            enemy.runtime_instance_id = index as u64 + 1;
+        }
+        let next_enemy_instance_id = state.enemies.len() as u64 + 1;
         let mut effect_runtime = crate::effects::runtime::EffectRuntime::default();
         effect_runtime.rebuild_from_state(&state);
-        Self {
+        let mut engine = Self {
             state,
             phase: CombatPhase::NotStarted,
             card_registry: crate::cards::global_registry(),
@@ -253,6 +416,11 @@ impl CombatEngine {
             ai_rng: rngs.ai,
             ambient_math_rng: rngs.ambient_math,
             java_collections_rng: rngs.java_collections,
+            the_bomb_id_offset: 0,
+            collector_torch_slots: [None, None],
+            gremlin_leader_slots: [None; 3],
+            reptomancer_dagger_slots: [None; 4],
+            next_enemy_instance_id,
             choice: None,
             effect_runtime,
             nightmare_pending_copies: Vec::new(),
@@ -263,15 +431,23 @@ impl CombatEngine {
             runtime_played_card: None,
             runtime_play_target_idx: None,
             runtime_play_stack: Vec::new(),
+            deferred_combat_ops: Vec::new(),
             runtime_rebound_card: false,
             runtime_replay_window: false,
+            runtime_force_end_turn_after_card: false,
             runtime_last_x_energy_on_use: 0,
             runtime_x_energy_override: None,
-            pending_combat_start_resume: false,
-            pending_end_turn_resume: false,
+            collecting_turn_start_actions: false,
+            turn_start_actions: Vec::new(),
+            pending_turn_start_resume: false,
+            end_turn_resume: None,
+            end_turn_actions: Vec::new(),
             runtime_card_total_unblocked_damage: 0,
             runtime_card_enemy_killed: false,
-        }
+        };
+        engine.initialize_gremlin_leader_slots();
+        engine.initialize_reptomancer_dagger_slots();
+        engine
     }
 
     pub(crate) fn rng_snapshot(&self) -> crate::seed::CombatRngs {
@@ -306,6 +482,14 @@ impl CombatEngine {
     /// masked to Java's 48-bit state width.
     pub fn restore_java_collections_rng_state(&mut self, state: u64) {
         self.java_collections_rng.restore_state(state);
+    }
+
+    pub fn the_bomb_id_offset(&self) -> i32 {
+        self.the_bomb_id_offset
+    }
+
+    pub fn restore_the_bomb_id_offset(&mut self, value: i32) {
+        self.the_bomb_id_offset = value;
     }
 
     pub(crate) fn shuffle_end_turn_trigger_snapshot<T>(&mut self, values: &mut [T]) {
@@ -365,6 +549,84 @@ impl CombatEngine {
         self.with_effect_runtime(|runtime, engine| runtime.emit(engine, event));
     }
 
+    fn emit_turn_start_relics_and_ordered_powers(
+        &mut self,
+        event: crate::effects::runtime::GameEvent,
+    ) {
+        let power_order = self.state.player.power_order.to_vec();
+        self.with_effect_runtime(|runtime, engine| {
+            runtime.emit_relics_then_ordered_player_power_event(
+                engine,
+                event,
+                &power_order,
+                |engine, entry| engine.collect_dynamic_turn_start_power(entry),
+            );
+        });
+    }
+
+    fn emit_turn_start_relics(&mut self, event: crate::effects::runtime::GameEvent) {
+        self.with_effect_runtime(|runtime, engine| runtime.emit_relic_event(engine, event));
+    }
+
+    fn emit_ordered_turn_start_powers(&mut self, event: crate::effects::runtime::GameEvent) {
+        let power_order = self.state.player.power_order.to_vec();
+        self.with_effect_runtime(|runtime, engine| {
+            runtime.emit_ordered_player_power_event(
+                engine,
+                event,
+                &power_order,
+                |engine, entry| engine.collect_dynamic_turn_start_power(entry),
+            );
+        });
+    }
+
+    fn collect_dynamic_turn_start_power(&mut self, entry: crate::state::PowerOrderEntry) {
+        match entry {
+            crate::state::PowerOrderEntry::NightTerror(instance_id) => self
+                .queue_turn_start_action_bottom(TurnStartQueuedAction::NightmareCopies(
+                    instance_id,
+                )),
+            crate::state::PowerOrderEntry::Status(sid::POISON) => {
+                let amount = self.state.player.status(sid::POISON);
+                if amount > 0 {
+                    self.queue_turn_start_action_bottom(TurnStartQueuedAction::PlayerPoisonTick(
+                        amount,
+                    ));
+                }
+            }
+            crate::state::PowerOrderEntry::Status(sid::WRATH_NEXT_TURN) => {
+                self.queue_turn_start_action_bottom(TurnStartQueuedAction::EnterWrathNextTurn)
+            }
+            crate::state::PowerOrderEntry::Status(sid::NEXT_TURN_BLOCK) => {
+                let amount = self.state.player.status(sid::NEXT_TURN_BLOCK);
+                self.queue_turn_start_action_bottom(TurnStartQueuedAction::GainBlock(amount));
+                self.queue_turn_start_action_bottom(TurnStartQueuedAction::RemovePlayerPower(
+                    sid::NEXT_TURN_BLOCK,
+                ));
+            }
+            crate::state::PowerOrderEntry::Status(sid::BIASED_COG_FOCUS_LOSS) => {
+                let amount = self.state.player.status(sid::BIASED_COG_FOCUS_LOSS);
+                self.queue_turn_start_action_bottom(TurnStartQueuedAction::ApplyPlayerDebuff(
+                    sid::FOCUS,
+                    -amount,
+                ));
+            }
+            crate::state::PowerOrderEntry::Status(sid::LOOP) => {
+                let amount = self.state.player.status(sid::LOOP).max(0);
+                for _ in 0..amount {
+                    self.collect_front_orb_impulse_actions();
+                }
+            }
+            crate::state::PowerOrderEntry::Status(sid::END_TURN_DEATH) => {
+                self.queue_turn_start_action_bottom(TurnStartQueuedAction::PlayerLoseHp(99_999));
+                self.queue_turn_start_action_bottom(TurnStartQueuedAction::RemovePlayerPower(
+                    sid::END_TURN_DEATH,
+                ));
+            }
+            _ => {}
+        }
+    }
+
     pub fn take_event_log(&mut self) -> Vec<crate::effects::runtime::GameEventRecord> {
         std::mem::take(&mut self.event_log)
     }
@@ -380,15 +642,79 @@ impl CombatEngine {
         if self.state.combat_over {
             return Err("active combat payload is already over".to_string());
         }
+        if self.collecting_turn_start_actions {
+            return Err("combat checkpoint boundary is collecting turn-start actions".to_string());
+        }
         self.state
             .player
-            .validate_status_order()
+            .validate_power_order()
             .map_err(|error| format!("player {error}"))?;
         for (index, enemy) in self.state.enemies.iter().enumerate() {
             enemy
                 .entity
-                .validate_status_order()
+                .validate_power_order()
                 .map_err(|error| format!("enemy {index} {error}"))?;
+        }
+        let ordered_bombs = self
+            .state
+            .player
+            .power_order
+            .iter()
+            .filter_map(|entry| match entry {
+                crate::state::PowerOrderEntry::TheBomb(serial) => Some(*serial),
+                crate::state::PowerOrderEntry::Status(_)
+                | crate::state::PowerOrderEntry::NightTerror(_) => None,
+            })
+            .collect::<Vec<_>>();
+        let payload_bombs = self
+            .state
+            .pending_bombs
+            .iter()
+            .map(|bomb| bomb.java_serial)
+            .collect::<Vec<_>>();
+        if ordered_bombs.len() != payload_bombs.len()
+            || ordered_bombs
+                .iter()
+                .any(|serial| !payload_bombs.contains(serial))
+        {
+            return Err(format!(
+                "The Bomb power order/payload state disagrees: ordered={ordered_bombs:?}, payload={payload_bombs:?}"
+            ));
+        }
+        let ordered_night_terrors = self
+            .state
+            .player
+            .power_order
+            .iter()
+            .filter_map(|entry| match entry {
+                crate::state::PowerOrderEntry::NightTerror(instance_id) => Some(*instance_id),
+                crate::state::PowerOrderEntry::Status(_)
+                | crate::state::PowerOrderEntry::TheBomb(_) => None,
+            })
+            .collect::<Vec<_>>();
+        let payload_night_terrors = self
+            .nightmare_pending_copies
+            .iter()
+            .map(|(card, _)| card.instance_id)
+            .collect::<Vec<_>>();
+        if ordered_night_terrors != payload_night_terrors {
+            return Err(format!(
+                "Night Terror power order/payload state disagrees: ordered={ordered_night_terrors:?}, payload={payload_night_terrors:?}"
+            ));
+        }
+        if let Some(slot) = self.state.relics.iter().position(|id| id == "Pen Nib") {
+            let hidden_counter = self.hidden_effect_value(
+                "Pen Nib",
+                crate::effects::runtime::EffectOwner::PlayerRelic { slot: slot as u16 },
+                0,
+            );
+            let projected_counter = self.state.player.status(sid::PEN_NIB_COUNTER);
+            let power_active = self.state.player.status(sid::PEN_NIB_POWER) > 0;
+            if hidden_counter != projected_counter || power_active != (hidden_counter == 9) {
+                return Err(format!(
+                    "Pen Nib counter/power state disagrees: hidden={hidden_counter}, projected={projected_counter}, active={power_active}"
+                ));
+            }
         }
 
         match self.phase {
@@ -396,17 +722,22 @@ impl CombatEngine {
                 if self.choice.is_some() {
                     return Err("player-turn combat has a stale choice payload".to_string());
                 }
-                if self.pending_combat_start_resume || self.pending_end_turn_resume {
+                if self.pending_turn_start_resume || self.end_turn_resume.is_some() {
                     return Err("player-turn combat has a stale resume continuation".to_string());
                 }
                 if self.runtime_played_card.is_some()
                     || self.runtime_play_target_idx.is_some()
                     || !self.runtime_play_stack.is_empty()
+                    || !self.deferred_combat_ops.is_empty()
                     || !self.omniscience_autoplay.is_empty()
                     || self.runtime_rebound_card
+                    || self.runtime_force_end_turn_after_card
                     || self.runtime_x_energy_override.is_some()
                 {
                     return Err("player-turn combat has unresolved card runtime state".to_string());
+                }
+                if !self.turn_start_actions.is_empty() {
+                    return Err("player-turn combat has stale turn-start actions".to_string());
                 }
             }
             CombatPhase::AwaitingChoice => {
@@ -430,8 +761,16 @@ impl CombatEngine {
                         return Err("combat named-choice payloads are misaligned".to_string());
                     }
                 }
-                if self.pending_combat_start_resume && self.pending_end_turn_resume {
+                let resume_count = usize::from(self.pending_turn_start_resume)
+                    + usize::from(self.end_turn_resume.is_some());
+                if resume_count > 1 {
                     return Err("combat choice has conflicting resume continuations".to_string());
+                }
+                if !self.turn_start_actions.is_empty() && !self.pending_turn_start_resume {
+                    return Err(
+                        "combat choice has turn-start actions without a resume continuation"
+                            .to_string(),
+                    );
                 }
             }
             CombatPhase::NotStarted | CombatPhase::EnemyTurn | CombatPhase::CombatOver => {
@@ -479,7 +818,23 @@ impl CombatEngine {
         {
             insert_unique(&mut live_ids, *card, "combat pile card")?;
         }
+        for action in &self.turn_start_actions {
+            let card = match action {
+                TurnStartQueuedAction::AddCardToHand(card)
+                | TurnStartQueuedAction::AddCardToRandomDrawSpot(card) => Some(*card),
+                _ => None,
+            };
+            if let Some(card) = card {
+                insert_unique(&mut live_ids, card, "queued turn-start card")?;
+            }
+        }
         for enemy in &self.state.enemies {
+            if enemy.stasis_card.is_some() != (enemy.entity.status(sid::STASIS_POWER) > 0) {
+                return Err(format!(
+                    "enemy {} Stasis card and power presence disagree",
+                    enemy.id
+                ));
+            }
             if let Some(card) = enemy.stasis_card {
                 insert_unique(&mut live_ids, card, "Stasis card")?;
             }
@@ -497,6 +852,11 @@ impl CombatEngine {
         }
         for (card, _, _) in &self.runtime_play_stack {
             insert_unique(&mut live_ids, *card, "nested played card")?;
+        }
+        for op in &self.deferred_combat_ops {
+            if let DeferredCombatOp::MoveCard { card, .. } = op {
+                insert_unique(&mut live_ids, *card, "deferred combat card")?;
+            }
         }
         for (card, _) in &self.omniscience_autoplay {
             insert_unique(&mut live_ids, *card, "queued Omniscience card")?;
@@ -577,7 +937,103 @@ impl CombatEngine {
         self.runtime_play_target_idx = None;
         self.runtime_play_stack.clear();
         self.runtime_rebound_card = false;
+        self.runtime_force_end_turn_after_card = false;
         self.omniscience_autoplay.clear();
+        if self.state.combat_over || matches!(self.phase, CombatPhase::CombatOver) {
+            self.deferred_combat_ops.clear();
+        }
+    }
+
+    fn drain_deferred_combat_ops(&mut self) {
+        // GameActionManager.clearPostCombatActions removes Stasis' queued
+        // MakeTempCard action when the killing hit ends combat.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java
+        if self.state.combat_over || self.state.is_victory() || self.state.is_defeat() {
+            self.deferred_combat_ops.clear();
+            return;
+        }
+
+        let mut shuffle_events = 0;
+        for op in std::mem::take(&mut self.deferred_combat_ops) {
+            match op {
+                DeferredCombatOp::MoveCard { card, route } => match route {
+                    DeferredCardRoute::HandWithOverflowToDiscard => {
+                        // MakeTempCardInHandAction checks the hand limit again
+                        // when it executes, not only when StasisPower queues it.
+                        if self.state.hand.len() < 10 {
+                            self.state.hand.push(card);
+                        } else {
+                            self.state.discard_pile.push(card);
+                        }
+                    }
+                    DeferredCardRoute::Discard => self.state.discard_pile.push(card),
+                },
+                DeferredCombatOp::RemovePower { owner, status } => match owner {
+                    DeferredPowerOwner::Player => self.state.player.set_status(status, 0),
+                    DeferredPowerOwner::Enemy(enemy_idx) => {
+                        if let Some(enemy) = self.state.enemies.get_mut(enemy_idx) {
+                            enemy.entity.set_status(status, 0);
+                        }
+                    }
+                },
+                DeferredCombatOp::DrawCards { count } => {
+                    self.draw_cards(count);
+                }
+                DeferredCombatOp::EscapeEnemy { enemy_idx } => {
+                    if let Some(enemy) = self.state.enemies.get_mut(enemy_idx) {
+                        enemy.is_escaping = true;
+                        // EscapeAction makes the monster basically dead before
+                        // its later animation marks it escaped. The compact
+                        // settled state represents that terminal monster with
+                        // zero HP.
+                        enemy.entity.hp = 0;
+                    }
+                }
+                DeferredCombatOp::PlayTopCard { target_idx } => {
+                    // PlayTopCardAction retries after EmptyDeckShuffleAction,
+                    // then sends the card through NewQueueCardAction as a
+                    // normal free autoplay. Execute only after the enclosing
+                    // runtime hook has returned so card/relic events reach the
+                    // authoritative runtime rather than a reentrant copy.
+                    // Java: actions/common/PlayTopCardAction.java;
+                    // actions/utility/NewQueueCardAction.java.
+                    if self.state.draw_pile.is_empty() && !self.state.discard_pile.is_empty() {
+                        self.state.draw_pile = std::mem::take(&mut self.state.discard_pile);
+                        self.shuffle_draw_pile();
+                        shuffle_events += 1;
+                    }
+                    if let Some(card) = self.state.draw_pile.pop() {
+                        let free_card = card.set_free(true);
+                        self.state.hand.push(free_card);
+                        let hand_idx = self.state.hand.len() - 1;
+                        self.execute_action(&Action::PlayCard {
+                            card_idx: hand_idx,
+                            target_idx,
+                        });
+                    }
+                }
+            }
+            if self.state.combat_over || self.state.is_victory() || self.state.is_defeat() {
+                self.deferred_combat_ops.clear();
+                break;
+            }
+        }
+        // EmptyDeckShuffleAction queues relic onShuffle effects behind the
+        // already-enqueued PlayTopCardActions.
+        for _ in 0..shuffle_events {
+            let ctx = crate::effects::trigger::TriggerContext::empty();
+            self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+                crate::effects::trigger::Trigger::OnShuffle,
+                &ctx,
+            ));
+        }
+    }
+
+    pub(crate) fn defer_draw_until_current_card_moves(&mut self, count: i32) {
+        if count > 0 {
+            self.deferred_combat_ops
+                .push(DeferredCombatOp::DrawCards { count });
+        }
     }
 
     pub(crate) fn rebound_current_card(&mut self) {
@@ -610,84 +1066,54 @@ impl CombatEngine {
 
     /// Start combat: apply relic effects, shuffle draw pile, draw initial hand.
     pub fn start_combat(&mut self) {
-        let resuming_after_choice = self.pending_combat_start_resume;
-        if self.phase != CombatPhase::NotStarted && !resuming_after_choice {
+        if self.phase != CombatPhase::NotStarted {
             return;
         }
+        self.rebuild_effect_runtime();
 
-        if resuming_after_choice {
-            self.pending_combat_start_resume = false;
-        } else {
-            self.rebuild_effect_runtime();
-
-            // Source: reference/extracted/methods/relic/PenNib.java
-            // Pen Nib's relic counter persists between combats; counter 9 applies
-            // its double-damage power at the next battle start.
-            if let Some(slot) = self.state.relics.iter().position(|id| id == "Pen Nib") {
-                let counter = self.hidden_effect_value(
-                    "Pen Nib",
-                    crate::effects::runtime::EffectOwner::PlayerRelic { slot: slot as u16 },
-                    0,
-                );
-                self.state.player.set_status(sid::PEN_NIB_COUNTER, counter);
-            }
-
-            // AbstractMonster.init calls rollMove for every initialized monster,
-            // including fixed openers that ignore the sampled number.
-            // Java: AbstractMonster.java::init/rollMove.
-            let living_enemy_count = self
-                .state
-                .enemies
-                .iter()
-                .filter(|enemy| enemy.is_alive())
-                .count() as i32;
-            for enemy in self
-                .state
-                .enemies
-                .iter_mut()
-                .filter(|enemy| enemy.is_alive() && enemy.needs_initial_move_roll)
-            {
-                if enemy.id == "Centurion" {
-                    enemy.entity.set_status(sid::COUNT, living_enemy_count);
-                }
-                crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
-            }
-
-            // MonsterGroup initializes every member before AbstractPlayer calls
-            // usePreBattleAction on the group. Louse Curl Up therefore consumes its
-            // monsterHpRng draw only after all opening aiRng draws.
-            // Java: MonsterGroup.java (`initialize`, `usePreBattleAction`) and
-            // AbstractPlayer.java (`preBattlePrep`).
-            for enemy in self.state.enemies.iter_mut().filter(|enemy| {
-                matches!(
-                    enemy.id.as_str(),
-                    "FuzzyLouseNormal" | "RedLouse" | "FuzzyLouseDefensive" | "GreenLouse"
-                )
-            }) {
-                let curl_min = enemy.entity.status(sid::BLOCK_AMT);
-                if curl_min > 0 {
-                    let curl_max = if curl_min == 9 { 12 } else { curl_min + 4 };
-                    let curl_up = self.monster_hp_rng.random_int_range(curl_min, curl_max);
-                    enemy.entity.set_status(sid::CURL_UP, curl_up);
-                    enemy.entity.set_status(sid::BLOCK_AMT, 0);
-                }
-            }
-
-            // Apply combat-start relic + power effects via owner-aware runtime.
-            self.emit_event(crate::effects::runtime::GameEvent::empty(
-                crate::effects::trigger::Trigger::CombatStart,
-            ));
-            if self.phase == CombatPhase::AwaitingChoice {
-                self.pending_combat_start_resume = true;
-                return;
-            }
+        // Source: reference/extracted/methods/relic/PenNib.java
+        // Pen Nib's relic counter persists between combats; counter 9 applies
+        // its double-damage power at the next battle start.
+        if let Some(slot) = self.state.relics.iter().position(|id| id == "Pen Nib") {
+            let counter = self.hidden_effect_value(
+                "Pen Nib",
+                crate::effects::runtime::EffectOwner::PlayerRelic { slot: slot as u16 },
+                0,
+            );
+            self.state.player.set_status(sid::PEN_NIB_COUNTER, counter);
+            self.state
+                .player
+                .set_status(sid::PEN_NIB_POWER, i32::from(counter == 9));
         }
 
-        // Shuffle draw pile
+        // AbstractMonster.init calls rollMove for every initialized monster,
+        // including fixed openers that ignore the sampled number.
+        // Java: AbstractMonster.java::init/rollMove.
+        let living_enemy_count = self
+            .state
+            .enemies
+            .iter()
+            .filter(|enemy| enemy.is_alive())
+            .count() as i32;
+        for enemy in self
+            .state
+            .enemies
+            .iter_mut()
+            .filter(|enemy| enemy.is_alive() && enemy.needs_initial_move_roll)
+        {
+            if enemy.id == "Centurion" {
+                enemy.entity.set_status(sid::COUNT, living_enemy_count);
+            }
+            crate::enemies::roll_initial_move(enemy, &mut self.ai_rng);
+        }
+
+        // AbstractPlayer.preBattlePrep initializes and shuffles the deck
+        // before monster pre-battle actions and relic atPreBattle hooks.
+        // Java: AbstractPlayer.java:1562-1605; CardGroup.java:917-944.
         crate::seed::card_group_shuffle(&mut self.state.draw_pile, &mut self.shuffle_rng);
 
-        // Innate: move cards with "innate" tag to top of draw pile
-        // Draw pile convention: index 0 = bottom, last = top
+        // Innate and bottled cards are moved to the top immediately after
+        // the Java deck copy is shuffled.
         let mut innate_indices = Vec::new();
         for (i, card) in self.state.draw_pile.iter().enumerate() {
             let def = self.card_registry.card_def_by_id(card.def_id);
@@ -695,17 +1121,66 @@ impl CombatEngine {
                 innate_indices.push(i);
             }
         }
-        // Remove from back to front to preserve indices, then push to end (top)
         let mut innate_cards = Vec::new();
         for &i in innate_indices.iter().rev() {
             innate_cards.push(self.state.draw_pile.remove(i));
         }
-        innate_cards.reverse(); // Maintain original order
-        for card in innate_cards {
-            self.state.draw_pile.push(card);
+        innate_cards.reverse();
+        self.state.draw_pile.extend(innate_cards);
+
+        // MonsterGroup initializes every member before AbstractPlayer calls
+        // usePreBattleAction on the group. Louse Curl Up therefore consumes its
+        // monsterHpRng draw only after all opening aiRng draws.
+        // Java: MonsterGroup.java (`initialize`, `usePreBattleAction`) and
+        // AbstractPlayer.java (`preBattlePrep`).
+        for enemy in self.state.enemies.iter_mut().filter(|enemy| {
+            matches!(
+                enemy.id.as_str(),
+                "FuzzyLouseNormal" | "RedLouse" | "FuzzyLouseDefensive" | "GreenLouse"
+            )
+        }) {
+            let curl_min = enemy.entity.status(sid::BLOCK_AMT);
+            if curl_min > 0 {
+                let curl_max = if curl_min == 9 { 12 } else { curl_min + 4 };
+                let curl_up = self.monster_hp_rng.random_int_range(curl_min, curl_max);
+                enemy.entity.set_status(sid::CURL_UP, curl_up);
+                enemy.entity.set_status(sid::BLOCK_AMT, 0);
+            }
         }
 
-        // Start first player turn
+        self.emit_event(crate::effects::runtime::GameEvent::empty(
+            crate::effects::trigger::Trigger::CombatSetup,
+        ));
+        // AbstractPlayer first visits every atBattleStart callback. Direct
+        // mutations (Philosopher's Stone's AbstractMonster.addPower) take
+        // effect during that walk, while addToTop/addToBot effects only
+        // enter GameActionManager's queue. Drain the top queue afterward.
+        // Java: AbstractPlayer.java::applyStartOfCombatLogic;
+        // relics/PhilosopherStone.java::atBattleStart.
+        self.emit_event(crate::effects::runtime::GameEvent::empty(
+            crate::effects::trigger::Trigger::CombatStartDirect,
+        ));
+        // AbstractRoom has already queued opening energy before this walk.
+        // Every atBattleStart addToTop body is collected in relic order by
+        // repeated front insertion, so later relics execute first. Pre-draw
+        // actions (notably Toolbox) are FIFO, while later atTurnStart relics
+        // may still insert actions above all of them.
+        self.turn_start_actions.clear();
+        self.pending_turn_start_resume = false;
+        self.collecting_turn_start_actions = true;
+        // EnergyManager.prep starts the opening recharge from zero.
+        self.state.energy = 0;
+        self.queue_turn_start_action_bottom(TurnStartQueuedAction::OpeningEnergy);
+        self.emit_event(crate::effects::runtime::GameEvent::empty(
+            crate::effects::trigger::Trigger::CombatStartTop,
+        ));
+        let event = crate::effects::runtime::GameEvent::empty(
+            crate::effects::trigger::Trigger::CombatStartPreDraw,
+        );
+        self.emit_event(event);
+
+        // Start first player turn. FIFO atBattleStart actions are dispatched
+        // inside the turn immediately after Java's opening DrawCardAction.
         self.start_player_turn();
     }
 
@@ -828,6 +1303,11 @@ impl CombatEngine {
             ai_rng: self.ai_rng.clone(),
             ambient_math_rng: self.ambient_math_rng.clone(),
             java_collections_rng: self.java_collections_rng.clone(),
+            the_bomb_id_offset: self.the_bomb_id_offset,
+            collector_torch_slots: self.collector_torch_slots,
+            gremlin_leader_slots: self.gremlin_leader_slots,
+            reptomancer_dagger_slots: self.reptomancer_dagger_slots,
+            next_enemy_instance_id: self.next_enemy_instance_id,
             choice: self.choice.clone(),
             effect_runtime: self.effect_runtime.clone(),
             nightmare_pending_copies: self.nightmare_pending_copies.clone(),
@@ -838,12 +1318,17 @@ impl CombatEngine {
             runtime_played_card: self.runtime_played_card,
             runtime_play_target_idx: self.runtime_play_target_idx,
             runtime_play_stack: self.runtime_play_stack.clone(),
+            deferred_combat_ops: self.deferred_combat_ops.clone(),
             runtime_rebound_card: self.runtime_rebound_card,
             runtime_replay_window: self.runtime_replay_window,
+            runtime_force_end_turn_after_card: self.runtime_force_end_turn_after_card,
             runtime_last_x_energy_on_use: self.runtime_last_x_energy_on_use,
             runtime_x_energy_override: self.runtime_x_energy_override,
-            pending_combat_start_resume: self.pending_combat_start_resume,
-            pending_end_turn_resume: self.pending_end_turn_resume,
+            collecting_turn_start_actions: self.collecting_turn_start_actions,
+            turn_start_actions: self.turn_start_actions.clone(),
+            pending_turn_start_resume: self.pending_turn_start_resume,
+            end_turn_resume: self.end_turn_resume,
+            end_turn_actions: self.end_turn_actions.clone(),
             runtime_card_total_unblocked_damage: self.runtime_card_total_unblocked_damage,
             runtime_card_enemy_killed: self.runtime_card_enemy_killed,
         }
@@ -1028,15 +1513,17 @@ impl CombatEngine {
             self.clear_runtime_play_contexts();
             return;
         }
-        if self.pending_combat_start_resume {
-            self.start_combat();
-            return;
-        }
-        if self.pending_end_turn_resume {
+        if self.end_turn_resume.is_some() {
             self.end_turn();
             return;
         }
         self.drive_choice_owned_runtime();
+        if self.choice.is_some() || self.state.combat_over {
+            return;
+        }
+        if self.pending_turn_start_resume {
+            self.resume_turn_start_actions();
+        }
     }
 
     fn drive_choice_owned_runtime(&mut self) {
@@ -1141,6 +1628,12 @@ impl CombatEngine {
                 card: &card,
                 card_inst: deferred.card_inst,
                 target_idx: deferred.target_idx,
+                target_was_attacking: deferred.target_idx >= 0
+                    && self
+                        .state
+                        .enemies
+                        .get(deferred.target_idx as usize)
+                        .is_some_and(|enemy| enemy.is_attacking()),
                 x_value: deferred.x_value,
                 pen_nib_active: deferred.pen_nib_active,
                 vigor: deferred.vigor,
@@ -1196,24 +1689,33 @@ impl CombatEngine {
     }
 
     fn resolve_exhaust_from_hand(&mut self, ctx: ChoiceContext) {
-        let mut indices: Vec<usize> = ctx
+        // HandCardSelectScreen.selectedCards and ExhaustAction preserve the
+        // player's click order in the exhaust pile. Capture that observable
+        // order before removing source cards by descending hand index.
+        // Java: screens/select/HandCardSelectScreen.java::selectHoveredCard;
+        // actions/common/ExhaustAction.java::update;
+        // cards/CardGroup.java::moveToExhaustPile.
+        let selected_cards: Vec<(usize, CardInstance)> = ctx
             .selected
             .iter()
             .filter_map(|&i| {
                 if let ChoiceOption::HandCard(idx) = ctx.options[i] {
-                    Some(idx)
+                    self.state.hand.get(idx).copied().map(|card| (idx, card))
                 } else {
                     None
                 }
             })
             .collect();
+        let mut indices: Vec<usize> = selected_cards.iter().map(|(idx, _)| *idx).collect();
         indices.sort_unstable_by(|a, b| b.cmp(a));
         for idx in indices {
             if idx < self.state.hand.len() {
-                let card = self.state.hand.remove(idx);
-                self.state.exhaust_pile.push(card);
-                self.trigger_card_on_exhaust(card);
+                self.state.hand.remove(idx);
             }
+        }
+        for (_, card) in selected_cards {
+            self.state.exhaust_pile.push(card);
+            self.trigger_card_on_exhaust(card);
         }
         // Burning Pact: draw cards after exhaust choice resolves.
         if ctx.post_choice_draw > 0 {
@@ -1233,23 +1735,33 @@ impl CombatEngine {
     }
 
     fn resolve_retain_from_hand(&mut self, ctx: ChoiceContext) {
-        for option_idx in ctx.selected {
-            let Some(ChoiceOption::HandCard(hand_idx)) = ctx.options.get(option_idx) else {
-                continue;
-            };
-            let hand_idx = *hand_idx;
-            if hand_idx >= self.state.hand.len() {
-                continue;
-            }
-            let card = self
-                .card_registry
-                .card_def_by_id(self.state.hand[hand_idx].def_id);
+        let selected_cards = ctx
+            .selected
+            .iter()
+            .filter_map(|option_idx| match ctx.options.get(*option_idx) {
+                Some(ChoiceOption::HandCard(hand_idx)) => self.state.hand.get(*hand_idx).copied(),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        self.state
+            .hand
+            .retain(|card| !selected_cards.iter().any(|selected| selected == card));
+
+        // HandCardSelectScreen removes cards as they are clicked;
+        // RetainCardsAction then addToTop's selectedCards in click order.
+        // Reinsert the concrete instances in `ctx.selected` order so reverse
+        // multi-selection is observable in the retained hand next turn.
+        // Java: actions/unique/RetainCardsAction.java and
+        // screens/select/HandCardSelectScreen.java.
+        for mut selected in selected_cards {
+            let card = self.card_registry.card_def_by_id(selected.def_id);
             // RetainCardsAction permits selecting Ethereal cards but does not
             // set their retain flag, so they still exhaust later this turn.
             // Java: actions/unique/RetainCardsAction.java.
             if !card.runtime_traits().ethereal {
-                self.state.hand[hand_idx].set_retained(true);
+                selected.set_retained(true);
             }
+            self.state.hand.push(selected);
         }
     }
 
@@ -1416,14 +1928,14 @@ impl CombatEngine {
             CardInstance::FLAG_UPGRADED | CardInstance::FLAG_FREE | CardInstance::FLAG_INNATE;
         let card = self.fresh_stat_copy(card);
 
-        // ApplyPowerAction stacks another NightmarePower with the same ID onto
-        // the existing power. AbstractPower.stackPower increases amount but
-        // leaves the first power's stored card unchanged.
-        if let Some((_, pending_copies)) = self.nightmare_pending_copies.first_mut() {
-            *pending_copies += copies;
-        } else {
-            self.nightmare_pending_copies.push((card, copies));
-        }
+        // ApplyPowerAction explicitly excludes POWER_ID "Night Terror" from
+        // its normal same-ID stacking path. Each play therefore appends an
+        // independent NightmarePower carrying its own selected card. Java's
+        // stable priority sort preserves application order for these default-
+        // priority (5) instances.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ApplyPowerAction.java
+        self.state.player.add_night_terror_power(card.instance_id);
+        self.nightmare_pending_copies.push((card, copies));
     }
 
     fn resolve_upgrade_card(&mut self, ctx: ChoiceContext) {
@@ -1561,29 +2073,45 @@ impl CombatEngine {
 
     fn resolve_return_from_discard(&mut self, ctx: ChoiceContext) {
         // Hologram / Meditate: move selected card(s) from discard to hand
-        let mut indices: Vec<usize> = ctx
+        // GridCardSelectScreen.selectedCards preserves click order, and
+        // MeditateAction adds the returned cards to hand in that same order.
+        // Capture the cards before removing by descending pile index so the
+        // implementation detail of safe removal does not reverse the
+        // observable hand order.
+        // Java: screens/select/GridCardSelectScreen.java::update;
+        // actions/watcher/MeditateAction.java::update.
+        let available_slots = 10usize.saturating_sub(self.state.hand.len());
+        let mut selected_cards: Vec<(usize, CardInstance)> = ctx
             .selected
             .iter()
             .filter_map(|&i| {
                 if let ChoiceOption::DiscardCard(idx) = ctx.options[i] {
-                    Some(idx)
+                    self.state
+                        .discard_pile
+                        .get(idx)
+                        .copied()
+                        .map(|card| (idx, card))
                 } else {
                     None
                 }
             })
+            .take(available_slots)
             .collect();
+        let mut indices: Vec<usize> = selected_cards.iter().map(|(idx, _)| *idx).collect();
         indices.sort_unstable_by(|a, b| b.cmp(a)); // remove from back to front
         for idx in indices {
-            if idx < self.state.discard_pile.len() && self.state.hand.len() < 10 {
-                let mut card = self.state.discard_pile.remove(idx);
-                if ctx.retain_returned_cards {
-                    card.set_retained(true); // Meditate marks returned cards as retained
-                }
-                if let Some(cost) = ctx.returned_card_cost_override {
-                    card.cost = cost;
-                }
-                self.state.hand.push(card);
+            if idx < self.state.discard_pile.len() {
+                self.state.discard_pile.remove(idx);
             }
+        }
+        for (_, mut card) in selected_cards.drain(..) {
+            if ctx.retain_returned_cards {
+                card.set_retained(true); // Meditate marks returned cards as retained
+            }
+            if let Some(cost) = ctx.returned_card_cost_override {
+                card.cost = cost;
+            }
+            self.state.hand.push(card);
         }
     }
 
@@ -1802,31 +2330,358 @@ impl CombatEngine {
     // Turn Flow
     // =======================================================================
 
-    fn start_player_turn(&mut self) {
-        self.state.turn += 1;
-        self.phase = CombatPhase::PlayerTurn;
-        self.rebuild_effect_runtime();
+    pub(crate) fn is_collecting_turn_start_actions(&self) -> bool {
+        self.collecting_turn_start_actions
+    }
 
-        // Blasphemy delayed death.
-        // Java: powers/watcher/EndTurnDeathPower.java queues LoseHPAction(99999),
-        // which runs through AbstractPlayer.damage(HP_LOSS): Intangible caps to
-        // 1, Buffer can reduce that to 0, Tungsten Rod applies to remaining HP
-        // loss, and ordinary death/revival hooks still run.
-        if self.state.blasphemy_active {
-            self.state.blasphemy_active = false;
-            self.player_lose_hp_from_damage(99_999);
-            if self.state.combat_over {
-                return;
+    pub(crate) fn queue_turn_start_action_bottom(&mut self, action: TurnStartQueuedAction) {
+        self.turn_start_actions.push(action);
+    }
+
+    pub(crate) fn queue_turn_start_action_top(&mut self, action: TurnStartQueuedAction) {
+        self.turn_start_actions.insert(0, action);
+    }
+
+    fn execute_turn_start_action(&mut self, action: TurnStartQueuedAction) {
+        match action {
+            TurnStartQueuedAction::OpeningEnergy => {
+                self.state.energy += self.state.max_energy;
+                self.invoke_on_energy_recharge();
+            }
+            TurnStartQueuedAction::DrawCards(amount) => {
+                self.draw_cards(amount);
+            }
+            TurnStartQueuedAction::GainEnergy(amount) => self.state.energy += amount,
+            TurnStartQueuedAction::LoseEnergy(amount) => {
+                self.state.energy = (self.state.energy - amount).max(0);
+            }
+            TurnStartQueuedAction::GainBlock(amount) => self.gain_block_player(amount),
+            TurnStartQueuedAction::HealPlayer(amount) => self.heal_player(amount),
+            TurnStartQueuedAction::ChangeStance(stance) => self.change_stance(stance),
+            TurnStartQueuedAction::IncreaseOrbSlots(amount) => {
+                let before = self.state.orb_slots.max_slots;
+                for _ in 0..amount.max(0) {
+                    self.state.orb_slots.add_slot();
+                }
+                let gained = self.state.orb_slots.max_slots.saturating_sub(before) as i32;
+                if gained > 0 {
+                    self.state.player.add_status(sid::ORB_SLOTS, gained);
+                }
+            }
+            TurnStartQueuedAction::AddPlayerStatus(status, amount) => {
+                self.state.player.add_status(status, amount);
+            }
+            TurnStartQueuedAction::AddEnemyStatus(enemy_idx, status, amount) => {
+                if let Some(enemy) = self.state.enemies.get_mut(enemy_idx) {
+                    if enemy.is_alive() {
+                        enemy.entity.add_status(status, amount);
+                    }
+                }
+            }
+            TurnStartQueuedAction::ApplyEnemyDebuff(enemy_idx, status, amount) => {
+                if self
+                    .state
+                    .enemies
+                    .get(enemy_idx)
+                    .is_some_and(|enemy| enemy.is_alive())
+                {
+                    self.apply_player_debuff_to_enemy(enemy_idx, status, amount);
+                }
+            }
+            TurnStartQueuedAction::AddCardToHand(card) => {
+                if self.state.hand.len() < 10 {
+                    self.state.hand.push(card);
+                } else {
+                    self.state.discard_pile.push(card);
+                }
+            }
+            TurnStartQueuedAction::AddCardToRandomDrawSpot(card) => {
+                if self.state.draw_pile.is_empty() {
+                    self.state.draw_pile.push(card);
+                } else {
+                    let index = self
+                        .card_random_rng
+                        .random_int_range(0, (self.state.draw_pile.len() - 1) as i32)
+                        as usize;
+                    self.state.draw_pile.insert(index, card);
+                }
+            }
+            TurnStartQueuedAction::ApplyPhantasmal(amount) => {
+                let double_damage = self.state.player.status(sid::DOUBLE_DAMAGE);
+                self.state.player.set_status(
+                    sid::DOUBLE_DAMAGE,
+                    if double_damage > 0 {
+                        double_damage + amount
+                    } else {
+                        1
+                    },
+                );
+            }
+            TurnStartQueuedAction::ReducePlayerPower(status, amount) => {
+                let current = self.state.player.status(status);
+                self.state
+                    .player
+                    .set_status(status, (current - amount).max(0));
+            }
+            TurnStartQueuedAction::ApplyPlayerDebuff(status, amount) => {
+                powers::apply_debuff(&mut self.state.player, status, amount);
+            }
+            TurnStartQueuedAction::DamageAllEnemiesThorns(amount) => {
+                for enemy_idx in self.state.living_enemy_indices() {
+                    self.deal_thorns_damage_to_enemy(enemy_idx, amount);
+                }
+            }
+            TurnStartQueuedAction::PlayerLoseHp(amount) => {
+                self.player_lose_hp_from_damage(amount);
+            }
+            TurnStartQueuedAction::RemovePlayerPower(status) => {
+                self.state.player.set_status(status, 0);
+                if status == sid::END_TURN_DEATH {
+                    self.state.blasphemy_active = false;
+                }
+            }
+            TurnStartQueuedAction::UpgradeRandomCard => {
+                let mut upgradeable = self
+                    .state
+                    .hand
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, card)| {
+                        let def = self.card_registry.card_def_by_id(card.def_id);
+                        (def.card_type != crate::cards::CardType::Status
+                            && self.card_registry.can_upgrade_card(card))
+                        .then_some(index)
+                    })
+                    .collect::<Vec<_>>();
+                if !upgradeable.is_empty() {
+                    // UpgradeRandomCardAction shuffles the eligible CardGroup.
+                    // Java: cards/CardGroup.java; actions/common/UpgradeRandomCardAction.java.
+                    crate::seed::card_group_shuffle(&mut upgradeable, &mut self.shuffle_rng);
+                    self.card_registry
+                        .upgrade_card(&mut self.state.hand[upgradeable[0]]);
+                }
+            }
+            TurnStartQueuedAction::GamblingChip => {
+                if !self.state.hand.is_empty() {
+                    let options = (0..self.state.hand.len())
+                        .map(ChoiceOption::HandCard)
+                        .collect::<Vec<_>>();
+                    let count = options.len();
+                    self.begin_choice(ChoiceReason::DiscardFromHand, options, 0, count);
+                    self.state.player.set_status(sid::GAMBLING_CHIP_ACTIVE, 1);
+                }
+            }
+            TurnStartQueuedAction::Scry(amount) => self.do_scry(amount),
+            TurnStartQueuedAction::ShuffleDrawPile => {
+                if self.state.draw_pile.is_empty() {
+                    self.emit_event(crate::effects::runtime::GameEvent::empty(
+                        crate::effects::trigger::Trigger::OnShuffle,
+                    ));
+                    if self.phase != CombatPhase::AwaitingChoice {
+                        self.state.draw_pile = std::mem::take(&mut self.state.discard_pile);
+                        self.shuffle_draw_pile();
+                    }
+                }
+            }
+            TurnStartQueuedAction::MayhemWrapper => {
+                let target_idx = self.random_living_enemy().map_or(-1, |idx| idx as i32);
+                self.queue_turn_start_action_bottom(TurnStartQueuedAction::PlayTopCard {
+                    target_idx,
+                });
+            }
+            TurnStartQueuedAction::PlayTopCard { target_idx } => {
+                self.play_top_card_of_draw_at_target(target_idx, false);
+            }
+            TurnStartQueuedAction::DiscardFromHand(amount) => {
+                let discard_count = amount.min(self.state.hand.len());
+                if discard_count == 0 {
+                    return;
+                }
+                if self.state.hand.len() <= discard_count {
+                    while let Some(card) = self.state.hand.pop() {
+                        self.state.discard_pile.push(card);
+                        self.on_card_discarded(card);
+                    }
+                } else {
+                    let options = (0..self.state.hand.len())
+                        .map(ChoiceOption::HandCard)
+                        .collect::<Vec<_>>();
+                    self.begin_choice(
+                        ChoiceReason::DiscardFromHand,
+                        options,
+                        discard_count,
+                        discard_count,
+                    );
+                }
+            }
+            TurnStartQueuedAction::GainDevotion(amount) => {
+                if self.state.mantra == 0 && amount >= 10 {
+                    self.change_stance(Stance::Divinity);
+                } else {
+                    self.gain_mantra(amount);
+                }
+            }
+            TurnStartQueuedAction::EnterDivinity => {
+                self.state.player.set_status(sid::ENTER_DIVINITY, 0);
+                self.change_stance(Stance::Divinity);
+            }
+            TurnStartQueuedAction::NightmareCopies(instance_id) => {
+                if let Some(index) = self
+                    .nightmare_pending_copies
+                    .iter()
+                    .position(|(card, _)| card.instance_id == instance_id)
+                {
+                    let (card, copies) = self.nightmare_pending_copies.remove(index);
+                    self.add_card_instance_copies_to_hand(card, copies as i32);
+                    self.state.player.remove_night_terror_power(instance_id);
+                }
+            }
+            TurnStartQueuedAction::EnterWrathNextTurn => {
+                self.state.player.set_status(sid::WRATH_NEXT_TURN, 0);
+                self.change_stance(Stance::Wrath);
+            }
+            TurnStartQueuedAction::PlayerPoisonTick(amount) => {
+                self.player_lose_hp_from_damage(amount);
+                let current = self.state.player.status(sid::POISON);
+                self.state
+                    .player
+                    .set_status(sid::POISON, (current - 1).max(0));
+            }
+            TurnStartQueuedAction::TriggerOrbImpulse => {
+                self.collect_all_orb_impulse_actions();
+            }
+            TurnStartQueuedAction::OrbLightning { damage, hit_all } => {
+                if hit_all {
+                    for enemy_idx in self.state.living_enemy_indices() {
+                        let orb_damage = self.orb_damage_against(enemy_idx, damage);
+                        self.deal_thorns_damage_to_enemy(enemy_idx, orb_damage);
+                    }
+                } else if let Some(enemy_idx) = self.random_living_enemy() {
+                    let orb_damage = self.orb_damage_against(enemy_idx, damage);
+                    self.deal_thorns_damage_to_enemy(enemy_idx, orb_damage);
+                }
+            }
+            TurnStartQueuedAction::GainMantra(amount) => self.gain_mantra(amount),
+            TurnStartQueuedAction::ToolboxChoice => {
+                // ChooseOneColorless generates its choices in update(), not in
+                // the inert constructor queued by Toolbox.atBattleStartPreDraw.
+                // Later turn-start callbacks therefore consume cardRandom
+                // before Toolbox does.
+                // Java: actions/utility/ChooseOneColorless.java::update.
+                let options = crate::effects::interpreter::generate_unique_random_cards(
+                    self,
+                    crate::effects::declarative::GeneratedCardPool::Colorless,
+                    3,
+                )
+                .into_iter()
+                .map(ChoiceOption::GeneratedCard)
+                .collect::<Vec<_>>();
+                self.begin_discovery_choice(
+                    options,
+                    1,
+                    1,
+                    1,
+                    crate::effects::declarative::GeneratedCostRule::Base,
+                );
             }
         }
+    }
 
-        // EnergyManager.java::recharge calls addEnergy(energyMaster) with Ice
-        // Cream, preserving unspent energy instead of resetting to the master amount.
+    fn drain_turn_start_actions(&mut self) {
+        self.pending_turn_start_resume = false;
+        while !self.turn_start_actions.is_empty() {
+            let action = self.turn_start_actions.remove(0);
+            self.execute_turn_start_action(action);
+            if self.phase == CombatPhase::AwaitingChoice {
+                self.pending_turn_start_resume = true;
+                return;
+            }
+            if self.state.is_victory() {
+                // GameActionManager.clearPostCombatActions retains queued
+                // DAMAGE, BLOCK, HEAL, and USE_CARD actions. These are the
+                // turn-start representatives of those Java action types.
+                // Java: actions/GameActionManager.java::clearPostCombatActions.
+                self.turn_start_actions.retain(|queued| {
+                    matches!(
+                        queued,
+                        TurnStartQueuedAction::DamageAllEnemiesThorns(_)
+                            | TurnStartQueuedAction::OrbLightning { .. }
+                            | TurnStartQueuedAction::PlayerLoseHp(_)
+                            | TurnStartQueuedAction::PlayerPoisonTick(_)
+                            | TurnStartQueuedAction::GainBlock(_)
+                            | TurnStartQueuedAction::HealPlayer(_)
+                    )
+                });
+            } else if self.state.is_defeat() {
+                self.turn_start_actions.clear();
+            }
+        }
+    }
+
+    fn resume_turn_start_actions(&mut self) {
+        if !self.pending_turn_start_resume || self.phase != CombatPhase::PlayerTurn {
+            return;
+        }
+        self.drain_turn_start_actions();
+    }
+
+    /// Java's `AbstractPlayer.onEnergyRecharge` walks the sorted power list.
+    /// Energized and Deva mutate energy synchronously; Collect queues its
+    /// MakeTempCard/RemovePower children behind actions already collected.
+    fn invoke_on_energy_recharge(&mut self) {
+        for entry in self.state.player.power_order.to_vec() {
+            let crate::state::PowerOrderEntry::Status(status) = entry else {
+                continue;
+            };
+            match status {
+                sid::ENERGIZED | sid::ENERGIZED_BLUE => {
+                    let amount = self.state.player.status(status);
+                    self.state.energy += amount;
+                    self.queue_turn_start_action_bottom(TurnStartQueuedAction::RemovePlayerPower(
+                        status,
+                    ));
+                }
+                sid::DEVA_FORM => {
+                    let gain = self.state.player.status(sid::DEVA_FORM_ENERGY);
+                    let growth = self.state.player.status(sid::DEVA_FORM);
+                    self.state.energy += gain;
+                    self.state
+                        .player
+                        .set_status(sid::DEVA_FORM_ENERGY, gain + growth);
+                }
+                sid::COLLECT_MIRACLES => {
+                    let amount = self.state.player.status(sid::COLLECT_MIRACLES);
+                    let card = self.temp_card("Miracle+");
+                    self.queue_turn_start_action_bottom(TurnStartQueuedAction::AddCardToHand(card));
+                    self.queue_turn_start_action_bottom(if amount <= 1 {
+                        TurnStartQueuedAction::RemovePlayerPower(sid::COLLECT_MIRACLES)
+                    } else {
+                        TurnStartQueuedAction::ReducePlayerPower(sid::COLLECT_MIRACLES, 1)
+                    });
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Construct Java's end-turn DrawCardAction. Its `endTurnDraw=true`
+    /// constructor creates PlayerTurnEffect immediately: energy recharge and
+    /// onEnergyRecharge callbacks therefore happen now, while callback-owned
+    /// child actions are appended before the DrawCardAction itself.
+    fn construct_normal_turn_draw(&mut self, draw_amount: i32) {
         if self.state.has_relic("Ice Cream") || self.state.has_relic("IceCream") {
             self.state.energy += self.state.max_energy;
         } else {
             self.state.energy = self.state.max_energy;
         }
+        self.invoke_on_energy_recharge();
+        self.queue_turn_start_action_bottom(TurnStartQueuedAction::DrawCards(draw_amount));
+    }
+
+    fn start_player_turn(&mut self) {
+        self.state.turn += 1;
+        self.phase = CombatPhase::PlayerTurn;
+        self.rebuild_effect_runtime();
 
         // Reset turn counters
         self.state.cards_played_this_turn = 0;
@@ -1842,8 +2697,52 @@ impl CombatEngine {
             self.state.player.set_status(sid::NECRONOMICON_USED, 0);
         }
 
-        // All turn-start relic + power effects via owner-aware runtime.
-        self.emit_event(crate::effects::runtime::GameEvent {
+        let is_opening_turn = self.state.turn == 1;
+        if is_opening_turn {
+            // AbstractRoom enqueues the initial DrawCardAction before invoking
+            // atBattleStart and atTurnStart callbacks. Top combat-start actions
+            // were already drained by start_combat; FIFO combat-start bodies
+            // therefore settle immediately after this draw and before any
+            // TurnStart relic/power body. This is observably different for
+            // equal-priority powers and for HP mutation followed by Mercury
+            // Hourglass damage.
+            // Java: AbstractRoom.java::update (battle opening sequence).
+            let ml = self.state.player.status(sid::DRAW);
+            let serpent = self.state.player.status(sid::RING_OF_SERPENT_DRAW);
+            let snecko_eye = i32::from(self.state.player.status(sid::SNECKO_EYE) > 0) * 2;
+            let draw_reduction = i32::from(self.state.player.status(sid::DRAW_REDUCTION) > 0);
+            self.queue_turn_start_action_bottom(TurnStartQueuedAction::DrawCards(
+                5 + ml + serpent + snecko_eye - draw_reduction,
+            ));
+            let mut event = crate::effects::runtime::GameEvent::empty(
+                crate::effects::trigger::Trigger::CombatStart,
+            );
+            event.is_first_turn = true;
+            self.emit_event(event);
+            if self.state.combat_over || self.phase == CombatPhase::AwaitingChoice {
+                return;
+            }
+        }
+
+        // Java invokes every atTurnStart relic and power callback before its
+        // shared action queue drains. The callbacks may mutate counters now,
+        // while their top/bottom actions remain ordered around the later draw.
+        // Java: AbstractPlayer.applyStartOfTurnRelics;
+        // AbstractCreature.applyStartOfTurnPowers; GameActionManager.update.
+        if !is_opening_turn {
+            self.turn_start_actions.clear();
+        }
+        self.pending_turn_start_resume = false;
+        self.collecting_turn_start_actions = true;
+        // AbstractPlayer.applyStartOfTurnRelics invokes the stance callback
+        // before walking relics. Divinity queues a bottom ChangeStanceAction;
+        // later relic addToTop actions can therefore still precede the exit.
+        if self.state.stance == Stance::Divinity {
+            self.queue_turn_start_action_bottom(TurnStartQueuedAction::ChangeStance(
+                Stance::Neutral,
+            ));
+        }
+        let turn_start_event = crate::effects::runtime::GameEvent {
             kind: crate::effects::trigger::Trigger::TurnStart,
             card_type: None,
             card_inst: None,
@@ -1854,39 +2753,21 @@ impl CombatEngine {
             status_id: None,
             amount: 0,
             replay_window: false,
-        });
-
-        // PoisonPower.atStartOfTurn queues PoisonLoseHpAction for the poisoned
-        // owner. Player Poison therefore resolves after monster turns, not at
-        // the preceding player turn end. PoisonLoseHpAction applies HP_LOSS
-        // first and decrements the power afterward, even when the damage is
-        // lethal or prevented by Buffer.
-        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/PoisonPower.java:58-64
-        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/PoisonLoseHpAction.java:43-59
-        if !self.state.is_victory() {
-            let player_poison = self.state.player.status(sid::POISON);
-            if player_poison > 0 {
-                self.player_lose_hp_from_damage(player_poison);
-                self.state.player.set_status(sid::POISON, player_poison - 1);
-                if self.state.combat_over {
-                    return;
-                }
-            }
+        };
+        if is_opening_turn {
+            self.emit_turn_start_relics(turn_start_event);
+            let mut post_draw_relic_event = crate::effects::runtime::GameEvent::empty(
+                crate::effects::trigger::Trigger::TurnStartPostDraw,
+            );
+            post_draw_relic_event.is_first_turn = true;
+            self.emit_turn_start_relics(post_draw_relic_event);
+            self.emit_ordered_turn_start_powers(turn_start_event);
+        } else {
+            self.emit_turn_start_relics_and_ordered_powers(turn_start_event);
         }
 
-        // WrathNextTurnPower.atStartOfTurn changes stance before normal draw.
-        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/WrathNextTurnPower.java
-        if self.state.player.status(sid::WRATH_NEXT_TURN) > 0 {
-            self.state.player.set_status(sid::WRATH_NEXT_TURN, 0);
-            self.change_stance(Stance::Wrath);
-        }
-
-        self.flush_pending_nightmare_copies();
-
-        // Divinity auto-exit at start of turn
-        if self.state.stance == Stance::Divinity {
-            self.change_stance(Stance::Neutral);
-        }
+        // PoisonLoseHpAction and WrathNextTurn's stance/removal action are
+        // queued at their exact positions in the ordered power callback walk.
 
         // Block decay — Calipers loses 15 instead of all; Barricade retains all.
         // Skip block reset on turn 1 to preserve combat-start relic effects (Anchor)
@@ -1927,8 +2808,8 @@ impl CombatEngine {
         // block before that queued gain resolves, so this block belongs to the
         // new turn and the stacked power is consumed exactly once.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NextTurnBlockPower.java
-        let next_turn_block = powers::consume_next_turn_block(&mut self.state.player);
-        self.gain_block_player(next_turn_block);
+        // NextTurnBlockPower queued its GainBlockAction and removal during the
+        // ordered power callback walk above.
 
         // LoseStrength/LoseDexterity at end of the previous turn.
         // Turn 1 has no "previous turn", so combat-start temporary strength
@@ -1949,169 +2830,80 @@ impl CombatEngine {
         // BiasPower.java applies a negative FocusPower at turn start. Because
         // that FocusPower is a DEBUFF, a later Artifact can block each tick.
         // Source: powers/BiasPower.java and powers/FocusPower.java.
-        let bias_loss = self.state.player.status(sid::BIASED_COG_FOCUS_LOSS);
-        if bias_loss > 0 {
-            powers::apply_debuff(&mut self.state.player, sid::FOCUS, -bias_loss);
-        }
+        // BiasPower's ApplyPowerAction is queued in canonical power order.
 
         // === POWER HOOKS handled by the owner-aware TurnStart event above:
         // DemonForm, NoxiousFumes, Brutality, Berserk, InfiniteBlades, BattleHymn,
         // Devotion, WraithForm, DevaForm, HelloWorld, Magnetism,
         // DoppelgangerDraw, DoppelgangerEnergy
         //
-        // One-shot statuses consumed by dispatch_trigger declarative effects need clearing:
-        {
-            let dd = self.state.player.status(sid::DOPPELGANGER_DRAW);
-            if dd > 0 {
-                self.state.player.set_status(sid::DOPPELGANGER_DRAW, 0);
-            }
-            let de = self.state.player.status(sid::DOPPELGANGER_ENERGY);
-            if de > 0 {
-                self.state.player.set_status(sid::DOPPELGANGER_ENERGY, 0);
-            }
-        }
-
         // LoopPower.atStartOfTurn calls both callbacks on the front orb once
         // per stack. GameActionManager clears old block synchronously after
         // invoking powers but before their queued actions resolve, so Loop's
         // Frost Block belongs to the new turn and cannot protect the intervening
         // enemy turn.
         // Java: powers/LoopPower.java and actions/GameActionManager.java.
-        let loop_count = self.state.player.status(sid::LOOP).max(0);
-        for _ in 0..loop_count {
-            self.apply_front_orb_start_of_turn_passive();
-            if self.state.combat_over {
-                return;
-            }
-            self.apply_front_orb_end_of_turn_passive();
-            if self.state.combat_over {
-                return;
-            }
-        }
+        // LoopPower's paired front-orb callbacks are queued in power order.
 
         // ---- Start-of-turn orb passives (Plasma) ----
-        self.apply_orb_start_of_turn();
+        self.collect_orb_start_of_turn_actions();
 
-        // Emotion Chip: replay the full orb passive cycle on the next turn start after HP loss.
-        {
-            let ect = self.state.player.status(sid::EMOTION_CHIP_TRIGGER);
-            if ect > 0 {
-                self.state.player.set_status(sid::EMOTION_CHIP_TRIGGER, 0);
-                self.apply_orb_impulse_passives();
-            }
+        if !is_opening_turn {
+            let ml = self.state.player.status(sid::DRAW);
+            let serpent = self.state.player.status(sid::RING_OF_SERPENT_DRAW);
+            let snecko_eye = i32::from(self.state.player.status(sid::SNECKO_EYE) > 0) * 2;
+            let draw_reduction = i32::from(self.state.player.status(sid::DRAW_REDUCTION) > 0);
+            self.construct_normal_turn_draw(5 + ml + serpent + snecko_eye - draw_reduction);
         }
-
-        // CollectPower.onEnergyRecharge: add exactly one upgraded Miracle before
-        // draw, then decrement the turn-based power by one.
-        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/CollectPower.java
-        {
-            let miracles = self.state.player.status(sid::COLLECT_MIRACLES);
-            if miracles > 0 {
-                self.add_temp_cards_to_hand("Miracle+", 1);
-                self.state
-                    .player
-                    .set_status(sid::COLLECT_MIRACLES, miracles - 1);
-            }
-        }
-
-        // Java GameActionManager queues relic atTurnStart actions before its
-        // DrawCardAction; they resolve after the synchronous old-block clear.
-        // Source: GameActionManager.java and AbstractPlayer.applyStartOfTurnRelics.
-        self.emit_event(crate::effects::runtime::GameEvent {
-            kind: crate::effects::trigger::Trigger::TurnStartPreDraw,
-            card_type: None,
-            card_inst: None,
-            is_first_turn: self.state.turn == 1,
-            target_idx: -1,
-            enemy_idx: -1,
-            potion_slot: -1,
-            status_id: None,
-            amount: 0,
-            replay_window: false,
-        });
-
-        // Draw cards. SneckoEye.java raises masterHandSize by two for every
-        // turn; DrawReductionPower lowers gameHandSize by exactly one while
-        // present. It does not alter card-effect DrawCardActions.
-        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DrawReductionPower.java
-        let ml = self.state.player.status(sid::DRAW);
-        let serpent = self.state.player.status(sid::RING_OF_SERPENT_DRAW);
-        let snecko_eye = if self.state.player.status(sid::SNECKO_EYE) > 0 {
-            2
-        } else {
-            0
-        };
-        let draw_reduction = i32::from(self.state.player.status(sid::DRAW_REDUCTION) > 0);
-        self.draw_cards(5 + ml + serpent + snecko_eye - draw_reduction);
 
         // TurnStartExtraDraw: one-shot extra draw from relics (Bag of Prep, etc.)
         let extra_draw = self.state.player.status(sid::TURN_START_EXTRA_DRAW);
         if extra_draw > 0 {
-            self.draw_cards(extra_draw);
+            self.queue_turn_start_action_bottom(TurnStartQueuedAction::DrawCards(extra_draw));
             self.state.player.set_status(sid::TURN_START_EXTRA_DRAW, 0);
         }
 
         // InkBottleDraw: one-shot extra draw from Ink Bottle relic trigger
         let ink_draw = self.state.player.status(sid::INK_BOTTLE_DRAW);
         if ink_draw > 0 {
-            self.draw_cards(ink_draw);
+            self.queue_turn_start_action_bottom(TurnStartQueuedAction::DrawCards(ink_draw));
             self.state.player.set_status(sid::INK_BOTTLE_DRAW, 0);
-        }
-
-        // DrawCardNextTurnPower.atStartOfTurnPostDraw stacks its amount, draws,
-        // then removes itself. This runs before ordinary post-draw powers such
-        // as Foresight because Draw Card has priority 20.
-        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DrawCardNextTurnPower.java
-        let next_turn_draw = self.state.player.status(sid::DRAW_CARD);
-        if next_turn_draw > 0 {
-            self.draw_cards(next_turn_draw);
-            self.state.player.set_status(sid::DRAW_CARD, 0);
         }
 
         // ---- Post-draw power effects (complex powers not in EntityDefs) ----
 
         // Post-draw runtime hooks that must happen before remaining turn-start setup.
-        self.emit_event(crate::effects::runtime::GameEvent {
-            kind: crate::effects::trigger::Trigger::TurnStartPostDraw,
-            card_type: None,
-            card_inst: None,
-            is_first_turn: self.state.turn == 1,
-            target_idx: -1,
-            enemy_idx: -1,
-            potion_slot: -1,
-            status_id: None,
-            amount: 0,
-            replay_window: false,
-        });
+        if !is_opening_turn {
+            self.emit_event(crate::effects::runtime::GameEvent {
+                kind: crate::effects::trigger::Trigger::TurnStartPostDraw,
+                card_type: None,
+                card_inst: None,
+                is_first_turn: false,
+                target_idx: -1,
+                enemy_idx: -1,
+                potion_slot: -1,
+                status_id: None,
+                amount: 0,
+                replay_window: false,
+            });
+        }
+        self.collecting_turn_start_actions = false;
         if self.state.combat_over || self.phase == CombatPhase::AwaitingChoice {
             return;
         }
 
-        // Foresight: scry N at start of turn (post-draw)
-        {
-            let foresight = self.state.player.status(sid::FORESIGHT);
-            if foresight > 0 {
-                self.do_scry(foresight);
-            }
-        }
-
-        // Late post-draw runtime hooks (starter relics / turn-start relic setup).
-        self.emit_event(crate::effects::runtime::GameEvent {
-            kind: crate::effects::trigger::Trigger::TurnStartPostDrawLate,
-            card_type: None,
-            card_inst: None,
-            is_first_turn: self.state.turn == 1,
-            target_idx: -1,
-            enemy_idx: -1,
-            potion_slot: -1,
-            status_id: None,
-            amount: 0,
-            replay_window: false,
-        });
+        self.drain_turn_start_actions();
     }
 
     pub(crate) fn schedule_the_bomb(&mut self, turns: i32, damage: i32) {
-        self.state.pending_bombs.push((turns as i16, damage as i16));
+        let java_serial = self.the_bomb_id_offset;
+        self.the_bomb_id_offset = self.the_bomb_id_offset.wrapping_add(1);
+        self.state.pending_bombs.push(crate::state::PendingBomb {
+            java_serial,
+            turns: turns as i16,
+            damage: damage as i16,
+        });
+        self.state.player.add_the_bomb_power(java_serial);
         self.sync_the_bomb_statuses();
     }
 
@@ -2120,140 +2912,415 @@ impl CombatEngine {
             .state
             .pending_bombs
             .iter()
-            .map(|(_, damage)| i32::from(*damage))
+            .map(|bomb| i32::from(bomb.damage))
             .sum();
         let turns = self
             .state
             .pending_bombs
             .iter()
-            .map(|(turns, _)| i32::from(*turns))
+            .map(|bomb| i32::from(bomb.turns))
             .min()
             .unwrap_or(0);
         self.state.player.set_status(sid::THE_BOMB, damage);
         self.state.player.set_status(sid::THE_BOMB_TURNS, turns);
     }
 
-    fn resolve_the_bombs_at_end_of_turn(&mut self) {
-        let bombs = std::mem::take(&mut self.state.pending_bombs);
-        let mut remaining = smallvec::SmallVec::new();
+    pub(crate) fn queue_end_turn_action_bottom(&mut self, action: EndTurnQueuedAction) {
+        self.end_turn_actions.push(action);
+    }
 
-        // TheBombPower.atEndOfTurn queues ReducePowerAction first and queues a
-        // source-less THORNS DamageAllEnemiesAction when the old amount was one.
-        // Every application has a unique ID, so process each countdown alone.
-        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/TheBombPower.java
-        for (turns, damage) in bombs {
-            let next_turns = turns - 1;
-            if next_turns > 0 {
-                remaining.push((next_turns, damage));
-                continue;
-            }
+    pub(crate) fn queue_end_turn_action_top(&mut self, action: EndTurnQueuedAction) {
+        self.end_turn_actions.insert(0, action);
+    }
 
-            for target in self.state.living_enemy_indices() {
-                self.deal_thorns_damage_to_enemy(target, i32::from(damage));
-            }
-            if self.check_combat_end() {
-                break;
-            }
+    fn reduce_one_bomb_at_end_of_turn(&mut self, java_serial: i32) {
+        let Some(index) = self
+            .state
+            .pending_bombs
+            .iter()
+            .position(|bomb| bomb.java_serial == java_serial)
+        else {
+            return;
+        };
+        let mut bomb = self.state.pending_bombs[index];
+        bomb.turns -= 1;
+        if bomb.turns > 0 {
+            self.state.pending_bombs[index] = bomb;
+            self.sync_the_bomb_statuses();
+            return;
         }
 
-        self.state.pending_bombs = remaining;
+        self.state.pending_bombs.remove(index);
+        self.state.player.remove_the_bomb_power(java_serial);
         self.sync_the_bomb_statuses();
+    }
+
+    fn end_turn_action_survives_post_combat_clear(action: EndTurnQueuedAction) -> bool {
+        matches!(
+            action,
+            EndTurnQueuedAction::GainBlock(_)
+                | EndTurnQueuedAction::DamageAllEnemies(_)
+                | EndTurnQueuedAction::PlayerLoseHp(_)
+                | EndTurnQueuedAction::DamagePlayerThorns(_)
+                | EndTurnQueuedAction::PlayerRegeneration(_)
+                | EndTurnQueuedAction::ResolveLightningEndTurn { .. }
+        )
+    }
+
+    fn execute_end_turn_action(&mut self, action: EndTurnQueuedAction) {
+        match action {
+            EndTurnQueuedAction::GainBlock(amount) => self.gain_block_player(amount),
+            EndTurnQueuedAction::DamageAllEnemies(amount) => {
+                for target in self.state.living_enemy_indices() {
+                    self.deal_thorns_damage_to_enemy(target, amount);
+                }
+            }
+            EndTurnQueuedAction::PlayerLoseHp(amount) => {
+                self.player_lose_hp_from_damage(amount);
+            }
+            EndTurnQueuedAction::ApplyDexterityLoss(amount) => {
+                crate::powers::apply_debuff(&mut self.state.player, sid::DEXTERITY, -amount);
+            }
+            EndTurnQueuedAction::AddInsightsToRandomDrawSpots(amount) => {
+                for _ in 0..amount.max(0) {
+                    let insight = self.temp_card("Insight");
+                    if self.state.draw_pile.is_empty() {
+                        self.state.draw_pile.push(insight);
+                    } else {
+                        let index = self
+                            .card_random_rng
+                            .random_int_range(0, (self.state.draw_pile.len() - 1) as i32)
+                            as usize;
+                        self.state.draw_pile.insert(index, insight);
+                    }
+                }
+            }
+            EndTurnQueuedAction::RemovePlayerPower(status) => {
+                self.state.player.set_status(status, 0);
+            }
+            EndTurnQueuedAction::AddPlayerPower(status, amount) => {
+                self.state.player.add_status(status, amount);
+            }
+            EndTurnQueuedAction::AddPlayerStrength(amount) => {
+                self.state.player.add_status(sid::STRENGTH, amount);
+            }
+            EndTurnQueuedAction::ApplyPlayerStrengthLoss(amount) => {
+                crate::powers::apply_debuff(&mut self.state.player, sid::STRENGTH, -amount);
+                self.state.player.set_status(sid::LOSE_STRENGTH, 0);
+                self.state.player.set_status(sid::TEMP_STRENGTH, 0);
+            }
+            EndTurnQueuedAction::ApplyPlayerDexterityLoss(amount) => {
+                crate::powers::apply_debuff(&mut self.state.player, sid::DEXTERITY, -amount);
+                self.state.player.set_status(sid::LOSE_DEXTERITY, 0);
+            }
+            EndTurnQueuedAction::DamagePlayerThorns(amount) => {
+                self.deal_thorns_damage_to_player(amount);
+            }
+            EndTurnQueuedAction::PlayerRegeneration(amount) => {
+                self.heal_player(amount);
+                self.state.player.add_status(sid::REGENERATION, -1);
+            }
+            EndTurnQueuedAction::ReduceBomb(java_serial) => {
+                self.reduce_one_bomb_at_end_of_turn(java_serial);
+            }
+            EndTurnQueuedAction::RetainCards(amount) => {
+                let pyramid =
+                    self.state.has_relic("Runic Pyramid") || self.state.has_relic("RunicPyramid");
+                if amount > 0
+                    && !self.state.hand.is_empty()
+                    && !pyramid
+                    && self.state.player.status(sid::EQUILIBRIUM) == 0
+                {
+                    let options = (0..self.state.hand.len())
+                        .map(ChoiceOption::HandCard)
+                        .collect();
+                    self.begin_choice(
+                        ChoiceReason::RetainFromHand,
+                        options,
+                        0,
+                        amount.min(self.state.hand.len()),
+                    );
+                }
+            }
+            EndTurnQueuedAction::MakeStatEquivalentCopyInDrawPile(card_inst) => {
+                let copy = self.fresh_stat_copy(card_inst);
+                self.state.draw_pile.push(copy);
+            }
+            EndTurnQueuedAction::TriggerEndOfTurnOrbs => {
+                self.collect_orb_end_of_turn_actions();
+            }
+            EndTurnQueuedAction::ResolveLightningEndTurn { damage, hit_all } => {
+                // Lightning's intermediate end-turn action is a DAMAGE action
+                // (LightningOrbPassiveAction normally,
+                // LightningOrbEvokeAction under Electrodynamics), so it
+                // survives clearPostCombatActions. Its child damage resolves
+                // before the next ordinary queued action via addToTop.
+                // Java: orbs/Lightning.java and actions/defect/
+                // {LightningOrbPassiveAction,LightningOrbEvokeAction}.java.
+                if hit_all {
+                    for target in self.state.living_enemy_indices() {
+                        let orb_damage = self.orb_damage_against(target, damage);
+                        self.deal_thorns_damage_to_enemy(target, orb_damage);
+                    }
+                } else if let Some(target) = self.random_living_enemy() {
+                    let orb_damage = self.orb_damage_against(target, damage);
+                    self.deal_thorns_damage_to_enemy(target, orb_damage);
+                }
+            }
+            EndTurnQueuedAction::NilrysCodex => {
+                if !self.state.living_enemy_indices().is_empty() {
+                    let options = crate::effects::interpreter::generate_unique_random_cards(
+                        self,
+                        crate::effects::declarative::GeneratedCardPool::WatcherAny,
+                        3,
+                    )
+                    .into_iter()
+                    .map(ChoiceOption::GeneratedCard)
+                    .collect();
+                    self.begin_codex_choice(options);
+                }
+            }
+        }
+    }
+
+    fn drain_end_turn_actions(&mut self, resume: EndTurnResumeStage) -> bool {
+        while !self.end_turn_actions.is_empty() {
+            let action = self.end_turn_actions.remove(0);
+            self.execute_end_turn_action(action);
+            if self.state.is_victory() {
+                // DamageAction/DamageAllEnemiesAction call
+                // GameActionManager.clearPostCombatActions immediately after
+                // monsters become basically dead. Preserve only Java's
+                // Heal/GainBlock/UseCard/DAMAGE survivor classes.
+                // Java: actions/GameActionManager.java::clearPostCombatActions.
+                self.end_turn_actions
+                    .retain(|queued| Self::end_turn_action_survives_post_combat_clear(*queued));
+            }
+            if self.phase == CombatPhase::AwaitingChoice {
+                self.end_turn_resume = Some(resume);
+                return false;
+            }
+            if self.state.combat_over {
+                self.end_turn_actions.clear();
+                return false;
+            }
+        }
+        self.sync_the_bomb_statuses();
+        true
+    }
+
+    fn collect_dynamic_player_end_turn_power(&mut self, entry: crate::state::PowerOrderEntry) {
+        use crate::state::PowerOrderEntry;
+
+        match entry {
+            PowerOrderEntry::TheBomb(java_serial) => {
+                if let Some(bomb) = self
+                    .state
+                    .pending_bombs
+                    .iter()
+                    .find(|bomb| bomb.java_serial == java_serial)
+                    .copied()
+                {
+                    self.queue_end_turn_action_bottom(EndTurnQueuedAction::ReduceBomb(java_serial));
+                    if bomb.turns == 1 {
+                        self.queue_end_turn_action_bottom(EndTurnQueuedAction::DamageAllEnemies(
+                            i32::from(bomb.damage),
+                        ));
+                    }
+                }
+            }
+            PowerOrderEntry::NightTerror(_) => {}
+            PowerOrderEntry::Status(status) => match status {
+                sid::RAGE | sid::ENTANGLED | sid::CANNOT_CHANGE_STANCE | sid::NO_SKILLS_POWER => {
+                    self.queue_end_turn_action_bottom(EndTurnQueuedAction::RemovePlayerPower(
+                        status,
+                    ))
+                }
+                sid::LOSE_STRENGTH => {
+                    let amount = self.state.player.status(sid::LOSE_STRENGTH);
+                    self.queue_end_turn_action_bottom(
+                        EndTurnQueuedAction::ApplyPlayerStrengthLoss(amount),
+                    );
+                }
+                sid::LOSE_DEXTERITY => {
+                    let amount = self.state.player.status(sid::LOSE_DEXTERITY);
+                    self.queue_end_turn_action_bottom(
+                        EndTurnQueuedAction::ApplyPlayerDexterityLoss(amount),
+                    );
+                }
+                sid::CONSTRICTED => {
+                    let amount = self.state.player.status(sid::CONSTRICTED);
+                    self.queue_end_turn_action_bottom(EndTurnQueuedAction::DamagePlayerThorns(
+                        amount,
+                    ));
+                }
+                sid::REGENERATION => {
+                    let amount = self.state.player.status(sid::REGENERATION);
+                    // RegenPower is the notable player atEndOfTurn power that
+                    // uses addToTop; it resolves before all bottom actions.
+                    self.queue_end_turn_action_top(EndTurnQueuedAction::PlayerRegeneration(amount));
+                }
+                sid::RETAIN_CARDS => {
+                    let amount = self.state.player.status(sid::RETAIN_CARDS).max(0) as usize;
+                    self.queue_end_turn_action_bottom(EndTurnQueuedAction::RetainCards(amount));
+                }
+                sid::LIVE_FOREVER => {
+                    let amount = self.state.player.status(sid::LIVE_FOREVER);
+                    self.queue_end_turn_action_bottom(EndTurnQueuedAction::AddPlayerPower(
+                        sid::PLATED_ARMOR,
+                        amount,
+                    ));
+                }
+                // Equilibrium mutates card retain flags synchronously in its
+                // callback. The discard implementation reads the still-live
+                // power and applies the same non-Ethereal retention rule.
+                sid::EQUILIBRIUM | sid::ESTABLISHMENT => {}
+                _ => {}
+            },
+        }
+    }
+
+    fn collect_player_end_turn_power_actions(&mut self) {
+        let power_order = self.state.player.power_order.to_vec();
+        let event =
+            crate::effects::runtime::GameEvent::empty(crate::effects::trigger::Trigger::TurnEnd);
+        self.with_effect_runtime(|runtime, engine| {
+            runtime.emit_ordered_player_power_event(
+                engine,
+                event,
+                &power_order,
+                |engine, entry| engine.collect_dynamic_player_end_turn_power(entry),
+            );
+        });
     }
 
     pub(crate) fn end_turn(&mut self) {
         if self.phase != CombatPhase::PlayerTurn {
             return;
         }
-        if self.pending_end_turn_resume {
-            self.pending_end_turn_resume = false;
-        } else {
-            self.rebuild_effect_runtime();
-
-            // Clear Entangled (only lasts one turn)
-            self.state.player.set_status(sid::ENTANGLED, 0);
-
-            // ---- STS end-of-turn order: relics -> powers/buffs -> status cards -> discard ----
-
-            // Unified dispatch for end-of-turn relics + powers
-            self.emit_event(crate::effects::runtime::GameEvent::empty(
-                crate::effects::trigger::Trigger::TurnEnd,
-            ));
-            if self.phase == CombatPhase::AwaitingChoice {
-                self.pending_end_turn_resume = true;
-                return;
+        let resume = self.end_turn_resume.take();
+        match resume {
+            Some(EndTurnResumeStage::PreCardActions) => {
+                if !self.drain_end_turn_actions(EndTurnResumeStage::PreCardActions) {
+                    return;
+                }
             }
+            Some(EndTurnResumeStage::PostCardActions) => {
+                if !self.drain_end_turn_actions(EndTurnResumeStage::PostCardActions) {
+                    return;
+                }
+                // The queued RetainCardsAction was the only post-card action
+                // that can suspend, so resume directly at discard afterward.
+            }
+            None => {
+                self.rebuild_effect_runtime();
+                self.end_turn_actions.clear();
 
-            // RetainCardPower queues an optional up-to-amount hand selection
-            // unless Runic Pyramid or Equilibrium already retains the hand.
-            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RetainCardPower.java
-            // and actions/unique/RetainCardsAction.java.
-            let retain_amount = self.state.player.status(sid::RETAIN_CARDS).max(0) as usize;
-            let pyramid =
-                self.state.has_relic("Runic Pyramid") || self.state.has_relic("RunicPyramid");
-            if retain_amount > 0
-                && !self.state.hand.is_empty()
-                && !pyramid
-                && self.state.player.status(sid::EQUILIBRIUM) == 0
-            {
-                let options = (0..self.state.hand.len())
-                    .map(ChoiceOption::HandCard)
-                    .collect();
-                self.begin_choice(
-                    ChoiceReason::RetainFromHand,
-                    options,
-                    0,
-                    retain_amount.min(self.state.hand.len()),
-                );
-                if self.phase == CombatPhase::AwaitingChoice {
-                    self.pending_end_turn_resume = true;
+                // Java synchronously invokes every relic callback and the
+                // three atEndOfTurnPreEndTurnCards powers, then drains their
+                // shared action queue. Frozen Core channels synchronously;
+                // other effects preserve addToTop/addToBot semantics here.
+                self.emit_event(crate::effects::runtime::GameEvent::empty(
+                    crate::effects::trigger::Trigger::TurnEndPreCard,
+                ));
+                self.queue_end_turn_action_bottom(EndTurnQueuedAction::TriggerEndOfTurnOrbs);
+                status_effects::queue_end_turn_hand_ordinary_actions(self);
+                if !self.drain_end_turn_actions(EndTurnResumeStage::PreCardActions) {
                     return;
                 }
             }
         }
 
-        if self.state.combat_over {
+        if matches!(resume, Some(EndTurnResumeStage::PostCardActions)) && self.check_combat_end() {
+            // A choice can suspend RetainCardsAction while later queued
+            // end-turn powers remain. If one of those later DAMAGE actions is
+            // lethal, Java clears DiscardAtEndOfTurnAction after the resumed
+            // queue drains.
             return;
         }
 
-        self.resolve_the_bombs_at_end_of_turn();
-        if self.state.combat_over {
-            return;
-        }
+        if !matches!(resume, Some(EndTurnResumeStage::PostCardActions)) {
+            // Burn, Decay, Regret, Doubt, and Shame autoplay from the original
+            // hand after the pre-card action queue (including orb passives).
+            if status_effects::process_end_turn_card_queue(self) {
+                self.phase = CombatPhase::CombatOver;
+                return;
+            }
+            if self.state.is_victory() {
+                self.check_combat_end();
+                return;
+            }
 
-        // Rage clear at end of turn (not in POWER_DEFS)
-        self.state.player.set_status(sid::RAGE, 0);
-
-        // TempStrength revert at end of turn (not in POWER_DEFS)
-        {
-            let ts = self.state.player.status(sid::TEMP_STRENGTH);
-            if ts > 0 {
-                self.state.player.add_status(sid::STRENGTH, -ts);
-                self.state.player.set_status(sid::TEMP_STRENGTH, 0);
+            // AbstractPlayer.applyEndOfTurnTriggers walks the heterogeneous
+            // power list synchronously. The queued actions drain only after
+            // every callback has run, preserving power priority and top/bottom
+            // insertion (notably RegenPower.addToTop).
+            self.collect_player_end_turn_power_actions();
+            if !self.drain_end_turn_actions(EndTurnResumeStage::PostCardActions) {
+                return;
+            }
+            if self.check_combat_end() {
+                return;
             }
         }
 
-        // 3. End-of-turn hand card triggers (Burn, Decay, Regret, Doubt, Shame)
-        let player_died = status_effects::process_end_turn_hand_cards(self);
-        if player_died {
-            self.phase = CombatPhase::CombatOver;
-            return;
-        }
+        // DiscardAtEndOfTurnAction first removes retain/selfRetain cards to
+        // limbo, then clones and Collections.shuffle's the remaining hand
+        // before triggerOnEndOfPlayerTurn. Status/curse autoplay above belongs
+        // to GameActionManager.callEndOfTurnActions and is neither filtered nor
+        // shuffled. Ethereal callbacks addToTop, so their exhaust actions later
+        // execute in reverse order of this one shuffled snapshot.
+        // Java: actions/GameActionManager.java::callEndOfTurnActions;
+        // actions/common/DiscardAtEndOfTurnAction.java;
+        // cards/AbstractCard.java::triggerOnEndOfPlayerTurn.
+        let mut end_turn_trigger_snapshot = self
+            .state
+            .hand
+            .iter()
+            .copied()
+            .filter(|card_inst| {
+                let card = self.card_registry.card_def_by_id(card_inst.def_id);
+                !card.runtime_traits().retain && !card_inst.is_retained()
+            })
+            .collect::<Vec<_>>();
+        self.shuffle_end_turn_trigger_snapshot(&mut end_turn_trigger_snapshot);
+        let ethereal_exhaust_order = end_turn_trigger_snapshot
+            .iter()
+            .rev()
+            .filter(|card_inst| {
+                self.card_registry
+                    .card_def_by_id(card_inst.def_id)
+                    .runtime_traits()
+                    .ethereal
+            })
+            .copied()
+            .collect::<Vec<_>>();
 
         // 4. Discard hand — Runic Pyramid keeps ALL cards in hand (including Status/Curse).
         //    Only Ethereal cards exhaust at end of turn regardless of Runic Pyramid.
         // Source: decompiled/java-src/com/megacrit/cardcrawl/actions/common/
         // DiscardAtEndOfTurnAction.java skips DiscardAction with "Runic Pyramid".
         let _explicitly_retained = std::mem::take(&mut self.state.retained_cards);
-        let mut ethereal_exhausted = 0i32;
+        let mut ethereal_cards = Vec::new();
         if self.state.has_relic("Runic Pyramid") || self.state.has_relic("RunicPyramid") {
-            // Runic Pyramid: keep ALL cards except ethereal (which exhaust)
+            // DiscardAtEndOfTurnAction first removes retain/selfRetain cards to
+            // limbo even under Runic Pyramid. The relic suppresses only the
+            // subsequent DiscardActions. RestoreRetainedCardsAction then uses
+            // hand.addToTop (ArrayList::add), so those cards return after the
+            // blanket-kept cards in their original order.
+            // Java: DiscardAtEndOfTurnAction.java and
+            // RestoreRetainedCardsAction.java.
             let hand = std::mem::take(&mut self.state.hand);
             let mut kept = Vec::new();
+            let mut retained = Vec::new();
             for card_inst in hand {
                 let card = self.card_registry.card_def_by_id(card_inst.def_id);
-                if card.runtime_traits().ethereal {
-                    self.state.exhaust_pile.push(card_inst);
-                    ethereal_exhausted += 1;
+                if card.runtime_traits().retain || card_inst.is_retained() {
+                    // Explicit retention also removes an Ethereal card before
+                    // triggerOnEndOfPlayerTurn can queue its exhaust.
+                    retained.push(card_inst);
+                } else if card.runtime_traits().ethereal {
+                    ethereal_cards.push(card_inst);
                 } else {
                     // Runic Pyramid keeps cards without setting Java's retain
                     // or selfRetain flags. That distinction matters to
@@ -2261,6 +3328,7 @@ impl CombatEngine {
                     kept.push(card_inst);
                 }
             }
+            kept.extend(retained);
             // Track retained cards for Establishment cost reduction
             self.state.retained_cards = kept.clone();
             self.state.hand = kept;
@@ -2292,8 +3360,7 @@ impl CombatEngine {
                     retained_inst.set_retained(true);
                     retained.push(retained_inst);
                 } else if card.runtime_traits().ethereal {
-                    self.state.exhaust_pile.push(card_inst);
-                    ethereal_exhausted += 1;
+                    ethereal_cards.push(card_inst);
                 } else if retain_all {
                     let mut retained_inst = card_inst;
                     retained_inst.set_retained(true);
@@ -2310,6 +3377,22 @@ impl CombatEngine {
             self.state.retained_cards = retained.clone();
             self.state.hand = retained;
         }
+
+        // ExhaustSpecificCardActions execute in reverse order of the single
+        // shuffled end-turn callback snapshot. Preserve that Java queue order
+        // without perturbing the original order of Pyramid-retained cards.
+        let ethereal_exhausted = ethereal_cards.len() as i32;
+        for expected in ethereal_exhaust_order {
+            if let Some(index) = ethereal_cards
+                .iter()
+                .position(|candidate| *candidate == expected)
+            {
+                self.state.exhaust_pile.push(ethereal_cards.remove(index));
+            }
+        }
+        // Defensive fallback for any future Ethereal path excluded from the
+        // callback snapshot; current Java-derived routes should consume all.
+        self.state.exhaust_pile.extend(ethereal_cards);
 
         // Reset temporary cost overrides back to the permanent baseline for
         // all cards that remain in combat. This mirrors Java's
@@ -2371,38 +3454,6 @@ impl CombatEngine {
         }
 
         self.state.retained_cards = self.state.hand.clone();
-
-        // ---- End-of-turn orb passives ----
-        self.apply_orb_end_of_turn();
-        if self.state.combat_over {
-            return;
-        }
-
-        // Late end-of-turn runtime hooks that must happen after orb passives.
-        self.emit_event(crate::effects::runtime::GameEvent::empty(
-            crate::effects::trigger::Trigger::TurnEndPostOrbs,
-        ));
-        if self.state.combat_over {
-            return;
-        }
-
-        // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/
-        // ConstrictedPower.java. Its end-of-turn DamageInfo is THORNS, so it
-        // passes through block, Intangible, Buffer, and Tungsten Rod.
-        let constricted = self.state.player.status(sid::CONSTRICTED);
-        if constricted > 0 {
-            self.deal_thorns_damage_to_player(constricted);
-            if self.state.combat_over {
-                return;
-            }
-        }
-
-        // Player Regeneration: heal and decrement (Java: RegenerationPower.atEndOfTurn)
-        let regen = self.state.player.status(sid::REGENERATION);
-        if regen > 0 {
-            self.heal_player(regen);
-            self.state.player.add_status(sid::REGENERATION, -1);
-        }
 
         // Check combat end (Omega may have killed enemies)
         if self.check_combat_end() {
@@ -2633,6 +3684,7 @@ impl CombatEngine {
             card,
             card_inst,
             target_idx: -1,
+            target_was_attacking: false,
             x_value: 0,
             pen_nib_active: false,
             vigor: 0,
@@ -2935,13 +3987,21 @@ impl CombatEngine {
         // MeditateAction in Java.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Meditate.java
         if let Some(stance_name) = card.enter_stance {
-            let new_stance = Stance::from_str(stance_name);
-            if self.phase == CombatPhase::AwaitingChoice {
-                if let Some(choice) = self.choice.as_mut() {
-                    choice.deferred_stance = Some(new_stance);
+            // DamageAction clears queued non-damage/non-heal/non-block actions
+            // after a lethal hit. CardDef.enter_stance is the legacy/deferred
+            // representation of ChangeStanceAction, so it must obey the same
+            // post-combat pruning as the declarative interpreter above.
+            // Java: DamageAction.java and
+            // GameActionManager.java::clearPostCombatActions.
+            if !self.state.is_victory() && !self.state.combat_over {
+                let new_stance = Stance::from_str(stance_name);
+                if self.phase == CombatPhase::AwaitingChoice {
+                    if let Some(choice) = self.choice.as_mut() {
+                        choice.deferred_stance = Some(new_stance);
+                    }
+                } else {
+                    self.change_stance(new_stance);
                 }
-            } else {
-                self.change_stance(new_stance);
             }
         }
 
@@ -2962,13 +4022,25 @@ impl CombatEngine {
             }
         }
 
-        // Hex: when player plays a non-Attack card, add 1 Dazed to draw pile
+        // HexPower queues MakeTempCardInDrawPileAction with randomSpot=true.
+        // CardGroup.addToRandomSpot consumes cardRandomRng for every Dazed
+        // inserted into a nonempty pile and cannot replace the current top.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/HexPower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java
         if card.card_type != CardType::Attack {
             let hex = self.state.player.status(sid::HEX);
             if hex > 0 {
                 for _ in 0..hex {
                     let dazed = self.temp_card("Dazed");
-                    self.state.draw_pile.push(dazed);
+                    if self.state.draw_pile.is_empty() {
+                        self.state.draw_pile.push(dazed);
+                    } else {
+                        let idx = self
+                            .card_random_rng
+                            .random_int((self.state.draw_pile.len() - 1) as i32)
+                            as usize;
+                        self.state.draw_pile.insert(idx, dazed);
+                    }
                 }
             }
         }
@@ -2986,7 +4058,6 @@ impl CombatEngine {
         // Unified dispatch handles: relic counters (Fan, Kunai, Shuriken, etc.),
         // AfterImage (OnAnyCardPlayed), Rage (OnAttackPlayed), Heatsink, Storm,
         // Beat of Death, Slow, Forcefield, SkillBurn.
-        let turn_before_after_use = self.state.turn;
         {
             let post_ctx = crate::effects::trigger::TriggerContext {
                 card_type: Some(card.card_type),
@@ -3029,7 +4100,7 @@ impl CombatEngine {
                 &post_ctx,
             ));
         }
-        if self.state.combat_over || self.state.turn != turn_before_after_use {
+        if self.state.combat_over {
             self.clear_runtime_play_contexts();
             return;
         }
@@ -3065,13 +4136,14 @@ impl CombatEngine {
             return;
         }
 
-        {
+        let force_end_turn = self.runtime_force_end_turn_after_card;
+        if !force_end_turn {
             self.runtime_replay_window = true;
             self.with_effect_runtime(|runtime, engine| {
                 runtime.emit_replay_window(engine, card.card_type, target_idx, card_inst);
             });
+            self.runtime_replay_window = false;
         }
-        self.runtime_replay_window = false;
 
         if let Some(updated) = self.runtime_played_card {
             card_inst = updated;
@@ -3085,7 +4157,7 @@ impl CombatEngine {
             self.state.player.add_status(sid::NEXT_ATTACK_FREE, -1);
         }
 
-        if !self.state.combat_over {
+        if !self.state.combat_over && !force_end_turn {
             let is_attack = card.card_type == CardType::Attack;
             let effective = self.effective_cost_inst(&card, card_inst);
             let meets_cost_threshold = if card.cost == -1 {
@@ -3168,8 +4240,10 @@ impl CombatEngine {
         }
 
         self.finish_runtime_play_context();
+        self.drain_deferred_combat_ops();
 
-        if post_play_dest == crate::effects::types::PostPlayDestination::EndTurn {
+        if force_end_turn || post_play_dest == crate::effects::types::PostPlayDestination::EndTurn {
+            self.runtime_force_end_turn_after_card = false;
             self.end_turn();
             self.clear_runtime_play_contexts();
             return;
@@ -3265,10 +4339,18 @@ impl CombatEngine {
                 self.rebuild_effect_runtime();
             }
             if potions::potion_requires_target(&potion_id)
-                && (target_idx < 0 || (target_idx as usize) >= self.state.enemies.len())
+                && (target_idx < 0
+                    || (target_idx as usize) >= self.state.enemies.len()
+                    || !self.state.enemies[target_idx as usize].is_targetable())
             {
                 false
             } else {
+                if potions::potion_requires_target(&potion_id) {
+                    // PotionPopUp turns the player toward the selected monster
+                    // before dispatching enemy-targeted potion actions.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/panels/PotionPopUp.java
+                    self.update_surrounded_facing_for_target(target_idx);
+                }
                 self.emit_event(crate::effects::runtime::GameEvent {
                     kind: crate::effects::trigger::Trigger::ManualActivation,
                     card_type: None,
@@ -3312,6 +4394,13 @@ impl CombatEngine {
                 self.state.potions[potion_idx] = String::new();
             }
             self.rebuild_effect_runtime();
+
+            // DistilledChaosPotion.use only queues PlayTopCardActions. Drain
+            // them after ManualActivation/OnPotionUsed and potion destruction,
+            // matching Java's action manager and avoiding runtime reentrancy.
+            if potion_id == "DistilledChaos" {
+                self.drain_deferred_combat_ops();
+            }
 
             // Consume potion draw (Swift Potion, etc.)
             let pd = self.state.player.status(sid::POTION_DRAW);
@@ -3719,6 +4808,9 @@ impl CombatEngine {
         } else {
             self.finalize_enemy_death(enemy_idx);
         }
+        if self.runtime_played_card.is_none() {
+            self.drain_deferred_combat_ops();
+        }
         true
     }
 
@@ -3740,12 +4832,16 @@ impl CombatEngine {
                 .entity
                 .set_status(sid::ARTIFACT, artifact - 1);
         } else {
-            self.state.enemies[enemy_idx]
-                .entity
-                .add_status(sid::STRENGTH, -damage_amount);
+            // ShiftingPower calls addToTop(Strength -N), then
+            // addToTop(GainStrength +N). LIFO resolution therefore installs
+            // Shackled before the negative Strength power.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ShiftingPower.java
             self.state.enemies[enemy_idx]
                 .entity
                 .add_status(sid::TEMP_STRENGTH_LOSS, damage_amount);
+            self.state.enemies[enemy_idx]
+                .entity
+                .add_status(sid::STRENGTH, -damage_amount);
         }
     }
 
@@ -3810,8 +4906,9 @@ impl CombatEngine {
         }
         // InvinciblePower.onAttackedToChangeDamage runs after player relics.
         hp_damage = powers::apply_invincible_cap_tracked(&mut enemy.entity, hp_damage);
-        enemy.entity.hp -= hp_damage;
-        self.state.total_damage_dealt += hp_damage;
+        let actual_hp_lost = hp_damage.min(hp_before.max(0)).max(0);
+        enemy.entity.hp = (enemy.entity.hp - hp_damage).max(0);
+        self.state.total_damage_dealt += actual_hp_lost;
 
         // On-hit enemy reactions (only when HP damage dealt)
         if hp_damage > 0 {
@@ -3837,13 +4934,10 @@ impl CombatEngine {
                     // replaces its current intent with one Stunned turn.
                     // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/
                     // PlatedArmorPower.java.
-                    self.state.enemies[enemy_idx].set_move(
+                    self.state.enemies[enemy_idx].set_move_with_intent(
                         crate::enemies::move_ids::SP_STUNNED,
-                        0,
-                        0,
-                        0,
+                        crate::combat_types::Intent::Stun,
                     );
-                    self.state.enemies[enemy_idx].intent = crate::combat_types::Intent::Stun;
                 }
             }
 
@@ -3858,11 +4952,9 @@ impl CombatEngine {
                 if remaining == 0 && self.state.enemies[enemy_idx].id == "Byrd" {
                     // FlightPower.onRemove -> Byrd.changeState("GROUNDED").
                     // Java: reference/extracted/methods/monster/Byrd.java.
-                    self.state.enemies[enemy_idx].set_move(
+                    self.state.enemies[enemy_idx].set_move_with_intent(
                         crate::enemies::move_ids::BYRD_STUNNED,
-                        0,
-                        0,
-                        0,
+                        crate::combat_types::Intent::Stun,
                     );
                 }
             }
@@ -3957,11 +5049,34 @@ impl CombatEngine {
             self.state.enemies[enemy_idx].id.as_str(),
             "SpireShield" | "Spire Shield" | "SpireSpear" | "Spire Spear"
         ) {
-            // Source: reference/extracted/methods/monster/SpireShield.java
-            // (`die`). Once either partner dies, Surrounded and every
-            // BackAttack power are removed from the encounter.
-            for enemy in &mut self.state.enemies {
-                enemy.back_attack = false;
+            // The dying monster is skipped by Java's partner cleanup, so a
+            // BackAttack on that corpse remains. The player Surrounded removal
+            // and the living partner's BackAttack removal are queued actions;
+            // terminal combat clears them before they resolve.
+            // Java: SpireShield.java::die, SpireSpear.java::deathReact, and
+            // GameActionManager.java::clearPostCombatActions.
+            if self.state.player.status(sid::SURROUNDED_POWER) > 0 {
+                self.deferred_combat_ops
+                    .push(DeferredCombatOp::RemovePower {
+                        owner: DeferredPowerOwner::Player,
+                        status: sid::SURROUNDED_POWER,
+                    });
+            }
+            for (idx, enemy) in self.state.enemies.iter().enumerate() {
+                if idx != enemy_idx
+                    && enemy.is_alive()
+                    && matches!(
+                        enemy.id.as_str(),
+                        "SpireShield" | "Spire Shield" | "SpireSpear" | "Spire Spear"
+                    )
+                    && enemy.has_back_attack()
+                {
+                    self.deferred_combat_ops
+                        .push(DeferredCombatOp::RemovePower {
+                            owner: DeferredPowerOwner::Enemy(idx),
+                            status: sid::BACK_ATTACK_POWER,
+                        });
+                }
             }
         }
 
@@ -3969,12 +5084,46 @@ impl CombatEngine {
             self.state.enemies[enemy_idx].id.as_str(),
             "GremlinLeader" | "Gremlin Leader"
         ) {
-            // Source: reference/extracted/methods/monster/GremlinLeader.java
-            // (`die`): every surviving monster receives EscapeAction.
+            // GremlinLeader.die appends every surviving monster's EscapeAction
+            // to the bottom of GameActionManager. Card actions already queued
+            // behind the killing damage therefore resolve first. In
+            // particular, Wheel Kick draws before the gremlins escape, while a
+            // lethal hit against the encounter's actual final monster still
+            // clears its queued DrawCardAction in DamageAction.
+            // Java: reference/extracted/methods/monster/GremlinLeader.java::die
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DamageAction.java
+            let survivors = self
+                .state
+                .enemies
+                .iter()
+                .enumerate()
+                .filter(|(idx, enemy)| *idx != enemy_idx && enemy.is_alive())
+                .map(|(idx, _)| idx)
+                .collect::<Vec<_>>();
+            for idx in survivors {
+                if self.runtime_played_card.is_some() {
+                    self.deferred_combat_ops
+                        .push(DeferredCombatOp::EscapeEnemy { enemy_idx: idx });
+                } else {
+                    self.state.enemies[idx].is_escaping = true;
+                    self.state.enemies[idx].entity.hp = 0;
+                }
+            }
+        }
+
+        if matches!(
+            self.state.enemies[enemy_idx].id.as_str(),
+            "AwakenedOne" | "Awakened One"
+        ) && self.state.enemies[enemy_idx].entity.status(sid::PHASE) == 2
+        {
+            // AwakenedOne.die queues EscapeAction for every surviving Cultist
+            // after final-form death. The compact settled state marks those
+            // escaped allies terminal immediately; the callback projector
+            // restores the pre-queue frame when comparing useCard records.
+            // Java: reference/extracted/methods/monster/AwakenedOne.java::die.
             for (idx, enemy) in self.state.enemies.iter_mut().enumerate() {
-                if idx != enemy_idx && enemy.is_alive() {
+                if idx != enemy_idx && enemy.id == "Cultist" && enemy.is_alive() {
                     enemy.is_escaping = true;
-                    // Escaped monsters are terminal in the compact state.
                     enemy.entity.hp = 0;
                 }
             }
@@ -4019,34 +5168,19 @@ impl CombatEngine {
             }
         }
 
-        // StasisPower.onDeath returns its held card to hand, or to discard at
-        // the ten-card hand limit.
+        // StasisPower queues its held-card return behind the current action.
+        // It chooses the discard-only action only when the hand is already
+        // full here; MakeTempCardInHandAction checks capacity again later.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/StasisPower.java
-        if let Some(card) = self.state.enemies[enemy_idx].stasis_card.take() {
-            if self.state.hand.len() < 10 {
-                self.state.hand.push(card);
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
+        if let Some(card) = self.state.enemies[enemy_idx].take_stasis_card() {
+            let route = if self.state.hand.len() == 10 {
+                DeferredCardRoute::Discard
             } else {
-                self.state.discard_pile.push(card);
-            }
-        }
-
-        // Source: decompiled GremlinFat/Thief/Warrior/Wizard/Tsundere.java
-        // (`deathReact`). A surviving gremlin immediately changes to Escape.
-        for (idx, enemy) in self.state.enemies.iter_mut().enumerate() {
-            if idx != enemy_idx
-                && matches!(
-                    enemy.id.as_str(),
-                    "GremlinFat"
-                        | "GremlinThief"
-                        | "GremlinWarrior"
-                        | "GremlinWizard"
-                        | "GremlinTsundere"
-                )
-                && enemy.is_alive()
-                && enemy.move_id != crate::enemies::move_ids::GREMLIN_ESCAPE
-            {
-                enemy.set_move(crate::enemies::move_ids::GREMLIN_ESCAPE, 0, 0, 0);
-            }
+                DeferredCardRoute::HandWithOverflowToDiscard
+            };
+            self.deferred_combat_ops
+                .push(DeferredCombatOp::MoveCard { card, route });
         }
 
         // Spore Cloud: apply Vulnerable to player on death.
@@ -4208,7 +5342,88 @@ impl CombatEngine {
         if self.state.has_relic("Philosopher's Stone") || self.state.has_relic("PhilosopherStone") {
             enemy.entity.add_status_direct(sid::STRENGTH, 1);
         }
+        self.assign_enemy_instance_id(&mut enemy);
         self.state.enemies.push(enemy);
+    }
+
+    pub(crate) fn add_spawned_minion(&mut self, mut enemy: crate::state::EnemyCombatState) {
+        // SpawnMonsterAction invokes every relic's onSpawnMonster before it
+        // queues ApplyPowerAction(MinionPower). Philosopher's Stone therefore
+        // appends Strength first; the later sorted Minion power retains that
+        // equal-priority order.
+        // Java: actions/common/SpawnMonsterAction.java:45-68 and
+        // relics/PhilosopherStone.java:49-52.
+        if self.state.has_relic("Philosopher's Stone") || self.state.has_relic("PhilosopherStone") {
+            enemy.entity.add_status_direct(sid::STRENGTH, 1);
+        }
+        enemy.set_minion(true);
+        self.assign_enemy_instance_id(&mut enemy);
+        self.state.enemies.push(enemy);
+    }
+
+    pub(crate) fn assign_enemy_instance_id(&mut self, enemy: &mut crate::state::EnemyCombatState) {
+        if enemy.runtime_instance_id == 0 {
+            enemy.runtime_instance_id = self.next_enemy_instance_id.max(1);
+            self.next_enemy_instance_id = enemy.runtime_instance_id + 1;
+        }
+    }
+
+    pub(crate) fn ensure_enemy_instance_ids(&mut self) {
+        for enemy in &mut self.state.enemies {
+            if enemy.runtime_instance_id == 0 {
+                enemy.runtime_instance_id = self.next_enemy_instance_id.max(1);
+                self.next_enemy_instance_id = enemy.runtime_instance_id + 1;
+            }
+        }
+    }
+
+    fn initialize_gremlin_leader_slots(&mut self) {
+        let Some(leader_idx) = self
+            .state
+            .enemies
+            .iter()
+            .position(|enemy| matches!(enemy.id.as_str(), "GremlinLeader" | "Gremlin Leader"))
+        else {
+            return;
+        };
+
+        // GremlinLeader.usePreBattleAction captures MonsterGroup members 0 and
+        // 1 in slots 0 and 1, leaving slot 2 null. Normal encounter creation
+        // orders those two gremlins before the Leader; the bounded fallback
+        // also keeps hand-built fixtures faithful when they use that shape.
+        for (slot, idx) in (0..leader_idx).take(2).enumerate() {
+            self.gremlin_leader_slots[slot] = Some(idx);
+        }
+    }
+
+    fn initialize_reptomancer_dagger_slots(&mut self) {
+        let Some(repto_idx) = self
+            .state
+            .enemies
+            .iter()
+            .position(|enemy| enemy.id == "Reptomancer")
+        else {
+            return;
+        };
+        for (idx, enemy) in self.state.enemies.iter_mut().enumerate() {
+            if enemy.id != "Dagger" {
+                continue;
+            }
+            let marked = enemy.entity.status(crate::status_ids::sid::COUNT);
+            let slot = if (1..=4).contains(&marked) {
+                marked as usize - 1
+            } else if idx < repto_idx {
+                // Reptomancer.usePreBattleAction maps the initial left Dagger
+                // to slot 1 and the initial right Dagger to slot 0.
+                1
+            } else {
+                0
+            };
+            enemy
+                .entity
+                .set_status(crate::status_ids::sid::COUNT, slot as i32 + 1);
+            self.reptomancer_dagger_slots[slot] = Some(idx);
+        }
     }
 
     pub(crate) fn deal_thorns_damage_to_player(&mut self, damage: i32) {
@@ -4283,8 +5498,11 @@ impl CombatEngine {
             );
         }
 
-        self.state.enemies[enemy_idx].entity.hp -= hp_damage;
-        self.state.total_damage_dealt += hp_damage;
+        let hp_before = self.state.enemies[enemy_idx].entity.hp;
+        let actual_hp_lost = hp_damage.min(hp_before.max(0)).max(0);
+        self.state.enemies[enemy_idx].entity.hp =
+            (self.state.enemies[enemy_idx].entity.hp - hp_damage).max(0);
+        self.state.total_damage_dealt += actual_hp_lost;
 
         // ShiftingPower.onAttacked applies to positive damage of every type.
         self.apply_shifting_after_hit(enemy_idx, hp_damage);
@@ -4327,7 +5545,8 @@ impl CombatEngine {
         }
 
         let hp_before = self.state.enemies[enemy_idx].entity.hp;
-        self.state.enemies[enemy_idx].entity.hp -= hp_damage;
+        self.state.enemies[enemy_idx].entity.hp =
+            (self.state.enemies[enemy_idx].entity.hp - hp_damage).max(0);
         let actual_hp_lost = hp_damage.min(hp_before).max(0);
         self.state.total_damage_dealt += actual_hp_lost;
 
@@ -4382,12 +5601,17 @@ impl CombatEngine {
     }
 
     fn update_surrounded_facing(&mut self, card: &CardDef, target_idx: i32) {
-        if !matches!(card.target, CardTarget::Enemy | CardTarget::SelfAndEnemy)
+        if !matches!(card.target, CardTarget::Enemy | CardTarget::SelfAndEnemy) {
+            return;
+        }
+        self.update_surrounded_facing_for_target(target_idx);
+    }
+
+    fn update_surrounded_facing_for_target(&mut self, target_idx: i32) {
+        if self.state.player.status(sid::SURROUNDED_POWER) <= 0
             || target_idx < 0
             || (target_idx as usize) >= self.state.enemies.len()
-            || !self.state.enemies.iter().any(|enemy| {
-                matches!(enemy.id.as_str(), "SpireShield" | "Spire Shield") && enemy.is_alive()
-            })
+            || !self.state.enemies[target_idx as usize].is_targetable()
         {
             return;
         }
@@ -4410,7 +5634,7 @@ impl CombatEngine {
                 "SpireShield" | "Spire Shield" | "SpireSpear" | "Spire Spear"
             ) && enemy.is_alive()
             {
-                enemy.back_attack = idx != target_idx;
+                enemy.set_back_attack(idx != target_idx);
             }
         }
     }
@@ -4534,82 +5758,136 @@ impl CombatEngine {
         }
     }
 
-    fn apply_all_orb_end_of_turn_passives(&mut self) {
+    /// Execute `TriggerEndOfTurnOrbsAction` itself: invoke every orb callback
+    /// synchronously, but append the callbacks' child actions to the bottom of
+    /// the shared end-turn queue. Dark mutates its evoke amount in the callback
+    /// and therefore remains synchronous. Lightning's intermediate passive
+    /// action is kept explicit because it is a Java `DAMAGE` survivor; Frost's
+    /// GainBlockAction is likewise retained after an earlier lethal hit.
+    ///
+    /// This placement also matters for Pride: its ordinary action was queued
+    /// behind Trigger before Trigger ran, so it stays ahead of these children.
+    /// Java: actions/defect/TriggerEndOfTurnOrbsAction.java,
+    /// orbs/Lightning.java, orbs/Frost.java, orbs/Dark.java.
+    fn collect_orb_end_of_turn_actions(&mut self) {
         if !self.state.orb_slots.has_orbs() {
             return;
         }
+
+        let hit_all =
+            self.effect_runtime
+                .player_power_active(self, "electrodynamics", sid::ELECTRODYNAMICS);
         let focus = self.state.player.focus();
         let effects = self.state.orb_slots.trigger_end_of_turn_passives(focus);
+        let mut actions = Vec::new();
         for effect in effects {
-            self.apply_passive_effect(effect);
-            if self.state.player.is_dead() || self.check_combat_end() {
-                return;
+            match effect {
+                PassiveEffect::LightningDamage(damage) => {
+                    actions.push(EndTurnQueuedAction::ResolveLightningEndTurn { damage, hit_all });
+                }
+                PassiveEffect::FrostBlock(block) => {
+                    actions.push(EndTurnQueuedAction::GainBlock(block));
+                }
+                PassiveEffect::PlasmaEnergy(_) | PassiveEffect::None => {}
             }
         }
-    }
 
-    /// Trigger orb end-of-turn passives and apply their effects.
-    fn apply_orb_end_of_turn(&mut self) {
-        self.apply_all_orb_end_of_turn_passives();
+        // Gold-Plated Cables invokes the front orb callback once more after
+        // all normal callbacks, preserving the same synchronous/queued split.
         if self.state.has_relic("Cables") {
-            self.apply_front_orb_end_of_turn_passive();
+            let front_effect = self.state.orb_slots.slots.first_mut().and_then(|front| {
+                if front.is_empty() {
+                    return None;
+                }
+                match front.orb_type {
+                    crate::orbs::OrbType::Lightning => {
+                        Some(EndTurnQueuedAction::ResolveLightningEndTurn {
+                            damage: front.passive_with_focus(focus),
+                            hit_all,
+                        })
+                    }
+                    crate::orbs::OrbType::Frost => Some(EndTurnQueuedAction::GainBlock(
+                        front.passive_with_focus(focus),
+                    )),
+                    crate::orbs::OrbType::Dark => {
+                        front.evoke_amount += front.passive_with_focus(focus);
+                        None
+                    }
+                    crate::orbs::OrbType::Plasma | crate::orbs::OrbType::Empty => None,
+                }
+            });
+            if let Some(action) = front_effect {
+                actions.push(action);
+            }
         }
+
+        self.end_turn_actions.extend(actions);
     }
 
-    /// Trigger orb start-of-turn passives (Plasma) and apply their effects.
-    fn apply_orb_start_of_turn(&mut self) {
-        if !self.state.orb_slots.has_orbs() {
-            return;
+    /// Collect Plasma's start callback as concrete bottom actions. Java walks
+    /// every orb after relic/power callbacks, then repeats the front orb for
+    /// Gold-Plated Cables; the GainEnergyActions do not execute during the walk.
+    fn collect_orb_start_of_turn_actions(&mut self) {
+        for orb in &self.state.orb_slots.slots {
+            if orb.orb_type == crate::orbs::OrbType::Plasma {
+                self.turn_start_actions
+                    .push(TurnStartQueuedAction::GainEnergy(orb.base_passive));
+            }
         }
-        let effects = self.state.orb_slots.trigger_start_of_turn_passives();
-        for effect in effects {
-            self.apply_passive_effect(effect);
-        }
-        // GoldPlatedCables is a marker relic; AbstractPlayer owns its behavior
-        // and repeats the front non-empty orb's start callback.
-        // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
-        // Java: reference/extracted/methods/relic/GoldPlatedCables.java
         if self.state.has_relic("Cables") {
-            self.apply_front_orb_start_of_turn_passive();
+            if let Some(front) = self.state.orb_slots.slots.first() {
+                if front.orb_type == crate::orbs::OrbType::Plasma {
+                    self.turn_start_actions
+                        .push(TurnStartQueuedAction::GainEnergy(front.base_passive));
+                }
+            }
         }
     }
 
-    fn apply_front_orb_start_of_turn_passive(&mut self) {
-        if self.state.orb_slots.occupied_count() == 0 {
+    fn collect_one_orb_impulse_actions(&mut self, index: usize) {
+        let Some(orb) = self.state.orb_slots.slots.get(index) else {
+            return;
+        };
+        if orb.is_empty() {
             return;
         }
-        let front_orb = &self.state.orb_slots.slots[0];
-        let effect = match front_orb.orb_type {
-            crate::orbs::OrbType::Plasma => {
-                crate::orbs::PassiveEffect::PlasmaEnergy(front_orb.base_passive)
+        let orb_type = orb.orb_type;
+        let base_passive = orb.base_passive;
+        let passive = orb.passive_with_focus(self.state.player.focus());
+
+        // ImpulseAction invokes onStartOfTurn before onEndOfTurn.
+        if orb_type == crate::orbs::OrbType::Plasma {
+            self.queue_turn_start_action_bottom(TurnStartQueuedAction::GainEnergy(base_passive));
+        }
+        match orb_type {
+            crate::orbs::OrbType::Lightning => {
+                self.queue_turn_start_action_bottom(TurnStartQueuedAction::OrbLightning {
+                    damage: passive,
+                    hit_all: self.state.player.status(sid::ELECTRODYNAMICS) > 0,
+                })
             }
-            _ => crate::orbs::PassiveEffect::None,
-        };
-        self.apply_passive_effect(effect);
+            crate::orbs::OrbType::Frost => {
+                self.queue_turn_start_action_bottom(TurnStartQueuedAction::GainBlock(passive));
+            }
+            crate::orbs::OrbType::Dark => {
+                self.state.orb_slots.slots[index].evoke_amount += passive;
+            }
+            crate::orbs::OrbType::Plasma | crate::orbs::OrbType::Empty => {}
+        }
     }
 
-    fn apply_front_orb_end_of_turn_passive(&mut self) {
-        if self.state.orb_slots.occupied_count() == 0 {
-            return;
+    fn collect_front_orb_impulse_actions(&mut self) {
+        self.collect_one_orb_impulse_actions(0);
+    }
+
+    fn collect_all_orb_impulse_actions(&mut self) {
+        let count = self.state.orb_slots.slots.len();
+        for index in 0..count {
+            self.collect_one_orb_impulse_actions(index);
         }
-        let focus = self.state.player.focus();
-        let effect = {
-            let front_orb = &mut self.state.orb_slots.slots[0];
-            match front_orb.orb_type {
-                crate::orbs::OrbType::Lightning => {
-                    crate::orbs::PassiveEffect::LightningDamage(front_orb.passive_with_focus(focus))
-                }
-                crate::orbs::OrbType::Frost => {
-                    crate::orbs::PassiveEffect::FrostBlock(front_orb.passive_with_focus(focus))
-                }
-                crate::orbs::OrbType::Dark => {
-                    front_orb.evoke_amount += front_orb.passive_with_focus(focus);
-                    crate::orbs::PassiveEffect::None
-                }
-                _ => crate::orbs::PassiveEffect::None,
-            }
-        };
-        self.apply_passive_effect(effect);
+        if self.state.has_relic("Cables") {
+            self.collect_front_orb_impulse_actions();
+        }
     }
 
     pub(crate) fn trigger_dark_impulse(&mut self) {
@@ -4692,14 +5970,6 @@ impl CombatEngine {
         }
     }
 
-    fn apply_orb_impulse_passives(&mut self) {
-        if !self.state.orb_slots.has_orbs() {
-            return;
-        }
-        self.apply_orb_start_of_turn();
-        self.apply_orb_end_of_turn();
-    }
-
     // =======================================================================
     // Draw / Shuffle
     // =======================================================================
@@ -4715,21 +5985,37 @@ impl CombatEngine {
         let mut extra_draws = 0i32;
         let mut shuffles = 0;
         let mut drawn_card_types = Vec::new();
+        // DrawCardAction recursively splits an overdraw into "draw current
+        // pile, shuffle, draw remainder". Once a nonempty draw pile has been
+        // scheduled for exhaustion, the intervening EmptyDeckShuffleAction
+        // still shuffles (and consumes shuffleRng) even if the discard pile is
+        // empty by the time that action runs. Java: DrawCardAction.java::update
+        // and EmptyDeckShuffleAction.java::update.
+        let mut forced_shuffle_after_current_pile = false;
 
-        for _ in 0..actual_count {
+        for draw_index in 0..actual_count {
             if self.state.hand.len() >= 10 {
                 break; // Hand size limit
             }
 
             if self.state.draw_pile.is_empty() {
                 // Shuffle discard into draw
-                if self.state.discard_pile.is_empty() {
+                if self.state.discard_pile.is_empty() && !forced_shuffle_after_current_pile {
                     break; // No cards left anywhere
                 }
                 let mut shuffled = std::mem::take(&mut self.state.discard_pile);
                 crate::seed::card_group_shuffle(&mut shuffled, &mut self.shuffle_rng);
                 self.state.draw_pile = shuffled;
                 shuffles += 1;
+                forced_shuffle_after_current_pile = false;
+                if self.state.draw_pile.is_empty() {
+                    break;
+                }
+            }
+
+            let draws_remaining = actual_count - draw_index;
+            if draws_remaining > self.state.draw_pile.len() as i32 {
+                forced_shuffle_after_current_pile = true;
             }
 
             if let Some(mut drawn) = self.state.draw_pile.pop() {
@@ -5046,7 +6332,15 @@ impl CombatEngine {
         self.state.mantra_gained += amount;
         if self.state.mantra >= 10 {
             self.state.mantra -= 10;
+            // MantraPower.stackPower subtracts ten and queues removal before
+            // ChangeStanceAction when no amount remains.
+            // Java: powers/watcher/MantraPower.java.
+            self.state.player.set_status(sid::MANTRA, self.state.mantra);
             self.change_stance(Stance::Divinity);
+        } else {
+            // Keep the Java-visible power synchronized with the compact scalar
+            // used by combat calculations and trace projection.
+            self.state.player.set_status(sid::MANTRA, self.state.mantra);
         }
     }
 
@@ -5143,16 +6437,6 @@ impl CombatEngine {
             if cost_for_turn >= 0 {
                 card.set_cost_for_turn(0);
             }
-        }
-    }
-
-    fn flush_pending_nightmare_copies(&mut self) {
-        if self.nightmare_pending_copies.is_empty() {
-            return;
-        }
-        let pending = std::mem::take(&mut self.nightmare_pending_copies);
-        for (card, copies) in pending {
-            self.add_card_instance_copies_to_hand(card, copies as i32);
         }
     }
 
@@ -5404,24 +6688,8 @@ impl CombatEngine {
             self.state.player_won = true;
             self.phase = CombatPhase::CombatOver;
             self.choice = None;
-            // Fire on_victory relics via unified dispatch (Burning Blood, Black Blood, Meat on the Bone, Face of Cleric)
-            {
-                let ctx = crate::effects::trigger::TriggerContext::empty();
-                self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
-                    crate::effects::trigger::Trigger::CombatVictory,
-                    &ctx,
-                ));
-            }
-            // AbstractPlayer.onVictory invokes relics before powers, and
-            // RepairPower heals its stacked amount only while the player is
-            // alive. Keep this in the combat engine so standalone combat state
-            // and the run wrapper observe the same single heal.
-            // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
-            // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RepairPower.java
-            let repair = self.state.player.status(sid::SELF_REPAIR);
-            if self.state.player.hp > 0 && repair > 0 {
-                self.heal_player(repair);
-            }
+            self.deferred_combat_ops.clear();
+            self.apply_player_on_victory();
             return true;
         }
 
@@ -5431,10 +6699,46 @@ impl CombatEngine {
             self.state.player_won = false;
             self.phase = CombatPhase::CombatOver;
             self.choice = None;
+            self.deferred_combat_ops.clear();
             return true;
         }
 
         false
+    }
+
+    /// Run `AbstractPlayer.onVictory` callbacks. `AbstractRoom.endBattle`
+    /// invokes this for both defeated encounters and Smoke Bomb escapes, even
+    /// though a smoked room grants no claimable combat rewards.
+    ///
+    /// Java: characters/AbstractPlayer.java::onVictory and
+    /// rooms/AbstractRoom.java::endBattle.
+    pub(crate) fn apply_player_on_victory(&mut self) {
+        // AbstractRoom.endBattle invokes Meat on the Bone's standalone
+        // onTrigger before AbstractPlayer.onVictory iterates relics in owned
+        // order. This matters when an earlier Burning/Black Blood heal would
+        // otherwise move the player above Meat's half-HP threshold.
+        // Java: rooms/AbstractRoom.java::endBattle and
+        // relics/MeatOnTheBone.java::onTrigger.
+        if self.state.has_relic("Meat on the Bone")
+            && self.state.player.hp > 0
+            && (self.state.player.hp as f32) <= (self.state.player.max_hp as f32) / 2.0
+        {
+            self.heal_player(12);
+        }
+
+        // Fire AbstractPlayer.onVictory relics via unified dispatch (Burning
+        // Blood, Black Blood, Face of Cleric), then power callbacks.
+        let ctx = crate::effects::trigger::TriggerContext::empty();
+        self.emit_event(crate::effects::runtime::GameEvent::from_trigger(
+            crate::effects::trigger::Trigger::CombatVictory,
+            &ctx,
+        ));
+
+        // RepairPower heals only while the player is alive.
+        let repair = self.state.player.status(sid::SELF_REPAIR);
+        if self.state.player.hp > 0 && repair > 0 {
+            self.heal_player(repair);
+        }
     }
 }
 
@@ -5889,6 +7193,30 @@ mod tests {
     }
 
     #[test]
+    fn draw_over_total_cards_preserves_java_empty_followup_shuffle_tick() {
+        // DrawCardAction(7) with five draw cards recursively schedules Draw(5),
+        // EmptyDeckShuffle, Draw(2). After the one discard card is drawn, the
+        // remaining Draw(1) schedules a second EmptyDeckShuffleAction even
+        // though its discard group is empty. CardGroup.shuffle still consumes
+        // shuffleRng.randomLong(). Java: DrawCardAction.java:73-85,
+        // EmptyDeckShuffleAction.java:39-44, CardGroup.java:550-555.
+        let mut state = make_test_state();
+        state.hand.clear();
+        state.draw_pile = make_deck(&["Strike", "Strike", "Strike", "Strike", "Strike"]);
+        state.discard_pile = make_deck(&["Vigilance"]);
+        let mut engine = CombatEngine::new(state, 42);
+        let before = engine.shuffle_rng.counter;
+
+        let drawn = engine.draw_cards(7);
+
+        assert_eq!(drawn.len(), 6);
+        assert_eq!(engine.state.hand.len(), 6);
+        assert!(engine.state.draw_pile.is_empty());
+        assert!(engine.state.discard_pile.is_empty());
+        assert_eq!(engine.shuffle_rng.counter, before + 2);
+    }
+
+    #[test]
     fn test_vulnerability_increases_damage() {
         let mut state = make_test_state();
         state.enemies[0].entity.set_status(sid::VULNERABLE, 2);
@@ -6036,6 +7364,44 @@ mod tests {
         assert_eq!(engine.state.stance, Stance::Wrath);
         // Rushdown drew 2 cards: hand was (N-1) after playing Eruption, now N-1+2
         assert_eq!(engine.state.hand.len(), hand_size_before - 1 + 2);
+    }
+
+    #[test]
+    fn rushdown_draw_waits_until_the_stance_card_reaches_discard() {
+        // RushdownPower.onChangeStance queues DrawCardAction at the bottom.
+        // Eruption's UseCardAction therefore moves Eruption into discard
+        // before a two-card Rushdown draw checks the piles. With Vigilance
+        // already discarded, Java shuffles once and draws both cards.
+        // Java: powers/watcher/RushdownPower.java,
+        // actions/utility/UseCardAction.java, and DrawCardAction.java.
+        let mut state = make_test_state();
+        state.player.set_status(sid::RUSHDOWN, 2);
+        let mut engine = CombatEngine::new(state, 42);
+        engine.start_combat();
+
+        engine.state.stance = Stance::Calm;
+        engine.state.hand = make_deck(&["Eruption"]);
+        engine.state.draw_pile.clear();
+        engine.state.discard_pile = make_deck(&["Vigilance"]);
+        let shuffle_before = engine.shuffle_rng.counter;
+
+        engine.execute_action(&Action::PlayCard {
+            card_idx: 0,
+            target_idx: 0,
+        });
+
+        let hand = engine
+            .state
+            .hand
+            .iter()
+            .map(|card| engine.card_registry.card_name(card.def_id))
+            .collect::<Vec<_>>();
+        assert_eq!(engine.state.stance, Stance::Wrath);
+        assert_eq!(engine.shuffle_rng.counter, shuffle_before + 1);
+        assert!(engine.state.discard_pile.is_empty());
+        assert_eq!(hand.len(), 2);
+        assert!(hand.contains(&"Eruption"));
+        assert!(hand.contains(&"Vigilance"));
     }
 
     #[test]

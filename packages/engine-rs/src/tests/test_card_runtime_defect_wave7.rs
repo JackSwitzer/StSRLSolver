@@ -10,8 +10,10 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Loop.java
 
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
-use crate::effects::types::{CardRuntimeTraits, CardBlockHint};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
+use crate::effects::types::{CardBlockHint, CardRuntimeTraits};
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
 use crate::tests::support::{
@@ -29,7 +31,9 @@ fn one_enemy_engine(hp: i32) -> crate::engine::CombatEngine {
 fn defect_wave7_registry_exports_match_typed_runtime_progress() {
     let reg = global_registry();
 
-    let auto_shields = reg.get("Auto Shields+").expect("Auto Shields+ should exist");
+    let auto_shields = reg
+        .get("Auto Shields+")
+        .expect("Auto Shields+ should exist");
     assert_eq!(auto_shields.card_type, CardType::Skill);
     assert_eq!(auto_shields.target, CardTarget::SelfTarget);
     assert_eq!(auto_shields.base_block, 15);
@@ -46,10 +50,15 @@ fn defect_wave7_registry_exports_match_typed_runtime_progress() {
         Some(CardBlockHint::IfNoBlock)
     );
 
-    let boot_sequence = reg.get("BootSequence+").expect("BootSequence+ should exist");
+    let boot_sequence = reg
+        .get("BootSequence+")
+        .expect("BootSequence+ should exist");
     assert!(boot_sequence.runtime_traits().innate);
     assert!(boot_sequence.exhaust);
-    assert_eq!(boot_sequence.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
+    assert_eq!(
+        boot_sequence.effect_data,
+        &[E::Simple(SE::GainBlock(A::Block))]
+    );
 
     let buffer = reg.get("Buffer+").expect("Buffer+ should exist");
     assert_eq!(
@@ -68,7 +77,11 @@ fn defect_wave7_registry_exports_match_typed_runtime_progress() {
     let hello_world = reg.get("Hello World+").expect("Hello World+ should exist");
     assert_eq!(
         hello_world.effect_data,
-        &[E::Simple(SE::AddStatus(T::Player, sid::HELLO_WORLD, A::Magic))]
+        &[E::Simple(SE::AddStatus(
+            T::Player,
+            sid::HELLO_WORLD,
+            A::Magic
+        ))]
     );
     assert!(hello_world.runtime_traits().innate);
 
@@ -108,7 +121,9 @@ fn defect_wave7_auto_shields_boot_sequence_and_leap_follow_engine_path() {
     assert_eq!(boot_sequence.state.player.block, 13);
     assert_eq!(boot_sequence.state.exhaust_pile.len(), 1);
     assert_eq!(
-        boot_sequence.card_registry.card_name(boot_sequence.state.exhaust_pile[0].def_id),
+        boot_sequence
+            .card_registry
+            .card_name(boot_sequence.state.exhaust_pile[0].def_id),
         "BootSequence+"
     );
 
@@ -181,7 +196,9 @@ fn defect_wave7_buffer_heatsinks_hello_world_and_loop_follow_engine_path() {
     // Java: powers/HelloPower.java draws from commonCardPool, which excludes
     // the BASIC Strike that the old approximation generated.
     assert_ne!(
-        hello_world.card_registry.card_name(hello_world.state.hand[0].def_id),
+        hello_world
+            .card_registry
+            .card_name(hello_world.state.hand[0].def_id),
         "Strike"
     );
 
@@ -201,11 +218,7 @@ fn loop_source_frost_repeats_after_enemy_turn_and_old_block_clear() {
     // per amount. The ordinary Frost passive gives 2 Block before the enemy's
     // 5-damage turn; Loop+ gives 4 fresh Block only at the following turn start,
     // after GameActionManager has cleared the old Block.
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy("JawWorm", 40, 40, 1, 5, 1)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy("JawWorm", 40, 40, 1, 5, 1)], 3);
     force_player_turn(&mut engine);
     engine.init_defect_orbs(1);
     engine.channel_orb(OrbType::Frost);
@@ -228,28 +241,34 @@ fn heatsinks_triggers_with_preexisting_stacks_before_the_new_power_resolves() {
     // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/HeatsinkPower.java
     let mut engine = one_enemy_engine(50);
     engine.state.hand = make_deck(&["Heatsinks", "Heatsinks+"]);
-    engine.state.draw_pile = make_deck(&[
-        "Strike",
-        "Defend",
-        "Defend",
-        "Defend",
-        "Buffer",
-    ]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Defend", "Defend", "Buffer"]);
     engine.state.energy = 5;
 
     assert!(play_self(&mut engine, "Heatsinks"));
     assert_eq!(engine.state.player.status(sid::HEATSINK), 1);
-    assert_eq!(engine.state.draw_pile.len(), 5, "first Heatsinks cannot trigger itself");
+    assert_eq!(
+        engine.state.draw_pile.len(),
+        5,
+        "first Heatsinks cannot trigger itself"
+    );
 
     assert!(play_self(&mut engine, "Heatsinks+"));
     assert_eq!(engine.state.player.status(sid::HEATSINK), 3);
-    assert_eq!(engine.state.draw_pile.len(), 4, "second Heatsinks draws from the old one stack");
+    assert_eq!(
+        engine.state.draw_pile.len(),
+        4,
+        "second Heatsinks draws from the old one stack"
+    );
     assert_eq!(hand_count(&engine, "Buffer"), 1);
 
     assert!(play_self(&mut engine, "Buffer"));
     assert_eq!(engine.state.player.status(sid::BUFFER), 1);
     assert_eq!(engine.state.draw_pile.len(), 1);
-    assert_eq!(engine.state.hand.len(), 3, "three Heatsink stacks draw three cards");
+    assert_eq!(
+        engine.state.hand.len(),
+        3,
+        "three Heatsink stacks draw three cards"
+    );
 }
 
 #[test]
@@ -261,11 +280,7 @@ fn buffer_stacks_and_only_consumes_after_block_leaves_positive_damage() {
     // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Buffer.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BufferPower.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy("JawWorm", 40, 40, 1, 5, 2)],
-        4,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy("JawWorm", 40, 40, 1, 5, 2)], 4);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Buffer", "Buffer+"]);
 

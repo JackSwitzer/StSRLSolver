@@ -7,15 +7,19 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Omniscience.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P};
+use crate::effects::declarative::{
+    AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P,
+};
 use crate::engine::{ChoiceReason, CombatPhase};
-use crate::tests::support::{enemy_no_intent, engine_with, engine_without_start, force_player_turn, exhaust_prefix_count, hand_count, make_deck, play_self};
+use crate::tests::support::{
+    enemy_no_intent, engine_with, engine_without_start, exhaust_prefix_count, force_player_turn,
+    hand_count, make_deck, play_self,
+};
 
-static LESSON_LEARNED_KILL_BRANCH: [crate::effects::declarative::Effect; 1] = [
-    crate::effects::declarative::Effect::Simple(
+static LESSON_LEARNED_KILL_BRANCH: [crate::effects::declarative::Effect; 1] =
+    [crate::effects::declarative::Effect::Simple(
         crate::effects::declarative::SimpleEffect::UpgradeRandomMasterDeckCard,
-    ),
-];
+    )];
 
 #[test]
 fn watcher_wave25_deus_ex_machina_stays_engine_path_covered_on_draw() {
@@ -82,7 +86,11 @@ fn omniscience_uses_the_typed_draw_pile_free_play_surface() {
     assert!(play_self(&mut engine, "Omniscience"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
     assert_eq!(
-        engine.choice.as_ref().expect("Omniscience should open a choice").reason,
+        engine
+            .choice
+            .as_ref()
+            .expect("Omniscience should open a choice")
+            .reason,
         ChoiceReason::PlayCardFreeFromDraw
     );
 
@@ -97,7 +105,11 @@ fn omniscience_uses_the_typed_draw_pile_free_play_surface() {
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/OmniscienceAction.java
     assert!(engine.state.hand.is_empty());
     assert_eq!(engine.state.player.block, 10);
-    assert!(engine.state.exhaust_pile.iter().any(|card| engine.card_registry.card_name(card.def_id) == "Defend"));
+    assert!(engine
+        .state
+        .exhaust_pile
+        .iter()
+        .any(|card| engine.card_registry.card_name(card.def_id) == "Defend"));
     assert_eq!(engine.state.draw_pile.len(), 1);
     assert_eq!(
         engine.card_random_rng.state_tuple(),

@@ -2,12 +2,14 @@
 
 use crate::actions::Action;
 use crate::effects::runtime::EffectOwner;
+use crate::potions::defs::{
+    potion_runtime_manual_activation_is_authoritative, potion_uses_runtime_manual_activation,
+};
 use crate::status_ids::sid;
 use crate::tests::support::{
     combat_state_with, end_turn, enemy_no_intent, engine_with_state, make_deck, make_deck_n,
     play_on_enemy, play_self,
 };
-use crate::potions::defs::{potion_runtime_manual_activation_is_authoritative, potion_uses_runtime_manual_activation};
 
 #[test]
 fn dead_cleanup_wave1_runtime_authoritative_potions_are_explicit() {
@@ -85,11 +87,17 @@ fn dead_cleanup_wave1_relic_bundle_is_engine_path_authoritative() {
     let mut choke_engine = engine_with_state(choke_state);
     choke_engine.state.hand = make_deck_n("Defend", 7);
     for _ in 0..6 {
-        choke_engine.execute_action(&Action::PlayCard { card_idx: 0, target_idx: -1 });
+        choke_engine.execute_action(&Action::PlayCard {
+            card_idx: 0,
+            target_idx: -1,
+        });
     }
     assert_eq!(choke_engine.state.cards_played_this_turn, 6);
     let hand_before = choke_engine.state.hand.len();
-    choke_engine.execute_action(&Action::PlayCard { card_idx: 0, target_idx: -1 });
+    choke_engine.execute_action(&Action::PlayCard {
+        card_idx: 0,
+        target_idx: -1,
+    });
     assert_eq!(choke_engine.state.hand.len(), hand_before);
     assert_eq!(choke_engine.state.cards_played_this_turn, 6);
     end_turn(&mut choke_engine);

@@ -34,11 +34,20 @@ fn golden_wing_branch_is_runtime_gated_by_attack_damage_in_the_deck() {
     blocked_engine.run_state.deck = vec!["Defend".to_string(), "Strike".to_string()];
     blocked_engine.debug_set_typed_event_state(catalog.clone());
 
-    let before = blocked_engine.run_state.gold;
+    let gold_before = blocked_engine.run_state.gold;
+    let deck_before = blocked_engine.run_state.deck.clone();
+    let rng_before = blocked_engine.rng_counters();
+    assert_eq!(
+        blocked_engine.get_legal_actions(),
+        vec![GameAction::EventChoice(0), GameAction::EventChoice(2)]
+    );
     let blocked_step = blocked_engine.step_game(&GameAction::EventChoice(1));
-    assert!(blocked_step.accepted());
-    assert_eq!(blocked_engine.current_phase(), RunPhase::MapChoice);
-    assert_eq!(blocked_engine.run_state.gold, before);
+    assert!(!blocked_step.accepted());
+    assert_eq!(blocked_engine.current_phase(), RunPhase::Event);
+    assert_eq!(blocked_engine.run_state.gold, gold_before);
+    assert_eq!(blocked_engine.run_state.deck, deck_before);
+    assert_eq!(blocked_engine.rng_counters(), rng_before);
+    assert!(blocked_engine.debug_current_event().is_some());
     assert!(blocked_engine.current_reward_screen().is_none());
 
     let mut supported_engine = RunEngine::new(241, 20);

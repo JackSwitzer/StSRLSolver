@@ -1,5 +1,6 @@
 use crate::actions::Action;
 use crate::cards::CardType;
+use crate::effects::runtime::EffectOwner;
 use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
 use crate::run::{GameAction, RunEngine, RunPhase, ShopState};
 use crate::state::Stance;
@@ -173,8 +174,15 @@ fn generation_potions_use_engine_action_path_and_consume_slot() {
             .as_ref()
             .expect("generation potion should open a discover choice");
         assert_eq!(choice.reason, ChoiceReason::DiscoverCard);
-        assert_eq!(choice.aux_count, 1, "{potion} should default to one chosen copy");
-        assert_eq!(choice.options.len(), 3, "{potion} should offer three choices");
+        assert_eq!(
+            choice.aux_count, 1,
+            "{potion} should default to one chosen copy"
+        );
+        assert_eq!(
+            choice.options.len(),
+            3,
+            "{potion} should offer three choices"
+        );
         for option in &choice.options {
             let generated = match option {
                 ChoiceOption::GeneratedCard(card) => *card,
@@ -182,7 +190,10 @@ fn generation_potions_use_engine_action_path_and_consume_slot() {
             };
             if let Some(card_type) = expected_type {
                 assert_eq!(
-                    engine.card_registry.card_def_by_id(generated.def_id).card_type,
+                    engine
+                        .card_registry
+                        .card_def_by_id(generated.def_id)
+                        .card_type,
                     card_type,
                     "{potion} should offer a {card_type:?} card via the action path"
                 );
@@ -202,7 +213,11 @@ fn generation_potions_use_engine_action_path_and_consume_slot() {
 
         engine.execute_action(&Action::Choose(0));
 
-        assert_eq!(engine.state.hand.len(), 1, "{potion} should resolve one chosen card");
+        assert_eq!(
+            engine.state.hand.len(),
+            1,
+            "{potion} should resolve one chosen card"
+        );
         assert!(
             engine.state.potions[slot].is_empty(),
             "{potion} should consume its slot"
@@ -267,6 +282,72 @@ fn distilled_chaos_moves_top_draw_cards_via_action_path() {
 }
 
 #[test]
+fn distilled_chaos_autoplay_triggers_letter_opener_for_skills() {
+    // PlayTopCardAction queues ordinary autoplay cards; it does not set
+    // dontTriggerOnUseCard. Vigilance therefore reaches
+    // LetterOpener.onUseCard, while the two Power cards do not increment the
+    // skill counter.
+    // Java: potions/DistilledChaosPotion.java;
+    // actions/common/PlayTopCardAction.java;
+    // actions/utility/NewQueueCardAction.java; relics/LetterOpener.java.
+    let mut state = combat_state_with(
+        make_deck(&["MentalFortress+", "Adaptation", "Vigilance+"]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    state.relics = [
+        "PureWater",
+        "Blood Vial",
+        "Nunchaku",
+        "Pantograph",
+        "Calling Bell",
+        "Omamori",
+        "Yang",
+        "Calipers",
+        "Damaru",
+        "Darkstone Periapt",
+        "Vajra",
+        "Runic Pyramid",
+        "Incense Burner",
+        "Membership Card",
+        "Lantern",
+        "Ornamental Fan",
+        "Letter Opener",
+        "Art of War",
+        "Akabeko",
+    ]
+    .into_iter()
+    .map(str::to_string)
+    .collect();
+    let mut engine = engine_with_state(state);
+    engine.state.hand = make_deck(&[
+        "FearNoEvil+",
+        "Eruption+",
+        "Meditate+",
+        "DeceiveReality",
+        "EmptyFist+",
+        "WheelKick+",
+        "LikeWater+",
+        "Purity",
+        "CurseOfTheBell",
+    ]);
+    engine.state.draw_pile = make_deck(&["MentalFortress+", "Adaptation", "Vigilance+"]);
+    engine.state.potions[0] = "DistilledChaos".to_string();
+    // Match the Heart trace's nested stance-change hooks. These powers make
+    // Vigilance queue Mental Fortress and Rushdown work while the potion's
+    // outer runtime dispatch is still active.
+    engine.state.player.set_status(sid::MENTAL_FORTRESS, 6);
+    engine.state.player.set_status(sid::RUSHDOWN, 2);
+
+    use_potion(&mut engine, 0, -1);
+
+    assert_eq!(
+        engine.hidden_effect_value("Letter Opener", EffectOwner::PlayerRelic { slot: 16 }, 0,),
+        1
+    );
+}
+
+#[test]
 fn distilled_chaos_preselects_random_targets_and_retries_after_shuffle() {
     // Source-derived (verify potion/DistilledChaosPotion): use() queues three
     // PlayTopCardActions with targets selected through cardRandomRng, while
@@ -319,7 +400,10 @@ fn liquid_memories_returns_discard_cards_via_action_path() {
 
     use_potion(&mut engine, 0, -1);
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
-    let choice = engine.choice.as_ref().expect("Liquid Memories should open a discard choice");
+    let choice = engine
+        .choice
+        .as_ref()
+        .expect("Liquid Memories should open a discard choice");
     assert_eq!(choice.reason, ChoiceReason::ReturnFromDiscard);
     assert_eq!(choice.options.len(), 3);
     engine.execute_action(&Action::Choose(1));
@@ -345,8 +429,7 @@ fn liquid_memories_auto_return_preserves_discard_order_and_hand_limit() {
         3,
     ));
     engine.state.hand = make_deck(&[
-        "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend",
-        "Defend",
+        "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend",
     ]);
     engine.state.discard_pile = make_deck(&["Strike", "Bash"]);
     engine.state.relics.push("SacredBark".to_string());
@@ -389,9 +472,9 @@ fn entropic_brew_rolls_for_every_slot_and_refills_its_consumed_slot() {
 
     assert!(engine.state.potions.iter().all(|potion| !potion.is_empty()));
     assert_eq!(engine.state.potions[2], "Fire Potion");
-    assert!(engine.state.potions[..2].iter().all(|potion| {
-        crate::potions::defs::entropic_brew::is_watcher_limited_potion(potion)
-    }));
+    assert!(engine.state.potions[..2]
+        .iter()
+        .all(|potion| { crate::potions::defs::entropic_brew::is_watcher_limited_potion(potion) }));
     assert!(engine.potion_rng.counter >= potion_rng_before + 9);
 }
 
@@ -454,8 +537,11 @@ fn elixir_uses_any_number_zero_allowed_exhaust_selection() {
     engine.state.potions[0] = "Elixir".to_string();
     use_potion(&mut engine, 0, -1);
     let choice = engine.choice.as_ref().expect("Bark Elixir selection");
-    assert_eq!((choice.min_picks, choice.max_picks), (0, 1),
-        "potency is zero and Sacred Bark does not change the selection");
+    assert_eq!(
+        (choice.min_picks, choice.max_picks),
+        (0, 1),
+        "potency is zero and Sacred Bark does not change the selection"
+    );
     engine.execute_action(&Action::ConfirmSelection);
     assert_eq!(engine.state.hand.len(), 1);
     assert_eq!(engine.state.exhaust_pile.len(), 2);
@@ -492,7 +578,10 @@ fn blessing_of_the_forge_upgrades_each_eligible_hand_card_once() {
 
     use_potion(&mut engine, 0, -1);
 
-    assert_eq!(hand_names(&engine), vec!["Strike+", "Defend+", "Dazed", "Miracle+"]);
+    assert_eq!(
+        hand_names(&engine),
+        vec!["Strike+", "Defend+", "Dazed", "Miracle+"]
+    );
     assert!(engine.state.potions[0].is_empty());
 }
 
@@ -540,17 +629,15 @@ fn bottled_miracle_and_cunning_potion_respect_sacred_bark_and_hand_limit_via_act
 
     use_potion(&mut engine, 0, -1);
     assert_eq!(engine.state.hand.len(), 10);
-    assert_eq!(
-        hand_names(&engine)[8..],
-        ["Miracle", "Miracle"]
-    );
+    assert_eq!(hand_names(&engine)[8..], ["Miracle", "Miracle"]);
 
     let discard_before = engine.state.discard_pile.len();
     use_potion(&mut engine, 1, -1);
     assert_eq!(engine.state.hand.len(), 10);
     assert_eq!(engine.state.discard_pile.len(), discard_before + 6);
-    assert!(engine.state.discard_pile[discard_before..].iter().all(|card|
-        engine.card_registry.card_name(card.def_id) == "Shiv+"));
+    assert!(engine.state.discard_pile[discard_before..]
+        .iter()
+        .all(|card| engine.card_registry.card_name(card.def_id) == "Shiv+"));
 }
 
 #[test]
@@ -562,7 +649,15 @@ fn gamblers_brew_selects_any_subset_then_discards_and_redraws_that_count() {
     // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/GamblersBrew.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/GamblingChipAction.java
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame", "Zap", "Dualcast"]),
+        make_deck(&[
+            "Strike",
+            "Defend",
+            "Bash",
+            "Shrug It Off",
+            "Inflame",
+            "Zap",
+            "Dualcast",
+        ]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -635,7 +730,14 @@ fn snecko_oil_draws_then_randomizes_hand_costs_without_confusion() {
     ));
     engine.state.hand = make_deck(&["Strike", "Whirlwind"]);
     engine.state.draw_pile = make_deck(&[
-        "Defend", "Bash", "Inflame", "Zap", "Dualcast", "Shrug It Off", "Strike", "Defend",
+        "Defend",
+        "Bash",
+        "Inflame",
+        "Zap",
+        "Dualcast",
+        "Shrug It Off",
+        "Strike",
+        "Defend",
     ]);
     engine.state.relics.push("SacredBark".to_string());
     engine.state.potions[0] = "SneckoOil".to_string();
@@ -676,7 +778,12 @@ fn temporary_effect_potions_apply_statuses_through_action_path() {
         3,
     ));
 
-    let cases: [(&str, crate::ids::StatusId, i32, Option<crate::ids::StatusId>); 4] = [
+    let cases: [(
+        &str,
+        crate::ids::StatusId,
+        i32,
+        Option<crate::ids::StatusId>,
+    ); 4] = [
         ("DuplicationPotion", sid::DUPLICATION, 1, None),
         ("GhostInAJar", sid::INTANGIBLE, 1, None),
         ("SteroidPotion", sid::STRENGTH, 5, Some(sid::LOSE_STRENGTH)),
@@ -696,14 +803,26 @@ fn temporary_effect_potions_apply_statuses_through_action_path() {
 
         use_potion(&mut engine, 0, -1);
 
-        assert_eq!(engine.state.player.status(primary_status), primary_amount, "{potion_id} primary status");
+        assert_eq!(
+            engine.state.player.status(primary_status),
+            primary_amount,
+            "{potion_id} primary status"
+        );
         if let Some(trailing_status) = trailing_status {
-            assert_eq!(engine.state.player.status(trailing_status), primary_amount, "{potion_id} trailing status");
+            assert_eq!(
+                engine.state.player.status(trailing_status),
+                primary_amount,
+                "{potion_id} trailing status"
+            );
         }
-        assert!(engine.state.potions[0].is_empty(), "{potion_id} should consume its slot");
-        assert!(engine.event_log.iter().any(|record| {
-            record.event == crate::effects::trigger::Trigger::ManualActivation
-        }));
+        assert!(
+            engine.state.potions[0].is_empty(),
+            "{potion_id} should consume its slot"
+        );
+        assert!(engine
+            .event_log
+            .iter()
+            .any(|record| { record.event == crate::effects::trigger::Trigger::ManualActivation }));
     }
 }
 
@@ -849,9 +968,10 @@ fn fairy_potion_is_passive_and_revives_through_java_healing_rules() {
     state.potions[0] = "FairyPotion".to_string();
     let mut engine = engine_with_state(state);
 
-    assert!(!engine.get_legal_actions().iter().any(|action| {
-        matches!(action, Action::UsePotion { potion_idx: 0, .. })
-    }));
+    assert!(!engine
+        .get_legal_actions()
+        .iter()
+        .any(|action| { matches!(action, Action::UsePotion { potion_idx: 0, .. }) }));
 
     engine.execute_action(&Action::EndTurn);
 
@@ -884,7 +1004,10 @@ fn stance_potion_opens_choose_one_and_sets_stance_via_action_path() {
 
     use_potion(&mut engine, 0, -1);
     assert_eq!(engine.phase, crate::engine::CombatPhase::AwaitingChoice);
-    let choice = engine.choice.as_ref().expect("Stance Potion should open a choice");
+    let choice = engine
+        .choice
+        .as_ref()
+        .expect("Stance Potion should open a choice");
     let labels: Vec<&str> = choice
         .options
         .iter()

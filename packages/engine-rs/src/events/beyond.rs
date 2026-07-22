@@ -32,15 +32,17 @@ pub fn typed_act3_events() -> Vec<TypedEventDef> {
             vec![
                 supported(
                     "Open (gain relic, fight)",
-                    vec![
-                        EventProgramOp::combat_branch(
-                            ["Orb Walker", "Orb Walker"],
-                            vec![EventProgramOp::gain_relic("random relic")],
-                        ),
-                    ],
+                    vec![EventProgramOp::combat_branch(
+                        ["Orb Walker", "Orb Walker"],
+                        vec![EventProgramOp::gain_relic("random relic")],
+                    )],
                     EventEffect::GainRelic,
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
@@ -48,12 +50,10 @@ pub fn typed_act3_events() -> Vec<TypedEventDef> {
             vec![
                 supported(
                     "I am War (fight Act 1 boss, gain rare relic)",
-                    vec![
-                        EventProgramOp::combat_branch(
-                            ["MindBloomAct1Boss"],
-                            vec![EventProgramOp::gain_relic("rare relic")],
-                        ),
-                    ],
+                    vec![EventProgramOp::combat_branch(
+                        ["MindBloomAct1Boss"],
+                        vec![EventProgramOp::gain_relic("rare relic")],
+                    )],
                     EventEffect::GainRelic,
                 ),
                 supported(
@@ -90,21 +90,15 @@ pub fn typed_act3_events() -> Vec<TypedEventDef> {
                     vec![EventProgramOp::gain_relic("Red Mask")],
                     EventEffect::GainRelic,
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         sensory_stone_event(),
-        event(
-            "Secret Portal",
-            vec![
-                supported(
-                    "Enter (skip to boss)",
-                    vec![EventProgramOp::start_boss_combat()],
-                    EventEffect::Nothing,
-                ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
-            ],
-        ),
+        secret_portal_event(),
         event(
             "Falling",
             vec![supported(
@@ -118,10 +112,7 @@ pub fn typed_act3_events() -> Vec<TypedEventDef> {
             vec![
                 supported(
                     "Offer (lose max HP, heal to full)",
-                    vec![
-                        EventProgramOp::max_hp(-5),
-                        EventProgramOp::heal_to_full(),
-                    ],
+                    vec![EventProgramOp::max_hp(-5), EventProgramOp::heal_to_full()],
                     EventEffect::MaxHp(-5),
                 ),
                 supported(
@@ -132,18 +123,20 @@ pub fn typed_act3_events() -> Vec<TypedEventDef> {
                     ],
                     EventEffect::Gold(333),
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
             "Spire Heart",
-            vec![
-                supported(
-                    "Approach (deal score dmg, end run or enter Act 4)",
-                    vec![EventProgramOp::resolve_final_act()],
-                    EventEffect::Nothing,
-                ),
-            ],
+            vec![supported(
+                "Approach (deal score dmg, end run or enter Act 4)",
+                vec![EventProgramOp::resolve_final_act()],
+                EventEffect::Nothing,
+            )],
         ),
         event(
             "Winding Halls",
@@ -175,6 +168,40 @@ pub fn typed_act3_events() -> Vec<TypedEventDef> {
             ],
         ),
     ]
+}
+
+fn secret_portal_event() -> TypedEventDef {
+    let accept = event(
+        "Secret Portal",
+        vec![supported(
+            "Enter",
+            vec![EventProgramOp::start_boss_combat()],
+            EventEffect::Nothing,
+        )],
+    );
+    let leave = event(
+        "Secret Portal",
+        vec![supported(
+            "Leave",
+            vec![EventProgramOp::nothing()],
+            EventEffect::Nothing,
+        )],
+    );
+    event(
+        "Secret Portal",
+        vec![
+            supported(
+                "Enter (skip to boss)",
+                vec![EventProgramOp::continue_event(accept)],
+                EventEffect::Nothing,
+            ),
+            supported(
+                "Leave",
+                vec![EventProgramOp::continue_event(leave)],
+                EventEffect::Nothing,
+            ),
+        ],
+    )
 }
 
 fn sensory_stone_event() -> TypedEventDef {

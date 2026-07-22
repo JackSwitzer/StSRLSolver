@@ -11,18 +11,18 @@
 This document is the historical derivation register. The five-layer RNG,
 generation, action, checkpoint, and pure-core stack has since closed its active
 P0 reproducers and architecture findings with source-derived tests. The live
-freeze result is [watcher-a0-oracle-closure.md](watcher-a0-oracle-closure.md):
-3,110 passed, zero
-ignored, native Java RNG ownership, causal checkpoints, and no active
-obs/search/training/PyO3 dependency in the core.
+freeze result is [the Wave 3b appendix](../oracle-replay-wave3b-appendix.md):
+3,269 passed, zero ignored, native Java RNG ownership, causal checkpoints, and
+no active obs/search/training/PyO3 dependency in the core.
 
 Do not use the old “2,883 + 11 ignored” snapshot below as current branch state.
 The serialized v1 differ surface and Rust v2 canonical action replay are now
-complete. The language-neutral full-state projection and offline adapter now
-attempt all 14 human bundles (13 readable, one truncated). The remaining merge
-gates are F16's exact power-list tail and cross-language oracle certification
-after the recorder emits complete semantic actions, initial conditions, and
-settled checkpoints.
+complete. The language-neutral full-state projection and offline adapter reach
+all 2,013 actions in three non-empty Watcher A0 victories without a projected
+state divergence. F16's exact power-list/dynamic-identity tail is resolved. The
+remaining gate is cross-language certification after the recorder emits
+complete semantic actions, initial conditions, ambient RNG witnesses, and
+settled required-field checkpoints.
 
 ## Ranked top 10
 

@@ -15,9 +15,9 @@
 
 use crate::actions::Action;
 use crate::cards::CardType;
-use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
 use crate::effects::declarative::GeneratedCardPool;
 use crate::effects::interpreter::generated_card_pool;
+use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
 use crate::status_ids::sid;
 use crate::tests::support::{
     combat_state_with, discard_prefix_count, enemy_no_intent, engine_with_state,
@@ -127,10 +127,20 @@ fn discovery_potions_open_choice_and_resolve_one_generated_copy() {
         use_potion(&mut engine, 0, -1);
 
         assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
-        let choice = engine.choice.as_ref().expect("generated discovery should open a choice");
+        let choice = engine
+            .choice
+            .as_ref()
+            .expect("generated discovery should open a choice");
         assert_eq!(choice.reason, ChoiceReason::DiscoverCard);
-        assert_eq!(choice.aux_count, 1, "{potion_id} should resolve a single generated copy");
-        assert_eq!(choice.options.len(), 3, "{potion_id} should present three discovery cards");
+        assert_eq!(
+            choice.aux_count, 1,
+            "{potion_id} should resolve a single generated copy"
+        );
+        assert_eq!(
+            choice.options.len(),
+            3,
+            "{potion_id} should present three discovery cards"
+        );
 
         engine.execute_action(&Action::Choose(0));
 
@@ -168,7 +178,9 @@ fn jack_of_all_trades_uses_exact_colorless_pool_and_card_random_rng() {
     play_card(&mut engine, "Jack Of All Trades");
 
     assert_eq!(engine.state.hand.len(), hand_before);
-    let generated_name = engine.card_registry.card_name(engine.state.hand.last().unwrap().def_id);
+    let generated_name = engine
+        .card_registry
+        .card_name(engine.state.hand.last().unwrap().def_id);
     assert_eq!(generated_name, expected);
     assert_eq!(engine.card_random_rng.counter, oracle.counter);
     assert_eq!(engine.shuffle_rng.counter, general_before);
@@ -234,7 +246,13 @@ fn distraction_uses_random_skill_pool_and_zeroes_cost() {
 #[test]
 fn jack_of_all_trades_plus_generates_two_colorless_cards() {
     let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Jack Of All Trades+", "Strike", "Defend", "Strike", "Defend"]),
+        make_deck(&[
+            "Jack Of All Trades+",
+            "Strike",
+            "Defend",
+            "Strike",
+            "Defend",
+        ]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
@@ -244,7 +262,10 @@ fn jack_of_all_trades_plus_generates_two_colorless_cards() {
     // first copy enters hand and the second spills to discard, but both rolls
     // consume cardRandomRng.
     engine.state.hand = make_deck_n("Defend", 9);
-    engine.state.hand.push(engine.card_registry.make_card("Jack Of All Trades+"));
+    engine
+        .state
+        .hand
+        .push(engine.card_registry.make_card("Jack Of All Trades+"));
     engine.state.discard_pile.clear();
     let pool = generated_card_pool(&engine, GeneratedCardPool::Colorless);
     let mut oracle = engine.card_random_rng.clone();
@@ -258,7 +279,9 @@ fn jack_of_all_trades_plus_generates_two_colorless_cards() {
     assert_eq!(engine.state.hand.len(), 10);
     assert_eq!(discard_prefix_count(&engine, expected[1]), 1);
     assert_eq!(
-        engine.card_registry.card_name(engine.state.hand.last().unwrap().def_id),
+        engine
+            .card_registry
+            .card_name(engine.state.hand.last().unwrap().def_id),
         expected[0]
     );
     assert_eq!(engine.card_random_rng.counter, oracle.counter);

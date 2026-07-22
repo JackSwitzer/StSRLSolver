@@ -10,7 +10,7 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/RitualDagger.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{BulkAction, Effect as E, CardFilter, Pile as P};
+use crate::effects::declarative::{BulkAction, CardFilter, Effect as E, Pile as P};
 use crate::tests::support::{
     enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_self,
 };
@@ -47,18 +47,16 @@ fn colorless_wave2_registry_exports_match_typed_surface() {
     );
     assert!(apotheosis.complex_hook.is_none());
 
-    let apotheosis_plus = registry.get("Apotheosis+").expect("Apotheosis+ should exist");
+    let apotheosis_plus = registry
+        .get("Apotheosis+")
+        .expect("Apotheosis+ should exist");
     assert_eq!(apotheosis_plus.effect_data, apotheosis.effect_data);
     assert!(apotheosis_plus.complex_hook.is_none());
 }
 
 #[test]
 fn apotheosis_upgrades_all_cards_across_all_piles() {
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        10,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 10);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Apotheosis", "Dramatic Entrance"]);
     engine.state.draw_pile = make_deck(&["Good Instincts"]);
@@ -68,9 +66,11 @@ fn apotheosis_upgrades_all_cards_across_all_piles() {
     assert!(play_self(&mut engine, "Apotheosis"));
 
     assert!(
-        engine.state.hand.iter().any(|card| {
-            engine.card_registry.card_name(card.def_id) == "Dramatic Entrance+"
-        }),
+        engine
+            .state
+            .hand
+            .iter()
+            .any(|card| { engine.card_registry.card_name(card.def_id) == "Dramatic Entrance+" }),
         "hand card should be upgraded"
     );
     assert!(
@@ -78,7 +78,11 @@ fn apotheosis_upgrades_all_cards_across_all_piles() {
         "draw pile cards should be upgraded"
     );
     assert!(
-        engine.state.discard_pile.iter().all(|card| card.is_upgraded()),
+        engine
+            .state
+            .discard_pile
+            .iter()
+            .all(|card| card.is_upgraded()),
         "discard pile cards should be upgraded"
     );
     assert!(
@@ -99,11 +103,8 @@ fn apotheosis_upgrade_changes_only_cost_and_does_not_upgrade_itself_in_limbo() {
     // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Apotheosis.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ApotheosisAction.java
     for (card_id, cost) in [("Apotheosis", 2), ("Apotheosis+", 1)] {
-        let mut engine = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            cost,
-        );
+        let mut engine =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], cost);
         force_player_turn(&mut engine);
         engine.state.hand = make_deck(&[card_id, "Dramatic Entrance"]);
         engine.state.draw_pile = make_deck(&["Good Instincts"]);
@@ -115,17 +116,24 @@ fn apotheosis_upgrade_changes_only_cost_and_does_not_upgrade_itself_in_limbo() {
         assert_eq!(engine.state.energy, 0);
         assert!(engine.state.hand.iter().all(|card| card.is_upgraded()));
         assert!(engine.state.draw_pile.iter().all(|card| card.is_upgraded()));
-        assert!(engine.state.discard_pile.iter().all(|card| card.is_upgraded()));
-        assert!(engine.state.exhaust_pile.iter().any(|card| {
-            engine.card_registry.card_name(card.def_id) == "Magnetism+"
-        }));
-        assert!(engine.state.exhaust_pile.iter().any(|card| {
-            engine.card_registry.card_name(card.def_id) == card_id
-        }));
+        assert!(engine
+            .state
+            .discard_pile
+            .iter()
+            .all(|card| card.is_upgraded()));
+        assert!(engine
+            .state
+            .exhaust_pile
+            .iter()
+            .any(|card| { engine.card_registry.card_name(card.def_id) == "Magnetism+" }));
+        assert!(engine
+            .state
+            .exhaust_pile
+            .iter()
+            .any(|card| { engine.card_registry.card_name(card.def_id) == card_id }));
         if card_id == "Apotheosis" {
             assert!(engine.state.exhaust_pile.iter().any(|card| {
-                engine.card_registry.card_name(card.def_id) == "Apotheosis"
-                    && !card.is_upgraded()
+                engine.card_registry.card_name(card.def_id) == "Apotheosis" && !card.is_upgraded()
             }));
         }
     }

@@ -20,17 +20,39 @@ fn apply_temporary_strength_loss_to_all(
 }
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Silent Common: Piercing Wail ---- (cost 1, -6 str to all enemies this turn, exhaust; +2 magic)
-    insert(cards, CardDef {
-                id: "Piercing Wail", name: "Piercing Wail", card_type: CardType::Skill,
-                target: CardTarget::AllEnemy, cost: 1, base_damage: -1, base_block: -1,
-                base_magic: 6, exhaust: true, enter_stance: None,
-                effect_data: &[], complex_hook: Some(apply_temporary_strength_loss_to_all),
-            });
-    insert(cards, CardDef {
-                id: "Piercing Wail+", name: "Piercing Wail+", card_type: CardType::Skill,
-                target: CardTarget::AllEnemy, cost: 1, base_damage: -1, base_block: -1,
-                base_magic: 8, exhaust: true, enter_stance: None,
-                effect_data: &[], complex_hook: Some(apply_temporary_strength_loss_to_all),
-            });
+    // ---- Silent Common: Piercing Wail ---- (cost 1, -6 str to all enemies this turn, exhaust; +2 magic)
+    insert(
+        cards,
+        CardDef {
+            id: "Piercing Wail",
+            name: "Piercing Wail",
+            card_type: CardType::Skill,
+            target: CardTarget::AllEnemy,
+            cost: 1,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: 6,
+            exhaust: true,
+            enter_stance: None,
+            effect_data: &[],
+            complex_hook: Some(apply_temporary_strength_loss_to_all),
+        },
+    );
+    insert(
+        cards,
+        CardDef {
+            id: "Piercing Wail+",
+            name: "Piercing Wail+",
+            card_type: CardType::Skill,
+            target: CardTarget::AllEnemy,
+            cost: 1,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: 8,
+            exhaust: true,
+            enter_stance: None,
+            effect_data: &[],
+            complex_hook: Some(apply_temporary_strength_loss_to_all),
+        },
+    );
 }

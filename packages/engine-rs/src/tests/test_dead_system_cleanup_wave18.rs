@@ -10,7 +10,9 @@
 // covers the bridge behavior, but do not delete helpers that are still called
 // from production code.
 
-use crate::tests::support::{combat_state_with, end_turn, enemy_no_intent, engine_with_state, make_deck, play_on_enemy};
+use crate::tests::support::{
+    combat_state_with, end_turn, enemy_no_intent, engine_with_state, make_deck, play_on_enemy,
+};
 
 #[test]
 fn relic_dead_helper_cleanup_wave18_live_bridge_helpers_still_work_on_engine_path() {
@@ -27,8 +29,14 @@ fn relic_dead_helper_cleanup_wave18_live_bridge_helpers_still_work_on_engine_pat
 
     let mut engine = engine_with_state(state);
     engine.state.hand.clear();
-    engine.state.hand.push(engine.card_registry.make_card("Strike"));
-    engine.state.hand.push(engine.card_registry.make_card("Defend"));
+    engine
+        .state
+        .hand
+        .push(engine.card_registry.make_card("Strike"));
+    engine
+        .state
+        .hand
+        .push(engine.card_registry.make_card("Defend"));
     engine.state.player.block = 20;
 
     let enemy_hp_before = engine.state.enemies[0].entity.hp;
@@ -46,5 +54,8 @@ fn relic_dead_helper_cleanup_wave18_live_bridge_helpers_still_work_on_engine_pat
         "Runic Pyramid should retain the remaining hand card"
     );
     // D49 parity fix: Calipers subtracts 15, not caps at 15. 20 -> 5.
-    assert_eq!(engine.state.player.block, 5, "Calipers should subtract 15 block (Java parity)");
+    assert_eq!(
+        engine.state.player.block, 5,
+        "Calipers should subtract 15 block (Java parity)"
+    );
 }

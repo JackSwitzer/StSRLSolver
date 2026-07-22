@@ -41,7 +41,9 @@ fn library_read_has_nested_choice_without_fake_skip() {
     assert!(open_screen.accepted());
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
 
-    let screen = engine.current_reward_screen().expect("library reward screen");
+    let screen = engine
+        .current_reward_screen()
+        .expect("library reward screen");
     assert_eq!(screen.source, RewardScreenSource::Event);
     assert_eq!(screen.items.len(), 1);
     assert_eq!(screen.items[0].kind, RewardItemKind::CardChoice);
@@ -50,13 +52,17 @@ fn library_read_has_nested_choice_without_fake_skip() {
 
     let open_choice = engine.step_game(&GameAction::SelectRewardItem(0));
     assert!(open_choice.accepted());
+    // TheLibrary.java opens a bespoke grid of 20 unique cards, not the
+    // ordinary three-card reward screen.
+    assert_eq!(open_choice.next_decision.legal_actions.len(), 20);
     assert_eq!(
         open_choice.next_decision.legal_actions,
-        vec![
-            GameAction::ChooseRewardOption { item_index: 0, choice_index: 0, },
-            GameAction::ChooseRewardOption { item_index: 0, choice_index: 1, },
-            GameAction::ChooseRewardOption { item_index: 0, choice_index: 2, },
-        ]
+        (0..20)
+            .map(|choice_index| GameAction::ChooseRewardOption {
+                item_index: 0,
+                choice_index,
+            })
+            .collect::<Vec<_>>()
     );
 }
 
@@ -73,7 +79,9 @@ fn drug_dealer_all_three_supported_branches_use_canonical_runtime_paths() {
     let jax_step = jax_engine.step_game(&GameAction::EventChoice(0));
     assert!(jax_step.accepted());
     assert_eq!(jax_engine.current_phase(), RunPhase::CardReward);
-    let jax_screen = jax_engine.current_reward_screen().expect("jax reward screen");
+    let jax_screen = jax_engine
+        .current_reward_screen()
+        .expect("jax reward screen");
     assert_eq!(jax_screen.items.len(), 1);
     assert_eq!(jax_screen.items[0].kind, RewardItemKind::CardChoice);
     assert_eq!(jax_screen.items[0].choices.len(), 1);
@@ -84,7 +92,11 @@ fn drug_dealer_all_three_supported_branches_use_canonical_runtime_paths() {
         choice_index: 0,
     });
     assert!(choose_jax.accepted());
-    assert!(jax_engine.run_state.deck.iter().any(|card| card == "J.A.X."));
+    assert!(jax_engine
+        .run_state
+        .deck
+        .iter()
+        .any(|card| card == "J.A.X."));
 
     let mut transform_engine = RunEngine::new(23, 20);
     let deck_before = transform_engine.run_state.deck.len();
@@ -113,13 +125,22 @@ fn drug_dealer_all_three_supported_branches_use_canonical_runtime_paths() {
     let relic_step = relic_engine.step_game(&GameAction::EventChoice(2));
     assert!(relic_step.accepted());
     // DrugDealer.java::buttonEffect uses spawnRelicAndObtain during the event;
-    // no additional reward-screen action exists.
-    assert_eq!(relic_engine.current_phase(), RunPhase::MapChoice);
+    // no additional reward-screen action exists. The same effect changes the
+    // dialog to a single Leave option, whose second buttonEffect opens the map.
+    assert_eq!(relic_engine.current_phase(), RunPhase::Event);
     assert!(relic_engine
         .run_state
         .relics
         .iter()
         .any(|relic| relic == "MutagenicStrength"));
+    assert_eq!(
+        relic_step.next_decision.legal_actions,
+        vec![GameAction::EventChoice(0)]
+    );
+    assert!(relic_engine
+        .step_game(&GameAction::EventChoice(0))
+        .accepted());
+    assert_eq!(relic_engine.current_phase(), RunPhase::MapChoice);
 }
 
 #[test]
@@ -131,9 +152,9 @@ fn drug_dealer_mutagenic_strength_uses_canonical_id_and_next_combat_effect() {
     let mut engine = RunEngine::new(37, 0);
     engine.debug_set_typed_event_state(dealer.clone());
 
-    assert!(engine
-        .step_game(&GameAction::EventChoice(2))
-        .accepted());
+    assert!(engine.step_game(&GameAction::EventChoice(2)).accepted());
+    assert_eq!(engine.current_phase(), RunPhase::Event);
+    assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
     engine.debug_enter_specific_combat(&["JawWorm"]);
     let combat = engine.debug_combat_engine_mut();
@@ -146,9 +167,8 @@ fn drug_dealer_mutagenic_strength_uses_canonical_id_and_next_combat_effect() {
         .relics
         .push("MutagenicStrength".to_string());
     duplicate.debug_set_typed_event_state(dealer);
-    assert!(duplicate
-        .step_game(&GameAction::EventChoice(2))
-        .accepted());
+    assert!(duplicate.step_game(&GameAction::EventChoice(2)).accepted());
+    assert_eq!(duplicate.current_phase(), RunPhase::Event);
     assert_eq!(
         duplicate
             .run_state
@@ -228,11 +248,14 @@ fn face_of_cleric_trade_reaches_next_victory_and_obeys_healing_rules() {
     assert_eq!(engine.run_state.current_hp, 41);
 
     let mut blocked = RunEngine::new(53, 0);
-    blocked.run_state.relics.extend([
-        "FaceOfCleric".to_string(),
-        "Mark of the Bloom".to_string(),
-    ]);
-    blocked.run_state.relic_flags.rebuild(&blocked.run_state.relics);
+    blocked
+        .run_state
+        .relics
+        .extend(["FaceOfCleric".to_string(), "Mark of the Bloom".to_string()]);
+    blocked
+        .run_state
+        .relic_flags
+        .rebuild(&blocked.run_state.relics);
     blocked.run_state.current_hp = 40;
     let max_before = blocked.run_state.max_hp;
     blocked.debug_enter_specific_combat(&["JawWorm"]);
@@ -279,10 +302,10 @@ fn gremlin_mask_trade_applies_one_artifact_aware_weak_in_next_combat() {
     assert_eq!(combat.state.enemies[0].entity.hp, hp_before - 4);
 
     let mut artifact = RunEngine::new(57, 0);
-    artifact.run_state.relics.extend([
-        "ClockworkSouvenir".to_string(),
-        "GremlinMask".to_string(),
-    ]);
+    artifact
+        .run_state
+        .relics
+        .extend(["ClockworkSouvenir".to_string(), "GremlinMask".to_string()]);
     artifact.debug_enter_specific_combat(&["JawWorm"]);
     let combat = artifact.get_combat_engine().expect("artifact combat");
     assert_eq!(combat.state.player.status(sid::WEAKENED), 0);
@@ -315,7 +338,11 @@ fn cultist_mask_trade_is_naturally_reachable_and_gameplay_inert() {
         .retain(|relic| matches!(relic.as_str(), "PureWater" | "CultistMask"));
     engine.debug_enter_specific_combat(&["JawWorm"]);
     let combat = engine.get_combat_engine().expect("Cultist Mask combat");
-    assert!(combat.state.relics.iter().any(|relic| relic == "CultistMask"));
+    assert!(combat
+        .state
+        .relics
+        .iter()
+        .any(|relic| relic == "CultistMask"));
     assert_eq!(combat.state.player.status(sid::STRENGTH), 0);
     assert_eq!(combat.state.player.status(sid::DEXTERITY), 0);
     assert_eq!(combat.state.player.status(sid::WEAKENED), 0);
@@ -351,10 +378,10 @@ fn ssserpent_head_trade_pays_on_every_mystery_entry_through_gain_gold() {
     assert_eq!(engine.run_state.gold, gold_before + 50);
 
     let mut ectoplasm = RunEngine::new(63, 0);
-    ectoplasm.run_state.relics.extend([
-        "SsserpentHead".to_string(),
-        "Ectoplasm".to_string(),
-    ]);
+    ectoplasm
+        .run_state
+        .relics
+        .extend(["SsserpentHead".to_string(), "Ectoplasm".to_string()]);
     ectoplasm
         .run_state
         .relic_flags
@@ -366,10 +393,10 @@ fn ssserpent_head_trade_pays_on_every_mystery_entry_through_gain_gold() {
     assert_eq!(ectoplasm.run_state.gold, gold_before);
 
     let mut bloody_idol = RunEngine::new(65, 0);
-    bloody_idol.run_state.relics.extend([
-        "SsserpentHead".to_string(),
-        "Bloody Idol".to_string(),
-    ]);
+    bloody_idol
+        .run_state
+        .relics
+        .extend(["SsserpentHead".to_string(), "Bloody Idol".to_string()]);
     bloody_idol
         .run_state
         .relic_flags
@@ -390,9 +417,14 @@ fn nloths_mask_trade_removes_one_nonboss_chest_relic_then_expires() {
     // -2; the boss-chest callback receives true and must leave it untouched.
     let mut engine = RunEngine::new(67, 0);
     engine.run_state.relics.extend(
-        ["CultistMask", "FaceOfCleric", "GremlinMask", "SsserpentHead"]
-            .iter()
-            .map(|face| (*face).to_string()),
+        [
+            "CultistMask",
+            "FaceOfCleric",
+            "GremlinMask",
+            "SsserpentHead",
+        ]
+        .iter()
+        .map(|face| (*face).to_string()),
     );
     engine.debug_set_typed_event_state(shrine_event("FaceTrader"));
     engine.step_game(&GameAction::EventChoice(0));
@@ -408,9 +440,15 @@ fn nloths_mask_trade_removes_one_nonboss_chest_relic_then_expires() {
     );
 
     engine.debug_build_treasure_reward_screen();
-    let screen = engine.current_reward_screen().expect("non-boss chest rewards");
+    let screen = engine
+        .current_reward_screen()
+        .expect("non-boss chest rewards");
     assert_eq!(
-        screen.items.iter().filter(|item| item.kind == RewardItemKind::Relic).count(),
+        screen
+            .items
+            .iter()
+            .filter(|item| item.kind == RewardItemKind::Relic)
+            .count(),
         0
     );
     assert_eq!(
@@ -423,7 +461,10 @@ fn nloths_mask_trade_removes_one_nonboss_chest_relic_then_expires() {
     boss.run_state.relic_flags.init_relic_counter("NlothsMask");
     boss.debug_build_boss_reward_screen();
     assert!(boss.current_reward_screen().is_some_and(|screen| {
-        screen.items.iter().any(|item| item.kind == RewardItemKind::Relic)
+        screen
+            .items
+            .iter()
+            .any(|item| item.kind == RewardItemKind::Relic)
     }));
     assert_eq!(
         boss.run_state.relic_flags.counters[crate::relic_flags::counter::NLOTHS_MASK],
@@ -474,17 +515,36 @@ fn nloths_gift_trade_sacrifices_an_offer_and_triples_rare_rewards() {
     assert!(relics_before
         .iter()
         .all(|relic| duplicate.run_state.relics.contains(relic)));
-    assert!(duplicate.run_state.relics.iter().any(|relic| relic == "Circlet"));
+    assert!(duplicate
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == "Circlet"));
 
     // NlothsGift.java returns rareCardChance * 3. The production reward path
     // therefore moves the common/rare boundary from 7% to 21% while leaving
     // the 33% uncommon share unchanged. Sample the seeded engine path broadly
     // enough that the exact multiplier produces a stable >2x rare count.
     const RARES: &[&str] = &[
-        "Alpha", "Blasphemy", "Brilliance", "ConjureBlade", "DevaForm",
-        "Devotion", "Establishment", "Fasting2", "Judgement", "LessonLearned",
-        "MasterReality", "MentalFortress", "Omniscience", "Ragnarok",
-        "Adaptation", "Scrawl", "SpiritShield", "Vault", "Wish",
+        "Alpha",
+        "Blasphemy",
+        "Brilliance",
+        "ConjureBlade",
+        "DevaForm",
+        "Devotion",
+        "Establishment",
+        "Fasting2",
+        "Judgement",
+        "LessonLearned",
+        "MasterReality",
+        "MentalFortress",
+        "Omniscience",
+        "Ragnarok",
+        "Adaptation",
+        "Scrawl",
+        "SpiritShield",
+        "Vault",
+        "Wish",
     ];
     let count_rares = |engine: &RunEngine| {
         engine
@@ -521,9 +581,15 @@ fn repeated_face_fallbacks_create_separate_gameplay_inert_circlets() {
     // FaceTrader.getRandomFace returns a new Circlet on every trade.
     let mut engine = RunEngine::new(75, 0);
     engine.run_state.relics.extend(
-        ["CultistMask", "FaceOfCleric", "GremlinMask", "NlothsMask", "SsserpentHead"]
-            .iter()
-            .map(|face| (*face).to_string()),
+        [
+            "CultistMask",
+            "FaceOfCleric",
+            "GremlinMask",
+            "NlothsMask",
+            "SsserpentHead",
+        ]
+        .iter()
+        .map(|face| (*face).to_string()),
     );
     for _ in 0..2 {
         engine.debug_set_typed_event_state(shrine_event("FaceTrader"));
@@ -575,7 +641,9 @@ fn nest_branches_cover_direct_gold_and_specific_card_reward() {
     assert!(join.accepted());
     assert_eq!(dagger_engine.current_phase(), RunPhase::CardReward);
     assert_eq!(dagger_engine.run_state.current_hp, hp_before - 6);
-    let screen = dagger_engine.current_reward_screen().expect("ritual dagger screen");
+    let screen = dagger_engine
+        .current_reward_screen()
+        .expect("ritual dagger screen");
     assert_eq!(screen.items[0].kind, RewardItemKind::CardChoice);
     assert_eq!(screen.items[0].choices.len(), 1);
     let open = dagger_engine.step_game(&GameAction::SelectRewardItem(0));
@@ -604,7 +672,9 @@ fn sensory_stone_focus_and_tomb_of_lord_red_mask_flow_through_event_rewards() {
     let sensory = sensory_engine.step_game(&GameAction::EventChoice(0));
     assert!(sensory.accepted());
     assert_eq!(sensory_engine.current_phase(), RunPhase::CardReward);
-    let sensory_screen = sensory_engine.current_reward_screen().expect("sensory screen");
+    let sensory_screen = sensory_engine
+        .current_reward_screen()
+        .expect("sensory screen");
     assert_eq!(sensory_screen.source, RewardScreenSource::Event);
     assert_eq!(sensory_screen.items[0].kind, RewardItemKind::CardChoice);
 
@@ -626,9 +696,7 @@ fn tomb_of_lord_red_mask_reward_is_claimable_into_run_state() {
     // declares the same ID consumed by its combat-start hook.
     let mut engine = RunEngine::new(49, 20);
     engine.debug_set_typed_event_state(typed_event(3, "Tomb of Lord Red Mask"));
-    assert!(engine
-        .step_game(&GameAction::EventChoice(0))
-        .accepted());
+    assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
     assert!(engine
         .step_game(&GameAction::SelectRewardItem(0))
         .accepted());

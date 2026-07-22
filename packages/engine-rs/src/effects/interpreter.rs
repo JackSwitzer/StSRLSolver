@@ -3,10 +3,10 @@
 
 use crate::cards::CardType;
 use crate::damage;
-use crate::engine::{CombatEngine, CombatPhase, ChoiceOption, ChoiceReason};
 use crate::effects::declarative::*;
 use crate::effects::trigger::TriggerContext;
 use crate::effects::types::CardPlayContext;
+use crate::engine::{ChoiceOption, ChoiceReason, CombatEngine, CombatPhase};
 use crate::ids::StatusId;
 use crate::status_ids::sid;
 use std::collections::{HashMap, HashSet};
@@ -24,7 +24,66 @@ pub fn execute_effects(engine: &mut CombatEngine, ctx: &mut CardPlayContext, eff
         if engine.phase == CombatPhase::AwaitingChoice {
             return; // Choice triggered, stop processing
         }
+        if (engine.state.combat_over || engine.state.is_victory())
+            && !survives_java_post_combat_action_clear(effect, ctx)
+        {
+            continue;
+        }
         execute_one(engine, ctx, effect);
+    }
+}
+
+/// `DamageAction` calls `GameActionManager.clearPostCombatActions` after the
+/// final monster dies. Java retains only HealAction, GainBlockAction,
+/// UseCardAction, and actions whose type is DAMAGE. Declarative effects are
+/// already inside the current UseCardAction; after a lethal earlier effect,
+/// only queued damage/heal/block semantics may continue. FeedAction,
+/// GreedAction, RitualDaggerAction, and LessonLearnedAction are custom DAMAGE
+/// actions whose kill mutation runs inside the same action before it calls the
+/// cleanup method, so their modeled trailing mutation must also survive.
+///
+/// Java: actions/common/DamageAction.java;
+/// actions/GameActionManager.java::clearPostCombatActions;
+/// actions/unique/{FeedAction,GreedAction,RitualDaggerAction}.java;
+/// actions/watcher/LessonLearnedAction.java.
+fn survives_java_post_combat_action_clear(effect: &Effect, ctx: &CardPlayContext) -> bool {
+    match effect {
+        Effect::Simple(simple) => {
+            matches!(
+                simple,
+                SimpleEffect::GainBlock(_)
+                    | SimpleEffect::GainBlockIfLastDrawnCardType(_, _)
+                    | SimpleEffect::ModifyHp(_)
+                    | SimpleEffect::DealDamage(_, _)
+                    | SimpleEffect::Judgement(_)
+                    | SimpleEffect::TriggerMarks
+                    | SimpleEffect::HealHp(_, _)
+            ) || matches!(
+                (ctx.card.id, simple),
+                ("Feed" | "Feed+", SimpleEffect::ModifyMaxHp(_))
+                    | ("HandOfGreed" | "HandOfGreed+", SimpleEffect::ModifyGold(_))
+                    | (
+                        "RitualDagger" | "RitualDagger+",
+                        SimpleEffect::ModifyPlayedCardDamage(_)
+                    )
+                    | (
+                        "LessonLearned" | "LessonLearned+",
+                        SimpleEffect::UpgradeRandomMasterDeckCard
+                    )
+            )
+        }
+        // The branch itself has no mutation. Nested actions are filtered by
+        // this same rule, which preserves a queued GainBlock/Damage branch but
+        // removes Eruption/Fear No Evil's queued ChangeStanceAction.
+        Effect::Conditional(_, _, _) => true,
+        Effect::ChooseCards { .. }
+        | Effect::ForEachInPile { .. }
+        | Effect::ExtraHits(_)
+        | Effect::Discover(_)
+        | Effect::ChooseScaledNamedOptions(_)
+        | Effect::GenerateRandomCardsToHand { .. }
+        | Effect::GenerateRandomCardsToDraw { .. }
+        | Effect::GenerateDiscoveryChoice { .. } => false,
     }
 }
 
@@ -64,7 +123,11 @@ fn execute_one(engine: &mut CombatEngine, ctx: &mut CardPlayContext, effect: &Ef
             );
         }
 
-        Effect::ForEachInPile { pile, filter, action } => {
+        Effect::ForEachInPile {
+            pile,
+            filter,
+            action,
+        } => {
             execute_for_each(engine, ctx, *pile, *filter, *action);
         }
 
@@ -136,7 +199,8 @@ fn execute_scaled_attack_damage(
             if idx >= 0 && (idx as usize) < engine.state.enemies.len() {
                 let tidx = idx as usize;
                 let enemy_vuln = engine.state.enemies[tidx].entity.is_vulnerable();
-                let enemy_intangible = engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
+                let enemy_intangible =
+                    engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
                 let vuln_paper_frog = engine.state.has_relic("Paper Frog");
                 let dmg = damage::calculate_damage_full(
                     base_damage,
@@ -159,7 +223,10 @@ fn execute_scaled_attack_damage(
             let living = engine.state.living_enemy_indices();
             for enemy_idx in living {
                 let enemy_vuln = engine.state.enemies[enemy_idx].entity.is_vulnerable();
-                let enemy_intangible = engine.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) > 0;
+                let enemy_intangible = engine.state.enemies[enemy_idx]
+                    .entity
+                    .status(sid::INTANGIBLE)
+                    > 0;
                 let vuln_paper_frog = engine.state.has_relic("Paper Frog");
                 let dmg = damage::calculate_damage_full(
                     base_damage,
@@ -186,10 +253,14 @@ fn execute_scaled_attack_damage(
                 // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/AttackDamageRandomEnemyAction.java
                 let selected = engine
                     .card_random_rng
-                    .random_int_range(0, (living.len() - 1) as i32) as usize;
+                    .random_int_range(0, (living.len() - 1) as i32)
+                    as usize;
                 let enemy_idx = living[selected];
                 let enemy_vuln = engine.state.enemies[enemy_idx].entity.is_vulnerable();
-                let enemy_intangible = engine.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) > 0;
+                let enemy_intangible = engine.state.enemies[enemy_idx]
+                    .entity
+                    .status(sid::INTANGIBLE)
+                    > 0;
                 let vuln_paper_frog = engine.state.has_relic("Paper Frog");
                 let dmg = damage::calculate_damage_full(
                     base_damage,
@@ -327,7 +398,8 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                 } else {
                     engine
                         .card_random_rng
-                        .random_int((engine.state.hand.len() - 1) as i32) as usize
+                        .random_int((engine.state.hand.len() - 1) as i32)
+                        as usize
                 };
                 let exhausted = engine.state.hand.remove(idx);
                 engine.state.exhaust_pile.push(exhausted);
@@ -372,7 +444,10 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             let mut multiplier = 1;
             // Java X-cost block cards like Reinforced Body resolve their modified
             // block once, then apply it per energy spent.
-            if matches!(amount_src, AmountSource::Block) && ctx.card.cost == -1 && ctx.card.base_block > 0 {
+            if matches!(amount_src, AmountSource::Block)
+                && ctx.card.cost == -1
+                && ctx.card.base_block > 0
+            {
                 multiplier = ctx.x_value.max(0);
             }
             // BlockPerNonAttackAction queues one GainBlockAction(this.block) per
@@ -390,7 +465,10 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             // Dexterity/Frail pipeline.
             // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/WallopAction.java
             // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DoubleYourBlockAction.java
-            let block = if matches!(amount_src, AmountSource::TotalUnblockedDamage | AmountSource::PlayerBlock) {
+            let block = if matches!(
+                amount_src,
+                AmountSource::TotalUnblockedDamage | AmountSource::PlayerBlock
+            ) {
                 base
             } else {
                 let dex = engine.state.player.dexterity();
@@ -468,9 +546,7 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
             if pile == Pile::Draw && count > 0 {
                 engine.shuffle_draw_pile();
             }
-            if matches!(ctx.card.id, "Storm of Steel" | "Storm of Steel+")
-                && pile == Pile::Hand
-            {
+            if matches!(ctx.card.id, "Storm of Steel" | "Storm of Steel+") && pile == Pile::Hand {
                 // BladeFuryAction puts MakeTempCardInHandAction ahead of the
                 // card/relic actions queued by DiscardAction. Resolve those
                 // hooks only after all Shivs have been created.
@@ -498,10 +574,10 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                 if engine.state.draw_pile.is_empty() {
                     engine.state.draw_pile.push(card);
                 } else {
-                    let idx = engine.card_random_rng.random_int_range(
-                        0,
-                        (engine.state.draw_pile.len() - 1) as i32,
-                    ) as usize;
+                    let idx = engine
+                        .card_random_rng
+                        .random_int_range(0, (engine.state.draw_pile.len() - 1) as i32)
+                        as usize;
                     engine.state.draw_pile.insert(idx, card);
                 }
             }
@@ -663,12 +739,10 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
                 AmountSource::DrawPileSize
                     | AmountSource::StatusValueTimesMagic(_)
                     | AmountSource::PlayerBlock
-            )
-                && matches!(
-                    target,
-                    Target::SelectedEnemy | Target::AllEnemies | Target::RandomEnemy
-                )
-            {
+            ) && matches!(
+                target,
+                Target::SelectedEnemy | Target::AllEnemies | Target::RandomEnemy
+            ) {
                 let amount = resolve_card_amount(engine, ctx, amount_src);
                 execute_scaled_attack_damage(engine, ctx, target, amount);
                 return;
@@ -689,28 +763,26 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
         }
 
         // -- Enemy block removal --
-        SimpleEffect::RemoveEnemyBlock(target) => {
-            match target {
-                Target::SelectedEnemy => {
-                    if ctx.target_idx >= 0 && (ctx.target_idx as usize) < engine.state.enemies.len() {
-                        engine.state.enemies[ctx.target_idx as usize].entity.block = 0;
-                    }
+        SimpleEffect::RemoveEnemyBlock(target) => match target {
+            Target::SelectedEnemy => {
+                if ctx.target_idx >= 0 && (ctx.target_idx as usize) < engine.state.enemies.len() {
+                    engine.state.enemies[ctx.target_idx as usize].entity.block = 0;
                 }
-                Target::AllEnemies => {
-                    for idx in engine.state.living_enemy_indices() {
-                        engine.state.enemies[idx].entity.block = 0;
-                    }
-                }
-                Target::RandomEnemy => {
-                    let living = engine.state.living_enemy_indices();
-                    if !living.is_empty() {
-                        let idx = living[engine.card_random_rng.random_index(living.len())];
-                        engine.state.enemies[idx].entity.block = 0;
-                    }
-                }
-                Target::Player | Target::SelfEntity => {}
             }
-        }
+            Target::AllEnemies => {
+                for idx in engine.state.living_enemy_indices() {
+                    engine.state.enemies[idx].entity.block = 0;
+                }
+            }
+            Target::RandomEnemy => {
+                let living = engine.state.living_enemy_indices();
+                if !living.is_empty() {
+                    let idx = living[engine.card_random_rng.random_index(living.len())];
+                    engine.state.enemies[idx].entity.block = 0;
+                }
+            }
+            Target::Player | Target::SelfEntity => {}
+        },
 
         // -- Judgement special resolution --
         SimpleEffect::Judgement(ref threshold_src) => {
@@ -861,7 +933,11 @@ fn execute_simple(engine: &mut CombatEngine, ctx: &mut CardPlayContext, simple: 
         // -- Increment counter status --
         SimpleEffect::IncrementCounter(status_id, threshold) => {
             let next = engine.state.player.status(status_id) + 1;
-            let next = if threshold > 1 { next.min(threshold) } else { next };
+            let next = if threshold > 1 {
+                next.min(threshold)
+            } else {
+                next
+            };
             engine.state.player.set_status(status_id, next);
         }
 
@@ -1001,7 +1077,8 @@ fn apply_status(
                 // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/MonsterGroup.java
                 let selected = engine
                     .card_random_rng
-                    .random_int_range(0, (living.len() - 1) as i32) as usize;
+                    .random_int_range(0, (living.len() - 1) as i32)
+                    as usize;
                 let idx = living[selected];
                 if is_debuff(status, amount) {
                     engine.apply_player_debuff_to_enemy(idx, status, amount);
@@ -1032,7 +1109,9 @@ fn set_status(
         Target::SelectedEnemy => {
             let idx = ctx.target_idx;
             if idx >= 0 && (idx as usize) < engine.state.enemies.len() {
-                engine.state.enemies[idx as usize].entity.set_status(status, value);
+                engine.state.enemies[idx as usize]
+                    .entity
+                    .set_status(status, value);
             }
         }
         Target::AllEnemies => {
@@ -1152,7 +1231,9 @@ fn multiply_status(
                         let additional = current * (multiplier - 1).max(0);
                         engine.apply_player_debuff_to_enemy(i, status, additional);
                     } else {
-                        engine.state.enemies[i].entity.set_status(status, current * multiplier);
+                        engine.state.enemies[i]
+                            .entity
+                            .set_status(status, current * multiplier);
                     }
                 }
             }
@@ -1162,7 +1243,9 @@ fn multiply_status(
             for i in living {
                 let current = engine.state.enemies[i].entity.status(status);
                 if current > 0 {
-                    engine.state.enemies[i].entity.set_status(status, current * multiplier);
+                    engine.state.enemies[i]
+                        .entity
+                        .set_status(status, current * multiplier);
                 }
             }
         }
@@ -1172,7 +1255,9 @@ fn multiply_status(
                 let idx = living[engine.card_random_rng.random_index(living.len())];
                 let current = engine.state.enemies[idx].entity.status(status);
                 if current > 0 {
-                    engine.state.enemies[idx].entity.set_status(status, current * multiplier);
+                    engine.state.enemies[idx]
+                        .entity
+                        .set_status(status, current * multiplier);
                 }
             }
         }
@@ -1183,7 +1268,11 @@ fn multiply_status(
 // Amount resolution
 // ===========================================================================
 
-pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &AmountSource) -> i32 {
+pub fn resolve_card_amount(
+    engine: &CombatEngine,
+    ctx: &CardPlayContext,
+    src: &AmountSource,
+) -> i32 {
     match *src {
         AmountSource::Magic => ctx.card.base_magic.max(1),
         AmountSource::Block => {
@@ -1259,26 +1348,21 @@ pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &A
         AmountSource::LastBulkCountTimesBlock => {
             ctx.last_bulk_count.max(0) * ctx.card.base_block.max(0)
         }
-        AmountSource::PriorAttacksThisTurn => {
-            (engine.state.attacks_played_this_turn - 1).max(0)
-        }
-        AmountSource::SkillsInHand => {
-            engine.state.hand.iter()
-                .filter(|c| {
-                    let def = engine.card_registry.card_def_by_id(c.def_id);
-                    def.card_type == CardType::Skill
-                })
-                .count() as i32
-        }
-        AmountSource::StatusValue(status_id) => {
-            engine.state.player.status(status_id)
-        }
+        AmountSource::PriorAttacksThisTurn => (engine.state.attacks_played_this_turn - 1).max(0),
+        AmountSource::SkillsInHand => engine
+            .state
+            .hand
+            .iter()
+            .filter(|c| {
+                let def = engine.card_registry.card_def_by_id(c.def_id);
+                def.card_type == CardType::Skill
+            })
+            .count() as i32,
+        AmountSource::StatusValue(status_id) => engine.state.player.status(status_id),
         AmountSource::StatusValueTimesMagic(status_id) => {
             engine.state.player.status(status_id) * ctx.card.base_magic.max(0)
         }
-        AmountSource::PercentMaxHp(pct) => {
-            (engine.state.player.max_hp * pct) / 100
-        }
+        AmountSource::PercentMaxHp(pct) => (engine.state.player.max_hp * pct) / 100,
         AmountSource::PotionPotency => {
             // Resolved externally by the potion interpreter (not the card interpreter).
             // If this is reached from card play context, it's a bug.
@@ -1292,12 +1376,7 @@ pub fn resolve_card_amount(engine: &CombatEngine, ctx: &CardPlayContext, src: &A
 // Deal flat damage (no strength/stance — used by relics, powers)
 // ===========================================================================
 
-fn deal_flat_damage(
-    engine: &mut CombatEngine,
-    ctx: &CardPlayContext,
-    target: Target,
-    amount: i32,
-) {
+fn deal_flat_damage(engine: &mut CombatEngine, ctx: &CardPlayContext, target: Target, amount: i32) {
     match target {
         Target::Player => {
             engine.player_lose_hp_from_damage(amount);
@@ -1368,6 +1447,12 @@ pub fn execute_trigger_effects(
         card: empty_card,
         card_inst: crate::combat_types::CardInstance::new(0),
         target_idx: trigger_ctx.target_idx,
+        target_was_attacking: trigger_ctx.target_idx >= 0
+            && engine
+                .state
+                .enemies
+                .get(trigger_ctx.target_idx as usize)
+                .is_some_and(|enemy| enemy.is_attacking()),
         x_value: 0,
         pen_nib_active: false,
         vigor: 0,
@@ -1391,19 +1476,18 @@ fn evaluate_condition(engine: &CombatEngine, ctx: &CardPlayContext, cond: &Condi
         Condition::InStance(stance) => engine.state.stance == stance,
 
         Condition::EnemyAttacking => {
-            let idx = ctx.target_idx;
-            if idx >= 0 && (idx as usize) < engine.state.enemies.len() {
-                engine.state.enemies[idx as usize].is_attacking()
-            } else {
-                false
-            }
+            // FearNoEvilAction evaluates intent before it queues DamageAction
+            // ahead of ChangeStanceAction. A lethal hit therefore cannot erase
+            // the already-selected Calm branch.
+            // Java: actions/watcher/FearNoEvilAction.java::update.
+            ctx.target_was_attacking
         }
 
-        Condition::HandContainsType(card_type) => {
-            engine.state.hand.iter().any(|card| {
-                engine.card_registry.card_def_by_id(card.def_id).card_type == card_type
-            })
-        }
+        Condition::HandContainsType(card_type) => engine
+            .state
+            .hand
+            .iter()
+            .any(|card| engine.card_registry.card_def_by_id(card.def_id).card_type == card_type),
 
         Condition::CardsPlayedThisTurnLessThan(threshold) => {
             engine.state.cards_played_this_turn < threshold
@@ -1429,13 +1513,9 @@ fn evaluate_condition(engine: &CombatEngine, ctx: &CardPlayContext, cond: &Condi
                 && engine.state.enemies[idx as usize].is_alive()
         }
 
-        Condition::LastCardType(card_type) => {
-            engine.state.last_card_type == Some(card_type)
-        }
+        Condition::LastCardType(card_type) => engine.state.last_card_type == Some(card_type),
 
-        Condition::PlayerHasStatus(status) => {
-            engine.state.player.status(status) > 0
-        }
+        Condition::PlayerHasStatus(status) => engine.state.player.status(status) > 0,
 
         Condition::NoBlock => engine.state.player.block == 0,
 
@@ -1445,16 +1525,14 @@ fn evaluate_condition(engine: &CombatEngine, ctx: &CardPlayContext, cond: &Condi
             ctx.enemy_killed
                 && ctx.target_idx >= 0
                 && (ctx.target_idx as usize) < engine.state.enemies.len()
-                && !engine.state.enemies[ctx.target_idx as usize].is_minion
+                && !engine.state.enemies[ctx.target_idx as usize].is_minion()
                 && engine.state.enemies[ctx.target_idx as usize]
                     .entity
                     .status(sid::REBIRTH_PENDING)
                     == 0
         }
 
-        Condition::DiscardedThisTurn => {
-            engine.state.player.status(sid::DISCARDED_THIS_TURN) > 0
-        }
+        Condition::DiscardedThisTurn => engine.state.player.status(sid::DISCARDED_THIS_TURN) > 0,
     }
 }
 
@@ -1487,7 +1565,8 @@ fn execute_choose_cards(
     };
 
     // Build options from the source pile, applying filter
-    let mut options: Vec<ChoiceOption> = pile.iter()
+    let mut options: Vec<ChoiceOption> = pile
+        .iter()
         .enumerate()
         .filter(|(_, card)| matches_filter(engine, card, filter))
         .map(|(i, _)| make_choice_option(source, i))
@@ -1522,8 +1601,7 @@ fn execute_choose_cards(
             left_status
                 .cmp(&right_status)
                 .then_with(|| {
-                    omniscience_rarity_rank(right_def.id)
-                        .cmp(&omniscience_rarity_rank(left_def.id))
+                    omniscience_rarity_rank(right_def.id).cmp(&omniscience_rarity_rank(left_def.id))
                 })
                 .then_with(|| left_def.name.cmp(right_def.name))
         });
@@ -1589,7 +1667,9 @@ fn execute_choose_cards(
         && options.len() == 1
     {
         if let ChoiceOption::HandCard(index) = options[0] {
-            engine.card_registry.upgrade_card(&mut engine.state.hand[index]);
+            engine
+                .card_registry
+                .upgrade_card(&mut engine.state.hand[index]);
         }
         return;
     }
@@ -1668,8 +1748,7 @@ fn execute_choose_cards(
     if matches!(
         ctx.card.id,
         "Secret Technique" | "Secret Technique+" | "Secret Weapon" | "Secret Weapon+"
-    )
-        && source == Pile::Draw
+    ) && source == Pile::Draw
         && action == ChoiceAction::MoveToHand
         && options.len() == 1
     {
@@ -1773,10 +1852,7 @@ fn execute_choose_cards(
     // hand selection only when two or more cards remain after Recycle itself
     // has left the hand.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/RecycleAction.java
-    if action == ChoiceAction::ExhaustAndGainEnergy
-        && source == Pile::Hand
-        && options.len() == 1
-    {
+    if action == ChoiceAction::ExhaustAndGainEnergy && source == Pile::Hand && options.len() == 1 {
         if let ChoiceOption::HandCard(index) = options[0] {
             engine.recycle_hand_card(index);
         }
@@ -1823,7 +1899,10 @@ fn execute_choose_cards(
     }
 
     let reason = choice_reason_for_action(action, source);
-    if matches!(action, ChoiceAction::CopyToHand | ChoiceAction::StoreCardForNextTurnCopies) {
+    if matches!(
+        action,
+        ChoiceAction::CopyToHand | ChoiceAction::StoreCardForNextTurnCopies
+    ) {
         engine.begin_choice_with_action(
             reason,
             options,
@@ -1907,9 +1986,7 @@ fn matches_filter(
             };
             current_cost == 0 || card.is_free()
         }
-        CardFilter::Upgradeable => {
-            engine.card_registry.can_upgrade_card(card)
-        }
+        CardFilter::Upgradeable => engine.card_registry.can_upgrade_card(card),
     }
 }
 
@@ -2219,11 +2296,7 @@ pub(crate) fn draw_random_cards_from_pile_to_hand(
     }
 }
 
-fn execute_discard_random_cards_from_pile(
-    engine: &mut CombatEngine,
-    pile: Pile,
-    count: i32,
-) {
+fn execute_discard_random_cards_from_pile(engine: &mut CombatEngine, pile: Pile, count: i32) {
     let count = count.max(0) as usize;
     if count == 0 {
         return;
@@ -2255,7 +2328,10 @@ fn execute_discard_random_cards_from_pile(
     }
 }
 
-fn get_pile_mut(engine: &mut CombatEngine, pile: Pile) -> &mut Vec<crate::combat_types::CardInstance> {
+fn get_pile_mut(
+    engine: &mut CombatEngine,
+    pile: Pile,
+) -> &mut Vec<crate::combat_types::CardInstance> {
     match pile {
         Pile::Hand => &mut engine.state.hand,
         Pile::Draw => &mut engine.state.draw_pile,
@@ -2276,7 +2352,8 @@ fn execute_discover(
     if engine.state.hand.len() >= 10 {
         return;
     }
-    let options: Vec<ChoiceOption> = card_names.iter()
+    let options: Vec<ChoiceOption> = card_names
+        .iter()
         .map(|name| ChoiceOption::GeneratedCard(engine.temp_card(name)))
         .collect();
     if !options.is_empty() {
@@ -2325,11 +2402,7 @@ pub(crate) fn generate_random_cards_to_hand(
 ) {
     for _ in 0..count {
         if let Some(mut card) = generate_random_card(engine, pool) {
-            apply_generated_upgrade_rule(
-                engine,
-                &mut card,
-                upgrade_rule_from_cost_rule(cost_rule),
-            );
+            apply_generated_upgrade_rule(engine, &mut card, upgrade_rule_from_cost_rule(cost_rule));
             apply_generated_cost_rule(&mut card, cost_rule);
             // MakeTempCardInHandAction still creates a card when the hand is
             // full, sending that copy to discard. Cards such as Jack Of All
@@ -2418,13 +2491,7 @@ pub fn open_generated_discovery_choice_scaled(
         })
         .collect();
     if !options.is_empty() {
-        engine.begin_discovery_choice(
-            options,
-            1,
-            1,
-            copy_count.max(1),
-            cost_rule,
-        );
+        engine.begin_discovery_choice(options, 1, 1, copy_count.max(1), cost_rule);
     }
 }
 
@@ -2509,7 +2576,9 @@ pub(crate) fn generate_random_card(
     ) {
         // AbstractDungeon.returnTrulyRandomCardInCombat(type) selects from
         // the source color pools with cardRandomRng.
-        engine.card_random_rng.random_int((pool_cards.len() - 1) as i32) as usize
+        engine
+            .card_random_rng
+            .random_int((pool_cards.len() - 1) as i32) as usize
     } else {
         engine.card_random_rng.random_index(pool_cards.len())
     };
@@ -2533,8 +2602,9 @@ pub(crate) fn generate_unique_random_cards(
     let mut picked = Vec::with_capacity(target);
     let mut seen = HashSet::new();
     while picked.len() < target {
-        let choice = pool_cards
-            [engine.card_random_rng.random_int((pool_cards.len() - 1) as i32) as usize];
+        let choice = pool_cards[engine
+            .card_random_rng
+            .random_int((pool_cards.len() - 1) as i32) as usize];
         if seen.insert(choice) {
             // DiscoveryAction previews base copies; Master Reality upgrades
             // only the selected copy during resolution.
@@ -2603,9 +2673,9 @@ pub(crate) fn generated_card_pool(
             .filter(|def| def.id != "LessonLearned")
             .map(|def| def.id)
             .collect(),
-        GeneratedCardPool::AnyColorAttackRarityWeighted => weighted_any_color_attack_ids(engine)
-            .into_iter()
-            .collect(),
+        GeneratedCardPool::AnyColorAttackRarityWeighted => {
+            weighted_any_color_attack_ids(engine).into_iter().collect()
+        }
     }
 }
 
@@ -2617,11 +2687,38 @@ pub(crate) fn generated_card_pool(
 // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
 // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
 const WATCHER_SKILL_GENERATION_POOL: &[&str] = &[
-    "Prostrate", "Evaluate", "PathToVictory", "EmptyBody", "ClearTheMind", "Crescendo",
-    "ThirdEye", "Protect", "Halt", "Pray", "EmptyMind", "Worship", "Swivel",
-    "Perseverance", "Meditate", "WaveOfTheHand", "DeceiveReality", "InnerPeace", "Collect",
-    "WreathOfFlame", "ForeignInfluence", "Indignation", "Sanctity", "Vengeance", "Judgement",
-    "ConjureBlade", "Blasphemy", "Scrawl", "Vault", "Alpha", "Omniscience", "SpiritShield",
+    "Prostrate",
+    "Evaluate",
+    "PathToVictory",
+    "EmptyBody",
+    "ClearTheMind",
+    "Crescendo",
+    "ThirdEye",
+    "Protect",
+    "Halt",
+    "Pray",
+    "EmptyMind",
+    "Worship",
+    "Swivel",
+    "Perseverance",
+    "Meditate",
+    "WaveOfTheHand",
+    "DeceiveReality",
+    "InnerPeace",
+    "Collect",
+    "WreathOfFlame",
+    "ForeignInfluence",
+    "Indignation",
+    "Sanctity",
+    "Vengeance",
+    "Judgement",
+    "ConjureBlade",
+    "Blasphemy",
+    "Scrawl",
+    "Vault",
+    "Alpha",
+    "Omniscience",
+    "SpiritShield",
     "DeusExMachina",
 ];
 
@@ -2630,11 +2727,30 @@ const WATCHER_SKILL_GENERATION_POOL: &[&str] = &[
 // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
 // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
 const WATCHER_ATTACK_GENERATION_POOL: &[&str] = &[
-    "EmptyFist", "CrushJoints", "FollowUp", "CutThroughFate", "SashWhip",
-    "FlurryOfBlows", "JustLucky", "FlyingSleeves", "BowlingBash", "Consecrate",
-    "SignatureMove", "Weave", "Tantrum", "Conclude", "SandsOfTime", "FearNoEvil",
-    "ReachHeaven", "Wallop", "CarveReality", "WindmillStrike", "TalkToTheHand",
-    "WheelKick", "Brilliance", "Ragnarok",
+    "EmptyFist",
+    "CrushJoints",
+    "FollowUp",
+    "CutThroughFate",
+    "SashWhip",
+    "FlurryOfBlows",
+    "JustLucky",
+    "FlyingSleeves",
+    "BowlingBash",
+    "Consecrate",
+    "SignatureMove",
+    "Weave",
+    "Tantrum",
+    "Conclude",
+    "SandsOfTime",
+    "FearNoEvil",
+    "ReachHeaven",
+    "Wallop",
+    "CarveReality",
+    "WindmillStrike",
+    "TalkToTheHand",
+    "WheelKick",
+    "Brilliance",
+    "Ragnarok",
 ];
 
 // Defect's srcCommonCardPool in Java HashMap iteration order. CardLibrary
@@ -2644,9 +2760,24 @@ const WATCHER_ATTACK_GENERATION_POOL: &[&str] = &[
 // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
 // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
 const DEFECT_COMMON_GENERATION_POOL: &[&str] = &[
-    "Steam", "Cold Snap", "Leap", "Beam Cell", "Hologram", "Conserve Battery",
-    "Sweeping Beam", "Turbo", "Coolheaded", "Gash", "Rebound", "Stack", "Barrage",
-    "Compile Driver", "Redo", "Streamline", "Ball Lightning", "Go for the Eyes",
+    "Steam",
+    "Cold Snap",
+    "Leap",
+    "Beam Cell",
+    "Hologram",
+    "Conserve Battery",
+    "Sweeping Beam",
+    "Turbo",
+    "Coolheaded",
+    "Gash",
+    "Rebound",
+    "Stack",
+    "Barrage",
+    "Compile Driver",
+    "Redo",
+    "Streamline",
+    "Ball Lightning",
+    "Go for the Eyes",
 ];
 
 // Defect's srcUncommon/srcRare Power pools in Java HashMap iteration order.
@@ -2655,8 +2786,19 @@ const DEFECT_COMMON_GENERATION_POOL: &[&str] = &[
 // Java: decompiled/java-src/com/megacrit/cardcrawl/helpers/CardLibrary.java
 // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
 const DEFECT_POWER_GENERATION_POOL: &[&str] = &[
-    "Defragment", "Capacitor", "Heatsinks", "Static Discharge", "Loop", "Hello World", "Storm",
-    "Biased Cognition", "Machine Learning", "Electrodynamics", "Buffer", "Echo Form", "Creative AI",
+    "Defragment",
+    "Capacitor",
+    "Heatsinks",
+    "Static Discharge",
+    "Loop",
+    "Hello World",
+    "Storm",
+    "Biased Cognition",
+    "Machine Learning",
+    "Electrodynamics",
+    "Buffer",
+    "Echo Form",
+    "Creative AI",
 ];
 
 pub fn apply_generated_cost_rule(
@@ -2672,7 +2814,11 @@ pub fn apply_generated_cost_rule(
             // Fresh CardInstances use cost=-1 as "read base_cost". Java's
             // generated-card actions test the card's real cost, not this Rust
             // sentinel, before setting a turn-only zero cost.
-            let current_cost = if card.cost >= 0 { card.cost } else { card.base_cost };
+            let current_cost = if card.cost >= 0 {
+                card.cost
+            } else {
+                card.base_cost
+            };
             if current_cost > 0 {
                 card.cost = 0;
             }
@@ -2939,12 +3085,40 @@ fn apply_generated_upgrade_rule(
 // Bandage Up is then excluded by its HEALING tag.
 // Java: helpers/CardLibrary.java and dungeons/AbstractDungeon.java.
 const COLORLESS_GENERATION_POOL: &[&str] = &[
-    "Madness", "Thinking Ahead", "Mind Blast", "Metamorphosis", "Jack Of All Trades",
-    "Swift Strike", "Good Instincts", "Master of Strategy", "Magnetism", "Finesse",
-    "Discovery", "Chrysalis", "Transmutation", "Panacea", "Purity", "Enlightenment",
-    "Forethought", "Flash of Steel", "HandOfGreed", "Mayhem", "Apotheosis", "Secret Weapon",
-    "Panache", "Violence", "Deep Breath", "Secret Technique", "Blind", "The Bomb",
-    "Impatience", "Dramatic Entrance", "Trip", "PanicButton", "Sadistic Nature", "Dark Shackles",
+    "Madness",
+    "Thinking Ahead",
+    "Mind Blast",
+    "Metamorphosis",
+    "Jack Of All Trades",
+    "Swift Strike",
+    "Good Instincts",
+    "Master of Strategy",
+    "Magnetism",
+    "Finesse",
+    "Discovery",
+    "Chrysalis",
+    "Transmutation",
+    "Panacea",
+    "Purity",
+    "Enlightenment",
+    "Forethought",
+    "Flash of Steel",
+    "HandOfGreed",
+    "Mayhem",
+    "Apotheosis",
+    "Secret Weapon",
+    "Panache",
+    "Violence",
+    "Deep Breath",
+    "Secret Technique",
+    "Blind",
+    "The Bomb",
+    "Impatience",
+    "Dramatic Entrance",
+    "Trip",
+    "PanicButton",
+    "Sadistic Nature",
+    "Dark Shackles",
 ];
 
 pub fn is_colorless_generation_card(card_id: &str) -> bool {
@@ -2973,6 +3147,7 @@ fn set_bool_flag(engine: &mut CombatEngine, flag: BoolFlag) {
         }
         BoolFlag::Blasphemy => {
             engine.state.blasphemy_active = true;
+            engine.state.player.set_status(sid::END_TURN_DEATH, -1);
         }
         BoolFlag::BulletTime => {
             engine.apply_bullet_time();

@@ -72,7 +72,10 @@ fn stance_family_potions_surface_no_target_legal_actions_and_consume_slots() {
 
     engine.state.stance = Stance::Calm;
     use_potion(&mut engine, 1, -1);
-    assert!(matches!(engine.phase, crate::engine::CombatPhase::AwaitingChoice));
+    assert!(matches!(
+        engine.phase,
+        crate::engine::CombatPhase::AwaitingChoice
+    ));
     engine.execute_action(&Action::Choose(0));
     assert_eq!(engine.state.stance, Stance::Wrath);
     assert!(engine.state.potions[1].is_empty());
@@ -108,12 +111,23 @@ fn blessing_and_liquid_memories_respect_hand_limit_and_sacred_bark_via_engine_pa
         .all(|name| name.ends_with('+')));
 
     use_potion(&mut engine, 1, -1);
-    assert!(matches!(engine.phase, crate::engine::CombatPhase::AwaitingChoice));
+    assert!(matches!(
+        engine.phase,
+        crate::engine::CombatPhase::AwaitingChoice
+    ));
     engine.execute_action(&Action::Choose(2));
     engine.execute_action(&Action::Choose(1));
     engine.execute_action(&Action::ConfirmSelection);
-    assert_eq!(engine.state.hand.len(), 10, "hand limit should cap Liquid Memories");
-    assert_eq!(engine.state.discard_pile.len(), 2, "Sacred Bark should attempt two returns");
+    assert_eq!(
+        engine.state.hand.len(),
+        10,
+        "hand limit should cap Liquid Memories"
+    );
+    assert_eq!(
+        engine.state.discard_pile.len(),
+        2,
+        "Sacred Bark should attempt two returns"
+    );
     assert_eq!(hand_names(&engine).last().copied(), Some("Bash"));
 }
 
@@ -125,14 +139,8 @@ fn distilled_chaos_and_entropic_brew_chain_through_runtime_slots() {
         3,
     ));
     engine.state.relics.push("SacredBark".to_string());
-    engine.state.draw_pile = make_deck(&[
-        "Strike",
-        "Defend",
-        "Bash",
-        "Shrug It Off",
-        "Inflame",
-        "Zap",
-    ]);
+    engine.state.draw_pile =
+        make_deck(&["Strike", "Defend", "Bash", "Shrug It Off", "Inflame", "Zap"]);
     engine.state.hand.clear();
     engine.state.potions = vec![String::new(); 3];
     engine.state.potions[0] = "DistilledChaos".to_string();
@@ -168,9 +176,11 @@ fn distilled_chaos_and_entropic_brew_chain_through_runtime_slots() {
     use_potion(&mut engine, 1, -1);
 
     assert!(engine.state.potions.iter().all(|potion| !potion.is_empty()));
-    assert!(engine.state.potions.iter().all(|potion| {
-        crate::potions::defs::entropic_brew::is_watcher_limited_potion(potion)
-    }));
+    assert!(engine
+        .state
+        .potions
+        .iter()
+        .all(|potion| { crate::potions::defs::entropic_brew::is_watcher_limited_potion(potion) }));
 
     engine.state.potions[0] = "Block Potion".to_string();
     let legal = engine.get_legal_actions();

@@ -18,16 +18,38 @@ fn apply_permanent_strength_loss(
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // Disarm costs 1, permanently applies -2 Strength, and exhausts; upgrading
     // increases the loss to -3.
-    insert(cards, CardDef {
-                id: "Disarm", name: "Disarm", card_type: CardType::Skill,
-                target: CardTarget::Enemy, cost: 1, base_damage: -1, base_block: -1,
-                base_magic: 2, exhaust: true, enter_stance: None,
-                effect_data: &[], complex_hook: Some(apply_permanent_strength_loss),
-            });
-    insert(cards, CardDef {
-                id: "Disarm+", name: "Disarm+", card_type: CardType::Skill,
-                target: CardTarget::Enemy, cost: 1, base_damage: -1, base_block: -1,
-                base_magic: 3, exhaust: true, enter_stance: None,
-                effect_data: &[], complex_hook: Some(apply_permanent_strength_loss),
-            });
+    insert(
+        cards,
+        CardDef {
+            id: "Disarm",
+            name: "Disarm",
+            card_type: CardType::Skill,
+            target: CardTarget::Enemy,
+            cost: 1,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: 2,
+            exhaust: true,
+            enter_stance: None,
+            effect_data: &[],
+            complex_hook: Some(apply_permanent_strength_loss),
+        },
+    );
+    insert(
+        cards,
+        CardDef {
+            id: "Disarm+",
+            name: "Disarm+",
+            card_type: CardType::Skill,
+            target: CardTarget::Enemy,
+            cost: 1,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: 3,
+            exhaust: true,
+            enter_stance: None,
+            effect_data: &[],
+            complex_hook: Some(apply_permanent_strength_loss),
+        },
+    );
 }

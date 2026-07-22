@@ -53,12 +53,7 @@ fn purity_now_uses_declarative_hand_exhaust_selection() {
 
 #[test]
 fn purity_still_uses_zero_to_many_exhaust_selection_up_to_its_cap() {
-    let mut engine = engine_for(
-        &["Purity", "Strike", "Defend", "Bash"],
-        &[],
-        &[],
-        3,
-    );
+    let mut engine = engine_for(&["Purity", "Strike", "Defend", "Bash"], &[], &[], 3);
 
     assert!(play_self(&mut engine, "Purity"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
@@ -99,7 +94,9 @@ fn purity_upgrade_raises_the_optional_exhaust_cap_from_three_to_five() {
     assert_eq!(zero.state.exhaust_pile.len(), 1);
 
     let mut five = engine_for(
-        &["Purity+", "Strike", "Defend", "Bash", "Strike", "Defend", "Bash"],
+        &[
+            "Purity+", "Strike", "Defend", "Bash", "Strike", "Defend", "Bash",
+        ],
         &[],
         &[],
         3,

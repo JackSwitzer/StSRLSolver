@@ -28,7 +28,11 @@ fn assert_gameplay_card_export(
     assert_eq!(schema.target, Some(target), "{id} target");
     assert_eq!(schema.cost, Some(cost), "{id} cost");
     assert_eq!(schema.exhausts, exhausts, "{id} exhaust");
-    assert_eq!(schema.upgraded_from.as_deref(), upgraded_from, "{id} upgraded_from");
+    assert_eq!(
+        schema.upgraded_from.as_deref(),
+        upgraded_from,
+        "{id} upgraded_from"
+    );
     schema.clone()
 }
 
@@ -39,7 +43,10 @@ fn test_card_runtime_defect_wave4_registry_exports_cover_runtime_progress() {
     let boot = reg.get("BootSequence").expect("BootSequence");
     assert_eq!(
         boot.runtime_traits(),
-        CardRuntimeTraits { innate: true, ..CardRuntimeTraits::default() }
+        CardRuntimeTraits {
+            innate: true,
+            ..CardRuntimeTraits::default()
+        }
     );
     assert_eq!(boot.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
 
@@ -95,11 +102,7 @@ fn test_card_runtime_defect_wave4_registry_exports_cover_runtime_progress() {
 
 #[test]
 fn test_card_runtime_defect_wave4_boot_sequence_defend_and_buffer_follow_engine_path() {
-    let mut boot = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut boot = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut boot);
     boot.state.hand = make_deck(&["BootSequence+"]);
     assert!(play_self(&mut boot, "BootSequence+"));
@@ -110,21 +113,13 @@ fn test_card_runtime_defect_wave4_boot_sequence_defend_and_buffer_follow_engine_
         .iter()
         .any(|card| boot.card_registry.card_name(card.def_id) == "BootSequence+"));
 
-    let mut defend = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut defend = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut defend);
     defend.state.hand = make_deck(&["Defend+"]);
     assert!(play_self(&mut defend, "Defend+"));
     assert_eq!(defend.state.player.block, 8);
 
-    let mut buffer = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut buffer = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut buffer);
     buffer.state.hand = make_deck(&["Buffer+"]);
     assert!(play_self(&mut buffer, "Buffer+"));
@@ -133,11 +128,8 @@ fn test_card_runtime_defect_wave4_boot_sequence_defend_and_buffer_follow_engine_
 
 #[test]
 fn test_card_runtime_defect_wave4_capacitor_and_chaos_change_orb_state_on_engine_path() {
-    let mut capacitor = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut capacitor =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut capacitor);
     capacitor.init_defect_orbs(1);
     capacitor.state.hand = make_deck(&["Capacitor+"]);
@@ -145,11 +137,7 @@ fn test_card_runtime_defect_wave4_capacitor_and_chaos_change_orb_state_on_engine
     assert!(play_self(&mut capacitor, "Capacitor+"));
     assert_eq!(capacitor.state.orb_slots.max_slots, 4);
 
-    let mut chaos = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut chaos = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut chaos);
     chaos.init_defect_orbs(2);
     chaos.state.hand = make_deck(&["Chaos+"]);
@@ -165,8 +153,20 @@ fn chill_channels_per_living_enemy_and_upgrade_is_innate_only() {
     // Chill.java counts monsters for which isDeadOrEscaped is false, channels
     // count * magicNumber Frost, and Exhausts. upgrade() changes only isInnate.
     let registry = global_registry();
-    assert!(!registry.get("Chill").expect("Chill").runtime_traits().innate);
-    assert!(registry.get("Chill+").expect("Chill+").runtime_traits().innate);
+    assert!(
+        !registry
+            .get("Chill")
+            .expect("Chill")
+            .runtime_traits()
+            .innate
+    );
+    assert!(
+        registry
+            .get("Chill+")
+            .expect("Chill+")
+            .runtime_traits()
+            .innate
+    );
 
     let mut deck = make_deck_n("Defend", 9);
     deck.push(registry.make_card("Chill+"));
@@ -193,22 +193,16 @@ fn chill_channels_per_living_enemy_and_upgrade_is_innate_only() {
 
 #[test]
 fn test_card_runtime_defect_wave4_ftl_draw_gate_and_claw_scaling_follow_engine_rules() {
-    let mut ftl_draws = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 50, 50)],
-        3,
-    );
+    let mut ftl_draws =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 50, 50)], 3);
     force_player_turn(&mut ftl_draws);
     ftl_draws.state.hand = make_deck(&["FTL+"]);
     ftl_draws.state.draw_pile = make_deck(&["Strike", "Defend", "Zap", "Dualcast"]);
     assert!(play_on_enemy(&mut ftl_draws, "FTL+", 0));
     assert_eq!(ftl_draws.state.hand.len(), 1);
 
-    let mut ftl_gated = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 50, 50)],
-        3,
-    );
+    let mut ftl_gated =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 50, 50)], 3);
     force_player_turn(&mut ftl_gated);
     ftl_gated.state.cards_played_this_turn = 3;
     ftl_gated.state.hand = make_deck(&["FTL"]);
@@ -216,11 +210,7 @@ fn test_card_runtime_defect_wave4_ftl_draw_gate_and_claw_scaling_follow_engine_r
     assert!(play_on_enemy(&mut ftl_gated, "FTL", 0));
     assert_eq!(ftl_gated.state.hand.len(), 0);
 
-    let mut claw = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 60, 60)],
-        3,
-    );
+    let mut claw = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 60, 60)], 3);
     force_player_turn(&mut claw);
     // GashAction increases the played instance and Claws in hand/draw/discard
     // after damage. Exhausted and subsequently created Claws are untouched.

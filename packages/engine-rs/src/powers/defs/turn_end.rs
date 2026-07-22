@@ -2,11 +2,10 @@
 //!
 //! Powers that trigger at the end of the player's turn.
 
-use crate::effects::declarative::{AmountSource, Effect, SimpleEffect, Target};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerCondition};
-use crate::engine::CombatEngine;
+use crate::engine::{CombatEngine, EndTurnQueuedAction};
 use crate::state::Stance;
 use crate::status_ids::sid;
 
@@ -14,23 +13,31 @@ use crate::status_ids::sid;
 // Metallicize — TurnEnd: gain block equal to stacks
 // ===========================================================================
 
-static METALLICIZE_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::GainBlock(
-    AmountSource::StatusValue(sid::METALLICIZE),
-))];
-
 static METALLICIZE_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnEnd,
+    trigger: Trigger::TurnEndPreCard,
     condition: TriggerCondition::Always,
-    effects: &METALLICIZE_EFFECTS,
+    effects: &[],
     counter: None,
 }];
+
+fn hook_metallicize(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    if event.kind == Trigger::TurnEndPreCard {
+        let amount = engine.state.player.status(sid::METALLICIZE);
+        engine.queue_end_turn_action_bottom(EndTurnQueuedAction::GainBlock(amount));
+    }
+}
 
 pub static DEF_METALLICIZE: EntityDef = EntityDef {
     id: "metallicize",
     name: "Metallicize",
     kind: EntityKind::Power,
     triggers: &METALLICIZE_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_metallicize),
     status_guard: Some(sid::METALLICIZE),
 };
 
@@ -38,23 +45,31 @@ pub static DEF_METALLICIZE: EntityDef = EntityDef {
 // Plated Armor — TurnEnd: gain block equal to stacks
 // ===========================================================================
 
-static PLATED_ARMOR_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::GainBlock(
-    AmountSource::StatusValue(sid::PLATED_ARMOR),
-))];
-
 static PLATED_ARMOR_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnEnd,
+    trigger: Trigger::TurnEndPreCard,
     condition: TriggerCondition::Always,
-    effects: &PLATED_ARMOR_EFFECTS,
+    effects: &[],
     counter: None,
 }];
+
+fn hook_plated_armor(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    if event.kind == Trigger::TurnEndPreCard {
+        let amount = engine.state.player.status(sid::PLATED_ARMOR);
+        engine.queue_end_turn_action_bottom(EndTurnQueuedAction::GainBlock(amount));
+    }
+}
 
 pub static DEF_PLATED_ARMOR: EntityDef = EntityDef {
     id: "plated_armor",
     name: "Plated Armor",
     kind: EntityKind::Power,
     triggers: &PLATED_ARMOR_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_plated_armor),
     status_guard: Some(sid::PLATED_ARMOR),
 };
 
@@ -85,7 +100,7 @@ fn hook_wraith_form(
         // a DEBUFF, so a later Artifact can block the entire stacked tick.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/WraithFormPower.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DexterityPower.java
-        crate::powers::apply_debuff(&mut engine.state.player, sid::DEXTERITY, -amount);
+        engine.queue_end_turn_action_bottom(EndTurnQueuedAction::ApplyDexterityLoss(amount));
     }
 }
 
@@ -127,11 +142,9 @@ fn hook_combust(
     // DamageAllEnemiesAction with DamageType.THORNS. stackPower adds incoming
     // damage to amount but increments the private hpLoss field by one.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/CombustPower.java
-    engine.player_lose_hp_from_damage(state.get(0).max(1));
+    engine.queue_end_turn_action_bottom(EndTurnQueuedAction::PlayerLoseHp(state.get(0).max(1)));
     let damage = engine.state.player.status(sid::COMBUST);
-    for target in targets {
-        engine.deal_thorns_damage_to_enemy(target, damage);
-    }
+    engine.queue_end_turn_action_bottom(EndTurnQueuedAction::DamageAllEnemies(damage));
 }
 
 pub static DEF_COMBUST: EntityDef = EntityDef {
@@ -169,9 +182,7 @@ fn hook_omega(
     // skips NORMAL-only Slow, Flight, Curl Up, Malleable, and offensive mods.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/OmegaPower.java
     let damage = engine.state.player.status(sid::OMEGA);
-    for target in engine.state.living_enemy_indices() {
-        engine.deal_thorns_damage_to_enemy(target, damage);
-    }
+    engine.queue_end_turn_action_bottom(EndTurnQueuedAction::DamageAllEnemies(damage));
 }
 
 pub static DEF_OMEGA: EntityDef = EntityDef {
@@ -187,23 +198,31 @@ pub static DEF_OMEGA: EntityDef = EntityDef {
 // Like Water — TurnEnd: gain block if in Calm stance
 // ===========================================================================
 
-static LIKE_WATER_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::GainBlock(
-    AmountSource::StatusValue(sid::LIKE_WATER),
-))];
-
 static LIKE_WATER_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnEnd,
+    trigger: Trigger::TurnEndPreCard,
     condition: TriggerCondition::InStance(Stance::Calm),
-    effects: &LIKE_WATER_EFFECTS,
+    effects: &[],
     counter: None,
 }];
+
+fn hook_like_water(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    if event.kind == Trigger::TurnEndPreCard {
+        let amount = engine.state.player.status(sid::LIKE_WATER);
+        engine.queue_end_turn_action_bottom(EndTurnQueuedAction::GainBlock(amount));
+    }
+}
 
 pub static DEF_LIKE_WATER: EntityDef = EntityDef {
     id: "like_water",
     name: "Like Water",
     kind: EntityKind::Power,
     triggers: &LIKE_WATER_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_like_water),
     status_guard: Some(sid::LIKE_WATER),
 };
 
@@ -214,24 +233,33 @@ pub static DEF_LIKE_WATER: EntityDef = EntityDef {
 // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/StudyPower.java
 // MakeTempCardInDrawPileAction(..., randomSpot=true) uses cardRandomRng for
 // each Insight rather than shuffling the existing draw pile.
-static STUDY_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddCardToRandomDrawSpot(
-    "Insight",
-    AmountSource::StatusValue(sid::STUDY),
-))];
-
 static STUDY_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::TurnEnd,
     condition: TriggerCondition::Always,
-    effects: &STUDY_EFFECTS,
+    effects: &[],
     counter: None,
 }];
+
+fn hook_study(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    if event.kind == Trigger::TurnEnd {
+        let amount = engine.state.player.status(sid::STUDY);
+        engine.queue_end_turn_action_bottom(EndTurnQueuedAction::AddInsightsToRandomDrawSpots(
+            amount,
+        ));
+    }
+}
 
 pub static DEF_STUDY: EntityDef = EntityDef {
     id: "study",
     name: "Study",
     kind: EntityKind::Power,
     triggers: &STUDY_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_study),
     status_guard: Some(sid::STUDY),
 };
 
@@ -241,25 +269,30 @@ pub static DEF_STUDY: EntityDef = EntityDef {
 
 // Source: powers/NoDrawPower.java::atEndOfTurn queues removal of power ID
 // "No Draw" when the player's turn ends.
-static NO_DRAW_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::SetStatus(
-    Target::Player,
-    sid::NO_DRAW,
-    AmountSource::Fixed(0),
-))];
-
 static NO_DRAW_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::TurnEnd,
     condition: TriggerCondition::Always,
-    effects: &NO_DRAW_EFFECTS,
+    effects: &[],
     counter: None,
 }];
+
+fn hook_no_draw(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    if event.kind == Trigger::TurnEnd {
+        engine.queue_end_turn_action_bottom(EndTurnQueuedAction::RemovePlayerPower(sid::NO_DRAW));
+    }
+}
 
 pub static DEF_NO_DRAW: EntityDef = EntityDef {
     id: "no_draw",
     name: "No Draw",
     kind: EntityKind::Power,
     triggers: &NO_DRAW_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_no_draw),
     status_guard: Some(sid::NO_DRAW),
 };
 
@@ -274,7 +307,7 @@ mod tests {
     #[test]
     fn test_metallicize_def() {
         assert_eq!(DEF_METALLICIZE.triggers.len(), 1);
-        assert_eq!(DEF_METALLICIZE.triggers[0].trigger, Trigger::TurnEnd);
+        assert_eq!(DEF_METALLICIZE.triggers[0].trigger, Trigger::TurnEndPreCard);
     }
 
     #[test]
@@ -294,12 +327,22 @@ mod tests {
     #[test]
     fn test_all_turn_end_defs() {
         let defs = [
-            &DEF_METALLICIZE, &DEF_PLATED_ARMOR, &DEF_WRAITH_FORM, &DEF_COMBUST,
-            &DEF_OMEGA, &DEF_LIKE_WATER, &DEF_STUDY,
+            &DEF_METALLICIZE,
+            &DEF_PLATED_ARMOR,
+            &DEF_WRAITH_FORM,
+            &DEF_COMBUST,
+            &DEF_OMEGA,
+            &DEF_LIKE_WATER,
+            &DEF_STUDY,
         ];
         for def in &defs {
             assert_eq!(def.kind, EntityKind::Power);
-            assert_eq!(def.triggers[0].trigger, Trigger::TurnEnd);
+            let expected = if matches!(def.id, "metallicize" | "plated_armor" | "like_water") {
+                Trigger::TurnEndPreCard
+            } else {
+                Trigger::TurnEnd
+            };
+            assert_eq!(def.triggers[0].trigger, expected);
         }
     }
 }

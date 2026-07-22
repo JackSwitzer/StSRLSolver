@@ -19,7 +19,10 @@ use crate::tests::support::{
 fn relic_wave11_runtime_turn_order_relics_remain_authoritative() {
     let mut state = combat_state_with(
         make_deck_n("Defend", 10),
-        vec![enemy_no_intent("JawWorm", 120, 120), enemy_no_intent("Cultist", 120, 120)],
+        vec![
+            enemy_no_intent("JawWorm", 120, 120),
+            enemy_no_intent("Cultist", 120, 120),
+        ],
         3,
     );
     state.relics = vec![
@@ -30,7 +33,10 @@ fn relic_wave11_runtime_turn_order_relics_remain_authoritative() {
     ];
     let mut engine = engine_with_state(state);
 
-    assert_eq!(engine.hidden_effect_value("HornCleat", EffectOwner::PlayerRelic { slot: 0 }, 0), 1);
+    assert_eq!(
+        engine.hidden_effect_value("HornCleat", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        1
+    );
     assert_eq!(
         engine.hidden_effect_value("CaptainsWheel", EffectOwner::PlayerRelic { slot: 1 }, 0),
         1
@@ -40,7 +46,10 @@ fn relic_wave11_runtime_turn_order_relics_remain_authoritative() {
     assert_eq!(engine.state.turn, 2);
     assert_eq!(engine.state.player.block, 14);
     assert_eq!(engine.state.energy, 4);
-    assert_eq!(engine.hidden_effect_value("HornCleat", EffectOwner::PlayerRelic { slot: 0 }, 0), -1);
+    assert_eq!(
+        engine.hidden_effect_value("HornCleat", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        -1
+    );
     assert_eq!(
         engine.hidden_effect_value("CaptainsWheel", EffectOwner::PlayerRelic { slot: 1 }, 0),
         2
@@ -73,11 +82,20 @@ fn relic_wave11_runtime_end_turn_and_post_draw_paths_match_canonical_runtime() {
     engine.state.hand = make_deck(&["Defend", "Defend"]);
     let hp_before = engine.state.player.hp;
     assert_eq!(engine.state.mantra, 1);
-    assert_eq!(engine.hidden_effect_value("Inserter", EffectOwner::PlayerRelic { slot: 3 }, 0), 1);
+    assert_eq!(
+        engine.hidden_effect_value("Inserter", EffectOwner::PlayerRelic { slot: 3 }, 0),
+        1
+    );
 
     end_turn(&mut engine);
 
     assert_eq!(engine.state.player.hp, hp_before);
-    assert_eq!(engine.state.player.status(crate::status_ids::sid::ORB_SLOTS), 1);
+    assert_eq!(
+        engine
+            .state
+            .player
+            .status(crate::status_ids::sid::ORB_SLOTS),
+        1
+    );
     assert_eq!(engine.state.player.block, 0);
 }

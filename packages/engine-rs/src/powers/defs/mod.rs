@@ -7,24 +7,24 @@
 //! while `powers/registry.rs` supplies the small helper surface still needed
 //! by the live engine.
 
-mod turn_start;
-mod turn_end;
 mod card_play;
+mod complex;
+mod enemy;
 mod exhaust;
 mod stance;
-mod enemy;
-mod complex;
+mod turn_end;
+mod turn_start;
 
 use crate::effects::entity_def::EntityDef;
 
 // Re-export individual definitions for direct access
-pub use turn_start::*;
-pub use turn_end::*;
 pub use card_play::*;
+pub use complex::*;
+pub use enemy::*;
 pub use exhaust::*;
 pub use stance::*;
-pub use enemy::*;
-pub use complex::*;
+pub use turn_end::*;
+pub use turn_start::*;
 
 // ===========================================================================
 // POWER_DEFS — static registry of all declarative power definitions
@@ -50,14 +50,14 @@ pub static POWER_DEFS: &[&EntityDef] = &[
     &turn_start::DEF_MAGNETISM,
     &turn_start::DEF_DOPPELGANGER_DRAW,
     &turn_start::DEF_DOPPELGANGER_ENERGY,
+    &turn_start::DEF_DRAW_CARD_NEXT_TURN,
+    &turn_start::DEF_FORESIGHT,
     &turn_start::DEF_ENERGY_DOWN,
-
     // -- Turn Start (complex) --
     &turn_start::DEF_CREATIVE_AI,
     &turn_start::DEF_ENTER_DIVINITY,
     &turn_start::DEF_MAYHEM,
     &turn_start::DEF_TOOLS_OF_THE_TRADE,
-
     // -- Turn End --
     &turn_end::DEF_METALLICIZE,
     &turn_end::DEF_PLATED_ARMOR,
@@ -66,7 +66,6 @@ pub static POWER_DEFS: &[&EntityDef] = &[
     &turn_end::DEF_LIKE_WATER,
     &turn_end::DEF_STUDY,
     &turn_end::DEF_NO_DRAW,
-
     // -- Card Play --
     &card_play::DEF_AFTER_IMAGE,
     &card_play::DEF_RAGE,
@@ -78,22 +77,18 @@ pub static POWER_DEFS: &[&EntityDef] = &[
     &card_play::DEF_SLOW,
     &card_play::DEF_FORCEFIELD,
     &card_play::DEF_SKILL_BURN,
-
     // -- Exhaust --
     &exhaust::DEF_FEEL_NO_PAIN,
     &exhaust::DEF_DARK_EMBRACE,
-
     // -- Stance Change --
     &stance::DEF_MENTAL_FORTRESS,
     &stance::DEF_RUSHDOWN,
-
     // -- Enemy Turn Start --
     &enemy::DEF_RITUAL,
     &enemy::DEF_REGENERATION,
     &enemy::DEF_GROWTH,
     &enemy::DEF_METALLICIZE_ENEMY,
     &enemy::DEF_PLATED_ARMOR_ENEMY,
-
     // -- Complex (hook-based) --
     &complex::DEF_ECHO_FORM,
     &complex::DEF_DOUBLE_TAP,
@@ -133,6 +128,8 @@ pub static RUNTIME_PLAYER_POWER_DEFS: &[&EntityDef] = &[
     &turn_start::DEF_CREATIVE_AI,
     &turn_start::DEF_DOPPELGANGER_DRAW,
     &turn_start::DEF_DOPPELGANGER_ENERGY,
+    &turn_start::DEF_DRAW_CARD_NEXT_TURN,
+    &turn_start::DEF_FORESIGHT,
     &turn_start::DEF_ENERGY_DOWN,
     &turn_start::DEF_ENTER_DIVINITY,
     &turn_start::DEF_MAYHEM,
@@ -231,32 +228,34 @@ mod tests {
         for (i, def_a) in POWER_DEFS.iter().enumerate() {
             for (j, def_b) in POWER_DEFS.iter().enumerate() {
                 if i != j {
-                    assert_ne!(
-                        def_a.id, def_b.id,
-                        "Duplicate power def id: '{}'",
-                        def_a.id
-                    );
+                    assert_ne!(def_a.id, def_b.id, "Duplicate power def id: '{}'", def_a.id);
                 }
             }
         }
     }
 
     #[test]
-    fn test_simple_defs_have_no_hooks() {
-        // Simple declarative powers should not need complex_hook
-        let simple_ids = [
-            "demon_form", "noxious_fumes", "brutality", "berserk",
-            "metallicize", "plated_armor", "after_image", "rage",
-            "feel_no_pain", "mental_fortress", "rushdown",
-            "doppelganger_draw", "doppelganger_energy", "heatsink",
-            "curiosity", "beat_of_death", "slow", "forcefield", "skill_burn",
+    fn test_declarative_defs_have_no_hooks() {
+        // Definitions whose Java callbacks map to a single unordered
+        // declarative effect do not need a complex hook.
+        let declarative_ids = [
+            "after_image",
+            "rage",
+            "feel_no_pain",
+            "mental_fortress",
+            "rushdown",
+            "heatsink",
+            "curiosity",
+            "slow",
+            "forcefield",
+            "skill_burn",
         ];
-        for id in &simple_ids {
+        for id in &declarative_ids {
             let def = POWER_DEFS.iter().find(|d| d.id == *id);
             if let Some(def) = def {
                 assert!(
                     def.complex_hook.is_none(),
-                    "Simple power '{}' should not have complex_hook",
+                    "Declarative power '{}' should not have complex_hook",
                     id
                 );
             }
@@ -264,11 +263,49 @@ mod tests {
     }
 
     #[test]
+    fn test_non_declarative_defs_have_hooks() {
+        // These callbacks need phase/order-aware queueing or owner/damage
+        // semantics that cannot be represented by their simple effect lists.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/{DemonForm,
+        // NoxiousFumes,Brutality,Berserk,Metallicize,PlatedArmor,
+        // DrawCardNextTurn,Energized,BeatOfDeath}Power.java
+        let hooked_ids = [
+            "demon_form",
+            "noxious_fumes",
+            "brutality",
+            "berserk",
+            "metallicize",
+            "plated_armor",
+            "doppelganger_draw",
+            "doppelganger_energy",
+            "beat_of_death",
+        ];
+        for id in hooked_ids {
+            let def = POWER_DEFS
+                .iter()
+                .find(|def| def.id == id)
+                .unwrap_or_else(|| panic!("Missing queued power definition '{id}'"));
+            assert!(
+                def.complex_hook.is_some(),
+                "Queue-aware power '{id}' should have complex_hook"
+            );
+        }
+    }
+
+    #[test]
     fn test_complex_defs_have_hooks() {
         let complex_ids = [
-            "echo_form", "double_tap", "burst", "flame_barrier",
-            "creative_ai", "enter_divinity", "mayhem", "tools_of_the_trade",
-            "storm", "time_warp", "dark_embrace",
+            "echo_form",
+            "double_tap",
+            "burst",
+            "flame_barrier",
+            "creative_ai",
+            "enter_divinity",
+            "mayhem",
+            "tools_of_the_trade",
+            "storm",
+            "time_warp",
+            "dark_embrace",
         ];
         for id in &complex_ids {
             let def = POWER_DEFS.iter().find(|d| d.id == *id);

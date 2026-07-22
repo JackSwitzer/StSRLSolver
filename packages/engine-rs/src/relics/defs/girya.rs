@@ -4,7 +4,7 @@
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
-use crate::engine::CombatEngine;
+use crate::engine::{CombatEngine, TurnStartQueuedAction};
 use crate::status_ids::sid;
 
 fn hook(
@@ -15,18 +15,23 @@ fn hook(
 ) {
     let lift_count = state.get(0);
     if lift_count > 0 {
-        engine.state.player.add_status(sid::STRENGTH, lift_count);
+        if engine.is_collecting_turn_start_actions() {
+            engine.queue_turn_start_action_top(TurnStartQueuedAction::AddPlayerStatus(
+                sid::STRENGTH,
+                lift_count,
+            ));
+        } else {
+            engine.state.player.add_status(sid::STRENGTH, lift_count);
+        }
     }
 }
 
-static TRIGGERS: [TriggeredEffect; 1] = [
-    TriggeredEffect {
-        trigger: Trigger::CombatStart,
-        condition: TriggerCondition::Always,
-        effects: &[],
-        counter: None,
-    },
-];
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::CombatStartTop,
+    condition: TriggerCondition::Always,
+    effects: &[],
+    counter: None,
+}];
 
 pub static DEF: EntityDef = EntityDef {
     id: "Girya",

@@ -233,12 +233,19 @@ fn eda_004_room_reset_streams_and_persistent_potion_rng_follow_java() {
     ));
     assert!(result.accepted());
     assert_eq!(run.current_phase(), crate::run::RunPhase::MapChoice);
+    // AbstractRoom has already constructed its hidden smoked-room rewards at
+    // this point. For this fixture the potion offer fails, consuming exactly
+    // the mandatory chance roll and no potion-identity draws.
+    // Java: SmokeBomb.java, AbstractRoom.java::addPotionToRewards, and
+    // CombatRewardScreen.java::openCombat(String, boolean).
+    let potion_counter_after_smoke = run.rng_counters()["potion"];
+    assert_eq!(potion_counter_after_smoke, potion_counter + 1);
 
     run.run_state.floor += 1;
     run.debug_enter_specific_combat(&["JawWorm"]);
     assert_eq!(
         i64::from(run.debug_combat_engine_mut().potion_rng.counter),
-        potion_counter,
+        potion_counter_after_smoke,
     );
 }
 

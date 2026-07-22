@@ -5,9 +5,7 @@ use crate::effects::runtime::EffectOwner;
 use crate::effects::trigger::Trigger;
 use crate::enemies::create_enemy;
 use crate::status_ids::sid;
-use crate::tests::support::{
-    combat_state_with, end_turn, engine_with_state, make_deck, play_self,
-};
+use crate::tests::support::{combat_state_with, end_turn, engine_with_state, make_deck, play_self};
 
 #[test]
 fn power_card_install_rebuilds_runtime_from_typed_metadata() {
@@ -63,7 +61,10 @@ fn noxious_fumes_stacks_base_and_upgrade_then_poisons_post_draw() {
     // to each living enemy in atStartOfTurnPostDraw.
     let mut engine = engine_with_state(combat_state_with(
         Vec::new(),
-        vec![create_enemy("JawWorm", 40, 40), create_enemy("Cultist", 40, 40)],
+        vec![
+            create_enemy("JawWorm", 40, 40),
+            create_enemy("Cultist", 40, 40),
+        ],
         3,
     ));
     engine.state.hand = make_deck(&["Noxious Fumes", "Noxious Fumes+"]);

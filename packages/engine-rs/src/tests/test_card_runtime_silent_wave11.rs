@@ -5,7 +5,9 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Shiv.java
 
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::tests::support::*;
 
 #[test]
@@ -33,7 +35,6 @@ fn silent_wave11_registry_exports_show_typed_primary_surface_for_shiv() {
     let alchemize = registry.get("Alchemize").expect("Alchemize should exist");
     assert_eq!(alchemize.effect_data, &[E::Simple(SE::ObtainRandomPotion)]);
     assert!(alchemize.complex_hook.is_none());
-
 }
 
 #[test]

@@ -3,11 +3,10 @@
 //! Sources: `reference/extracted/methods/relic/NilrysCodex.java` and
 //! `decompiled/java-src/com/megacrit/cardcrawl/actions/unique/CodexAction.java`.
 
-use crate::effects::declarative::GeneratedCardPool;
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerCondition};
-use crate::engine::{ChoiceOption, CombatEngine};
+use crate::engine::{CombatEngine, EndTurnQueuedAction};
 
 fn hook(
     engine: &mut CombatEngine,
@@ -15,22 +14,16 @@ fn hook(
     event: &GameEvent,
     _state: &mut EffectState,
 ) {
-    if event.kind != Trigger::TurnEnd || engine.state.living_enemy_indices().is_empty() {
+    if event.kind != Trigger::TurnEndPreCard || engine.state.living_enemy_indices().is_empty() {
         return;
     }
-    let options = crate::effects::interpreter::generate_unique_random_cards(
-        engine,
-        GeneratedCardPool::WatcherAny,
-        3,
-    )
-    .into_iter()
-    .map(ChoiceOption::GeneratedCard)
-    .collect();
-    engine.begin_codex_choice(options);
+    // CodexAction is addToBot during relic callback collection. Card RNG is
+    // consumed only when that queued action later executes.
+    engine.queue_end_turn_action_bottom(EndTurnQueuedAction::NilrysCodex);
 }
 
 static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnEnd,
+    trigger: Trigger::TurnEndPreCard,
     condition: TriggerCondition::Always,
     effects: &[],
     counter: None,

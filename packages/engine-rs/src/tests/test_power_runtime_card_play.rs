@@ -6,7 +6,56 @@ use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::Trigger;
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
-use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_state, play_self};
+use crate::tests::support::{
+    combat_state_with, enemy_no_intent, engine_with_state, make_deck, play_on_enemy, play_self,
+};
+
+#[test]
+fn beat_of_death_engine_path_uses_java_thorns_damage_and_consumes_block() {
+    // BeatOfDeathPower.onAfterUseCard queues DamageInfo.THORNS. AbstractPlayer.damage
+    // applies block before HP loss for THORNS damage.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BeatOfDeathPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
+    let mut state = combat_state_with(
+        make_deck(&["Miracle"]),
+        vec![enemy_no_intent("CorruptHeart", 750, 750)],
+        3,
+    );
+    state.enemies[0].entity.set_status(sid::BEAT_OF_DEATH, 1);
+    let mut engine = engine_with_state(state);
+    engine.state.hand = make_deck(&["Miracle"]);
+    engine.state.player.hp = 70;
+    engine.state.player.block = 3;
+
+    assert!(play_self(&mut engine, "Miracle"));
+
+    assert_eq!(engine.state.player.block, 2);
+    assert_eq!(engine.state.player.hp, 70);
+}
+
+#[test]
+fn lethal_card_still_receives_beat_of_death_after_use_callback() {
+    // UseCardAction invokes every monster power's onAfterUseCard even when the
+    // card's queued damage has already killed that monster.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BeatOfDeathPower.java
+    let mut state = combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("CorruptHeart", 1, 750)],
+        3,
+    );
+    state.enemies[0].entity.set_status(sid::BEAT_OF_DEATH, 1);
+    let mut engine = engine_with_state(state);
+    engine.state.hand = make_deck(&["Strike"]);
+    engine.state.player.hp = 70;
+    engine.state.player.block = 3;
+
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
+
+    assert!(engine.state.enemies[0].entity.is_dead());
+    assert_eq!(engine.state.player.block, 2);
+    assert_eq!(engine.state.player.hp, 70);
+}
 
 #[test]
 fn storm_hook_channels_one_lightning_per_stack_on_power_play_event() {
@@ -23,7 +72,9 @@ fn storm_hook_channels_one_lightning_per_stack_on_power_play_event() {
     engine.state.orb_slots.add_slot();
 
     let mut effect_state = EffectState::default();
-    let hook = DEF_STORM.complex_hook.expect("Storm should provide a runtime hook");
+    let hook = DEF_STORM
+        .complex_hook
+        .expect("Storm should provide a runtime hook");
     hook(
         &mut engine,
         EffectOwner::PlayerPower,
@@ -57,7 +108,9 @@ fn storm_hook_ignores_non_power_card_events() {
     engine.state.orb_slots.add_slot();
 
     let mut effect_state = EffectState::default();
-    let hook = DEF_STORM.complex_hook.expect("Storm should provide a runtime hook");
+    let hook = DEF_STORM
+        .complex_hook
+        .expect("Storm should provide a runtime hook");
     hook(
         &mut engine,
         EffectOwner::PlayerPower,
@@ -76,7 +129,12 @@ fn storm_hook_ignores_non_power_card_events() {
         &mut effect_state,
     );
 
-    assert!(engine.state.orb_slots.slots.iter().all(|orb| orb.is_empty()));
+    assert!(engine
+        .state
+        .orb_slots
+        .slots
+        .iter()
+        .all(|orb| orb.is_empty()));
 }
 
 #[test]

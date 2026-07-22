@@ -63,9 +63,22 @@ pub const PROFILE_SNAPSHOT_SCHEMA_VERSION: u32 = 1;
 #[serde(deny_unknown_fields)]
 pub struct TraceProfileSnapshot {
     pub v: u32,
+    /// Older recorders omitted this preference. Bundle intake may supply the
+    /// compatibility value only under an explicit initialization quarantine.
+    #[serde(default = "default_note_for_yourself_card")]
     pub note_for_yourself_card: String,
+    /// Exact `CardCrawlGame.playerPref` `NOTE_UPGRADE` value. V1 diagnostic
+    /// intake may fill an omitted value under quarantine, but certification
+    /// requires this field to be explicit. Java: NoteForYourself.java:90-97;
+    /// AbstractDungeon.java:1699-1700.
+    #[serde(default)]
+    pub note_for_yourself_upgrades: i32,
     pub highest_unlocked_ascension: i32,
     pub is_daily_run: bool,
+    /// Trial mode changes global run rules and is not currently replayable.
+    /// `false` is additive recorder metadata; `true` is rejected explicitly.
+    #[serde(default)]
+    pub is_trial: bool,
     pub final_act_available: bool,
     /// Java profile preference IDs (`GUARDIAN`, `GHOST`, ...), not Rust enum
     /// variant names.
@@ -81,6 +94,24 @@ impl TraceProfileSnapshot {
                 "unsupported profile snapshot version {} (expected {})",
                 self.v, PROFILE_SNAPSHOT_SCHEMA_VERSION
             ));
+        }
+        if self.note_for_yourself_card.is_empty() {
+            return Err("profile snapshot note_for_yourself_card is empty".to_string());
+        }
+        if self.note_for_yourself_card.ends_with('+') {
+            return Err("profile snapshot note_for_yourself_card must be the base NOTE_CARD id; NOTE_UPGRADE belongs in note_for_yourself_upgrades".to_string());
+        }
+        if !(0..=1).contains(&self.note_for_yourself_upgrades) {
+            return Err(format!(
+                "profile snapshot note_for_yourself_upgrades {} is not currently replayable (supported: 0 or 1)",
+                self.note_for_yourself_upgrades
+            ));
+        }
+        if self.is_daily_run || self.is_trial {
+            return Err(
+                "daily/trial profile snapshots are outside the standard-run certification contract"
+                    .to_string(),
+            );
         }
         for (field, ids) in [
             ("locked_cards", &self.locked_cards),
@@ -109,8 +140,14 @@ impl TraceProfileSnapshot {
     }
 
     pub fn to_engine_profile(&self) -> Result<crate::run::ProfileSnapshot, String> {
+        self.check_version()?;
+        let note_for_yourself_card = if self.note_for_yourself_upgrades == 1 {
+            format!("{}+", self.note_for_yourself_card)
+        } else {
+            self.note_for_yourself_card.clone()
+        };
         let mut profile = crate::run::ProfileSnapshot {
-            note_for_yourself_card: self.note_for_yourself_card.clone(),
+            note_for_yourself_card,
             highest_unlocked_ascension: self.highest_unlocked_ascension,
             is_daily_run: self.is_daily_run,
             final_act_available: self.final_act_available,
@@ -125,6 +162,10 @@ impl TraceProfileSnapshot {
         }
         Ok(profile)
     }
+}
+
+fn default_note_for_yourself_card() -> String {
+    "IronWave".to_string()
 }
 
 fn parse_boss_seen_id(id: &str) -> Result<crate::run::BossSeenId, String> {
@@ -1333,83 +1374,112 @@ pub fn build_post_state(engine: &crate::run::RunEngine) -> PostState {
         name
     };
 
-    let powers_from_entity =
-        |entity: &crate::state::EntityState, is_player: bool| -> Vec<PowerPostState> {
-            let mut powers = Vec::new();
-            for ordered_status in entity.ordered_status_ids() {
-                let status = if ordered_status == crate::status_ids::sid::TIME_WARP_ACTIVE {
-                    crate::status_ids::sid::TIME_WARP
-                } else {
-                    ordered_status
-                };
-                if status == crate::status_ids::sid::TIME_WARP
-                    && ordered_status != crate::status_ids::sid::TIME_WARP_ACTIVE
-                {
+    let powers_from_entity = |entity: &crate::state::EntityState,
+                              is_player: bool|
+     -> Vec<PowerPostState> {
+        let mut powers = Vec::new();
+        for entry in &entity.power_order {
+            let ordered_status = match *entry {
+                crate::state::PowerOrderEntry::Status(status) => status,
+                crate::state::PowerOrderEntry::TheBomb(serial) => {
+                    if is_player {
+                        let bomb = state
+                            .pending_bombs
+                            .iter()
+                            .find(|bomb| bomb.java_serial == serial)
+                            .expect("validated Bomb power must own a payload");
+                        powers.push(PowerPostState {
+                            id: format!("TheBomb{serial}"),
+                            amt: i32::from(bomb.turns),
+                        });
+                    }
                     continue;
                 }
-                if status == crate::status_ids::sid::MODE_SHIFT
-                    && entity.status(crate::status_ids::sid::PHASE) != 0
-                {
+                crate::state::PowerOrderEntry::NightTerror(template_instance_id) => {
+                    if is_player {
+                        let (_, copies) = combat
+                            .nightmare_pending_copies
+                            .iter()
+                            .find(|(card, _)| card.instance_id == template_instance_id)
+                            .expect("validated Night Terror power must own a card payload");
+                        powers.push(PowerPostState {
+                            id: "Night Terror".to_string(),
+                            amt: *copies as i32,
+                        });
+                    }
                     continue;
                 }
-                if status == crate::status_ids::sid::DOPPELGANGER_DRAW
-                    && entity.status(crate::status_ids::sid::DRAW_CARD) != 0
-                {
-                    continue;
-                }
-                if status == crate::status_ids::sid::DOPPELGANGER_ENERGY
-                    && entity.status(crate::status_ids::sid::ENERGIZED) != 0
-                {
-                    continue;
-                }
-
-                let Some(spec) = crate::powers::registry::trace_power_spec(status) else {
-                    continue;
-                };
-                let id = match status {
-                    crate::status_ids::sid::INTANGIBLE if is_player => "IntangiblePlayer",
-                    crate::status_ids::sid::REGENERATION if !is_player => "Regenerate",
-                    _ => spec.java_id,
-                };
-                let stored = entity.status(status);
-                let amt = match status {
-                    crate::status_ids::sid::INVINCIBLE => stored
-                        .saturating_sub(
-                            entity.status(crate::status_ids::sid::INVINCIBLE_DAMAGE_TAKEN),
-                        )
-                        .max(0),
-                    crate::status_ids::sid::MODE_SHIFT => stored
-                        .saturating_sub(
-                            entity.status(crate::status_ids::sid::DAMAGE_TAKEN_THIS_MODE),
-                        )
-                        .max(0),
-                    crate::status_ids::sid::SLOW => stored - 1,
-                    crate::status_ids::sid::TIME_WARP => {
-                        entity.status(crate::status_ids::sid::TIME_WARP)
-                    }
-                    crate::status_ids::sid::PANACHE => {
-                        5 - entity.status(crate::status_ids::sid::PANACHE_COUNT)
-                    }
-                    crate::status_ids::sid::DRAW_CARD
-                    | crate::status_ids::sid::DOPPELGANGER_DRAW => {
-                        entity.status(crate::status_ids::sid::DRAW_CARD)
-                            + entity.status(crate::status_ids::sid::DOPPELGANGER_DRAW)
-                    }
-                    crate::status_ids::sid::ENERGIZED
-                    | crate::status_ids::sid::DOPPELGANGER_ENERGY => {
-                        entity.status(crate::status_ids::sid::ENERGIZED)
-                            + entity.status(crate::status_ids::sid::DOPPELGANGER_ENERGY)
-                    }
-                    crate::status_ids::sid::DISCIPLINE => -1,
-                    _ => match spec.amount {
-                        crate::powers::registry::TracePowerAmount::Stored => stored,
-                        crate::powers::registry::TracePowerAmount::Marker => -1,
-                        crate::powers::registry::TracePowerAmount::Negated => -stored,
-                    },
-                };
-                powers.push(PowerPostState { id: id.to_string(), amt });
+            };
+            let status = if ordered_status == crate::status_ids::sid::TIME_WARP_ACTIVE {
+                crate::status_ids::sid::TIME_WARP
+            } else {
+                ordered_status
+            };
+            if status == crate::status_ids::sid::TIME_WARP
+                && ordered_status != crate::status_ids::sid::TIME_WARP_ACTIVE
+            {
+                continue;
             }
-            powers
+            if status == crate::status_ids::sid::MODE_SHIFT
+                && entity.status(crate::status_ids::sid::PHASE) != 0
+            {
+                continue;
+            }
+            if status == crate::status_ids::sid::DOPPELGANGER_DRAW
+                && entity.status(crate::status_ids::sid::DRAW_CARD) != 0
+            {
+                continue;
+            }
+            if status == crate::status_ids::sid::DOPPELGANGER_ENERGY
+                && entity.status(crate::status_ids::sid::ENERGIZED) != 0
+            {
+                continue;
+            }
+
+            let Some(spec) = crate::powers::registry::trace_power_spec(status) else {
+                continue;
+            };
+            let id = match status {
+                crate::status_ids::sid::INTANGIBLE if is_player => "IntangiblePlayer",
+                crate::status_ids::sid::REGENERATION if !is_player => "Regenerate",
+                _ => spec.java_id,
+            };
+            let stored = entity.status(status);
+            let amt = match status {
+                crate::status_ids::sid::INVINCIBLE => stored
+                    .saturating_sub(entity.status(crate::status_ids::sid::INVINCIBLE_DAMAGE_TAKEN))
+                    .max(0),
+                crate::status_ids::sid::MODE_SHIFT => stored
+                    .saturating_sub(entity.status(crate::status_ids::sid::DAMAGE_TAKEN_THIS_MODE))
+                    .max(0),
+                crate::status_ids::sid::SLOW => stored - 1,
+                crate::status_ids::sid::TIME_WARP => {
+                    entity.status(crate::status_ids::sid::TIME_WARP)
+                }
+                crate::status_ids::sid::PANACHE => {
+                    5 - entity.status(crate::status_ids::sid::PANACHE_COUNT)
+                }
+                crate::status_ids::sid::DRAW_CARD | crate::status_ids::sid::DOPPELGANGER_DRAW => {
+                    entity.status(crate::status_ids::sid::DRAW_CARD)
+                        + entity.status(crate::status_ids::sid::DOPPELGANGER_DRAW)
+                }
+                crate::status_ids::sid::ENERGIZED | crate::status_ids::sid::DOPPELGANGER_ENERGY => {
+                    entity.status(crate::status_ids::sid::ENERGIZED)
+                        + entity.status(crate::status_ids::sid::DOPPELGANGER_ENERGY)
+                }
+                crate::status_ids::sid::DISCIPLINE => -1,
+                _ => match spec.amount {
+                    crate::powers::registry::TracePowerAmount::Stored => stored,
+                    crate::powers::registry::TracePowerAmount::Marker => -1,
+                    crate::powers::registry::TracePowerAmount::Negated => -stored,
+                },
+            };
+            powers.push(PowerPostState {
+                id: id.to_string(),
+                amt,
+            });
+        }
+        powers
     };
 
     let enemies: Vec<EnemyPostState> = state
@@ -1507,6 +1577,7 @@ fn trace_intent_name(intent: crate::combat_types::Intent) -> &'static str {
         Intent::AttackBuff { .. } => "ATTACK_BUFF",
         Intent::AttackDebuff { .. } => "ATTACK_DEBUFF",
         Intent::DefendBuff { .. } => "DEFEND_BUFF",
+        Intent::DefendDebuff { .. } => "DEFEND_DEBUFF",
         Intent::Escape => "ESCAPE",
         Intent::Sleep => "SLEEP",
         Intent::Stun => "STUN",
@@ -1542,7 +1613,7 @@ fn trace_intent_damage(
         };
     }
     damage *= combat.state.stance.incoming_mult() as f32;
-    if enemy.back_attack {
+    if enemy.has_back_attack() {
         damage = (damage * 1.5) as i32 as f32;
     }
     if combat

@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::json;
 
-use crate::run::{ProfileSnapshot, RunEngine};
+use crate::run::{GameAction, ProfileSnapshot, RunEngine};
 use crate::trace::bundle::{
     compare_recording_bundle, is_distilled_chaos_recorder_only_callback, load_recording_bundle,
     load_recording_meta, BundleComparisonStatus, RecordedTraceRecord, RecorderAction,
@@ -27,6 +27,16 @@ fn bundle_paths() -> Vec<PathBuf> {
         .collect();
     paths.sort();
     paths
+}
+
+fn recording_prefix(run_id: &str, actions: usize) -> RecordingBundle {
+    let mut bundle = load_recording_bundle(recordings_root().join(run_id)).unwrap();
+    bundle.actions.truncate(actions);
+    bundle.records.truncate(actions);
+    bundle.meta.records = actions;
+    bundle.meta.status = "IN_PROGRESS".to_string();
+    bundle.run_end = None;
+    bundle
 }
 
 #[test]
@@ -59,13 +69,23 @@ fn complete_a0_bundles_generate_report_only_prefix_results() {
             report.unverified_actions.len() + report.ignored_recorder_actions.len(),
             "every uncertified recorder action must carry structured evidence: {report:?}"
         );
+        let initialization_quarantine = report
+            .initialization_quarantine
+            .as_ref()
+            .expect("legacy bundles must remain initialization-uncertified");
         assert_eq!(
-            report
-                .initialization_quarantine
-                .as_ref()
-                .map(|quarantine| quarantine.kind.as_str()),
-            Some("missing_profile_snapshot"),
-            "legacy corpus must not infer an authoritative all-unlocked profile"
+            initialization_quarantine.kind,
+            "incomplete_initialization_snapshot"
+        );
+        assert!(
+            initialization_quarantine
+                .reason
+                .contains("exact non-null Note for Yourself"),
+            "the null operator attestation must not become authoritative: {report:?}"
+        );
+        assert_eq!(
+            report.initialization_authority.as_deref(),
+            Some("operator attestation data/traces/recordings/profile-attestation.json")
         );
         assert!(
             report.unverified_actions.iter().any(|entry| {
@@ -118,18 +138,251 @@ fn complete_a0_bundles_generate_report_only_prefix_results() {
         .collect();
     assert_eq!(grid_followups.len(), 4);
     for report in grid_followups {
-        assert_eq!(report.comparable_actions, 2);
-        assert_eq!(report.replayed_actions, 2);
+        assert!(
+            report.comparable_actions >= 3,
+            "Neow grid replay must compare the settled deck checkpoint: {report:?}"
+        );
+        assert!(report.replayed_actions >= 3);
+        assert!(
+            report
+                .inferred_actions
+                .iter()
+                .any(|inferred| inferred.before_idx == 2
+                    && inferred.action == GameAction::SelectRewardItem(0)),
+            "Neow grid replay must expose its uniquely legal typed opener: {report:?}"
+        );
+        assert!(
+            report.inferred_actions.iter().any(|inferred| {
+                inferred.before_idx == 2
+                    && matches!(inferred.action, GameAction::ChooseRewardOption { .. })
+            }),
+            "Neow grid replay must expose the deck-proven canonical choice: {report:?}"
+        );
         assert!(
             report
                 .first_divergence
                 .as_ref()
-                .is_some_and(|divergence| divergence
-                    .detail
-                    .contains("selected deck-card identity")),
-            "Neow grid replay must stop rather than guess a card: {report:?}"
+                .is_none_or(|divergence| divergence.idx > 2),
+            "Neow grid replay may only stop at a later real divergence: {report:?}"
         );
     }
+}
+
+#[test]
+fn bundle_neow_grid_upgrade_from_ordered_deck_delta() {
+    // NeowReward.update upgrades selectedCards[0], clears the grid selection,
+    // then returns to Neow's final Continue. Java: NeowReward.java:119-170,
+    // 291-293. The recorder preserves the resulting ordered master deck.
+    let bundle = recording_prefix("-8362019926497694510-WATCHER-20260720-174739", 3);
+    let report = compare_recording_bundle(&bundle).unwrap();
+
+    assert_eq!(report.status, BundleComparisonStatus::Uncertified);
+    assert_eq!(report.comparable_actions, 3);
+    assert_eq!(report.matched_actions, 3);
+    assert_eq!(report.replayed_actions, 3);
+    assert!(report.first_divergence.is_none());
+    assert_eq!(report.inferred_actions.len(), 2);
+    assert_eq!(
+        report.inferred_actions[0].action,
+        GameAction::SelectRewardItem(0)
+    );
+    assert_eq!(
+        report.inferred_actions[1].action,
+        GameAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 8,
+        }
+    );
+    assert!(report.inferred_actions[1]
+        .reason
+        .contains("uniquely identifies"));
+    assert!(!report.unverified_actions.iter().any(|entry| entry.idx == 2));
+}
+
+#[test]
+fn bundle_neow_grid_equivalent_duplicate_removal() {
+    // NeowReward.update removes selectedCards[0] from masterDeck. Java:
+    // NeowReward.java:119-170, 241-246. Removing any one of the four identical,
+    // non-bottled Defends yields the same ordered deck but not the same instance.
+    let bundle = recording_prefix("3679001076098606203-WATCHER-20260720-190036", 3);
+    let report = compare_recording_bundle(&bundle).unwrap();
+
+    assert_eq!(report.status, BundleComparisonStatus::Uncertified);
+    assert_eq!(report.comparable_actions, 3);
+    assert_eq!(report.matched_actions, 3);
+    assert_eq!(report.replayed_actions, 3);
+    assert!(report.first_divergence.is_none());
+    assert_eq!(report.inferred_actions.len(), 2);
+    assert_eq!(
+        report.inferred_actions[0].action,
+        GameAction::SelectRewardItem(0)
+    );
+    assert_eq!(
+        report.inferred_actions[1].action,
+        GameAction::ChooseRewardOption {
+            item_index: 0,
+            choice_index: 4,
+        }
+    );
+    assert!(report.inferred_actions[1]
+        .reason
+        .contains("equivalent duplicate card instance"));
+    assert!(report.unverified_actions.iter().any(|entry| {
+        entry.idx == 2
+            && entry
+                .reason
+                .contains("does not distinguish equivalent duplicate deck-card instances")
+    }));
+}
+
+#[test]
+fn bundle_infers_the_uniquely_forced_synthetic_boss_click() {
+    // DungeonMapScreen routes controller focus to bossHb when no ordinary map
+    // node remains, while TraceLab's path patch observes MapRoomNode clicks.
+    // The next combat checkpoint and the sole canonical destination therefore
+    // prove this omitted UI action without choosing among alternatives.
+    // Java: DungeonMapScreen.java (`nodes.isEmpty()`) and DungeonMap.java.
+    let bundle = recording_prefix("-5884681071377138867-WATCHER-20260720-194423", 124);
+    let report = compare_recording_bundle(&bundle).unwrap();
+
+    assert!(report.inferred_actions.iter().any(|inferred| {
+        inferred.before_idx == 123
+            && inferred.action == GameAction::ChoosePath(0)
+            && inferred.reason.contains("synthetic boss destination")
+    }));
+    assert!(
+        report
+            .first_divergence
+            .as_ref()
+            .is_none_or(|divergence| divergence.idx > 123),
+        "the uniquely forced boss entry must make the recorded potion action reachable: {report:?}"
+    );
+}
+
+#[test]
+fn bundle_maps_boss_relic_identity_through_java_reward_staging() {
+    // Boss combat Proceed enters TreasureRoomBoss, BossChest.open opens the
+    // one-item BossRelicSelectScreen, and the relic image selects one of its
+    // three named choices. The legacy recorder emits only that final identity.
+    // Java: ProceedButton.java, BossChest.java, BossRelicSelectScreen.java.
+    let bundle = recording_prefix("-5884681071377138867-WATCHER-20260720-194423", 137);
+    let report = compare_recording_bundle(&bundle).unwrap();
+
+    let staged = report
+        .inferred_actions
+        .iter()
+        .filter(|inferred| inferred.before_idx == 135)
+        .map(|inferred| inferred.action.clone())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        staged,
+        vec![
+            GameAction::LeaveRewards,
+            GameAction::OpenChest,
+            GameAction::SelectRewardItem(0),
+        ]
+    );
+    assert!(report.inferred_actions.iter().any(|inferred| {
+        inferred.before_idx == 136
+            && inferred.action == GameAction::Proceed
+            && inferred.reason.contains("DungeonTransitionScreen")
+    }));
+    assert!(
+        report
+            .first_divergence
+            .as_ref()
+            .is_none_or(|divergence| divergence.idx > 136),
+        "the recorded VioletLotus and next-act path must resolve the omitted staging: {report:?}"
+    );
+}
+
+#[test]
+fn bundle_uses_following_card_identity_to_open_the_prayer_wheel_reward() {
+    // CombatRewardScreen adds a second card item for Prayer Wheel. TraceLab's
+    // REWARD_TAKE callback omits its item index, but the following CARD_REWARD
+    // identity uniquely proves which offer Java opened.
+    // Java: CombatRewardScreen.java::setupItemReward.
+    let bundle = recording_prefix("-5884681071377138867-WATCHER-20260720-194423", 278);
+    let report = compare_recording_bundle(&bundle).unwrap();
+
+    assert_eq!(report.comparable_actions, 278, "{report:?}");
+    assert!(report.first_divergence.is_none(), "{report:?}");
+}
+
+#[test]
+fn bundle_quarantines_unindexed_card_preview_before_retrying_full_potion_reward() {
+    // A full inventory makes Ambrosia's first RewardItem.claimReward return
+    // false. The player then opens and skips the second Prayer Wheel card
+    // reward, uses/discards a potion, and clicks the still-present Ambrosia.
+    // TraceLab does not observe SkipCardButton.closeCurrentScreen.
+    // Java: RewardItem.java::claimReward, SkipCardButton.java::update, and
+    // CardRewardScreen.java::takeReward.
+    let bundle = recording_prefix("-5884681071377138867-WATCHER-20260720-194423", 318);
+    let report = compare_recording_bundle(&bundle).unwrap();
+
+    assert_eq!(report.comparable_actions, 318, "{report:?}");
+    assert!(report.first_divergence.is_none(), "{report:?}");
+    assert!(report
+        .ignored_recorder_actions
+        .iter()
+        .any(|ignored| { ignored.idx == 314 && ignored.reason.contains("skipped preview") }));
+}
+
+#[test]
+fn bundle_quarantines_unindexed_prayer_wheel_previews_before_final_card_pick() {
+    // Two identical-state REWARD_TAKE CARD callbacks are followed by another
+    // opener and the persistent EmptyMind pick. RewardItem.claimReward omits
+    // the item index and SkipCardButton has no TraceLab hook, so only the final
+    // opener is uniquely tied to a card offer.
+    let bundle = recording_prefix("-5884681071377138867-WATCHER-20260720-194423", 337);
+    let report = compare_recording_bundle(&bundle).unwrap();
+
+    assert_eq!(report.comparable_actions, 337, "{report:?}");
+    assert!(report.first_divergence.is_none(), "{report:?}");
+    assert_eq!(
+        report
+            .ignored_recorder_actions
+            .iter()
+            .filter(|ignored| matches!(ignored.idx, 333 | 334))
+            .count(),
+        2
+    );
+    assert!(report.unverified_actions.iter().any(|entry| {
+        entry.idx == 335 && entry.reason.contains("multiple Prayer Wheel offers")
+    }));
+}
+
+#[test]
+fn bundle_quarantines_both_unindexed_prayer_wheel_previews_when_all_are_skipped() {
+    // Both card items are previewed and then the player leaves without a
+    // CARD_REWARD pick. The unchanged ordered deck proves the net skip, while
+    // the legacy schema still cannot identify either RewardItem index.
+    let bundle = recording_prefix("-5884681071377138867-WATCHER-20260720-194423", 356);
+    let report = compare_recording_bundle(&bundle).unwrap();
+
+    assert_eq!(report.comparable_actions, 356, "{report:?}");
+    assert!(report.first_divergence.is_none(), "{report:?}");
+    assert!(report
+        .ignored_recorder_actions
+        .iter()
+        .any(|ignored| ignored.idx == 354 && ignored.reason.contains("skipped preview")));
+}
+
+#[test]
+fn bundle_quarantines_canceled_smith_grid_before_following_campfire_choice() {
+    // SmithOption only queues CampfireSmithEffect; the actual upgrade occurs
+    // after GridSelectScreen returns a card. The unchanged deck and immediate
+    // Recall prove the grid was canceled, which TraceLab does not record.
+    // Java: SmithOption.java::useOption and CampfireSmithEffect.java::update.
+    let bundle = recording_prefix("-5884681071377138867-WATCHER-20260720-194423", 396);
+    let report = compare_recording_bundle(&bundle).unwrap();
+
+    assert_eq!(report.comparable_actions, 396, "{report:?}");
+    assert!(report.first_divergence.is_none(), "{report:?}");
+    assert!(report
+        .ignored_recorder_actions
+        .iter()
+        .any(|ignored| { ignored.idx == 394 && ignored.reason.contains("upgrade grid") }));
 }
 
 #[test]
@@ -139,33 +392,29 @@ fn coupled_or_incomplete_legacy_prefix_is_never_reported_as_a_match() {
     bundle.actions.truncate(51);
     bundle.records.truncate(51);
     bundle.meta.records = 51;
-    bundle.meta.profile = Some(TraceProfileSnapshot {
-        v: 1,
-        note_for_yourself_card: "IronWave".to_string(),
-        highest_unlocked_ascension: 20,
-        is_daily_run: false,
-        final_act_available: true,
-        bosses_seen: vec![
-            "GUARDIAN".to_string(),
-            "GHOST".to_string(),
-            "SLIME".to_string(),
-            "CHAMP".to_string(),
-            "AUTOMATON".to_string(),
-            "COLLECTOR".to_string(),
-            "CROW".to_string(),
-            "DONUT".to_string(),
-            "WIZARD".to_string(),
-        ],
-        locked_cards: Vec::new(),
-        locked_relics: Vec::new(),
-    });
+    // A prefix cannot retain the full run's later RUN_END lifecycle. Keeping
+    // it would correctly assert that action 51 must already be terminal and
+    // therefore produce a terminal-lifecycle divergence rather than testing
+    // the intended incomplete-prefix status.
+    bundle.run_end = None;
+    bundle.meta.status = "IN_PROGRESS".to_string();
 
     let report = compare_recording_bundle(&bundle).unwrap();
     assert_eq!(report.status, BundleComparisonStatus::Uncertified);
     assert_eq!(report.comparable_actions, 51);
     assert!(report.coupled_actions > 0);
     assert!(report.matched_actions < report.comparable_actions);
-    assert!(report.initialization_quarantine.is_none());
+    assert_eq!(
+        report
+            .initialization_quarantine
+            .as_ref()
+            .map(|quarantine| quarantine.kind.as_str()),
+        Some("incomplete_initialization_snapshot")
+    );
+    assert_eq!(
+        report.initialization_authority.as_deref(),
+        Some("operator attestation data/traces/recordings/profile-attestation.json")
+    );
 }
 
 #[test]
@@ -175,6 +424,26 @@ fn valid_bundle_intake_aligns_script_trace_and_metadata() {
     assert_eq!(bundle.meta.records, 607);
     assert_eq!(bundle.actions.len(), 607);
     assert_eq!(bundle.records.len(), 607);
+    assert_eq!(
+        bundle.meta.profile_authority.as_deref(),
+        Some("operator attestation data/traces/recordings/profile-attestation.json")
+    );
+    assert_eq!(
+        bundle
+            .meta
+            .profile
+            .as_ref()
+            .map(|profile| profile.note_for_yourself_card.as_str()),
+        Some("IronWave")
+    );
+    assert_eq!(
+        bundle
+            .meta
+            .profile_quarantine
+            .as_ref()
+            .map(|quarantine| quarantine.kind.as_str()),
+        Some("incomplete_operator_profile_attestation")
+    );
     assert_eq!(bundle.actions[0].action_type, "NEOW");
     assert_eq!(bundle.records[606].idx, 606);
 }
@@ -196,8 +465,10 @@ fn recorder_profile_contract_requires_explicit_unlock_sets() {
     let profile = TraceProfileSnapshot {
         v: 1,
         note_for_yourself_card: "IronWave".to_string(),
+        note_for_yourself_upgrades: 0,
         highest_unlocked_ascension: 20,
         is_daily_run: false,
+        is_trial: false,
         final_act_available: true,
         bosses_seen: vec!["GUARDIAN".to_string(), "GHOST".to_string()],
         locked_cards: vec!["Prostrate".to_string()],
@@ -216,6 +487,28 @@ fn recorder_profile_contract_requires_explicit_unlock_sets() {
     let mut duplicate = profile;
     duplicate.locked_relics.push("Turnip".to_string());
     assert!(duplicate.check_version().unwrap_err().contains("duplicate"));
+
+    let mut upgraded_note = duplicate.clone();
+    upgraded_note.locked_relics.pop();
+    upgraded_note.note_for_yourself_upgrades = 1;
+    assert_eq!(
+        upgraded_note
+            .to_engine_profile()
+            .unwrap()
+            .note_for_yourself_card,
+        "IronWave+"
+    );
+    upgraded_note.note_for_yourself_upgrades = 2;
+    assert!(upgraded_note
+        .check_version()
+        .unwrap_err()
+        .contains("not currently replayable"));
+    upgraded_note.note_for_yourself_upgrades = 0;
+    upgraded_note.is_daily_run = true;
+    assert!(upgraded_note
+        .check_version()
+        .unwrap_err()
+        .contains("standard-run certification"));
 }
 
 #[test]
@@ -392,7 +685,7 @@ fn daily_profile_bypasses_card_and_relic_locks_like_java() {
 }
 
 #[test]
-fn profile_presence_controls_bundle_initialization_quarantine() {
+fn profile_presence_alone_cannot_certify_run_initialization() {
     let meta = RecordingMeta {
         v: 1,
         run_id: "profile-contract".to_string(),
@@ -405,12 +698,18 @@ fn profile_presence_controls_bundle_initialization_quarantine() {
         records: 0,
         sittings: Vec::new(),
         profile: None,
+        initial: None,
+        environment: None,
+        profile_authority: None,
+        profile_quarantine: None,
     };
     let bundle = RecordingBundle {
         path: PathBuf::new(),
         meta: meta.clone(),
         actions: Vec::new(),
         records: Vec::new(),
+        run_end: None,
+        lifecycle: Default::default(),
     };
     let legacy = compare_recording_bundle(&bundle).unwrap();
     assert_eq!(
@@ -418,7 +717,7 @@ fn profile_presence_controls_bundle_initialization_quarantine() {
             .initialization_quarantine
             .as_ref()
             .map(|quarantine| quarantine.kind.as_str()),
-        Some("missing_profile_snapshot")
+        Some("incomplete_initialization_snapshot")
     );
 
     let authoritative = RecordingBundle {
@@ -426,8 +725,10 @@ fn profile_presence_controls_bundle_initialization_quarantine() {
             profile: Some(TraceProfileSnapshot {
                 v: 1,
                 note_for_yourself_card: "IronWave".to_string(),
+                note_for_yourself_upgrades: 0,
                 highest_unlocked_ascension: 20,
                 is_daily_run: false,
+                is_trial: false,
                 final_act_available: true,
                 bosses_seen: vec![
                     "GUARDIAN".to_string(),
@@ -447,10 +748,12 @@ fn profile_presence_controls_bundle_initialization_quarantine() {
         },
         ..bundle
     };
-    assert!(compare_recording_bundle(&authoritative)
-        .unwrap()
+    let report = compare_recording_bundle(&authoritative).unwrap();
+    let quarantine = report
         .initialization_quarantine
-        .is_none());
+        .expect("an exact profile does not replace the process-global envelope");
+    assert_eq!(quarantine.kind, "incomplete_initialization_snapshot");
+    assert!(quarantine.reason.contains("post-generation state"));
 }
 
 #[test]

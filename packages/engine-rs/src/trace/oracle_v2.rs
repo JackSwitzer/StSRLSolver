@@ -12,7 +12,7 @@ use crate::run::{RunEngine, RunPhase};
 
 pub const ORACLE_STATE_SCHEMA_NAME: &str = "sts.oracle_state";
 pub const ORACLE_STATE_SCHEMA_MAJOR: u32 = 2;
-pub const ORACLE_STATE_SCHEMA_MINOR: u32 = 1;
+pub const ORACLE_STATE_SCHEMA_MINOR: u32 = 2;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OracleStateSchemaVersion {
@@ -75,6 +75,8 @@ pub struct OracleStateV2 {
     pub relics: Vec<OracleRelicStateV2>,
     pub potions: Vec<String>,
     pub rng: OracleRngStateV2,
+    #[serde(rename = "processGlobals")]
+    pub process_globals: OracleProcessGlobalsV2,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub neow: Option<OracleNeowStateV2>,
 }
@@ -95,6 +97,8 @@ struct OracleStateV2Wire {
     relics: Vec<OracleRelicStateV2>,
     potions: Vec<String>,
     rng: OracleRngStateV2,
+    #[serde(rename = "processGlobals")]
+    process_globals: OracleProcessGlobalsV2,
     #[serde(default)]
     neow: Option<OracleNeowStateV2>,
 }
@@ -120,6 +124,7 @@ impl<'de> Deserialize<'de> for OracleStateV2 {
             relics: wire.relics,
             potions: wire.potions,
             rng: wire.rng,
+            process_globals: wire.process_globals,
             neow: wire.neow,
         };
         state.validate().map_err(serde::de::Error::custom)?;
@@ -262,6 +267,12 @@ pub struct OracleCountedRngStateV2 {
     pub counter: i64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OracleProcessGlobalsV2 {
+    #[serde(rename = "theBombIdOffset")]
+    pub the_bomb_id_offset: i32,
+}
+
 impl OracleRngStateV2 {
     fn validate(&self) -> Result<(), String> {
         parse_hex_state("rng.ambientMath.seed0", &self.ambient_math.seed0, 64)?;
@@ -366,7 +377,10 @@ pub fn project_oracle_state(engine: &RunEngine) -> Result<OracleStateV2, String>
         .map(|enemy| {
             let dead = combat
                 .and_then(|combat| combat.state.enemies.get(enemy.idx))
-                .is_some_and(|state| state.entity.hp <= 0);
+                .is_some_and(|state| {
+                    state.entity.hp <= 0
+                        && state.entity.status(crate::status_ids::sid::REBIRTH_PENDING) <= 0
+                });
             OracleEnemyStateV2 {
                 id: enemy.id,
                 idx: enemy.idx,
@@ -473,6 +487,9 @@ pub fn project_oracle_state(engine: &RunEngine) -> Result<OracleStateV2, String>
             .collect(),
         potions: post.potions,
         rng: OracleRngStateV2::from_engine(engine)?,
+        process_globals: OracleProcessGlobalsV2 {
+            the_bomb_id_offset: engine.the_bomb_id_offset(),
+        },
         neow,
     };
     state.validate()?;

@@ -51,11 +51,7 @@ fn enter_elite(
     engine.map.rows[start_y][start_x].room_type = RoomType::Elite;
     engine.map.rows[start_y][start_x].has_emerald_key = burning;
     let map_counter = engine.rng_counters()["map"];
-    assert!(
-        engine
-            .step_game(&GameAction::ChoosePath(0))
-            .accepted()
-    );
+    assert!(engine.step_game(&GameAction::ChoosePath(0)).accepted());
     (engine, map_counter)
 }
 
@@ -328,11 +324,9 @@ fn black_star_emerald_reward_order_is_exact_and_the_key_is_independent() {
     assert_eq!(screen.items[4].kind, RewardItemKind::CardChoice);
     assert_eq!(engine.rng_counters()["potion"], potion_counter + 1);
 
-    assert!(
-        engine
-            .step_game(&GameAction::SelectRewardItem(3))
-            .accepted()
-    );
+    assert!(engine
+        .step_game(&GameAction::SelectRewardItem(3))
+        .accepted());
     let after_key = engine.current_reward_screen().expect("rewards remain open");
     assert_eq!(after_key.items[3].state, RewardItemState::Claimed);
     assert_eq!(after_key.items[1].state, RewardItemState::Available);
@@ -401,7 +395,7 @@ fn reward_screen_requires_claim_before_card_choice() {
 
     assert_eq!(
         engine.get_legal_actions(),
-        vec![GameAction::SelectRewardItem(0 )]
+        vec![GameAction::SelectRewardItem(0)]
     );
 
     let step = engine.step_game(&GameAction::SelectRewardItem(0));
@@ -409,10 +403,19 @@ fn reward_screen_requires_claim_before_card_choice() {
     assert_eq!(
         step.next_decision.legal_actions,
         vec![
-            GameAction::ChooseRewardOption { item_index: 0, choice_index: 0, },
-            GameAction::ChooseRewardOption { item_index: 0, choice_index: 1, },
-            GameAction::ChooseRewardOption { item_index: 0, choice_index: 2, },
-            GameAction::SkipRewardItem(0 ),
+            GameAction::ChooseRewardOption {
+                item_index: 0,
+                choice_index: 0,
+            },
+            GameAction::ChooseRewardOption {
+                item_index: 0,
+                choice_index: 1,
+            },
+            GameAction::ChooseRewardOption {
+                item_index: 0,
+                choice_index: 2,
+            },
+            GameAction::SkipRewardItem(0),
         ]
     );
 }
@@ -545,7 +548,7 @@ fn claiming_egg_relic_upgrades_later_card_reward_choice() {
     ));
     assert_eq!(
         claim.next_decision.legal_actions,
-        vec![GameAction::SelectRewardItem(1 )]
+        vec![GameAction::SelectRewardItem(1)]
     );
 
     let open = engine.step_game(&GameAction::SelectRewardItem(1));
@@ -575,11 +578,9 @@ fn singing_bowl_keeps_skip_separate_from_its_max_hp_choice() {
     let hp_before = engine.run_state.current_hp;
     engine.debug_set_card_reward_screen(vec!["Wallop".to_string(), "Scrawl".to_string()]);
 
-    assert!(
-        engine
-            .step_game(&GameAction::SelectRewardItem(0))
-            .accepted()
-    );
+    assert!(engine
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     let step = engine.step_game(&GameAction::SkipRewardItem(0));
     assert!(step.accepted());
     assert_eq!(engine.run_state.max_hp, max_hp_before);
@@ -618,8 +619,8 @@ fn white_beast_adds_potion_reward_item_before_card_choice() {
         .iter()
         .any(|p| p == &offered_potion));
     let mut expected_actions = vec![
-        GameAction::SelectRewardItem(0 ),
-        GameAction::SelectRewardItem(2 ),
+        GameAction::SelectRewardItem(0),
+        GameAction::SelectRewardItem(2),
         GameAction::LeaveRewards,
     ];
     // FruitJuice.canUse permits use on non-combat reward screens.
@@ -656,17 +657,15 @@ fn sozu_keeps_potion_reward_claimable_but_obtains_nothing() {
     assert_eq!(screen.items[1].kind, RewardItemKind::Potion);
     assert!(screen.items[1].claimable);
     let before = engine.run_state.potions.clone();
-    assert!(
-        engine
-            .step_game(&GameAction::SelectRewardItem(1))
-            .accepted()
-    );
+    assert!(engine
+        .step_game(&GameAction::SelectRewardItem(1))
+        .accepted());
     assert_eq!(engine.run_state.potions, before);
     assert_eq!(
         engine.get_legal_actions(),
         vec![
-            GameAction::SelectRewardItem(0 ),
-            GameAction::SelectRewardItem(2 ),
+            GameAction::SelectRewardItem(0),
+            GameAction::SelectRewardItem(2),
             GameAction::LeaveRewards,
         ]
     );
@@ -700,11 +699,9 @@ fn full_inventory_leaves_a_potion_reward_unclaimed_without_sozu() {
         }],
     });
     let before = engine.run_state.potions.clone();
-    assert!(
-        engine
-            .step_game(&GameAction::SelectRewardItem(0))
-            .accepted()
-    );
+    assert!(engine
+        .step_game(&GameAction::SelectRewardItem(0))
+        .accepted());
     assert_eq!(engine.run_state.potions, before);
     assert_eq!(
         engine.current_reward_screen().expect("reward").items[0].state,
@@ -750,7 +747,8 @@ fn boss_reward_screen_requires_relic_choice_and_transitions_to_act_two() {
     let open = engine.step_game(&GameAction::SelectRewardItem(0));
     assert!(open.accepted());
     assert_eq!(
-        open.next_decision.context
+        open.next_decision
+            .context
             .reward_screen
             .as_ref()
             .and_then(|s| s.active_item),
@@ -759,10 +757,19 @@ fn boss_reward_screen_requires_relic_choice_and_transitions_to_act_two() {
     assert_eq!(
         open.next_decision.legal_actions,
         vec![
-            GameAction::ChooseRewardOption { item_index: 0, choice_index: 0, },
-            GameAction::ChooseRewardOption { item_index: 0, choice_index: 1, },
-            GameAction::ChooseRewardOption { item_index: 0, choice_index: 2, },
-            GameAction::SkipRewardItem(0 ),
+            GameAction::ChooseRewardOption {
+                item_index: 0,
+                choice_index: 0,
+            },
+            GameAction::ChooseRewardOption {
+                item_index: 0,
+                choice_index: 1,
+            },
+            GameAction::ChooseRewardOption {
+                item_index: 0,
+                choice_index: 2,
+            },
+            GameAction::SkipRewardItem(0),
         ]
     );
 
@@ -829,19 +836,11 @@ fn act_one_and_two_boss_chests_reset_floor_rngs_before_astrolabe_effects() {
                 .source,
             RewardScreenSource::BossCombat
         );
-        assert!(
-            engine
-                .step_game(&GameAction::LeaveRewards)
-                .accepted()
-        );
+        assert!(engine.step_game(&GameAction::LeaveRewards).accepted());
         assert_eq!(engine.run_state.floor, chest_floor);
         assert_eq!(engine.current_phase(), crate::run::RunPhase::Chest);
         assert_floor_rngs(&engine, seed, chest_floor, [0, 0, 0, 0, 0]);
-        assert!(
-            engine
-                .step_game(&GameAction::OpenChest)
-                .accepted()
-        );
+        assert!(engine.step_game(&GameAction::OpenChest).accepted());
         assert_eq!(engine.current_phase(), crate::run::RunPhase::CardReward);
 
         let astrolabe_index = engine
@@ -854,35 +853,27 @@ fn act_one_and_two_boss_chests_reset_floor_rngs_before_astrolabe_effects() {
                 matches!(choice, RewardChoice::Named { label, .. } if label == "Astrolabe")
             })
             .expect("seeded boss chest should expose Astrolabe");
-        assert!(
-            engine
-                .step_game(&GameAction::SelectRewardItem(0))
-                .accepted()
-        );
-        assert!(
-            engine
-                .step_game(&GameAction::ChooseRewardOption {
-                    item_index: 0,
-                    choice_index: astrolabe_index,
-                })
-                .accepted()
-        );
+        assert!(engine
+            .step_game(&GameAction::SelectRewardItem(0))
+            .accepted());
+        assert!(engine
+            .step_game(&GameAction::ChooseRewardOption {
+                item_index: 0,
+                choice_index: astrolabe_index,
+            })
+            .accepted());
         assert_floor_rngs(&engine, seed, chest_floor, [0, 0, 0, 0, 0]);
 
         for _ in 0..3 {
-            assert!(
-                engine
-                    .step_game(&GameAction::SelectRewardItem(0))
-                    .accepted()
-            );
-            assert!(
-                engine
-                    .step_game(&GameAction::ChooseRewardOption {
-                        item_index: 0,
-                        choice_index: 0,
-                    })
-                    .accepted()
-            );
+            assert!(engine
+                .step_game(&GameAction::SelectRewardItem(0))
+                .accepted());
+            assert!(engine
+                .step_game(&GameAction::ChooseRewardOption {
+                    item_index: 0,
+                    choice_index: 0,
+                })
+                .accepted());
         }
 
         assert_eq!(engine.current_phase(), crate::run::RunPhase::Transition);

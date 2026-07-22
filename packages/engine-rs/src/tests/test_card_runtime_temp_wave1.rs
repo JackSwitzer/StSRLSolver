@@ -9,7 +9,9 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Expunger.java
 
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::status_ids::sid;
 use crate::tests::support::*;
 
@@ -67,11 +69,7 @@ fn safety_plus_self_retains_then_gains_modified_block_and_exhausts() {
     assert_eq!((base.cost, base.base_block), (1, 12));
     assert_eq!((upgraded.cost, upgraded.base_block), (1, 16));
 
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        1,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 1);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Safety+"]);
     engine.state.player.set_status(sid::DEXTERITY, 2);
@@ -87,11 +85,7 @@ fn safety_plus_self_retains_then_gains_modified_block_and_exhausts() {
 
 #[test]
 fn temp_wave1_safety_through_violence_and_shiv_follow_engine_path() {
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 60, 60)],
-        10,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 60, 60)], 10);
     force_player_turn(&mut engine);
 
     ensure_in_hand(&mut engine, "Safety+");
@@ -117,11 +111,8 @@ fn through_violence_variants_self_retain_then_deal_damage_and_exhaust_for_free()
     // upgradeDamage(10) changes only damage to 30.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/ThroughViolence.java
     for (card_id, expected_damage) in [("ThroughViolence", 20), ("ThroughViolence+", 30)] {
-        let mut engine = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 60, 60)],
-            0,
-        );
+        let mut engine =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 60, 60)], 0);
         force_player_turn(&mut engine);
         engine.state.hand = make_deck(&[card_id]);
 
@@ -148,11 +139,7 @@ fn shiv_variants_use_accuracy_damage_for_free_then_exhaust() {
     assert_eq!((shiv_plus.cost, shiv_plus.base_damage), (0, 6));
     assert!(shiv.exhaust && shiv_plus.exhaust);
 
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 50, 50)],
-        0,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 50, 50)], 0);
     force_player_turn(&mut engine);
     engine.state.energy = 0;
     engine.state.hand = make_deck(&["Shiv", "Shiv+"]);
@@ -168,11 +155,7 @@ fn shiv_variants_use_accuracy_damage_for_free_then_exhaust() {
 
 #[test]
 fn temp_wave1_omega_installs_runtime_status_and_deals_turn_end_damage() {
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 90, 90)],
-        10,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 90, 90)], 10);
     force_player_turn(&mut engine);
 
     ensure_in_hand(&mut engine, "Omega+");

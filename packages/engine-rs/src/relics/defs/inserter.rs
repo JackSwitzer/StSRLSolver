@@ -3,8 +3,7 @@
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerCondition};
-use crate::engine::CombatEngine;
-use crate::status_ids::sid;
+use crate::engine::{CombatEngine, TurnStartQueuedAction};
 
 fn hook(
     engine: &mut CombatEngine,
@@ -20,11 +19,18 @@ fn hook(
         state.set(0, 0);
         // Inserter.java queues IncreaseMaxOrbAction(1), which mutates the live
         // orb collection and no-ops at Java's ten-slot cap.
-        let before = engine.state.orb_slots.max_slots;
-        engine.state.orb_slots.add_slot();
-        let gained = engine.state.orb_slots.max_slots.saturating_sub(before) as i32;
-        if gained > 0 {
-            engine.state.player.add_status(sid::ORB_SLOTS, gained);
+        if engine.is_collecting_turn_start_actions() {
+            engine.queue_turn_start_action_bottom(TurnStartQueuedAction::IncreaseOrbSlots(1));
+        } else {
+            let before = engine.state.orb_slots.max_slots;
+            engine.state.orb_slots.add_slot();
+            let gained = engine.state.orb_slots.max_slots.saturating_sub(before) as i32;
+            if gained > 0 {
+                engine
+                    .state
+                    .player
+                    .add_status(crate::status_ids::sid::ORB_SLOTS, gained);
+            }
         }
     } else {
         state.set(0, next);

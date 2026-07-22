@@ -1,5 +1,5 @@
-use crate::events::{typed_shrine_events, EventRuntimeStatus, TypedEventDef};
 use crate::checkpoint::CoreCheckpoint;
+use crate::events::{typed_shrine_events, EventRuntimeStatus, TypedEventDef};
 use crate::run::{GameAction, RunEngine, RunPhase};
 use std::collections::HashMap;
 
@@ -42,7 +42,10 @@ fn enter_match_and_keep(engine: &mut RunEngine) {
 #[test]
 fn match_and_keep_is_supported_in_the_typed_catalog() {
     let event = typed_shrine_event("Match and Keep!");
-    assert!(matches!(event.options[0].status, EventRuntimeStatus::Supported));
+    assert!(matches!(
+        event.options[0].status,
+        EventRuntimeStatus::Supported
+    ));
 }
 
 #[test]
@@ -132,7 +135,9 @@ fn match_and_keep_checkpoint_preserves_reveal_board_pools_and_rng_continuation()
         .enumerate()
         .find_map(|(index, card)| (index != first && card == &board[first]).then_some(index))
         .expect("paired card");
-    assert!(original.step_game(&GameAction::EventChoice(first)).accepted());
+    assert!(original
+        .step_game(&GameAction::EventChoice(first))
+        .accepted());
 
     let checkpoint = CoreCheckpoint::capture(&original).expect("quiescent event decision");
     let json = checkpoint.to_json().expect("serialize match checkpoint");
@@ -141,11 +146,18 @@ fn match_and_keep_checkpoint_preserves_reveal_board_pools_and_rng_continuation()
         .restore()
         .expect("restore match checkpoint");
     assert_eq!(restored.get_legal_actions(), original.get_legal_actions());
-    assert_eq!(restored.debug_match_and_keep_board(), original.debug_match_and_keep_board());
+    assert_eq!(
+        restored.debug_match_and_keep_board(),
+        original.debug_match_and_keep_board()
+    );
     assert_eq!(restored.rng_counters(), original.rng_counters());
 
-    assert!(original.step_game(&GameAction::EventChoice(mate)).accepted());
-    assert!(restored.step_game(&GameAction::EventChoice(mate)).accepted());
+    assert!(original
+        .step_game(&GameAction::EventChoice(mate))
+        .accepted());
+    assert!(restored
+        .step_game(&GameAction::EventChoice(mate))
+        .accepted());
     assert_eq!(
         CoreCheckpoint::capture(&restored).unwrap(),
         CoreCheckpoint::capture(&original).unwrap()
@@ -208,7 +220,10 @@ fn match_and_keep_mismatch_then_match_consumes_attempts_and_adds_only_the_matche
     assert_eq!(engine.debug_match_and_keep_attempts_left(), Some(4));
     assert_eq!(engine.run_state.deck.len(), deck_before);
     assert_eq!(
-        engine.debug_match_and_keep_board().expect("board after mismatch").len(),
+        engine
+            .debug_match_and_keep_board()
+            .expect("board after mismatch")
+            .len(),
         12
     );
 
@@ -219,7 +234,10 @@ fn match_and_keep_mismatch_then_match_consumes_attempts_and_adds_only_the_matche
     assert_eq!(engine.debug_match_and_keep_attempts_left(), Some(3));
     assert_eq!(engine.run_state.deck.len(), deck_before + 1);
     assert_eq!(
-        engine.debug_match_and_keep_board().expect("board after match").len(),
+        engine
+            .debug_match_and_keep_board()
+            .expect("board after match")
+            .len(),
         10
     );
     assert_eq!(engine.run_state.deck.last(), Some(&match_pair.2));

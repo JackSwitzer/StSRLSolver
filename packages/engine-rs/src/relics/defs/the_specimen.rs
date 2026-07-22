@@ -46,14 +46,12 @@ fn hook(
     }
 }
 
-static TRIGGERS: [TriggeredEffect; 1] = [
-    TriggeredEffect {
-        trigger: Trigger::OnEnemyDeath,
-        condition: TriggerCondition::Always,
-        effects: &[], // complex_hook handles Poison transfer
-        counter: None,
-    },
-];
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::OnEnemyDeath,
+    condition: TriggerCondition::Always,
+    effects: &[], // complex_hook handles Poison transfer
+    counter: None,
+}];
 
 pub static DEF: EntityDef = EntityDef {
     id: "The Specimen",

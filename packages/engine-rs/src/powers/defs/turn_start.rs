@@ -2,13 +2,11 @@
 //!
 //! Powers that trigger at the start of the player's turn.
 
-use crate::effects::declarative::{
-    AmountSource, Effect, GeneratedCardPool, Pile, SimpleEffect, Target,
-};
+use crate::effects::declarative::{AmountSource, Effect, GeneratedCardPool, SimpleEffect, Target};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
-use crate::effects::trigger::{Trigger, TriggerCondition};
-use crate::engine::{ChoiceOption, ChoiceReason, CombatEngine};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
+use crate::effects::trigger::{Trigger, TriggerCondition};
+use crate::engine::{ChoiceOption, ChoiceReason, CombatEngine, TurnStartQueuedAction};
 use crate::state::Stance;
 use crate::status_ids::sid;
 
@@ -33,7 +31,7 @@ static ENERGIZED_EFFECTS: [Effect; 2] = [
 ];
 
 static ENERGIZED_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnStart,
+    trigger: Trigger::EnergyRecharge,
     condition: TriggerCondition::Always,
     effects: &ENERGIZED_EFFECTS,
     counter: None,
@@ -60,7 +58,7 @@ static ENERGIZED_BLUE_EFFECTS: [Effect; 2] = [
 ];
 
 static ENERGIZED_BLUE_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnStart,
+    trigger: Trigger::EnergyRecharge,
     condition: TriggerCondition::Always,
     effects: &ENERGIZED_BLUE_EFFECTS,
     counter: None,
@@ -83,7 +81,11 @@ fn hook_energy_down(
 ) {
     if owner == EffectOwner::PlayerPower && event.kind == Trigger::TurnStart {
         let amount = engine.state.player.status(sid::ENERGY_DOWN);
-        engine.state.energy = (engine.state.energy - amount).max(0);
+        if engine.is_collecting_turn_start_actions() {
+            engine.queue_turn_start_action_bottom(TurnStartQueuedAction::LoseEnergy(amount));
+        } else {
+            engine.state.energy = (engine.state.energy - amount).max(0);
+        }
     }
 }
 
@@ -126,19 +128,27 @@ fn hook_phantasmal(
     // but passes the full Phantasmal amount as ApplyPowerAction.stackAmount.
     // Thus an absent power starts at one; an existing power gains all pending
     // stacks. Phantasmal itself always loses exactly one stack per turn.
-    let double_damage = engine.state.player.status(sid::DOUBLE_DAMAGE);
-    if double_damage > 0 {
+    if engine.is_collecting_turn_start_actions() {
+        engine.queue_turn_start_action_bottom(TurnStartQueuedAction::ApplyPhantasmal(phantasmal));
+        engine.queue_turn_start_action_bottom(TurnStartQueuedAction::ReducePlayerPower(
+            sid::PHANTASMAL,
+            1,
+        ));
+    } else {
+        let double_damage = engine.state.player.status(sid::DOUBLE_DAMAGE);
+        engine.state.player.set_status(
+            sid::DOUBLE_DAMAGE,
+            if double_damage > 0 {
+                double_damage + phantasmal
+            } else {
+                1
+            },
+        );
         engine
             .state
             .player
-            .set_status(sid::DOUBLE_DAMAGE, double_damage + phantasmal);
-    } else {
-        engine.state.player.set_status(sid::DOUBLE_DAMAGE, 1);
+            .set_status(sid::PHANTASMAL, phantasmal - 1);
     }
-    engine
-        .state
-        .player
-        .set_status(sid::PHANTASMAL, phantasmal - 1);
 }
 
 static PHANTASMAL_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
@@ -161,27 +171,38 @@ pub static DEF_PHANTASMAL: EntityDef = EntityDef {
 // Demon Form — post-draw turn start: gain Strength equal to stacks
 // ===========================================================================
 
-static DEMON_FORM_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddStatus(
-    Target::Player,
-    sid::STRENGTH,
-    AmountSource::StatusValue(sid::DEMON_FORM),
-))];
-
 static DEMON_FORM_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     // DemonFormPower overrides atStartOfTurnPostDraw, not atStartOfTurn.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DemonFormPower.java
     trigger: Trigger::TurnStartPostDraw,
     condition: TriggerCondition::Always,
-    effects: &DEMON_FORM_EFFECTS,
+    effects: &EMPTY_EFFECTS,
     counter: None,
 }];
+
+fn hook_demon_form(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    _event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    let amount = engine.state.player.status(sid::DEMON_FORM);
+    if engine.is_collecting_turn_start_actions() {
+        engine.queue_turn_start_action_bottom(TurnStartQueuedAction::AddPlayerStatus(
+            sid::STRENGTH,
+            amount,
+        ));
+    } else {
+        engine.state.player.add_status(sid::STRENGTH, amount);
+    }
+}
 
 pub static DEF_DEMON_FORM: EntityDef = EntityDef {
     id: "demon_form",
     name: "Demon Form",
     kind: EntityKind::Power,
     triggers: &DEMON_FORM_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_demon_form),
     status_guard: Some(sid::DEMON_FORM),
 };
 
@@ -190,25 +211,39 @@ pub static DEF_DEMON_FORM: EntityDef = EntityDef {
 // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NoxiousFumesPower.java
 // ===========================================================================
 
-static NOXIOUS_FUMES_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddStatus(
-    Target::AllEnemies,
-    sid::POISON,
-    AmountSource::StatusValue(sid::NOXIOUS_FUMES),
-))];
-
 static NOXIOUS_FUMES_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::TurnStartPostDraw,
     condition: TriggerCondition::Always,
-    effects: &NOXIOUS_FUMES_EFFECTS,
+    effects: &EMPTY_EFFECTS,
     counter: None,
 }];
+
+fn hook_noxious_fumes(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    _event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    let amount = engine.state.player.status(sid::NOXIOUS_FUMES);
+    for enemy_idx in engine.state.living_enemy_indices() {
+        if engine.is_collecting_turn_start_actions() {
+            engine.queue_turn_start_action_bottom(TurnStartQueuedAction::AddEnemyStatus(
+                enemy_idx,
+                sid::POISON,
+                amount,
+            ));
+        } else if let Some(enemy) = engine.state.enemies.get_mut(enemy_idx) {
+            enemy.entity.add_status(sid::POISON, amount);
+        }
+    }
+}
 
 pub static DEF_NOXIOUS_FUMES: EntityDef = EntityDef {
     id: "noxious_fumes",
     name: "Noxious Fumes",
     kind: EntityKind::Power,
     triggers: &NOXIOUS_FUMES_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_noxious_fumes),
     status_guard: Some(sid::NOXIOUS_FUMES),
 };
 
@@ -219,24 +254,35 @@ pub static DEF_NOXIOUS_FUMES: EntityDef = EntityDef {
 // BrutalityPower.atStartOfTurnPostDraw queues DrawCardAction followed by
 // LoseHPAction for its stack amount.
 // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BrutalityPower.java
-static BRUTALITY_EFFECTS: [Effect; 2] = [
-    Effect::Simple(SimpleEffect::DrawCards(AmountSource::StatusValue(sid::BRUTALITY))),
-    Effect::Simple(SimpleEffect::DealDamage(Target::Player, AmountSource::StatusValue(sid::BRUTALITY))),
-];
-
 static BRUTALITY_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::TurnStartPostDraw,
     condition: TriggerCondition::Always,
-    effects: &BRUTALITY_EFFECTS,
+    effects: &EMPTY_EFFECTS,
     counter: None,
 }];
+
+fn hook_brutality(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    _event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    let amount = engine.state.player.status(sid::BRUTALITY);
+    if engine.is_collecting_turn_start_actions() {
+        engine.queue_turn_start_action_bottom(TurnStartQueuedAction::DrawCards(amount));
+        engine.queue_turn_start_action_bottom(TurnStartQueuedAction::PlayerLoseHp(amount));
+    } else {
+        engine.draw_cards(amount);
+        engine.player_lose_hp_from_damage(amount);
+    }
+}
 
 pub static DEF_BRUTALITY: EntityDef = EntityDef {
     id: "brutality",
     name: "Brutality",
     kind: EntityKind::Power,
     triggers: &BRUTALITY_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_brutality),
     status_guard: Some(sid::BRUTALITY),
 };
 
@@ -247,23 +293,33 @@ pub static DEF_BRUTALITY: EntityDef = EntityDef {
 // Source: powers/BerserkPower.java::atStartOfTurn queues GainEnergyAction for
 // the power's stack amount on every turn start.
 
-static BERSERK_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::GainEnergy(
-    AmountSource::StatusValue(sid::BERSERK),
-))];
-
 static BERSERK_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::TurnStart,
     condition: TriggerCondition::Always,
-    effects: &BERSERK_EFFECTS,
+    effects: &EMPTY_EFFECTS,
     counter: None,
 }];
+
+fn hook_berserk(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    _event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    let amount = engine.state.player.status(sid::BERSERK);
+    if engine.is_collecting_turn_start_actions() {
+        engine.queue_turn_start_action_bottom(TurnStartQueuedAction::GainEnergy(amount));
+    } else {
+        engine.state.energy += amount;
+    }
+}
 
 pub static DEF_BERSERK: EntityDef = EntityDef {
     id: "berserk",
     name: "Berserk",
     kind: EntityKind::Power,
     triggers: &BERSERK_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_berserk),
     status_guard: Some(sid::BERSERK),
 };
 
@@ -274,25 +330,36 @@ pub static DEF_BERSERK: EntityDef = EntityDef {
 // Source: powers/InfiniteBladesPower.java::atStartOfTurn creates `amount`
 // unupgraded Shivs, and stackPower adds each new card's one stack.
 
-static INFINITE_BLADES_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddCard(
-    "Shiv",
-    Pile::Hand,
-    AmountSource::StatusValue(sid::INFINITE_BLADES),
-))];
-
 static INFINITE_BLADES_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::TurnStart,
     condition: TriggerCondition::Always,
-    effects: &INFINITE_BLADES_EFFECTS,
+    effects: &EMPTY_EFFECTS,
     counter: None,
 }];
+
+fn hook_infinite_blades(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    _event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    let amount = engine.state.player.status(sid::INFINITE_BLADES);
+    if engine.is_collecting_turn_start_actions() {
+        for _ in 0..amount {
+            let card = engine.temp_card("Shiv");
+            engine.queue_turn_start_action_bottom(TurnStartQueuedAction::AddCardToHand(card));
+        }
+    } else {
+        engine.add_temp_cards_to_hand("Shiv", amount);
+    }
+}
 
 pub static DEF_INFINITE_BLADES: EntityDef = EntityDef {
     id: "infinite_blades",
     name: "Infinite Blades",
     kind: EntityKind::Power,
     triggers: &INFINITE_BLADES_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_infinite_blades),
     status_guard: Some(sid::INFINITE_BLADES),
 };
 
@@ -300,25 +367,36 @@ pub static DEF_INFINITE_BLADES: EntityDef = EntityDef {
 // Battle Hymn — TurnStart: add Smite(s) to hand
 // ===========================================================================
 
-static BATTLE_HYMN_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddCard(
-    "Smite",
-    Pile::Hand,
-    AmountSource::StatusValue(sid::BATTLE_HYMN),
-))];
-
 static BATTLE_HYMN_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::TurnStart,
     condition: TriggerCondition::Always,
-    effects: &BATTLE_HYMN_EFFECTS,
+    effects: &EMPTY_EFFECTS,
     counter: None,
 }];
+
+fn hook_battle_hymn(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    _event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    let amount = engine.state.player.status(sid::BATTLE_HYMN);
+    if engine.is_collecting_turn_start_actions() {
+        for _ in 0..amount {
+            let card = engine.temp_card("Smite");
+            engine.queue_turn_start_action_bottom(TurnStartQueuedAction::AddCardToHand(card));
+        }
+    } else {
+        engine.add_temp_cards_to_hand("Smite", amount);
+    }
+}
 
 pub static DEF_BATTLE_HYMN: EntityDef = EntityDef {
     id: "battle_hymn",
     name: "Battle Hymn",
     kind: EntityKind::Power,
     triggers: &BATTLE_HYMN_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_battle_hymn),
     status_guard: Some(sid::BATTLE_HYMN),
 };
 
@@ -342,7 +420,9 @@ fn hook_devotion(
     _state: &mut EffectState,
 ) {
     let amount = engine.state.player.status(sid::DEVOTION);
-    if engine.state.mantra == 0 && amount >= 10 {
+    if engine.is_collecting_turn_start_actions() {
+        engine.queue_turn_start_action_bottom(TurnStartQueuedAction::GainDevotion(amount));
+    } else if engine.state.mantra == 0 && amount >= 10 {
         engine.change_stance(Stance::Divinity);
     } else {
         engine.gain_mantra(amount);
@@ -366,9 +446,9 @@ pub static DEF_DEVOTION: EntityDef = EntityDef {
 // ===========================================================================
 
 static DEVA_FORM_EFFECTS: [Effect; 2] = [
-    Effect::Simple(SimpleEffect::GainEnergy(
-        AmountSource::StatusValue(sid::DEVA_FORM_ENERGY),
-    )),
+    Effect::Simple(SimpleEffect::GainEnergy(AmountSource::StatusValue(
+        sid::DEVA_FORM_ENERGY,
+    ))),
     // Escalate the hidden energy counter by the stable visible stack amount.
     Effect::Simple(SimpleEffect::AddStatus(
         Target::Player,
@@ -378,7 +458,7 @@ static DEVA_FORM_EFFECTS: [Effect; 2] = [
 ];
 
 static DEVA_FORM_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnStart,
+    trigger: Trigger::EnergyRecharge,
     condition: TriggerCondition::Always,
     effects: &DEVA_FORM_EFFECTS,
     counter: None,
@@ -426,7 +506,9 @@ fn hook_hello_world(
         ) else {
             continue;
         };
-        if engine.state.hand.len() < 10 {
+        if engine.is_collecting_turn_start_actions() {
+            engine.queue_turn_start_action_bottom(TurnStartQueuedAction::AddCardToHand(card));
+        } else if engine.state.hand.len() < 10 {
             engine.state.hand.push(card);
         } else {
             engine.state.discard_pile.push(card);
@@ -470,13 +552,14 @@ fn hook_magnetism(
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/MakeTempCardInHandAction.java
     let magnetism = engine.state.player.status(sid::MAGNETISM);
     for _ in 0..magnetism {
-        let Some(card) = crate::effects::interpreter::generate_random_card(
-            engine,
-            GeneratedCardPool::Colorless,
-        ) else {
+        let Some(card) =
+            crate::effects::interpreter::generate_random_card(engine, GeneratedCardPool::Colorless)
+        else {
             continue;
         };
-        if engine.state.hand.len() < 10 {
+        if engine.is_collecting_turn_start_actions() {
+            engine.queue_turn_start_action_bottom(TurnStartQueuedAction::AddCardToHand(card));
+        } else if engine.state.hand.len() < 10 {
             engine.state.hand.push(card);
         } else {
             engine.state.discard_pile.push(card);
@@ -526,7 +609,9 @@ fn hook_creative_ai(
         ) else {
             continue;
         };
-        if engine.state.hand.len() < 10 {
+        if engine.is_collecting_turn_start_actions() {
+            engine.queue_turn_start_action_bottom(TurnStartQueuedAction::AddCardToHand(card));
+        } else if engine.state.hand.len() < 10 {
             engine.state.hand.push(card);
         } else {
             engine.state.discard_pile.push(card);
@@ -547,23 +632,37 @@ pub static DEF_CREATIVE_AI: EntityDef = EntityDef {
 // Doppelganger Draw — TurnStart: draw N cards (one-shot, consumed)
 // ===========================================================================
 
-static DOPPELGANGER_DRAW_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::DrawCards(
-    AmountSource::StatusValue(sid::DOPPELGANGER_DRAW),
-))];
-
 static DOPPELGANGER_DRAW_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::TurnStart,
     condition: TriggerCondition::Always,
-    effects: &DOPPELGANGER_DRAW_EFFECTS,
+    effects: &EMPTY_EFFECTS,
     counter: None,
 }];
+
+fn hook_doppelganger_draw(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    _event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    let amount = engine.state.player.status(sid::DOPPELGANGER_DRAW);
+    if engine.is_collecting_turn_start_actions() {
+        engine.queue_turn_start_action_bottom(TurnStartQueuedAction::DrawCards(amount));
+        engine.queue_turn_start_action_bottom(TurnStartQueuedAction::RemovePlayerPower(
+            sid::DOPPELGANGER_DRAW,
+        ));
+    } else {
+        engine.draw_cards(amount);
+        engine.state.player.set_status(sid::DOPPELGANGER_DRAW, 0);
+    }
+}
 
 pub static DEF_DOPPELGANGER_DRAW: EntityDef = EntityDef {
     id: "doppelganger_draw",
     name: "Doppelganger (Draw)",
     kind: EntityKind::Power,
     triggers: &DOPPELGANGER_DRAW_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_doppelganger_draw),
     status_guard: Some(sid::DOPPELGANGER_DRAW),
 };
 
@@ -571,24 +670,116 @@ pub static DEF_DOPPELGANGER_DRAW: EntityDef = EntityDef {
 // Doppelganger Energy — TurnStart: gain N energy (one-shot, consumed)
 // ===========================================================================
 
-static DOPPELGANGER_ENERGY_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::GainEnergy(
-    AmountSource::StatusValue(sid::DOPPELGANGER_ENERGY),
-))];
-
 static DOPPELGANGER_ENERGY_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::TurnStart,
     condition: TriggerCondition::Always,
-    effects: &DOPPELGANGER_ENERGY_EFFECTS,
+    effects: &EMPTY_EFFECTS,
     counter: None,
 }];
+
+fn hook_doppelganger_energy(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    _event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    let amount = engine.state.player.status(sid::DOPPELGANGER_ENERGY);
+    if engine.is_collecting_turn_start_actions() {
+        engine.queue_turn_start_action_bottom(TurnStartQueuedAction::GainEnergy(amount));
+        engine.queue_turn_start_action_bottom(TurnStartQueuedAction::RemovePlayerPower(
+            sid::DOPPELGANGER_ENERGY,
+        ));
+    } else {
+        engine.state.energy += amount;
+        engine.state.player.set_status(sid::DOPPELGANGER_ENERGY, 0);
+    }
+}
 
 pub static DEF_DOPPELGANGER_ENERGY: EntityDef = EntityDef {
     id: "doppelganger_energy",
     name: "Doppelganger (Energy)",
     kind: EntityKind::Power,
     triggers: &DOPPELGANGER_ENERGY_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_doppelganger_energy),
     status_guard: Some(sid::DOPPELGANGER_ENERGY),
+};
+
+// ===========================================================================
+// Draw Card Next Turn — priority-20 post-draw callback.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DrawCardNextTurnPower.java
+// ===========================================================================
+
+static DRAW_CARD_NEXT_TURN_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::TurnStartPostDraw,
+    condition: TriggerCondition::Always,
+    effects: &EMPTY_EFFECTS,
+    counter: None,
+}];
+
+fn hook_draw_card_next_turn(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    _event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    let amount = engine.state.player.status(sid::DRAW_CARD);
+    if engine.is_collecting_turn_start_actions() {
+        engine.queue_turn_start_action_bottom(TurnStartQueuedAction::DrawCards(amount));
+        engine.queue_turn_start_action_bottom(TurnStartQueuedAction::RemovePlayerPower(
+            sid::DRAW_CARD,
+        ));
+    } else {
+        engine.draw_cards(amount);
+        engine.state.player.set_status(sid::DRAW_CARD, 0);
+    }
+}
+
+pub static DEF_DRAW_CARD_NEXT_TURN: EntityDef = EntityDef {
+    id: "draw_card_next_turn",
+    name: "Draw Card Next Turn",
+    kind: EntityKind::Power,
+    triggers: &DRAW_CARD_NEXT_TURN_TRIGGERS,
+    complex_hook: Some(hook_draw_card_next_turn),
+    status_guard: Some(sid::DRAW_CARD),
+};
+
+// ===========================================================================
+// Foresight — atStartOfTurn queues EmptyDeckShuffleAction to top when needed,
+// then ScryAction to bottom before the ordinary turn draw is appended.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/ForesightPower.java
+// ===========================================================================
+
+static FORESIGHT_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::TurnStart,
+    condition: TriggerCondition::Always,
+    effects: &EMPTY_EFFECTS,
+    counter: None,
+}];
+
+fn hook_foresight(
+    engine: &mut CombatEngine,
+    _owner: EffectOwner,
+    _event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    let amount = engine.state.player.status(sid::FORESIGHT);
+    if engine.is_collecting_turn_start_actions() {
+        if engine.state.draw_pile.is_empty() {
+            engine.queue_turn_start_action_top(TurnStartQueuedAction::ShuffleDrawPile);
+        }
+        engine.queue_turn_start_action_bottom(TurnStartQueuedAction::Scry(amount));
+    } else {
+        engine.do_scry(amount);
+    }
+}
+
+pub static DEF_FORESIGHT: EntityDef = EntityDef {
+    id: "foresight",
+    name: "Foresight",
+    kind: EntityKind::Power,
+    triggers: &FORESIGHT_TRIGGERS,
+    complex_hook: Some(hook_foresight),
+    status_guard: Some(sid::FORESIGHT),
 };
 
 // ===========================================================================
@@ -609,8 +800,12 @@ fn hook_enter_divinity(
     _state: &mut EffectState,
 ) {
     if engine.state.player.status(sid::ENTER_DIVINITY) > 0 {
-        engine.state.player.set_status(sid::ENTER_DIVINITY, 0);
-        engine.change_stance(Stance::Divinity);
+        if engine.is_collecting_turn_start_actions() {
+            engine.queue_turn_start_action_bottom(TurnStartQueuedAction::EnterDivinity);
+        } else {
+            engine.state.player.set_status(sid::ENTER_DIVINITY, 0);
+            engine.change_stance(Stance::Divinity);
+        }
     }
 }
 
@@ -624,11 +819,11 @@ pub static DEF_ENTER_DIVINITY: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Mayhem — TurnStartPostDraw: autoplay the top draw card once per stack
+// Mayhem — atStartOfTurn queues wrappers before the ordinary draw.
 // ===========================================================================
 
 static MAYHEM_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::TurnStartPostDraw,
+    trigger: Trigger::TurnStart,
     condition: TriggerCondition::Always,
     effects: &EMPTY_EFFECTS,
     counter: None,
@@ -641,6 +836,12 @@ fn hook_mayhem(
     _state: &mut EffectState,
 ) {
     let mayhem = engine.state.player.status(sid::MAYHEM);
+    if engine.is_collecting_turn_start_actions() {
+        for _ in 0..mayhem {
+            engine.queue_turn_start_action_bottom(TurnStartQueuedAction::MayhemWrapper);
+        }
+        return;
+    }
     // MayhemPower queues all wrapper actions before any PlayTopCardAction runs,
     // so every stack selects its target first. Each selection consumes
     // cardRandomRng even with one living monster. Unlike Havoc, exhausts=false.
@@ -685,6 +886,13 @@ fn hook_tools_of_the_trade(
 ) {
     let tott = engine.state.player.status(sid::TOOLS_OF_THE_TRADE);
     if tott <= 0 {
+        return;
+    }
+
+    if engine.is_collecting_turn_start_actions() {
+        engine.queue_turn_start_action_bottom(TurnStartQueuedAction::DrawCards(tott));
+        engine
+            .queue_turn_start_action_bottom(TurnStartQueuedAction::DiscardFromHand(tott as usize));
         return;
     }
 
@@ -736,37 +944,60 @@ mod tests {
     #[test]
     fn test_demon_form_def() {
         assert_eq!(DEF_DEMON_FORM.triggers.len(), 1);
-        assert_eq!(DEF_DEMON_FORM.triggers[0].trigger, Trigger::TurnStartPostDraw);
-        assert_eq!(DEF_DEMON_FORM.triggers[0].condition, TriggerCondition::Always);
-        assert!(DEF_DEMON_FORM.complex_hook.is_none());
+        assert_eq!(
+            DEF_DEMON_FORM.triggers[0].trigger,
+            Trigger::TurnStartPostDraw
+        );
+        assert_eq!(
+            DEF_DEMON_FORM.triggers[0].condition,
+            TriggerCondition::Always
+        );
+        assert!(DEF_DEMON_FORM.complex_hook.is_some());
     }
 
     #[test]
-    fn test_brutality_has_two_effects() {
-        assert_eq!(DEF_BRUTALITY.triggers[0].effects.len(), 2);
+    fn test_brutality_uses_a_queue_aware_hook() {
+        assert!(DEF_BRUTALITY.triggers[0].effects.is_empty());
+        assert!(DEF_BRUTALITY.complex_hook.is_some());
     }
 
     #[test]
     fn test_all_simple_turn_start_defs_have_correct_trigger() {
         let defs = [
-            &DEF_ENERGIZED,
-            &DEF_BERSERK, &DEF_INFINITE_BLADES, &DEF_BATTLE_HYMN,
-            &DEF_DEVA_FORM,
-            &DEF_HELLO_WORLD, &DEF_MAGNETISM,
-            &DEF_DOPPELGANGER_DRAW, &DEF_DOPPELGANGER_ENERGY,
+            &DEF_BERSERK,
+            &DEF_INFINITE_BLADES,
+            &DEF_BATTLE_HYMN,
+            &DEF_HELLO_WORLD,
+            &DEF_MAGNETISM,
+            &DEF_DOPPELGANGER_DRAW,
+            &DEF_DOPPELGANGER_ENERGY,
         ];
         for def in &defs {
             assert_eq!(def.kind, EntityKind::Power);
             assert!(!def.triggers.is_empty());
             assert_eq!(def.triggers[0].trigger, Trigger::TurnStart);
         }
+        // These callbacks belong to PlayerTurnEffect/GainEnergyAndEnableControls,
+        // not AbstractCreature.applyStartOfTurnPowers.
+        // Java: EnergizedPower.java and watcher/DevaPower.java.
+        assert_eq!(DEF_ENERGIZED.triggers[0].trigger, Trigger::EnergyRecharge);
+        assert_eq!(DEF_DEVA_FORM.triggers[0].trigger, Trigger::EnergyRecharge);
         // These powers override atStartOfTurnPostDraw, not atStartOfTurn.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BrutalityPower.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NoxiousFumesPower.java
-        assert_eq!(DEF_BRUTALITY.triggers[0].trigger, Trigger::TurnStartPostDraw);
-        assert_eq!(DEF_DEMON_FORM.triggers[0].trigger, Trigger::TurnStartPostDraw);
+        assert_eq!(
+            DEF_BRUTALITY.triggers[0].trigger,
+            Trigger::TurnStartPostDraw
+        );
+        assert_eq!(
+            DEF_DEMON_FORM.triggers[0].trigger,
+            Trigger::TurnStartPostDraw
+        );
         assert_eq!(DEF_DEVOTION.triggers[0].trigger, Trigger::TurnStartPostDraw);
-        assert_eq!(DEF_NOXIOUS_FUMES.triggers[0].trigger, Trigger::TurnStartPostDraw);
+        assert_eq!(
+            DEF_NOXIOUS_FUMES.triggers[0].trigger,
+            Trigger::TurnStartPostDraw
+        );
     }
 
     #[test]
@@ -778,12 +1009,17 @@ mod tests {
         assert!(DEF_CREATIVE_AI.complex_hook.is_some());
         assert_eq!(DEF_CREATIVE_AI.triggers[0].trigger, Trigger::TurnStart);
 
-        for def in [&DEF_ENTER_DIVINITY, &DEF_MAYHEM, &DEF_TOOLS_OF_THE_TRADE] {
+        for def in [&DEF_ENTER_DIVINITY, &DEF_TOOLS_OF_THE_TRADE] {
             assert_eq!(def.kind, EntityKind::Power);
             assert!(def.complex_hook.is_some());
             assert_eq!(def.triggers.len(), 1);
             assert_eq!(def.triggers[0].trigger, Trigger::TurnStartPostDraw);
         }
+        // MayhemPower overrides atStartOfTurn and queues MayhemAction before
+        // the ordinary turn draw.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/MayhemPower.java.
+        assert!(DEF_MAYHEM.complex_hook.is_some());
+        assert_eq!(DEF_MAYHEM.triggers[0].trigger, Trigger::TurnStart);
     }
 }
 

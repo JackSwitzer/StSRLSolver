@@ -6,8 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::combat_types::CardInstance;
 use crate::cards::{CardDef, CardType};
+use crate::combat_types::CardInstance;
 use crate::engine::CombatEngine;
 
 pub type ComplexCardHook = fn(&mut CombatEngine, &CardPlayContext);
@@ -126,6 +126,8 @@ pub enum CardBlockHint {
     IfNoBlock,
     BulkCountTimesBaseBlock,
     UsesCardMisc,
+    /// `base_block` is data consumed by a generated choice, not block from use().
+    ChoicePayloadOnly,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -160,6 +162,9 @@ pub struct CardPlayContext<'a> {
     pub card: &'a CardDef,
     pub card_inst: CardInstance,
     pub target_idx: i32,
+    /// Target intent captured when the card action begins. Java cards such as
+    /// Fear No Evil inspect intent before their queued DamageAction resolves.
+    pub target_was_attacking: bool,
     pub x_value: i32,
     pub pen_nib_active: bool,
     pub vigor: i32,

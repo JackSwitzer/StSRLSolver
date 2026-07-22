@@ -13,7 +13,7 @@ fn hook(
     event: &GameEvent,
     _state: &mut EffectState,
 ) {
-    if event.kind != Trigger::CombatStart {
+    if event.kind != Trigger::CombatStartDirect {
         return;
     }
 
@@ -35,7 +35,7 @@ fn hook(
 }
 
 static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
-    trigger: Trigger::CombatStart,
+    trigger: Trigger::CombatStartDirect,
     condition: TriggerCondition::Always,
     effects: &[],
     counter: None,

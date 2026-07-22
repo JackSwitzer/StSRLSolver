@@ -188,29 +188,45 @@ pub(crate) fn resolve_opening_neow(engine: &mut RunEngine) {
         let outcome = engine.step_game(&GameAction::ChooseNeowOption(1));
         assert!(outcome.accepted());
         assert!(!outcome.is_terminal());
+        let mut follow_up_steps = 0;
+        let mut previous_actions = None;
         while engine.current_phase() == RunPhase::CardReward {
+            follow_up_steps += 1;
+            assert!(
+                follow_up_steps <= 64,
+                "Neow follow-up did not settle after 64 actions; legal actions: {:?}",
+                engine.get_legal_actions()
+            );
             let actions = engine.get_legal_actions();
-            let action = actions
-                .iter()
-                .find(|action| matches!(action, GameAction::SkipRewardItem(_)))
-                .or_else(|| {
-                    actions
-                        .iter()
-                        .find(|action| matches!(action, GameAction::SelectRewardItem(_)))
-                })
-                .or_else(|| {
-                    actions
-                        .iter()
-                        .find(|action| matches!(action, GameAction::ChooseRewardOption { .. }))
-                })
-                .or_else(|| {
-                    actions
-                        .iter()
-                        .find(|action| matches!(action, GameAction::LeaveRewards))
-                })
-                .cloned()
-                .expect("Neow follow-up must expose a reward action");
-            engine.step_game(&action);
+            let stalled = previous_actions.as_ref() == Some(&actions);
+            let action = if stalled {
+                actions
+                    .iter()
+                    .find(|action| matches!(action, GameAction::LeaveRewards))
+            } else {
+                actions
+                    .iter()
+                    .find(|action| matches!(action, GameAction::SkipRewardItem(_)))
+                    .or_else(|| {
+                        actions
+                            .iter()
+                            .find(|action| matches!(action, GameAction::SelectRewardItem(_)))
+                    })
+                    .or_else(|| {
+                        actions
+                            .iter()
+                            .find(|action| matches!(action, GameAction::ChooseRewardOption { .. }))
+                    })
+                    .or_else(|| {
+                        actions
+                            .iter()
+                            .find(|action| matches!(action, GameAction::LeaveRewards))
+                    })
+            }
+            .cloned()
+            .expect("Neow follow-up must expose a reward action");
+            previous_actions = Some(actions);
+            assert!(engine.step_game(&action).accepted());
         }
         assert_eq!(engine.current_phase(), RunPhase::Neow);
         let exit = engine.step_game(&GameAction::Proceed);

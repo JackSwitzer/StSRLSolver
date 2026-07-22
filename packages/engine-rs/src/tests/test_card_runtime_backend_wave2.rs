@@ -31,7 +31,8 @@ static EXHAUST_TWO_EFFECTS: [E; 1] = [E::ChooseCards {
     post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
 }];
 static SCRY_THREE_EFFECTS: [E; 1] = [E::Simple(SE::Scry(A::Fixed(3)))];
-static CHANNEL_TWO_LIGHTNING_EFFECTS: [E; 1] = [E::Simple(SE::ChannelOrb(OrbType::Lightning, A::Fixed(2)))];
+static CHANNEL_TWO_LIGHTNING_EFFECTS: [E; 1] =
+    [E::Simple(SE::ChannelOrb(OrbType::Lightning, A::Fixed(2)))];
 static EVOKE_TWO_EFFECTS: [E; 1] = [E::Simple(SE::EvokeOrb(A::Fixed(2)))];
 static X_COST_ENERGY_EFFECTS: [E; 1] = [E::Simple(SE::GainEnergy(A::XCost))];
 
@@ -85,7 +86,10 @@ fn test_card_runtime_backend_wave2_registry_exports_include_extended_declarative
 
     let doppelganger = registry.card("Doppelganger").expect("Doppelganger export");
     let doppelganger_schema = doppelganger.card_schema().expect("card schema");
-    assert_eq!(doppelganger_schema.declared_x_cost_amounts, vec![A::XCost, A::XCost]);
+    assert_eq!(
+        doppelganger_schema.declared_x_cost_amounts,
+        vec![A::XCost, A::XCost]
+    );
 
     let multi_cast = registry.card("Multi-Cast").expect("Multi-Cast export");
     let multi_cast_schema = multi_cast.card_schema().expect("card schema");
@@ -96,9 +100,18 @@ fn test_card_runtime_backend_wave2_registry_exports_include_extended_declarative
     assert_eq!(
         rainbow_schema.declared_channel_orbs,
         vec![
-            OrbCountHint { orb_type: OrbType::Lightning, count: A::Fixed(1) },
-            OrbCountHint { orb_type: OrbType::Frost, count: A::Fixed(1) },
-            OrbCountHint { orb_type: OrbType::Dark, count: A::Fixed(1) },
+            OrbCountHint {
+                orb_type: OrbType::Lightning,
+                count: A::Fixed(1)
+            },
+            OrbCountHint {
+                orb_type: OrbType::Frost,
+                count: A::Fixed(1)
+            },
+            OrbCountHint {
+                orb_type: OrbType::Dark,
+                count: A::Fixed(1)
+            },
         ]
     );
 
@@ -118,11 +131,8 @@ fn recycle_source_auto_exhausts_a_singleton_and_uses_current_energy_for_x_cost()
     // costForTurn grants that amount; costForTurn == -1 grants the entire
     // current EnergyPanel amount, after Recycle's own cost has been paid.
     // Source: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/RecycleAction.java.
-    let mut singleton = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        1,
-    );
+    let mut singleton =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 1);
     force_player_turn(&mut singleton);
     singleton.state.hand = make_deck(&["Recycle", "Streamline"]);
 
@@ -139,11 +149,7 @@ fn recycle_source_auto_exhausts_a_singleton_and_uses_current_energy_for_x_cost()
         "Streamline"
     );
 
-    let mut x_cost = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut x_cost = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut x_cost);
     x_cost.state.hand = make_deck(&["Recycle+", "Whirlwind", "Defend"]);
 
@@ -157,7 +163,10 @@ fn recycle_source_auto_exhausts_a_singleton_and_uses_current_energy_for_x_cost()
         .iter()
         .position(|option| match option {
             crate::engine::ChoiceOption::HandCard(index) => {
-                x_cost.card_registry.card_name(x_cost.state.hand[*index].def_id) == "Whirlwind"
+                x_cost
+                    .card_registry
+                    .card_name(x_cost.state.hand[*index].def_id)
+                    == "Whirlwind"
             }
             _ => false,
         })
@@ -186,7 +195,10 @@ fn test_card_runtime_backend_wave2_carddef_helpers_extract_shared_declarative_co
         -1,
         &DISCARD_TWO_EFFECTS,
     );
-    assert_eq!(discard.declared_discard_from_hand_count(), Some((A::Fixed(2), A::Fixed(2))));
+    assert_eq!(
+        discard.declared_discard_from_hand_count(),
+        Some((A::Fixed(2), A::Fixed(2)))
+    );
 
     let exhaust = backend_card(
         "BackendExhaustTwo",
@@ -197,7 +209,10 @@ fn test_card_runtime_backend_wave2_carddef_helpers_extract_shared_declarative_co
         -1,
         &EXHAUST_TWO_EFFECTS,
     );
-    assert_eq!(exhaust.declared_exhaust_from_hand_count(), Some((A::Fixed(2), A::Fixed(2))));
+    assert_eq!(
+        exhaust.declared_exhaust_from_hand_count(),
+        Some((A::Fixed(2), A::Fixed(2)))
+    );
 
     let aoe = backend_card(
         "BackendAoe",
@@ -230,7 +245,10 @@ fn test_card_runtime_backend_wave2_carddef_helpers_extract_shared_declarative_co
         -1,
         &CHANNEL_TWO_LIGHTNING_EFFECTS,
     );
-    assert_eq!(channel.declared_channel_orbs(), vec![(OrbType::Lightning, A::Fixed(2))]);
+    assert_eq!(
+        channel.declared_channel_orbs(),
+        vec![(OrbType::Lightning, A::Fixed(2))]
+    );
 
     let evoke = backend_card(
         "BackendEvoke",
@@ -285,8 +303,10 @@ fn test_card_runtime_backend_wave2_effect_data_deals_all_enemy_damage_without_ta
 }
 
 #[test]
-fn test_card_runtime_backend_wave2_effect_data_generates_discard_and_exhaust_choices_without_tags() {
-    let mut discard_engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 30, 30)], 3);
+fn test_card_runtime_backend_wave2_effect_data_generates_discard_and_exhaust_choices_without_tags()
+{
+    let mut discard_engine =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 30, 30)], 3);
     force_player_turn(&mut discard_engine);
     discard_engine.state.hand = make_deck(&["Strike", "Defend", "Bash"]);
     let discard_card = backend_card(
@@ -307,7 +327,8 @@ fn test_card_runtime_backend_wave2_effect_data_generates_discard_and_exhaust_cho
     assert_eq!(discard_choice.max_picks, 2);
     assert_eq!(discard_choice.options.len(), 3);
 
-    let mut exhaust_engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 30, 30)], 3);
+    let mut exhaust_engine =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 30, 30)], 3);
     force_player_turn(&mut exhaust_engine);
     exhaust_engine.state.hand = make_deck(&["Strike", "Defend", "Bash"]);
     let exhaust_card = backend_card(
@@ -331,7 +352,8 @@ fn test_card_runtime_backend_wave2_effect_data_generates_discard_and_exhaust_cho
 
 #[test]
 fn test_card_runtime_backend_wave2_effect_data_scry_orb_and_x_cost_primitives_work_without_tags() {
-    let mut scry_engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 30, 30)], 3);
+    let mut scry_engine =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 30, 30)], 3);
     force_player_turn(&mut scry_engine);
     scry_engine.state.draw_pile = make_deck(&["Strike", "Defend", "Bash"]);
     let scry_card = backend_card(
@@ -351,7 +373,8 @@ fn test_card_runtime_backend_wave2_effect_data_scry_orb_and_x_cost_primitives_wo
     assert_eq!(scry_choice.max_picks, 3);
     assert_eq!(scry_choice.options.len(), 3);
 
-    let mut orb_engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    let mut orb_engine =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut orb_engine);
     orb_engine.init_defect_orbs(3);
     let channel_card = backend_card(
@@ -366,8 +389,14 @@ fn test_card_runtime_backend_wave2_effect_data_scry_orb_and_x_cost_primitives_wo
     let channel_inst = orb_engine.card_registry.make_card("Defend");
     execute_card_effects(&mut orb_engine, &channel_card, channel_inst, -1);
     assert_eq!(orb_engine.state.orb_slots.occupied_count(), 2);
-    assert_eq!(orb_engine.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
-    assert_eq!(orb_engine.state.orb_slots.slots[1].orb_type, OrbType::Lightning);
+    assert_eq!(
+        orb_engine.state.orb_slots.slots[0].orb_type,
+        OrbType::Lightning
+    );
+    assert_eq!(
+        orb_engine.state.orb_slots.slots[1].orb_type,
+        OrbType::Lightning
+    );
 
     let evoke_card = backend_card(
         "BackendEvokeLightning",
@@ -383,7 +412,8 @@ fn test_card_runtime_backend_wave2_effect_data_scry_orb_and_x_cost_primitives_wo
     assert_eq!(orb_engine.state.orb_slots.occupied_count(), 0);
     assert_eq!(orb_engine.state.enemies[0].entity.hp, 24);
 
-    let mut x_cost_engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 30, 30)], 4);
+    let mut x_cost_engine =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 30, 30)], 4);
     force_player_turn(&mut x_cost_engine);
     x_cost_engine.state.energy = 4;
     let x_cost_card = backend_card(

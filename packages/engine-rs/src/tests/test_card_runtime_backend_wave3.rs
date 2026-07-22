@@ -1,7 +1,9 @@
 #![cfg(test)]
 
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::tests::support::*;
 
 #[test]
@@ -32,14 +34,18 @@ fn backend_wave3_registry_exports_use_typed_primary_preamble_ops() {
         &[E::Simple(SE::DealDamage(T::AllEnemies, A::Damage))]
     );
 
-    let ghostly_armor = registry.get("Ghostly Armor").expect("Ghostly Armor should exist");
+    let ghostly_armor = registry
+        .get("Ghostly Armor")
+        .expect("Ghostly Armor should exist");
     assert_eq!(
         ghostly_armor.effect_data,
         &[E::Simple(SE::GainBlock(A::Block))]
     );
     assert!(ghostly_armor.has_test_marker("ethereal"));
 
-    let dagger_spray = registry.get("Dagger Spray").expect("Dagger Spray should exist");
+    let dagger_spray = registry
+        .get("Dagger Spray")
+        .expect("Dagger Spray should exist");
     assert_eq!(
         dagger_spray.effect_data,
         &[
@@ -54,8 +60,13 @@ fn backend_wave3_registry_exports_use_typed_primary_preamble_ops() {
     let leap = registry.get("Leap").expect("Leap should exist");
     assert_eq!(leap.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
 
-    let boot_sequence = registry.get("BootSequence").expect("BootSequence should exist");
-    assert_eq!(boot_sequence.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
+    let boot_sequence = registry
+        .get("BootSequence")
+        .expect("BootSequence should exist");
+    assert_eq!(
+        boot_sequence.effect_data,
+        &[E::Simple(SE::GainBlock(A::Block))]
+    );
     assert!(boot_sequence.has_test_marker("innate"));
     assert!(boot_sequence.exhaust);
 
@@ -73,7 +84,10 @@ fn backend_wave3_registry_exports_use_typed_primary_preamble_ops() {
 fn backend_wave3_typed_attack_cards_follow_java_oracle_on_engine_path() {
     let mut engine = engine_without_start(
         Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40), enemy_no_intent("Cultist", 40, 40)],
+        vec![
+            enemy_no_intent("JawWorm", 40, 40),
+            enemy_no_intent("Cultist", 40, 40),
+        ],
         10,
     );
     force_player_turn(&mut engine);
@@ -104,11 +118,7 @@ fn backend_wave3_typed_attack_cards_follow_java_oracle_on_engine_path() {
 
 #[test]
 fn backend_wave3_typed_block_and_ethereal_cards_follow_java_oracle_on_engine_path() {
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        10,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 10);
     force_player_turn(&mut engine);
 
     ensure_in_hand(&mut engine, "Defend");

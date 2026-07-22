@@ -14,7 +14,12 @@ use crate::effects::declarative::{
 };
 use crate::tests::support::*;
 
-fn engine_for(hand: &[&str], draw: &[&str], discard: &[&str], energy: i32) -> crate::engine::CombatEngine {
+fn engine_for(
+    hand: &[&str],
+    draw: &[&str],
+    discard: &[&str],
+    energy: i32,
+) -> crate::engine::CombatEngine {
     let mut state = combat_state_with(
         make_deck(draw),
         vec![enemy_no_intent("JawWorm", 60, 60)],
@@ -30,13 +35,20 @@ fn engine_for(hand: &[&str], draw: &[&str], discard: &[&str], energy: i32) -> cr
 
 #[test]
 fn ironclad_wave11_registry_exports_promote_the_typed_surface() {
-    let entrench = global_registry().get("Entrench").expect("Entrench should exist");
+    let entrench = global_registry()
+        .get("Entrench")
+        .expect("Entrench should exist");
     assert_eq!(entrench.card_type, CardType::Skill);
     assert_eq!(entrench.target, CardTarget::SelfTarget);
-    assert_eq!(entrench.effect_data, &[E::Simple(SE::GainBlock(A::PlayerBlock))]);
+    assert_eq!(
+        entrench.effect_data,
+        &[E::Simple(SE::GainBlock(A::PlayerBlock))]
+    );
     assert!(entrench.complex_hook.is_none());
 
-    let dual_wield = global_registry().get("Dual Wield").expect("Dual Wield should exist");
+    let dual_wield = global_registry()
+        .get("Dual Wield")
+        .expect("Dual Wield should exist");
     assert_eq!(dual_wield.card_type, CardType::Skill);
     assert_eq!(dual_wield.target, CardTarget::None);
     assert_eq!(
@@ -52,7 +64,9 @@ fn ironclad_wave11_registry_exports_promote_the_typed_surface() {
     );
     assert!(dual_wield.complex_hook.is_none());
 
-    let fiend_fire = global_registry().get("Fiend Fire").expect("Fiend Fire should exist");
+    let fiend_fire = global_registry()
+        .get("Fiend Fire")
+        .expect("Fiend Fire should exist");
     assert_eq!(
         fiend_fire.effect_data,
         &[
@@ -77,7 +91,10 @@ fn ironclad_wave11_registry_exports_promote_the_typed_surface() {
     assert_eq!(
         sword_boomerang.effect_data,
         &[
-            E::Simple(SE::DealDamage(crate::effects::declarative::Target::RandomEnemy, A::Damage)),
+            E::Simple(SE::DealDamage(
+                crate::effects::declarative::Target::RandomEnemy,
+                A::Damage
+            )),
             E::ExtraHits(A::Magic),
         ]
     );
@@ -94,7 +111,9 @@ fn ironclad_wave11_entrench_follows_the_typed_surface() {
 
 #[test]
 fn ironclad_wave11_dual_wield_uses_the_typed_attack_or_power_choice_surface() {
-    let dual_wield = global_registry().get("Dual Wield").expect("Dual Wield should exist");
+    let dual_wield = global_registry()
+        .get("Dual Wield")
+        .expect("Dual Wield should exist");
     assert_eq!(
         dual_wield.effect_data,
         &[E::ChooseCards {
@@ -111,7 +130,9 @@ fn ironclad_wave11_dual_wield_uses_the_typed_attack_or_power_choice_surface() {
 
 #[test]
 fn ironclad_wave11_fiend_fire_uses_the_typed_exhaust_then_damage_surface() {
-    let fiend_fire = global_registry().get("Fiend Fire").expect("Fiend Fire should exist");
+    let fiend_fire = global_registry()
+        .get("Fiend Fire")
+        .expect("Fiend Fire should exist");
     assert_eq!(
         fiend_fire.effect_data,
         &[
@@ -142,7 +163,10 @@ fn ironclad_wave11_sword_boomerang_uses_the_typed_random_enemy_extra_hits_surfac
     assert_eq!(
         sword_boomerang.effect_data,
         &[
-            E::Simple(SE::DealDamage(crate::effects::declarative::Target::RandomEnemy, A::Damage)),
+            E::Simple(SE::DealDamage(
+                crate::effects::declarative::Target::RandomEnemy,
+                A::Damage
+            )),
             E::ExtraHits(A::Magic),
         ]
     );

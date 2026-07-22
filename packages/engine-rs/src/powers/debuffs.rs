@@ -9,21 +9,9 @@ pub fn decrement_debuffs(entity: &mut EntityState) {
     // `justApplied=true` skips the first `atEndOfRound` decrement so the debuff
     // lasts its full duration. We mirror via parallel flag statuses that
     // `apply_debuff_from_enemy` sets.
-    decrement_debuff_with_just_applied(
-        entity,
-        sid::WEAKENED,
-        sid::WEAKENED_JUST_APPLIED,
-    );
-    decrement_debuff_with_just_applied(
-        entity,
-        sid::VULNERABLE,
-        sid::VULNERABLE_JUST_APPLIED,
-    );
-    decrement_debuff_with_just_applied(
-        entity,
-        sid::FRAIL,
-        sid::FRAIL_JUST_APPLIED,
-    );
+    decrement_debuff_with_just_applied(entity, sid::WEAKENED, sid::WEAKENED_JUST_APPLIED);
+    decrement_debuff_with_just_applied(entity, sid::VULNERABLE, sid::VULNERABLE_JUST_APPLIED);
+    decrement_debuff_with_just_applied(entity, sid::FRAIL, sid::FRAIL_JUST_APPLIED);
     decrement_debuff_with_just_applied(
         entity,
         sid::DRAW_REDUCTION,
@@ -46,18 +34,18 @@ fn decrement_debuff_with_just_applied(
 
 /// Apply a debuff sourced from an enemy (as opposed to the player's own cards).
 ///
-/// Mirrors Java `AbstractPower.justApplied = (source != null && !source.isPlayer)`.
-/// The justApplied flag causes `decrement_debuffs` to skip the first end-of-round
-/// decrement so the debuff actually affects the target for its full duration.
-/// Player-sourced debuffs on enemies use `apply_debuff` directly and decrement
-/// at end of each enemy turn as before.
-pub fn apply_debuff_from_enemy(
-    entity: &mut EntityState,
-    status: StatusId,
-    amount: i32,
-) -> bool {
+/// Mirrors the Java debuff power constructors' `justApplied` lifecycle.
+///
+/// `ApplyPowerAction` constructs a candidate power, but when the target already
+/// owns that power Java calls `stackPower` on the existing instance. The
+/// candidate's `justApplied` value is therefore discarded. Re-applying an
+/// existing debuff must preserve its old latch instead of starting a new
+/// protected round. See `ApplyPowerAction.java` plus `WeakPower.java`,
+/// `VulnerablePower.java`, `FrailPower.java`, and `DrawReductionPower.java`.
+pub fn apply_debuff_from_enemy(entity: &mut EntityState, status: StatusId, amount: i32) -> bool {
+    let power_already_present = entity.status(status) != 0;
     let applied = apply_debuff(entity, status, amount);
-    if applied {
+    if applied && !power_already_present {
         if let Some(flag) = just_applied_flag_for(status) {
             entity.set_status(flag, 1);
         }
@@ -103,7 +91,11 @@ pub fn tick_poison(entity: &mut EntityState) -> i32 {
     // Source: reference/extracted/methods/monster/Nemesis.java (`damage`) and
     // decompiled PoisonLoseHpAction.java. Poison constructs HP_LOSS DamageInfo,
     // so an installed Intangible power caps the tick to one before HP changes.
-    let damage = if entity.status(sid::INTANGIBLE) > 0 { 1 } else { poison };
+    let damage = if entity.status(sid::INTANGIBLE) > 0 {
+        1
+    } else {
+        poison
+    };
     entity.hp -= damage;
 
     let new_poison = poison - 1;

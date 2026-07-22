@@ -61,10 +61,19 @@ public class RecordPatches {
             if (!Recorder.active()) {
                 return;
             }
+            int handIdx = __instance.hand.group.indexOf(c);
+            // AbstractPlayer.useCard also receives automatic CardQueueItems.
+            // Those are engine callbacks, not human decisions: Burn marks
+            // dontTriggerOnUseCard at end turn, while potion/card autoplay is
+            // no longer in hand. Preserve manually playable Medical Kit cards.
+            // Java: cards/status/Burn.java::triggerOnEndOfTurnForPlayingCard.
+            if (c.dontTriggerOnUseCard || handIdx < 0) {
+                return;
+            }
             Recorder.commit("PLAY_CARD",
                     "card_id", c.cardID,
                     "upgrades", c.timesUpgraded,
-                    "hand_idx", __instance.hand.group.indexOf(c),
+                    "hand_idx", handIdx,
                     "target", monsterIdx(monster),
                     "energy_on_use", energyOnUse);
         }

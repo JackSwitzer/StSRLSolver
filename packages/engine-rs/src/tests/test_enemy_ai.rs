@@ -6,12 +6,12 @@ mod enemy_ai_java_parity_tests {
     // /tmp/sts-decompiled/com/megacrit/cardcrawl/monsters/beyond/*.java
     // /tmp/sts-decompiled/com/megacrit/cardcrawl/monsters/ending/*.java
 
-    use crate::enemies::*;
-    use crate::combat_types::{mfx, Intent};
-    use crate::status_ids::sid;
+    use crate::combat_types::{fx, mfx, Intent};
     use crate::enemies::move_ids;
+    use crate::enemies::*;
     use crate::run::RunEngine;
     use crate::state::EnemyCombatState;
+    use crate::status_ids::sid;
     use crate::tests::support::run_engine;
     use crate::tests::support::TEST_SEED;
 
@@ -44,7 +44,12 @@ mod enemy_ai_java_parity_tests {
         assert_eq!(enemy.move_damage(), damage, "{} move_damage", enemy.id);
         assert_eq!(enemy.move_hits(), hits, "{} move_hits", enemy.id);
         assert_eq!(enemy.move_block(), block, "{} move_block", enemy.id);
-        assert_eq!(enemy.move_effects.len(), effects.len(), "{} effect count", enemy.id);
+        assert_eq!(
+            enemy.move_effects.len(),
+            effects.len(),
+            "{} effect count",
+            enemy.id
+        );
         for (key, value) in effects {
             assert_eq!(
                 enemy.effect(*key),
@@ -58,7 +63,13 @@ mod enemy_ai_java_parity_tests {
 
     fn expect_status(enemy: &EnemyCombatState, key: crate::ids::StatusId, value: i32) {
         let name = crate::status_ids::status_name(key);
-        assert_eq!(enemy.entity.status(key), value, "{} status {}", enemy.id, name);
+        assert_eq!(
+            enemy.entity.status(key),
+            value,
+            "{} status {}",
+            enemy.id,
+            name
+        );
     }
 
     fn expect_one_of(enemy: &EnemyCombatState, allowed: &[i32]) {
@@ -108,21 +119,45 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::AS_S_TACKLE, 3, 1, 0, &[]);
 
         let e = make("AcidSlime_M", 28);
-        expect_one_of(&e, &[move_ids::AS_CORROSIVE_SPIT, move_ids::AS_TACKLE, move_ids::AS_LICK]);
+        expect_one_of(
+            &e,
+            &[
+                move_ids::AS_CORROSIVE_SPIT,
+                move_ids::AS_TACKLE,
+                move_ids::AS_LICK,
+            ],
+        );
         match e.move_id {
-            x if x == move_ids::AS_CORROSIVE_SPIT => {
-                expect_move(&e, move_ids::AS_CORROSIVE_SPIT, 7, 1, 0, &[(mfx::SLIMED, 1)])
-            }
+            x if x == move_ids::AS_CORROSIVE_SPIT => expect_move(
+                &e,
+                move_ids::AS_CORROSIVE_SPIT,
+                7,
+                1,
+                0,
+                &[(mfx::SLIMED, 1)],
+            ),
             x if x == move_ids::AS_TACKLE => expect_move(&e, move_ids::AS_TACKLE, 10, 1, 0, &[]),
             _ => expect_move(&e, move_ids::AS_LICK, 0, 0, 0, &[(mfx::WEAK, 1)]),
         }
 
         let e = make("AcidSlime_L", 65);
-        expect_one_of(&e, &[move_ids::AS_CORROSIVE_SPIT, move_ids::AS_TACKLE, move_ids::AS_LICK]);
+        expect_one_of(
+            &e,
+            &[
+                move_ids::AS_CORROSIVE_SPIT,
+                move_ids::AS_TACKLE,
+                move_ids::AS_LICK,
+            ],
+        );
         match e.move_id {
-            x if x == move_ids::AS_CORROSIVE_SPIT => {
-                expect_move(&e, move_ids::AS_CORROSIVE_SPIT, 11, 1, 0, &[(mfx::SLIMED, 2)])
-            }
+            x if x == move_ids::AS_CORROSIVE_SPIT => expect_move(
+                &e,
+                move_ids::AS_CORROSIVE_SPIT,
+                11,
+                1,
+                0,
+                &[(mfx::SLIMED, 2)],
+            ),
             x if x == move_ids::AS_TACKLE => expect_move(&e, move_ids::AS_TACKLE, 16, 1, 0, &[]),
             _ => expect_move(&e, move_ids::AS_LICK, 0, 0, 0, &[(mfx::WEAK, 2)]),
         }
@@ -158,8 +193,14 @@ mod enemy_ai_java_parity_tests {
 
         let e = make("GremlinTsundere", 13);
         // Source: reference/extracted/methods/monster/GremlinTsundere.java.
-        expect_move(&e, move_ids::GREMLIN_TSUNDERE_PROTECT, 0, 0, 0,
-            &[(mfx::BLOCK_RANDOM_OTHER, 7)]);
+        expect_move(
+            &e,
+            move_ids::GREMLIN_TSUNDERE_PROTECT,
+            0,
+            0,
+            0,
+            &[(mfx::BLOCK_RANDOM_OTHER, 7)],
+        );
 
         let e = make("GremlinNob", 106);
         // Source: reference/extracted/methods/monster/GremlinNob.java: Bellow
@@ -188,9 +229,29 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::JW_THRASH, 7, 1, 5, &[]);
         roll_with_num(&mut e, 80); // THRASH + >=55 -> BELLOW
         expect_move(&e, move_ids::JW_BELLOW, 0, 0, 6, &[(mfx::STRENGTH, 3)]);
+        assert_eq!(
+            e.intent,
+            Intent::DefendBuff {
+                block: 6,
+                effects: fx::STRENGTH,
+            }
+        );
         roll_with_num(&mut e, 30);
         roll_with_num(&mut e, 10); // THRASH + <25 -> CHOMP
         expect_move(&e, move_ids::JW_CHOMP, 11, 1, 0, &[]);
+
+        let mut ordinary_open = make("JawWorm", 44);
+        roll_initial_move_with_num_and_rng(
+            &mut ordinary_open,
+            30,
+            &mut crate::seed::StsRandom::new(0),
+        );
+        expect_move(&ordinary_open, move_ids::JW_CHOMP, 11, 1, 0, &[]);
+
+        let mut hard_open = make("JawWorm", 44);
+        hard_open.entity.set_status(sid::FIRST_MOVE, 0);
+        roll_initial_move_with_num_and_rng(&mut hard_open, 30, &mut crate::seed::StsRandom::new(0));
+        expect_move(&hard_open, move_ids::JW_THRASH, 7, 1, 5, &[]);
 
         let mut e = make("Cultist", 50);
         roll_times(&mut e, 1);
@@ -209,8 +270,7 @@ mod enemy_ai_java_parity_tests {
         let mut e = make("RedLouse", 12);
         // LouseNormal.java: initial num=25 selects Bite; after two Bites the
         // >=25 branch forces Grow.
-        roll_initial_move_with_num_and_rng(
-            &mut e, 25, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut e, 25, &mut crate::seed::StsRandom::new(0));
         roll_with_num(&mut e, 25);
         expect_move(&e, move_ids::LOUSE_BITE, 6, 1, 0, &[]);
         roll_with_num(&mut e, 25);
@@ -218,8 +278,7 @@ mod enemy_ai_java_parity_tests {
 
         let mut e = make("GreenLouse", 14);
         // LouseDefensive.java has the same history rule, forcing Web instead.
-        roll_initial_move_with_num_and_rng(
-            &mut e, 25, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut e, 25, &mut crate::seed::StsRandom::new(0));
         roll_with_num(&mut e, 25);
         expect_move(&e, move_ids::LOUSE_BITE, 6, 1, 0, &[]);
         roll_with_num(&mut e, 25);
@@ -227,8 +286,7 @@ mod enemy_ai_java_parity_tests {
 
         let mut e = make("SlaverBlue", 46);
         // SlaverBlue.java: >=40 selects Stab until two consecutive Stabs force Rake.
-        roll_initial_move_with_num_and_rng(
-            &mut e, 40, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut e, 40, &mut crate::seed::StsRandom::new(0));
         roll_with_num(&mut e, 40);
         expect_move(&e, move_ids::BS_STAB, 12, 1, 0, &[]);
         roll_with_num(&mut e, 40);
@@ -239,8 +297,7 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::BS_STAB, 12, 1, 0, &[]);
 
         let mut e = make("SlaverRed", 46);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 0, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut e, 0, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::RS_STAB, 13, 1, 0, &[]);
         roll_with_num(&mut e, 75);
         expect_move(&e, move_ids::RS_ENTANGLE, 0, 0, 0, &[(mfx::ENTANGLE, 1)]);
@@ -256,26 +313,37 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::AS_S_TACKLE, 3, 1, 0, &[]);
 
         let mut e = make("AcidSlime_M", 28);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 0, &mut crate::seed::StsRandom::new(1));
-        expect_move(&e, move_ids::AS_CORROSIVE_SPIT, 7, 1, 0, &[(mfx::SLIMED, 1)]);
+        roll_initial_move_with_num_and_rng(&mut e, 0, &mut crate::seed::StsRandom::new(1));
+        expect_move(
+            &e,
+            move_ids::AS_CORROSIVE_SPIT,
+            7,
+            1,
+            0,
+            &[(mfx::SLIMED, 1)],
+        );
         roll_with_num(&mut e, 40);
         expect_move(&e, move_ids::AS_TACKLE, 10, 1, 0, &[]);
         roll_with_num(&mut e, 70);
         expect_move(&e, move_ids::AS_LICK, 0, 0, 0, &[(mfx::WEAK, 1)]);
 
         let mut e = make("AcidSlime_L", 65);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 0, &mut crate::seed::StsRandom::new(1));
-        expect_move(&e, move_ids::AS_CORROSIVE_SPIT, 11, 1, 0, &[(mfx::SLIMED, 2)]);
+        roll_initial_move_with_num_and_rng(&mut e, 0, &mut crate::seed::StsRandom::new(1));
+        expect_move(
+            &e,
+            move_ids::AS_CORROSIVE_SPIT,
+            11,
+            1,
+            0,
+            &[(mfx::SLIMED, 2)],
+        );
         roll_with_num(&mut e, 40);
         expect_move(&e, move_ids::AS_TACKLE, 16, 1, 0, &[]);
         roll_with_num(&mut e, 70);
         expect_move(&e, move_ids::AS_LICK, 0, 0, 0, &[(mfx::WEAK, 2)]);
 
         let mut e = make("SpikeSlime_M", 28);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 0, &mut crate::seed::StsRandom::new(1));
+        roll_initial_move_with_num_and_rng(&mut e, 0, &mut crate::seed::StsRandom::new(1));
         expect_move(&e, move_ids::SS_TACKLE, 8, 1, 0, &[(mfx::SLIMED, 1)]);
         roll_with_num(&mut e, 30);
         expect_move(&e, move_ids::SS_LICK, 0, 0, 0, &[(mfx::FRAIL, 1)]);
@@ -283,8 +351,7 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::SS_LICK, 0, 0, 0, &[(mfx::FRAIL, 1)]);
 
         let mut e = make("SpikeSlime_L", 65);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 0, &mut crate::seed::StsRandom::new(1));
+        roll_initial_move_with_num_and_rng(&mut e, 0, &mut crate::seed::StsRandom::new(1));
         expect_move(&e, move_ids::SS_TACKLE, 16, 1, 0, &[(mfx::SLIMED, 2)]);
         roll_with_num(&mut e, 30);
         expect_move(&e, move_ids::SS_LICK, 0, 0, 0, &[(mfx::FRAIL, 2)]);
@@ -292,11 +359,13 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::SS_LICK, 0, 0, 0, &[(mfx::FRAIL, 2)]);
 
         let mut e = make("Looter", 44);
-        let seed = (1..10_000).find(|&seed| {
-            let mut rng = crate::seed::StsRandom::new(seed);
-            let _ = rng.random_f32();
-            rng.random_f32() < 0.5
-        }).unwrap();
+        let seed = (1..10_000)
+            .find(|&seed| {
+                let mut rng = crate::seed::StsRandom::new(seed);
+                let _ = rng.random_f32();
+                rng.random_f32() < 0.5
+            })
+            .unwrap();
         let mut rng = crate::seed::StsRandom::new(seed);
         act1::advance_looter_after_turn(&mut e, &mut rng);
         expect_move(&e, move_ids::LOOTER_MUG, 10, 1, 0, &[]);
@@ -321,40 +390,68 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::GREMLIN_PROTECT, 0, 0, 0, &[]);
         let mut e = make("GremlinTsundere", 13);
         act1::advance_gremlin_tsundere_after_turn(&mut e, 2);
-        expect_move(&e, move_ids::GREMLIN_TSUNDERE_PROTECT, 0, 0, 0,
-            &[(mfx::BLOCK_RANDOM_OTHER, 7)]);
+        expect_move(
+            &e,
+            move_ids::GREMLIN_TSUNDERE_PROTECT,
+            0,
+            0,
+            0,
+            &[(mfx::BLOCK_RANDOM_OTHER, 7)],
+        );
         act1::advance_gremlin_tsundere_after_turn(&mut e, 1);
         expect_move(&e, move_ids::GREMLIN_TSUNDERE_BASH, 6, 1, 0, &[]);
         act1::advance_gremlin_tsundere_after_turn(&mut e, 1);
         expect_move(&e, move_ids::GREMLIN_TSUNDERE_BASH, 6, 1, 0, &[]);
 
         let mut e = make("GremlinNob", 106);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 99, &mut crate::seed::StsRandom::new(1));
+        roll_initial_move_with_num_and_rng(&mut e, 99, &mut crate::seed::StsRandom::new(1));
         roll_with_num(&mut e, 33);
         expect_move(&e, move_ids::NOB_RUSH, 14, 1, 0, &[]);
         e.move_id = move_ids::NOB_RUSH;
         e.move_history = vec![move_ids::NOB_RUSH, move_ids::NOB_RUSH];
         roll_with_num(&mut e, 99);
-        expect_move(&e, move_ids::NOB_SKULL_BASH, 6, 1, 0, &[(mfx::VULNERABLE, 2)]);
+        expect_move(
+            &e,
+            move_ids::NOB_SKULL_BASH,
+            6,
+            1,
+            0,
+            &[(mfx::VULNERABLE, 2)],
+        );
 
         let mut e = make("Lagavulin", 109);
         let mut laga_rng = crate::seed::StsRandom::new(1);
         act1::advance_lagavulin_after_turn(&mut e, &mut laga_rng);
         expect_move(&e, move_ids::LAGA_SLEEP, 0, 0, 0, &[]);
         expect_status(&e, sid::COUNT, 1);
+        assert_eq!(
+            e.move_history,
+            vec![move_ids::LAGA_SLEEP, move_ids::LAGA_SLEEP],
+            "Lagavulin's direct setMove plus RollMoveAction append twice"
+        );
         act1::advance_lagavulin_after_turn(&mut e, &mut laga_rng);
         expect_status(&e, sid::COUNT, 2);
         act1::advance_lagavulin_after_turn(&mut e, &mut laga_rng);
         expect_move(&e, move_ids::LAGA_ATTACK, 18, 1, 0, &[]);
+        assert_eq!(
+            e.move_history,
+            vec![
+                move_ids::LAGA_SLEEP,
+                move_ids::LAGA_SLEEP,
+                move_ids::LAGA_SLEEP,
+                move_ids::LAGA_SLEEP,
+                move_ids::LAGA_SLEEP,
+            ],
+            "the queued wake attack replaces the separately projected current move"
+        );
         assert_eq!(laga_rng.counter, 2);
         lagavulin_wake_up(&mut e);
         expect_move(&e, move_ids::LAGA_STUN, 0, 0, 0, &[]);
         expect_status(&e, sid::SLEEP_TURNS, 0);
+        assert_eq!(e.move_history.last(), Some(&move_ids::LAGA_ATTACK));
 
         let mut e = make("Sentry", 38);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 0, &mut crate::seed::StsRandom::new(1));
+        roll_initial_move_with_num_and_rng(&mut e, 0, &mut crate::seed::StsRandom::new(1));
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SENTRY_BEAM, 9, 1, 0, &[]);
         roll_times(&mut e, 1);
@@ -408,7 +505,7 @@ mod enemy_ai_java_parity_tests {
         let e = make("BookOfStabbing", 160);
         expect_move(&e, move_ids::BOOK_STAB, 6, 1, 0, &[]);
         expect_status(&e, sid::PAINFUL_STABS, 1);
-        expect_status(&e, sid::STAB_COUNT, 0);
+        expect_status(&e, sid::STAB_COUNT, 1);
 
         let e = make("GremlinLeader", 140);
         expect_move(&e, move_ids::GL_RALLY, 0, 0, 0, &[]);
@@ -417,8 +514,18 @@ mod enemy_ai_java_parity_tests {
         expect_status(&e, sid::COUNT, 0);
 
         let e = make("SlaverBoss", 60);
-        expect_move(&e, move_ids::TASK_SCOURING_WHIP, 7, 1, 0, &[(mfx::WOUND, 1)]);
-        assert!(matches!(e.intent, crate::combat_types::Intent::AttackDebuff { .. }));
+        expect_move(
+            &e,
+            move_ids::TASK_SCOURING_WHIP,
+            7,
+            1,
+            0,
+            &[(mfx::WOUND, 1)],
+        );
+        assert!(matches!(
+            e.intent,
+            crate::combat_types::Intent::AttackDebuff { .. }
+        ));
         expect_status(&e, sid::STARTING_DMG, 7);
         expect_status(&e, sid::BLOCK_AMT, 1);
 
@@ -434,6 +541,10 @@ mod enemy_ai_java_parity_tests {
 
         let e = make("Snecko", 114);
         expect_move(&e, move_ids::SNECKO_GLARE, 0, 0, 0, &[(mfx::CONFUSED, 1)]);
+        assert!(matches!(
+            e.intent,
+            crate::combat_types::Intent::StrongDebuff { .. }
+        ));
         expect_status(&e, sid::FIRST_MOVE, 1);
         expect_status(&e, sid::STARTING_DMG, 15);
         expect_status(&e, sid::STR_AMT, 8);
@@ -460,24 +571,32 @@ mod enemy_ai_java_parity_tests {
     #[test]
     fn act2_patterns_match_java() {
         let mut e = make("Chosen", 95);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 99, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut e, 99, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::CHOSEN_POKE, 5, 2, 0, &[]);
         roll_with_num(&mut e, 99);
         expect_move(&e, move_ids::CHOSEN_HEX, 0, 0, 0, &[(mfx::HEX, 1)]);
         roll_with_num(&mut e, 0);
-        expect_move(&e, move_ids::CHOSEN_DEBILITATE, 10, 1, 0, &[(mfx::VULNERABLE, 2)]);
+        expect_move(
+            &e,
+            move_ids::CHOSEN_DEBILITATE,
+            10,
+            1,
+            0,
+            &[(mfx::VULNERABLE, 2)],
+        );
         roll_with_num(&mut e, 0);
         expect_move(&e, move_ids::CHOSEN_ZAP, 18, 1, 0, &[]);
 
         let mut e = make("Mugger", 48);
-        let smoke_seed = (1..10_000).find(|&seed| {
-            let mut rng = crate::seed::StsRandom::new(seed);
-            let _ = rng.random_int(2);
-            let _ = rng.random_int(2);
-            let _ = rng.random_f32();
-            rng.random_f32() < 0.5
-        }).unwrap();
+        let smoke_seed = (1..10_000)
+            .find(|&seed| {
+                let mut rng = crate::seed::StsRandom::new(seed);
+                let _ = rng.random_int(2);
+                let _ = rng.random_int(2);
+                let _ = rng.random_f32();
+                rng.random_f32() < 0.5
+            })
+            .unwrap();
         let mut mugger_rng = crate::seed::StsRandom::new(smoke_seed);
         act2::advance_mugger_after_turn(&mut e, &mut mugger_rng);
         expect_move(&e, move_ids::MUGGER_MUG, 10, 1, 0, &[]);
@@ -501,22 +620,25 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::BYRD_PECK, 1, 5, 0, &[]);
 
         // Source: reference/extracted/methods/monster/ShelledParasite.java.
-        let true_seed = (1..10_000).find(|&seed|
-            crate::seed::StsRandom::new(seed).random_bool()).unwrap();
+        let true_seed = (1..10_000)
+            .find(|&seed| crate::seed::StsRandom::new(seed).random_bool())
+            .unwrap();
         let mut e = make("Shelled Parasite", 68);
         let mut true_rng = crate::seed::StsRandom::new(true_seed);
         roll_initial_move_with_num_and_rng(&mut e, 99, &mut true_rng);
         expect_move(&e, move_ids::SP_DOUBLE_STRIKE, 6, 2, 0, &[]);
-        assert_eq!(true_rng.counter, 1,
-            "pre-A17 opener consumes aiRng.randomBoolean after rollMove num");
+        assert_eq!(
+            true_rng.counter, 1,
+            "pre-A17 opener consumes aiRng.randomBoolean after rollMove num"
+        );
 
-        let false_seed = (1..10_000).find(|&seed|
-            !crate::seed::StsRandom::new(seed).random_bool()).unwrap();
+        let false_seed = (1..10_000)
+            .find(|&seed| !crate::seed::StsRandom::new(seed).random_bool())
+            .unwrap();
         let mut life = make("Shelled Parasite", 68);
         let mut false_rng = crate::seed::StsRandom::new(false_seed);
         roll_initial_move_with_num_and_rng(&mut life, 0, &mut false_rng);
-        expect_move(&life, move_ids::SP_LIFE_SUCK, 10, 1, 0,
-            &[(mfx::HEAL, 10)]);
+        expect_move(&life, move_ids::SP_LIFE_SUCK, 10, 1, 0, &[(mfx::HEAL, 10)]);
         assert_eq!(false_rng.counter, 1);
 
         let mut a17 = make("Shelled Parasite", 70);
@@ -524,26 +646,31 @@ mod enemy_ai_java_parity_tests {
         let mut no_boolean = crate::seed::StsRandom::new(0);
         roll_initial_move_with_num_and_rng(&mut a17, 99, &mut no_boolean);
         expect_move(&a17, move_ids::SP_FELL, 18, 1, 0, &[(mfx::FRAIL, 2)]);
-        assert_eq!(no_boolean.counter, 0,
-            "A17 forced Fell consumes no conditional boolean");
+        assert_eq!(
+            no_boolean.counter, 0,
+            "A17 forced Fell consumes no conditional boolean"
+        );
 
-        let reroll_seed = (1..10_000).find(|&seed| {
-            let roll = crate::seed::StsRandom::new(seed).random_int_range(20, 99);
-            roll < 60
-        }).unwrap();
+        let reroll_seed = (1..10_000)
+            .find(|&seed| {
+                let roll = crate::seed::StsRandom::new(seed).random_int_range(20, 99);
+                roll < 60
+            })
+            .unwrap();
         a17.move_id = move_ids::SP_FELL;
         a17.move_history.clear();
         let mut reroll_rng = crate::seed::StsRandom::new(reroll_seed);
         roll_next_move_with_num_and_rng(&mut a17, 0, &mut reroll_rng);
         expect_move(&a17, move_ids::SP_DOUBLE_STRIKE, 6, 2, 0, &[]);
-        assert_eq!(reroll_rng.counter, 1,
-            "repeated Fell rerolls with aiRng.random_int(20, 99)");
+        assert_eq!(
+            reroll_rng.counter, 1,
+            "repeated Fell rerolls with aiRng.random_int(20, 99)"
+        );
 
         a17.move_id = move_ids::SP_DOUBLE_STRIKE;
         a17.move_history = vec![move_ids::SP_DOUBLE_STRIKE];
         roll_with_num(&mut a17, 20);
-        expect_move(&a17, move_ids::SP_LIFE_SUCK, 10, 1, 0,
-            &[(mfx::HEAL, 10)]);
+        expect_move(&a17, move_ids::SP_LIFE_SUCK, 10, 1, 0, &[(mfx::HEAL, 10)]);
 
         a17.move_id = move_ids::SP_LIFE_SUCK;
         a17.move_history = vec![move_ids::SP_LIFE_SUCK];
@@ -552,13 +679,19 @@ mod enemy_ai_java_parity_tests {
 
         // Source: reference/extracted/methods/monster/SnakePlant.java.
         let mut e = make("SnakePlant", 75);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 64, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut e, 64, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::SNAKE_CHOMP, 7, 3, 0, &[]);
         roll_with_num(&mut e, 64);
         expect_move(&e, move_ids::SNAKE_CHOMP, 7, 3, 0, &[]);
         roll_with_num(&mut e, 64);
-        expect_move(&e, move_ids::SNAKE_SPORES, 0, 0, 0, &[(mfx::WEAK, 2), (mfx::FRAIL, 2)]);
+        expect_move(
+            &e,
+            move_ids::SNAKE_SPORES,
+            0,
+            0,
+            0,
+            &[(mfx::WEAK, 2), (mfx::FRAIL, 2)],
+        );
         roll_with_num(&mut e, 99);
         expect_move(&e, move_ids::SNAKE_CHOMP, 7, 3, 0, &[]);
 
@@ -566,8 +699,14 @@ mod enemy_ai_java_parity_tests {
         pre_a17.move_id = move_ids::SNAKE_CHOMP;
         pre_a17.move_history = vec![move_ids::SNAKE_SPORES];
         roll_with_num(&mut pre_a17, 99);
-        expect_move(&pre_a17, move_ids::SNAKE_SPORES, 0, 0, 0,
-            &[(mfx::FRAIL, 2), (mfx::WEAK, 2)]);
+        expect_move(
+            &pre_a17,
+            move_ids::SNAKE_SPORES,
+            0,
+            0,
+            0,
+            &[(mfx::FRAIL, 2), (mfx::WEAK, 2)],
+        );
 
         let mut a17 = make("SnakePlant", 78);
         a17.entity.set_status(sid::HIGH_ASCENSION_AI, 1);
@@ -580,14 +719,19 @@ mod enemy_ai_java_parity_tests {
         // Centurion.java: low rolls Slash until two consecutive Slashes, then
         // Protects one random ally (or uses Fury when alone).
         let mut e = make("Centurion", 76);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 64, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut e, 64, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::CENT_SLASH, 12, 1, 0, &[]);
         roll_with_num(&mut e, 64);
         expect_move(&e, move_ids::CENT_SLASH, 12, 1, 0, &[]);
         roll_with_num(&mut e, 0);
-        expect_move(&e, move_ids::CENT_PROTECT, 0, 0, 0,
-            &[(mfx::BLOCK_RANDOM_OTHER, 15)]);
+        expect_move(
+            &e,
+            move_ids::CENT_PROTECT,
+            0,
+            0,
+            0,
+            &[(mfx::BLOCK_RANDOM_OTHER, 15)],
+        );
         roll_with_num(&mut e, 0);
         expect_move(&e, move_ids::CENT_SLASH, 12, 1, 0, &[]);
 
@@ -601,40 +745,44 @@ mod enemy_ai_java_parity_tests {
         roll_with_num(&mut e, 99);
         expect_move(&e, move_ids::MYSTIC_ATTACK, 8, 1, 0, &[(mfx::FRAIL, 2)]);
         roll_with_num(&mut e, 0);
-        expect_move(&e, move_ids::MYSTIC_BUFF, 0, 0, 0,
-            &[(mfx::STRENGTH, 2), (mfx::STRENGTH_ALL_ALLIES, 2)]);
+        expect_move(
+            &e,
+            move_ids::MYSTIC_BUFF,
+            0,
+            0,
+            0,
+            &[(mfx::STRENGTH, 2), (mfx::STRENGTH_ALL_ALLIES, 2)],
+        );
 
         let mut e = make("BookOfStabbing", 160);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 99, &mut crate::seed::StsRandom::new(0));
-        expect_move(&e, move_ids::BOOK_STAB, 6, 1, 0, &[]);
-        expect_status(&e, sid::STAB_COUNT, 1);
-        roll_with_num(&mut e, 99);
+        roll_initial_move_with_num_and_rng(&mut e, 99, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::BOOK_STAB, 6, 2, 0, &[]);
         expect_status(&e, sid::STAB_COUNT, 2);
         roll_with_num(&mut e, 99);
-        expect_move(&e, move_ids::BOOK_BIG_STAB, 21, 1, 0, &[]);
-        expect_status(&e, sid::STAB_COUNT, 2);
-        roll_with_num(&mut e, 14);
         expect_move(&e, move_ids::BOOK_STAB, 6, 3, 0, &[]);
         expect_status(&e, sid::STAB_COUNT, 3);
+        roll_with_num(&mut e, 99);
+        expect_move(&e, move_ids::BOOK_BIG_STAB, 21, 1, 0, &[]);
+        expect_status(&e, sid::STAB_COUNT, 3);
+        roll_with_num(&mut e, 14);
+        expect_move(&e, move_ids::BOOK_STAB, 6, 4, 0, &[]);
+        expect_status(&e, sid::STAB_COUNT, 4);
 
         // A18 increments stabCount even when BIG_STAB is selected.
         let mut a18 = make("BookOfStabbing", 168);
         a18.entity.set_status(sid::STARTING_DMG, 7);
         a18.entity.set_status(sid::STR_AMT, 24);
         a18.entity.set_status(sid::BLOCK_AMT, 1);
-        roll_initial_move_with_num_and_rng(
-            &mut a18, 14, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut a18, 14, &mut crate::seed::StsRandom::new(0));
         expect_move(&a18, move_ids::BOOK_BIG_STAB, 24, 1, 0, &[]);
-        expect_status(&a18, sid::STAB_COUNT, 1);
+        expect_status(&a18, sid::STAB_COUNT, 2);
         roll_with_num(&mut a18, 14);
-        expect_move(&a18, move_ids::BOOK_STAB, 7, 2, 0, &[]);
-        roll_with_num(&mut a18, 99);
         expect_move(&a18, move_ids::BOOK_STAB, 7, 3, 0, &[]);
         roll_with_num(&mut a18, 99);
+        expect_move(&a18, move_ids::BOOK_STAB, 7, 4, 0, &[]);
+        roll_with_num(&mut a18, 99);
         expect_move(&a18, move_ids::BOOK_BIG_STAB, 24, 1, 0, &[]);
-        expect_status(&a18, sid::STAB_COUNT, 4);
+        expect_status(&a18, sid::STAB_COUNT, 5);
 
         let mut e = make("GremlinLeader", 140);
         e.entity.set_status(sid::COUNT, 0);
@@ -645,24 +793,46 @@ mod enemy_ai_java_parity_tests {
 
         e.entity.set_status(sid::COUNT, 2);
         roll_with_num(&mut e, 0);
-        expect_move(&e, move_ids::GL_ENCOURAGE, 0, 0, 0,
-            &[(mfx::STRENGTH, 3), (mfx::STRENGTH_ALL_ALLIES, 3),
-                (mfx::BLOCK_ALL_ALLIES, 6)]);
+        expect_move(
+            &e,
+            move_ids::GL_ENCOURAGE,
+            0,
+            0,
+            0,
+            &[
+                (mfx::STRENGTH, 3),
+                (mfx::STRENGTH_ALL_ALLIES, 3),
+                (mfx::BLOCK_ALL_ALLIES, 6),
+            ],
+        );
         roll_with_num(&mut e, 0);
         expect_move(&e, move_ids::GL_STAB, 6, 3, 0, &[]);
 
         // Source: reference/extracted/methods/monster/Taskmaster.java.
         let mut e = make("SlaverBoss", 60);
         roll_times(&mut e, 1);
-        expect_move(&e, move_ids::TASK_SCOURING_WHIP, 7, 1, 0, &[(mfx::WOUND, 1)]);
+        expect_move(
+            &e,
+            move_ids::TASK_SCOURING_WHIP,
+            7,
+            1,
+            0,
+            &[(mfx::WOUND, 1)],
+        );
 
         // Source: reference/extracted/methods/monster/SphericGuardian.java.
         let mut e = make("SphericGuardian", 20);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 99, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut e, 99, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::SPHER_INITIAL_BLOCK, 0, 0, 25, &[]);
         roll_with_num(&mut e, 99);
-        expect_move(&e, move_ids::SPHER_FRAIL_ATTACK, 10, 1, 0, &[(mfx::FRAIL, 5)]);
+        expect_move(
+            &e,
+            move_ids::SPHER_FRAIL_ATTACK,
+            10,
+            1,
+            0,
+            &[(mfx::FRAIL, 5)],
+        );
         roll_with_num(&mut e, 99);
         expect_move(&e, move_ids::SPHER_BIG_ATTACK, 10, 2, 0, &[]);
         roll_with_num(&mut e, 99);
@@ -672,11 +842,18 @@ mod enemy_ai_java_parity_tests {
 
         // Source: reference/extracted/methods/monster/Snecko.java.
         let mut e = make("Snecko", 114);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 99, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut e, 99, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::SNECKO_GLARE, 0, 0, 0, &[(mfx::CONFUSED, 1)]);
+        assert!(matches!(
+            e.intent,
+            crate::combat_types::Intent::StrongDebuff { .. }
+        ));
         roll_with_num(&mut e, 39);
         expect_move(&e, move_ids::SNECKO_TAIL, 8, 1, 0, &[(mfx::VULNERABLE, 2)]);
+        assert!(matches!(
+            e.intent,
+            crate::combat_types::Intent::AttackDebuff { .. }
+        ));
         roll_with_num(&mut e, 40);
         expect_move(&e, move_ids::SNECKO_BITE, 15, 1, 0, &[]);
         roll_with_num(&mut e, 99);
@@ -690,8 +867,18 @@ mod enemy_ai_java_parity_tests {
         a17.entity.set_status(sid::STR_AMT, 10);
         a17.entity.set_status(sid::HIGH_ASCENSION_AI, 1);
         roll_with_num(&mut a17, 0);
-        expect_move(&a17, move_ids::SNECKO_TAIL, 10, 1, 0,
-            &[(mfx::WEAK, 2), (mfx::VULNERABLE, 2)]);
+        expect_move(
+            &a17,
+            move_ids::SNECKO_TAIL,
+            10,
+            1,
+            0,
+            &[(mfx::WEAK, 2), (mfx::VULNERABLE, 2)],
+        );
+        assert!(matches!(
+            a17.intent,
+            crate::combat_types::Intent::AttackDebuff { .. }
+        ));
 
         // Source: reference/extracted/methods/monster/BanditBear.java.
         // Only the opener uses getMove; takeTurn then installs Lunge and Maul
@@ -717,8 +904,7 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::POINTY_STAB, 5, 2, 0, &[]);
 
         let mut e = make("BronzeAutomaton", 300);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 0, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut e, 0, &mut crate::seed::StsRandom::new(0));
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::BA_FLAIL, 7, 2, 0, &[]);
         roll_times(&mut e, 1);
@@ -738,8 +924,7 @@ mod enemy_ai_java_parity_tests {
         a19.entity.set_status(sid::STR_AMT, 4);
         a19.entity.set_status(sid::BLOCK_AMT, 12);
         a19.entity.set_status(sid::HIGH_ASCENSION_AI, 1);
-        roll_initial_move_with_num_and_rng(
-            &mut a19, 0, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut a19, 0, &mut crate::seed::StsRandom::new(0));
         for _ in 0..5 {
             roll_times(&mut a19, 1);
         }
@@ -749,8 +934,7 @@ mod enemy_ai_java_parity_tests {
 
         // Source: reference/extracted/methods/monster/BronzeOrb.java.
         let mut e = make("BronzeOrb", 52);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 24, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut e, 24, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::BO_BEAM, 8, 1, 0, &[]);
         roll_with_num(&mut e, 25);
         expect_move(&e, move_ids::BO_STASIS, 0, 0, 0, &[(mfx::STASIS, 1)]);
@@ -776,8 +960,11 @@ mod enemy_ai_java_parity_tests {
                 run.debug_enter_specific_combat(&["TorchHead"]);
                 let combat = run.get_combat_engine().expect("Torch Head combat");
                 let torch = &combat.state.enemies[0];
-                assert!((low..=high).contains(&torch.entity.hp),
-                    "A{ascension} HP {} outside {low}..={high}", torch.entity.hp);
+                assert!(
+                    (low..=high).contains(&torch.entity.hp),
+                    "A{ascension} HP {} outside {low}..={high}",
+                    torch.entity.hp
+                );
                 assert_eq!(torch.entity.max_hp, torch.entity.hp);
                 expect_move(torch, move_ids::TORCH_TACKLE, 7, 1, 0, &[]);
             }
@@ -786,15 +973,36 @@ mod enemy_ai_java_parity_tests {
         let mut run = RunEngine::new(96, 0);
         run.debug_enter_specific_combat(&["TorchHead"]);
         let combat = run.debug_combat_engine_mut();
-        assert_eq!(combat.ai_rng.counter, 1,
-            "AbstractMonster.init calls rollMove once even though Tackle is fixed");
+        assert_eq!(
+            combat.ai_rng.counter, 1,
+            "AbstractMonster.init calls rollMove once even though Tackle is fixed"
+        );
+        assert_eq!(
+            combat.state.enemies[0].move_history,
+            [move_ids::TORCH_TACKLE],
+            "TorchHead's constructor setMove precedes init's current Tackle"
+        );
         let player_hp = combat.state.player.hp;
         let ai_before = combat.ai_rng.counter;
         crate::combat_hooks::do_enemy_turns(combat);
         assert_eq!(combat.state.player.hp, player_hp - 7);
-        expect_move(&combat.state.enemies[0], move_ids::TORCH_TACKLE, 7, 1, 0, &[]);
-        assert_eq!(combat.ai_rng.counter, ai_before,
-            "takeTurn queues SetMoveAction, not RollMoveAction");
+        expect_move(
+            &combat.state.enemies[0],
+            move_ids::TORCH_TACKLE,
+            7,
+            1,
+            0,
+            &[],
+        );
+        assert_eq!(
+            combat.ai_rng.counter, ai_before,
+            "takeTurn queues SetMoveAction, not RollMoveAction"
+        );
+        assert_eq!(
+            combat.state.enemies[0].move_history,
+            [move_ids::TORCH_TACKLE, move_ids::TORCH_TACKLE],
+            "the queued SetMoveAction appends a third Java history entry once the current move is projected"
+        );
     }
 
     #[test]
@@ -802,7 +1010,9 @@ mod enemy_ai_java_parity_tests {
         let e = make("Darkling", 48);
         expect_one_of(&e, &[move_ids::DARK_HARDEN, move_ids::DARK_NIP]);
         match e.move_id {
-            x if x == move_ids::DARK_HARDEN => expect_move(&e, move_ids::DARK_HARDEN, 0, 0, 12, &[]),
+            x if x == move_ids::DARK_HARDEN => {
+                expect_move(&e, move_ids::DARK_HARDEN, 0, 0, 12, &[])
+            }
             _ => expect_move(&e, move_ids::DARK_NIP, 8, 1, 0, &[]),
         }
         expect_status(&e, sid::FIRST_MOVE, 1);
@@ -811,7 +1021,14 @@ mod enemy_ai_java_parity_tests {
         let e = make("OrbWalker", 90);
         expect_one_of(&e, &[move_ids::OW_LASER, move_ids::OW_CLAW]);
         match e.move_id {
-            x if x == move_ids::OW_LASER => expect_move(&e, move_ids::OW_LASER, 10, 1, 0, &[(mfx::BURN_DRAW_DISCARD, 1)]),
+            x if x == move_ids::OW_LASER => expect_move(
+                &e,
+                move_ids::OW_LASER,
+                10,
+                1,
+                0,
+                &[(mfx::BURN_DRAW_DISCARD, 1)],
+            ),
             _ => expect_move(&e, move_ids::OW_CLAW, 15, 1, 0, &[]),
         }
         expect_status(&e, sid::STARTING_DMG, 10);
@@ -825,9 +1042,11 @@ mod enemy_ai_java_parity_tests {
         expect_status(&e, sid::COUNT, 0);
 
         let e = make("Repulsor", 29);
-        expect_move(&e, move_ids::REPULSOR_DAZE, 0, 0, 0,
-            &[(mfx::DAZE_DRAW, 2)]);
-        assert!(matches!(e.intent, crate::combat_types::Intent::Debuff { .. }));
+        expect_move(&e, move_ids::REPULSOR_DAZE, 0, 0, 0, &[(mfx::DAZE_DRAW, 2)]);
+        assert!(matches!(
+            e.intent,
+            crate::combat_types::Intent::Debuff { .. }
+        ));
         expect_status(&e, sid::STARTING_DMG, 11);
 
         let e = make("Exploder", 30);
@@ -849,7 +1068,14 @@ mod enemy_ai_java_parity_tests {
         expect_status(&e, sid::BLOCK_AMT, 10);
 
         let e = make("Maw", 300);
-        expect_move(&e, move_ids::MAW_ROAR, 0, 0, 0, &[(mfx::WEAK, 3), (mfx::FRAIL, 3)]);
+        expect_move(
+            &e,
+            move_ids::MAW_ROAR,
+            0,
+            0,
+            0,
+            &[(mfx::WEAK, 3), (mfx::FRAIL, 3)],
+        );
         expect_status(&e, sid::TURN_COUNT, 1);
         expect_status(&e, sid::STARTING_DMG, 25);
         expect_status(&e, sid::STR_AMT, 3);
@@ -908,9 +1134,10 @@ mod enemy_ai_java_parity_tests {
             expect_status(mass, sid::MALLEABLE, 3);
             expect_status(mass, sid::FIRST_MOVE, 0);
             assert_eq!(combat.ai_rng.counter, 1);
-            assert!(matches!(mass.move_id,
-                move_ids::WM_MULTI_HIT | move_ids::WM_ATTACK_BLOCK
-                    | move_ids::WM_ATTACK_DEBUFF));
+            assert!(matches!(
+                mass.move_id,
+                move_ids::WM_MULTI_HIT | move_ids::WM_ATTACK_BLOCK | move_ids::WM_ATTACK_DEBUFF
+            ));
         }
 
         for (num, move_id, damage, hits, block, effects) in [
@@ -918,12 +1145,17 @@ mod enemy_ai_java_parity_tests {
             (32, move_ids::WM_MULTI_HIT, 7, 3, 0, &[][..]),
             (33, move_ids::WM_ATTACK_BLOCK, 15, 1, 15, &[][..]),
             (65, move_ids::WM_ATTACK_BLOCK, 15, 1, 15, &[][..]),
-            (66, move_ids::WM_ATTACK_DEBUFF, 10, 1, 0,
-                &[(mfx::WEAK, 2), (mfx::VULNERABLE, 2)][..]),
+            (
+                66,
+                move_ids::WM_ATTACK_DEBUFF,
+                10,
+                1,
+                0,
+                &[(mfx::WEAK, 2), (mfx::VULNERABLE, 2)][..],
+            ),
         ] {
             let mut mass = make("WrithingMass", 160);
-            roll_initial_move_with_num_and_rng(
-                &mut mass, num, &mut crate::seed::StsRandom::new(0));
+            roll_initial_move_with_num_and_rng(&mut mass, num, &mut crate::seed::StsRandom::new(0));
             expect_move(&mass, move_id, damage, hits, block, effects);
         }
 
@@ -938,12 +1170,14 @@ mod enemy_ai_java_parity_tests {
         ] {
             mass.move_id = last;
             mass.move_history.clear();
-            roll_next_move_with_num_and_rng(
-                &mut mass, num, &mut crate::seed::StsRandom::new(0));
+            roll_next_move_with_num_and_rng(&mut mass, num, &mut crate::seed::StsRandom::new(0));
             assert_eq!(mass.move_id, move_id, "num={num}");
         }
-        assert_eq!(mass.entity.status(sid::USED_MEGA_DEBUFF), 0,
-            "Implant marks used only when takeTurn executes it");
+        assert_eq!(
+            mass.entity.status(sid::USED_MEGA_DEBUFF),
+            0,
+            "Implant marks used only when takeTurn executes it"
+        );
 
         for (last, num, expected_ticks) in [
             (move_ids::WM_BIG_HIT, 0, 1),
@@ -973,8 +1207,10 @@ mod enemy_ai_java_parity_tests {
         assert_eq!(combat.state.enemies[0].entity.hp, hp_before - 1);
         assert_eq!(combat.state.enemies[0].entity.block, 3);
         assert_eq!(combat.state.enemies[0].entity.status(sid::MALLEABLE), 4);
-        assert!(combat.ai_rng.counter > ai_before,
-            "Reactive queues one RollMoveAction, including any source rerolls");
+        assert!(
+            combat.ai_rng.counter > ai_before,
+            "Reactive queues one RollMoveAction, including any source rerolls"
+        );
         let ai_after_normal = combat.ai_rng.counter;
         combat.deal_thorns_damage_to_enemy(0, 1);
         assert_eq!(combat.ai_rng.counter, ai_after_normal);
@@ -991,17 +1227,29 @@ mod enemy_ai_java_parity_tests {
         combat.state.enemies[0].set_move(move_ids::WM_MEGA_DEBUFF, 0, 0, 0);
         combat.state.enemies[0].intent = Intent::Debuff { effects: 0 };
         combat.execute_action(&crate::actions::Action::EndTurn);
-        assert_eq!(combat.state.enemies[0].entity.status(sid::USED_MEGA_DEBUFF), 1);
+        assert_eq!(
+            combat.state.enemies[0].entity.status(sid::USED_MEGA_DEBUFF),
+            1
+        );
         assert_eq!(combat.state.master_deck.len(), deck_before + 1);
-        assert_eq!(combat.card_registry.card_name(
-            combat.state.master_deck.last().unwrap().def_id), "Parasite");
+        assert_eq!(
+            combat
+                .card_registry
+                .card_name(combat.state.master_deck.last().unwrap().def_id),
+            "Parasite"
+        );
         assert_ne!(combat.state.master_deck.last().unwrap().instance_id, 0);
-        assert!(combat.state.discard_pile.iter().all(|card|
-            combat.card_registry.card_name(card.def_id) != "Wound"));
+        assert!(combat
+            .state
+            .discard_pile
+            .iter()
+            .all(|card| combat.card_registry.card_name(card.def_id) != "Wound"));
         let _ = combat;
         let checkpoint = crate::checkpoint::CoreCheckpoint::capture(&implant)
             .expect("Implant must leave a checkpoint-safe card identity");
-        checkpoint.restore().expect("Implant checkpoint must restore");
+        checkpoint
+            .restore()
+            .expect("Implant checkpoint must restore");
 
         let mut debuff = RunEngine::new(222, 2);
         debuff.debug_enter_specific_combat(&["WrithingMass"]);
@@ -1009,7 +1257,9 @@ mod enemy_ai_java_parity_tests {
         combat.state.player.set_status(sid::ARTIFACT, 1);
         combat.state.enemies[0].set_move(move_ids::WM_ATTACK_DEBUFF, 12, 1, 0);
         combat.state.enemies[0].intent = Intent::AttackDebuff {
-            damage: 12, hits: 1, effects: 0,
+            damage: 12,
+            hits: 1,
+            effects: 0,
         };
         combat.state.enemies[0].add_effect(mfx::WEAK, 2);
         combat.state.enemies[0].add_effect(mfx::VULNERABLE, 2);
@@ -1023,9 +1273,9 @@ mod enemy_ai_java_parity_tests {
     fn transient_stats_fading_escalation_and_shifting_match_java() {
         // Sources: reference/extracted/methods/monster/Transient.java plus
         // decompiled FadingPower.java and ShiftingPower.java.
-        for (ascension, damage, fading) in [
-            (0, 30, 5), (1, 30, 5), (2, 40, 5), (16, 40, 5), (17, 40, 6),
-        ] {
+        for (ascension, damage, fading) in
+            [(0, 30, 5), (1, 30, 5), (2, 40, 5), (16, 40, 5), (17, 40, 6)]
+        {
             let mut run = RunEngine::new(170 + ascension as u64, ascension);
             run.debug_enter_specific_combat(&["Transient"]);
             let combat = run.get_combat_engine().expect("Transient combat");
@@ -1050,15 +1300,26 @@ mod enemy_ai_java_parity_tests {
         assert!(combat.state.enemies[0].is_alive());
         assert_eq!(combat.state.enemies[0].entity.status(sid::FADING), 1);
         assert_eq!(combat.state.enemies[0].entity.status(sid::ATTACK_COUNT), 5);
-        expect_move(&combat.state.enemies[0], move_ids::TRANSIENT_ATTACK, 90, 1, 0, &[]);
+        expect_move(
+            &combat.state.enemies[0],
+            move_ids::TRANSIENT_ATTACK,
+            90,
+            1,
+            0,
+            &[],
+        );
         assert_eq!(combat.state.player.hp, 9_999 - (40 + 50 + 60 + 70 + 80));
-        assert_eq!(combat.ai_rng.counter, ai_before,
-            "takeTurn uses SetMoveAction after the one initial rollMove");
+        assert_eq!(
+            combat.ai_rng.counter, ai_before,
+            "takeTurn uses SetMoveAction after the one initial rollMove"
+        );
         let hp_before_fade = combat.state.player.hp;
         crate::combat_hooks::do_enemy_turns(combat);
         assert!(!combat.state.enemies[0].is_alive());
-        assert_eq!(combat.state.player.hp, hp_before_fade,
-            "FadingPower suicides before a sixth attack");
+        assert_eq!(
+            combat.state.player.hp, hp_before_fade,
+            "FadingPower suicides before a sixth attack"
+        );
         assert_eq!(combat.ai_rng.counter, ai_before);
 
         let mut shifting = RunEngine::new(189, 0);
@@ -1071,13 +1332,39 @@ mod enemy_ai_java_parity_tests {
         assert_eq!(combat.state.enemies[0].entity.hp, hp_before - 5);
         assert_eq!(combat.state.enemies[0].entity.block, 0);
         assert_eq!(combat.state.enemies[0].entity.status(sid::STRENGTH), 5);
-        assert_eq!(combat.state.enemies[0].entity.status(sid::TEMP_STRENGTH_LOSS), 5);
+        assert_eq!(
+            combat.state.enemies[0]
+                .entity
+                .status(sid::TEMP_STRENGTH_LOSS),
+            5
+        );
         combat.deal_thorns_damage_to_enemy(0, 3);
         assert_eq!(combat.state.enemies[0].entity.status(sid::STRENGTH), 2);
-        assert_eq!(combat.state.enemies[0].entity.status(sid::TEMP_STRENGTH_LOSS), 8);
+        assert_eq!(
+            combat.state.enemies[0]
+                .entity
+                .status(sid::TEMP_STRENGTH_LOSS),
+            8
+        );
         assert_eq!(combat.enemy_lose_hp_from_damage(0, 2), 2);
         assert_eq!(combat.state.enemies[0].entity.status(sid::STRENGTH), 0);
-        assert_eq!(combat.state.enemies[0].entity.status(sid::TEMP_STRENGTH_LOSS), 10);
+        assert_eq!(
+            combat.state.enemies[0]
+                .entity
+                .status(sid::TEMP_STRENGTH_LOSS),
+            10
+        );
+
+        let mut ordered = RunEngine::new(191, 0);
+        ordered.debug_enter_specific_combat(&["Transient"]);
+        let combat = ordered.debug_combat_engine_mut();
+        combat.deal_damage_to_enemy(0, 4);
+        let powers = combat.state.enemies[0].entity.ordered_status_ids();
+        assert_eq!(
+            &powers[powers.len() - 2..],
+            &[sid::TEMP_STRENGTH_LOSS, sid::STRENGTH],
+            "Shifting addToTop actions install Shackled before negative Strength"
+        );
 
         let mut artifact = RunEngine::new(190, 0);
         artifact.debug_enter_specific_combat(&["Transient"]);
@@ -1087,7 +1374,12 @@ mod enemy_ai_java_parity_tests {
         combat.deal_damage_to_enemy(0, 4);
         assert_eq!(combat.state.enemies[0].entity.status(sid::ARTIFACT), 0);
         assert_eq!(combat.state.enemies[0].entity.status(sid::STRENGTH), 10);
-        assert_eq!(combat.state.enemies[0].entity.status(sid::TEMP_STRENGTH_LOSS), 0);
+        assert_eq!(
+            combat.state.enemies[0]
+                .entity
+                .status(sid::TEMP_STRENGTH_LOSS),
+            0
+        );
     }
 
     #[test]
@@ -1095,44 +1387,68 @@ mod enemy_ai_java_parity_tests {
         let mut e = make("Darkling", 48);
         roll_times(&mut e, 1);
         let first_move = e.move_id;
-        assert!(matches!(first_move, move_ids::DARK_HARDEN | move_ids::DARK_NIP));
+        assert!(matches!(
+            first_move,
+            move_ids::DARK_HARDEN | move_ids::DARK_NIP
+        ));
         roll_times(&mut e, 1);
-        assert_ne!(e.move_id, first_move, "Darkling should not immediately repeat its opening move");
+        assert_ne!(
+            e.move_id, first_move,
+            "Darkling should not immediately repeat its opening move"
+        );
         e.entity.hp = 0;
         e.entity.set_status(sid::REBIRTH_PENDING, 1);
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::DARK_REINCARNATE, 0, 0, 0, &[]);
 
         let mut e = make("OrbWalker", 90);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 39, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut e, 39, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::OW_CLAW, 15, 1, 0, &[]);
         roll_with_num(&mut e, 39);
         expect_move(&e, move_ids::OW_CLAW, 15, 1, 0, &[]);
         roll_with_num(&mut e, 39);
-        expect_move(&e, move_ids::OW_LASER, 10, 1, 0,
-            &[(mfx::BURN_DRAW_DISCARD, 1)]);
+        expect_move(
+            &e,
+            move_ids::OW_LASER,
+            10,
+            1,
+            0,
+            &[(mfx::BURN_DRAW_DISCARD, 1)],
+        );
 
         let mut high = make("OrbWalker", 90);
-        roll_initial_move_with_num_and_rng(
-            &mut high, 40, &mut crate::seed::StsRandom::new(0));
-        expect_move(&high, move_ids::OW_LASER, 10, 1, 0,
-            &[(mfx::BURN_DRAW_DISCARD, 1)]);
+        roll_initial_move_with_num_and_rng(&mut high, 40, &mut crate::seed::StsRandom::new(0));
+        expect_move(
+            &high,
+            move_ids::OW_LASER,
+            10,
+            1,
+            0,
+            &[(mfx::BURN_DRAW_DISCARD, 1)],
+        );
         roll_with_num(&mut high, 40);
-        expect_move(&high, move_ids::OW_LASER, 10, 1, 0,
-            &[(mfx::BURN_DRAW_DISCARD, 1)]);
+        expect_move(
+            &high,
+            move_ids::OW_LASER,
+            10,
+            1,
+            0,
+            &[(mfx::BURN_DRAW_DISCARD, 1)],
+        );
         roll_with_num(&mut high, 40);
         expect_move(&high, move_ids::OW_CLAW, 15, 1, 0, &[]);
 
         // Source: reference/extracted/methods/monster/Spiker.java.
         let mut e = make("Spiker", 42);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 49, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut e, 49, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::SPIKER_ATTACK, 7, 1, 0, &[]);
         roll_with_num(&mut e, 49);
         expect_move(&e, move_ids::SPIKER_BUFF, 0, 0, 0, &[(mfx::THORNS, 2)]);
-        assert_eq!(e.entity.status(sid::THORNS), 3,
-            "choosing the buff must not execute ApplyPowerAction");
+        assert_eq!(
+            e.entity.status(sid::THORNS),
+            3,
+            "choosing the buff must not execute ApplyPowerAction"
+        );
         roll_with_num(&mut e, 49);
         expect_move(&e, move_ids::SPIKER_ATTACK, 7, 1, 0, &[]);
         roll_with_num(&mut e, 50);
@@ -1142,17 +1458,14 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::SPIKER_ATTACK, 7, 1, 0, &[]);
 
         let mut e = make("Repulsor", 29);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 19, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut e, 19, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::REPULSOR_ATTACK, 11, 1, 0, &[]);
         roll_with_num(&mut e, 0);
-        expect_move(&e, move_ids::REPULSOR_DAZE, 0, 0, 0,
-            &[(mfx::DAZE_DRAW, 2)]);
+        expect_move(&e, move_ids::REPULSOR_DAZE, 0, 0, 0, &[(mfx::DAZE_DRAW, 2)]);
         roll_with_num(&mut e, 19);
         expect_move(&e, move_ids::REPULSOR_ATTACK, 11, 1, 0, &[]);
         roll_with_num(&mut e, 20);
-        expect_move(&e, move_ids::REPULSOR_DAZE, 0, 0, 0,
-            &[(mfx::DAZE_DRAW, 2)]);
+        expect_move(&e, move_ids::REPULSOR_DAZE, 0, 0, 0, &[(mfx::DAZE_DRAW, 2)]);
 
         let mut e = make("Exploder", 30);
         e.entity.set_status(sid::TURN_COUNT, 1);
@@ -1163,26 +1476,39 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::EXPLODER_EXPLODE, 0, 0, 0, &[]);
 
         let mut e = make("WrithingMass", 160);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 33, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut e, 33, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::WM_ATTACK_BLOCK, 15, 1, 15, &[]);
         roll_with_num(&mut e, 20);
-        expect_move(&e, move_ids::WM_ATTACK_DEBUFF, 10, 1, 0,
-            &[(mfx::WEAK, 2), (mfx::VULNERABLE, 2)]);
+        expect_move(
+            &e,
+            move_ids::WM_ATTACK_DEBUFF,
+            10,
+            1,
+            0,
+            &[(mfx::WEAK, 2), (mfx::VULNERABLE, 2)],
+        );
 
         // Source: reference/extracted/methods/monster/SpireGrowth.java. COUNT
-        // mirrors player.hasPower("Constricted") for this context-free AI.
+        // mirrors player.hasPower("Constricted") for this context-free AI;
+        // getMove declares Constrict as STRONG_DEBUFF.
         let mut e = make("Serpent", 170);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 49, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut e, 49, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::SG_QUICK_TACKLE, 16, 1, 0, &[]);
 
         let mut high = make("Serpent", 170);
-        roll_initial_move_with_num_and_rng(
-            &mut high, 50, &mut crate::seed::StsRandom::new(0));
-        expect_move(&high, move_ids::SG_CONSTRICT, 0, 0, 0,
-            &[(mfx::CONSTRICT, 10)]);
-        assert!(matches!(high.intent, crate::combat_types::Intent::Debuff { .. }));
+        roll_initial_move_with_num_and_rng(&mut high, 50, &mut crate::seed::StsRandom::new(0));
+        expect_move(
+            &high,
+            move_ids::SG_CONSTRICT,
+            0,
+            0,
+            0,
+            &[(mfx::CONSTRICT, 10)],
+        );
+        assert!(matches!(
+            high.intent,
+            crate::combat_types::Intent::StrongDebuff { .. }
+        ));
 
         high.entity.set_status(sid::COUNT, 1);
         roll_with_num(&mut high, 99);
@@ -1196,21 +1522,42 @@ mod enemy_ai_java_parity_tests {
         repeated_tackle.move_id = move_ids::SG_QUICK_TACKLE;
         repeated_tackle.move_history = vec![move_ids::SG_QUICK_TACKLE];
         roll_with_num(&mut repeated_tackle, 0);
-        expect_move(&repeated_tackle, move_ids::SG_CONSTRICT, 0, 0, 0,
-            &[(mfx::CONSTRICT, 10)]);
+        expect_move(
+            &repeated_tackle,
+            move_ids::SG_CONSTRICT,
+            0,
+            0,
+            0,
+            &[(mfx::CONSTRICT, 10)],
+        );
 
         let mut a17 = make("Serpent", 190);
         a17.entity.set_status(sid::HIGH_ASCENSION_AI, 1);
         a17.entity.set_status(sid::BLOCK_AMT, 12);
-        roll_initial_move_with_num_and_rng(
-            &mut a17, 0, &mut crate::seed::StsRandom::new(0));
-        expect_move(&a17, move_ids::SG_CONSTRICT, 0, 0, 0,
-            &[(mfx::CONSTRICT, 12)]);
+        roll_initial_move_with_num_and_rng(&mut a17, 0, &mut crate::seed::StsRandom::new(0));
+        expect_move(
+            &a17,
+            move_ids::SG_CONSTRICT,
+            0,
+            0,
+            0,
+            &[(mfx::CONSTRICT, 12)],
+        );
 
         let mut e = make("Maw", 300);
         crate::enemies::roll_initial_move_with_num_and_rng(
-            &mut e, 99, &mut crate::seed::StsRandom::new(0));
-        expect_move(&e, move_ids::MAW_ROAR, 0, 0, 0, &[(mfx::WEAK, 3), (mfx::FRAIL, 3)]);
+            &mut e,
+            99,
+            &mut crate::seed::StsRandom::new(0),
+        );
+        expect_move(
+            &e,
+            move_ids::MAW_ROAR,
+            0,
+            0,
+            0,
+            &[(mfx::WEAK, 3), (mfx::FRAIL, 3)],
+        );
         expect_status(&e, sid::TURN_COUNT, 2);
 
         // Source: Maw.java getMove chooses Nom below 50 immediately after
@@ -1250,26 +1597,27 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::GH_IT_IS_TIME, 30, 1, 0, &[]);
 
         let mut e = make("Nemesis", 185);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 49, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut e, 49, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::NEM_TRI_ATTACK, 6, 3, 0, &[]);
         expect_status(&e, sid::SCYTHE_COOLDOWN, -1);
         roll_with_num(&mut e, 29);
         expect_move(&e, move_ids::NEM_SCYTHE, 45, 1, 0, &[]);
         expect_status(&e, sid::SCYTHE_COOLDOWN, 2);
 
-        let true_seed = (1..10_000).find(|&seed| {
-            crate::seed::StsRandom::new(seed).random_bool()
-        }).unwrap();
+        let true_seed = (1..10_000)
+            .find(|&seed| crate::seed::StsRandom::new(seed).random_bool())
+            .unwrap();
         let mut true_rng = crate::seed::StsRandom::new(true_seed);
         crate::enemies::roll_next_move_with_num_and_rng(&mut e, 29, &mut true_rng);
         expect_move(&e, move_ids::NEM_TRI_ATTACK, 6, 3, 0, &[]);
-        assert_eq!(true_rng.counter, 1,
-            "low window after Scythe consumes its conditional randomBoolean");
+        assert_eq!(
+            true_rng.counter, 1,
+            "low window after Scythe consumes its conditional randomBoolean"
+        );
 
-        let false_seed = (1..10_000).find(|&seed| {
-            !crate::seed::StsRandom::new(seed).random_bool()
-        }).unwrap();
+        let false_seed = (1..10_000)
+            .find(|&seed| !crate::seed::StsRandom::new(seed).random_bool())
+            .unwrap();
         let mut middle = make("Nemesis", 185);
         middle.entity.set_status(sid::FIRST_MOVE, 0);
         middle.entity.set_status(sid::SCYTHE_COOLDOWN, 1);
@@ -1284,50 +1632,81 @@ mod enemy_ai_java_parity_tests {
         // additional aiRng draw, while the middle window checks canSpawn and
         // prevents a third consecutive summon.
         let mut e = make("Reptomancer", 190);
-        roll_initial_move_with_num_and_rng(
-            &mut e, 99, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut e, 99, &mut crate::seed::StsRandom::new(0));
         expect_move(&e, move_ids::REPTO_SPAWN, 0, 0, 0, &[]);
         expect_status(&e, sid::FIRST_MOVE, 0);
         roll_with_num(&mut e, 0);
-        expect_move(&e, move_ids::REPTO_SNAKE_STRIKE, 13, 2, 0, &[(mfx::WEAK, 1)]);
+        expect_move(
+            &e,
+            move_ids::REPTO_SNAKE_STRIKE,
+            13,
+            2,
+            0,
+            &[(mfx::WEAK, 1)],
+        );
 
-        let middle_seed = (1..10_000).find(|&seed| {
-            (33..66).contains(
-                &crate::seed::StsRandom::new(seed).random_int_range(33, 99))
-        }).unwrap();
+        let middle_seed = (1..10_000)
+            .find(|&seed| {
+                (33..66).contains(&crate::seed::StsRandom::new(seed).random_int_range(33, 99))
+            })
+            .unwrap();
         let mut middle_rng = crate::seed::StsRandom::new(middle_seed);
         e.entity.set_status(sid::COUNT, 2);
         roll_next_move_with_num_and_rng(&mut e, 0, &mut middle_rng);
         expect_move(&e, move_ids::REPTO_SPAWN, 0, 0, 0, &[]);
-        assert_eq!(middle_rng.counter, 1,
-            "repeated low Snake Strike rerolls with aiRng.random_int(33, 99)");
+        assert_eq!(
+            middle_rng.counter, 1,
+            "repeated low Snake Strike rerolls with aiRng.random_int(33, 99)"
+        );
 
         e.move_id = move_ids::REPTO_SPAWN;
         e.move_history = vec![move_ids::REPTO_SPAWN];
         roll_with_num(&mut e, 33);
-        expect_move(&e, move_ids::REPTO_SNAKE_STRIKE, 13, 2, 0, &[(mfx::WEAK, 1)]);
+        expect_move(
+            &e,
+            move_ids::REPTO_SNAKE_STRIKE,
+            13,
+            2,
+            0,
+            &[(mfx::WEAK, 1)],
+        );
 
         e.move_id = move_ids::REPTO_BIG_BITE;
         e.move_history.clear();
         e.entity.set_status(sid::COUNT, 4);
         roll_with_num(&mut e, 33);
-        expect_move(&e, move_ids::REPTO_SNAKE_STRIKE, 13, 2, 0, &[(mfx::WEAK, 1)]);
+        expect_move(
+            &e,
+            move_ids::REPTO_SNAKE_STRIKE,
+            13,
+            2,
+            0,
+            &[(mfx::WEAK, 1)],
+        );
 
         e.move_id = move_ids::REPTO_BIG_BITE;
         e.move_history.clear();
         e.entity.set_status(sid::COUNT, 2);
-        let low_seed = (1..10_000).find(|&seed| {
-            crate::seed::StsRandom::new(seed).random_int(65) < 33
-        }).unwrap();
+        let low_seed = (1..10_000)
+            .find(|&seed| crate::seed::StsRandom::new(seed).random_int(65) < 33)
+            .unwrap();
         let mut low_rng = crate::seed::StsRandom::new(low_seed);
         roll_next_move_with_num_and_rng(&mut e, 99, &mut low_rng);
-        expect_move(&e, move_ids::REPTO_SNAKE_STRIKE, 13, 2, 0, &[(mfx::WEAK, 1)]);
-        assert_eq!(low_rng.counter, 1,
-            "repeated Big Bite rerolls with aiRng.random_int(65)");
+        expect_move(
+            &e,
+            move_ids::REPTO_SNAKE_STRIKE,
+            13,
+            2,
+            0,
+            &[(mfx::WEAK, 1)],
+        );
+        assert_eq!(
+            low_rng.counter, 1,
+            "repeated Big Bite rerolls with aiRng.random_int(65)"
+        );
 
         let mut e = make("SnakeDagger", 20);
-        crate::enemies::roll_initial_move(
-            &mut e, &mut crate::seed::StsRandom::new(0));
+        crate::enemies::roll_initial_move(&mut e, &mut crate::seed::StsRandom::new(0));
         roll_times(&mut e, 1);
         expect_move(&e, move_ids::SD_EXPLODE, 25, 1, 0, &[]);
     }
@@ -1355,7 +1734,14 @@ mod enemy_ai_java_parity_tests {
         combat.state.player.hp = 500;
         combat.state.player.max_hp = 500;
         assert_eq!(combat.state.enemies[0].entity.hp, 30);
-        expect_move(&combat.state.enemies[0], move_ids::EXPLODER_ATTACK, 9, 1, 0, &[]);
+        expect_move(
+            &combat.state.enemies[0],
+            move_ids::EXPLODER_ATTACK,
+            9,
+            1,
+            0,
+            &[],
+        );
         expect_status(&combat.state.enemies[0], sid::TURN_COUNT, 0);
         expect_status(&combat.state.enemies[0], sid::EXPLOSIVE, 3);
         assert_eq!(combat.ai_rng.counter, 1);
@@ -1364,14 +1750,28 @@ mod enemy_ai_java_parity_tests {
         assert_eq!(combat.state.player.hp, 491);
         expect_status(&combat.state.enemies[0], sid::TURN_COUNT, 1);
         expect_status(&combat.state.enemies[0], sid::EXPLOSIVE, 2);
-        expect_move(&combat.state.enemies[0], move_ids::EXPLODER_ATTACK, 9, 1, 0, &[]);
+        expect_move(
+            &combat.state.enemies[0],
+            move_ids::EXPLODER_ATTACK,
+            9,
+            1,
+            0,
+            &[],
+        );
         assert_eq!(combat.ai_rng.counter, 2);
 
         combat.execute_action(&crate::actions::Action::EndTurn);
         assert_eq!(combat.state.player.hp, 482);
         expect_status(&combat.state.enemies[0], sid::TURN_COUNT, 2);
         expect_status(&combat.state.enemies[0], sid::EXPLOSIVE, 1);
-        expect_move(&combat.state.enemies[0], move_ids::EXPLODER_EXPLODE, 0, 0, 0, &[]);
+        expect_move(
+            &combat.state.enemies[0],
+            move_ids::EXPLODER_EXPLODE,
+            0,
+            0,
+            0,
+            &[],
+        );
         assert_eq!(combat.ai_rng.counter, 3);
 
         // Barricade retains this block through EndTurn. ExplosivePower's
@@ -1412,27 +1812,41 @@ mod enemy_ai_java_parity_tests {
         // Source: reference/extracted/methods/monster/SpireShield.java
         // (`getMove`). Slot zero consumes one conditional boolean, slot one
         // selects the other opening move, and slot two is always Smash.
-        let false_seed = (1..10_000).find(|&seed|
-            !crate::seed::StsRandom::new(seed).random_bool()).unwrap();
+        let false_seed = (1..10_000)
+            .find(|&seed| !crate::seed::StsRandom::new(seed).random_bool())
+            .unwrap();
         let mut rng = crate::seed::StsRandom::new(false_seed);
         roll_initial_move_with_num_and_rng(&mut e, 99, &mut rng);
         expect_move(&e, move_ids::SHIELD_BASH, 12, 1, 0, &[]);
         assert_eq!(rng.counter, 1);
         roll_next_move_with_num_and_rng(&mut e, 99, &mut rng);
-        expect_move(&e, move_ids::SHIELD_FORTIFY, 0, 0, 30,
-            &[(mfx::BLOCK_ALL_ALLIES, 30)]);
+        expect_move(
+            &e,
+            move_ids::SHIELD_FORTIFY,
+            0,
+            0,
+            30,
+            &[(mfx::BLOCK_ALL_ALLIES, 30)],
+        );
         assert_eq!(rng.counter, 1);
         roll_next_move_with_num_and_rng(&mut e, 99, &mut rng);
         expect_move(&e, move_ids::SHIELD_SMASH, 34, 1, 0, &[]);
         assert_eq!(rng.counter, 1);
 
         e.entity.set_status(sid::MOVE_COUNT, 0);
-        let true_seed = (1..10_000).find(|&seed|
-            crate::seed::StsRandom::new(seed).random_bool()).unwrap();
+        let true_seed = (1..10_000)
+            .find(|&seed| crate::seed::StsRandom::new(seed).random_bool())
+            .unwrap();
         let mut rng = crate::seed::StsRandom::new(true_seed);
         roll_initial_move_with_num_and_rng(&mut e, 0, &mut rng);
-        expect_move(&e, move_ids::SHIELD_FORTIFY, 0, 0, 30,
-            &[(mfx::BLOCK_ALL_ALLIES, 30)]);
+        expect_move(
+            &e,
+            move_ids::SHIELD_FORTIFY,
+            0,
+            0,
+            30,
+            &[(mfx::BLOCK_ALL_ALLIES, 30)],
+        );
         assert_eq!(rng.counter, 1);
 
         let mut e = make("SpireSpear", 200);
@@ -1444,16 +1858,28 @@ mod enemy_ai_java_parity_tests {
         expect_move(&e, move_ids::SPEAR_SKEWER, 10, 3, 0, &[]);
         assert_eq!(rng.counter, 0);
         roll_next_move_with_num_and_rng(&mut e, 0, &mut rng);
-        expect_move(&e, move_ids::SPEAR_PIERCER, 0, 0, 0,
-            &[(mfx::STRENGTH, 2), (mfx::STRENGTH_ALL_ALLIES, 2)]);
+        expect_move(
+            &e,
+            move_ids::SPEAR_PIERCER,
+            0,
+            0,
+            0,
+            &[(mfx::STRENGTH, 2), (mfx::STRENGTH_ALL_ALLIES, 2)],
+        );
         assert_eq!(rng.counter, 1);
 
         let mut burn_branch = make("SpireSpear", 200);
         burn_branch.entity.set_status(sid::MOVE_COUNT, 2);
         let mut rng = crate::seed::StsRandom::new(false_seed);
         roll_initial_move_with_num_and_rng(&mut burn_branch, 99, &mut rng);
-        expect_move(&burn_branch, move_ids::SPEAR_BURN_STRIKE, 5, 2, 0,
-            &[(mfx::BURN, 2)]);
+        expect_move(
+            &burn_branch,
+            move_ids::SPEAR_BURN_STRIKE,
+            5,
+            2,
+            0,
+            &[(mfx::BURN, 2)],
+        );
         assert_eq!(rng.counter, 1);
     }
 
@@ -1476,12 +1902,17 @@ mod enemy_ai_java_parity_tests {
             assert_eq!(shield.entity.status(sid::STR_AMT), smash);
             assert_eq!(shield.entity.status(sid::ARTIFACT), artifact);
             assert_eq!(shield.entity.status(sid::HIGH_ASCENSION_AI), high_ai);
-            assert!(shield.back_attack);
-            assert!(!combat.state.enemies[1].back_attack);
-            assert!(matches!(shield.move_id,
-                move_ids::SHIELD_BASH | move_ids::SHIELD_FORTIFY));
-            assert_eq!(combat.ai_rng.counter, 3,
-                "Shield consumes integer+boolean; Spear consumes one integer");
+            assert_eq!(combat.state.player.status(sid::SURROUNDED_POWER), 1);
+            assert!(shield.has_back_attack());
+            assert!(!combat.state.enemies[1].has_back_attack());
+            assert!(matches!(
+                shield.move_id,
+                move_ids::SHIELD_BASH | move_ids::SHIELD_FORTIFY
+            ));
+            assert_eq!(
+                combat.ai_rng.counter, 3,
+                "Shield consumes integer+boolean; Spear consumes one integer"
+            );
         }
 
         // Fortify queues GainBlockAction(30) for every monster, including self.
@@ -1497,25 +1928,33 @@ mod enemy_ai_java_parity_tests {
 
         // With an occupied orb Bash conditionally consumes one aiRng boolean
         // and applies -1 Focus. Artifact blocks the selected negative power.
-        let focus_seed = (1..10_000).find(|&seed|
-            crate::seed::StsRandom::new(seed).random_bool()).unwrap();
+        let focus_seed = (1..10_000)
+            .find(|&seed| crate::seed::StsRandom::new(seed).random_bool())
+            .unwrap();
         let mut bash = run_engine(44, 0);
         bash.debug_enter_specific_combat(&["SpireShield", "SpireSpear"]);
         let combat = bash.debug_combat_engine_mut();
         combat.ai_rng = crate::seed::StsRandom::new(focus_seed);
         combat.state.orb_slots = crate::orbs::OrbSlots::new(1);
-        combat.state.orb_slots.channel(crate::orbs::OrbType::Lightning, 0);
+        combat
+            .state
+            .orb_slots
+            .channel(crate::orbs::OrbType::Lightning, 0);
         combat.state.player.set_status(sid::ARTIFACT, 1);
         combat.state.enemies[0].set_move(move_ids::SHIELD_BASH, 12, 1, 0);
         combat.state.enemies[0].intent = Intent::AttackDebuff {
-            damage: 12, hits: 1, effects: 0,
+            damage: 12,
+            hits: 1,
+            effects: 0,
         };
         combat.state.enemies[1].entity.hp = 0;
         combat.execute_action(&crate::actions::Action::EndTurn);
         assert_eq!(combat.state.player.focus(), 0);
         assert_eq!(combat.state.player.status(sid::ARTIFACT), 0);
-        assert_eq!(combat.ai_rng.counter, 2,
-            "Bash boolean followed by RollMove integer");
+        assert_eq!(
+            combat.ai_rng.counter, 2,
+            "Bash boolean followed by RollMove integer"
+        );
 
         // Pre-A18 Smash gains its modified DamageInfo.output, not HP lost;
         // initial Back Attack turns 34 into 51 even through full player Block.
@@ -1526,7 +1965,10 @@ mod enemy_ai_java_parity_tests {
         combat.state.player.block = 100;
         combat.state.enemies[0].set_move(move_ids::SHIELD_SMASH, 34, 1, 0);
         combat.state.enemies[0].intent = Intent::AttackBlock {
-            damage: 34, hits: 1, block: 0, effects: 0,
+            damage: 34,
+            hits: 1,
+            block: 0,
+            effects: 0,
         };
         combat.state.enemies[1].entity.hp = 0;
         combat.execute_action(&crate::actions::Action::EndTurn);
@@ -1540,14 +1982,17 @@ mod enemy_ai_java_parity_tests {
         combat.state.player.block = 100;
         combat.state.enemies[0].set_move(move_ids::SHIELD_SMASH, 38, 1, 0);
         combat.state.enemies[0].intent = Intent::AttackBlock {
-            damage: 38, hits: 1, block: 0, effects: 0,
+            damage: 38,
+            hits: 1,
+            block: 0,
+            effects: 0,
         };
         combat.state.enemies[1].entity.hp = 0;
         combat.execute_action(&crate::actions::Action::EndTurn);
         assert_eq!(combat.state.enemies[0].entity.block, 99);
 
-        // A targeted card turns the player toward that monster. Killing either
-        // partner removes Surrounded/BackAttack from the survivor.
+        // A targeted card turns the player toward that monster. Killing the
+        // non-owner removes Surrounded and BackAttack from the living owner.
         let mut facing = run_engine(47, 0);
         facing.debug_enter_specific_combat(&["SpireShield", "SpireSpear"]);
         let combat = facing.debug_combat_engine_mut();
@@ -1557,10 +2002,23 @@ mod enemy_ai_java_parity_tests {
             card_idx: 0,
             target_idx: 0,
         });
-        assert!(!combat.state.enemies[0].back_attack);
-        assert!(combat.state.enemies[1].back_attack);
+        assert!(!combat.state.enemies[0].has_back_attack());
+        assert!(combat.state.enemies[1].has_back_attack());
         assert!(combat.instant_kill_enemy(0));
-        assert!(!combat.state.enemies[1].back_attack);
+        assert_eq!(combat.state.player.status(sid::SURROUNDED_POWER), 0);
+        assert!(!combat.state.enemies[1].has_back_attack());
+
+        // SpireShield.die skips the dying monster during partner cleanup.
+        // Killing the current BackAttack owner therefore preserves the power
+        // on its corpse while removing Surrounded from the player.
+        let mut owner_death = run_engine(48, 0);
+        owner_death.debug_enter_specific_combat(&["SpireShield", "SpireSpear"]);
+        let combat = owner_death.debug_combat_engine_mut();
+        assert!(combat.state.enemies[0].has_back_attack());
+        assert!(combat.instant_kill_enemy(0));
+        assert_eq!(combat.state.player.status(sid::SURROUNDED_POWER), 0);
+        assert!(combat.state.enemies[0].has_back_attack());
+        assert!(!combat.state.enemies[1].has_back_attack());
     }
 
     #[test]
@@ -1599,29 +2057,36 @@ mod enemy_ai_java_parity_tests {
         assert_eq!(combat.state.enemies[0].entity.strength(), 2);
         assert_eq!(combat.state.enemies[1].entity.strength(), 2);
 
-        for (ascension, expected_draw, expected_discard) in [
-            (0, 0, 2),
-            (18, 2, 0),
-        ] {
+        for (ascension, expected_draw, expected_discard) in [(0, 0, 2), (18, 2, 0)] {
             let mut run = run_engine(54, ascension);
             run.debug_enter_specific_combat(&["SpireShield", "SpireSpear"]);
             let combat = run.debug_combat_engine_mut();
             combat.state.enemies[0].entity.hp = 0;
             let damage = if ascension >= 3 { 6 } else { 5 };
-            combat.state.enemies[1].set_move(
-                move_ids::SPEAR_BURN_STRIKE, damage, 2, 0);
+            combat.state.enemies[1].set_move(move_ids::SPEAR_BURN_STRIKE, damage, 2, 0);
             combat.state.enemies[1].intent = Intent::AttackDebuff {
-                damage: damage as i16, hits: 2, effects: 0,
+                damage: damage as i16,
+                hits: 2,
+                effects: 0,
             };
             combat.state.enemies[1].add_effect(mfx::BURN, 2);
             let random_before = combat.card_random_rng.counter;
             crate::combat_hooks::do_enemy_turns(combat);
-            let burn_name = |card: &&crate::combat_types::CardInstance|
-                combat.card_registry.card_name(card.def_id) == "Burn";
-            assert_eq!(combat.state.draw_pile.iter().filter(burn_name).count(), expected_draw);
-            assert_eq!(combat.state.discard_pile.iter().filter(burn_name).count(), expected_discard);
-            assert_eq!(combat.card_random_rng.counter - random_before,
-                if ascension >= 18 { 2 } else { 0 });
+            let burn_name = |card: &&crate::combat_types::CardInstance| {
+                combat.card_registry.card_name(card.def_id) == "Burn"
+            };
+            assert_eq!(
+                combat.state.draw_pile.iter().filter(burn_name).count(),
+                expected_draw
+            );
+            assert_eq!(
+                combat.state.discard_pile.iter().filter(burn_name).count(),
+                expected_discard
+            );
+            assert_eq!(
+                combat.card_random_rng.counter - random_before,
+                if ascension >= 18 { 2 } else { 0 }
+            );
         }
     }
 
@@ -1673,9 +2138,15 @@ mod enemy_ai_java_parity_tests {
         // Sources: MonsterHelper.java and GremlinLeader.java construct two
         // random gremlins followed by a 145..=155 HP Leader at A8+.
         assert_eq!(combat.state.enemies.len(), 3);
-        assert!(combat.state.enemies[..2].iter().all(|enemy| enemy.is_minion));
-        let leader = combat.state.enemies.iter()
-            .find(|enemy| enemy.id == "GremlinLeader").expect("Gremlin Leader");
+        assert!(combat.state.enemies[..2]
+            .iter()
+            .all(|enemy| enemy.is_minion()));
+        let leader = combat
+            .state
+            .enemies
+            .iter()
+            .find(|enemy| enemy.id == "GremlinLeader")
+            .expect("Gremlin Leader");
         assert!((145..=155).contains(&leader.entity.hp));
 
         let act3_weak = enter_specific_combat(3, 0, &["Darkling"]);

@@ -5,21 +5,39 @@ use crate::cards::prelude::*;
 //   use(): queues one damage hit on the selected target per non-dead/non-escaped monster.
 //   upgrade(): upgradeDamage(3), producing 10 damage per hit.
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ---- Common Watcher Cards ----
-    insert(cards, CardDef {
-                id: "BowlingBash", name: "Bowling Bash", card_type: CardType::Attack,
-                target: CardTarget::Enemy, cost: 1, base_damage: 7, base_block: -1,
-                base_magic: -1, exhaust: false, enter_stance: None,
-                effect_data: &[
-                    E::ExtraHits(A::LivingEnemyCount),
-                ], complex_hook: None,
-            });
-    insert(cards, CardDef {
-                id: "BowlingBash+", name: "Bowling Bash+", card_type: CardType::Attack,
-                target: CardTarget::Enemy, cost: 1, base_damage: 10, base_block: -1,
-                base_magic: -1, exhaust: false, enter_stance: None,
-                effect_data: &[
-                    E::ExtraHits(A::LivingEnemyCount),
-                ], complex_hook: None,
-            });
+    // ---- Common Watcher Cards ----
+    insert(
+        cards,
+        CardDef {
+            id: "BowlingBash",
+            name: "Bowling Bash",
+            card_type: CardType::Attack,
+            target: CardTarget::Enemy,
+            cost: 1,
+            base_damage: 7,
+            base_block: -1,
+            base_magic: -1,
+            exhaust: false,
+            enter_stance: None,
+            effect_data: &[E::ExtraHits(A::LivingEnemyCount)],
+            complex_hook: None,
+        },
+    );
+    insert(
+        cards,
+        CardDef {
+            id: "BowlingBash+",
+            name: "Bowling Bash+",
+            card_type: CardType::Attack,
+            target: CardTarget::Enemy,
+            cost: 1,
+            base_damage: 10,
+            base_block: -1,
+            base_magic: -1,
+            exhaust: false,
+            enter_stance: None,
+            effect_data: &[E::ExtraHits(A::LivingEnemyCount)],
+            complex_hook: None,
+        },
+    );
 }

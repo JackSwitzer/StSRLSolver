@@ -3,6 +3,7 @@
 //! Source: `reference/extracted/methods/relic/LetterOpener.java`
 //! (`onUseCard` queues a pure 5-damage matrix with `DamageType.THORNS`).
 
+use crate::effects::declarative::{AmountSource, Effect, SimpleEffect, Target};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerCondition};
@@ -23,6 +24,12 @@ fn hook(
     }
 }
 
+static RESET_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::SetStatus(
+    Target::Player,
+    sid::LETTER_OPENER_COUNTER,
+    AmountSource::Fixed(0),
+))];
+
 static TRIGGERS: [TriggeredEffect; 2] = [
     TriggeredEffect {
         trigger: Trigger::OnSkillPlayed,
@@ -33,7 +40,7 @@ static TRIGGERS: [TriggeredEffect; 2] = [
     TriggeredEffect {
         trigger: Trigger::TurnStart,
         condition: TriggerCondition::Always,
-        effects: &[],
+        effects: &RESET_EFFECTS,
         counter: None,
     },
 ];

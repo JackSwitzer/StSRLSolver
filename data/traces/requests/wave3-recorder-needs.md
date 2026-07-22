@@ -31,6 +31,48 @@ Emit a versioned `initial` envelope containing:
   checkpoint where Bomb powers exist, so multiple `TheBomb0`, `TheBomb1`, ...
   identities can be compared without guessing prior process history.
 
+The bundle comparator's version-1 certification gate uses these exact initial
+field names (partial envelopes remain replayable but uncertified):
+
+- flat counters at `rng.<stream>` and exact native states at
+  `rng.rawStates.<stream>.{seed0,seed1,counter}` for all 13 canonical streams
+  plus `neow`; every native counter must equal its flat counter;
+- `ambient_mathutils.{seed0,seed1}`, `java_collections.state`, and
+  `the_bomb_id_offset`;
+- `seed_set`, `has_ruby_key`, `has_emerald_key`, and `has_sapphire_key`;
+- ordered arrays under `realized_generation.card_pools` (`common`, `uncommon`,
+  `rare`, `colorless`, and the three `source_*` pools),
+  `realized_generation.relic_pools` (all five tiers), and
+  `realized_generation.event_pools` (`regular`, `shrines`,
+  `one_time_shrines`); and
+- ordered `realized_generation.{boss_sequence,monster_encounter_queue,
+  elite_encounter_queue,neow_options}` arrays and the canonical
+  `realized_generation.map` object.
+
+`captured_at` must be `first_run_frame_post_generation`, and its map counter
+must equal the first settled Neow checkpoint. An operator attestation with a
+missing or `null` `note_for_yourself_card` enables Java-fallback diagnostic
+replay only; it is not an authoritative profile for certification.
+Every native state, flat counter, pool, queue, map node/edge, boss sequence,
+and Neow option must also equal the fresh Rust run generated from the exact
+seed, ascension, and profile before action zero; presence alone is not enough.
+
+Emit a version-1 `environment` object in both metadata and the trace header:
+
+```json
+{
+  "v": 1,
+  "settings_is_debug": false,
+  "custom_modifiers": [],
+  "loaded_mods": ["basemod", "stslib", "tracelab"]
+}
+```
+
+Certification is restricted to release-mode standard runs with no custom
+modifiers and exactly the recorder-infrastructure mod allowlist above. Debug
+mode changes Java reward behavior (`AbstractRoom.java:613`), so an omitted or
+debug environment is quarantined rather than inferred.
+
 For resume, include the lossless decrypted `SaveFile` witness and a stable
 pre-action oracle state. `SaveFile` already exposes most persisted pools,
 queues, keys, and RNG counters; ambient RNG must be emitted separately.
@@ -44,8 +86,10 @@ an all-unlocked profile rather than omitted:
 {
   "v": 1,
   "note_for_yourself_card": "IronWave",
+  "note_for_yourself_upgrades": 0,
   "highest_unlocked_ascension": 20,
   "is_daily_run": false,
+  "is_trial": false,
   "final_act_available": true,
   "bosses_seen": ["GUARDIAN", "GHOST", "SLIME", "CHAMP", "AUTOMATON", "COLLECTOR", "CROW", "DONUT", "WIZARD"],
   "locked_cards": [],
@@ -58,8 +102,26 @@ an all-unlocked profile rather than omitted:
 unlock-level guesses. The Rust ordinary API keeps missing fields compatible as
 all-unlocked, but the bundle comparator quarantines every recording that omits
 `meta.profile`; none of the 14 legacy bundles is initialization-certified.
-Use a trailing `+` in `note_for_yourself_card` for the upgraded stored card,
-matching the engine's canonical card-instance string.
+`note_for_yourself_card` is the base `NOTE_CARD` ID and
+`note_for_yourself_upgrades` is the separate integer `NOTE_UPGRADE` preference.
+Rust canonicalizes upgrade `1` to its internal trailing-`+` card string. Values
+above `1` (possible for a persisted Searing Blow) remain explicitly unsupported
+and cannot certify until the run/profile model carries repeated upgrades.
+
+## Lifecycle and Checkpoint Certification
+
+- Emit exactly one `RUN_START` before the first action checkpoint and one
+  `RUN_END` as the final trace record. Duplicate/late starts or records after
+  the end are framing errors.
+- `RESUME` remains readable for diagnostic replay but is certification-
+  quarantined until the bundle includes a lossless save and pre-action
+  continuation witness.
+- Existing v1 checkpoints are recursively partial objects. Even a zero-diff,
+  zero-skipped-field v1 replay cannot certify completeness because `{}` can
+  silently omit an entire subtree. Introduce a distinct complete checkpoint
+  schema/version with required phase-relevant player fields, all piles, all 13
+  counters and native states, complete relic/potion/enemy identities, map,
+  phase, and screen before any report may become `Match`.
 
 ## Canonical Action Payloads
 
@@ -107,6 +169,8 @@ As of this request, the direct-reward A0 victory
 `-5884681071377138867-WATCHER-20260720-194423` compares all represented fields
 through 51/607 actions (42 direct checkpoints) and then stops at a relic
 identity whose pool cannot be certified without the missing profile snapshot.
-The other four A0 terminal bundles compare through 2 actions and stop on an
-unrecorded Neow grid card selection. All five reports carry the initialization
-quarantine; no divergence mask was created for recorder data loss.
+The other four A0 terminal bundles now compare through `17`, `17`, `23`, and
+`24` actions after the adapter tests every legal Neow grid choice against the
+recorded ordered deck. Equivalent duplicate removals remain explicitly
+identity-uncertified. All five reports carry the initialization quarantine; no
+divergence mask was created for recorder data loss.

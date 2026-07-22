@@ -32,7 +32,11 @@ mod event_runtime_wave6_tests {
         enter_mushrooms_combat(&mut engine, mushrooms);
         let combat = engine.get_combat_engine().expect("event combat");
         assert_eq!(combat.state.enemies.len(), 3);
-        assert!(combat.state.enemies.iter().all(|enemy| enemy.id == "FungiBeast"));
+        assert!(combat
+            .state
+            .enemies
+            .iter()
+            .all(|enemy| enemy.id == "FungiBeast"));
 
         engine.debug_force_current_combat_outcome(true);
         engine.debug_resolve_current_combat_outcome();
@@ -47,11 +51,19 @@ mod event_runtime_wave6_tests {
         assert_eq!(screen.items[1].kind, RewardItemKind::Relic);
         assert_eq!(screen.items[1].label, "Odd Mushroom");
 
-        assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
+        assert!(engine
+            .step_game(&GameAction::SelectRewardItem(0))
+            .accepted());
         assert!((gold_before + 20..=gold_before + 30).contains(&engine.run_state.gold));
-        assert!(engine.step_game(&GameAction::SelectRewardItem(1)).accepted());
+        assert!(engine
+            .step_game(&GameAction::SelectRewardItem(1))
+            .accepted());
         assert_eq!(engine.current_phase(), RunPhase::MapChoice);
-        assert!(engine.run_state.relics.iter().any(|relic| relic == "Odd Mushroom"));
+        assert!(engine
+            .run_state
+            .relics
+            .iter()
+            .any(|relic| relic == "Odd Mushroom"));
     }
 
     #[test]
@@ -117,14 +129,18 @@ mod event_runtime_wave6_tests {
         engine.debug_force_current_combat_outcome(true);
         engine.debug_resolve_current_combat_outcome();
         assert_eq!(engine.run_state.gold, gold_before);
-        let screen = engine.current_reward_screen().expect("bandit reward screen");
+        let screen = engine
+            .current_reward_screen()
+            .expect("bandit reward screen");
         assert_eq!(screen.source, RewardScreenSource::Event);
         assert_eq!(screen.items.len(), 2);
         assert_eq!(screen.items[0].kind, RewardItemKind::Gold);
         assert!((25..=35).contains(&screen.items[0].label.parse::<i32>().unwrap()));
         assert_eq!(screen.items[1].kind, RewardItemKind::Relic);
         assert_eq!(screen.items[1].label, "Red Mask");
-        assert!(engine.step_game(&GameAction::SelectRewardItem(0)).accepted());
+        assert!(engine
+            .step_game(&GameAction::SelectRewardItem(0))
+            .accepted());
         assert!((gold_before + 25..=gold_before + 35).contains(&engine.run_state.gold));
 
         let mut duplicate = RunEngine::new(81, 0);
@@ -198,29 +214,61 @@ mod event_runtime_wave6_tests {
 
     #[test]
     fn mysterious_sphere_open_branch_enters_scripted_combat_and_keeps_event_owned_reward_flow() {
+        // Sources:
+        // - decompiled/.../events/beyond/MysteriousSphere.java (`constructor`,
+        //   `buttonEffect`): construct two Orb Walkers on entry, then stage
+        //   INTRO -> PRE_COMBAT before rolling 45..55 gold and a screenless
+        //   rare relic.
+        // - decompiled/.../rooms/AbstractRoom.java (`update`,
+        //   `addPotionToRewards`): EventRoom appends potion/card rewards after
+        //   victory, but does not append normal MonsterRoom gold.
         let mut engine = RunEngine::new(67, 20);
         let sphere = typed_event(3, "Mysterious Sphere");
         assert!(matches!(
             sphere.options[0].status,
             EventRuntimeStatus::Supported
         ));
+        let monster_hp_before = engine.rng_counters()["monsterHp"];
         engine.debug_set_typed_event_state(sphere);
+        let monster_hp_after_entry = engine.rng_counters()["monsterHp"];
+        assert_eq!(monster_hp_after_entry - monster_hp_before, 4);
+        let misc_before_open = engine.rng_counters()["misc"];
 
-        let start = engine.step_game(&GameAction::EventChoice(0));
-        assert!(start.accepted());
+        let open = engine.step_game(&GameAction::EventChoice(0));
+        assert!(open.accepted());
+        assert_eq!(engine.current_phase(), RunPhase::Event);
+        assert_eq!(engine.rng_counters()["misc"], misc_before_open);
+
+        let fight = engine.step_game(&GameAction::EventChoice(0));
+        assert!(fight.accepted());
         assert_eq!(engine.current_phase(), RunPhase::Combat);
+        assert_eq!(engine.rng_counters()["monsterHp"], monster_hp_after_entry);
+        assert_eq!(engine.rng_counters()["misc"], misc_before_open + 1);
         let combat = engine.get_combat_engine().expect("event combat");
         assert_eq!(combat.state.enemies.len(), 2);
-        assert!(combat.state.enemies.iter().all(|enemy| enemy.id == "Orb Walker"));
+        assert!(combat
+            .state
+            .enemies
+            .iter()
+            .all(|enemy| enemy.id == "Orb Walker"));
 
+        let treasure_before_victory = engine.rng_counters()["treasure"];
         engine.debug_force_current_combat_outcome(true);
         engine.debug_resolve_current_combat_outcome();
         assert_eq!(engine.current_phase(), RunPhase::CardReward);
+        assert_eq!(engine.rng_counters()["treasure"], treasure_before_victory);
 
         let screen = engine.current_reward_screen().expect("event reward screen");
-        assert_eq!(screen.source, RewardScreenSource::Event);
-        assert_eq!(screen.items.len(), 1);
-        assert_eq!(screen.items[0].kind, RewardItemKind::Relic);
-        assert!(screen.items[0].claimable);
+        assert_eq!(screen.source, RewardScreenSource::Combat);
+        assert!(!screen.ordered);
+        assert_eq!(screen.items[0].kind, RewardItemKind::Gold);
+        let gold: i32 = screen.items[0].label.parse().expect("numeric event gold");
+        assert!((45..=55).contains(&gold));
+        assert_eq!(screen.items[1].kind, RewardItemKind::Relic);
+        assert_eq!(
+            screen.items.last().unwrap().kind,
+            RewardItemKind::CardChoice
+        );
+        assert!(screen.items.iter().all(|item| item.claimable));
     }
 }

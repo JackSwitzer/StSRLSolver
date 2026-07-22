@@ -51,16 +51,14 @@ fn pile_names(engine: &CombatEngine, pile: &[crate::combat_types::CardInstance])
 
 #[test]
 fn headbutt_moves_the_selected_discard_card_to_the_top_of_draw() {
-    let mut engine = engine_for(
-        &["Headbutt"],
-        &["Shrug It Off"],
-        &["Strike", "Defend"],
-        3,
-    );
+    let mut engine = engine_for(&["Headbutt"], &["Shrug It Off"], &["Strike", "Defend"], 3);
 
     assert!(play_on_enemy(&mut engine, "Headbutt", 0));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
-    assert_eq!(engine.choice.as_ref().unwrap().reason, ChoiceReason::PickFromDiscard);
+    assert_eq!(
+        engine.choice.as_ref().unwrap().reason,
+        ChoiceReason::PickFromDiscard
+    );
 
     engine.execute_action(&Action::Choose(1));
 
@@ -75,16 +73,14 @@ fn headbutt_moves_the_selected_discard_card_to_the_top_of_draw() {
 
 #[test]
 fn true_grit_plus_uses_the_choice_surface_to_exhaust_the_selected_card() {
-    let mut engine = engine_for(
-        &["True Grit+", "Strike", "Defend"],
-        &[],
-        &[],
-        3,
-    );
+    let mut engine = engine_for(&["True Grit+", "Strike", "Defend"], &[], &[], 3);
 
     assert!(play_self(&mut engine, "True Grit+"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
-    assert_eq!(engine.choice.as_ref().unwrap().reason, ChoiceReason::ExhaustFromHand);
+    assert_eq!(
+        engine.choice.as_ref().unwrap().reason,
+        ChoiceReason::ExhaustFromHand
+    );
 
     engine.execute_action(&Action::Choose(1));
 
@@ -112,7 +108,10 @@ fn burning_pact_exhausts_selected_card_then_draws_after_resolution() {
 
     assert!(play_self(&mut engine, "Burning Pact"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
-    assert_eq!(engine.choice.as_ref().unwrap().reason, ChoiceReason::ExhaustFromHand);
+    assert_eq!(
+        engine.choice.as_ref().unwrap().reason,
+        ChoiceReason::ExhaustFromHand
+    );
 
     engine.execute_action(&Action::Choose(0));
 
@@ -181,12 +180,7 @@ fn fiend_fire_exhausts_the_hand_and_fires_exhaust_triggers_for_each_card() {
 
 #[test]
 fn storm_of_steel_discards_the_hand_and_adds_one_shiv_per_discarded_card() {
-    let mut engine = engine_for(
-        &["Storm of Steel", "Strike", "Defend"],
-        &[],
-        &[],
-        3,
-    );
+    let mut engine = engine_for(&["Storm of Steel", "Strike", "Defend"], &[], &[], 3);
 
     assert!(play_self(&mut engine, "Storm of Steel"));
 
@@ -206,12 +200,7 @@ fn storm_of_steel_discards_the_hand_and_adds_one_shiv_per_discarded_card() {
 
 #[test]
 fn purity_uses_zero_to_many_exhaust_selection_up_to_its_cap() {
-    let mut engine = engine_for(
-        &["Purity", "Strike", "Defend", "Bash"],
-        &[],
-        &[],
-        3,
-    );
+    let mut engine = engine_for(&["Purity", "Strike", "Defend", "Bash"], &[], &[], 3);
 
     assert!(play_self(&mut engine, "Purity"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
@@ -244,8 +233,14 @@ fn secret_technique_auto_moves_the_only_skill_and_exhausts() {
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
     assert!(engine.choice.is_none());
     assert_eq!(hand_names(&engine), vec!["Shrug It Off"]);
-    assert_eq!(pile_names(&engine, &engine.state.draw_pile), vec!["Strike", "Bash"]);
-    assert_eq!(pile_names(&engine, &engine.state.exhaust_pile), vec!["Secret Technique"]);
+    assert_eq!(
+        pile_names(&engine, &engine.state.draw_pile),
+        vec!["Strike", "Bash"]
+    );
+    assert_eq!(
+        pile_names(&engine, &engine.state.exhaust_pile),
+        vec!["Secret Technique"]
+    );
 }
 
 #[test]
@@ -260,7 +255,10 @@ fn upgraded_secret_technique_auto_moves_the_only_skill_without_exhausting() {
     assert!(play_self(&mut engine, "Secret Technique+"));
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
     assert_eq!(hand_names(&engine), vec!["Shrug It Off"]);
-    assert_eq!(pile_names(&engine, &engine.state.discard_pile), vec!["Secret Technique+"]);
+    assert_eq!(
+        pile_names(&engine, &engine.state.discard_pile),
+        vec!["Secret Technique+"]
+    );
     assert!(engine.state.exhaust_pile.is_empty());
 }
 
@@ -310,12 +308,7 @@ fn upgraded_secret_weapon_auto_moves_the_only_attack_without_exhausting() {
 
 #[test]
 fn secret_weapon_requires_an_attack_and_only_offers_attacks() {
-    let no_attack = engine_for(
-        &["Secret Weapon"],
-        &["Defend", "Shrug It Off"],
-        &[],
-        3,
-    );
+    let no_attack = engine_for(&["Secret Weapon"], &["Defend", "Shrug It Off"], &[], 3);
     let secret_idx = no_attack
         .state
         .hand
@@ -354,12 +347,7 @@ fn secret_weapon_requires_an_attack_and_only_offers_attacks() {
 
 #[test]
 fn secret_technique_should_be_unplayable_with_no_skill_in_draw_pile() {
-    let mut engine = engine_for(
-        &["Secret Technique"],
-        &["Strike", "Bash"],
-        &[],
-        3,
-    );
+    let mut engine = engine_for(&["Secret Technique"], &["Strike", "Bash"], &[], 3);
 
     let secret_idx = engine
         .state
@@ -395,9 +383,9 @@ fn violence_draws_only_attacks_from_draw_pile_up_to_its_cap() {
     let names = hand_names(&engine);
     assert_eq!(names.len(), 2);
     assert!(names.iter().all(|name| name == "Strike" || name == "Bash"));
-    assert!(engine
-        .state
-        .draw_pile
-        .iter()
-        .all(|card| engine.card_registry.card_def_by_id(card.def_id).card_type != crate::cards::CardType::Attack));
+    assert!(engine.state.draw_pile.iter().all(|card| engine
+        .card_registry
+        .card_def_by_id(card.def_id)
+        .card_type
+        != crate::cards::CardType::Attack));
 }

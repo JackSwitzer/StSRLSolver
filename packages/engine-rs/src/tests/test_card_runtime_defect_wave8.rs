@@ -9,7 +9,9 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Rebound.java
 
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
 use crate::tests::support::{
@@ -18,7 +20,8 @@ use crate::tests::support::{
 };
 
 fn one_enemy_engine(hp: i32, energy: i32) -> crate::engine::CombatEngine {
-    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", hp, hp)], energy);
+    let mut engine =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", hp, hp)], energy);
     force_player_turn(&mut engine);
     engine
 }
@@ -51,7 +54,10 @@ fn defect_wave8_registry_exports_match_typed_runtime_progress() {
     assert_eq!(storm.test_markers(), vec!["innate"]);
 
     let force_field = reg.get("Force Field+").expect("Force Field+");
-    assert_eq!(force_field.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
+    assert_eq!(
+        force_field.effect_data,
+        &[E::Simple(SE::GainBlock(A::Block))]
+    );
     assert!(force_field.has_test_marker("reduce_cost_per_power"));
     assert!(force_field.uses_typed_primary_preamble());
 
@@ -96,7 +102,9 @@ fn canonical_red_green_and_blue_defends_share_source_block_values() {
         ("Defend_G", "Defend_G+"),
         ("Defend_R", "Defend_R+"),
     ] {
-        let base = registry.get(base_id).unwrap_or_else(|| panic!("missing {base_id}"));
+        let base = registry
+            .get(base_id)
+            .unwrap_or_else(|| panic!("missing {base_id}"));
         let upgraded = registry
             .get(upgraded_id)
             .unwrap_or_else(|| panic!("missing {upgraded_id}"));
@@ -159,7 +167,9 @@ fn rebound_source_skips_itself_then_puts_the_next_non_power_on_draw_top_without_
     assert_eq!(engine.state.player.status(sid::REBOUND), 1);
     assert_eq!(engine.state.discard_pile.len(), 1);
     assert_eq!(
-        engine.card_registry.card_name(engine.state.discard_pile[0].def_id),
+        engine
+            .card_registry
+            .card_name(engine.state.discard_pile[0].def_id),
         "Rebound"
     );
 

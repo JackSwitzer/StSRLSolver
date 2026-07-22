@@ -50,7 +50,10 @@ const WATCHER_POTION_POOL: &[(&str, u8)] = &[
 
 #[cfg(test)]
 pub(crate) fn is_watcher_limited_potion(id: &str) -> bool {
-    id != "FruitJuice" && WATCHER_POTION_POOL.iter().any(|(candidate, _)| *candidate == id)
+    id != "FruitJuice"
+        && WATCHER_POTION_POOL
+            .iter()
+            .any(|(candidate, _)| *candidate == id)
 }
 
 pub(crate) fn roll_limited_watcher_potion(engine: &mut CombatEngine) -> &'static str {
@@ -73,8 +76,7 @@ pub(crate) fn roll_limited_watcher_potion(engine: &mut CombatEngine) -> &'static
     loop {
         let idx = engine
             .potion_rng
-            .random_int((WATCHER_POTION_POOL.len() - 1) as i32)
-            as usize;
+            .random_int((WATCHER_POTION_POOL.len() - 1) as i32) as usize;
         let (id, rarity) = WATCHER_POTION_POOL[idx];
         if rarity == wanted_rarity && id != "FruitJuice" {
             return id;
@@ -106,7 +108,12 @@ fn entropic_brew_hook(
         engine.state.potions[used_slot].clear();
     }
     for potion_id in rolled {
-        let Some(empty_slot) = engine.state.potions.iter().position(|potion| potion.is_empty()) else {
+        let Some(empty_slot) = engine
+            .state
+            .potions
+            .iter()
+            .position(|potion| potion.is_empty())
+        else {
             break;
         };
         engine.state.potions[empty_slot] = potion_id.to_string();

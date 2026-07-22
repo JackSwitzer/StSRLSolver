@@ -3,8 +3,8 @@ use std::sync::OnceLock;
 
 use crate::effects::entity_def::{EntityDef, EntityKind};
 use crate::gameplay::types::{
-    EventSchema, GameplayDef, GameplayDomain, GameplayEventKind, GameplayHandler, GameplaySchema,
-    GameplayProgram, GameplayStateField, Lifetime, PotionSchema, PowerSchema, RelicSchema,
+    EventSchema, GameplayDef, GameplayDomain, GameplayEventKind, GameplayHandler, GameplayProgram,
+    GameplaySchema, GameplayStateField, Lifetime, PotionSchema, PowerSchema, RelicSchema,
     RunEffectSchema, StateVisibility,
 };
 
@@ -59,7 +59,8 @@ impl GameplayRegistry {
     }
 
     pub fn contains(&self, domain: GameplayDomain, id: &str) -> bool {
-        self.by_domain_and_id.contains_key(&(domain, id.to_string()))
+        self.by_domain_and_id
+            .contains_key(&(domain, id.to_string()))
     }
 
     pub fn get(&self, domain: GameplayDomain, id: &str) -> Option<&GameplayDef> {
@@ -126,10 +127,9 @@ fn entity_defs(domain: GameplayDomain, defs: &[&EntityDef]) -> Vec<GameplayDef> 
                 EntityKind::Potion => GameplaySchema::Potion(PotionSchema {
                     target_required: crate::potions::potion_requires_target(def.name)
                         || crate::potions::potion_requires_target(def.id),
-                    manual_activation: def
-                        .triggers
-                        .iter()
-                        .any(|handler| handler.trigger == crate::effects::trigger::Trigger::ManualActivation),
+                    manual_activation: def.triggers.iter().any(|handler| {
+                        handler.trigger == crate::effects::trigger::Trigger::ManualActivation
+                    }),
                 }),
             },
             handlers: def
@@ -155,23 +155,22 @@ fn tags_for_entity_kind(domain: GameplayDomain, kind: EntityKind) -> Vec<String>
 
 fn state_fields_for_entity(def_id: &str) -> Vec<GameplayStateField> {
     match def_id {
-        "Nunchaku" | "InkBottle" | "Happy Flower" | "Incense Burner" | "Sundial"
-        | "Omamori" => vec![
-            GameplayStateField {
+        "Nunchaku" | "InkBottle" | "Happy Flower" | "Incense Burner" | "Sundial" | "Omamori" => {
+            vec![GameplayStateField {
                 id: "counter",
                 visibility: StateVisibility::Observable,
                 persistence: crate::effects::runtime::PersistenceScope::Run,
                 lifetime: Lifetime::Run,
-            },
-        ],
-        "OrangePellets" | "Pocketwatch" | "panache" | "StoneCalendar" | "Inserter" => vec![
-            GameplayStateField {
+            }]
+        }
+        "OrangePellets" | "Pocketwatch" | "panache" | "StoneCalendar" | "Inserter" => {
+            vec![GameplayStateField {
                 id: "counter",
                 visibility: StateVisibility::Observable,
                 persistence: crate::effects::runtime::PersistenceScope::Combat,
                 lifetime: Lifetime::Combat,
-            },
-        ],
+            }]
+        }
         _ => Vec::new(),
     }
 }
@@ -265,8 +264,12 @@ mod tests {
     #[test]
     fn gameplay_registry_exports_existing_entity_defs() {
         let registry = GameplayRegistry::new();
-        assert!(registry.get(GameplayDomain::Relic, "OrangePellets").is_some());
-        assert!(registry.get(GameplayDomain::Power, "thousand_cuts").is_some());
+        assert!(registry
+            .get(GameplayDomain::Relic, "OrangePellets")
+            .is_some());
+        assert!(registry
+            .get(GameplayDomain::Power, "thousand_cuts")
+            .is_some());
         assert!(registry.get(GameplayDomain::Potion, "SneckoOil").is_some());
         assert!(registry.get(GameplayDomain::Card, "Strike").is_some());
     }
@@ -318,11 +321,26 @@ mod tests {
     #[test]
     fn typed_registry_lookups_match_domain_getters() {
         let registry = GameplayRegistry::new();
-        assert_eq!(registry.card("Strike"), registry.get(GameplayDomain::Card, "Strike"));
-        assert_eq!(registry.enemy("JawWorm"), registry.get(GameplayDomain::Enemy, "JawWorm"));
-        assert_eq!(registry.relic("OrangePellets"), registry.get(GameplayDomain::Relic, "OrangePellets"));
-        assert_eq!(registry.power("thousand_cuts"), registry.get(GameplayDomain::Power, "thousand_cuts"));
-        assert_eq!(registry.potion("SneckoOil"), registry.get(GameplayDomain::Potion, "SneckoOil"));
+        assert_eq!(
+            registry.card("Strike"),
+            registry.get(GameplayDomain::Card, "Strike")
+        );
+        assert_eq!(
+            registry.enemy("JawWorm"),
+            registry.get(GameplayDomain::Enemy, "JawWorm")
+        );
+        assert_eq!(
+            registry.relic("OrangePellets"),
+            registry.get(GameplayDomain::Relic, "OrangePellets")
+        );
+        assert_eq!(
+            registry.power("thousand_cuts"),
+            registry.get(GameplayDomain::Power, "thousand_cuts")
+        );
+        assert_eq!(
+            registry.potion("SneckoOil"),
+            registry.get(GameplayDomain::Potion, "SneckoOil")
+        );
         assert!(registry.contains(GameplayDomain::Card, "Strike"));
         assert!(registry.count_for_domain(GameplayDomain::Enemy) > 0);
     }
@@ -333,9 +351,21 @@ mod tests {
         let exported_cards = crate::cards::gameplay_export_defs();
         let exported_enemies = crate::enemies::gameplay_export_defs();
 
-        assert_eq!(registry.count_for_domain(GameplayDomain::Card), exported_cards.len());
-        assert_eq!(registry.count_for_domain(GameplayDomain::Enemy), exported_enemies.len());
-        assert_eq!(registry.card("Strike"), exported_cards.iter().find(|def| def.id == "Strike"));
-        assert_eq!(registry.enemy("JawWorm"), exported_enemies.iter().find(|def| def.id == "JawWorm"));
+        assert_eq!(
+            registry.count_for_domain(GameplayDomain::Card),
+            exported_cards.len()
+        );
+        assert_eq!(
+            registry.count_for_domain(GameplayDomain::Enemy),
+            exported_enemies.len()
+        );
+        assert_eq!(
+            registry.card("Strike"),
+            exported_cards.iter().find(|def| def.id == "Strike")
+        );
+        assert_eq!(
+            registry.enemy("JawWorm"),
+            exported_enemies.iter().find(|def| def.id == "JawWorm")
+        );
     }
 }

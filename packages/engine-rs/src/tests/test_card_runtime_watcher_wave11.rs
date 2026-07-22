@@ -13,7 +13,9 @@
 
 use crate::actions::Action;
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::status_ids::sid;
 use crate::tests::support::*;
 
@@ -27,21 +29,40 @@ fn one_enemy_engine(enemy_id: &str, hp: i32, dmg: i32) -> crate::engine::CombatE
 fn watcher_wave11_registry_exports_safe_typed_surface_moves() {
     let registry = global_registry();
 
-    let flurry = registry.get("FlurryOfBlows").expect("FlurryOfBlows should be registered");
-    assert_eq!(flurry.effect_data, &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]);
+    let flurry = registry
+        .get("FlurryOfBlows")
+        .expect("FlurryOfBlows should be registered");
+    assert_eq!(
+        flurry.effect_data,
+        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+    );
 
-    let signature = registry.get("SignatureMove").expect("SignatureMove should be registered");
-    assert_eq!(signature.effect_data, &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]);
+    let signature = registry
+        .get("SignatureMove")
+        .expect("SignatureMove should be registered");
+    assert_eq!(
+        signature.effect_data,
+        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+    );
     assert!(signature.has_test_marker("only_attack_in_hand"));
 
     let weave = registry.get("Weave").expect("Weave should be registered");
-    assert_eq!(weave.effect_data, &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]);
+    assert_eq!(
+        weave.effect_data,
+        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+    );
     assert!(weave.has_test_marker("return_on_scry"));
 
-    let wireheading = registry.get("Wireheading").expect("Wireheading should be registered");
+    let wireheading = registry
+        .get("Wireheading")
+        .expect("Wireheading should be registered");
     assert_eq!(
         wireheading.effect_data,
-        &[E::Simple(SE::AddStatus(T::Player, sid::FORESIGHT, A::Magic))]
+        &[E::Simple(SE::AddStatus(
+            T::Player,
+            sid::FORESIGHT,
+            A::Magic
+        ))]
     );
     assert!(wireheading.test_markers().is_empty());
 }

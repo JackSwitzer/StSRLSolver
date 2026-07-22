@@ -1,12 +1,14 @@
 #![cfg(test)]
 
 use crate::actions::Action;
-use crate::effects::runtime::{EffectOwner, EventRecordPhase};
 use crate::effects::runtime::EffectExecutionPhase;
+use crate::effects::runtime::{EffectOwner, EventRecordPhase};
 use crate::effects::trigger::Trigger;
 use crate::engine::{ChoiceReason, CombatPhase};
 use crate::status_ids::sid;
-use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_state, make_deck, play_self};
+use crate::tests::support::{
+    combat_state_with, enemy_no_intent, engine_with_state, make_deck, play_self,
+};
 
 fn hand_names(engine: &crate::engine::CombatEngine) -> Vec<String> {
     engine
@@ -53,26 +55,26 @@ fn panache_tracks_cards_and_bursts_on_the_fifth_real_play() {
     ];
     let mut engine = engine_with_state(combat_state_with(Vec::new(), enemies, 10));
     engine.state.player.set_status(sid::PANACHE, 7);
-    engine.state.hand = make_deck(&[
-        "Defend",
-        "Defend",
-        "Defend",
-        "Defend",
-        "Defend",
-    ]);
+    engine.state.hand = make_deck(&["Defend", "Defend", "Defend", "Defend", "Defend"]);
     engine.state.draw_pile.clear();
     engine.state.discard_pile.clear();
 
     for plays in 1..=4 {
         assert!(play_self(&mut engine, "Defend"));
-        assert_eq!(engine.hidden_effect_value("panache", EffectOwner::PlayerPower, 0), plays);
+        assert_eq!(
+            engine.hidden_effect_value("panache", EffectOwner::PlayerPower, 0),
+            plays
+        );
         assert_eq!(engine.state.enemies[0].entity.hp, 50);
         assert_eq!(engine.state.enemies[1].entity.hp, 45);
     }
 
     assert!(play_self(&mut engine, "Defend"));
 
-    assert_eq!(engine.hidden_effect_value("panache", EffectOwner::PlayerPower, 0), 0);
+    assert_eq!(
+        engine.hidden_effect_value("panache", EffectOwner::PlayerPower, 0),
+        0
+    );
     assert_eq!(engine.state.enemies[0].entity.hp, 43);
     assert_eq!(engine.state.enemies[1].entity.hp, 38);
 }
@@ -92,8 +94,19 @@ fn creative_ai_adds_its_generated_card_on_real_turn_start() {
     let general_before = engine.shuffle_rng.counter;
     let mut oracle = engine.card_random_rng.clone();
     const POOL: &[&str] = &[
-        "Defragment", "Capacitor", "Heatsinks", "Static Discharge", "Loop", "Hello World", "Storm",
-        "Biased Cognition", "Machine Learning", "Electrodynamics", "Buffer", "Echo Form", "Creative AI",
+        "Defragment",
+        "Capacitor",
+        "Heatsinks",
+        "Static Discharge",
+        "Loop",
+        "Hello World",
+        "Storm",
+        "Biased Cognition",
+        "Machine Learning",
+        "Electrodynamics",
+        "Buffer",
+        "Echo Form",
+        "Creative AI",
     ];
     let expected = POOL[oracle.random_int((POOL.len() - 1) as i32) as usize];
 
@@ -139,14 +152,16 @@ fn mayhem_autoplays_the_remaining_top_draw_card_on_turn_start() {
     assert!(!hand_names(&engine).contains(&"Strike".to_string()));
     assert!(engine.state.draw_pile.is_empty());
     assert_eq!(engine.state.enemies[0].entity.hp, 34);
-    assert!(engine.state.discard_pile.iter().any(|card| {
-        engine.card_registry.card_name(card.def_id) == "Strike"
-    }));
+    assert!(engine
+        .state
+        .discard_pile
+        .iter()
+        .any(|card| { engine.card_registry.card_name(card.def_id) == "Strike" }));
 
     let events = engine.take_event_log();
     assert!(events.iter().any(|record| {
         record.phase == EventRecordPhase::Handled
-            && record.event == Trigger::TurnStartPostDraw
+            && record.event == Trigger::TurnStart
             && record.def_id == Some("mayhem")
     }));
 }
@@ -174,7 +189,10 @@ fn tools_of_the_trade_draws_then_opens_and_resolves_a_real_discard_choice() {
     engine.execute_action(&Action::EndTurn);
 
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
-    let choice = engine.choice.as_ref().expect("tools of the trade should open a discard choice");
+    let choice = engine
+        .choice
+        .as_ref()
+        .expect("tools of the trade should open a discard choice");
     assert_eq!(choice.reason, ChoiceReason::DiscardFromHand);
     assert_eq!(choice.options.len(), 6);
     assert_eq!(engine.state.hand.len(), 6);

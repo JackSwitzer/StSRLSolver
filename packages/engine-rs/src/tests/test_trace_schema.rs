@@ -7,10 +7,10 @@
 use std::collections::BTreeMap;
 
 use crate::trace::{
-    check_version, parse_masks, parse_script_seed, ActionScript, DivergenceReport, DivergenceStatus,
-    EnemyPostState, FieldDiff, FirstDivergence, IntentPostState, Mask, MaskedDiff,
-    OrbPostState, PilePostState, PlayerPostState, PostState, PowerPostState, RelicPostState,
-    RngSnapshotPair, ScriptStopCondition, TraceAction, TraceHeader, TraceRecord,
+    check_version, parse_masks, parse_script_seed, ActionScript, DivergenceReport,
+    DivergenceStatus, EnemyPostState, FieldDiff, FirstDivergence, IntentPostState, Mask,
+    MaskedDiff, OrbPostState, PilePostState, PlayerPostState, PostState, PowerPostState,
+    RelicPostState, RngSnapshotPair, ScriptStopCondition, TraceAction, TraceHeader, TraceRecord,
     TRACE_SCHEMA_VERSION,
 };
 
@@ -22,7 +22,10 @@ use crate::trace::{
 fn script_seed_parsing_matches_tracelab_decimal_then_display_precedence() {
     // Source: packages/harness-java/src/main/java/tracelab/TraceLabMod.java
     assert_eq!(parse_script_seed("57554006466"), 57_554_006_466);
-    assert_eq!(parse_script_seed("ABC"), crate::seed::seed_from_string("ABC"));
+    assert_eq!(
+        parse_script_seed("ABC"),
+        crate::seed::seed_from_string("ABC")
+    );
     assert_eq!(parse_script_seed("10"), 10);
     assert_eq!(parse_script_seed("-1"), u64::MAX);
 }
@@ -36,8 +39,14 @@ fn check_version_accepts_v1() {
 #[test]
 fn check_version_rejects_other() {
     let err = check_version(2).expect_err("v2 must be rejected");
-    assert!(err.contains('2'), "error should name the bad version: {err}");
-    assert!(err.contains('1'), "error should name the expected version: {err}");
+    assert!(
+        err.contains('2'),
+        "error should name the bad version: {err}"
+    );
+    assert!(
+        err.contains('1'),
+        "error should name the expected version: {err}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -93,7 +102,11 @@ fn sample_post_state() -> PostState {
             move_history: vec![3, 1],
         }],
         piles: PilePostState {
-            hand: vec!["Strike_P".to_string(), "Defend_P".to_string(), "Eruption".to_string()],
+            hand: vec![
+                "Strike_P".to_string(),
+                "Defend_P".to_string(),
+                "Eruption".to_string(),
+            ],
             draw_ordered: vec![],
             discard: vec![],
             exhaust: vec![],
@@ -129,16 +142,16 @@ round_trip!(
         character: "WATCHER".to_string(),
         ascension: 0,
         game_version: "desktop-1.0".to_string(),
-        mods: vec!["basemod".to_string(), "stslib".to_string(), "tracelab".to_string()],
+        mods: vec![
+            "basemod".to_string(),
+            "stslib".to_string(),
+            "tracelab".to_string()
+        ],
     },
     TraceHeader
 );
 
-round_trip!(
-    post_state_round_trip,
-    sample_post_state(),
-    PostState
-);
+round_trip!(post_state_round_trip, sample_post_state(), PostState);
 
 #[test]
 fn post_state_preserves_signed_java_rng_counter_overflow() {
@@ -167,22 +180,73 @@ round_trip!(
     TraceRecord
 );
 
-round_trip!(action_play_card_round_trip, TraceAction::PlayCard { hand_idx: 2, target: 0, card_id: None }, TraceAction);
-round_trip!(action_end_turn_round_trip, TraceAction::EndTurn, TraceAction);
-round_trip!(action_use_potion_round_trip, TraceAction::UsePotion { idx: 0, target: 0 }, TraceAction);
-round_trip!(action_neow_round_trip, TraceAction::Neow { choice: 1 }, TraceAction);
-round_trip!(action_path_round_trip, TraceAction::Path { choice: 0 }, TraceAction);
-round_trip!(action_reward_take_round_trip, TraceAction::RewardTake { item: 0 }, TraceAction);
-round_trip!(action_reward_skip_round_trip, TraceAction::RewardSkip { item: None }, TraceAction);
-round_trip!(action_event_choice_round_trip, TraceAction::EventChoice { choice: 1 }, TraceAction);
 round_trip!(
-    action_campfire_round_trip,
-    TraceAction::Campfire { choice: "REST".to_string(), card_idx: None },
+    action_play_card_round_trip,
+    TraceAction::PlayCard {
+        hand_idx: 2,
+        target: 0,
+        card_id: None
+    },
     TraceAction
 );
-round_trip!(action_shop_buy_round_trip, TraceAction::ShopBuy { item: 2 }, TraceAction);
-round_trip!(action_shop_remove_round_trip, TraceAction::ShopRemove { deck_idx: 1 }, TraceAction);
-round_trip!(action_shop_leave_round_trip, TraceAction::ShopLeave, TraceAction);
+round_trip!(
+    action_end_turn_round_trip,
+    TraceAction::EndTurn,
+    TraceAction
+);
+round_trip!(
+    action_use_potion_round_trip,
+    TraceAction::UsePotion { idx: 0, target: 0 },
+    TraceAction
+);
+round_trip!(
+    action_neow_round_trip,
+    TraceAction::Neow { choice: 1 },
+    TraceAction
+);
+round_trip!(
+    action_path_round_trip,
+    TraceAction::Path { choice: 0 },
+    TraceAction
+);
+round_trip!(
+    action_reward_take_round_trip,
+    TraceAction::RewardTake { item: 0 },
+    TraceAction
+);
+round_trip!(
+    action_reward_skip_round_trip,
+    TraceAction::RewardSkip { item: None },
+    TraceAction
+);
+round_trip!(
+    action_event_choice_round_trip,
+    TraceAction::EventChoice { choice: 1 },
+    TraceAction
+);
+round_trip!(
+    action_campfire_round_trip,
+    TraceAction::Campfire {
+        choice: "REST".to_string(),
+        card_idx: None
+    },
+    TraceAction
+);
+round_trip!(
+    action_shop_buy_round_trip,
+    TraceAction::ShopBuy { item: 2 },
+    TraceAction
+);
+round_trip!(
+    action_shop_remove_round_trip,
+    TraceAction::ShopRemove { deck_idx: 1 },
+    TraceAction
+);
+round_trip!(
+    action_shop_leave_round_trip,
+    TraceAction::ShopLeave,
+    TraceAction
+);
 
 round_trip!(
     action_script_round_trip,
@@ -191,11 +255,18 @@ round_trip!(
         seed: "3LGMWP6QYAWB".to_string(),
         character: "WATCHER".to_string(),
         ascension: 0,
-        stop: ScriptStopCondition { max_floor: Some(8), max_actions: None },
+        stop: ScriptStopCondition {
+            max_floor: Some(8),
+            max_actions: None
+        },
         actions: vec![
             TraceAction::Neow { choice: 1 },
             TraceAction::Path { choice: 0 },
-            TraceAction::PlayCard { hand_idx: 2, target: 0, card_id: None },
+            TraceAction::PlayCard {
+                hand_idx: 2,
+                target: 0,
+                card_id: None
+            },
             TraceAction::EndTurn,
         ],
     },
@@ -266,7 +337,11 @@ round_trip!(
 
 round_trip!(
     orb_post_state_round_trip,
-    OrbPostState { id: "Lightning".to_string(), evoke_amount: 3, passive_amount: 1 },
+    OrbPostState {
+        id: "Lightning".to_string(),
+        evoke_amount: 3,
+        passive_amount: 1
+    },
     OrbPostState
 );
 
@@ -296,7 +371,10 @@ fn mask_check_id_rejects_missing_dev_prefix() {
         register: "docs/work_units/parity-deviations-register.md".to_string(),
     };
     let err = mask.check_id().expect_err("bare D-id must be rejected");
-    assert!(err.contains("DEV-"), "error should mention DEV- requirement: {err}");
+    assert!(
+        err.contains("DEV-"),
+        "error should mention DEV- requirement: {err}"
+    );
     assert!(err.contains("D3"), "error should name offending id: {err}");
 }
 
@@ -317,7 +395,10 @@ fn parse_masks_rejects_unsupported_scope() {
     let json = r#"[{"id":"DEV-004","path":"post.rng.ai","scope":"3LGMWP6QYAWB@f4","reason":"scoped","register":"docs/work_units/parity-deviations-register.md"}]"#;
     let err = parse_masks(json).expect_err("non-'all' scope must be rejected");
     assert!(err.contains("scope"), "error should mention scope: {err}");
-    assert!(err.contains("DEV-004"), "error should name offending mask: {err}");
+    assert!(
+        err.contains("DEV-004"),
+        "error should name offending mask: {err}"
+    );
 }
 
 #[test]
@@ -344,7 +425,9 @@ fn jsonl_fixture_parses_as_header_then_records() {
 
     let header_line = lines.next().expect("fixture must have a header line");
     let header: TraceHeader = serde_json::from_str(header_line).expect("header must parse");
-    header.check_version().expect("header version must be supported");
+    header
+        .check_version()
+        .expect("header version must be supported");
     assert_eq!(header.kind, "header");
     assert_eq!(header.character, "WATCHER");
     assert_eq!(header.seed_long, 57554006466);
@@ -355,16 +438,26 @@ fn jsonl_fixture_parses_as_header_then_records() {
             continue;
         }
         let record: TraceRecord = serde_json::from_str(line).expect("record must parse");
-        record.check_version().expect("record version must be supported");
+        record
+            .check_version()
+            .expect("record version must be supported");
         records.push(record);
     }
 
-    assert_eq!(records.len(), 2, "fixture must contain exactly 2 records after the header");
+    assert_eq!(
+        records.len(),
+        2,
+        "fixture must contain exactly 2 records after the header"
+    );
     assert_eq!(records[0].idx, 0);
     assert_eq!(records[1].idx, 1);
     assert_eq!(records[0].phase, "COMBAT");
     match &records[0].action {
-        TraceAction::PlayCard { hand_idx, target, card_id } => {
+        TraceAction::PlayCard {
+            hand_idx,
+            target,
+            card_id,
+        } => {
             assert_eq!(*hand_idx, 2);
             assert_eq!(*target, 0);
             assert_eq!(card_id.as_deref(), Some("EmptyBody"));

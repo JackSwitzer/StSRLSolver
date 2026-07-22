@@ -197,7 +197,8 @@ impl OrbSlots {
 
     /// Return the orb type of the frontmost non-empty orb, or Empty if none.
     pub fn front_orb_type(&self) -> OrbType {
-        self.slots.iter()
+        self.slots
+            .iter()
             .find(|o| !o.is_empty())
             .map(|o| o.orb_type)
             .unwrap_or(OrbType::Empty)
@@ -562,7 +563,7 @@ mod tests {
         // Accumulate for 2 turns
         slots.trigger_end_of_turn_passives(0); // 6 + 6 = 12
         slots.trigger_end_of_turn_passives(0); // 12 + 6 = 18
-        // Evoke: uses accumulated value, NOT affected by focus
+                                               // Evoke: uses accumulated value, NOT affected by focus
         let evoke = slots.evoke_front(5); // focus doesn't matter for Dark evoke
         assert!(matches!(evoke, EvokeEffect::DarkDamage(18)));
     }
@@ -637,7 +638,13 @@ mod tests {
 
     #[test]
     fn orb_type_roundtrip() {
-        for otype in &[OrbType::Lightning, OrbType::Frost, OrbType::Dark, OrbType::Plasma, OrbType::Empty] {
+        for otype in &[
+            OrbType::Lightning,
+            OrbType::Frost,
+            OrbType::Dark,
+            OrbType::Plasma,
+            OrbType::Empty,
+        ] {
             assert_eq!(*otype, OrbType::from_str(otype.as_str()));
         }
     }

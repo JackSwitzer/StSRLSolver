@@ -9,8 +9,13 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::combat_types::CardInstance;
-use crate::effects::declarative::{
-    AmountSource, ChoiceAction, Effect, Pile, SimpleEffect, Target,
+#[cfg(test)]
+use crate::effects::declarative::CardFilter;
+use crate::effects::declarative::{AmountSource, ChoiceAction, Effect, Pile, SimpleEffect, Target};
+#[cfg(test)]
+use crate::effects::types::{
+    CanPlayRule, CostModifierRule, DamageModifierRule, EndTurnHandRule, OnDiscardRule, OnDrawRule,
+    OnRetainRule, PostPlayRule, StatefulCostRule, WhileInHandRule,
 };
 use crate::effects::types::{
     CardBlockHint, CardEvokeHint, CardMetadata, CardPlayHints, CardRuntimeTraits,
@@ -19,31 +24,23 @@ use crate::effects::types::{
 use crate::ids::StatusId;
 use crate::orbs::OrbType;
 use crate::state::Stance;
-#[cfg(test)]
-use crate::effects::declarative::CardFilter;
-#[cfg(test)]
-use crate::effects::types::{
-    CanPlayRule, CostModifierRule, DamageModifierRule, EndTurnHandRule, OnDiscardRule,
-    OnDrawRule, OnRetainRule, PostPlayRule, StatefulCostRule, WhileInHandRule,
-};
 
-mod prelude;
-mod watcher;
-mod ironclad;
-mod silent;
-pub(crate) mod defect;
 mod colorless;
 mod curses;
+pub(crate) mod defect;
+mod ironclad;
+mod prelude;
 mod runtime_meta;
+mod silent;
 mod starters;
 mod status;
 mod temp;
+mod watcher;
 
 /// Insert a card spec into the staging registry map.
 pub(crate) fn insert(map: &mut HashMap<&'static str, CardSpec>, card: CardSpec) {
     map.insert(card.id, card);
 }
-
 
 // ---------------------------------------------------------------------------
 // Canonical card types
@@ -296,7 +293,9 @@ impl CardDef {
 
     #[cfg(test)]
     pub fn has_test_marker(&self, marker: &str) -> bool {
-        self.test_markers().iter().any(|candidate| *candidate == marker)
+        self.test_markers()
+            .iter()
+            .any(|candidate| *candidate == marker)
     }
 
     #[cfg(test)]
@@ -445,13 +444,18 @@ impl CardDef {
                 add_test_marker(&mut markers, "bulk_count_times_block");
             }
             Some(CardBlockHint::UsesCardMisc) => add_test_marker(&mut markers, "uses_card_misc"),
+            Some(CardBlockHint::ChoicePayloadOnly) => {
+                add_test_marker(&mut markers, "block_choice_payload_only");
+            }
             None => {}
         }
 
         match self.evoke_hint() {
             Some(CardEvokeHint::Fixed(_)) => add_test_marker(&mut markers, "evoke_orb"),
             Some(CardEvokeHint::XCost) => add_test_marker(&mut markers, "evoke_orb_x"),
-            Some(CardEvokeHint::XCostPlus(_)) => add_test_marker(&mut markers, "evoke_orb_x_plus_1"),
+            Some(CardEvokeHint::XCostPlus(_)) => {
+                add_test_marker(&mut markers, "evoke_orb_x_plus_1")
+            }
             None => {}
         }
         if self.play_hints().channel_evoked_orb {
@@ -480,7 +484,12 @@ fn collect_test_markers_from_effects(effects: &[Effect], markers: &mut Vec<&'sta
         match effect {
             Effect::Simple(simple) => collect_test_markers_from_simple(simple, markers),
             Effect::Conditional(condition, then_effects, else_effects) => {
-                collect_test_markers_from_conditional(condition, then_effects, else_effects, markers);
+                collect_test_markers_from_conditional(
+                    condition,
+                    then_effects,
+                    else_effects,
+                    markers,
+                );
                 collect_test_markers_from_effects(then_effects, markers);
                 collect_test_markers_from_effects(else_effects, markers);
             }
@@ -499,7 +508,8 @@ fn collect_test_markers_from_effects(effects: &[Effect], markers: &mut Vec<&'sta
                             add_test_marker(markers, "discard");
                             add_test_marker(markers, "discard_gain_energy");
                         }
-                        ChoiceAction::PutOnTopAtCostZero | ChoiceAction::PutOnBottomFreeIfCostly => {
+                        ChoiceAction::PutOnTopAtCostZero
+                        | ChoiceAction::PutOnBottomFreeIfCostly => {
                             add_test_marker(markers, "setup");
                         }
                         ChoiceAction::StoreCardForNextTurnCopies => {
@@ -562,12 +572,20 @@ fn collect_test_markers_from_conditional(
             if effect_slice_has_gain_energy(then_effects) {
                 add_test_marker(markers, "energy_if_last_attack");
             }
-            if effect_slice_has_status(then_effects, Target::SelectedEnemy, crate::status_ids::sid::WEAKENED) {
+            if effect_slice_has_status(
+                then_effects,
+                Target::SelectedEnemy,
+                crate::status_ids::sid::WEAKENED,
+            ) {
                 add_test_marker(markers, "weak_if_last_attack");
             }
         }
         C::LastCardType(CardType::Skill) => {
-            if effect_slice_has_status(then_effects, Target::SelectedEnemy, crate::status_ids::sid::VULNERABLE) {
+            if effect_slice_has_status(
+                then_effects,
+                Target::SelectedEnemy,
+                crate::status_ids::sid::VULNERABLE,
+            ) {
                 add_test_marker(markers, "vuln_if_last_skill");
             }
         }
@@ -577,7 +595,9 @@ fn collect_test_markers_from_conditional(
             }
         }
         C::InStance(Stance::Calm) => {
-            if effect_slice_has_draw(then_effects) && effect_slice_has_stance_change(else_effects, Stance::Calm) {
+            if effect_slice_has_draw(then_effects)
+                && effect_slice_has_stance_change(else_effects, Stance::Calm)
+            {
                 add_test_marker(markers, "if_calm_draw_else_calm");
             }
         }
@@ -610,17 +630,18 @@ fn collect_test_markers_from_simple(simple: &SimpleEffect, markers: &mut Vec<&'s
     use crate::effects::declarative::BoolFlag;
 
     match simple {
-        SimpleEffect::AddStatus(target, status, _)
-        | SimpleEffect::SetStatus(target, status, _) => {
+        SimpleEffect::AddStatus(target, status, _) | SimpleEffect::SetStatus(target, status, _) => {
             collect_test_markers_from_status(*target, *status, markers);
         }
-        SimpleEffect::MultiplyStatus(Target::SelectedEnemy, crate::status_ids::sid::POISON, factor) => {
-            match factor {
-                2 => add_test_marker(markers, "catalyst_double"),
-                3 => add_test_marker(markers, "catalyst_triple"),
-                _ => {}
-            }
-        }
+        SimpleEffect::MultiplyStatus(
+            Target::SelectedEnemy,
+            crate::status_ids::sid::POISON,
+            factor,
+        ) => match factor {
+            2 => add_test_marker(markers, "catalyst_double"),
+            3 => add_test_marker(markers, "catalyst_triple"),
+            _ => {}
+        },
         SimpleEffect::DrawCards(AmountSource::Fixed(10)) => {
             add_test_marker(markers, "draw");
             add_test_marker(markers, "draw_to_ten");
@@ -645,23 +666,22 @@ fn collect_test_markers_from_simple(simple: &SimpleEffect, markers: &mut Vec<&'s
         }
         SimpleEffect::GainMantra(_) => add_test_marker(markers, "mantra"),
         SimpleEffect::Scry(_) => add_test_marker(markers, "scry"),
-        SimpleEffect::AddCard(card_id, pile, _) | SimpleEffect::AddCardWithMisc(card_id, pile, _, _) => {
-            match (*card_id, *pile) {
-                ("Shiv", Pile::Hand) => add_test_marker(markers, "add_shivs"),
-                ("Smite", Pile::Hand) => add_test_marker(markers, "add_smite_to_hand"),
-                ("Safety", Pile::Hand) => add_test_marker(markers, "add_safety_to_hand"),
-                ("ThroughViolence", Pile::Draw) => add_test_marker(markers, "add_through_violence_to_draw"),
-                ("Insight", Pile::Draw) => add_test_marker(markers, "insight_to_draw"),
-                _ => {}
+        SimpleEffect::AddCard(card_id, pile, _)
+        | SimpleEffect::AddCardWithMisc(card_id, pile, _, _) => match (*card_id, *pile) {
+            ("Shiv", Pile::Hand) => add_test_marker(markers, "add_shivs"),
+            ("Smite", Pile::Hand) => add_test_marker(markers, "add_smite_to_hand"),
+            ("Safety", Pile::Hand) => add_test_marker(markers, "add_safety_to_hand"),
+            ("ThroughViolence", Pile::Draw) => {
+                add_test_marker(markers, "add_through_violence_to_draw")
             }
-        }
-        SimpleEffect::AddCardToRandomDrawSpot(card_id, _) => {
-            match *card_id {
-                "Insight" => add_test_marker(markers, "insight_to_draw"),
-                "ThroughViolence" => add_test_marker(markers, "add_through_violence_to_draw"),
-                _ => {}
-            }
-        }
+            ("Insight", Pile::Draw) => add_test_marker(markers, "insight_to_draw"),
+            _ => {}
+        },
+        SimpleEffect::AddCardToRandomDrawSpot(card_id, _) => match *card_id {
+            "Insight" => add_test_marker(markers, "insight_to_draw"),
+            "ThroughViolence" => add_test_marker(markers, "add_through_violence_to_draw"),
+            _ => {}
+        },
         SimpleEffect::ChannelOrb(orb, _) => match orb {
             OrbType::Lightning => add_test_marker(markers, "channel_lightning"),
             OrbType::Frost => add_test_marker(markers, "channel_frost"),
@@ -687,7 +707,9 @@ fn collect_test_markers_from_simple(simple: &SimpleEffect, markers: &mut Vec<&'s
         SimpleEffect::DealDamage(_, AmountSource::LivingEnemyCount) => {
             add_test_marker(markers, "damage_per_enemy");
         }
-        SimpleEffect::DiscardRandomCardsFromPile(_, _) => add_test_marker(markers, "discard_random"),
+        SimpleEffect::DiscardRandomCardsFromPile(_, _) => {
+            add_test_marker(markers, "discard_random")
+        }
         _ => {}
     }
 }
@@ -701,55 +723,92 @@ fn collect_test_markers_from_status(
     use crate::status_ids::sid;
 
     match (target, status) {
-        (Target::SelectedEnemy | Target::RandomEnemy, sid::VULNERABLE) => add_test_marker(markers, "vulnerable"),
-        (Target::SelectedEnemy | Target::RandomEnemy, sid::WEAKENED) => add_test_marker(markers, "weak"),
+        (Target::SelectedEnemy | Target::RandomEnemy, sid::VULNERABLE) => {
+            add_test_marker(markers, "vulnerable")
+        }
+        (Target::SelectedEnemy | Target::RandomEnemy, sid::WEAKENED) => {
+            add_test_marker(markers, "weak")
+        }
         (Target::AllEnemies, sid::WEAKENED) => add_test_marker(markers, "weak_all"),
         (Target::RandomEnemy, sid::POISON) => add_test_marker(markers, "poison_random_multi"),
         (Target::SelectedEnemy, sid::POISON) => add_test_marker(markers, "poison"),
         (Target::AllEnemies, sid::POISON) => add_test_marker(markers, "poison_all"),
-        (Target::SelectedEnemy, sid::BLOCK_RETURN) => add_test_marker(markers, "apply_block_return"),
+        (Target::SelectedEnemy, sid::BLOCK_RETURN) => {
+            add_test_marker(markers, "apply_block_return")
+        }
         (Target::Player | Target::SelfEntity, sid::MANTRA) => add_test_marker(markers, "mantra"),
         (Target::Player | Target::SelfEntity, sid::VIGOR) => add_test_marker(markers, "vigor"),
-        (Target::Player | Target::SelfEntity, sid::DEXTERITY) => add_test_marker(markers, "gain_dexterity"),
-        (Target::Player | Target::SelfEntity, sid::NEXT_TURN_BLOCK) => add_test_marker(markers, "next_turn_block"),
+        (Target::Player | Target::SelfEntity, sid::DEXTERITY) => {
+            add_test_marker(markers, "gain_dexterity")
+        }
+        (Target::Player | Target::SelfEntity, sid::NEXT_TURN_BLOCK) => {
+            add_test_marker(markers, "next_turn_block")
+        }
         (
             Target::Player | Target::SelfEntity,
             sid::ENERGIZED | sid::ENERGIZED_BLUE | sid::DOPPELGANGER_ENERGY,
         ) => {
             add_test_marker(markers, "next_turn_energy");
         }
-        (Target::Player | Target::SelfEntity, sid::DOPPELGANGER_DRAW | sid::DRAW_CARD | sid::DRAW) => {
+        (
+            Target::Player | Target::SelfEntity,
+            sid::DOPPELGANGER_DRAW | sid::DRAW_CARD | sid::DRAW,
+        ) => {
             add_test_marker(markers, "draw_next_turn");
         }
         (Target::Player | Target::SelfEntity, sid::FOCUS) => add_test_marker(markers, "gain_focus"),
         (Target::Player | Target::SelfEntity, sid::THORNS) => add_test_marker(markers, "thorns"),
-        (Target::Player | Target::SelfEntity, sid::AFTER_IMAGE) => add_test_marker(markers, "after_image"),
-        (Target::Player | Target::SelfEntity, sid::THOUSAND_CUTS) => add_test_marker(markers, "thousand_cuts"),
-        (Target::Player | Target::SelfEntity, sid::NOXIOUS_FUMES) => add_test_marker(markers, "noxious_fumes"),
-        (Target::Player | Target::SelfEntity, sid::INFINITE_BLADES) => add_test_marker(markers, "infinite_blades"),
+        (Target::Player | Target::SelfEntity, sid::AFTER_IMAGE) => {
+            add_test_marker(markers, "after_image")
+        }
+        (Target::Player | Target::SelfEntity, sid::THOUSAND_CUTS) => {
+            add_test_marker(markers, "thousand_cuts")
+        }
+        (Target::Player | Target::SelfEntity, sid::NOXIOUS_FUMES) => {
+            add_test_marker(markers, "noxious_fumes")
+        }
+        (Target::Player | Target::SelfEntity, sid::INFINITE_BLADES) => {
+            add_test_marker(markers, "infinite_blades")
+        }
         (Target::Player | Target::SelfEntity, sid::ENVENOM) => add_test_marker(markers, "envenom"),
-        (Target::Player | Target::SelfEntity, sid::ACCURACY) => add_test_marker(markers, "accuracy"),
+        (Target::Player | Target::SelfEntity, sid::ACCURACY) => {
+            add_test_marker(markers, "accuracy")
+        }
         (Target::Player | Target::SelfEntity, sid::TOOLS_OF_THE_TRADE) => {
             add_test_marker(markers, "tools_of_the_trade");
         }
-        (Target::Player | Target::SelfEntity, sid::RETAIN_CARDS) => add_test_marker(markers, "well_laid_plans"),
-        (Target::Player | Target::SelfEntity, sid::RUSHDOWN) => add_test_marker(markers, "on_wrath_draw"),
+        (Target::Player | Target::SelfEntity, sid::RETAIN_CARDS) => {
+            add_test_marker(markers, "well_laid_plans")
+        }
+        (Target::Player | Target::SelfEntity, sid::RUSHDOWN) => {
+            add_test_marker(markers, "on_wrath_draw")
+        }
         (Target::Player | Target::SelfEntity, sid::MENTAL_FORTRESS) => {
             add_test_marker(markers, "on_stance_change_block");
         }
-        (Target::Player | Target::SelfEntity, sid::NIRVANA) => add_test_marker(markers, "on_scry_block"),
-        (Target::Player | Target::SelfEntity, sid::BATTLE_HYMN) => add_test_marker(markers, "add_smite_to_hand"),
+        (Target::Player | Target::SelfEntity, sid::NIRVANA) => {
+            add_test_marker(markers, "on_scry_block")
+        }
+        (Target::Player | Target::SelfEntity, sid::BATTLE_HYMN) => {
+            add_test_marker(markers, "add_smite_to_hand")
+        }
         (Target::Player | Target::SelfEntity, sid::WAVE_OF_THE_HAND) => {
             add_test_marker(markers, "apply_block_return");
         }
-        (Target::Player | Target::SelfEntity, sid::BLUR) => add_test_marker(markers, "retain_block"),
+        (Target::Player | Target::SelfEntity, sid::BLUR) => {
+            add_test_marker(markers, "retain_block")
+        }
         (Target::Player | Target::SelfEntity, sid::BURST) => add_test_marker(markers, "burst"),
-        (Target::Player | Target::SelfEntity, sid::BULLET_TIME) => add_test_marker(markers, "bullet_time"),
+        (Target::Player | Target::SelfEntity, sid::BULLET_TIME) => {
+            add_test_marker(markers, "bullet_time")
+        }
         (Target::Player | Target::SelfEntity, sid::NEXT_ATTACK_FREE) => {
             add_test_marker(markers, "next_attack_free");
         }
         (Target::SelectedEnemy, sid::CONSTRICTED) => add_test_marker(markers, "choke"),
-        (Target::SelectedEnemy, sid::CORPSE_EXPLOSION) => add_test_marker(markers, "corpse_explosion"),
+        (Target::SelectedEnemy, sid::CORPSE_EXPLOSION) => {
+            add_test_marker(markers, "corpse_explosion")
+        }
         _ => {}
     }
 }
@@ -945,7 +1004,9 @@ fn find_declared_draw_count(effects: &[Effect]) -> Option<AmountSource> {
 fn find_declared_all_enemy_damage(effects: &[Effect]) -> Option<AmountSource> {
     for effect in effects {
         match effect {
-            Effect::Simple(SimpleEffect::DealDamage(Target::AllEnemies, amount)) => return Some(*amount),
+            Effect::Simple(SimpleEffect::DealDamage(Target::AllEnemies, amount)) => {
+                return Some(*amount)
+            }
             Effect::Conditional(_, then_effects, else_effects) => {
                 if let Some(amount) = find_declared_all_enemy_damage(then_effects) {
                     return Some(amount);
@@ -964,7 +1025,10 @@ fn find_declared_primary_attack_target(effects: &[Effect]) -> Option<Target> {
     for effect in effects {
         match effect {
             Effect::Simple(SimpleEffect::DealDamage(target, _))
-                if matches!(target, Target::SelectedEnemy | Target::AllEnemies | Target::RandomEnemy) =>
+                if matches!(
+                    target,
+                    Target::SelectedEnemy | Target::AllEnemies | Target::RandomEnemy
+                ) =>
             {
                 return Some(*target);
             }
@@ -1050,10 +1114,7 @@ fn find_declared_scry_count(effects: &[Effect]) -> Option<AmountSource> {
     None
 }
 
-fn collect_declared_channel_orbs(
-    effects: &[Effect],
-    hints: &mut Vec<(OrbType, AmountSource)>,
-) {
+fn collect_declared_channel_orbs(effects: &[Effect], hints: &mut Vec<(OrbType, AmountSource)>) {
     for effect in effects {
         match effect {
             Effect::Simple(SimpleEffect::ChannelOrb(orb_type, amount)) => {
@@ -1127,7 +1188,11 @@ fn collect_declared_x_cost_amounts(effects: &[Effect], amounts: &mut Vec<AmountS
                 collect_declared_x_cost_amounts(then_effects, amounts);
                 collect_declared_x_cost_amounts(else_effects, amounts);
             }
-            Effect::ChooseCards { min_picks, max_picks, .. } => {
+            Effect::ChooseCards {
+                min_picks,
+                max_picks,
+                ..
+            } => {
                 if amount_uses_x_cost(min_picks) {
                     amounts.push(*min_picks);
                 }
@@ -1294,12 +1359,12 @@ pub fn gameplay_export_defs() -> Vec<crate::gameplay::GameplayDef> {
                 declared_extra_hits: card.declared_extra_hits().is_some(),
                 declared_stance_change: card.declared_stance_change().is_some(),
                 declared_all_enemy_damage: card.declared_all_enemy_damage(),
-                declared_discard_from_hand: card.declared_discard_from_hand_count().map(|(min, max)| {
-                    crate::gameplay::ChoiceCountHint { min, max }
-                }),
-                declared_exhaust_from_hand: card.declared_exhaust_from_hand_count().map(|(min, max)| {
-                    crate::gameplay::ChoiceCountHint { min, max }
-                }),
+                declared_discard_from_hand: card
+                    .declared_discard_from_hand_count()
+                    .map(|(min, max)| crate::gameplay::ChoiceCountHint { min, max }),
+                declared_exhaust_from_hand: card
+                    .declared_exhaust_from_hand_count()
+                    .map(|(min, max)| crate::gameplay::ChoiceCountHint { min, max }),
                 declared_scry_count: card.declared_scry_count(),
                 declared_channel_orbs: card
                     .declared_channel_orbs()
@@ -1329,7 +1394,6 @@ pub struct CardRegistry {
     /// Bitset: true if this card ID is a "Strike" variant (for Perfected Strike).
     strike_flags: Vec<bool>,
 }
-
 
 impl CardRegistry {
     pub fn new() -> Self {
@@ -1387,8 +1451,6 @@ impl CardRegistry {
             strike_flags,
         }
     }
-
-
 
     /// Look up a card by ID. Falls back to a default attack if not found.
     pub fn get(&self, card_id: &str) -> Option<&CardDef> {
@@ -1542,7 +1604,9 @@ impl CardRegistry {
             }
             return;
         }
-        if card.flags & CardInstance::FLAG_UPGRADED != 0 { return; }
+        if card.flags & CardInstance::FLAG_UPGRADED != 0 {
+            return;
+        }
         let original_def_cost = self.id_to_def[card.def_id as usize].cost as i8;
         let upgraded = format!("{}+", name);
         if let Some(&id) = self.name_to_id.get(upgraded.as_str()) {
@@ -1626,8 +1690,18 @@ mod tests {
     // -----------------------------------------------------------------------
     // Helper: assert a card exists with expected base + upgraded stats
     // -----------------------------------------------------------------------
-    fn assert_card(reg: &CardRegistry, id: &str, cost: i32, dmg: i32, blk: i32, mag: i32, ct: CardType) {
-        let card = reg.get(id).unwrap_or_else(|| panic!("Card '{}' not found in registry", id));
+    fn assert_card(
+        reg: &CardRegistry,
+        id: &str,
+        cost: i32,
+        dmg: i32,
+        blk: i32,
+        mag: i32,
+        ct: CardType,
+    ) {
+        let card = reg
+            .get(id)
+            .unwrap_or_else(|| panic!("Card '{}' not found in registry", id));
         assert_eq!(card.cost, cost, "{} cost", id);
         assert_eq!(card.base_damage, dmg, "{} damage", id);
         assert_eq!(card.base_block, blk, "{} block", id);
@@ -1636,8 +1710,15 @@ mod tests {
     }
 
     fn assert_has_effect(reg: &CardRegistry, id: &str, effect: &str) {
-        let card = reg.get(id).unwrap_or_else(|| panic!("Card '{}' not found", id));
-        assert!(card.has_test_marker(effect), "{} should have effect '{}'", id, effect);
+        let card = reg
+            .get(id)
+            .unwrap_or_else(|| panic!("Card '{}' not found", id));
+        assert!(
+            card.has_test_marker(effect),
+            "{} should have effect '{}'",
+            id,
+            effect
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -1648,30 +1729,82 @@ mod tests {
         let reg = super::global_registry();
         let pool_cards = [
             // Common
-            "BowlingBash", "Consecrate", "Crescendo", "CrushJoints",
-            "CutThroughFate", "EmptyBody", "EmptyFist", "Evaluate",
-            "FlurryOfBlows", "FlyingSleeves", "FollowUp", "Halt",
-            "JustLucky", "PathToVictory", "Prostrate",
-            "Protect", "SashWhip", "ClearTheMind",
+            "BowlingBash",
+            "Consecrate",
+            "Crescendo",
+            "CrushJoints",
+            "CutThroughFate",
+            "EmptyBody",
+            "EmptyFist",
+            "Evaluate",
+            "FlurryOfBlows",
+            "FlyingSleeves",
+            "FollowUp",
+            "Halt",
+            "JustLucky",
+            "PathToVictory",
+            "Prostrate",
+            "Protect",
+            "SashWhip",
+            "ClearTheMind",
             // Uncommon
-            "BattleHymn", "CarveReality", "Conclude", "DeceiveReality",
-            "EmptyMind", "FearNoEvil", "ForeignInfluence", "Indignation",
-            "InnerPeace", "LikeWater", "Meditate", "Nirvana",
-            "Perseverance", "ReachHeaven", "SandsOfTime", "SignatureMove",
-            "Smite", "Study", "Swivel", "TalkToTheHand",
-            "Tantrum", "ThirdEye", "Wallop", "WaveOfTheHand",
-            "Weave", "WheelKick", "WindmillStrike", "WreathOfFlame",
+            "BattleHymn",
+            "CarveReality",
+            "Conclude",
+            "DeceiveReality",
+            "EmptyMind",
+            "FearNoEvil",
+            "ForeignInfluence",
+            "Indignation",
+            "InnerPeace",
+            "LikeWater",
+            "Meditate",
+            "Nirvana",
+            "Perseverance",
+            "ReachHeaven",
+            "SandsOfTime",
+            "SignatureMove",
+            "Smite",
+            "Study",
+            "Swivel",
+            "TalkToTheHand",
+            "Tantrum",
+            "ThirdEye",
+            "Wallop",
+            "WaveOfTheHand",
+            "Weave",
+            "WheelKick",
+            "WindmillStrike",
+            "WreathOfFlame",
             // Rare
-            "Alpha", "Blasphemy", "Brilliance", "ConjureBlade",
-            "DevaForm", "Devotion", "Establishment", "Fasting2",
-            "Judgement", "LessonLearned", "MasterReality",
-            "MentalFortress", "Omniscience", "Ragnarok",
-            "Adaptation", "Scrawl", "SpiritShield", "Vault", "Wish",
+            "Alpha",
+            "Blasphemy",
+            "Brilliance",
+            "ConjureBlade",
+            "DevaForm",
+            "Devotion",
+            "Establishment",
+            "Fasting2",
+            "Judgement",
+            "LessonLearned",
+            "MasterReality",
+            "MentalFortress",
+            "Omniscience",
+            "Ragnarok",
+            "Adaptation",
+            "Scrawl",
+            "SpiritShield",
+            "Vault",
+            "Wish",
         ];
         for id in &pool_cards {
             assert!(reg.get(id).is_some(), "Card '{}' missing from registry", id);
             let upgraded = format!("{}+", id);
-            assert!(reg.get(&upgraded).is_some(), "Card '{}' missing from registry", upgraded);
+            assert!(
+                reg.get(&upgraded).is_some(),
+                "Card '{}' missing from registry",
+                upgraded
+            );
         }
     }
 
@@ -2056,35 +2189,104 @@ mod tests {
         let reg = super::global_registry();
         let ironclad_cards = [
             // Basic
-            "Strike", "Defend", "Bash",
+            "Strike",
+            "Defend",
+            "Bash",
             // Common
-            "Anger", "Armaments", "Body Slam", "Clash", "Cleave",
-            "Clothesline", "Flex", "Havoc", "Headbutt", "Heavy Blade",
-            "Iron Wave", "Perfected Strike", "Pommel Strike", "Shrug It Off",
-            "Sword Boomerang", "Thunderclap", "True Grit", "Twin Strike",
-            "Warcry", "Wild Strike",
+            "Anger",
+            "Armaments",
+            "Body Slam",
+            "Clash",
+            "Cleave",
+            "Clothesline",
+            "Flex",
+            "Havoc",
+            "Headbutt",
+            "Heavy Blade",
+            "Iron Wave",
+            "Perfected Strike",
+            "Pommel Strike",
+            "Shrug It Off",
+            "Sword Boomerang",
+            "Thunderclap",
+            "True Grit",
+            "Twin Strike",
+            "Warcry",
+            "Wild Strike",
             // Uncommon
-            "Battle Trance", "Blood for Blood", "Bloodletting", "Burning Pact",
-            "Carnage", "Combust", "Dark Embrace", "Disarm", "Dropkick",
-            "Dual Wield", "Entrench", "Evolve", "Feel No Pain", "Fire Breathing",
-            "Flame Barrier", "Ghostly Armor", "Hemokinesis", "Infernal Blade",
-            "Inflame", "Intimidate", "Metallicize", "Power Through", "Pummel",
-            "Rage", "Rampage", "Reckless Charge", "Rupture", "Searing Blow",
-            "Second Wind", "Seeing Red", "Sentinel", "Sever Soul", "Shockwave",
-            "Spot Weakness", "Uppercut", "Whirlwind",
+            "Battle Trance",
+            "Blood for Blood",
+            "Bloodletting",
+            "Burning Pact",
+            "Carnage",
+            "Combust",
+            "Dark Embrace",
+            "Disarm",
+            "Dropkick",
+            "Dual Wield",
+            "Entrench",
+            "Evolve",
+            "Feel No Pain",
+            "Fire Breathing",
+            "Flame Barrier",
+            "Ghostly Armor",
+            "Hemokinesis",
+            "Infernal Blade",
+            "Inflame",
+            "Intimidate",
+            "Metallicize",
+            "Power Through",
+            "Pummel",
+            "Rage",
+            "Rampage",
+            "Reckless Charge",
+            "Rupture",
+            "Searing Blow",
+            "Second Wind",
+            "Seeing Red",
+            "Sentinel",
+            "Sever Soul",
+            "Shockwave",
+            "Spot Weakness",
+            "Uppercut",
+            "Whirlwind",
             // Rare
-            "Barricade", "Berserk", "Bludgeon", "Brutality", "Corruption",
-            "Demon Form", "Double Tap", "Exhume", "Feed", "Fiend Fire",
-            "Immolate", "Impervious", "Juggernaut", "Limit Break", "Offering",
+            "Barricade",
+            "Berserk",
+            "Bludgeon",
+            "Brutality",
+            "Corruption",
+            "Demon Form",
+            "Double Tap",
+            "Exhume",
+            "Feed",
+            "Fiend Fire",
+            "Immolate",
+            "Impervious",
+            "Juggernaut",
+            "Limit Break",
+            "Offering",
             "Reaper",
         ];
         for id in &ironclad_cards {
-            assert!(reg.get(id).is_some(), "Ironclad card '{}' missing from registry", id);
+            assert!(
+                reg.get(id).is_some(),
+                "Ironclad card '{}' missing from registry",
+                id
+            );
             let upgraded = format!("{}+", id);
-            assert!(reg.get(&upgraded).is_some(), "Ironclad card '{}' missing from registry", upgraded);
+            assert!(
+                reg.get(&upgraded).is_some(),
+                "Ironclad card '{}' missing from registry",
+                upgraded
+            );
         }
         // Verify count: 3 basic + 20 common + 36 uncommon + 16 rare = 75
-        assert_eq!(ironclad_cards.len(), 75, "Should have exactly 75 Ironclad cards");
+        assert_eq!(
+            ironclad_cards.len(),
+            75,
+            "Should have exactly 75 Ironclad cards"
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -2095,36 +2297,104 @@ mod tests {
         let reg = super::global_registry();
         let silent_cards = [
             // Basic
-            "Strike", "Defend", "Neutralize", "Survivor",
+            "Strike",
+            "Defend",
+            "Neutralize",
+            "Survivor",
             // Common
-            "Acrobatics", "Backflip", "Bane", "Blade Dance", "Cloak and Dagger",
-            "Dagger Spray", "Dagger Throw", "Deadly Poison", "Deflect",
-            "Dodge and Roll", "Flying Knee", "Outmaneuver", "Piercing Wail",
-            "Poisoned Stab", "Prepared", "Quick Slash", "Slice",
-            "Sneaky Strike", "Sucker Punch",
+            "Acrobatics",
+            "Backflip",
+            "Bane",
+            "Blade Dance",
+            "Cloak and Dagger",
+            "Dagger Spray",
+            "Dagger Throw",
+            "Deadly Poison",
+            "Deflect",
+            "Dodge and Roll",
+            "Flying Knee",
+            "Outmaneuver",
+            "Piercing Wail",
+            "Poisoned Stab",
+            "Prepared",
+            "Quick Slash",
+            "Slice",
+            "Sneaky Strike",
+            "Sucker Punch",
             // Uncommon
-            "Accuracy", "All Out Attack", "Backstab", "Blur", "Bouncing Flask",
-            "Calculated Gamble", "Caltrops", "Catalyst", "Choke", "Concentrate",
-            "Crippling Cloud", "Dash", "Distraction", "Endless Agony", "Envenom",
-            "Escape Plan", "Eviscerate", "Expertise", "Finisher", "Flechettes",
-            "Footwork", "Heel Hook", "Infinite Blades", "Leg Sweep",
-            "Masterful Stab", "Noxious Fumes", "Predator", "Reflex",
-            "Riddle With Holes", "Setup", "Skewer", "Tactician", "Terror",
+            "Accuracy",
+            "All Out Attack",
+            "Backstab",
+            "Blur",
+            "Bouncing Flask",
+            "Calculated Gamble",
+            "Caltrops",
+            "Catalyst",
+            "Choke",
+            "Concentrate",
+            "Crippling Cloud",
+            "Dash",
+            "Distraction",
+            "Endless Agony",
+            "Envenom",
+            "Escape Plan",
+            "Eviscerate",
+            "Expertise",
+            "Finisher",
+            "Flechettes",
+            "Footwork",
+            "Heel Hook",
+            "Infinite Blades",
+            "Leg Sweep",
+            "Masterful Stab",
+            "Noxious Fumes",
+            "Predator",
+            "Reflex",
+            "Riddle With Holes",
+            "Setup",
+            "Skewer",
+            "Tactician",
+            "Terror",
             "Well Laid Plans",
             // Rare
-            "A Thousand Cuts", "Adrenaline", "After Image", "Alchemize",
-            "Bullet Time", "Burst", "Corpse Explosion", "Die Die Die",
-            "Doppelganger", "Glass Knife", "Grand Finale", "Malaise",
-            "Night Terror", "Phantasmal Killer", "Storm of Steel",
-            "Tools of the Trade", "Unload", "Wraith Form v2",
+            "A Thousand Cuts",
+            "Adrenaline",
+            "After Image",
+            "Alchemize",
+            "Bullet Time",
+            "Burst",
+            "Corpse Explosion",
+            "Die Die Die",
+            "Doppelganger",
+            "Glass Knife",
+            "Grand Finale",
+            "Malaise",
+            "Night Terror",
+            "Phantasmal Killer",
+            "Storm of Steel",
+            "Tools of the Trade",
+            "Unload",
+            "Wraith Form v2",
         ];
         for id in &silent_cards {
-            assert!(reg.get(id).is_some(), "Silent card '{}' missing from registry", id);
+            assert!(
+                reg.get(id).is_some(),
+                "Silent card '{}' missing from registry",
+                id
+            );
             let upgraded = format!("{}+", id);
-            assert!(reg.get(&upgraded).is_some(), "Silent card '{}' missing from registry", upgraded);
+            assert!(
+                reg.get(&upgraded).is_some(),
+                "Silent card '{}' missing from registry",
+                upgraded
+            );
         }
         // Verify count: 4 basic + 19 common + 34 uncommon + 18 rare = 75
-        assert_eq!(silent_cards.len(), 75, "Should have exactly 75 Silent cards");
+        assert_eq!(
+            silent_cards.len(),
+            75,
+            "Should have exactly 75 Silent cards"
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -2197,32 +2467,94 @@ mod tests {
         let reg = super::global_registry();
         let defect_cards = [
             // Basic
-            "Strike", "Defend", "Zap", "Dualcast",
+            "Strike",
+            "Defend",
+            "Zap",
+            "Dualcast",
             // Common
-            "Ball Lightning", "Barrage", "Beam Cell", "Cold Snap",
-            "Compile Driver", "Conserve Battery", "Coolheaded",
-            "Go for the Eyes", "Hologram", "Leap", "Rebound",
-            "Stack", "Steam", "Streamline", "Sweeping Beam", "Turbo", "Gash",
+            "Ball Lightning",
+            "Barrage",
+            "Beam Cell",
+            "Cold Snap",
+            "Compile Driver",
+            "Conserve Battery",
+            "Coolheaded",
+            "Go for the Eyes",
+            "Hologram",
+            "Leap",
+            "Rebound",
+            "Stack",
+            "Steam",
+            "Streamline",
+            "Sweeping Beam",
+            "Turbo",
+            "Gash",
             // Uncommon
-            "Aggregate", "Auto Shields", "Blizzard", "BootSequence",
-            "Capacitor", "Chaos", "Chill", "Consume", "Darkness",
-            "Defragment", "Doom and Gloom", "Double Energy", "Undo",
-            "Force Field", "FTL", "Fusion", "Genetic Algorithm", "Glacier",
-            "Heatsinks", "Hello World", "Lockon", "Loop",
-            "Melter", "Impulse", "Steam Power", "Recycle", "Redo",
-            "Reinforced Body", "Reprogram", "Rip and Tear", "Scrape",
-            "Self Repair", "Skim", "Static Discharge", "Storm",
-            "Sunder", "Tempest", "White Noise",
+            "Aggregate",
+            "Auto Shields",
+            "Blizzard",
+            "BootSequence",
+            "Capacitor",
+            "Chaos",
+            "Chill",
+            "Consume",
+            "Darkness",
+            "Defragment",
+            "Doom and Gloom",
+            "Double Energy",
+            "Undo",
+            "Force Field",
+            "FTL",
+            "Fusion",
+            "Genetic Algorithm",
+            "Glacier",
+            "Heatsinks",
+            "Hello World",
+            "Lockon",
+            "Loop",
+            "Melter",
+            "Impulse",
+            "Steam Power",
+            "Recycle",
+            "Redo",
+            "Reinforced Body",
+            "Reprogram",
+            "Rip and Tear",
+            "Scrape",
+            "Self Repair",
+            "Skim",
+            "Static Discharge",
+            "Storm",
+            "Sunder",
+            "Tempest",
+            "White Noise",
             // Rare
-            "All For One", "Amplify", "Biased Cognition", "Buffer",
-            "Core Surge", "Creative AI", "Echo Form", "Electrodynamics",
-            "Fission", "Hyperbeam", "Machine Learning", "Meteor Strike",
-            "Multi-Cast", "Rainbow", "Reboot", "Seek", "Thunder Strike",
+            "All For One",
+            "Amplify",
+            "Biased Cognition",
+            "Buffer",
+            "Core Surge",
+            "Creative AI",
+            "Echo Form",
+            "Electrodynamics",
+            "Fission",
+            "Hyperbeam",
+            "Machine Learning",
+            "Meteor Strike",
+            "Multi-Cast",
+            "Rainbow",
+            "Reboot",
+            "Seek",
+            "Thunder Strike",
         ];
         for id in &defect_cards {
             assert!(reg.get(id).is_some(), "Defect card '{}' missing", id);
             let upgraded = format!("{}+", id);
-            assert!(reg.get(&upgraded).is_some(), "Defect card '{}' missing", upgraded);
+            assert!(
+                reg.get(&upgraded).is_some(),
+                "Defect card '{}' missing",
+                upgraded
+            );
         }
     }
 
@@ -2272,23 +2604,56 @@ mod tests {
         let reg = super::global_registry();
         let colorless_cards = [
             // Uncommon
-            "Bandage Up", "Blind", "Dark Shackles", "Deep Breath",
-            "Discovery", "Dramatic Entrance", "Enlightenment", "Finesse",
-            "Flash of Steel", "Forethought", "Good Instincts", "Impatience",
-            "Jack Of All Trades", "Madness", "Mind Blast", "Panacea",
-            "PanicButton", "Purity", "Swift Strike", "Trip",
+            "Bandage Up",
+            "Blind",
+            "Dark Shackles",
+            "Deep Breath",
+            "Discovery",
+            "Dramatic Entrance",
+            "Enlightenment",
+            "Finesse",
+            "Flash of Steel",
+            "Forethought",
+            "Good Instincts",
+            "Impatience",
+            "Jack Of All Trades",
+            "Madness",
+            "Mind Blast",
+            "Panacea",
+            "PanicButton",
+            "Purity",
+            "Swift Strike",
+            "Trip",
             // Rare
-            "Apotheosis", "Chrysalis", "HandOfGreed", "Magnetism",
-            "Master of Strategy", "Mayhem", "Metamorphosis", "Panache",
-            "Sadistic Nature", "Secret Technique", "Secret Weapon",
-            "The Bomb", "Thinking Ahead", "Transmutation", "Violence",
+            "Apotheosis",
+            "Chrysalis",
+            "HandOfGreed",
+            "Magnetism",
+            "Master of Strategy",
+            "Mayhem",
+            "Metamorphosis",
+            "Panache",
+            "Sadistic Nature",
+            "Secret Technique",
+            "Secret Weapon",
+            "The Bomb",
+            "Thinking Ahead",
+            "Transmutation",
+            "Violence",
             // Special
-            "Ghostly", "Bite", "J.A.X.", "RitualDagger",
+            "Ghostly",
+            "Bite",
+            "J.A.X.",
+            "RitualDagger",
         ];
         for id in &colorless_cards {
             assert!(reg.get(id).is_some(), "Colorless card '{}' missing", id);
             let upgraded = format!("{}+", id);
-            assert!(reg.get(&upgraded).is_some(), "Colorless card '{}' missing", upgraded);
+            assert!(
+                reg.get(&upgraded).is_some(),
+                "Colorless card '{}' missing",
+                upgraded
+            );
         }
     }
 
@@ -2314,15 +2679,36 @@ mod tests {
     fn test_all_curse_cards_registered() {
         let reg = super::global_registry();
         let curse_cards = [
-            "AscendersBane", "Clumsy", "CurseOfTheBell", "Decay",
-            "Doubt", "Injury", "Necronomicurse", "Normality",
-            "Pain", "Parasite", "Pride", "Regret", "Shame", "Writhe",
+            "AscendersBane",
+            "Clumsy",
+            "CurseOfTheBell",
+            "Decay",
+            "Doubt",
+            "Injury",
+            "Necronomicurse",
+            "Normality",
+            "Pain",
+            "Parasite",
+            "Pride",
+            "Regret",
+            "Shame",
+            "Writhe",
         ];
         for id in &curse_cards {
-            let card = reg.get(id).unwrap_or_else(|| panic!("Curse '{}' missing", id));
-            assert_eq!(card.card_type, CardType::Curse, "{} should be Curse type", id);
-            assert!(card.has_test_marker("unplayable") || card.cost >= 0,
-                "{} should be unplayable or have a cost", id);
+            let card = reg
+                .get(id)
+                .unwrap_or_else(|| panic!("Curse '{}' missing", id));
+            assert_eq!(
+                card.card_type,
+                CardType::Curse,
+                "{} should be Curse type",
+                id
+            );
+            assert!(
+                card.has_test_marker("unplayable") || card.cost >= 0,
+                "{} should be unplayable or have a cost",
+                id
+            );
         }
     }
 
@@ -2346,8 +2732,15 @@ mod tests {
         let reg = super::global_registry();
         let status_cards = ["Slimed", "Wound", "Dazed", "Burn", "Void"];
         for id in &status_cards {
-            let card = reg.get(id).unwrap_or_else(|| panic!("Status '{}' missing", id));
-            assert_eq!(card.card_type, CardType::Status, "{} should be Status type", id);
+            let card = reg
+                .get(id)
+                .unwrap_or_else(|| panic!("Status '{}' missing", id));
+            assert_eq!(
+                card.card_type,
+                CardType::Status,
+                "{} should be Status type",
+                id
+            );
         }
     }
 
@@ -2370,13 +2763,24 @@ mod tests {
     fn test_all_temp_cards_registered() {
         let reg = super::global_registry();
         let temp_cards = [
-            "Miracle", "Smite", "Beta", "Omega", "Expunger",
-            "Insight", "Safety", "ThroughViolence", "Shiv",
+            "Miracle",
+            "Smite",
+            "Beta",
+            "Omega",
+            "Expunger",
+            "Insight",
+            "Safety",
+            "ThroughViolence",
+            "Shiv",
         ];
         for id in &temp_cards {
             assert!(reg.get(id).is_some(), "Temp card '{}' missing", id);
             let upgraded = format!("{}+", id);
-            assert!(reg.get(&upgraded).is_some(), "Temp card '{}' missing", upgraded);
+            assert!(
+                reg.get(&upgraded).is_some(),
+                "Temp card '{}' missing",
+                upgraded
+            );
         }
     }
 
@@ -2432,8 +2836,11 @@ mod tests {
         assert_ne!(base_id, u16::MAX);
         assert_ne!(upgraded_id, u16::MAX);
         // Sorting puts base before upgraded, so upgraded = base + 1
-        assert_eq!(upgraded_id, base_id + 1,
-            "Strike_P+ should be consecutive after Strike_P");
+        assert_eq!(
+            upgraded_id,
+            base_id + 1,
+            "Strike_P+ should be consecutive after Strike_P"
+        );
     }
 
     #[test]
@@ -2443,7 +2850,12 @@ mod tests {
             let name = reg.card_name(id);
             let def = reg.card_def_by_id(id);
             assert_eq!(def.id, name, "ID {} name mismatch", id);
-            assert_eq!(reg.card_id(name), id, "Reverse lookup for '{}' failed", name);
+            assert_eq!(
+                reg.card_id(name),
+                id,
+                "Reverse lookup for '{}' failed",
+                name
+            );
         }
     }
 
@@ -2485,7 +2897,14 @@ mod tests {
     fn test_card_def_by_id_matches_get() {
         let reg = super::global_registry();
         // Every card accessible via get() should match card_def_by_id()
-        for name in ["Strike", "Eruption", "Bash", "Neutralize", "Zap", "Apotheosis"] {
+        for name in [
+            "Strike",
+            "Eruption",
+            "Bash",
+            "Neutralize",
+            "Zap",
+            "Apotheosis",
+        ] {
             let by_name = reg.get(name).unwrap();
             let id = reg.card_id(name);
             let by_id = reg.card_def_by_id(id);
@@ -2509,7 +2928,9 @@ mod tests {
         let exports = super::gameplay_export_defs();
         assert_eq!(exports.len(), super::global_registry().card_count());
         assert!(exports.iter().any(|def| def.id == "Strike"));
-        assert!(exports.iter().all(|def| def.domain == crate::gameplay::GameplayDomain::Card));
+        assert!(exports
+            .iter()
+            .all(|def| def.domain == crate::gameplay::GameplayDomain::Card));
     }
 }
 

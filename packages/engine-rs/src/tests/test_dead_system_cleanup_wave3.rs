@@ -7,14 +7,7 @@ use crate::tests::support::{enemy_no_intent, engine_without_start, make_deck, ma
 fn dead_cleanup_wave3_opening_state_relics_are_engine_path_authoritative() {
     let mut engine = engine_without_start(
         make_deck(&[
-            "Strike",
-            "Strike",
-            "Strike",
-            "Strike",
-            "Strike",
-            "Defend",
-            "Defend",
-            "Defend",
+            "Strike", "Strike", "Strike", "Strike", "Strike", "Defend", "Defend", "Defend",
         ]),
         vec![
             enemy_no_intent("Hexaghost", 250, 250),

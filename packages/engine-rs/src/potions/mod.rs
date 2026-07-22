@@ -46,13 +46,12 @@ pub fn potion_can_use_in_combat(state: &CombatState, potion_id: &str) -> bool {
         // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/FairyPotion.java
         "FairyPotion" | "Fairy in a Bottle" => false,
         "SmokeBomb" | "Smoke Bomb" => {
-            // Java blocks Smoke Bomb against bosses and also against any
-            // enemy currently presenting BackAttack legality. We model that
-            // second rule with a narrow enemy-level flag instead of a full
-            // positional rewrite.
+            // SmokeBomb.canUse scans BackAttack without filtering dead or
+            // dying monsters. This matters when the current BackAttack owner
+            // dies: Spire Shield/Spear cleanup deliberately skips that corpse.
+            // Java: SmokeBomb.java and SpireShield.java::die.
             !state.enemies.iter().any(|enemy| {
-                enemy.is_alive()
-                    && (is_boss_enemy_id(enemy.id.as_str()) || enemy.has_back_attack())
+                (enemy.is_alive() && is_boss_enemy_id(enemy.id.as_str())) || enemy.has_back_attack()
             })
         }
         _ => true,
@@ -215,8 +214,7 @@ mod tests {
 
     fn make_test_state() -> CombatState {
         let enemy = EnemyCombatState::new("JawWorm", 44, 44);
-        let mut state =
-            CombatState::new(80, 80, vec![enemy], make_deck_n("Strike", 5), 3);
+        let mut state = CombatState::new(80, 80, vec![enemy], make_deck_n("Strike", 5), 3);
         state.potions = vec!["".to_string(); 3];
         state
     }

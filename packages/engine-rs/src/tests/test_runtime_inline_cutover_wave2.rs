@@ -71,7 +71,10 @@ fn panache_engine_path_tracks_hidden_counter_and_bursts_on_fifth_card() {
     ensure_in_hand(&mut engine, "Defend");
     assert!(play_self(&mut engine, "Defend"));
 
-    assert_eq!(engine.hidden_effect_value("panache", EffectOwner::PlayerPower, 0), 0);
+    assert_eq!(
+        engine.hidden_effect_value("panache", EffectOwner::PlayerPower, 0),
+        0
+    );
     assert_eq!(engine.state.enemies[0].entity.hp, 50);
     assert_eq!(engine.state.enemies[1].entity.hp, 45);
 }
@@ -122,8 +125,12 @@ fn double_tap_replay_runs_through_runtime_replay_window() {
 fn burst_replay_is_suppressed_when_time_warp_force_ends_the_turn() {
     let mut engine = engine_with(make_deck_n("Defend", 6), 50, 0);
     engine.state.player.set_status(sid::BURST, 1);
-    engine.state.enemies[0].entity.set_status(sid::TIME_WARP_ACTIVE, 1);
-    engine.state.enemies[0].entity.set_status(sid::TIME_WARP, 11);
+    engine.state.enemies[0]
+        .entity
+        .set_status(sid::TIME_WARP_ACTIVE, 1);
+    engine.state.enemies[0]
+        .entity
+        .set_status(sid::TIME_WARP, 11);
     engine.rebuild_effect_runtime();
     engine.clear_event_log();
     ensure_in_hand(&mut engine, "Defend");

@@ -9,8 +9,10 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/cards/red/Offering.java
 // - decompiled/java-src/com/megacrit/cardcrawl/cards/red/ShrugItOff.java
 
-use crate::cards::{CardTarget, CardType, global_registry};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::cards::{global_registry, CardTarget, CardType};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::status_ids::sid;
 use crate::tests::support::*;
 
@@ -46,27 +48,35 @@ fn ironclad_wave7_registry_exports_match_typed_runtime_progress() {
         ]
     );
 
-    let combust = global_registry().get("Combust").expect("Combust should exist");
+    let combust = global_registry()
+        .get("Combust")
+        .expect("Combust should exist");
     assert_eq!(combust.card_type, CardType::Power);
     assert_eq!(
         combust.effect_data,
         &[E::Simple(SE::AddStatus(T::Player, sid::COMBUST, A::Magic))]
     );
 
-    let entrench = global_registry().get("Entrench").expect("Entrench should exist");
+    let entrench = global_registry()
+        .get("Entrench")
+        .expect("Entrench should exist");
     assert_eq!(
         entrench.effect_data,
         &[E::Simple(SE::GainBlock(A::PlayerBlock))]
     );
     assert!(entrench.complex_hook.is_none());
 
-    let inflame = global_registry().get("Inflame+").expect("Inflame+ should exist");
+    let inflame = global_registry()
+        .get("Inflame+")
+        .expect("Inflame+ should exist");
     assert_eq!(
         inflame.effect_data,
         &[E::Simple(SE::AddStatus(T::Player, sid::STRENGTH, A::Magic))]
     );
 
-    let offering = global_registry().get("Offering").expect("Offering should exist");
+    let offering = global_registry()
+        .get("Offering")
+        .expect("Offering should exist");
     assert!(offering.exhaust);
     assert_eq!(
         offering.effect_data,
@@ -147,7 +157,12 @@ fn offering_loses_fixed_six_through_hp_loss_then_gains_energy_and_draws() {
     upgraded.state.player.set_status(sid::RUPTURE, 2);
     upgraded.state.hand = make_deck(&["Offering+"]);
     upgraded.state.draw_pile = make_deck(&[
-        "Strike", "Defend", "Bash", "Shrug It Off", "Inflame", "Strike",
+        "Strike",
+        "Defend",
+        "Bash",
+        "Shrug It Off",
+        "Inflame",
+        "Strike",
     ]);
     let hp_before = upgraded.state.player.hp;
 
@@ -212,8 +227,15 @@ fn battle_trance_plus_draws_four_then_no_draw_expires_at_turn_end() {
     let mut engine = one_enemy_engine("JawWorm", 60);
     engine.state.hand = make_deck(&["Battle Trance+"]);
     engine.state.draw_pile = make_deck(&[
-        "Strike", "Defend", "Bash", "Shrug It Off", "Inflame", "Strike", "Defend",
-        "Bash", "Strike",
+        "Strike",
+        "Defend",
+        "Bash",
+        "Shrug It Off",
+        "Inflame",
+        "Strike",
+        "Defend",
+        "Bash",
+        "Strike",
     ]);
 
     assert!(play_self(&mut engine, "Battle Trance+"));
@@ -267,7 +289,9 @@ fn ironclad_wave7_combust_inflame_and_shrug_it_off_follow_engine_path() {
         3,
     );
     force_player_turn(&mut stacked);
-    stacked.state.enemies[0].entity.set_status(sid::MALLEABLE, 1);
+    stacked.state.enemies[0]
+        .entity
+        .set_status(sid::MALLEABLE, 1);
     stacked.state.hand = make_deck(&["Combust", "Combust+"]);
     assert!(play_self(&mut stacked, "Combust"));
     assert!(play_self(&mut stacked, "Combust+"));

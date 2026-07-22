@@ -2,7 +2,11 @@ use super::{
     EventEffect, EventProgram, EventProgramOp, EventReward, TypedEventDef, TypedEventOption,
 };
 
-fn supported(text: impl Into<String>, ops: Vec<EventProgramOp>, effect: EventEffect) -> TypedEventOption {
+fn supported(
+    text: impl Into<String>,
+    ops: Vec<EventProgramOp>,
+    effect: EventEffect,
+) -> TypedEventOption {
     TypedEventOption::supported(text, EventProgram::from_ops(ops), effect)
 }
 
@@ -11,6 +15,19 @@ fn event(name: &str, options: Vec<TypedEventOption>) -> TypedEventDef {
         name: name.to_string(),
         options,
     }
+}
+
+fn golden_wing_purge_stage() -> TypedEventDef {
+    event(
+        "Golden Wing",
+        vec![supported(
+            "Proceed to remove a card",
+            vec![EventProgramOp::deck_selection(
+                "deck_selection_event_remove",
+            )],
+            EventEffect::RemoveCard,
+        )],
+    )
 }
 
 fn mushrooms_fight_event() -> TypedEventDef {
@@ -22,9 +39,7 @@ fn mushrooms_fight_event() -> TypedEventDef {
                 ["FungiBeast", "FungiBeast", "FungiBeast"],
                 20,
                 30,
-                vec![EventProgramOp::gain_unique_relic_or_circlet(
-                    "Odd Mushroom",
-                )],
+                vec![EventProgramOp::gain_unique_relic_or_circlet("Odd Mushroom")],
             )],
             EventEffect::GainRelic,
         )],
@@ -97,12 +112,9 @@ fn dead_adventurer_fight_program(
     enemy: &str,
 ) -> EventProgram {
     let suffix_ops = dead_adventurer_suffix_ops(rewards, start);
-    EventProgram::from_ops(vec![EventProgramOp::prepare_combat_branch_with_random_gold(
-        [enemy],
-        25,
-        35,
-        suffix_ops,
-    )])
+    EventProgram::from_ops(vec![
+        EventProgramOp::prepare_combat_branch_with_random_gold([enemy], 25, 35, suffix_ops),
+    ])
 }
 
 fn dead_adventurer_search_program(
@@ -152,7 +164,11 @@ fn dead_adventurer_page(
                 .ops,
                 EventEffect::DamageAndGold(0, 30),
             ),
-            supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+            supported(
+                "Leave",
+                vec![EventProgramOp::nothing()],
+                EventEffect::Nothing,
+            ),
         ],
     )
 }
@@ -165,16 +181,17 @@ pub(crate) fn dead_adventurer_event_with_state(
     let encounter_chance = if ascension_level >= 15 { 35 } else { 25 };
     let success = event(
         "Dead Adventurer",
-        vec![supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing)],
+        vec![supported(
+            "Leave",
+            vec![EventProgramOp::nothing()],
+            EventEffect::Nothing,
+        )],
     );
     let page3 = dead_adventurer_page(rewards, 2, success, 75, enemy);
     let page2 = dead_adventurer_page(rewards, 1, page3, 50, enemy);
     let page1 = dead_adventurer_page(rewards, 0, page2, encounter_chance, enemy);
 
-    event(
-        "Dead Adventurer",
-        page1.options,
-    )
+    event("Dead Adventurer", page1.options)
 }
 
 pub fn typed_act1_events() -> Vec<TypedEventDef> {
@@ -182,13 +199,21 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
         event(
             "Big Fish",
             vec![
-                supported("Eat (heal 5 HP)", vec![EventProgramOp::hp(5)], EventEffect::Hp(5)),
+                supported(
+                    "Eat (heal 5 HP)",
+                    vec![EventProgramOp::hp(5)],
+                    EventEffect::Hp(5),
+                ),
                 supported(
                     "Banana (gain 2 max HP)",
                     vec![EventProgramOp::max_hp(2)],
                     EventEffect::MaxHp(2),
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
@@ -205,7 +230,11 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
                     ],
                     EventEffect::GoldenIdolTake,
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
@@ -216,7 +245,11 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
                     vec![EventProgramOp::nothing()],
                     EventEffect::DamageAndGold(-3, 0),
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
@@ -230,7 +263,11 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
                     ],
                     EventEffect::UpgradeCard,
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
@@ -250,7 +287,11 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
                     )],
                     EventEffect::RemoveCard,
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
@@ -272,7 +313,11 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
                     ],
                     EventEffect::RemoveCard,
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
@@ -290,7 +335,13 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
                     "Feed (take 7 dmg, remove a card)",
                     vec![
                         EventProgramOp::damage_and_gold(-7, 0),
-                        EventProgramOp::deck_selection("deck_selection_event_remove"),
+                        // GoldenWing.buttonEffect first applies damage and
+                        // advances INTRO -> PURGE. Only the next dialog click
+                        // opens GridCardSelectScreen; the chosen card is then
+                        // removed by purgeLogic. Keep all three decisions
+                        // visible to the run action surface.
+                        // Java: events/exordium/GoldenWing.java.
+                        EventProgramOp::continue_event(golden_wing_purge_stage()),
                     ],
                     EventEffect::RemoveCard,
                 ),
@@ -303,7 +354,11 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
                     )],
                     EventEffect::Gold(65),
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
@@ -357,7 +412,11 @@ pub fn typed_act1_events() -> Vec<TypedEventDef> {
                     ],
                     EventEffect::Gold(175),
                 ),
-                supported("Disagree", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Disagree",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
     ]

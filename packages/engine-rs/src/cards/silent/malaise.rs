@@ -22,16 +22,38 @@ fn apply_malaise(
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // Malaise.java passes energyOnUse/freeToPlayOnce to MalaiseAction; upgrade
     // adds one to the action effect without changing this X cost or Exhaust.
-    insert(cards, CardDef {
-                id: "Malaise", name: "Malaise", card_type: CardType::Skill,
-                target: CardTarget::Enemy, cost: -1, base_damage: -1, base_block: -1,
-                base_magic: 0, exhaust: true, enter_stance: None,
-                effect_data: &[], complex_hook: Some(apply_malaise),
-            });
-    insert(cards, CardDef {
-                id: "Malaise+", name: "Malaise+", card_type: CardType::Skill,
-                target: CardTarget::Enemy, cost: -1, base_damage: -1, base_block: -1,
-                base_magic: 1, exhaust: true, enter_stance: None,
-                effect_data: &[], complex_hook: Some(apply_malaise),
-            });
+    insert(
+        cards,
+        CardDef {
+            id: "Malaise",
+            name: "Malaise",
+            card_type: CardType::Skill,
+            target: CardTarget::Enemy,
+            cost: -1,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: 0,
+            exhaust: true,
+            enter_stance: None,
+            effect_data: &[],
+            complex_hook: Some(apply_malaise),
+        },
+    );
+    insert(
+        cards,
+        CardDef {
+            id: "Malaise+",
+            name: "Malaise+",
+            card_type: CardType::Skill,
+            target: CardTarget::Enemy,
+            cost: -1,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: 1,
+            exhaust: true,
+            enter_stance: None,
+            effect_data: &[],
+            complex_hook: Some(apply_malaise),
+        },
+    );
 }

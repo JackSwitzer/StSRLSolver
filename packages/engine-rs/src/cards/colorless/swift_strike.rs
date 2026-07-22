@@ -4,16 +4,38 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // Swift Strike: 0 cost, 7 dmg
     // The upgrade adds 3 damage, and the STRIKE tag makes Strike Dummy apply.
     // Java: reference/extracted/methods/card/SwiftStrike.java
-    insert(cards, CardDef {
-        id: "Swift Strike", name: "Swift Strike", card_type: CardType::Attack,
-        target: CardTarget::Enemy, cost: 0, base_damage: 7, base_block: -1,
-        base_magic: -1, exhaust: false, enter_stance: None,
-                effect_data: &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))], complex_hook: None,
-    });
-    insert(cards, CardDef {
-        id: "Swift Strike+", name: "Swift Strike+", card_type: CardType::Attack,
-        target: CardTarget::Enemy, cost: 0, base_damage: 10, base_block: -1,
-        base_magic: -1, exhaust: false, enter_stance: None,
-                effect_data: &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))], complex_hook: None,
-    });
+    insert(
+        cards,
+        CardDef {
+            id: "Swift Strike",
+            name: "Swift Strike",
+            card_type: CardType::Attack,
+            target: CardTarget::Enemy,
+            cost: 0,
+            base_damage: 7,
+            base_block: -1,
+            base_magic: -1,
+            exhaust: false,
+            enter_stance: None,
+            effect_data: &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))],
+            complex_hook: None,
+        },
+    );
+    insert(
+        cards,
+        CardDef {
+            id: "Swift Strike+",
+            name: "Swift Strike+",
+            card_type: CardType::Attack,
+            target: CardTarget::Enemy,
+            cost: 0,
+            base_damage: 10,
+            base_block: -1,
+            base_magic: -1,
+            exhaust: false,
+            enter_stance: None,
+            effect_data: &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))],
+            complex_hook: None,
+        },
+    );
 }

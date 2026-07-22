@@ -19,6 +19,11 @@ fn relic_wave14_frozen_core_engine_path_replaces_helper_flag_test() {
     engine.execute_action(&Action::EndTurn);
 
     assert_eq!(engine.state.orb_slots.occupied_count(), occupied_before + 1);
-    assert!(engine.state.orb_slots.slots.iter().any(|orb| orb.orb_type == OrbType::Frost));
+    assert!(engine
+        .state
+        .orb_slots
+        .slots
+        .iter()
+        .any(|orb| orb.orb_type == OrbType::Frost));
     assert_eq!(engine.state.player.hp, 77);
 }

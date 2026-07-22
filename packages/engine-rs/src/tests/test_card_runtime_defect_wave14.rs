@@ -10,13 +10,16 @@
 
 use crate::actions::Action;
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE,
+    Target as T,
+};
 use crate::engine::{ChoiceReason, CombatPhase};
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
 use crate::tests::support::{
-    discard_prefix_count, enemy_no_intent, engine_without_start, force_player_turn, hand_prefix_count,
-    make_deck, play_on_enemy, play_self, TEST_SEED,
+    discard_prefix_count, enemy_no_intent, engine_without_start, force_player_turn,
+    hand_prefix_count, make_deck, play_on_enemy, play_self, TEST_SEED,
 };
 
 #[test]
@@ -114,7 +117,9 @@ fn defect_wave14_registry_exports_seek_on_the_typed_search_surface() {
     let scrape = global_registry().get("Scrape").expect("Scrape");
     assert_eq!(
         scrape.effect_data,
-        &[E::Simple(SE::DrawCardsThenDiscardDrawnNonZeroCost(A::Magic))]
+        &[E::Simple(SE::DrawCardsThenDiscardDrawnNonZeroCost(
+            A::Magic
+        ))]
     );
     assert!(scrape.complex_hook.is_none());
 }
@@ -137,7 +142,10 @@ fn seek_plus_searches_the_draw_pile_with_the_declarative_choice_surface() {
         engine.choice.as_ref().map(|choice| choice.reason.clone()),
         Some(ChoiceReason::SearchDrawPile),
     );
-    assert_eq!(engine.choice.as_ref().map(|choice| choice.min_picks), Some(2));
+    assert_eq!(
+        engine.choice.as_ref().map(|choice| choice.min_picks),
+        Some(2)
+    );
 
     engine.execute_action(&Action::Choose(0));
     engine.execute_action(&Action::Choose(1));
@@ -150,11 +158,7 @@ fn seek_plus_searches_the_draw_pile_with_the_declarative_choice_surface() {
 
 #[test]
 fn fission_reboot_and_scrape_follow_the_current_defect_runtime_paths() {
-    let mut fission = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 60, 60)],
-        3,
-    );
+    let mut fission = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 60, 60)], 3);
     force_player_turn(&mut fission);
     fission.init_defect_orbs(3);
     fission.channel_orb(OrbType::Lightning);
@@ -168,11 +172,7 @@ fn fission_reboot_and_scrape_follow_the_current_defect_runtime_paths() {
     assert_eq!(fission.state.energy, 6);
     assert_eq!(fission.state.hand.len(), 3);
 
-    let mut reboot = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut reboot = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut reboot);
     reboot.state.hand = make_deck(&["Reboot", "Strike", "Defend"]);
     reboot.state.draw_pile.clear();
@@ -182,16 +182,14 @@ fn fission_reboot_and_scrape_follow_the_current_defect_runtime_paths() {
     assert_eq!(reboot.state.hand.len(), 4);
     assert_eq!(reboot.state.exhaust_pile.len(), 1);
     assert_eq!(
-        reboot.card_registry.card_name(reboot.state.exhaust_pile[0].def_id),
+        reboot
+            .card_registry
+            .card_name(reboot.state.exhaust_pile[0].def_id),
         "Reboot"
     );
     assert_eq!(reboot.state.discard_pile.len(), 0);
 
-    let mut scrape = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut scrape = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut scrape);
     scrape.state.hand = make_deck(&["Scrape"]);
     scrape.state.draw_pile = make_deck(&["Turbo", "Strike"]);
@@ -323,11 +321,7 @@ fn reboot_moves_remaining_hand_and_discard_into_draw_then_draws_and_exhausts() {
     // decompiled/java-src/com/megacrit/cardcrawl/actions/common/PutOnDeckAction.java;
     // decompiled/java-src/com/megacrit/cardcrawl/actions/common/ShuffleAction.java;
     // and decompiled/java-src/com/megacrit/cardcrawl/cards/CardGroup.java.
-    let mut reboot = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut reboot = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut reboot);
     reboot.state.hand = make_deck(&["Reboot+", "Strike", "Defend"]);
     reboot.state.draw_pile = make_deck(&["Zap"]);
@@ -362,7 +356,9 @@ fn reboot_moves_remaining_hand_and_discard_into_draw_then_draws_and_exhausts() {
     assert!(reboot.state.draw_pile.is_empty());
     assert_eq!(reboot.state.exhaust_pile.len(), 1);
     assert_eq!(
-        reboot.card_registry.card_name(reboot.state.exhaust_pile[0].def_id),
+        reboot
+            .card_registry
+            .card_name(reboot.state.exhaust_pile[0].def_id),
         "Reboot+"
     );
     assert_eq!(reboot.state.discard_pile.len(), 0);
@@ -376,11 +372,7 @@ fn reboot_waits_for_melange_scry_before_gathering_and_shuffling_piles() {
     // Sources: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/ShuffleAllAction.java,
     // decompiled/java-src/com/megacrit/cardcrawl/relics/Melange.java, and
     // reference/extracted/methods/card/Reboot.java.
-    let mut reboot = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut reboot = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut reboot);
     reboot.state.relics.push("Melange".to_string());
     reboot.rebuild_effect_runtime();
@@ -393,8 +385,16 @@ fn reboot_waits_for_melange_scry_before_gathering_and_shuffling_piles() {
     assert!(play_self(&mut reboot, "Reboot+"));
 
     assert_eq!(reboot.phase, CombatPhase::AwaitingChoice);
-    assert_eq!(reboot.state.hand.len(), 1, "ShuffleAllAction is still queued");
-    assert_eq!(reboot.state.draw_pile.len(), 1, "Melange exposed three cards");
+    assert_eq!(
+        reboot.state.hand.len(),
+        1,
+        "ShuffleAllAction is still queued"
+    );
+    assert_eq!(
+        reboot.state.draw_pile.len(),
+        1,
+        "Melange exposed three cards"
+    );
     assert_eq!(reboot.state.discard_pile.len(), 1);
     assert_eq!(reboot.shuffle_rng.counter, shuffle_before);
     assert_eq!(reboot.card_random_rng.counter, card_random_before);
@@ -419,18 +419,16 @@ fn reboot_waits_for_melange_scry_before_gathering_and_shuffling_piles() {
     assert_eq!(reboot.card_random_rng.counter, card_random_before + 1);
     assert_eq!(reboot.state.exhaust_pile.len(), 1);
     assert_eq!(
-        reboot.card_registry.card_name(reboot.state.exhaust_pile[0].def_id),
+        reboot
+            .card_registry
+            .card_name(reboot.state.exhaust_pile[0].def_id),
         "Reboot+"
     );
 }
 
 #[test]
 fn scrape_draws_then_discards_only_newly_drawn_nonzero_cost_cards() {
-    let mut scrape = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut scrape = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut scrape);
     scrape.state.hand = make_deck(&["Scrape", "Strike"]);
     scrape.state.draw_pile = make_deck(&["Strike", "Turbo"]);
@@ -455,22 +453,12 @@ fn scrape_follow_up_discards_direct_nonzero_costs_in_order_before_evolve_draws()
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/
     // ScrapeFollowUpAction.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/EvolvePower.java
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        1,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 1);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Scrape"]);
     // Draw pile top is the final element: direct draws are Burn, Reinforced
     // Body, Turbo, Strike; Evolve then draws the remaining Defend.
-    engine.state.draw_pile = make_deck(&[
-        "Defend",
-        "Strike",
-        "Turbo",
-        "Reinforced Body",
-        "Burn",
-    ]);
+    engine.state.draw_pile = make_deck(&["Defend", "Strike", "Turbo", "Reinforced Body", "Burn"]);
     engine.state.player.set_status(sid::EVOLVE, 1);
 
     assert!(play_on_enemy(&mut engine, "Scrape", 0));
@@ -494,11 +482,7 @@ fn scrape_follow_up_discards_direct_nonzero_costs_in_order_before_evolve_draws()
 
     // DamageAction clears the queued DrawCardAction when the opening hit ends
     // combat, so even upgraded Scrape leaves the draw pile untouched on lethal.
-    let mut lethal = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 10, 10)],
-        1,
-    );
+    let mut lethal = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 10, 10)], 1);
     force_player_turn(&mut lethal);
     lethal.state.hand = make_deck(&["Scrape+"]);
     lethal.state.draw_pile = make_deck(&["Strike", "Defend"]);

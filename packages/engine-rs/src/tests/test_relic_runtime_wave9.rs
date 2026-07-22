@@ -8,6 +8,8 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/MummifiedHand.java
 // - decompiled/java-src/com/megacrit/cardcrawl/relics/Duality.java
 
+use crate::actions::Action;
+use crate::effects::runtime::EffectOwner;
 use crate::status_ids::sid;
 use crate::tests::support::{
     combat_state_with, enemy_no_intent, engine_with_state, engine_without_start, make_deck,
@@ -30,14 +32,7 @@ fn opening_turn_draw_relics_follow_runtime_path() {
     let mut bag = engine_without_start_with_relics(
         &["Bag of Preparation"],
         &[
-            "Strike",
-            "Strike",
-            "Strike",
-            "Strike",
-            "Strike",
-            "Defend",
-            "Defend",
-            "Defend",
+            "Strike", "Strike", "Strike", "Strike", "Strike", "Defend", "Defend", "Defend",
         ],
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
@@ -49,14 +44,7 @@ fn opening_turn_draw_relics_follow_runtime_path() {
     let mut ring = engine_without_start_with_relics(
         &["Ring of the Snake"],
         &[
-            "Strike",
-            "Strike",
-            "Strike",
-            "Strike",
-            "Strike",
-            "Defend",
-            "Defend",
-            "Defend",
+            "Strike", "Strike", "Strike", "Strike", "Strike", "Defend", "Defend", "Defend",
         ],
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
@@ -64,14 +52,16 @@ fn opening_turn_draw_relics_follow_runtime_path() {
     ring.start_combat();
     assert_eq!(ring.state.player.status(sid::BAG_OF_PREP_DRAW), 0);
     assert_eq!(ring.state.hand.len(), 7);
-
 }
 
 #[test]
 fn card_play_relics_follow_runtime_path() {
     let mut opener_state = combat_state_with(
         make_deck(&["Defend", "Defend", "Defend"]),
-        vec![enemy_no_intent("JawWorm", 40, 40), enemy_no_intent("Cultist", 44, 44)],
+        vec![
+            enemy_no_intent("JawWorm", 40, 40),
+            enemy_no_intent("Cultist", 44, 44),
+        ],
         20,
     );
     opener_state.relics.push("Letter Opener".to_string());
@@ -125,6 +115,36 @@ fn card_play_relics_follow_runtime_path() {
 }
 
 #[test]
+fn letter_opener_resets_skill_progress_at_turn_start() {
+    // LetterOpener.atTurnStart assigns counter = 0, so skills played on the
+    // previous turn never contribute toward the next turn's three-skill hit.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/LetterOpener.java.
+    let mut state = combat_state_with(
+        make_deck(&[
+            "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend",
+        ]),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        10,
+    );
+    state.relics.push("Letter Opener".to_string());
+    let mut engine = engine_with_state(state);
+    engine.state.hand = make_deck(&["Defend", "Defend"]);
+
+    assert!(play_self(&mut engine, "Defend"));
+    assert!(play_self(&mut engine, "Defend"));
+    assert_eq!(
+        engine.hidden_effect_value("Letter Opener", EffectOwner::PlayerRelic { slot: 0 }, 0,),
+        2
+    );
+
+    engine.execute_action(&Action::EndTurn);
+    assert_eq!(
+        engine.hidden_effect_value("Letter Opener", EffectOwner::PlayerRelic { slot: 0 }, 0,),
+        0
+    );
+}
+
+#[test]
 fn letter_opener_uses_unmodified_thorns_damage_against_slow_and_flight() {
     // LetterOpener.java creates a pure 5-damage matrix and resolves it as
     // DamageType.THORNS, which SlowPower and FlightPower explicitly ignore.
@@ -149,4 +169,28 @@ fn letter_opener_uses_unmodified_thorns_damage_against_slow_and_flight() {
     assert_eq!(engine.state.enemies[0].entity.hp, 35);
     assert_eq!(engine.state.enemies[1].entity.hp, 35);
     assert_eq!(engine.state.enemies[1].entity.status(sid::FLIGHT), 3);
+}
+
+#[test]
+fn lethal_attack_clears_duality_apply_power_actions() {
+    // Duality.onUseCard queues two ApplyPowerActions behind the card's damage.
+    // DamageAction.clearPostCombatActions removes those action classes when
+    // the hit kills the encounter, while nonlethal attacks still gain both
+    // temporary-Dexterity powers.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Duality.java;
+    // decompiled/java-src/com/megacrit/cardcrawl/actions/common/DamageAction.java;
+    // decompiled/java-src/com/megacrit/cardcrawl/actions/GameActionManager.java.
+    let mut state = combat_state_with(
+        make_deck(&["Strike"]),
+        vec![enemy_no_intent("JawWorm", 6, 6)],
+        3,
+    );
+    state.relics.push("Yang".to_string());
+    let mut engine = engine_with_state(state);
+    engine.state.hand = make_deck(&["Strike"]);
+
+    assert!(play_on_enemy(&mut engine, "Strike", 0));
+    assert!(engine.state.enemies[0].entity.is_dead());
+    assert_eq!(engine.state.player.dexterity(), 0);
+    assert_eq!(engine.state.player.status(sid::LOSE_DEXTERITY), 0);
 }

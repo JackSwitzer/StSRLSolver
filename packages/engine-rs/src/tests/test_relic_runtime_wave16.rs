@@ -16,7 +16,10 @@ use crate::tests::support::{end_turn, enemy_no_intent, engine_without_start, mak
 fn relic_wave16_start_combat_buffs_and_temp_cards_match_canonical_runtime() {
     let mut engine = engine_without_start(
         make_deck_n("Strike", 12),
-        vec![enemy_no_intent("JawWorm", 40, 40), enemy_no_intent("Cultist", 44, 44)],
+        vec![
+            enemy_no_intent("JawWorm", 40, 40),
+            enemy_no_intent("Cultist", 44, 44),
+        ],
         3,
     );
     engine.state.relics = vec![
@@ -29,8 +32,16 @@ fn relic_wave16_start_combat_buffs_and_temp_cards_match_canonical_runtime() {
     engine.start_combat();
 
     assert_eq!(engine.state.player.dexterity(), 1);
-    assert!(engine.state.enemies.iter().all(|enemy| enemy.entity.is_weak()));
-    assert!(engine.state.enemies.iter().all(|enemy| enemy.entity.strength() == 1));
+    assert!(engine
+        .state
+        .enemies
+        .iter()
+        .all(|enemy| enemy.entity.is_weak()));
+    assert!(engine
+        .state
+        .enemies
+        .iter()
+        .all(|enemy| enemy.entity.strength() == 1));
     assert_eq!(
         engine
             .state
@@ -111,5 +122,13 @@ fn relic_wave16_runtime_mutagenic_strength_and_ninja_scroll_stay_authoritative()
             .count(),
         3
     );
-    assert_eq!(engine.state.discard_pile.iter().filter(|card| engine.card_registry.card_name(card.def_id) == "Shiv").count(), 0);
+    assert_eq!(
+        engine
+            .state
+            .discard_pile
+            .iter()
+            .filter(|card| engine.card_registry.card_name(card.def_id) == "Shiv")
+            .count(),
+        0
+    );
 }

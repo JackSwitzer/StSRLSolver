@@ -1,7 +1,9 @@
 #![cfg(test)]
 
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
 use crate::tests::support::{
@@ -25,7 +27,11 @@ fn assert_gameplay_card_export(
     assert_eq!(schema.target, Some(target), "{id} target");
     assert_eq!(schema.cost, Some(cost), "{id} cost");
     assert_eq!(schema.exhausts, exhausts, "{id} exhaust");
-    assert_eq!(schema.upgraded_from.as_deref(), upgraded_from, "{id} upgraded_from");
+    assert_eq!(
+        schema.upgraded_from.as_deref(),
+        upgraded_from,
+        "{id} upgraded_from"
+    );
     schema.clone()
 }
 
@@ -34,10 +40,7 @@ fn test_card_runtime_defect_wave5_registry_exports_match_runtime_progress() {
     let reg = global_registry();
 
     let double_energy = reg.get("Double Energy").expect("Double Energy");
-    assert_eq!(
-        double_energy.effect_data,
-        &[E::Simple(SE::DoubleEnergy)]
-    );
+    assert_eq!(double_energy.effect_data, &[E::Simple(SE::DoubleEnergy)]);
     assert!(double_energy.complex_hook.is_none());
 
     let fission = reg.get("Fission").expect("Fission");
@@ -55,7 +58,10 @@ fn test_card_runtime_defect_wave5_registry_exports_match_runtime_progress() {
     assert!(fission_plus.complex_hook.is_none());
 
     let force_field = reg.get("Force Field").expect("Force Field");
-    assert_eq!(force_field.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
+    assert_eq!(
+        force_field.effect_data,
+        &[E::Simple(SE::GainBlock(A::Block))]
+    );
     assert!(force_field.complex_hook.is_none());
     assert!(force_field.has_test_marker("reduce_cost_per_power"));
 
@@ -69,7 +75,11 @@ fn test_card_runtime_defect_wave5_registry_exports_match_runtime_progress() {
     let hello_world = reg.get("Hello World+").expect("Hello World+");
     assert_eq!(
         hello_world.effect_data,
-        &[E::Simple(SE::AddStatus(T::Player, sid::HELLO_WORLD, A::Magic))]
+        &[E::Simple(SE::AddStatus(
+            T::Player,
+            sid::HELLO_WORLD,
+            A::Magic
+        ))]
     );
     assert!(hello_world.has_test_marker("innate"));
     assert!(hello_world.complex_hook.is_none());
@@ -98,11 +108,8 @@ fn test_card_runtime_defect_wave5_registry_exports_match_runtime_progress() {
 
 #[test]
 fn test_card_runtime_defect_wave5_double_energy_force_field_and_leap_follow_engine_path() {
-    let mut double_energy = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut double_energy =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut double_energy);
     double_energy.state.energy = 4;
     double_energy.state.hand = make_deck(&["Double Energy+"]);
@@ -114,11 +121,8 @@ fn test_card_runtime_defect_wave5_double_energy_force_field_and_leap_follow_engi
         .iter()
         .any(|card| double_energy.card_registry.card_name(card.def_id) == "Double Energy+"));
 
-    let mut force_field = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 60, 60)],
-        6,
-    );
+    let mut force_field =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 60, 60)], 6);
     force_player_turn(&mut force_field);
     force_field.state.hand = make_deck(&["Heatsinks", "Hello World", "Force Field+"]);
     assert!(play_self(&mut force_field, "Heatsinks"));
@@ -128,11 +132,7 @@ fn test_card_runtime_defect_wave5_double_energy_force_field_and_leap_follow_engi
     assert_eq!(force_field.state.player.block, 16);
     assert_eq!(force_field.state.energy, 0);
 
-    let mut leap = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut leap = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut leap);
     leap.state.hand = make_deck(&["Leap+"]);
     assert!(play_self(&mut leap, "Leap+"));
@@ -147,11 +147,7 @@ fn force_field_counts_power_cards_played_even_after_the_power_is_gone() {
     // Power therefore reduce a fresh Force Field from four to two even though
     // only one stacked power exists (and remains reduced after it is removed).
     // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ForceField.java
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 60, 60)],
-        6,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 60, 60)], 6);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Demon Form", "Demon Form"]);
 
@@ -184,11 +180,7 @@ fn force_field_confusion_overwrite_forgets_only_earlier_power_discounts() {
         })
         .expect("a seed whose first Confusion roll is three");
     let mut engine = crate::engine::CombatEngine::new(
-        combat_state_with(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 60, 60)],
-            6,
-        ),
+        combat_state_with(Vec::new(), vec![enemy_no_intent("JawWorm", 60, 60)], 6),
         seed,
     );
     force_player_turn(&mut engine);
@@ -211,11 +203,7 @@ fn force_field_confusion_overwrite_forgets_only_earlier_power_discounts() {
 
 #[test]
 fn test_card_runtime_defect_wave5_fission_and_fission_plus_cover_remove_and_evoke_paths() {
-    let mut fission = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 60, 60)],
-        3,
-    );
+    let mut fission = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 60, 60)], 3);
     force_player_turn(&mut fission);
     fission.init_defect_orbs(3);
     fission.channel_orb(OrbType::Lightning);
@@ -228,11 +216,8 @@ fn test_card_runtime_defect_wave5_fission_and_fission_plus_cover_remove_and_evok
     assert_eq!(fission.state.energy, 6);
     assert_eq!(fission.state.hand.len(), 3);
 
-    let mut fission_plus = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 80, 80)],
-        3,
-    );
+    let mut fission_plus =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 80, 80)], 3);
     force_player_turn(&mut fission_plus);
     fission_plus.init_defect_orbs(3);
     fission_plus.channel_orb(OrbType::Lightning);
@@ -252,11 +237,8 @@ fn test_card_runtime_defect_wave5_fission_and_fission_plus_cover_remove_and_evok
 
 #[test]
 fn test_card_runtime_defect_wave5_heatsinks_hello_world_and_loop_install_runtime_statuses() {
-    let mut heatsinks = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 50, 50)],
-        3,
-    );
+    let mut heatsinks =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 50, 50)], 3);
     force_player_turn(&mut heatsinks);
     heatsinks.state.hand = make_deck(&["Heatsinks+", "Hello World"]);
     heatsinks.state.draw_pile = make_deck(&["Strike", "Defend"]);
@@ -265,11 +247,8 @@ fn test_card_runtime_defect_wave5_heatsinks_hello_world_and_loop_install_runtime
     assert!(play_self(&mut heatsinks, "Hello World"));
     assert_eq!(heatsinks.state.hand.len(), 2);
 
-    let mut hello_world = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut hello_world =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut hello_world);
     hello_world.state.hand = make_deck(&["Hello World+"]);
     hello_world.state.draw_pile.clear();
@@ -281,15 +260,14 @@ fn test_card_runtime_defect_wave5_heatsinks_hello_world_and_loop_install_runtime
     // Strike is BASIC and therefore cannot be generated. Exact pool order and
     // cardRandomRng consumption are covered by the source-derived power test.
     assert_ne!(
-        hello_world.card_registry.card_name(hello_world.state.hand[0].def_id),
+        hello_world
+            .card_registry
+            .card_name(hello_world.state.hand[0].def_id),
         "Strike"
     );
 
-    let mut loop_card = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 60, 60)],
-        3,
-    );
+    let mut loop_card =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 60, 60)], 3);
     force_player_turn(&mut loop_card);
     loop_card.init_defect_orbs(1);
     loop_card.channel_orb(OrbType::Lightning);

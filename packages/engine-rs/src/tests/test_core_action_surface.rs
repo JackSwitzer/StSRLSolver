@@ -114,3 +114,25 @@ fn blocked_campfire_options_are_absent_from_core_legality() {
     assert!(!context.can_rest);
     assert!(context.upgradable_cards.is_empty());
 }
+
+#[test]
+fn campfire_with_no_usable_options_completes_immediately() {
+    // CampfireUI checks every option after construction and completes the room
+    // immediately when none can be used. Coffee Dripper and Fusion Hammer
+    // disable Rest and Smith; an owned Ruby key removes Recall.
+    // Java: CampfireUI.java, CoffeeDripper.java, and FusionHammer.java.
+    let mut engine = RunEngine::new(43, 0);
+    engine.run_state.relics.push("Coffee Dripper".to_string());
+    engine.run_state.relics.push("Fusion Hammer".to_string());
+    engine
+        .run_state
+        .relic_flags
+        .rebuild(&engine.run_state.relics);
+    engine.run_state.deck = vec!["Strike+".to_string(), "Defend+".to_string()];
+    engine.run_state.has_ruby_key = true;
+
+    engine.debug_set_campfire_phase();
+
+    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+    assert!(engine.current_decision_context().campfire.is_none());
+}

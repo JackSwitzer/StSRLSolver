@@ -1,22 +1,25 @@
 //! Akabeko: 8 Vigor at combat start.
 
-use crate::effects::declarative::{Effect, SimpleEffect, Target, AmountSource};
+use crate::effects::declarative::{AmountSource, Effect, SimpleEffect, Target};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::status_ids::sid;
 
-static EFFECTS: [Effect; 1] = [
-    Effect::Simple(SimpleEffect::AddStatus(Target::Player, sid::VIGOR, AmountSource::Fixed(8))),
-];
+static EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddStatus(
+    Target::Player,
+    sid::VIGOR,
+    AmountSource::Fixed(8),
+))];
 
-static TRIGGERS: [TriggeredEffect; 1] = [
-    TriggeredEffect {
-        trigger: Trigger::CombatStart,
-        condition: TriggerCondition::Always,
-        effects: &EFFECTS,
-        counter: None,
-    },
-];
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    // Akabeko.java::atBattleStart queues ApplyPowerAction with addToTop.
+    // Later-owned top actions resolve ahead of earlier-owned top actions and
+    // all first-turn addToBot effects.
+    trigger: Trigger::CombatStartTop,
+    condition: TriggerCondition::Always,
+    effects: &EFFECTS,
+    counter: None,
+}];
 
 pub static DEF: EntityDef = EntityDef {
     id: "Akabeko",

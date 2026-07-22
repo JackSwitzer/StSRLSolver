@@ -7,14 +7,12 @@
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 
-static TRIGGERS: [TriggeredEffect; 1] = [
-    TriggeredEffect {
-        trigger: Trigger::OnDebuffApplied,
-        condition: TriggerCondition::Always,
-        effects: &[], // Handled inline in debuff application
-        counter: None,
-    },
-];
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::OnDebuffApplied,
+    condition: TriggerCondition::Always,
+    effects: &[], // Handled inline in debuff application
+    counter: None,
+}];
 
 pub static DEF: EntityDef = EntityDef {
     id: "Champion Belt",

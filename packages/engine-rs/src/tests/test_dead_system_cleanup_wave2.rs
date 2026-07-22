@@ -41,11 +41,7 @@ fn dead_cleanup_wave2_simple_relic_bundle_is_engine_path_authoritative() {
 fn dead_cleanup_wave2_relic_and_potion_use_no_longer_need_helper_combat_start() {
     let mut enemy = enemy("JawWorm", 100, 100, 1, 5, 1);
     enemy.entity.block = 0;
-    let mut engine = engine_without_start(
-        make_deck_n("Strike", 5),
-        vec![enemy],
-        3,
-    );
+    let mut engine = engine_without_start(make_deck_n("Strike", 5), vec![enemy], 3);
     engine.state.relics.push("Vajra".to_string());
 
     engine.start_combat();

@@ -1,7 +1,9 @@
 #![cfg(test)]
 
-use crate::cards::{CardTarget, CardType, global_registry};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::cards::{global_registry, CardTarget, CardType};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::state::Stance;
 use crate::status_ids::sid;
 use crate::tests::support::*;
@@ -12,10 +14,7 @@ fn one_enemy_engine(enemy_id: &str, hp: i32, dmg: i32) -> crate::engine::CombatE
     engine
 }
 
-fn two_enemy_engine(
-    a: (&str, i32, i32),
-    b: (&str, i32, i32),
-) -> crate::engine::CombatEngine {
+fn two_enemy_engine(a: (&str, i32, i32), b: (&str, i32, i32)) -> crate::engine::CombatEngine {
     let mut engine = engine_without_start(
         Vec::new(),
         vec![
@@ -30,19 +29,25 @@ fn two_enemy_engine(
 
 #[test]
 fn watcher_wave5_registry_exports_match_runtime_surface() {
-    let conclude = global_registry().get("Conclude").expect("Conclude should be registered");
+    let conclude = global_registry()
+        .get("Conclude")
+        .expect("Conclude should be registered");
     assert_eq!(conclude.card_type, CardType::Attack);
     assert_eq!(conclude.target, CardTarget::AllEnemy);
     assert_eq!(
         conclude.effect_data,
         &[E::Simple(SE::DealDamage(T::AllEnemies, A::Damage))]
     );
-    assert!(conclude
-        .runtime_triggers()
-        .iter()
-        .any(|trigger| matches!(trigger, crate::effects::types::CardRuntimeTrigger::PostPlay(crate::effects::types::PostPlayRule::EndTurn))));
+    assert!(conclude.runtime_triggers().iter().any(|trigger| matches!(
+        trigger,
+        crate::effects::types::CardRuntimeTrigger::PostPlay(
+            crate::effects::types::PostPlayRule::EndTurn
+        )
+    )));
 
-    let consecrate = global_registry().get("Consecrate").expect("Consecrate should be registered");
+    let consecrate = global_registry()
+        .get("Consecrate")
+        .expect("Consecrate should be registered");
     assert_eq!(consecrate.card_type, CardType::Attack);
     assert_eq!(consecrate.target, CardTarget::AllEnemy);
     assert_eq!(
@@ -50,7 +55,9 @@ fn watcher_wave5_registry_exports_match_runtime_surface() {
         &[E::Simple(SE::DealDamage(T::AllEnemies, A::Damage))]
     );
 
-    let crescendo = global_registry().get("Crescendo").expect("Crescendo should be registered");
+    let crescendo = global_registry()
+        .get("Crescendo")
+        .expect("Crescendo should be registered");
     assert_eq!(
         crescendo.effect_data,
         &[E::Simple(SE::ChangeStance(Stance::Wrath))]
@@ -63,11 +70,17 @@ fn watcher_wave5_registry_exports_match_runtime_surface() {
         .expect("Establishment+ should be registered");
     assert_eq!(
         establishment.effect_data,
-        &[E::Simple(SE::AddStatus(T::Player, sid::ESTABLISHMENT, A::Magic))]
+        &[E::Simple(SE::AddStatus(
+            T::Player,
+            sid::ESTABLISHMENT,
+            A::Magic
+        ))]
     );
     assert!(establishment.runtime_traits().innate);
 
-    let fasting = global_registry().get("Fasting2").expect("Fasting should be registered");
+    let fasting = global_registry()
+        .get("Fasting2")
+        .expect("Fasting should be registered");
     assert_eq!(
         fasting.effect_data,
         &[
@@ -77,16 +90,20 @@ fn watcher_wave5_registry_exports_match_runtime_surface() {
     );
     assert!(fasting.complex_hook.is_some());
 
-    let holy_water = global_registry().get("HolyWater").expect("Holy Water should be registered");
+    let holy_water = global_registry()
+        .get("HolyWater")
+        .expect("Holy Water should be registered");
     assert_eq!(holy_water.base_block, 5);
     assert!(holy_water.runtime_traits().retain);
-    assert_eq!(holy_water.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
-
-    let judgement = global_registry().get("Judgement").expect("Judgement should be registered");
     assert_eq!(
-        judgement.effect_data,
-        &[E::Simple(SE::Judgement(A::Magic))]
+        holy_water.effect_data,
+        &[E::Simple(SE::GainBlock(A::Block))]
     );
+
+    let judgement = global_registry()
+        .get("Judgement")
+        .expect("Judgement should be registered");
+    assert_eq!(judgement.effect_data, &[E::Simple(SE::Judgement(A::Magic))]);
     assert!(judgement.complex_hook.is_none());
 }
 
@@ -110,7 +127,10 @@ fn watcher_wave5_conclude_and_consecrate_run_on_the_engine_path() {
 #[test]
 fn watcher_wave5_crescendo_changes_stance_through_declared_effects() {
     let mut engine = one_enemy_engine("JawWorm", 50, 0);
-    engine.state.discard_pile.push(engine.card_registry.make_card("FlurryOfBlows"));
+    engine
+        .state
+        .discard_pile
+        .push(engine.card_registry.make_card("FlurryOfBlows"));
     ensure_in_hand(&mut engine, "Crescendo+");
     assert!(play_self(&mut engine, "Crescendo+"));
     assert_eq!(engine.state.stance, Stance::Wrath);

@@ -18,14 +18,12 @@ fn hook(
     }
 }
 
-static TRIGGERS: [TriggeredEffect; 1] = [
-    TriggeredEffect {
-        trigger: Trigger::OnEnemyDeath,
-        condition: TriggerCondition::Always,
-        effects: &[],
-        counter: None,
-    },
-];
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::OnEnemyDeath,
+    condition: TriggerCondition::Always,
+    effects: &[],
+    counter: None,
+}];
 
 pub static DEF: EntityDef = EntityDef {
     id: "Gremlin Horn",

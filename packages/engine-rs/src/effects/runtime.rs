@@ -5,18 +5,18 @@
 //! lists by event kind, owns hidden per-instance state, and emits a
 //! deterministic event trace for debugging / RL inspection.
 
-use smallvec::SmallVec;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use smallvec::SmallVec;
 use std::hash::{Hash, Hasher};
 
 use crate::cards::CardType;
 use crate::combat_types::CardInstance;
-use crate::effects::declarative::{
-    AmountSource, Effect, Pile, SimpleEffect, Target,
-};
+use crate::effects::declarative::{AmountSource, Effect, Pile, SimpleEffect, Target};
 use crate::effects::entity_def::EntityDef;
 use crate::effects::trigger::{Trigger, TriggerCondition, TriggerContext};
-use crate::engine::{ChoiceOption, ChoiceReason, CombatEngine, NamedChoicePayload};
+use crate::engine::{
+    ChoiceOption, ChoiceReason, CombatEngine, NamedChoicePayload, TurnStartQueuedAction,
+};
 use crate::ids::StatusId;
 use crate::status_ids::sid;
 
@@ -386,18 +386,14 @@ fn entity_def_for_owner(owner: EffectOwner, id: &str) -> Option<&'static EntityD
     }
 }
 
-fn deserialize_effect_def_id<'de, D>(
-    deserializer: D,
-) -> Result<Option<&'static str>, D::Error>
+fn deserialize_effect_def_id<'de, D>(deserializer: D) -> Result<Option<&'static str>, D::Error>
 where
     D: Deserializer<'de>,
 {
     match Option::<String>::deserialize(deserializer)? {
         Some(id) => canonical_entity_def_by_id(&id)
             .map(|def| Some(def.id))
-            .ok_or_else(|| {
-                serde::de::Error::custom(format!("unknown effect definition {:?}", id))
-            }),
+            .ok_or_else(|| serde::de::Error::custom(format!("unknown effect definition {:?}", id))),
         None => Ok(None),
     }
 }
@@ -409,15 +405,9 @@ impl EffectRuntime {
 
         for (slot, relic_id) in state.relics.iter().enumerate() {
             if let Some(def) = crate::relics::defs::relic_def_by_id(relic_id) {
-                let owner = EffectOwner::PlayerRelic {
-                    slot: slot as u16,
-                };
-                let mut effect_state = take_or_default_state(
-                    &mut old_instances,
-                    owner,
-                    def,
-                    &persisted_states,
-                );
+                let owner = EffectOwner::PlayerRelic { slot: slot as u16 };
+                let mut effect_state =
+                    take_or_default_state(&mut old_instances, owner, def, &persisted_states);
                 seed_hidden_relic_state(state, def, &mut effect_state);
                 let instance_id = self.alloc_instance_id();
                 self.instances.push(EntityInstance {
@@ -446,12 +436,8 @@ impl EffectRuntime {
         });
         for def in player_power_defs {
             let owner = EffectOwner::PlayerPower;
-            let effect_state = take_or_default_state(
-                &mut old_instances,
-                owner,
-                def,
-                &persisted_states,
-            );
+            let effect_state =
+                take_or_default_state(&mut old_instances, owner, def, &persisted_states);
             let instance_id = self.alloc_instance_id();
             self.instances.push(EntityInstance {
                 instance_id,
@@ -478,12 +464,8 @@ impl EffectRuntime {
                 let owner = EffectOwner::EnemyPower {
                     enemy_idx: enemy_idx as u16,
                 };
-                let effect_state = take_or_default_state(
-                    &mut old_instances,
-                    owner,
-                    def,
-                    &persisted_states,
-                );
+                let effect_state =
+                    take_or_default_state(&mut old_instances, owner, def, &persisted_states);
                 let instance_id = self.alloc_instance_id();
                 self.instances.push(EntityInstance {
                     instance_id,
@@ -500,12 +482,8 @@ impl EffectRuntime {
             }
             if let Some(def) = crate::potions::defs::potion_def_by_runtime_id(potion_id) {
                 let owner = EffectOwner::PotionSlot { slot: slot as u8 };
-                let effect_state = take_or_default_state(
-                    &mut old_instances,
-                    owner,
-                    def,
-                    &persisted_states,
-                );
+                let effect_state =
+                    take_or_default_state(&mut old_instances, owner, def, &persisted_states);
                 let instance_id = self.alloc_instance_id();
                 self.instances.push(EntityInstance {
                     instance_id,
@@ -520,6 +498,22 @@ impl EffectRuntime {
     }
 
     pub fn load_persisted_states(&mut self, states: Vec<PersistedEffectState>) {
+        // A RunEngine combat is constructed with its relic list already in
+        // CombatState, so the runtime initially contains zero-valued relic
+        // instances. Loading the prior combat afterward must replace those
+        // placeholder values. Otherwise `rebuild_from_state` prefers the live
+        // zero instance and silently discards saved Nunchaku/Ink Bottle/etc.
+        // Java keeps these values directly in AbstractRelic.counter across
+        // rooms; there is no combat-start reset.
+        for instance in &mut self.instances {
+            if instance.state.persistence != PersistenceScope::Run {
+                continue;
+            }
+            if let Some(saved) = states.iter().find(|saved| saved.def_id == instance.def.id) {
+                instance.state =
+                    EffectState::from_values(PersistenceScope::Run, saved.values.clone());
+            }
+        }
         self.persisted_states = states;
     }
 
@@ -555,9 +549,101 @@ impl EffectRuntime {
             // iterates relics, blights, and powers, but still runs the full
             // victory handler snapshot in order.
             // Source: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java:1949-1960
-            if engine.state.combat_over && event.kind != Trigger::CombatVictory {
+            if engine.state.combat_over
+                && event.kind != Trigger::CombatVictory
+                && !event_runs_after_combat_over(event.kind)
+            {
                 break;
             }
+        }
+        self.persisted_states = self.export_persisted_states();
+    }
+
+    /// Dispatch a player-power event in the canonical heterogeneous
+    /// `AbstractCreature.powers` order, interleaving dynamic power instances
+    /// such as The Bomb through the supplied callback.
+    pub fn emit_ordered_player_power_event(
+        &mut self,
+        engine: &mut CombatEngine,
+        event: GameEvent,
+        power_order: &[crate::state::PowerOrderEntry],
+        mut dynamic: impl FnMut(&mut CombatEngine, crate::state::PowerOrderEntry),
+    ) {
+        engine.event_log.push(GameEventRecord::emitted(event));
+        for entry in power_order.iter().copied() {
+            if let crate::state::PowerOrderEntry::Status(status) = entry {
+                if let Some(idx) = self.instances.iter().position(|instance| {
+                    instance.owner == EffectOwner::PlayerPower
+                        && instance.def.status_guard == Some(status)
+                        && instance
+                            .def
+                            .triggers
+                            .iter()
+                            .any(|trigger| trigger.trigger == event.kind)
+                }) {
+                    self.execute_instance(engine, idx, &event);
+                    self.drain_nested_events(engine);
+                }
+            }
+            dynamic(engine, entry);
+            if engine.state.combat_over && !event_runs_after_combat_over(event.kind) {
+                break;
+            }
+        }
+        self.persisted_states = self.export_persisted_states();
+    }
+
+    /// Dispatch Java's player turn-start callback shape: every relic in
+    /// inventory order, followed by the heterogeneous sorted power list.
+    /// Dynamic powers (currently independent NightmarePower instances) are
+    /// interleaved through `dynamic` rather than flattened after status powers.
+    pub fn emit_relics_then_ordered_player_power_event(
+        &mut self,
+        engine: &mut CombatEngine,
+        event: GameEvent,
+        power_order: &[crate::state::PowerOrderEntry],
+        mut dynamic: impl FnMut(&mut CombatEngine, crate::state::PowerOrderEntry),
+    ) {
+        engine.event_log.push(GameEventRecord::emitted(event));
+        for idx in self.dispatch.handlers_for(event.kind) {
+            if idx >= self.instances.len()
+                || !matches!(self.instances[idx].owner, EffectOwner::PlayerRelic { .. })
+            {
+                continue;
+            }
+            self.execute_instance(engine, idx, &event);
+            self.drain_nested_events(engine);
+        }
+        for entry in power_order.iter().copied() {
+            if let crate::state::PowerOrderEntry::Status(status) = entry {
+                if let Some(idx) = self.instances.iter().position(|instance| {
+                    instance.owner == EffectOwner::PlayerPower
+                        && instance.def.status_guard == Some(status)
+                        && instance
+                            .def
+                            .triggers
+                            .iter()
+                            .any(|trigger| trigger.trigger == event.kind)
+                }) {
+                    self.execute_instance(engine, idx, &event);
+                    self.drain_nested_events(engine);
+                }
+            }
+            dynamic(engine, entry);
+        }
+        self.persisted_states = self.export_persisted_states();
+    }
+
+    pub fn emit_relic_event(&mut self, engine: &mut CombatEngine, event: GameEvent) {
+        engine.event_log.push(GameEventRecord::emitted(event));
+        for idx in self.dispatch.handlers_for(event.kind) {
+            if idx >= self.instances.len()
+                || !matches!(self.instances[idx].owner, EffectOwner::PlayerRelic { .. })
+            {
+                continue;
+            }
+            self.execute_instance(engine, idx, &event);
+            self.drain_nested_events(engine);
         }
         self.persisted_states = self.export_persisted_states();
     }
@@ -662,11 +748,7 @@ impl EffectRuntime {
         self.has_instance(def_id, EffectOwner::PlayerPower) || engine.state.player.status(guard) > 0
     }
 
-    fn emit_hooks_for_replay_defs(
-        &mut self,
-        engine: &mut CombatEngine,
-        event: GameEvent,
-    ) {
+    fn emit_hooks_for_replay_defs(&mut self, engine: &mut CombatEngine, event: GameEvent) {
         engine.event_log.push(GameEventRecord::emitted(event));
         for idx in 0..self.instances.len() {
             let def_id = self.instances[idx].def.id;
@@ -717,11 +799,16 @@ impl EffectRuntime {
         }
     }
 
-    fn execute_instance(&mut self, engine: &mut CombatEngine, instance_idx: usize, event: &GameEvent) {
+    fn execute_instance(
+        &mut self,
+        engine: &mut CombatEngine,
+        instance_idx: usize,
+        event: &GameEvent,
+    ) {
         let owner = self.instances[instance_idx].owner;
         let def = self.instances[instance_idx].def;
 
-        if !owner_is_active(engine, owner, def) {
+        if !owner_is_active(engine, owner, def, event) {
             return;
         }
         if !owner_matches_event(owner, event) {
@@ -746,30 +833,26 @@ impl EffectRuntime {
                 }
             }
             hook_should_fire = true;
-            engine
-                .event_log
-                .push(GameEventRecord::handled(
-                    event,
-                    owner,
-                    def.id,
-                    EffectExecutionPhase::Declarative,
-                ));
+            engine.event_log.push(GameEventRecord::handled(
+                event,
+                owner,
+                def.id,
+                EffectExecutionPhase::Declarative,
+            ));
             self.execute_effects(engine, instance_idx, owner, trigger.effects, event);
-            if engine.state.combat_over {
+            if engine.state.combat_over && !event_runs_after_combat_over(event.kind) {
                 return;
             }
         }
 
         if let Some(hook) = def.complex_hook {
             if hook_should_fire {
-                engine
-                    .event_log
-                    .push(GameEventRecord::handled(
-                        event,
-                        owner,
-                        def.id,
-                        EffectExecutionPhase::Hook,
-                    ));
+                engine.event_log.push(GameEventRecord::handled(
+                    event,
+                    owner,
+                    def.id,
+                    EffectExecutionPhase::Hook,
+                ));
                 let state = &mut self.instances[instance_idx].state;
                 hook(engine, owner, event, state);
             }
@@ -785,7 +868,7 @@ impl EffectRuntime {
         let owner = self.instances[instance_idx].owner;
         let def = self.instances[instance_idx].def;
 
-        if !owner_is_active(engine, owner, def) {
+        if !owner_is_active(engine, owner, def, event) {
             return;
         }
         if !owner_matches_event(owner, event) {
@@ -866,7 +949,18 @@ impl EffectRuntime {
         effects: &[Effect],
         event: &GameEvent,
     ) {
-        for effect in effects {
+        // CombatStartTop definitions store each callback's effects in Java
+        // drain order. Because every resolved effect is inserted at the front
+        // of the shared queue, visit the batch in reverse so the batch itself
+        // is not reversed a second time. Later relic callbacks still place
+        // their complete batches ahead of earlier callbacks.
+        let ordered_effects: Box<dyn Iterator<Item = &Effect> + '_> =
+            if event.kind == Trigger::CombatStartTop {
+                Box::new(effects.iter().rev())
+            } else {
+                Box::new(effects.iter())
+            };
+        for effect in ordered_effects {
             match effect {
                 Effect::Simple(simple) => {
                     self.execute_simple(engine, instance_idx, owner, *simple, event);
@@ -880,7 +974,12 @@ impl EffectRuntime {
                     self.execute_effects(engine, instance_idx, owner, branch, event);
                 }
                 Effect::ChooseScaledNamedOptions(option_specs) => {
-                    self.execute_choose_scaled_named_options(engine, instance_idx, owner, option_specs);
+                    self.execute_choose_scaled_named_options(
+                        engine,
+                        instance_idx,
+                        owner,
+                        option_specs,
+                    );
                 }
                 Effect::GenerateRandomCardsToHand {
                     pool,
@@ -891,10 +990,7 @@ impl EffectRuntime {
                         .resolve_amount(engine, instance_idx, owner, *count)
                         .max(0) as usize;
                     crate::effects::interpreter::generate_random_cards_to_hand(
-                        engine,
-                        *pool,
-                        count,
-                        *cost_rule,
+                        engine, *pool, count, *cost_rule,
                     );
                 }
                 _ => {}
@@ -916,7 +1012,53 @@ impl EffectRuntime {
         match simple {
             SimpleEffect::AddStatus(target, status_id, amount_src) => {
                 let amount = self.resolve_amount(engine, instance_idx, owner, amount_src);
-                self.add_status(engine, instance_idx, owner, target, status_id, amount, event);
+                if engine.is_collecting_turn_start_actions()
+                    && collected_turn_start_kind(event.kind)
+                {
+                    let mut actions = Vec::new();
+                    match target {
+                        Target::Player | Target::SelfEntity
+                            if !matches!(owner, EffectOwner::EnemyPower { .. }) =>
+                        {
+                            actions.push(if status_id == sid::ORB_SLOTS {
+                                TurnStartQueuedAction::IncreaseOrbSlots(amount)
+                            } else if is_debuff(status_id) {
+                                TurnStartQueuedAction::ApplyPlayerDebuff(status_id, amount)
+                            } else {
+                                TurnStartQueuedAction::AddPlayerStatus(status_id, amount)
+                            });
+                        }
+                        Target::AllEnemies => {
+                            for enemy_idx in engine.state.living_enemy_indices() {
+                                actions.push(if is_debuff(status_id) {
+                                    TurnStartQueuedAction::ApplyEnemyDebuff(
+                                        enemy_idx, status_id, amount,
+                                    )
+                                } else {
+                                    TurnStartQueuedAction::AddEnemyStatus(
+                                        enemy_idx, status_id, amount,
+                                    )
+                                });
+                            }
+                        }
+                        _ => {}
+                    }
+                    if !actions.is_empty() {
+                        for action in actions {
+                            queue_collected_turn_start_action(engine, event.kind, action);
+                        }
+                        return;
+                    }
+                }
+                self.add_status(
+                    engine,
+                    instance_idx,
+                    owner,
+                    target,
+                    status_id,
+                    amount,
+                    event,
+                );
             }
             SimpleEffect::SetStatus(target, status_id, amount_src) => {
                 let amount = self.resolve_amount(engine, instance_idx, owner, amount_src);
@@ -948,7 +1090,27 @@ impl EffectRuntime {
             SimpleEffect::DrawCards(amount_src) => {
                 let count = self.resolve_amount(engine, instance_idx, owner, amount_src);
                 if count > 0 {
-                    engine.draw_cards(count);
+                    if engine.is_collecting_turn_start_actions()
+                        && collected_turn_start_kind(event.kind)
+                    {
+                        queue_collected_turn_start_action(
+                            engine,
+                            event.kind,
+                            TurnStartQueuedAction::DrawCards(count),
+                        );
+                        return;
+                    }
+                    if event.kind == Trigger::OnStanceChange && engine.runtime_played_card.is_some()
+                    {
+                        // RushdownPower adds DrawCardAction to the bottom of
+                        // Java's queue. When a card caused the stance change,
+                        // UseCardAction moves that card before the draw runs.
+                        // Java: powers/watcher/RushdownPower.java and
+                        // actions/utility/UseCardAction.java.
+                        engine.defer_draw_until_current_card_moves(count);
+                    } else {
+                        engine.draw_cards(count);
+                    }
                 }
             }
             SimpleEffect::DrawCardsThenDiscardDrawnNonZeroCost(amount_src) => {
@@ -969,7 +1131,8 @@ impl EffectRuntime {
                     } else {
                         engine
                             .card_random_rng
-                            .random_int((engine.state.hand.len() - 1) as i32) as usize
+                            .random_int((engine.state.hand.len() - 1) as i32)
+                            as usize
                     };
                     let exhausted = engine.state.hand.remove(idx);
                     engine.state.exhaust_pile.push(exhausted);
@@ -1007,7 +1170,8 @@ impl EffectRuntime {
                     } else if card.misc >= 0 {
                         card.misc
                     } else {
-                        engine.card_registry
+                        engine
+                            .card_registry
                             .card_def_by_id(card.def_id)
                             .base_block
                             .max(0)
@@ -1048,6 +1212,16 @@ impl EffectRuntime {
             }
             SimpleEffect::GainEnergy(amount_src) => {
                 let amount = self.resolve_amount(engine, instance_idx, owner, amount_src);
+                if engine.is_collecting_turn_start_actions()
+                    && collected_turn_start_kind(event.kind)
+                {
+                    queue_collected_turn_start_action(
+                        engine,
+                        event.kind,
+                        TurnStartQueuedAction::GainEnergy(amount),
+                    );
+                    return;
+                }
                 engine.state.energy += amount;
             }
             SimpleEffect::DoubleEnergy => {
@@ -1058,10 +1232,22 @@ impl EffectRuntime {
                 if base <= 0 {
                     return;
                 }
+                if engine.is_collecting_turn_start_actions()
+                    && collected_turn_start_kind(event.kind)
+                    && !matches!(owner, EffectOwner::EnemyPower { .. })
+                {
+                    queue_collected_turn_start_action(
+                        engine,
+                        event.kind,
+                        TurnStartQueuedAction::GainBlock(base),
+                    );
+                    return;
+                }
                 match owner {
                     EffectOwner::EnemyPower { enemy_idx } => {
                         let idx = enemy_idx as usize;
-                        if idx < engine.state.enemies.len() && engine.state.enemies[idx].is_alive() {
+                        if idx < engine.state.enemies.len() && engine.state.enemies[idx].is_alive()
+                        {
                             engine.state.enemies[idx].entity.block += base;
                         }
                     }
@@ -1089,30 +1275,28 @@ impl EffectRuntime {
                     engine.player_lose_hp_from_damage(-amount);
                 }
             }
-            SimpleEffect::RemoveEnemyBlock(target) => {
-                match target {
-                    Target::SelectedEnemy => {
-                        if event.target_idx >= 0
-                            && (event.target_idx as usize) < engine.state.enemies.len()
-                        {
-                            engine.state.enemies[event.target_idx as usize].entity.block = 0;
-                        }
+            SimpleEffect::RemoveEnemyBlock(target) => match target {
+                Target::SelectedEnemy => {
+                    if event.target_idx >= 0
+                        && (event.target_idx as usize) < engine.state.enemies.len()
+                    {
+                        engine.state.enemies[event.target_idx as usize].entity.block = 0;
                     }
-                    Target::AllEnemies => {
-                        for idx in engine.state.living_enemy_indices() {
-                            engine.state.enemies[idx].entity.block = 0;
-                        }
-                    }
-                    Target::RandomEnemy => {
-                        let living = engine.state.living_enemy_indices();
-                        if !living.is_empty() {
-                            let idx = living[engine.card_random_rng.random_index(living.len())];
-                            engine.state.enemies[idx].entity.block = 0;
-                        }
-                    }
-                    Target::Player | Target::SelfEntity => {}
                 }
-            }
+                Target::AllEnemies => {
+                    for idx in engine.state.living_enemy_indices() {
+                        engine.state.enemies[idx].entity.block = 0;
+                    }
+                }
+                Target::RandomEnemy => {
+                    let living = engine.state.living_enemy_indices();
+                    if !living.is_empty() {
+                        let idx = living[engine.card_random_rng.random_index(living.len())];
+                        engine.state.enemies[idx].entity.block = 0;
+                    }
+                }
+                Target::Player | Target::SelfEntity => {}
+            },
             SimpleEffect::GainMantra(amount_src) => {
                 let amount = self.resolve_amount(engine, instance_idx, owner, amount_src);
                 engine.gain_mantra(amount);
@@ -1122,7 +1306,23 @@ impl EffectRuntime {
                 engine.do_scry(amount);
             }
             SimpleEffect::AddCard(card_name, pile, amount_src) => {
-                let count = self.resolve_amount(engine, instance_idx, owner, amount_src).max(0);
+                let count = self
+                    .resolve_amount(engine, instance_idx, owner, amount_src)
+                    .max(0);
+                if engine.is_collecting_turn_start_actions()
+                    && collected_turn_start_kind(event.kind)
+                    && pile == Pile::Hand
+                {
+                    for _ in 0..count {
+                        let card = engine.temp_card(card_name);
+                        queue_collected_turn_start_action(
+                            engine,
+                            event.kind,
+                            TurnStartQueuedAction::AddCardToHand(card),
+                        );
+                    }
+                    return;
+                }
                 if pile == Pile::Hand {
                     engine.add_temp_cards_to_hand(card_name, count);
                 } else {
@@ -1139,23 +1339,42 @@ impl EffectRuntime {
                 if engine.state.combat_over || engine.state.is_victory() {
                     return;
                 }
-                let count = self.resolve_amount(engine, instance_idx, owner, amount_src).max(0);
+                let count = self
+                    .resolve_amount(engine, instance_idx, owner, amount_src)
+                    .max(0);
+                if engine.is_collecting_turn_start_actions()
+                    && collected_turn_start_kind(event.kind)
+                {
+                    for _ in 0..count {
+                        let card = engine.temp_card(card_name);
+                        queue_collected_turn_start_action(
+                            engine,
+                            event.kind,
+                            TurnStartQueuedAction::AddCardToRandomDrawSpot(card),
+                        );
+                    }
+                    return;
+                }
                 for _ in 0..count {
                     let card = engine.temp_card(card_name);
                     if engine.state.draw_pile.is_empty() {
                         engine.state.draw_pile.push(card);
                     } else {
-                        let idx = engine.card_random_rng.random_int_range(
-                            0,
-                            (engine.state.draw_pile.len() - 1) as i32,
-                        ) as usize;
+                        let idx = engine
+                            .card_random_rng
+                            .random_int_range(0, (engine.state.draw_pile.len() - 1) as i32)
+                            as usize;
                         engine.state.draw_pile.insert(idx, card);
                     }
                 }
             }
             SimpleEffect::AddCardWithMisc(card_name, pile, amount_src, misc_src) => {
-                let count = self.resolve_amount(engine, instance_idx, owner, amount_src).max(0);
-                let misc = self.resolve_amount(engine, instance_idx, owner, misc_src).max(0);
+                let count = self
+                    .resolve_amount(engine, instance_idx, owner, amount_src)
+                    .max(0);
+                let misc = self
+                    .resolve_amount(engine, instance_idx, owner, misc_src)
+                    .max(0);
                 if pile == Pile::Hand {
                     for _ in 0..count {
                         let mut card = engine.temp_card(card_name);
@@ -1179,13 +1398,17 @@ impl EffectRuntime {
             }
             SimpleEffect::CopyThisCardTo(_pile) => {}
             SimpleEffect::ChannelOrb(orb_type, amount_src) => {
-                let count = self.resolve_amount(engine, instance_idx, owner, amount_src).max(0);
+                let count = self
+                    .resolve_amount(engine, instance_idx, owner, amount_src)
+                    .max(0);
                 for _ in 0..count {
                     engine.channel_orb(orb_type);
                 }
             }
             SimpleEffect::ChannelRandomOrb(amount_src) => {
-                let count = self.resolve_amount(engine, instance_idx, owner, amount_src).max(0);
+                let count = self
+                    .resolve_amount(engine, instance_idx, owner, amount_src)
+                    .max(0);
                 let orb_types = [
                     crate::orbs::OrbType::Dark,
                     crate::orbs::OrbType::Frost,
@@ -1198,7 +1421,9 @@ impl EffectRuntime {
                 }
             }
             SimpleEffect::DrawRandomCardsFromPileToHand(pile, filter, count_src) => {
-                let count = self.resolve_amount(engine, instance_idx, owner, count_src).max(0) as usize;
+                let count = self
+                    .resolve_amount(engine, instance_idx, owner, count_src)
+                    .max(0) as usize;
                 crate::effects::interpreter::draw_random_cards_from_pile_to_hand(
                     engine, pile, filter, count,
                 );
@@ -1221,36 +1446,47 @@ impl EffectRuntime {
                 engine.evoke_front_orb_without_removing();
             }
             SimpleEffect::EvokeOrb(amount_src) => {
-                let count = self.resolve_amount(engine, instance_idx, owner, amount_src).max(0);
+                let count = self
+                    .resolve_amount(engine, instance_idx, owner, amount_src)
+                    .max(0);
                 if count > 0 {
                     engine.evoke_front_orb_n(count as usize);
                 }
             }
             SimpleEffect::ChangeStance(stance) => {
+                if engine.is_collecting_turn_start_actions()
+                    && collected_turn_start_kind(event.kind)
+                {
+                    queue_collected_turn_start_action(
+                        engine,
+                        event.kind,
+                        TurnStartQueuedAction::ChangeStance(stance),
+                    );
+                    return;
+                }
                 engine.change_stance(stance);
             }
-            SimpleEffect::SetFlag(flag) => {
-                match flag {
-                    crate::effects::declarative::BoolFlag::NoDraw => {
-                        engine.state.player.set_status(sid::NO_DRAW, 1);
-                    }
-                    crate::effects::declarative::BoolFlag::RetainHand => {
-                        engine.state.player.set_status(sid::RETAIN_CARDS, 1);
-                    }
-                    crate::effects::declarative::BoolFlag::SkipEnemyTurn => {
-                        engine.state.skip_enemy_turn = true;
-                    }
-                    crate::effects::declarative::BoolFlag::NextAttackFree => {
-                        engine.state.player.add_status(sid::NEXT_ATTACK_FREE, 1);
-                    }
-                    crate::effects::declarative::BoolFlag::Blasphemy => {
-                        engine.state.blasphemy_active = true;
-                    }
-                    crate::effects::declarative::BoolFlag::BulletTime => {
-                        engine.apply_bullet_time();
-                    }
+            SimpleEffect::SetFlag(flag) => match flag {
+                crate::effects::declarative::BoolFlag::NoDraw => {
+                    engine.state.player.set_status(sid::NO_DRAW, 1);
                 }
-            }
+                crate::effects::declarative::BoolFlag::RetainHand => {
+                    engine.state.player.set_status(sid::RETAIN_CARDS, 1);
+                }
+                crate::effects::declarative::BoolFlag::SkipEnemyTurn => {
+                    engine.state.skip_enemy_turn = true;
+                }
+                crate::effects::declarative::BoolFlag::NextAttackFree => {
+                    engine.state.player.add_status(sid::NEXT_ATTACK_FREE, 1);
+                }
+                crate::effects::declarative::BoolFlag::Blasphemy => {
+                    engine.state.blasphemy_active = true;
+                    engine.state.player.set_status(sid::END_TURN_DEATH, -1);
+                }
+                crate::effects::declarative::BoolFlag::BulletTime => {
+                    engine.apply_bullet_time();
+                }
+            },
             SimpleEffect::ShuffleDiscardIntoDraw => {
                 let mut cards = std::mem::take(&mut engine.state.discard_pile);
                 engine.state.draw_pile.append(&mut cards);
@@ -1311,13 +1547,29 @@ impl EffectRuntime {
                 if amount <= 0 {
                     return;
                 }
+                if engine.is_collecting_turn_start_actions()
+                    && collected_turn_start_kind(event.kind)
+                    && matches!(target, Target::Player | Target::SelfEntity)
+                    && !matches!(owner, EffectOwner::EnemyPower { .. })
+                {
+                    queue_collected_turn_start_action(
+                        engine,
+                        event.kind,
+                        TurnStartQueuedAction::HealPlayer(amount),
+                    );
+                    return;
+                }
                 self.heal_hp(engine, owner, target, amount, event);
             }
             SimpleEffect::IncrementCounter(status_id, threshold) => {
                 let next = self.read_status(engine, instance_idx, owner, status_id) + 1;
                 // VelvetChoker.java stops incrementing at six. A threshold of
                 // 1 remains the unbounded counter behavior used by Slow.
-                let next = if threshold > 1 { next.min(threshold) } else { next };
+                let next = if threshold > 1 {
+                    next.min(threshold)
+                } else {
+                    next
+                };
                 self.write_status(engine, instance_idx, owner, status_id, next);
             }
             SimpleEffect::ModifyMaxHp(amount_src) => {
@@ -1371,7 +1623,9 @@ impl EffectRuntime {
             .iter()
             .map(|option| NamedChoicePayload {
                 kind: option.kind,
-                amount: self.resolve_amount(engine, instance_idx, owner, option.amount).max(0),
+                amount: self
+                    .resolve_amount(engine, instance_idx, owner, option.amount)
+                    .max(0),
             })
             .collect();
         engine.begin_choice_with_named_payloads(ChoiceReason::PickOption, options, 1, 1, payloads);
@@ -1384,7 +1638,9 @@ impl EffectRuntime {
         event: &GameEvent,
     ) -> bool {
         match *cond {
-            crate::effects::declarative::Condition::InStance(stance) => engine.state.stance == stance,
+            crate::effects::declarative::Condition::InStance(stance) => {
+                engine.state.stance == stance
+            }
             crate::effects::declarative::Condition::EnemyAttacking => {
                 let idx = event.target_idx;
                 idx >= 0
@@ -1425,14 +1681,18 @@ impl EffectRuntime {
                 engine.runtime_card_enemy_killed
                     && idx >= 0
                     && (idx as usize) < engine.state.enemies.len()
-                    && !engine.state.enemies[idx as usize].is_minion
+                    && !engine.state.enemies[idx as usize].is_minion()
                     && engine.state.enemies[idx as usize]
                         .entity
                         .status(sid::REBIRTH_PENDING)
                         == 0
             }
             crate::effects::declarative::Condition::DiscardedThisTurn => {
-                engine.state.player.status(crate::status_ids::sid::DISCARDED_THIS_TURN) > 0
+                engine
+                    .state
+                    .player
+                    .status(crate::status_ids::sid::DISCARDED_THIS_TURN)
+                    > 0
             }
         }
     }
@@ -1506,7 +1766,9 @@ impl EffectRuntime {
                 .state
                 .hand
                 .iter()
-                .filter(|card| engine.card_registry.card_def_by_id(card.def_id).card_type == CardType::Skill)
+                .filter(|card| {
+                    engine.card_registry.card_def_by_id(card.def_id).card_type == CardType::Skill
+                })
                 .count() as i32,
             AmountSource::PotionPotency => match owner {
                 EffectOwner::PotionSlot { slot } => {
@@ -1611,7 +1873,9 @@ impl EffectRuntime {
             EffectOwner::EnemyPower { enemy_idx } => {
                 let idx = enemy_idx as usize;
                 if idx < engine.state.enemies.len() {
-                    engine.state.enemies[idx].entity.set_status(status_id, value);
+                    engine.state.enemies[idx]
+                        .entity
+                        .set_status(status_id, value);
                 }
             }
             _ => engine.state.player.set_status(status_id, value),
@@ -1639,16 +1903,12 @@ impl EffectRuntime {
                     for _ in 0..amount {
                         engine.state.orb_slots.add_slot();
                     }
-                    let gained = engine
-                        .state
-                        .orb_slots
-                        .max_slots
-                        .saturating_sub(before) as i32;
+                    let gained = engine.state.orb_slots.max_slots.saturating_sub(before) as i32;
                     engine.state.player.add_status(status_id, gained);
                 } else if is_hidden_status_for_def(self.instances[instance_idx].def.id, status_id) {
-                    let current = self.instances[instance_idx]
-                        .state
-                        .get(hidden_status_slot(self.instances[instance_idx].def.id, status_id).unwrap());
+                    let current = self.instances[instance_idx].state.get(
+                        hidden_status_slot(self.instances[instance_idx].def.id, status_id).unwrap(),
+                    );
                     self.write_status(engine, instance_idx, owner, status_id, current + amount);
                 } else if is_debuff(status_id) {
                     // ApplyPowerAction routes player debuffs through immunity
@@ -1663,7 +1923,9 @@ impl EffectRuntime {
                 EffectOwner::EnemyPower { enemy_idx } => {
                     let idx = enemy_idx as usize;
                     if idx < engine.state.enemies.len() {
-                        engine.state.enemies[idx].entity.add_status(status_id, amount);
+                        engine.state.enemies[idx]
+                            .entity
+                            .add_status(status_id, amount);
                     }
                 }
                 _ => engine.state.player.add_status(status_id, amount),
@@ -1685,7 +1947,9 @@ impl EffectRuntime {
                             }
                         }
                     } else {
-                        engine.state.enemies[idx].entity.add_status(status_id, amount);
+                        engine.state.enemies[idx]
+                            .entity
+                            .add_status(status_id, amount);
                     }
                 }
             }
@@ -1706,7 +1970,9 @@ impl EffectRuntime {
                             }
                         }
                     } else {
-                        engine.state.enemies[idx].entity.add_status(status_id, amount);
+                        engine.state.enemies[idx]
+                            .entity
+                            .add_status(status_id, amount);
                     }
                 }
             }
@@ -1728,7 +1994,9 @@ impl EffectRuntime {
                             }
                         }
                     } else {
-                        engine.state.enemies[idx].entity.add_status(status_id, amount);
+                        engine.state.enemies[idx]
+                            .entity
+                            .add_status(status_id, amount);
                     }
                 }
             }
@@ -1751,7 +2019,9 @@ impl EffectRuntime {
                 EffectOwner::EnemyPower { enemy_idx } => {
                     let idx = enemy_idx as usize;
                     if idx < engine.state.enemies.len() {
-                        engine.state.enemies[idx].entity.set_status(status_id, value);
+                        engine.state.enemies[idx]
+                            .entity
+                            .set_status(status_id, value);
                     }
                 }
                 _ => engine.state.player.set_status(status_id, value),
@@ -1759,20 +2029,26 @@ impl EffectRuntime {
             Target::SelectedEnemy => {
                 let idx = event.target_idx.max(0) as usize;
                 if idx < engine.state.enemies.len() {
-                    engine.state.enemies[idx].entity.set_status(status_id, value);
+                    engine.state.enemies[idx]
+                        .entity
+                        .set_status(status_id, value);
                 }
             }
             Target::AllEnemies => {
                 let living = engine.state.living_enemy_indices();
                 for idx in living {
-                    engine.state.enemies[idx].entity.set_status(status_id, value);
+                    engine.state.enemies[idx]
+                        .entity
+                        .set_status(status_id, value);
                 }
             }
             Target::RandomEnemy => {
                 let living = engine.state.living_enemy_indices();
                 if !living.is_empty() {
                     let idx = living[engine.card_random_rng.random_index(living.len())];
-                    engine.state.enemies[idx].entity.set_status(status_id, value);
+                    engine.state.enemies[idx]
+                        .entity
+                        .set_status(status_id, value);
                 }
             }
         }
@@ -1909,9 +2185,9 @@ impl EffectRuntime {
 
 fn power_runtime_order_index(entity: &crate::state::EntityState, status: StatusId) -> usize {
     entity
-        .status_order
+        .power_order
         .iter()
-        .position(|candidate| *candidate == status)
+        .position(|candidate| *candidate == crate::state::PowerOrderEntry::Status(status))
         .unwrap_or(usize::MAX)
 }
 
@@ -1955,18 +2231,28 @@ fn default_persistence_for(def_id: &str) -> PersistenceScope {
     match def_id {
         // PenNib.java stores progress in AbstractRelic.counter, including the
         // armed value 9 that atBattleStart turns into PenNibPower.
-        "Pen Nib"
-        | "Nunchaku"
-        | "InkBottle"
-        | "Happy Flower"
-        | "Incense Burner"
-        | "Sundial"
+        "Pen Nib" | "Nunchaku" | "InkBottle" | "Happy Flower" | "Incense Burner" | "Sundial"
         | "Inserter" => PersistenceScope::Run,
         _ => PersistenceScope::Combat,
     }
 }
 
-fn owner_is_active(engine: &CombatEngine, owner: EffectOwner, def: &EntityDef) -> bool {
+fn event_runs_after_combat_over(trigger: Trigger) -> bool {
+    // UseCardAction.onAfterUseCard iterates every monster power after the
+    // card's queued damage has resolved, without filtering dead monsters.
+    // Beat of Death therefore still damages the player when that card was
+    // lethal. The runtime's OnAnyCardPlayed/OnAfterUseCard events model this
+    // callback window.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/utility/UseCardAction.java.
+    matches!(trigger, Trigger::OnAnyCardPlayed | Trigger::OnAfterUseCard)
+}
+
+fn owner_is_active(
+    engine: &CombatEngine,
+    owner: EffectOwner,
+    def: &EntityDef,
+    event: &GameEvent,
+) -> bool {
     match owner {
         EffectOwner::PlayerRelic { .. } => engine.state.has_relic(def.id),
         EffectOwner::PlayerPower => {
@@ -1978,7 +2264,10 @@ fn owner_is_active(engine: &CombatEngine, owner: EffectOwner, def: &EntityDef) -
         }
         EffectOwner::EnemyPower { enemy_idx } => {
             let idx = enemy_idx as usize;
-            if idx >= engine.state.enemies.len() || !engine.state.enemies[idx].is_alive() {
+            if idx >= engine.state.enemies.len()
+                || (!engine.state.enemies[idx].is_alive()
+                    && !event_runs_after_combat_over(event.kind))
+            {
                 return false;
             }
             if let Some(guard) = def.status_guard {
@@ -2006,7 +2295,10 @@ fn owner_matches_event(owner: EffectOwner, event: &GameEvent) -> bool {
             event.enemy_idx < 0 || event.enemy_idx == enemy_idx as i32
         }
         EffectOwner::PotionSlot { slot }
-            if matches!(event.kind, Trigger::ManualActivation | Trigger::OnPotionUsed) =>
+            if matches!(
+                event.kind,
+                Trigger::ManualActivation | Trigger::OnPotionUsed
+            ) =>
         {
             event.potion_slot < 0 || event.potion_slot == slot as i32
         }
@@ -2082,18 +2374,22 @@ fn is_elite_fight(engine: &CombatEngine) -> bool {
     engine.state.enemies.iter().any(|enemy| {
         matches!(
             enemy.id.as_str(),
-            "GremlinNob" | "Lagavulin" | "Sentry" | "BookOfStabbing" | "GremlinLeader"
-                | "SlaverBoss" | "TaskMaster" | "Taskmaster"
-                | "Nemesis" | "Reptomancer" | "GiantHead"
+            "GremlinNob"
+                | "Lagavulin"
+                | "Sentry"
+                | "BookOfStabbing"
+                | "GremlinLeader"
+                | "SlaverBoss"
+                | "TaskMaster"
+                | "Taskmaster"
+                | "Nemesis"
+                | "Reptomancer"
+                | "GiantHead"
         )
     })
 }
 
-fn push_to_pile(
-    engine: &mut CombatEngine,
-    pile: Pile,
-    card: crate::combat_types::CardInstance,
-) {
+fn push_to_pile(engine: &mut CombatEngine, pile: Pile, card: crate::combat_types::CardInstance) {
     match pile {
         Pile::Hand => {
             if engine.state.hand.len() < 10 {
@@ -2116,6 +2412,29 @@ fn is_debuff(status_id: StatusId) -> bool {
         || status_id == sid::WRAITH_FORM
 }
 
+fn collected_turn_start_kind(kind: Trigger) -> bool {
+    matches!(
+        kind,
+        Trigger::CombatStartTop
+            | Trigger::CombatStartPreDraw
+            | Trigger::CombatStart
+            | Trigger::TurnStart
+            | Trigger::TurnStartPostDraw
+    )
+}
+
+fn queue_collected_turn_start_action(
+    engine: &mut CombatEngine,
+    kind: Trigger,
+    action: TurnStartQueuedAction,
+) {
+    if kind == Trigger::CombatStartTop {
+        engine.queue_turn_start_action_top(action);
+    } else {
+        engine.queue_turn_start_action_bottom(action);
+    }
+}
+
 #[cfg(test)]
 mod serde_tests {
     use super::*;
@@ -2132,10 +2451,7 @@ mod serde_tests {
                     instance_id: 12,
                     def: relic,
                     owner: EffectOwner::PlayerRelic { slot: 3 },
-                    state: EffectState::from_values(
-                        PersistenceScope::Run,
-                        vec![9, -17, i16::MAX],
-                    ),
+                    state: EffectState::from_values(PersistenceScope::Run, vec![9, -17, i16::MAX]),
                 },
                 EntityInstance {
                     instance_id: 44,
@@ -2165,13 +2481,9 @@ mod serde_tests {
         // ApplyPowerAction appends then performs a stable priority sort.
         // Java: ApplyPowerAction.java:163-165, AbstractPower.java:370-372.
         let mut state = crate::state::CombatState::new(80, 80, vec![], vec![], 3);
-        state
-            .player
-            .set_status(sid::TOOLS_OF_THE_TRADE, 1); // priority 25
+        state.player.set_status(sid::TOOLS_OF_THE_TRADE, 1); // priority 25
         state.player.set_status(sid::DEMON_FORM, 2); // priority 5
-        state
-            .player
-            .set_status(sid::DOPPELGANGER_DRAW, 3); // priority 20
+        state.player.set_status(sid::DOPPELGANGER_DRAW, 3); // priority 20
 
         let mut runtime = EffectRuntime::default();
         runtime.rebuild_from_state(&state);
@@ -2192,9 +2504,7 @@ mod serde_tests {
         // dispatch must consume the canonical list rather than re-sort it.
         // Java: AbstractCreature.java:511-513.
         let mut state = crate::state::CombatState::new(80, 80, vec![], vec![], 3);
-        state
-            .player
-            .set_status_direct(sid::TOOLS_OF_THE_TRADE, 1);
+        state.player.set_status_direct(sid::TOOLS_OF_THE_TRADE, 1);
         state.player.set_status_direct(sid::DEMON_FORM, 2);
 
         let mut runtime = EffectRuntime::default();
@@ -2248,8 +2558,7 @@ mod serde_tests {
         assert!(error.to_string().contains("unknown-runtime-def"));
 
         let mut encoded = serde_json::to_value(runtime_with_owner_aware_state()).unwrap();
-        encoded["persisted_states"][0]["def_id"] =
-            serde_json::json!("unknown-persisted-def");
+        encoded["persisted_states"][0]["def_id"] = serde_json::json!("unknown-persisted-def");
         let error = serde_json::from_value::<EffectRuntime>(encoded).unwrap_err();
         assert!(error
             .to_string()

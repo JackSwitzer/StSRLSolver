@@ -96,13 +96,21 @@ fn pen_nib_triggers_on_tenth_attack_and_resets() {
         let hp_before = engine.state.enemies[0].entity.hp;
         assert!(play_on_enemy(&mut engine, "Strike", 0));
         assert_eq!(engine.state.enemies[0].entity.hp, hp_before - 6);
-        assert_eq!(engine.state.player.status(sid::PEN_NIB_COUNTER), expected_counter);
+        assert_eq!(
+            engine.state.player.status(sid::PEN_NIB_COUNTER),
+            expected_counter
+        );
+        assert_eq!(
+            engine.state.player.status(sid::PEN_NIB_POWER),
+            i32::from(expected_counter == 9)
+        );
     }
 
     let hp_before_tenth = engine.state.enemies[0].entity.hp;
     assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert_eq!(engine.state.enemies[0].entity.hp, hp_before_tenth - 12);
     assert_eq!(engine.state.player.status(sid::PEN_NIB_COUNTER), 0);
+    assert_eq!(engine.state.player.status(sid::PEN_NIB_POWER), 0);
 }
 
 #[test]
@@ -129,10 +137,12 @@ fn pen_nib_counter_nine_persists_and_arms_the_next_combat() {
     next.state.discard_pile.clear();
 
     assert_eq!(next.state.player.status(sid::PEN_NIB_COUNTER), 9);
+    assert_eq!(next.state.player.status(sid::PEN_NIB_POWER), 1);
     let hp_before = next.state.enemies[0].entity.hp;
     assert!(play_on_enemy(&mut next, "Strike", 0));
     assert_eq!(next.state.enemies[0].entity.hp, hp_before - 12);
     assert_eq!(next.state.player.status(sid::PEN_NIB_COUNTER), 0);
+    assert_eq!(next.state.player.status(sid::PEN_NIB_POWER), 0);
 }
 
 #[test]
@@ -206,6 +216,32 @@ fn nunchaku_persists_across_combats_and_grants_energy_on_the_tenth_attack() {
     assert_eq!(
         next_engine.hidden_effect_value("Nunchaku", EffectOwner::PlayerRelic { slot: 0 }, 0),
         0
+    );
+}
+
+#[test]
+fn nunchaku_persistence_overwrites_a_preinstalled_zero_runtime_instance() {
+    // RunEngine builds CombatState with relics before it loads the prior
+    // combat's persisted EffectState. Java's Nunchaku.counter remains on the
+    // same relic across rooms, so the saved value must win over the runtime's
+    // constructor placeholder. Source: Nunchaku.java (constructor/onUseCard).
+    let mut first_engine = relic_engine("Nunchaku", 20);
+    first_engine.state.hand = make_deck_n("Strike", 6);
+    for _ in 0..6 {
+        assert!(play_on_enemy(&mut first_engine, "Strike", 0));
+    }
+    let persisted = first_engine.export_persisted_effects();
+
+    let mut next_engine = relic_engine("Nunchaku", 20);
+    assert_eq!(
+        next_engine.hidden_effect_value("Nunchaku", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        0
+    );
+    next_engine.load_persisted_effects(persisted);
+
+    assert_eq!(
+        next_engine.hidden_effect_value("Nunchaku", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        6
     );
 }
 

@@ -89,13 +89,11 @@ fn wave8_blessing_bottled_and_liquid_memories_stay_slot_scoped_on_action_path() 
     assert!(engine.state.potions[1].is_empty());
 
     use_potion(&mut engine, 2, -1);
-    assert!(
-        engine
-            .state
-            .hand
-            .iter()
-            .any(|card| engine.card_registry.card_name(card.def_id) == "Bash")
-    );
+    assert!(engine
+        .state
+        .hand
+        .iter()
+        .any(|card| engine.card_registry.card_name(card.def_id) == "Bash"));
     assert!(engine.state.potions[2].is_empty());
     assert_eq!(engine.state.discard_pile.len(), 0);
     assert!(engine.event_log.iter().any(|record| {
@@ -189,7 +187,10 @@ fn wave8_stance_potion_matches_java_choose_one_semantics() {
 
     use_potion(&mut engine, 0, -1);
     assert_eq!(engine.phase, crate::engine::CombatPhase::AwaitingChoice);
-    let choice = engine.choice.as_ref().expect("Stance Potion should open a choice");
+    let choice = engine
+        .choice
+        .as_ref()
+        .expect("Stance Potion should open a choice");
     let labels: Vec<&str> = choice
         .options
         .iter()
@@ -212,12 +213,10 @@ fn wave8_smoke_bomb_respects_java_can_use_restrictions() {
     ));
     engine.state.potions[0] = "Smoke Bomb".to_string();
 
-    assert!(
-        !engine.get_legal_actions().contains(&Action::UsePotion {
-            potion_idx: 0,
-            target_idx: -1,
-        })
-    );
+    assert!(!engine.get_legal_actions().contains(&Action::UsePotion {
+        potion_idx: 0,
+        target_idx: -1,
+    }));
 }
 
 #[test]
@@ -246,17 +245,61 @@ fn wave8_smoke_bomb_rejects_back_attack_non_boss_enemies() {
         make_deck(&["Strike"]),
         vec![{
             let mut enemy = enemy_no_intent("JawWorm", 40, 40);
-            enemy.back_attack = true;
+            enemy.set_back_attack(true);
             enemy
         }],
         3,
     ));
     engine.state.potions[0] = "Smoke Bomb".to_string();
 
-    assert!(
-        !engine.get_legal_actions().contains(&Action::UsePotion {
+    assert!(!engine.get_legal_actions().contains(&Action::UsePotion {
+        potion_idx: 0,
+        target_idx: -1,
+    }));
+}
+
+#[test]
+fn smoke_bomb_legality_observes_dead_backattack_owner_in_both_orientations() {
+    // SmokeBomb.canUse checks every monster's BackAttack power without an
+    // isDead/isDying guard. Shield/Spear death cleanup skips the dying owner,
+    // so either corpse orientation must continue to block escape.
+    // Java: SmokeBomb.java:44-57 and SpireShield.java::die.
+    for dead_owner in [0usize, 1usize] {
+        let mut shield = enemy_no_intent("SpireShield", 125, 125);
+        let mut spear = enemy_no_intent("SpireSpear", 180, 180);
+        if dead_owner == 0 {
+            shield.entity.hp = 0;
+            shield.set_back_attack(true);
+        } else {
+            spear.entity.hp = 0;
+            spear.set_back_attack(true);
+        }
+        let mut engine = engine_with_state(combat_state_with(
+            make_deck(&["Strike"]),
+            vec![shield, spear],
+            3,
+        ));
+        engine.state.potions[0] = "Smoke Bomb".to_string();
+
+        assert!(!engine.get_legal_actions().contains(&Action::UsePotion {
             potion_idx: 0,
             target_idx: -1,
-        })
-    );
+        }));
+    }
+
+    let mut shield = enemy_no_intent("SpireShield", 125, 125);
+    let mut spear = enemy_no_intent("SpireSpear", 180, 180);
+    shield.entity.hp = 0;
+    shield.set_back_attack(false);
+    spear.set_back_attack(false);
+    let mut engine = engine_with_state(combat_state_with(
+        make_deck(&["Strike"]),
+        vec![shield, spear],
+        3,
+    ));
+    engine.state.potions[0] = "Smoke Bomb".to_string();
+    assert!(engine.get_legal_actions().contains(&Action::UsePotion {
+        potion_idx: 0,
+        target_idx: -1,
+    }));
 }

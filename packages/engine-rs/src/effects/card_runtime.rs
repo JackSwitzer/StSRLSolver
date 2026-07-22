@@ -1,11 +1,11 @@
 use crate::cards::CardDef;
 use crate::combat_types::CardInstance;
-use crate::engine::CombatEngine;
 use crate::effects::types::{
     CanPlayRule, CardPlayContext, CardRuntimeTrigger, CostModifierRule, DamageModifier,
-    DamageModifierRule, OnDiscardEffect, OnDiscardRule, OnDrawRule, OnExhaustRule,
-    OnRetainRule, PostPlayDestination, PostPlayRule, StatefulCostRule,
+    DamageModifierRule, OnDiscardEffect, OnDiscardRule, OnDrawRule, OnExhaustRule, OnRetainRule,
+    PostPlayDestination, PostPlayRule, StatefulCostRule,
 };
+use crate::engine::CombatEngine;
 use crate::status_ids::sid;
 
 pub fn allows_play(engine: &CombatEngine, card: &CardDef, card_inst: CardInstance) -> bool {
@@ -141,7 +141,9 @@ pub fn resolve_damage_modifiers(
     for trigger in card.runtime_triggers() {
         if let CardRuntimeTrigger::ModifyDamage(rule) = trigger {
             let modifier = match rule {
-                DamageModifierRule::HeavyBlade => hooks_damage::hook_heavy_blade(engine, card, card_inst),
+                DamageModifierRule::HeavyBlade => {
+                    hooks_damage::hook_heavy_blade(engine, card, card_inst)
+                }
                 DamageModifierRule::DamageEqualsBlock => {
                     hooks_damage::hook_damage_equals_block(engine, card, card_inst)
                 }
@@ -167,7 +169,9 @@ pub fn resolve_damage_modifiers(
                 DamageModifierRule::WindmillStrike => {
                     hooks_damage::hook_windmill_strike_damage(engine, card, card_inst)
                 }
-                DamageModifierRule::ClawScaling => hooks_damage::hook_claw_damage(engine, card, card_inst),
+                DamageModifierRule::ClawScaling => {
+                    hooks_damage::hook_claw_damage(engine, card, card_inst)
+                }
                 DamageModifierRule::DamagePerLightning | DamageModifierRule::DamageFromDrawPile => {
                     hooks_damage::hook_skip_generic_damage(engine, card, card_inst)
                 }
@@ -183,8 +187,12 @@ pub fn apply_on_draw(engine: &mut CombatEngine, card_inst: CardInstance) {
     for trigger in card.runtime_triggers() {
         if let CardRuntimeTrigger::OnDraw(rule) = trigger {
             match rule {
-                OnDrawRule::LoseEnergy => crate::effects::hooks_draw::hook_lose_energy_on_draw(engine, card_inst),
-                OnDrawRule::CopySelf => crate::effects::hooks_draw::hook_copy_on_draw(engine, card_inst),
+                OnDrawRule::LoseEnergy => {
+                    crate::effects::hooks_draw::hook_lose_energy_on_draw(engine, card_inst)
+                }
+                OnDrawRule::CopySelf => {
+                    crate::effects::hooks_draw::hook_copy_on_draw(engine, card_inst)
+                }
                 OnDrawRule::DeusExMachina => {
                     crate::effects::hooks_draw::hook_deus_ex_machina_on_draw(engine, card_inst)
                 }
@@ -199,8 +207,12 @@ pub fn apply_on_discard(engine: &mut CombatEngine, card_inst: CardInstance) -> O
     for trigger in card.runtime_triggers() {
         if let CardRuntimeTrigger::OnDiscard(rule) = trigger {
             let effect = match rule {
-                OnDiscardRule::DrawCards => crate::effects::hooks_discard::hook_draw_on_discard(engine, card_inst),
-                OnDiscardRule::GainEnergy => crate::effects::hooks_discard::hook_energy_on_discard(engine, card_inst),
+                OnDiscardRule::DrawCards => {
+                    crate::effects::hooks_discard::hook_draw_on_discard(engine, card_inst)
+                }
+                OnDiscardRule::GainEnergy => {
+                    crate::effects::hooks_discard::hook_energy_on_discard(engine, card_inst)
+                }
             };
             out.merge(effect);
         }
@@ -215,6 +227,7 @@ pub fn apply_on_exhaust(engine: &mut CombatEngine, card: &CardDef, card_inst: Ca
                 card,
                 card_inst,
                 target_idx: -1,
+                target_was_attacking: false,
                 x_value: 0,
                 pen_nib_active: false,
                 vigor: 0,
@@ -226,7 +239,9 @@ pub fn apply_on_exhaust(engine: &mut CombatEngine, card: &CardDef, card_inst: Ca
                 deferred_manual_discards: Vec::new(),
             };
             match rule {
-                OnExhaustRule::GainEnergy => crate::effects::hooks_simple::hook_energy_on_exhaust(engine, &ctx),
+                OnExhaustRule::GainEnergy => {
+                    crate::effects::hooks_simple::hook_energy_on_exhaust(engine, &ctx)
+                }
                 // Necronomicurse.triggerOnExhaust queues a fresh makeCopy()
                 // through MakeTempCardInHandAction, including hand overflow.
                 // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/curses/Necronomicurse.java

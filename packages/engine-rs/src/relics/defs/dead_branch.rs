@@ -16,10 +16,9 @@ fn hook(
     if event.kind != Trigger::OnCardExhaust || engine.state.living_enemy_indices().is_empty() {
         return;
     }
-    if let Some(card) = crate::effects::interpreter::generate_random_card(
-        engine,
-        GeneratedCardPool::WatcherAny,
-    ) {
+    if let Some(card) =
+        crate::effects::interpreter::generate_random_card(engine, GeneratedCardPool::WatcherAny)
+    {
         if engine.state.hand.len() < 10 {
             engine.state.hand.push(card);
         } else {

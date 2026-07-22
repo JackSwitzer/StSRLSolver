@@ -10,7 +10,7 @@
 
 use crate::status_ids::sid;
 use crate::tests::support::{
-    combat_state_with, enemy_no_intent, engine_without_start, engine_with_state, make_deck,
+    combat_state_with, enemy_no_intent, engine_with_state, engine_without_start, make_deck,
     play_on_enemy, play_self,
 };
 
@@ -47,8 +47,13 @@ fn dead_cleanup_wave5_runtime_opening_and_turn_relics_are_authoritative() {
 #[test]
 fn dead_cleanup_wave5_runtime_cardplay_and_endturn_relics_replace_helper_assertions() {
     let mut state = combat_state_with(
-        make_deck(&["Defend", "Defend", "Defend", "Inflame", "Strike", "Defend", "Bash"]),
-        vec![enemy_no_intent("JawWorm", 120, 120), enemy_no_intent("Cultist", 44, 44)],
+        make_deck(&[
+            "Defend", "Defend", "Defend", "Inflame", "Strike", "Defend", "Bash",
+        ]),
+        vec![
+            enemy_no_intent("JawWorm", 120, 120),
+            enemy_no_intent("Cultist", 44, 44),
+        ],
         20,
     );
     state.relics.extend([
@@ -59,7 +64,9 @@ fn dead_cleanup_wave5_runtime_cardplay_and_endturn_relics_replace_helper_asserti
     ]);
     let mut engine = engine_with_state(state);
     engine.state.player.hp = 70;
-    engine.state.hand = make_deck(&["Defend", "Defend", "Defend", "Inflame", "Strike", "Defend", "Bash"]);
+    engine.state.hand = make_deck(&[
+        "Defend", "Defend", "Defend", "Inflame", "Strike", "Defend", "Bash",
+    ]);
     let hp0 = engine.state.enemies[0].entity.hp;
     let hp1 = engine.state.enemies[1].entity.hp;
 

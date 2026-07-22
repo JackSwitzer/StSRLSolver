@@ -4,7 +4,11 @@ Everything below already exists. Read before building anything new; most "new" n
 
 ## Rust engine — USE (the product)
 
-- `packages/engine-rs/` — 3,110/3,110 lib tests green, zero ignored. The current rubric-backed engine-side readiness estimate is 90%; the deepest comparable legacy prefix is 51/607, while the strict Java-certified prefix remains 0 because profile initialization is absent.
+- `packages/engine-rs/` — 3,269/3,269 lib tests green, zero ignored. The current
+  evidence is reported by scope rather than one blended percentage: 667/667
+  ledger rows verified, 2,013/2,013 actions reachable across three Watcher A0
+  victories, 1,547/2,013 direct action checkpoints, and 0/3 independently
+  certified goldens because recorder inputs remain incomplete.
   - `src/run.rs` — `RunEngine::new(seed, ascension)` + `step_game(&GameAction)`: canonical full-run surface (Neow/path/combat/rewards/shop/event/campfire/Act 4).
   - `src/seed.rs` — native libGDX `RandomXS128`, counted StS `Random`, Java-util LCG/shuffle, and typed persistent/floor/combat stream ownership.
   - `src/engine.rs`, `src/state.rs`, `src/combat_hooks.rs`, `src/card_effects.rs` — combat core; state structs already serde-derive.
@@ -16,7 +20,10 @@ Everything below already exists. Read before building anything new; most "new" n
 ## Audits & registers — MINE (they ARE the work queue)
 
 - `docs/work_units/comprehensive-audit-2026-04-17.md` — the gap list with Java citations: §1.1 enemy AI RNG (critical), §1.4 replay energy hardcode, §1.5 Neow TEN_PERCENT_HP_LOSS, §3 fix ordering. Units U08/U09 are lifted from it.
-- `docs/work_units/audit-reports/watcher-a0-oracle-closure.md` — live canonical scorecard, corpus matrix, fixed findings, and remaining merge gates. Older audit derivations are historical evidence, not current branch truth.
+- `docs/work_units/oracle-replay-wave3b-appendix.md` — live corpus scorecard,
+  exact recorder omissions, assumptions, final Java-to-Rust closure review, and
+  remaining oracle work. `audit-reports/watcher-a0-oracle-closure.md` is the
+  superseded Wave 3 snapshot; older derivations are historical evidence.
 - `docs/work_units/parity-deviations-register.md` — existing intentional deviations (e.g. Neow exposes 4 choices). Becomes the `DEV-NNN` source of truth for masks.
 - `docs/canonical-status-keys.md`, `docs/DESIGN_DECISIONS.md` — ID ground truth + prior rulings.
 

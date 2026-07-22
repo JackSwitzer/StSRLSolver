@@ -8,9 +8,13 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/DoubleEnergy.java
 
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::status_ids::sid;
-use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy};
+use crate::tests::support::{
+    enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy,
+};
 
 #[test]
 fn test_card_runtime_defect_wave13_registry_exports_blocked_melter_surface() {
@@ -31,13 +35,14 @@ fn test_card_runtime_defect_wave13_registry_exports_blocked_melter_surface() {
     let blizzard = reg.get("Blizzard").expect("Blizzard");
     assert_eq!(
         blizzard.effect_data,
-        &[E::Simple(SE::DealDamage(T::AllEnemies, A::StatusValueTimesMagic(sid::FROST_CHANNELED)))]
+        &[E::Simple(SE::DealDamage(
+            T::AllEnemies,
+            A::StatusValueTimesMagic(sid::FROST_CHANNELED)
+        ))]
     );
     assert!(blizzard.complex_hook.is_none());
 
-    let genetic = reg
-        .get("Genetic Algorithm")
-        .expect("Genetic Algorithm");
+    let genetic = reg.get("Genetic Algorithm").expect("Genetic Algorithm");
     assert_eq!(
         genetic.effect_data,
         &[
@@ -57,7 +62,10 @@ fn test_card_runtime_defect_wave13_blizzard_uses_the_typed_frost_count_damage_sc
     let blizzard = global_registry().get("Blizzard").expect("Blizzard");
     assert_eq!(
         blizzard.effect_data,
-        &[E::Simple(SE::DealDamage(T::AllEnemies, A::StatusValueTimesMagic(sid::FROST_CHANNELED)))]
+        &[E::Simple(SE::DealDamage(
+            T::AllEnemies,
+            A::StatusValueTimesMagic(sid::FROST_CHANNELED)
+        ))]
     );
     assert!(blizzard.complex_hook.is_none());
 }
@@ -76,11 +84,7 @@ fn test_card_runtime_defect_wave13_melter_uses_the_typed_pre_damage_block_remova
 
 #[test]
 fn test_card_runtime_defect_wave13_melter_removes_block_before_damage() {
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Melter"]);
     engine.state.enemies[0].entity.block = 12;
@@ -94,15 +98,13 @@ fn test_card_runtime_defect_wave13_melter_removes_block_before_damage() {
 fn melter_source_removes_all_block_then_uses_normal_damage_modifiers() {
     // Melter.java queues RemoveAllBlockAction first, then a NORMAL DamageInfo
     // hit. Melter+ changes only base damage 10 -> 14.
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 50, 50)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 50, 50)], 3);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Melter+"]);
     engine.state.player.set_status(sid::STRENGTH, 2);
-    engine.state.enemies[0].entity.set_status(sid::VULNERABLE, 1);
+    engine.state.enemies[0]
+        .entity
+        .set_status(sid::VULNERABLE, 1);
     engine.state.enemies[0].entity.block = 99;
 
     assert!(play_on_enemy(&mut engine, "Melter+", 0));

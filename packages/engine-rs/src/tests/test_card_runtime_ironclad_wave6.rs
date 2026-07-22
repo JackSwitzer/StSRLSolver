@@ -11,7 +11,7 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/cards/red/Bludgeon.java
 
 use crate::actions::Action;
-use crate::cards::{CardTarget, CardType, global_registry};
+use crate::cards::{global_registry, CardTarget, CardType};
 use crate::status_ids::sid;
 use crate::tests::support::*;
 
@@ -21,10 +21,7 @@ fn one_enemy_engine(enemy_id: &str, hp: i32) -> crate::engine::CombatEngine {
     engine
 }
 
-fn two_enemy_engine(
-    a: (&str, i32),
-    b: (&str, i32),
-) -> crate::engine::CombatEngine {
+fn two_enemy_engine(a: (&str, i32), b: (&str, i32)) -> crate::engine::CombatEngine {
     let mut engine = engine_without_start(
         Vec::new(),
         vec![
@@ -39,7 +36,9 @@ fn two_enemy_engine(
 
 #[test]
 fn ironclad_wave6_registry_exports_honest_runtime_surface() {
-    let cleave = global_registry().get("Cleave").expect("Cleave should exist");
+    let cleave = global_registry()
+        .get("Cleave")
+        .expect("Cleave should exist");
     assert_eq!(cleave.card_type, CardType::Attack);
     assert_eq!(cleave.target, CardTarget::AllEnemy);
     assert_eq!(
@@ -81,7 +80,9 @@ fn ironclad_wave6_registry_exports_honest_runtime_surface() {
         )]
     );
 
-    let iron_wave = global_registry().get("Iron Wave").expect("Iron Wave should exist");
+    let iron_wave = global_registry()
+        .get("Iron Wave")
+        .expect("Iron Wave should exist");
     assert_eq!(iron_wave.card_type, CardType::Attack);
     assert_eq!(iron_wave.target, CardTarget::Enemy);
     assert_eq!(iron_wave.base_damage, 5);
@@ -103,7 +104,9 @@ fn ironclad_wave6_registry_exports_honest_runtime_surface() {
         ]
     );
 
-    let carnage = global_registry().get("Carnage").expect("Carnage should exist");
+    let carnage = global_registry()
+        .get("Carnage")
+        .expect("Carnage should exist");
     assert!(carnage.has_test_marker("ethereal"));
     assert_eq!(
         carnage.effect_data,
@@ -145,7 +148,9 @@ fn ironclad_wave6_registry_exports_honest_runtime_surface() {
         )]
     );
 
-    let bludgeon = global_registry().get("Bludgeon").expect("Bludgeon should exist");
+    let bludgeon = global_registry()
+        .get("Bludgeon")
+        .expect("Bludgeon should exist");
     assert_eq!(bludgeon.card_type, CardType::Attack);
     assert_eq!(bludgeon.target, CardTarget::Enemy);
     assert_eq!(bludgeon.base_damage, 32);
@@ -250,13 +255,16 @@ fn clash_source_requires_every_remaining_hand_card_to_be_an_attack() {
             .position(|card| engine.card_registry.card_name(card.def_id) == "Clash+")
             .expect("Clash+ should be in hand");
 
-        assert!(!engine.get_legal_actions().iter().any(|action| matches!(
-            action,
-            Action::PlayCard {
-                card_idx,
-                target_idx: 0,
-            } if *card_idx == clash_idx
-        )), "{blocker} should prevent Clash+");
+        assert!(
+            !engine.get_legal_actions().iter().any(|action| matches!(
+                action,
+                Action::PlayCard {
+                    card_idx,
+                    target_idx: 0,
+                } if *card_idx == clash_idx
+            )),
+            "{blocker} should prevent Clash+"
+        );
     }
 
     let mut allowed = one_enemy_engine("JawWorm", 50);

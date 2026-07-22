@@ -9,7 +9,9 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Backstab.java
 
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::tests::support::*;
 
 #[test]
@@ -44,7 +46,9 @@ fn silent_wave8_registry_exports_match_typed_primary_surface() {
         ]
     );
 
-    let die_die_die = registry.get("Die Die Die").expect("Die Die Die should exist");
+    let die_die_die = registry
+        .get("Die Die Die")
+        .expect("Die Die Die should exist");
     assert!(die_die_die.exhaust);
     assert_eq!(
         die_die_die.effect_data,
@@ -79,11 +83,7 @@ fn backstab_plus_starts_in_hand_then_deals_fifteen_and_exhausts_for_free() {
 
 #[test]
 fn silent_wave8_single_target_typed_attacks_follow_java_oracle_on_engine_path() {
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 60, 60)],
-        10,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 60, 60)], 10);
     force_player_turn(&mut engine);
 
     ensure_in_hand(&mut engine, "Strike");
@@ -114,7 +114,10 @@ fn silent_wave8_block_and_aoe_cards_follow_java_oracle_on_engine_path() {
     // upgradeDamage(3) plus upgradeBlock(3) raises both values to 13.
     let mut engine = engine_without_start(
         Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40), enemy_no_intent("Cultist", 40, 40)],
+        vec![
+            enemy_no_intent("JawWorm", 40, 40),
+            enemy_no_intent("Cultist", 40, 40),
+        ],
         10,
     );
     force_player_turn(&mut engine);

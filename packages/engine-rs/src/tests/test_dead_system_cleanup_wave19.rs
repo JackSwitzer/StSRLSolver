@@ -12,10 +12,10 @@
 // this wave. The higher-latency relic bridges remain live production callsites
 // in `engine.rs`, so they stay put until a wider runtime wave owns them.
 
-use crate::status_ids::sid;
 use crate::state::Stance;
+use crate::status_ids::sid;
 use crate::tests::support::{
-    combat_state_with, enemy_no_intent, ensure_in_hand, engine_with, engine_with_state, make_deck,
+    combat_state_with, enemy_no_intent, engine_with, engine_with_state, ensure_in_hand, make_deck,
     make_deck_n, play_on_enemy, play_self,
 };
 

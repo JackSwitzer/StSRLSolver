@@ -55,9 +55,7 @@ fn mark_of_the_bloom_acquired_from_mind_bloom_blocks_next_combat_heal() {
     engine.run_state.current_hp = 20;
     engine.debug_set_typed_event_state(typed_event(3, "Mind Bloom"));
 
-    assert!(engine
-        .step_game(&GameAction::EventChoice(1))
-        .accepted());
+    assert!(engine.step_game(&GameAction::EventChoice(1)).accepted());
     assert_eq!(engine.current_phase(), RunPhase::MapChoice);
 
     engine.debug_enter_specific_combat(&["JawWorm"]);

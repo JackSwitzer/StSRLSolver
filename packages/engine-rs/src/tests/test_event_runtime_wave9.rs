@@ -12,7 +12,7 @@ fn typed_event(act: i32, name: &str) -> crate::events::TypedEventDef {
 }
 
 #[test]
-fn secret_portal_transitions_into_boss_combat() {
+fn secret_portal_requires_java_accept_confirmation_before_boss_combat() {
     let mut engine = RunEngine::new(73, 0);
     engine.run_state.act = 3;
     engine.run_state.floor = 42;
@@ -23,6 +23,15 @@ fn secret_portal_transitions_into_boss_combat() {
     ));
 
     engine.debug_set_typed_event_state(secret_portal);
+    // SecretPortal.java changes INTRO to ACCEPT on the first click and only
+    // enters the boss room when its single confirmation option is clicked.
+    let confirm = engine.step_game(&GameAction::EventChoice(0));
+    assert!(confirm.accepted());
+    assert_eq!(engine.current_phase(), RunPhase::Event);
+    assert_eq!(engine.run_state.floor, 42);
+    assert!(engine.get_combat_engine().is_none());
+    assert_eq!(engine.get_legal_actions(), vec![GameAction::EventChoice(0)]);
+
     let step = engine.step_game(&GameAction::EventChoice(0));
     assert!(step.accepted());
     assert_eq!(engine.current_phase(), RunPhase::Combat);
@@ -37,10 +46,33 @@ fn secret_portal_transitions_into_boss_combat() {
     assert_eq!(engine.current_phase(), RunPhase::Event);
     assert_eq!(engine.run_state.floor, 44);
     assert_eq!(
-        engine.debug_current_event().as_ref().map(|event| event.name.as_str()),
+        engine
+            .debug_current_event()
+            .as_ref()
+            .map(|event| event.name.as_str()),
         Some("Spire Heart")
     );
     assert!(engine.current_reward_screen().is_none());
+}
+
+#[test]
+fn secret_portal_leave_requires_java_confirmation_without_changing_run_state() {
+    let mut engine = RunEngine::new(73, 0);
+    engine.run_state.act = 3;
+    engine.run_state.floor = 42;
+    engine.debug_set_typed_event_state(typed_event(3, "Secret Portal"));
+    let before_rng = engine.rng_counters();
+
+    assert!(engine.step_game(&GameAction::EventChoice(1)).accepted());
+    assert_eq!(engine.current_phase(), RunPhase::Event);
+    assert_eq!(engine.run_state.floor, 42);
+    assert_eq!(engine.rng_counters(), before_rng);
+    assert_eq!(engine.get_legal_actions(), vec![GameAction::EventChoice(0)]);
+
+    assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
+    assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+    assert_eq!(engine.run_state.floor, 42);
+    assert_eq!(engine.rng_counters(), before_rng);
 }
 
 #[test]

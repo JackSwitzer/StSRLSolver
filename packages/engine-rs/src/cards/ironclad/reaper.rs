@@ -10,16 +10,38 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // VampireDamageAllEnemiesAction heals for the sum of actual HP damage to
     // every enemy. Reaper always Exhausts; upgrading changes damage 4 -> 5 only.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/Reaper.java
-    insert(cards, CardDef {
-                id: "Reaper", name: "Reaper", card_type: CardType::Attack,
-                target: CardTarget::AllEnemy, cost: 2, base_damage: 4, base_block: -1,
-                base_magic: -1, exhaust: true, enter_stance: None,
-                effect_data: &REAPER_EFFECT, complex_hook: None,
-            });
-    insert(cards, CardDef {
-                id: "Reaper+", name: "Reaper+", card_type: CardType::Attack,
-                target: CardTarget::AllEnemy, cost: 2, base_damage: 5, base_block: -1,
-                base_magic: -1, exhaust: true, enter_stance: None,
-                effect_data: &REAPER_EFFECT, complex_hook: None,
-            });
+    insert(
+        cards,
+        CardDef {
+            id: "Reaper",
+            name: "Reaper",
+            card_type: CardType::Attack,
+            target: CardTarget::AllEnemy,
+            cost: 2,
+            base_damage: 4,
+            base_block: -1,
+            base_magic: -1,
+            exhaust: true,
+            enter_stance: None,
+            effect_data: &REAPER_EFFECT,
+            complex_hook: None,
+        },
+    );
+    insert(
+        cards,
+        CardDef {
+            id: "Reaper+",
+            name: "Reaper+",
+            card_type: CardType::Attack,
+            target: CardTarget::AllEnemy,
+            cost: 2,
+            base_damage: 5,
+            base_block: -1,
+            base_magic: -1,
+            exhaust: true,
+            enter_stance: None,
+            effect_data: &REAPER_EFFECT,
+            complex_hook: None,
+        },
+    );
 }

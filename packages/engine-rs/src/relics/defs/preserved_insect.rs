@@ -24,14 +24,12 @@ fn hook(
     }
 }
 
-static TRIGGERS: [TriggeredEffect; 1] = [
-    TriggeredEffect {
-        trigger: Trigger::CombatStart,
-        condition: TriggerCondition::IsEliteFight,
-        effects: &[],
-        counter: None,
-    },
-];
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::CombatStartDirect,
+    condition: TriggerCondition::IsEliteFight,
+    effects: &[],
+    counter: None,
+}];
 
 pub static DEF: EntityDef = EntityDef {
     id: "PreservedInsect",

@@ -4,23 +4,21 @@
 //! Source: `reference/extracted/methods/relic/InkBottle.java`
 //! (`onUseCard` increments the counter, resets it at 10, and queues one draw).
 
-use crate::effects::declarative::{Effect, SimpleEffect, AmountSource};
+use crate::effects::declarative::{AmountSource, Effect, SimpleEffect};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::status_ids::sid;
 
-static EFFECTS: [Effect; 1] = [
-    Effect::Simple(SimpleEffect::DrawCards(AmountSource::Fixed(1))),
-];
+static EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::DrawCards(
+    AmountSource::Fixed(1),
+))];
 
-static TRIGGERS: [TriggeredEffect; 1] = [
-    TriggeredEffect {
-        trigger: Trigger::OnAnyCardPlayed,
-        condition: TriggerCondition::CounterReached,
-        effects: &EFFECTS,
-        counter: Some((sid::INK_BOTTLE_COUNTER, 10)),
-    },
-];
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::OnAnyCardPlayed,
+    condition: TriggerCondition::CounterReached,
+    effects: &EFFECTS,
+    counter: Some((sid::INK_BOTTLE_COUNTER, 10)),
+}];
 
 pub static DEF: EntityDef = EntityDef {
     id: "InkBottle",
