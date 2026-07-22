@@ -3,7 +3,7 @@
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerCondition};
-use crate::engine::CombatEngine;
+use crate::engine::{CombatEngine, TurnStartQueuedAction};
 
 fn hook(
     engine: &mut CombatEngine,
@@ -12,13 +12,17 @@ fn hook(
     state: &mut EffectState,
 ) {
     match event.kind {
-        Trigger::CombatStart => state.set(0, 0),
-        Trigger::TurnStartPreDraw => {
+        Trigger::CombatSetup => state.set(0, 0),
+        Trigger::TurnStart => {
             let counter = state.get(0);
             if (0..3).contains(&counter) {
                 let next = counter + 1;
                 if next == 3 {
-                    engine.gain_block_player(18);
+                    if engine.is_collecting_turn_start_actions() {
+                        engine.queue_turn_start_action_bottom(TurnStartQueuedAction::GainBlock(18));
+                    } else {
+                        engine.gain_block_player(18);
+                    }
                     state.set(0, -1);
                 } else {
                     state.set(0, next);
@@ -32,13 +36,13 @@ fn hook(
 
 static TRIGGERS: [TriggeredEffect; 3] = [
     TriggeredEffect {
-        trigger: Trigger::CombatStart,
+        trigger: Trigger::CombatSetup,
         condition: TriggerCondition::Always,
         effects: &[],
         counter: None,
     },
     TriggeredEffect {
-        trigger: Trigger::TurnStartPreDraw,
+        trigger: Trigger::TurnStart,
         condition: TriggerCondition::Always,
         effects: &[],
         counter: None,

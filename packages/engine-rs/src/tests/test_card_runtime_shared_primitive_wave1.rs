@@ -8,10 +8,14 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Omniscience.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE,
+    Target as T,
+};
 use crate::engine::{ChoiceReason, CombatPhase};
 use crate::tests::support::{
-    combat_state_with, enemy_no_intent, engine_with_state, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self,
+    combat_state_with, enemy_no_intent, engine_with_state, engine_without_start, force_player_turn,
+    make_deck, play_on_enemy, play_self,
 };
 
 #[test]
@@ -58,14 +62,13 @@ fn shared_primitive_wave1_alchemize_obtains_a_random_potion_and_exhausts() {
         assert_eq!(engine.state.energy, 0, "{card_id}");
         assert_eq!(engine.state.potions[0], "DexterityPotion", "{card_id}");
         assert_eq!(engine.potion_rng.counter, 3, "{card_id}");
-        assert_eq!(crate::tests::support::exhaust_prefix_count(&engine, "Alchemize"), 1);
+        assert_eq!(
+            crate::tests::support::exhaust_prefix_count(&engine, "Alchemize"),
+            1
+        );
     }
 
-    let mut blocked = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 50, 50)],
-        0,
-    );
+    let mut blocked = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 50, 50)], 0);
     force_player_turn(&mut blocked);
     blocked.potion_rng = crate::seed::StsRandom::new(2);
     blocked.state.relics.push("Sozu".to_string());
@@ -74,7 +77,10 @@ fn shared_primitive_wave1_alchemize_obtains_a_random_potion_and_exhausts() {
     assert!(play_self(&mut blocked, "Alchemize+"));
     assert!(blocked.state.potions.iter().all(String::is_empty));
     assert_eq!(blocked.potion_rng.counter, 3);
-    assert_eq!(crate::tests::support::exhaust_prefix_count(&blocked, "Alchemize"), 1);
+    assert_eq!(
+        crate::tests::support::exhaust_prefix_count(&blocked, "Alchemize"),
+        1
+    );
 }
 
 #[test]
@@ -129,7 +135,10 @@ fn shared_primitive_wave1_omniscience_uses_the_typed_draw_pile_free_play_surface
 
     assert!(play_self(&mut engine, "Omniscience"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
-    assert_eq!(engine.choice.as_ref().expect("choice").reason, ChoiceReason::PlayCardFreeFromDraw);
+    assert_eq!(
+        engine.choice.as_ref().expect("choice").reason,
+        ChoiceReason::PlayCardFreeFromDraw
+    );
 
     engine.execute_action(&crate::actions::Action::Choose(0));
 
@@ -139,5 +148,9 @@ fn shared_primitive_wave1_omniscience_uses_the_typed_draw_pile_free_play_surface
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/OmniscienceAction.java
     assert!(engine.state.hand.is_empty());
     assert_eq!(engine.state.player.block, 10);
-    assert!(engine.state.exhaust_pile.iter().any(|card| engine.card_registry.card_name(card.def_id) == "Defend"));
+    assert!(engine
+        .state
+        .exhaust_pile
+        .iter()
+        .any(|card| engine.card_registry.card_name(card.def_id) == "Defend"));
 }

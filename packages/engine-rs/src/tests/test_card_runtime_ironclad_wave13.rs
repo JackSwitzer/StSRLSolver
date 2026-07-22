@@ -67,7 +67,9 @@ fn ironclad_wave13_registry_exports_promote_feed_and_reaper_to_typed_primary_sur
     );
     assert!(feed.complex_hook.is_none());
 
-    let reaper = global_registry().get("Reaper").expect("Reaper should exist");
+    let reaper = global_registry()
+        .get("Reaper")
+        .expect("Reaper should exist");
     assert_eq!(reaper.card_type, CardType::Attack);
     assert_eq!(reaper.target, CardTarget::AllEnemy);
     assert_eq!(
@@ -100,7 +102,9 @@ fn ironclad_wave13_feed_and_reaper_follow_the_typed_primary_surface() {
 
 #[test]
 fn ironclad_wave13_dual_wield_uses_the_typed_attack_or_power_choice_surface() {
-    let dual_wield = global_registry().get("Dual Wield").expect("Dual Wield should exist");
+    let dual_wield = global_registry()
+        .get("Dual Wield")
+        .expect("Dual Wield should exist");
     assert_eq!(
         dual_wield.effect_data,
         &[E::ChooseCards {
@@ -117,7 +121,9 @@ fn ironclad_wave13_dual_wield_uses_the_typed_attack_or_power_choice_surface() {
 
 #[test]
 fn ironclad_wave13_fiend_fire_uses_the_typed_exhaust_then_damage_surface() {
-    let fiend_fire = global_registry().get("Fiend Fire").expect("Fiend Fire should exist");
+    let fiend_fire = global_registry()
+        .get("Fiend Fire")
+        .expect("Fiend Fire should exist");
     assert_eq!(
         fiend_fire.effect_data,
         &[
@@ -142,7 +148,9 @@ fn ironclad_wave13_havoc_uses_the_typed_play_top_card_surface() {
 
 #[test]
 fn ironclad_wave13_second_wind_uses_the_typed_bulk_exhaust_and_count_return_surface() {
-    let second_wind = global_registry().get("Second Wind").expect("Second Wind should exist");
+    let second_wind = global_registry()
+        .get("Second Wind")
+        .expect("Second Wind should exist");
     assert_eq!(
         second_wind.effect_data,
         &[

@@ -142,6 +142,41 @@ mod debuff_timing_parity_tests {
         );
     }
 
+    #[test]
+    fn enemy_restack_preserves_a_cleared_just_applied_latch() {
+        // ApplyPowerAction.java stacks into the existing power instance; it
+        // does not copy `justApplied` from the newly constructed candidate.
+        // This applies to Weak, Vulnerable, Frail, and Draw Reduction.
+        let cases = [
+            (sid::WEAKENED, sid::WEAKENED_JUST_APPLIED),
+            (sid::VULNERABLE, sid::VULNERABLE_JUST_APPLIED),
+            (sid::FRAIL, sid::FRAIL_JUST_APPLIED),
+            (sid::DRAW_REDUCTION, sid::DRAW_REDUCTION_JUST_APPLIED),
+        ];
+
+        for (debuff, latch) in cases {
+            let mut player = fresh_entity();
+            apply_debuff_from_enemy(&mut player, debuff, 2);
+            decrement_debuffs(&mut player);
+            assert_eq!(player.status(debuff), 2);
+            assert_eq!(player.status(latch), 0);
+
+            apply_debuff_from_enemy(&mut player, debuff, 2);
+            assert_eq!(
+                player.status(latch),
+                0,
+                "stacking an existing power must preserve its cleared latch"
+            );
+
+            decrement_debuffs(&mut player);
+            assert_eq!(
+                player.status(debuff),
+                3,
+                "the existing power should decrement normally after re-stacking"
+            );
+        }
+    }
+
     // ------------------------------------------------------------------
     // Artifact / Ginger / Turnip block the debuff -- justApplied not set.
     // ------------------------------------------------------------------

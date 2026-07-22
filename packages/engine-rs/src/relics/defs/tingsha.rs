@@ -17,21 +17,17 @@ fn hook(
     if !living.is_empty() {
         // MonsterGroup.getRandomMonster(..., cardRandomRng) calls random(0,
         // size-1), consuming one tick even when there is only one candidate.
-        let pick = engine
-            .card_random_rng
-            .random_int((living.len() - 1) as i32) as usize;
+        let pick = engine.card_random_rng.random_int((living.len() - 1) as i32) as usize;
         engine.deal_damage_to_enemy(living[pick], 3);
     }
 }
 
-static TRIGGERS: [TriggeredEffect; 1] = [
-    TriggeredEffect {
-        trigger: Trigger::OnCardDiscard,
-        condition: TriggerCondition::Always,
-        effects: &[],
-        counter: None,
-    },
-];
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::OnCardDiscard,
+    condition: TriggerCondition::Always,
+    effects: &[],
+    counter: None,
+}];
 
 pub static DEF: EntityDef = EntityDef {
     id: "Tingsha",

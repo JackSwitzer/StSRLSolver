@@ -8,10 +8,18 @@
 
 use crate::actions::Action;
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE,
+    Target as T,
+};
 use crate::tests::support::*;
 
-fn engine_for(hand: &[&str], draw: &[&str], discard: &[&str], energy: i32) -> crate::engine::CombatEngine {
+fn engine_for(
+    hand: &[&str],
+    draw: &[&str],
+    discard: &[&str],
+    energy: i32,
+) -> crate::engine::CombatEngine {
     let mut state = combat_state_with(
         make_deck(draw),
         vec![enemy_no_intent("JawWorm", 60, 60)],
@@ -30,13 +38,15 @@ fn ironclad_wave15_registry_promotes_havoc_and_headbutt_to_the_typed_surface() {
     let havoc = global_registry().get("Havoc").expect("Havoc should exist");
     assert_eq!(havoc.card_type, CardType::Skill);
     assert_eq!(havoc.target, CardTarget::None);
-    assert_eq!(
-        havoc.effect_data,
-        &[E::Simple(SE::PlayTopCardOfDraw)]
+    assert_eq!(havoc.effect_data, &[E::Simple(SE::PlayTopCardOfDraw)]);
+    assert!(
+        havoc.complex_hook.is_none(),
+        "Havoc should now be fully typed"
     );
-    assert!(havoc.complex_hook.is_none(), "Havoc should now be fully typed");
 
-    let headbutt = global_registry().get("Headbutt").expect("Headbutt should exist");
+    let headbutt = global_registry()
+        .get("Headbutt")
+        .expect("Headbutt should exist");
     assert_eq!(headbutt.card_type, CardType::Attack);
     assert_eq!(headbutt.target, CardTarget::Enemy);
     assert_eq!(
@@ -53,7 +63,10 @@ fn ironclad_wave15_registry_promotes_havoc_and_headbutt_to_the_typed_surface() {
             },
         ]
     );
-    assert!(headbutt.complex_hook.is_none(), "Headbutt should now be fully typed");
+    assert!(
+        headbutt.complex_hook.is_none(),
+        "Headbutt should now be fully typed"
+    );
 }
 
 #[test]
@@ -72,12 +85,26 @@ fn ironclad_wave15_havoc_plays_the_top_card_of_draw_pile_through_the_normal_free
     assert_eq!(engine.state.enemies[0].entity.hp, hp_before - 6);
     assert_eq!(engine.state.draw_pile.len(), 1);
     assert_eq!(
-        engine.card_registry.card_name(engine.state.draw_pile.last().expect("remaining draw card").def_id),
+        engine.card_registry.card_name(
+            engine
+                .state
+                .draw_pile
+                .last()
+                .expect("remaining draw card")
+                .def_id
+        ),
         "Defend"
     );
     assert_eq!(engine.state.discard_pile.len(), 1);
     assert_eq!(
-        engine.card_registry.card_name(engine.state.discard_pile.last().expect("top discard").def_id),
+        engine.card_registry.card_name(
+            engine
+                .state
+                .discard_pile
+                .last()
+                .expect("top discard")
+                .def_id
+        ),
         "Havoc"
     );
     assert_eq!(engine.state.exhaust_pile.len(), 1);
@@ -108,7 +135,9 @@ fn havoc_shuffles_discard_when_needed_and_still_rolls_a_target_with_no_cards() {
     assert!(shuffled.state.draw_pile.is_empty());
     assert_eq!(shuffled.state.exhaust_pile.len(), 1);
     assert_eq!(
-        shuffled.card_registry.card_name(shuffled.state.exhaust_pile[0].def_id),
+        shuffled
+            .card_registry
+            .card_name(shuffled.state.exhaust_pile[0].def_id),
         "Strike"
     );
 
@@ -128,14 +157,19 @@ fn ironclad_wave15_headbutt_moves_a_discard_card_to_the_top_of_draw() {
     assert!(play_on_enemy(&mut engine, "Headbutt", 0));
     assert_eq!(engine.state.enemies[0].entity.hp, hp_before - 9);
     assert_eq!(engine.phase, crate::engine::CombatPhase::AwaitingChoice);
-    assert_eq!(engine.choice.as_ref().unwrap().reason, crate::engine::ChoiceReason::PickFromDiscard);
+    assert_eq!(
+        engine.choice.as_ref().unwrap().reason,
+        crate::engine::ChoiceReason::PickFromDiscard
+    );
 
     engine.execute_action(&Action::Choose(1));
 
     assert_eq!(engine.phase, crate::engine::CombatPhase::PlayerTurn);
     assert_eq!(engine.state.draw_pile.len(), 1);
     assert_eq!(
-        engine.card_registry.card_name(engine.state.draw_pile.last().expect("top draw card").def_id),
+        engine
+            .card_registry
+            .card_name(engine.state.draw_pile.last().expect("top draw card").def_id),
         "Strike"
     );
     let discard_names: Vec<&str> = engine
@@ -163,7 +197,9 @@ fn headbutt_plus_auto_moves_a_singleton_and_skips_retrieval_after_a_final_kill()
     assert_eq!(singleton.phase, crate::engine::CombatPhase::PlayerTurn);
     assert!(singleton.choice.is_none());
     assert_eq!(
-        singleton.card_registry.card_name(singleton.state.draw_pile.last().expect("top draw").def_id),
+        singleton
+            .card_registry
+            .card_name(singleton.state.draw_pile.last().expect("top draw").def_id),
         "Defend"
     );
 

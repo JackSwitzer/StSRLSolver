@@ -1,25 +1,30 @@
 #[cfg(test)]
 mod power_tests {
     use crate::powers::*;
-    use crate::status_ids::sid;
     use crate::state::EntityState;
+    use crate::status_ids::sid;
 
-    fn entity() -> EntityState { EntityState::new(50, 50) }
+    fn entity() -> EntityState {
+        EntityState::new(50, 50)
+    }
 
-    #[test] fn decrement_weak_2_to_1() {
+    #[test]
+    fn decrement_weak_2_to_1() {
         let mut e = entity();
         e.set_status(sid::WEAKENED, 2);
         decrement_debuffs(&mut e);
         assert_eq!(e.status(sid::WEAKENED), 1);
     }
-    #[test] fn decrement_weak_1_to_0() {
+    #[test]
+    fn decrement_weak_1_to_0() {
         let mut e = entity();
         e.set_status(sid::WEAKENED, 1);
         decrement_debuffs(&mut e);
         assert_eq!(e.status(sid::WEAKENED), 0);
         assert_eq!(e.status(sid::WEAKENED), 0);
     }
-    #[test] fn decrement_all_three() {
+    #[test]
+    fn decrement_all_three() {
         let mut e = entity();
         e.set_status(sid::WEAKENED, 3);
         e.set_status(sid::VULNERABLE, 2);
@@ -29,7 +34,8 @@ mod power_tests {
         assert_eq!(e.status(sid::VULNERABLE), 1);
         assert_eq!(e.status(sid::FRAIL), 0);
     }
-    #[test] fn poison_tick_damage() {
+    #[test]
+    fn poison_tick_damage() {
         let mut e = entity();
         e.set_status(sid::POISON, 7);
         let d = tick_poison(&mut e);
@@ -37,30 +43,35 @@ mod power_tests {
         assert_eq!(e.hp, 43);
         assert_eq!(e.status(sid::POISON), 6);
     }
-    #[test] fn poison_tick_to_zero() {
+    #[test]
+    fn poison_tick_to_zero() {
         let mut e = entity();
         e.set_status(sid::POISON, 1);
         tick_poison(&mut e);
         assert_eq!(e.status(sid::POISON), 0);
     }
-    #[test] fn poison_no_poison() {
+    #[test]
+    fn poison_no_poison() {
         let mut e = entity();
         assert_eq!(tick_poison(&mut e), 0);
     }
-    #[test] fn artifact_blocks_debuff() {
+    #[test]
+    fn artifact_blocks_debuff() {
         let mut e = entity();
         e.set_status(sid::ARTIFACT, 2);
         assert!(!apply_debuff(&mut e, sid::WEAKENED, 3));
         assert_eq!(e.status(sid::WEAKENED), 0);
         assert_eq!(e.status(sid::ARTIFACT), 1);
     }
-    #[test] fn artifact_consumed() {
+    #[test]
+    fn artifact_consumed() {
         let mut e = entity();
         e.set_status(sid::ARTIFACT, 1);
         apply_debuff(&mut e, sid::WEAKENED, 1);
         assert_eq!(e.status(sid::ARTIFACT), 0);
     }
-    #[test] fn no_artifact_applies() {
+    #[test]
+    fn no_artifact_applies() {
         let mut e = entity();
         assert!(apply_debuff(&mut e, sid::WEAKENED, 2));
         assert_eq!(e.status(sid::WEAKENED), 2);

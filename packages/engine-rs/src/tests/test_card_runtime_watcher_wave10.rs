@@ -12,7 +12,9 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/ThroughViolence.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::state::Stance;
 use crate::status_ids::sid;
 use crate::tests::support::*;
@@ -27,32 +29,58 @@ fn one_enemy_engine(enemy_id: &str, hp: i32, dmg: i32) -> crate::engine::CombatE
 fn watcher_wave10_registry_exports_typed_surface_for_live_cards() {
     let registry = global_registry();
 
-    let protect = registry.get("Protect").expect("Protect should be registered");
+    let protect = registry
+        .get("Protect")
+        .expect("Protect should be registered");
     assert_eq!(protect.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
 
     let study = registry.get("Study").expect("Study should be registered");
-    assert_eq!(study.effect_data, &[E::Simple(SE::AddStatus(T::Player, sid::STUDY, A::Magic))]);
+    assert_eq!(
+        study.effect_data,
+        &[E::Simple(SE::AddStatus(T::Player, sid::STUDY, A::Magic))]
+    );
 
-    let like_water = registry.get("LikeWater").expect("LikeWater should be registered");
+    let like_water = registry
+        .get("LikeWater")
+        .expect("LikeWater should be registered");
     assert_eq!(
         like_water.effect_data,
-        &[E::Simple(SE::AddStatus(T::Player, sid::LIKE_WATER, A::Magic))]
+        &[E::Simple(SE::AddStatus(
+            T::Player,
+            sid::LIKE_WATER,
+            A::Magic
+        ))]
     );
 
-    let mental_fortress = registry.get("MentalFortress").expect("MentalFortress should be registered");
+    let mental_fortress = registry
+        .get("MentalFortress")
+        .expect("MentalFortress should be registered");
     assert_eq!(
         mental_fortress.effect_data,
-        &[E::Simple(SE::AddStatus(T::Player, sid::MENTAL_FORTRESS, A::Magic))]
+        &[E::Simple(SE::AddStatus(
+            T::Player,
+            sid::MENTAL_FORTRESS,
+            A::Magic
+        ))]
     );
 
-    let master_reality = registry.get("MasterReality").expect("MasterReality should be registered");
+    let master_reality = registry
+        .get("MasterReality")
+        .expect("MasterReality should be registered");
     assert_eq!(
         master_reality.effect_data,
-        &[E::Simple(SE::SetStatus(T::Player, sid::MASTER_REALITY, A::Fixed(1)))]
+        &[E::Simple(SE::SetStatus(
+            T::Player,
+            sid::MASTER_REALITY,
+            A::Fixed(1)
+        ))]
     );
 
     let smite = registry.get("Smite").expect("Smite should be registered");
-    assert_eq!(smite.effect_data, &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]);
+    assert_eq!(
+        smite.effect_data,
+        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+    );
 }
 
 #[test]
@@ -148,7 +176,9 @@ fn watcher_wave10_temp_card_bundle_is_still_owned_by_temp_registry() {
     let safety = registry.get("Safety").expect("Safety should be registered");
     assert_eq!(safety.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
 
-    let through_violence = registry.get("ThroughViolence").expect("ThroughViolence should be registered");
+    let through_violence = registry
+        .get("ThroughViolence")
+        .expect("ThroughViolence should be registered");
     assert_eq!(
         through_violence.effect_data,
         &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]

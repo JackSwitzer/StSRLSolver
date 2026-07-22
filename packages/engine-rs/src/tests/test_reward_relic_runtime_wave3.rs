@@ -1441,8 +1441,9 @@ fn warped_tongs_rummage_grants_the_fixed_relic_and_upgrades_only_eligible_cards(
     // AccursedBlacksmith.java's Rummage branch always obtains Pain and the
     // SPECIAL WarpedTongs relic. WarpedTongs queues UpgradeRandomCardAction,
     // which excludes upgraded and Status cards and consumes one
-    // shuffleRng.randomLong only when an eligible card exists. Combat start
-    // consumes the preceding tick through CardGroup.shuffle.
+    // shuffleRng.randomLong only when an eligible card exists. This deliberately
+    // undersized three-card fixture consumes one opening initializeDeck shuffle
+    // and one empty-discard shuffle when DrawCardAction requests five cards.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/events/shrines/AccursedBlacksmith.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/WarpedTongs.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/UpgradeRandomCardAction.java
@@ -1480,6 +1481,22 @@ fn warped_tongs_rummage_grants_the_fixed_relic_and_upgrades_only_eligible_cards(
         .run_state
         .relic_flags
         .rebuild(&engine.run_state.relics);
+
+    let mut opening_baseline = RunEngine::new(42, 0);
+    opening_baseline.run_state.deck = engine.run_state.deck.clone();
+    opening_baseline.run_state.relics.clear();
+    opening_baseline
+        .run_state
+        .relic_flags
+        .rebuild(&opening_baseline.run_state.relics);
+    opening_baseline.debug_enter_specific_combat(&["JawWorm"]);
+    let opening_shuffle_ticks =
+        opening_baseline.debug_combat_engine_mut().rng_counters()["shuffle"];
+    assert_eq!(
+        opening_shuffle_ticks, 2,
+        "initializeDeck plus DrawCardAction's queued empty-discard shuffle"
+    );
+
     engine.debug_enter_specific_combat(&["JawWorm"]);
     let combat = engine.debug_combat_engine_mut();
     let hand_names = combat
@@ -1492,15 +1509,15 @@ fn warped_tongs_rummage_grants_the_fixed_relic_and_upgrades_only_eligible_cards(
     assert!(hand_names.contains(&"Strike+"));
     assert!(hand_names.contains(&"Defend+"));
     assert_eq!(
-        combat.rng_counters()["shuffle"],
-        2,
-        "opening CardGroup shuffle plus Warped Tongs eligible-card shuffle"
+        combat.rng_counters()["shuffle"] - opening_shuffle_ticks,
+        1,
+        "Warped Tongs performs exactly one eligible-card CardGroup shuffle"
     );
 
     combat.state.hand = crate::tests::support::make_deck(&["Burn", "Strike+"]);
     let shuffle_before = combat.rng_counters()["shuffle"];
     combat.emit_event(crate::effects::runtime::GameEvent::empty(
-        crate::effects::trigger::Trigger::TurnStartPostDrawLate,
+        crate::effects::trigger::Trigger::TurnStartPostDraw,
     ));
     assert_eq!(combat.rng_counters()["shuffle"], shuffle_before);
     assert!(combat.state.hand.iter().all(|card| {
@@ -3060,11 +3077,13 @@ fn potion_belt_is_reachable_through_floor_forty_eight_and_adds_two_slots() {
     assert!(engine
         .step_game(&GameAction::SelectRewardItem(0))
         .accepted());
-    assert_eq!(engine.run_state.max_potions, 5);
-    assert_eq!(engine.run_state.potions.len(), 5);
+    // A11+ starts with two slots; Potion Belt still appends exactly two.
+    // Java: AbstractPlayer.java constructor and PotionBelt.java::onEquip.
+    assert_eq!(engine.run_state.max_potions, 4);
+    assert_eq!(engine.run_state.potions.len(), 4);
     assert_eq!(engine.run_state.potions[0], "Block Potion");
+    assert!(engine.run_state.potions[2].is_empty());
     assert!(engine.run_state.potions[3].is_empty());
-    assert!(engine.run_state.potions[4].is_empty());
 }
 
 #[test]
@@ -4109,15 +4128,11 @@ fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
     let screen = engine
         .current_reward_screen()
         .expect("Calling Bell rewards should replace boss choices");
-    assert_eq!(screen.items.len(), 4);
+    assert_eq!(screen.items.len(), 1);
     assert!(matches!(
         &screen.items[0].choices[0],
         RewardChoice::Card { card_id, .. } if card_id == "CurseOfTheBell"
     ));
-    assert!(screen.items[1..]
-        .iter()
-        .all(|item| item.kind == RewardItemKind::Relic));
-
     assert!(engine
         .step_game(&GameAction::SelectRewardItem(0))
         .accepted());
@@ -4133,7 +4148,16 @@ fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
         .iter()
         .any(|card| card == "CurseOfTheBell"));
 
-    for item_index in 1..=3 {
+    let screen = engine
+        .current_reward_screen()
+        .expect("Calling Bell relic rewards should open after the curse grid");
+    assert_eq!(screen.items.len(), 3);
+    assert!(screen
+        .items
+        .iter()
+        .all(|item| item.kind == RewardItemKind::Relic));
+
+    for item_index in 0..=2 {
         assert!(engine
             .step_game(&GameAction::SelectRewardItem(item_index))
             .accepted());
@@ -4153,6 +4177,8 @@ fn calling_bell_grants_mandatory_curse_then_one_relic_of_each_tier() {
         }
     }
     assert_eq!(engine.run_state.relics.len(), 5);
+    assert_eq!(engine.current_phase(), RunPhase::CardReward);
+    assert!(engine.step_game(&GameAction::LeaveRewards).accepted());
     assert_eq!(engine.current_phase(), RunPhase::Transition);
     assert_eq!(engine.run_state.act, 1);
     assert!(engine.step_game(&GameAction::Proceed).accepted());
@@ -5842,11 +5868,20 @@ fn thread_and_needle_is_reachable_as_rare_and_never_calling_bell_uncommon() {
                 choice_index: 0,
             })
             .accepted());
+        assert!(engine
+            .step_game(&GameAction::SelectRewardItem(0))
+            .accepted());
+        assert!(engine
+            .step_game(&GameAction::ChooseRewardOption {
+                item_index: 0,
+                choice_index: 0,
+            })
+            .accepted());
         let screen = engine
             .current_reward_screen()
             .expect("Calling Bell rewards");
-        assert_ne!(screen.items[2].label, "Thread and Needle");
-        if screen.items[3].label == "Thread and Needle" {
+        assert_ne!(screen.items[1].label, "Thread and Needle");
+        if screen.items[2].label == "Thread and Needle" {
             saw_calling_bell_thread = true;
             break;
         }

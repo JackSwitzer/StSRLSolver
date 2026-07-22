@@ -15,6 +15,7 @@ use smallvec::SmallVec;
 /// Execute all enemy turns: poison ticks, ritual, moves.
 pub fn do_enemy_turns(engine: &mut CombatEngine) {
     engine.phase = CombatPhase::EnemyTurn;
+    engine.ensure_enemy_instance_ids();
 
     // Sources: MonsterStartTurnAction.java and MonsterGroup.java
     // (`applyPreTurnLogic`). Clear every monster's block once before any
@@ -27,8 +28,26 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
         }
     }
 
-    let num_enemies = engine.state.enemies.len();
-    for i in 0..num_enemies {
+    // MonsterGroup creates its turn queue before any takeTurn actions resolve.
+    // SpawnMonsterAction may then insert a new monster before a queued member;
+    // stable identities ensure the original member still acts and the summon
+    // waits until the next enemy turn.
+    // Java: MonsterGroup.java::queueMonsters and SpawnMonsterAction.java.
+    let turn_queue: Vec<u64> = engine
+        .state
+        .enemies
+        .iter()
+        .map(|enemy| enemy.runtime_instance_id)
+        .collect();
+    for instance_id in turn_queue {
+        let Some(i) = engine
+            .state
+            .enemies
+            .iter()
+            .position(|enemy| enemy.runtime_instance_id == instance_id)
+        else {
+            continue;
+        };
         if !engine.state.enemies[i].is_alive() {
             continue;
         }
@@ -120,6 +139,17 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
         // Execute enemy move
         execute_enemy_move(engine, i);
 
+        // A smart-positioned summon can shift the acting monster's vector
+        // index while its queued turn is resolving.
+        let Some(i) = engine
+            .state
+            .enemies
+            .iter()
+            .position(|enemy| enemy.runtime_instance_id == instance_id)
+        else {
+            continue;
+        };
+
         // Sources: reference/extracted/methods/monster/Exploder.java and
         // decompiled/java-src/com/megacrit/cardcrawl/powers/ExplosivePower.java.
         // GameActionManager calls
@@ -159,7 +189,7 @@ pub fn do_enemy_turns(engine: &mut CombatEngine) {
     // has acted. RegenerateMonsterPower heals here, not at enemy-turn start.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/MonsterGroup.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RegenerateMonsterPower.java
-    for i in 0..num_enemies {
+    for i in 0..engine.state.enemies.len() {
         if engine.state.enemies[i].is_alive() {
             engine.emit_event(crate::effects::runtime::GameEvent {
                 kind: crate::effects::trigger::Trigger::EnemyTurnEnd,
@@ -208,11 +238,13 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 .entity
                 .set_status(sid::REBIRTH_PENDING, 0);
             enemies::awakened_one_rebirth(&mut engine.state.enemies[enemy_idx]);
-            // Rebirth's takeTurn still ends with RollMoveAction. The phase-two
-            // first-turn branch ignores the rolled value but consumes one aiRng
-            // tick before setting Dark Echo.
+            // Rebirth's takeTurn still ends with RollMoveAction. Java retains
+            // the full phase-one history and getMove appends Dark Echo after
+            // the two Rebirth entries installed by damage(). The phase-two
+            // first-turn branch ignores the rolled value but consumes one
+            // aiRng tick.
             // Java: reference/extracted/methods/monster/AwakenedOne.java
-            enemies::roll_initial_move(&mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
+            enemies::roll_next_move(&mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
             return;
         }
 
@@ -246,6 +278,17 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     if engine.state.enemies[enemy_idx].move_id == -1 {
         return;
     }
+
+    let collector_initial_spawn = matches!(
+        engine.state.enemies[enemy_idx].id.as_str(),
+        "TheCollector" | "Collector"
+    ) && engine.state.enemies[enemy_idx].move_id
+        == enemies::move_ids::COLL_SPAWN;
+    let mut collector_replacements: Vec<(usize, usize, crate::state::EnemyCombatState)> =
+        Vec::new();
+    let mut bronze_orb_spawns: Vec<(usize, crate::state::EnemyCombatState)> = Vec::new();
+    let mut gremlin_leader_spawns: Vec<(usize, crate::state::EnemyCombatState)> = Vec::new();
+    let mut reptomancer_spawns: Vec<(usize, crate::state::EnemyCombatState)> = Vec::new();
 
     let player_hp_before_move = engine.state.player.hp;
 
@@ -344,6 +387,14 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
     }
 
     // Attack
+    // PainfulStabsPower constructs Wounds as each sourced NORMAL hit lands,
+    // but queues their MakeTempCardInDiscardAction at the bottom behind the
+    // Heart's remaining DamageActions. Keep the fresh instances aside until
+    // the whole move has resolved so add-to-top reactions such as Runic Cube
+    // cannot draw a Wound that Java has not put in the discard pile yet.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/PainfulStabsPower.java
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/ending/CorruptHeart.java
+    let mut pending_painful_stabs = Vec::new();
     let mut enemy_attack_output = 0;
     let enemy = &engine.state.enemies[enemy_idx];
     let move_dmg = enemy.move_damage();
@@ -370,7 +421,8 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         let player_vuln = engine.state.player.is_vulnerable();
         let player_intangible = engine.state.player.status(sid::INTANGIBLE) > 0;
         let has_torii = engine.state.has_relic("Torii");
-        let has_tungsten = engine.state.has_relic("Tungsten Rod");
+        let has_tungsten =
+            engine.state.has_relic("Tungsten Rod") || engine.state.has_relic("TungstenRod");
         let has_odd_mushroom = engine.state.has_relic("Odd Mushroom");
 
         // AbstractMonster.applyPowers applies Back Attack after the target's
@@ -390,7 +442,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             has_odd_mushroom,
         )
         .hp_loss;
-        enemy_attack_output = if enemy.back_attack {
+        enemy_attack_output = if enemy.has_back_attack() {
             ((modified as f64) * 1.5) as i32
         } else {
             modified
@@ -452,7 +504,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                     > 0
                 {
                     let wound = engine.temp_card("Wound");
-                    engine.state.discard_pile.push(wound);
+                    pending_painful_stabs.push(wound);
                 }
                 engine.player_lose_hp(hp_loss);
                 if engine.state.combat_over {
@@ -511,7 +563,20 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             if flame_barrier > 0 && engine.state.enemies[enemy_idx].is_alive() {
                 engine.deal_thorns_damage_to_enemy(enemy_idx, flame_barrier);
             }
+
+            // Every multi-hit move is a queue of separate DamageActions.
+            // Once a retaliation kills the source, the remaining NORMAL
+            // DamageActions cancel on their `info.owner.isDying` guard.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DamageAction.java
+            if !engine.state.enemies[enemy_idx].is_alive() || engine.state.is_victory() {
+                break;
+            }
         }
+    }
+
+    // A lethal retaliation clears Java's queued post-combat card actions.
+    if !engine.state.combat_over && !engine.state.is_victory() {
+        engine.state.discard_pile.extend(pending_painful_stabs);
     }
 
     if matches!(
@@ -620,15 +685,14 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         // Source: reference/extracted/methods/monster/CorruptHeart.java
         // (`takeTurn`, case 4). Each buff first cancels any negative Strength,
         // then grants 2 Strength and applies the current escalation stage.
+        // Every queued StrengthPower application independently caps at ±999.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/StrengthPower.java
         let strength = engine.state.enemies[enemy_idx].entity.strength();
-        if strength < 0 {
-            engine.state.enemies[enemy_idx]
-                .entity
-                .set_status(sid::STRENGTH, 0);
-        }
+        let negative_strength_offset = (-strength).max(0);
+        let strength_after_base = (strength + negative_strength_offset + 2).clamp(-999, 999);
         engine.state.enemies[enemy_idx]
             .entity
-            .add_status(sid::STRENGTH, 2);
+            .set_status(sid::STRENGTH, strength_after_base);
         let buff_count = engine.state.enemies[enemy_idx]
             .entity
             .status(sid::BUFF_COUNT);
@@ -642,12 +706,18 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             2 => engine.state.enemies[enemy_idx]
                 .entity
                 .set_status(sid::PAINFUL_STABS, 1),
-            3 => engine.state.enemies[enemy_idx]
-                .entity
-                .add_status(sid::STRENGTH, 10),
-            _ => engine.state.enemies[enemy_idx]
-                .entity
-                .add_status(sid::STRENGTH, 50),
+            3 => {
+                let strength = engine.state.enemies[enemy_idx].entity.strength();
+                engine.state.enemies[enemy_idx]
+                    .entity
+                    .set_status(sid::STRENGTH, (strength + 10).clamp(-999, 999));
+            }
+            _ => {
+                let strength = engine.state.enemies[enemy_idx].entity.strength();
+                engine.state.enemies[enemy_idx]
+                    .entity
+                    .set_status(sid::STRENGTH, (strength + 50).clamp(-999, 999));
+            }
         }
         engine.state.enemies[enemy_idx]
             .entity
@@ -664,10 +734,16 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         "TimeEater" | "Time Eater"
     ) && engine.state.enemies[enemy_idx].move_id
         == enemies::move_ids::TE_RIPPLE;
-    if time_eater_ripple {
+    let heart_debilitate = matches!(
+        engine.state.enemies[enemy_idx].id.as_str(),
+        "CorruptHeart" | "Corrupt Heart"
+    ) && engine.state.enemies[enemy_idx].move_id
+        == enemies::move_ids::HEART_DEBILITATE;
+    if time_eater_ripple || heart_debilitate {
         // Source: reference/extracted/methods/monster/TimeEater.java
-        // (`takeTurn`, RIPPLE). Preserve ApplyPowerAction order because one
-        // Artifact stack blocks Vulnerable first, then Weak, then A19 Frail.
+        // (`takeTurn`, RIPPLE) and CorruptHeart.java (`takeTurn`, DEBILITATE).
+        // Preserve ApplyPowerAction order because one Artifact stack blocks
+        // Vulnerable first, then Weak, then Frail.
         if let Some(amt) = get_fx(&effects, mfx::VULNERABLE) {
             powers::apply_debuff_from_enemy(&mut engine.state.player, sid::VULNERABLE, amt as i32);
         }
@@ -678,7 +754,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             powers::apply_debuff_from_enemy(&mut engine.state.player, sid::FRAIL, amt as i32);
         }
     }
-    if !time_eater_ripple {
+    if !time_eater_ripple && !heart_debilitate {
         if let Some(amt) = get_fx(&effects, mfx::WEAK) {
             powers::apply_debuff_from_enemy(&mut engine.state.player, sid::WEAKENED, amt as i32);
         }
@@ -854,9 +930,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         let entity = &mut engine.state.enemies[enemy_idx].entity;
         for i in 0..256 {
             let status = crate::ids::StatusId(i as u16);
-            if entity.status(status) != 0
-                && crate::powers::registry::status_is_debuff(status)
-            {
+            if entity.status(status) != 0 && crate::powers::registry::status_is_debuff(status) {
                 entity.set_status(status, 0);
             }
         }
@@ -1029,7 +1103,7 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             } else {
                 engine.state.discard_pile.remove(zone_idx)
             };
-            engine.state.enemies[enemy_idx].stasis_card = Some(card);
+            engine.state.enemies[enemy_idx].set_stasis_card(card);
         }
     }
 
@@ -1220,18 +1294,17 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                     } else {
                         engine.monster_hp_rng.random_int_range(38, 40)
                     };
-                    let mut torch = enemies::create_enemy_with_ambient(
+                    let torch = enemies::create_enemy_with_ambient(
                         "TorchHead",
                         hp,
                         hp,
                         &mut engine.ambient_math_rng,
                     );
-                    torch.is_minion = true;
                     torches.push(torch);
                 }
                 for mut torch in torches {
                     enemies::roll_initial_move(&mut torch, &mut engine.ai_rng);
-                    engine.add_spawned_enemy(torch);
+                    engine.add_spawned_minion(torch);
                 }
             }
             ("TheCollector" | "Collector", x) if x == move_ids::COLL_REVIVE => {
@@ -1239,18 +1312,47 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                     .entity
                     .status(sid::BLOCK_AMT)
                     >= 18;
-                let dead_slots: Vec<usize> = engine
-                    .state
-                    .enemies
+                // Legacy/deserialized combat fixtures may predate the explicit
+                // enemySlots mirror. Recover only while no slot has ever been
+                // recorded; once corpses accumulate, the tracked references
+                // are the sole source of truth just as in Java.
+                if engine.collector_torch_slots.iter().all(Option::is_none) {
+                    let current: Vec<usize> = engine
+                        .state
+                        .enemies
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, enemy)| {
+                            matches!(enemy.id.as_str(), "TorchHead" | "Torch Head")
+                        })
+                        .map(|(idx, _)| idx)
+                        .take(2)
+                        .collect();
+                    match current.as_slice() {
+                        // MonsterGroup order is slot 2, slot 1, Collector.
+                        [slot_two, slot_one] => {
+                            engine.collector_torch_slots = [Some(*slot_one), Some(*slot_two)];
+                        }
+                        [only] => engine.collector_torch_slots[0] = Some(*only),
+                        _ => {}
+                    }
+                }
+
+                let dead_slots: Vec<(usize, usize)> = engine
+                    .collector_torch_slots
                     .iter()
                     .enumerate()
-                    .filter(|(_, enemy)| {
-                        matches!(enemy.id.as_str(), "TorchHead" | "Torch Head") && !enemy.is_alive()
+                    .filter_map(|(slot, idx)| {
+                        let idx = (*idx)?;
+                        engine
+                            .state
+                            .enemies
+                            .get(idx)
+                            .filter(|enemy| !enemy.is_alive())
+                            .map(|_| (slot, idx))
                     })
-                    .map(|(idx, _)| idx)
                     .collect();
-                let mut replacements = Vec::with_capacity(dead_slots.len());
-                for idx in dead_slots {
+                for (slot, idx) in dead_slots {
                     // Source: reference/extracted/methods/monster/TorchHead.java
                     // and AbstractMonster.java (`setHp`). Constructor and final
                     // HP rolls are separate inclusive monsterHpRng draws.
@@ -1266,17 +1368,18 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                         hp,
                         &mut engine.ambient_math_rng,
                     );
-                    torch.is_minion = true;
                     if engine.state.has_relic("Philosopher's Stone")
                         || engine.state.has_relic("PhilosopherStone")
                     {
-                        torch.entity.add_status(sid::STRENGTH, 1);
+                        torch.entity.add_status_direct(sid::STRENGTH, 1);
                     }
-                    replacements.push((idx, torch));
-                }
-                for (idx, mut torch) in replacements {
+                    // SpawnMonsterAction.init consumes the Torch Head's AI roll
+                    // before Collector's queued RollMoveAction. Actual vector
+                    // insertion is deferred until after that Collector roll so
+                    // the currently executing boss index remains stable here.
                     enemies::roll_initial_move(&mut torch, &mut engine.ai_rng);
-                    engine.state.enemies[idx] = torch;
+                    torch.set_minion(true);
+                    collector_replacements.push((slot, idx, torch));
                 }
             }
             ("BronzeAutomaton" | "Bronze Automaton", x) if x == move_ids::BA_SPAWN_ORBS => {
@@ -1304,32 +1407,46 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                         hp,
                         &mut engine.ambient_math_rng,
                     );
-                    orb.is_minion = true;
                     orb.entity.set_status(sid::COUNT, count);
                     orbs.push(orb);
                 }
-                for mut orb in orbs {
+                for (count, mut orb) in orbs.into_iter().enumerate() {
                     enemies::roll_initial_move(&mut orb, &mut engine.ai_rng);
-                    engine.add_spawned_enemy(orb);
+                    // SpawnMonsterAction applies Philosopher's Stone before it
+                    // queues MinionPower, then smart-inserts the initialized
+                    // Orb. Preserve the stable identity now; insertion is
+                    // deferred until the common post-move path can relocate
+                    // the acting Automaton by that identity.
+                    if engine.state.has_relic("Philosopher's Stone")
+                        || engine.state.has_relic("PhilosopherStone")
+                    {
+                        orb.entity.add_status_direct(sid::STRENGTH, 1);
+                    }
+                    orb.set_minion(true);
+                    engine.assign_enemy_instance_id(&mut orb);
+                    bronze_orb_spawns.push((count, orb));
                 }
             }
             ("Reptomancer", x) if x == move_ids::REPTO_SPAWN => {
                 // Source: reference/extracted/methods/monster/Reptomancer.java
                 // (`takeTurn`) fills up to four tracked dagger slots, one at
                 // baseline and two at ascension 18.
-                let alive_daggers = engine
-                    .state
-                    .enemies
-                    .iter()
-                    .filter(|enemy| enemy.id == "Dagger" && enemy.is_alive())
-                    .count();
                 let per_spawn = engine.state.enemies[enemy_idx]
                     .entity
                     .status(sid::BLOCK_AMT)
                     .max(1) as usize;
-                let spawn_count = (4usize.saturating_sub(alive_daggers)).min(per_spawn);
-                let mut daggers = Vec::with_capacity(spawn_count);
-                for _ in 0..spawn_count {
+                let free_slots: Vec<usize> = engine
+                    .reptomancer_dagger_slots
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(slot, idx)| {
+                        idx.and_then(|idx| engine.state.enemies.get(idx))
+                            .is_none_or(|enemy| !enemy.is_alive())
+                            .then_some(slot)
+                    })
+                    .take(per_spawn)
+                    .collect();
+                for slot in free_slots {
                     // SpawnMonsterAction.init consumes one aiRng num before
                     // SnakeDagger.getMove selects its forced first move.
                     // Java: reference/extracted/methods/monster/SnakeDagger.java
@@ -1341,12 +1458,27 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                         hp,
                         &mut engine.ambient_math_rng,
                     );
-                    minion.is_minion = true;
-                    daggers.push(minion);
-                }
-                for mut minion in daggers {
+                    // Preserve the Java slot coordinate on every generation;
+                    // COUNT is otherwise unused by SnakeDagger and is not part
+                    // of its public power projection.
+                    minion.entity.set_status(sid::COUNT, slot as i32 + 1);
                     enemies::roll_initial_move(&mut minion, &mut engine.ai_rng);
-                    engine.add_spawned_enemy(minion);
+                    // SpawnMonsterAction.update calls every relic's
+                    // onSpawnMonster before it queues ApplyPowerAction for
+                    // MinionPower. Philosopher's Stone therefore directly
+                    // appends equal-priority Strength first. Initial encounter
+                    // daggers intentionally have the opposite order because
+                    // their pre-battle Minion action drains before atBattleStart.
+                    // Java: actions/common/SpawnMonsterAction.java and
+                    // relics/PhilosopherStone.java::onSpawnMonster.
+                    if engine.state.has_relic("Philosopher's Stone")
+                        || engine.state.has_relic("PhilosopherStone")
+                    {
+                        minion.entity.add_status_direct(sid::STRENGTH, 1);
+                    }
+                    minion.set_minion(true);
+                    engine.assign_enemy_instance_id(&mut minion);
+                    reptomancer_spawns.push((slot, minion));
                 }
             }
             ("GremlinLeader" | "Gremlin Leader", x) if x == move_ids::GL_RALLY => {
@@ -1357,20 +1489,27 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                 // weighted type and constructs it, consuming monsterHpRng in
                 // setHp(). The queued update() calls later initialize minion 0
                 // then minion 1; only after both does Gremlin Leader roll below.
-                let alive_others = engine
-                    .state
-                    .enemies
-                    .iter()
-                    .enumerate()
-                    .filter(|(idx, enemy)| *idx != enemy_idx && enemy.is_alive())
-                    .count();
-                let spawn_count = (3usize.saturating_sub(alive_others)).min(2);
                 let ascension = engine.state.enemies[enemy_idx]
                     .entity
                     .status(sid::STARTING_DMG);
                 let high_hp = ascension >= 7;
-                let mut minions = Vec::with_capacity(spawn_count);
-                for _ in 0..spawn_count {
+                let mut claimed_slots = [false; 3];
+                for _ in 0..2 {
+                    // SummonGremlinAction.identifySlot scans the Leader's
+                    // three object references, not the public MonsterGroup.
+                    // Its constructor replaces the first null/dying reference
+                    // immediately, so the second constructor advances to the
+                    // next free slot even though neither queued update has yet
+                    // inserted a monster.
+                    let Some(slot) = (0..3).find(|slot| {
+                        !claimed_slots[*slot]
+                            && engine.gremlin_leader_slots[*slot]
+                                .and_then(|idx| engine.state.enemies.get(idx))
+                                .is_none_or(|enemy| !enemy.is_alive())
+                    }) else {
+                        break;
+                    };
+                    claimed_slots[slot] = true;
                     let gremlin_id = match engine.ai_rng.random_int_range(0, 7) {
                         0 | 1 => "GremlinWarrior",
                         2 | 3 => "GremlinThief",
@@ -1406,7 +1545,6 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                         hp,
                         &mut engine.ambient_math_rng,
                     );
-                    minion.is_minion = true;
                     match gremlin_id {
                         "GremlinFat" => {
                             let damage = if ascension >= 2 { 5 } else { 4 };
@@ -1454,11 +1592,30 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
                             );
                         }
                     }
-                    minions.push(minion);
-                }
-                for mut minion in minions {
-                    enemies::roll_initial_move(&mut minion, &mut engine.ai_rng);
-                    engine.add_spawned_enemy(minion);
+                    // create_enemy materializes GremlinWarrior's
+                    // usePreBattleAction power for ordinary encounter setup.
+                    // A dynamic SummonGremlinAction has a different queue:
+                    // MinionPower is queued during update() and only then does
+                    // isDone call usePreBattleAction, which queues AngryPower.
+                    // Remove the eager mirror so the two equal-priority powers
+                    // are re-applied in Java's stable insertion order below.
+                    let delayed_angry = minion.entity.status(sid::ANGRY);
+                    if delayed_angry > 0 {
+                        minion.entity.set_status(sid::ANGRY, 0);
+                    }
+                    if engine.state.has_relic("Philosopher's Stone")
+                        || engine.state.has_relic("PhilosopherStone")
+                    {
+                        // SummonGremlinAction invokes onSpawnMonster in its
+                        // constructor, before update() calls init().
+                        minion.entity.add_status_direct(sid::STRENGTH, 1);
+                    }
+                    minion.set_minion(true);
+                    if delayed_angry > 0 {
+                        minion.entity.set_status(sid::ANGRY, delayed_angry);
+                    }
+                    engine.assign_enemy_instance_id(&mut minion);
+                    gremlin_leader_spawns.push((slot, minion));
                 }
             }
             ("AcidSlime_L", x) if x == move_ids::AS_SPLIT => {
@@ -1558,7 +1715,14 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             .entity
             .status(sid::STR_AMT)
             .max(18);
-        engine.state.enemies[enemy_idx].set_move(enemies::move_ids::SP_FELL, damage, 1, 0);
+        engine.state.enemies[enemy_idx].set_move_with_intent(
+            enemies::move_ids::SP_FELL,
+            crate::combat_types::Intent::AttackDebuff {
+                damage: damage as i16,
+                hits: 1,
+                effects: crate::combat_types::fx::FRAIL,
+            },
+        );
         engine.state.enemies[enemy_idx].add_effect(mfx::FRAIL, 2);
     }
 
@@ -1723,7 +1887,10 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
         engine.state.enemies[enemy_idx]
             .move_history
             .push(enemies::move_ids::BYRD_HEADBUTT);
-        engine.state.enemies[enemy_idx].set_move(enemies::move_ids::BYRD_FLY_UP, 0, 0, 0);
+        engine.state.enemies[enemy_idx].set_move_with_intent(
+            enemies::move_ids::BYRD_FLY_UP,
+            crate::combat_types::Intent::Unknown,
+        );
         return;
     }
 
@@ -1757,6 +1924,116 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             &mut engine.ai_rng,
         );
     } else {
+        // Both SummonGremlinAction constructors run while GremlinLeader is
+        // enqueueing its move, so both type/HP draws precede either action's
+        // update() initialization draw. Both smart-positioned updates then
+        // finish before the Leader's queued RollMoveAction.
+        let acting_instance_id = engine.state.enemies[enemy_idx].runtime_instance_id;
+        for (_, minion) in &mut gremlin_leader_spawns {
+            enemies::roll_initial_move(minion, &mut engine.ai_rng);
+        }
+        for (slot, minion) in gremlin_leader_spawns {
+            // SummonGremlinAction.getSmartPosition stops at the first monster
+            // whose drawX is not strictly left of the new gremlin. The three
+            // slot coordinates order slot 2, slot 0, slot 1, then the Leader;
+            // an equal-coordinate replacement is therefore inserted directly
+            // before its retained corpse.
+            // Java: actions/unique/SummonGremlinAction.java:57-91.
+            let insert_at = if let Some(idx) = engine.gremlin_leader_slots[slot] {
+                idx
+            } else if slot == 2 {
+                0
+            } else {
+                let new_rank = if slot == 0 { 1 } else { 2 };
+                let later_slot = engine
+                    .gremlin_leader_slots
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(other_slot, idx)| {
+                        let rank = match other_slot {
+                            2 => 0,
+                            0 => 1,
+                            1 => 2,
+                            _ => unreachable!(),
+                        };
+                        (rank >= new_rank).then_some(*idx).flatten()
+                    })
+                    .min();
+                later_slot.unwrap_or_else(|| {
+                    engine
+                        .state
+                        .enemies
+                        .iter()
+                        .position(|enemy| {
+                            matches!(enemy.id.as_str(), "GremlinLeader" | "Gremlin Leader")
+                        })
+                        .unwrap_or(engine.state.enemies.len())
+                })
+            };
+
+            for tracked in engine.collector_torch_slots.iter_mut().flatten() {
+                if *tracked >= insert_at {
+                    *tracked += 1;
+                }
+            }
+            for tracked in engine.gremlin_leader_slots.iter_mut().flatten() {
+                if *tracked >= insert_at {
+                    *tracked += 1;
+                }
+            }
+            for tracked in engine.reptomancer_dagger_slots.iter_mut().flatten() {
+                if *tracked >= insert_at {
+                    *tracked += 1;
+                }
+            }
+            engine.state.enemies.insert(insert_at, minion);
+            engine.gremlin_leader_slots[slot] = Some(insert_at);
+        }
+        if engine.gremlin_leader_slots.iter().any(Option::is_some) {
+            engine.rebuild_effect_runtime();
+        }
+        let spawned_bronze_orbs = !bronze_orb_spawns.is_empty();
+        for (count, orb) in bronze_orb_spawns {
+            // BronzeAutomaton.takeTurn constructs the left Orb at drawX -300
+            // and the right Orb at drawX 200. SpawnMonsterAction counts only
+            // monsters with strictly smaller drawX, so the settled group is
+            // [left Orb, Automaton, right Orb]. Insertions happen before the
+            // boss's queued RollMoveAction, whose receiver is recovered below
+            // by stable runtime identity.
+            // Java: BronzeAutomaton.java::takeTurn and
+            // actions/common/SpawnMonsterAction.java::update.
+            let insert_at = if count == 0 {
+                0
+            } else {
+                engine.state.enemies.len()
+            };
+            for tracked in engine.collector_torch_slots.iter_mut().flatten() {
+                if *tracked >= insert_at {
+                    *tracked += 1;
+                }
+            }
+            for tracked in engine.gremlin_leader_slots.iter_mut().flatten() {
+                if *tracked >= insert_at {
+                    *tracked += 1;
+                }
+            }
+            for tracked in engine.reptomancer_dagger_slots.iter_mut().flatten() {
+                if *tracked >= insert_at {
+                    *tracked += 1;
+                }
+            }
+            engine.state.enemies.insert(insert_at, orb);
+        }
+        if spawned_bronze_orbs {
+            engine.rebuild_effect_runtime();
+        }
+        let enemy_idx = engine
+            .state
+            .enemies
+            .iter()
+            .position(|enemy| enemy.runtime_instance_id == acting_instance_id)
+            .unwrap_or(enemy_idx);
+
         if engine.state.enemies[enemy_idx].id == "Centurion" {
             // Centurion.getMove checks the current monster group's alive count
             // to choose Protect with allies or Fury while alone.
@@ -1831,17 +2108,107 @@ fn execute_enemy_move(engine: &mut CombatEngine, enemy_idx: usize) {
             engine.state.enemies[enemy_idx].id.as_str(),
             "TheCollector" | "Collector"
         ) {
-            // isMinionDead checks the two tracked Torch Head slots. Replacing
-            // a revived slot in-place prevents old corpses from staying true.
+            // isMinionDead checks the two objects in Collector.enemySlots,
+            // not every historical Torch Head corpse retained by MonsterGroup.
             // Source: reference/extracted/methods/monster/TheCollector.java.
-            let minion_dead = engine.state.enemies.iter().any(|enemy| {
-                matches!(enemy.id.as_str(), "TorchHead" | "Torch Head") && !enemy.is_alive()
-            });
+            let minion_dead = if engine.collector_torch_slots.iter().any(Option::is_some) {
+                engine.collector_torch_slots.iter().flatten().any(|idx| {
+                    engine
+                        .state
+                        .enemies
+                        .get(*idx)
+                        .is_some_and(|enemy| !enemy.is_alive())
+                })
+            } else {
+                // Compatibility fallback for hand-built unit fixtures.
+                engine.state.enemies.iter().any(|enemy| {
+                    matches!(enemy.id.as_str(), "TorchHead" | "Torch Head") && !enemy.is_alive()
+                })
+            };
             engine.state.enemies[enemy_idx]
                 .entity
                 .set_status(sid::COUNT, i32::from(minion_dead));
         }
         enemies::roll_next_move(&mut engine.state.enemies[enemy_idx], &mut engine.ai_rng);
+        for (slot, minion) in reptomancer_spawns {
+            // SpawnMonsterAction smart positioning counts monsters strictly to
+            // the left of the new Dagger. Reptomancer's fixed slot x-order is
+            // slot 3, slot 1, boss, slot 2, slot 0. Equal-position replacements
+            // therefore insert immediately before their retained corpse.
+            let rank = |enemy: &crate::state::EnemyCombatState| -> usize {
+                if enemy.id == "Reptomancer" {
+                    return 2;
+                }
+                if enemy.id != "Dagger" {
+                    return usize::MAX;
+                }
+                match enemy.entity.status(sid::COUNT) {
+                    4 => 0, // slot 3: -250
+                    2 => 1, // slot 1: -220
+                    3 => 3, // slot 2:  180
+                    1 => 4, // slot 0:  210
+                    _ => usize::MAX,
+                }
+            };
+            let new_rank = match slot {
+                3 => 0,
+                1 => 1,
+                2 => 3,
+                0 => 4,
+                _ => unreachable!(),
+            };
+            let insert_at = engine
+                .state
+                .enemies
+                .iter()
+                .filter(|enemy| rank(enemy) < new_rank)
+                .count();
+            for tracked in engine.reptomancer_dagger_slots.iter_mut().flatten() {
+                if *tracked >= insert_at {
+                    *tracked += 1;
+                }
+            }
+            engine.state.enemies.insert(insert_at, minion);
+            engine.reptomancer_dagger_slots[slot] = Some(insert_at);
+        }
+        if engine.reptomancer_dagger_slots.iter().any(Option::is_some) {
+            engine.rebuild_effect_runtime();
+        }
+        if !collector_replacements.is_empty() {
+            // SpawnMonsterAction never removes the dead object. With smart
+            // positioning, an equal-drawX replacement is inserted immediately
+            // before its corpse. Descending insertion preserves original corpse
+            // indices when both enemySlots revive in one action.
+            // Java: TheCollector.java::takeTurn,
+            // SpawnMonsterAction.java::update, MonsterGroup.java::addMonster.
+            collector_replacements.sort_by_key(|(_, idx, _)| std::cmp::Reverse(*idx));
+            for (slot, idx, torch) in collector_replacements {
+                for tracked in engine.collector_torch_slots.iter_mut().flatten() {
+                    if *tracked >= idx {
+                        *tracked += 1;
+                    }
+                }
+                engine.state.enemies.insert(idx, torch);
+                engine.collector_torch_slots[slot] = Some(idx);
+            }
+            engine.rebuild_effect_runtime();
+        }
+        if collector_initial_spawn {
+            // SpawnMonsterAction's smart positioning inserts each Torch Head
+            // at index zero because both are left of the Collector. The second
+            // constructed Torch is therefore first, followed by the first and
+            // then the boss. Reorder only after Collector's queued RollMove so
+            // the active turn's enemy_idx remains stable.
+            // Java: TheCollector.java::takeTurn,
+            // SpawnMonsterAction.java::update, MonsterGroup.java::addMonster.
+            let collector = engine.state.enemies.remove(enemy_idx);
+            engine.state.enemies.reverse();
+            engine.state.enemies.push(collector);
+            // Construction order is slot 1 then slot 2; smart positioning
+            // inserts each at zero, leaving slot 2 before slot 1.
+            engine.collector_torch_slots = [Some(1), Some(0)];
+            engine.rebuild_effect_runtime();
+        }
     }
 }
 
@@ -1892,7 +2259,7 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
                 // Source: extracted AcidSlime_L/SpikeSlime_L `damage` methods.
                 enemy.entity.set_status(sid::THRESHOLD_REACHED, 1);
                 enemy.move_history.push(split_move);
-                enemy.set_move(split_move, 0, 0, 0);
+                enemy.set_move_with_intent(split_move, crate::combat_types::Intent::Unknown);
                 enemy.move_effects.clear();
             }
         }
@@ -1904,6 +2271,10 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
                 let enemy = &mut engine.state.enemies[enemy_idx];
                 enemy.entity.hp = 0;
                 enemy.entity.set_status(sid::REBIRTH_PENDING, 1);
+                // AwakenedOne.damage resets its private firstTurn flag so the
+                // phase-two getMove branch deterministically selects Dark
+                // Echo after the Rebirth turn.
+                enemy.entity.set_status(sid::FIRST_TURN, 1);
                 // damage() immediately removes all debuffs, Curiosity,
                 // Unawakened, and Shackled before the later REBIRTH turn.
                 // PHASE represents Unawakened in the Rust state and remains 1
@@ -1921,7 +2292,34 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
                         enemy.entity.set_status(status, 0);
                     }
                 }
-                enemy.set_move(enemies::move_ids::AO_REBIRTH, 0, 0, 0);
+                // AbstractMonster.setMove appends every selected move to
+                // moveHistory. AwakenedOne.damage first interrupts the current
+                // attack with an immediate Rebirth setMove, then queues a
+                // second SetMoveAction(Rebirth). Rust stores completed or
+                // overwritten entries here and projects move_id separately.
+                // Java: AwakenedOne.java::damage, SetMoveAction.java::update,
+                // and AbstractMonster.java::setMove.
+                enemy.move_history.push(enemy.move_id);
+                enemy.move_history.push(enemies::move_ids::AO_REBIRTH);
+                enemy.set_move_with_intent(
+                    enemies::move_ids::AO_REBIRTH,
+                    crate::combat_types::Intent::Unknown,
+                );
+            } else if phase == 2 && engine.state.enemies[enemy_idx].entity.hp <= 0 {
+                let enemy = &mut engine.state.enemies[enemy_idx];
+                // AbstractMonster.damage dynamically dispatches die() first,
+                // but AwakenedOne.damage then continues through this same
+                // lethal branch even in form two. Its immediate setMove and
+                // queued SetMoveAction therefore leave two Rebirth entries on
+                // the final corpse as well.
+                // Java: AwakenedOne.java::damage and
+                // AbstractMonster.java::{damage,setMove}.
+                enemy.move_history.push(enemy.move_id);
+                enemy.move_history.push(enemies::move_ids::AO_REBIRTH);
+                enemy.set_move_with_intent(
+                    enemies::move_ids::AO_REBIRTH,
+                    crate::combat_types::Intent::Unknown,
+                );
             }
         }
         "Darkling" => {
@@ -2007,7 +2405,16 @@ pub fn on_enemy_damaged(engine: &mut CombatEngine, enemy_idx: usize, hp_damage: 
                     let enemy = &mut engine.state.enemies[enemy_idx];
                     enemy.entity.hp = 0;
                     enemy.entity.set_status(sid::REBIRTH_PENDING, 1);
+                    // damage() calls setMove(COUNT) immediately, then queues a
+                    // second SetMoveAction(COUNT). Rust projects the current
+                    // move separately, so retain the overwritten attack and
+                    // the first COUNT entry in history.
+                    // Java: Darkling.java::damage and
+                    // AbstractMonster.java::setMove.
+                    enemy.move_history.push(enemy.move_id);
+                    enemy.move_history.push(enemies::move_ids::DARK_WAIT);
                     enemy.set_move(enemies::move_ids::DARK_WAIT, 0, 0, 0);
+                    enemy.intent = crate::combat_types::Intent::Unknown;
                 }
             }
         }

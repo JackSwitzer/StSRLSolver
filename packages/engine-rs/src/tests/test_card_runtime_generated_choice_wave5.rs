@@ -10,25 +10,75 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/ForeignInfluenceAction.java
 
 use crate::cards::{global_registry, CardType};
-use crate::effects::declarative::{AmountSource as A, Effect as E, GeneratedCardPool, GeneratedCostRule};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, GeneratedCardPool, GeneratedCostRule,
+};
 use crate::status_ids::sid;
-use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_state, make_deck, play_self};
+use crate::tests::support::{
+    combat_state_with, enemy_no_intent, engine_with_state, make_deck, play_self,
+};
 
 const JAVA_WATCHER_SKILL_POOL: &[&str] = &[
-    "Prostrate", "Evaluate", "PathToVictory", "EmptyBody", "ClearTheMind", "Crescendo",
-    "ThirdEye", "Protect", "Halt", "Pray", "EmptyMind", "Worship", "Swivel",
-    "Perseverance", "Meditate", "WaveOfTheHand", "DeceiveReality", "InnerPeace", "Collect",
-    "WreathOfFlame", "ForeignInfluence", "Indignation", "Sanctity", "Vengeance", "Judgement",
-    "ConjureBlade", "Blasphemy", "Scrawl", "Vault", "Alpha", "Omniscience", "SpiritShield",
+    "Prostrate",
+    "Evaluate",
+    "PathToVictory",
+    "EmptyBody",
+    "ClearTheMind",
+    "Crescendo",
+    "ThirdEye",
+    "Protect",
+    "Halt",
+    "Pray",
+    "EmptyMind",
+    "Worship",
+    "Swivel",
+    "Perseverance",
+    "Meditate",
+    "WaveOfTheHand",
+    "DeceiveReality",
+    "InnerPeace",
+    "Collect",
+    "WreathOfFlame",
+    "ForeignInfluence",
+    "Indignation",
+    "Sanctity",
+    "Vengeance",
+    "Judgement",
+    "ConjureBlade",
+    "Blasphemy",
+    "Scrawl",
+    "Vault",
+    "Alpha",
+    "Omniscience",
+    "SpiritShield",
     "DeusExMachina",
 ];
 
 const JAVA_WATCHER_ATTACK_POOL: &[&str] = &[
-    "EmptyFist", "CrushJoints", "FollowUp", "CutThroughFate", "SashWhip",
-    "FlurryOfBlows", "JustLucky", "FlyingSleeves", "BowlingBash", "Consecrate",
-    "SignatureMove", "Weave", "Tantrum", "Conclude", "SandsOfTime", "FearNoEvil",
-    "ReachHeaven", "Wallop", "CarveReality", "WindmillStrike", "TalkToTheHand",
-    "WheelKick", "Brilliance", "Ragnarok",
+    "EmptyFist",
+    "CrushJoints",
+    "FollowUp",
+    "CutThroughFate",
+    "SashWhip",
+    "FlurryOfBlows",
+    "JustLucky",
+    "FlyingSleeves",
+    "BowlingBash",
+    "Consecrate",
+    "SignatureMove",
+    "Weave",
+    "Tantrum",
+    "Conclude",
+    "SandsOfTime",
+    "FearNoEvil",
+    "ReachHeaven",
+    "Wallop",
+    "CarveReality",
+    "WindmillStrike",
+    "TalkToTheHand",
+    "WheelKick",
+    "Brilliance",
+    "Ragnarok",
 ];
 
 #[test]
@@ -60,8 +110,14 @@ fn chrysalis_and_metamorphosis_generate_zero_cost_cards_into_draw_pile() {
     engine.state.draw_pile.clear();
     engine.state.discard_pile.clear();
     engine.state.hand.clear();
-    engine.state.hand.push(engine.card_registry.make_card("Chrysalis"));
-    engine.state.hand.push(engine.card_registry.make_card("Metamorphosis+"));
+    engine
+        .state
+        .hand
+        .push(engine.card_registry.make_card("Chrysalis"));
+    engine
+        .state
+        .hand
+        .push(engine.card_registry.make_card("Metamorphosis+"));
 
     assert!(play_self(&mut engine, "Chrysalis"));
     assert_eq!(engine.state.draw_pile.len(), 3);
@@ -104,7 +160,10 @@ fn chrysalis_plus_matches_watcher_pool_rng_placement_and_master_reality() {
         3,
     ));
     engine.state.hand.clear();
-    engine.state.hand.push(engine.card_registry.make_card("Chrysalis+"));
+    engine
+        .state
+        .hand
+        .push(engine.card_registry.make_card("Chrysalis+"));
     engine.state.draw_pile = make_deck(&["Strike", "Defend", "Strike"]);
     engine.state.player.set_status(sid::MASTER_REALITY, 1);
 
@@ -142,9 +201,15 @@ fn chrysalis_plus_matches_watcher_pool_rng_placement_and_master_reality() {
     for card in &engine.state.draw_pile {
         let name = engine.card_registry.card_name(card.def_id);
         if name.ends_with('+') && selected.iter().any(|id| name == format!("{id}+")) {
-            let base = engine.card_registry.get(name.trim_end_matches('+')).expect("base card");
+            let base = engine
+                .card_registry
+                .get(name.trim_end_matches('+'))
+                .expect("base card");
             if base.cost > 0 {
-                assert_eq!(card.cost, 0, "positive-cost {name} should be zero this combat");
+                assert_eq!(
+                    card.cost, 0,
+                    "positive-cost {name} should be zero this combat"
+                );
             }
         }
     }
@@ -161,7 +226,10 @@ fn metamorphosis_plus_matches_watcher_attack_rng_placement_and_master_reality() 
         3,
     ));
     engine.state.hand.clear();
-    engine.state.hand.push(engine.card_registry.make_card("Metamorphosis+"));
+    engine
+        .state
+        .hand
+        .push(engine.card_registry.make_card("Metamorphosis+"));
     engine.state.draw_pile = make_deck(&["Strike", "Defend", "Strike"]);
     engine.state.player.set_status(sid::MASTER_REALITY, 1);
 
@@ -199,9 +267,15 @@ fn metamorphosis_plus_matches_watcher_attack_rng_placement_and_master_reality() 
     for card in &engine.state.draw_pile {
         let name = engine.card_registry.card_name(card.def_id);
         if selected.iter().any(|id| name == format!("{id}+")) {
-            let base = engine.card_registry.get(name.trim_end_matches('+')).expect("base card");
+            let base = engine
+                .card_registry
+                .get(name.trim_end_matches('+'))
+                .expect("base card");
             if base.cost > 0 {
-                assert_eq!(card.cost, 0, "positive-cost {name} should be zero this combat");
+                assert_eq!(
+                    card.cost, 0,
+                    "positive-cost {name} should be zero this combat"
+                );
             }
         }
     }

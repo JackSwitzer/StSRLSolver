@@ -6,7 +6,7 @@ use crate::effects::declarative::Effect;
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerCondition};
-use crate::engine::CombatEngine;
+use crate::engine::{CombatEngine, TurnStartQueuedAction};
 
 static EFFECTS: [Effect; 0] = [];
 static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
@@ -27,7 +27,11 @@ fn hook(
         && event.is_first_turn
         && engine.state.relic_counters[counter] > 0
     {
-        engine.state.energy += 2;
+        if engine.is_collecting_turn_start_actions() {
+            engine.queue_turn_start_action_top(TurnStartQueuedAction::GainEnergy(2));
+        } else {
+            engine.state.energy += 2;
+        }
         engine.state.relic_counters[counter] = 0;
     }
 }

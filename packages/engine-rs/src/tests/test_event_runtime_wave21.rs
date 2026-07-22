@@ -1,9 +1,7 @@
 use crate::decision::RewardChoice;
 use crate::decision::RewardScreenSource;
 use crate::events::{typed_shrine_events, TypedEventDef};
-use crate::run::{
-    ProfileSnapshot, ProfileUpdate, GameAction, RunEngine, RunPhase,
-};
+use crate::run::{GameAction, ProfileSnapshot, ProfileUpdate, RunEngine, RunPhase};
 
 // Java oracle:
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/events/shrines/NoteForYourself.java

@@ -9,9 +9,7 @@ use crate::effects::runtime::GameEvent;
 use crate::effects::trigger::Trigger;
 use crate::engine::{ChoiceReason, CombatPhase};
 use crate::status_ids::sid;
-use crate::tests::support::{
-    combat_state_with, enemy_no_intent, engine_with_state, make_deck,
-};
+use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_state, make_deck};
 
 fn relic_engine(hand: &[&str], draw: &[&str]) -> crate::engine::CombatEngine {
     let mut state = combat_state_with(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
@@ -40,7 +38,7 @@ fn gambling_chip_opens_a_zero_to_many_discard_choice_on_the_first_turn_after_dra
     );
 
     engine.emit_event(GameEvent {
-        kind: Trigger::TurnStartPostDrawLate,
+        kind: Trigger::TurnStartPostDraw,
         card_type: None,
         card_inst: None,
         is_first_turn: true,
@@ -68,7 +66,7 @@ fn gambling_chip_can_discard_any_number_of_cards_and_redraw_that_many() {
     );
 
     engine.emit_event(GameEvent {
-        kind: Trigger::TurnStartPostDrawLate,
+        kind: Trigger::TurnStartPostDraw,
         card_type: None,
         card_inst: None,
         is_first_turn: true,
@@ -101,7 +99,7 @@ fn gambling_chip_allows_zero_discards_without_changing_the_hand() {
     );
 
     engine.emit_event(GameEvent {
-        kind: Trigger::TurnStartPostDrawLate,
+        kind: Trigger::TurnStartPostDraw,
         card_type: None,
         card_inst: None,
         is_first_turn: true,

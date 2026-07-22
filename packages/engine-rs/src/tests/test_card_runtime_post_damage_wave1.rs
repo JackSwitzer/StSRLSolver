@@ -9,11 +9,12 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/GreedAction.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, Condition as Cond, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Condition as Cond, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::tests::support::*;
 
-static LESSON_LEARNED_KILL_BRANCH: [E; 1] =
-    [E::Simple(SE::UpgradeRandomMasterDeckCard)];
+static LESSON_LEARNED_KILL_BRANCH: [E; 1] = [E::Simple(SE::UpgradeRandomMasterDeckCard)];
 
 #[test]
 fn test_card_runtime_post_damage_wave1_registry_documents_the_typed_post_damage_surface() {
@@ -55,7 +56,9 @@ fn test_card_runtime_post_damage_wave1_registry_documents_the_typed_post_damage_
     );
     assert!(feed_plus.complex_hook.is_none());
 
-    let hand_of_greed = registry.get("HandOfGreed").expect("Hand of Greed should exist");
+    let hand_of_greed = registry
+        .get("HandOfGreed")
+        .expect("Hand of Greed should exist");
     assert_eq!(
         hand_of_greed.effect_data,
         &[
@@ -96,11 +99,7 @@ fn test_card_runtime_post_damage_wave1_registry_documents_the_typed_post_damage_
         lesson_learned.effect_data,
         &[
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
-            E::Conditional(
-                Cond::EnemyKilledNonMinion,
-                &LESSON_LEARNED_KILL_BRANCH,
-                &[],
-            ),
+            E::Conditional(Cond::EnemyKilledNonMinion, &LESSON_LEARNED_KILL_BRANCH, &[],),
         ]
     );
     assert!(lesson_learned.complex_hook.is_none());
@@ -108,11 +107,7 @@ fn test_card_runtime_post_damage_wave1_registry_documents_the_typed_post_damage_
 
 #[test]
 fn test_card_runtime_post_damage_wave1_wallop_gain_block_uses_unblocked_damage() {
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Wallop"]);
     engine.state.enemies[0].entity.block = 5;
@@ -126,11 +121,7 @@ fn test_card_runtime_post_damage_wave1_wallop_gain_block_uses_unblocked_damage()
 fn test_card_runtime_post_damage_wave1_feed_gains_max_hp_only_on_kill() {
     // FeedAction excludes half-dead targets and enemies with MinionPower.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/FeedAction.java
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 10, 10)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 10, 10)], 3);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Feed"]);
     let max_hp_before = engine.state.player.max_hp;
@@ -142,7 +133,7 @@ fn test_card_runtime_post_damage_wave1_feed_gains_max_hp_only_on_kill() {
     assert_eq!(engine.state.player.hp, hp_before + 3);
 
     let mut minion = enemy_no_intent("TorchHead", 10, 10);
-    minion.is_minion = true;
+    minion.set_minion(true);
     let mut minion_engine = engine_without_start(Vec::new(), vec![minion], 3);
     force_player_turn(&mut minion_engine);
     minion_engine.state.hand = make_deck(&["Feed"]);
@@ -158,11 +149,8 @@ fn hand_of_greed_gains_gold_only_when_its_hit_kills_a_non_minion() {
     // GreedAction damages first, then gains magicNumber gold only if the target
     // is dead, is not half-dead, and does not have MinionPower.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/GreedAction.java
-    let mut nonlethal = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 26, 26)],
-        3,
-    );
+    let mut nonlethal =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 26, 26)], 3);
     force_player_turn(&mut nonlethal);
     nonlethal.state.hand = make_deck(&["HandOfGreed+"]);
     nonlethal.state.run_gold = 100;
@@ -172,11 +160,7 @@ fn hand_of_greed_gains_gold_only_when_its_hit_kills_a_non_minion() {
     assert_eq!(nonlethal.state.run_gold, 100);
     assert_eq!(nonlethal.state.pending_run_gold, 0);
 
-    let mut lethal = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 25, 25)],
-        3,
-    );
+    let mut lethal = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 25, 25)], 3);
     force_player_turn(&mut lethal);
     lethal.state.hand = make_deck(&["HandOfGreed+"]);
     lethal.state.run_gold = 100;
@@ -187,7 +171,7 @@ fn hand_of_greed_gains_gold_only_when_its_hit_kills_a_non_minion() {
     assert_eq!(lethal.state.pending_run_gold, 25);
 
     let mut minion = enemy_no_intent("TorchHead", 20, 20);
-    minion.is_minion = true;
+    minion.set_minion(true);
     let mut minion_engine = engine_without_start(Vec::new(), vec![minion], 3);
     force_player_turn(&mut minion_engine);
     minion_engine.state.hand = make_deck(&["HandOfGreed"]);
@@ -200,11 +184,8 @@ fn hand_of_greed_gains_gold_only_when_its_hit_kills_a_non_minion() {
 
     // GreedAction calls AbstractPlayer.gainGold, so the canonical Ectoplasm
     // guard and Bloody Idol callback apply to this reward too.
-    let mut ectoplasm = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 20, 20)],
-        3,
-    );
+    let mut ectoplasm =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 20, 20)], 3);
     force_player_turn(&mut ectoplasm);
     ectoplasm.state.hand = make_deck(&["HandOfGreed"]);
     ectoplasm.state.relics.push("Ectoplasm".to_string());
@@ -213,11 +194,8 @@ fn hand_of_greed_gains_gold_only_when_its_hit_kills_a_non_minion() {
     assert_eq!(ectoplasm.state.run_gold, 100);
     assert_eq!(ectoplasm.state.pending_run_gold, 0);
 
-    let mut bloody_idol = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 20, 20)],
-        3,
-    );
+    let mut bloody_idol =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 20, 20)], 3);
     force_player_turn(&mut bloody_idol);
     bloody_idol.state.hand = make_deck(&["HandOfGreed"]);
     bloody_idol.state.relics.push("Bloody Idol".to_string());

@@ -5,10 +5,14 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/blue/ReinforcedBody.java
 
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::effects::types::{CardBlockHint, CardRuntimeTraits};
 use crate::status_ids::sid;
-use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_self};
+use crate::tests::support::{
+    enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_self,
+};
 
 fn one_enemy_engine(energy: i32) -> crate::engine::CombatEngine {
     let mut engine =
@@ -24,7 +28,11 @@ fn defect_wave9_capacitor_moves_to_typed_orb_slot_effect() {
     assert_eq!(capacitor.target, CardTarget::SelfTarget);
     assert_eq!(
         capacitor.effect_data,
-        &[E::Simple(SE::AddStatus(T::Player, sid::ORB_SLOTS, A::Magic))]
+        &[E::Simple(SE::AddStatus(
+            T::Player,
+            sid::ORB_SLOTS,
+            A::Magic
+        ))]
     );
     assert_eq!(capacitor.runtime_traits(), CardRuntimeTraits::default());
 }

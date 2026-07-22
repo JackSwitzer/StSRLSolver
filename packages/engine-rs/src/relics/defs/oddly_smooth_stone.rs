@@ -3,23 +3,23 @@
 //! Source: `reference/extracted/methods/relic/OddlySmoothStone.java`
 //! (`atBattleStart` applies DexterityPower(1) to the player).
 
-use crate::effects::declarative::{Effect, SimpleEffect, Target, AmountSource};
+use crate::effects::declarative::{AmountSource, Effect, SimpleEffect, Target};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::status_ids::sid;
 
-static EFFECTS: [Effect; 1] = [
-    Effect::Simple(SimpleEffect::AddStatus(Target::Player, sid::DEXTERITY, AmountSource::Fixed(1))),
-];
+static EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddStatus(
+    Target::Player,
+    sid::DEXTERITY,
+    AmountSource::Fixed(1),
+))];
 
-static TRIGGERS: [TriggeredEffect; 1] = [
-    TriggeredEffect {
-        trigger: Trigger::CombatStart,
-        condition: TriggerCondition::Always,
-        effects: &EFFECTS,
-        counter: None,
-    },
-];
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::CombatStartTop,
+    condition: TriggerCondition::Always,
+    effects: &EFFECTS,
+    counter: None,
+}];
 
 pub static DEF: EntityDef = EntityDef {
     id: "Oddly Smooth Stone",

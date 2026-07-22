@@ -41,7 +41,9 @@ fn backend_card(
 fn test_card_runtime_backend_wave1_registry_exports_include_declarative_card_hints() {
     let registry = crate::gameplay::global_registry();
 
-    let riddle = registry.card("Riddle With Holes").expect("Riddle With Holes export");
+    let riddle = registry
+        .card("Riddle With Holes")
+        .expect("Riddle With Holes export");
     let riddle_schema = riddle.card_schema().expect("card schema");
     assert_eq!(riddle_schema.declared_effect_count, 1);
     assert!(riddle_schema.declared_extra_hits);

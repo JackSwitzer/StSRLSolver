@@ -19,7 +19,9 @@ use crate::effects::declarative::{
     SimpleEffect as SE, Target as T,
 };
 use crate::status_ids::sid;
-use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self};
+use crate::tests::support::{
+    enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self,
+};
 
 fn single_enemy_engine(enemy_hp: i32, energy: i32) -> crate::engine::CombatEngine {
     let mut engine = engine_without_start(
@@ -163,7 +165,10 @@ fn tiny_primitive_wave2_ftl_bane_feed_and_all_out_attack_follow_the_typed_runtim
     assert_eq!(all_out_attack.state.enemies[0].entity.hp, 30);
     assert_eq!(all_out_attack.state.hand.len(), hand_before - 2);
     assert_eq!(all_out_attack.state.discard_pile.len(), 2);
-    assert_eq!(all_out_attack.state.player.status(sid::DISCARDED_THIS_TURN), 1);
+    assert_eq!(
+        all_out_attack.state.player.status(sid::DISCARDED_THIS_TURN),
+        1
+    );
 }
 
 #[test]
@@ -179,7 +184,9 @@ fn bane_deals_one_or_two_source_sized_hits_based_on_poison() {
         let mut engine = single_enemy_engine(50, 3);
         engine.state.hand = make_deck(&[card_id]);
         if poison > 0 {
-            engine.state.enemies[0].entity.set_status(sid::POISON, poison);
+            engine.state.enemies[0]
+                .entity
+                .set_status(sid::POISON, poison);
         }
 
         assert!(play_on_enemy(&mut engine, card_id, 0));

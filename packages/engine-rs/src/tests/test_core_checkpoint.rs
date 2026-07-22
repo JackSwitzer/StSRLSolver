@@ -1,3 +1,4 @@
+use crate::actions::Action;
 use crate::checkpoint::{CoreCheckpoint, CORE_CHECKPOINT_MAJOR};
 use crate::map::RoomType;
 use crate::relic_flags::counter;
@@ -40,6 +41,39 @@ fn active_combat_run() -> RunEngine {
     engine.map.rows[y][x].room_type = RoomType::Monster;
     engine.step_game(&GameAction::ChoosePath(0));
     assert_eq!(engine.current_phase(), RunPhase::Combat);
+    engine
+}
+
+fn paused_generated_turn_start_run() -> RunEngine {
+    let mut engine = active_combat_run();
+    {
+        let combat = engine.debug_combat_engine_mut();
+        // Foresight and Hello have equal Java priority. Applying Foresight
+        // first makes its queued ScryAction pause before Hello's already
+        // generated MakeTempCardInHandAction drains.
+        combat
+            .state
+            .player
+            .set_status(crate::status_ids::sid::FORESIGHT, 1);
+        combat
+            .state
+            .player
+            .set_status(crate::status_ids::sid::HELLO_WORLD, 1);
+    }
+    assert!(engine
+        .step_game(&GameAction::CombatAction(Action::EndTurn))
+        .accepted());
+    let combat = engine.get_combat_engine().expect("active combat");
+    assert_eq!(combat.phase, crate::engine::CombatPhase::AwaitingChoice);
+    assert_eq!(
+        combat.choice.as_ref().expect("Scry choice").reason,
+        crate::engine::ChoiceReason::Scry
+    );
+    assert!(combat.pending_turn_start_resume);
+    assert!(combat.turn_start_actions.iter().any(|action| matches!(
+        action,
+        crate::engine::TurnStartQueuedAction::AddCardToHand(_)
+    )));
     engine
 }
 
@@ -103,6 +137,12 @@ fn checkpoint_round_trip_preserves_active_combat_and_all_combat_rngs() {
 }
 
 #[test]
+fn checkpoint_round_trip_preserves_paused_generated_turn_start_card() {
+    let engine = paused_generated_turn_start_run();
+    assert_same_continuation(engine, GameAction::CombatAction(Action::ConfirmSelection));
+}
+
+#[test]
 fn checkpoint_rejects_inconsistent_combat_decision_boundaries() {
     let checkpoint = CoreCheckpoint::capture(&active_combat_run()).unwrap();
     let mut value = serde_json::to_value(checkpoint).unwrap();
@@ -116,11 +156,60 @@ fn checkpoint_rejects_inconsistent_combat_decision_boundaries() {
 }
 
 #[test]
+fn checkpoint_rejects_inconsistent_turn_start_continuation_boundaries() {
+    let checkpoint = CoreCheckpoint::capture(&active_combat_run()).unwrap();
+    let canonical = serde_json::to_value(checkpoint).unwrap();
+
+    let mut collecting = canonical.clone();
+    collecting["engine"]["combat_engine"]["collecting_turn_start_actions"] =
+        serde_json::json!(true);
+    assert!(serde_json::from_value::<CoreCheckpoint>(collecting)
+        .unwrap_err()
+        .to_string()
+        .contains("collecting turn-start actions"));
+
+    let mut stale_player_queue = canonical;
+    stale_player_queue["engine"]["combat_engine"]["turn_start_actions"] =
+        serde_json::json!(["OpeningEnergy"]);
+    assert!(serde_json::from_value::<CoreCheckpoint>(stale_player_queue)
+        .unwrap_err()
+        .to_string()
+        .contains("stale turn-start actions"));
+
+    let checkpoint = CoreCheckpoint::capture(&paused_generated_turn_start_run()).unwrap();
+    let mut missing_resume = serde_json::to_value(checkpoint).unwrap();
+    missing_resume["engine"]["combat_engine"]["pending_turn_start_resume"] =
+        serde_json::json!(false);
+    assert!(serde_json::from_value::<CoreCheckpoint>(missing_resume)
+        .unwrap_err()
+        .to_string()
+        .contains("turn-start actions without a resume continuation"));
+}
+
+#[test]
 fn checkpoint_rejects_duplicate_independent_live_combat_identity() {
     let checkpoint = CoreCheckpoint::capture(&active_combat_run()).unwrap();
     let mut value = serde_json::to_value(checkpoint).unwrap();
     let hand_id = value["engine"]["combat_engine"]["state"]["hand"][0]["instance_id"].clone();
     value["engine"]["combat_engine"]["state"]["draw_pile"][0]["instance_id"] = hand_id;
+
+    let error = serde_json::from_value::<CoreCheckpoint>(value).unwrap_err();
+    assert!(error.to_string().contains("independent live cards alias"));
+}
+
+#[test]
+fn checkpoint_rejects_queued_turn_start_card_identity_alias() {
+    let checkpoint = CoreCheckpoint::capture(&paused_generated_turn_start_run()).unwrap();
+    let mut value = serde_json::to_value(checkpoint).unwrap();
+    let hand_id = value["engine"]["combat_engine"]["state"]["hand"][0]["instance_id"].clone();
+    let actions = value["engine"]["combat_engine"]["turn_start_actions"]
+        .as_array_mut()
+        .expect("turn-start action array");
+    let queued = actions
+        .iter_mut()
+        .find_map(|action| action.get_mut("AddCardToHand"))
+        .expect("queued generated card");
+    queued["instance_id"] = hand_id;
 
     let error = serde_json::from_value::<CoreCheckpoint>(value).unwrap_err();
     assert!(error.to_string().contains("independent live cards alias"));
@@ -183,14 +272,14 @@ fn checkpoint_rejects_an_unknown_major_version() {
 }
 
 #[test]
-fn checkpoint_rejects_the_pre_power_order_major_version() {
+fn checkpoint_rejects_the_pre_dynamic_power_major_version() {
     let checkpoint = CoreCheckpoint::capture(&RunEngine::new(42, 0)).unwrap();
     let mut value = serde_json::to_value(checkpoint).unwrap();
-    value["schema"]["major"] = serde_json::json!(1);
+    value["schema"]["major"] = serde_json::json!(2);
     let error = serde_json::from_value::<CoreCheckpoint>(value).unwrap_err();
     assert!(error
         .to_string()
-        .contains("unsupported checkpoint schema major 1"));
+        .contains("unsupported checkpoint schema major 2"));
 }
 
 #[test]
@@ -221,7 +310,7 @@ fn checkpoint_rejects_the_prior_causal_semantics_revision() {
     let checkpoint = CoreCheckpoint::capture(&RunEngine::new(42, 0)).unwrap();
     let mut value = serde_json::to_value(checkpoint).unwrap();
     let prior = crate::checkpoint::core_semantics_fingerprint_for_revision(
-        "java-rng-actions-v2-checkpoint-v2",
+        "java-rng-actions-v2-checkpoint-v6",
     );
     value["semantics_fingerprint"] = serde_json::json!(prior);
 
@@ -232,7 +321,7 @@ fn checkpoint_rejects_the_prior_causal_semantics_revision() {
 }
 
 #[test]
-fn checkpoint_requires_complete_valid_status_order() {
+fn checkpoint_requires_complete_valid_power_order() {
     let mut engine = active_combat_run();
     engine
         .debug_combat_engine_mut()
@@ -246,28 +335,97 @@ fn checkpoint_requires_complete_valid_status_order() {
     missing_field["engine"]["combat_engine"]["state"]["player"]
         .as_object_mut()
         .unwrap()
-        .remove("status_order");
+        .remove("power_order");
     assert!(serde_json::from_value::<CoreCheckpoint>(missing_field).is_err());
 
     let mut duplicate = canonical.clone();
-    let order = duplicate["engine"]["combat_engine"]["state"]["player"]["status_order"]
+    let order = duplicate["engine"]["combat_engine"]["state"]["player"]["power_order"]
         .as_array_mut()
         .unwrap();
     order.push(order[0].clone());
     assert!(serde_json::from_value::<CoreCheckpoint>(duplicate)
         .unwrap_err()
         .to_string()
-        .contains("duplicate id"));
+        .contains("duplicate status id"));
 
     let mut missing_active = canonical;
-    missing_active["engine"]["combat_engine"]["state"]["player"]["status_order"]
+    missing_active["engine"]["combat_engine"]["state"]["player"]["power_order"]
         .as_array_mut()
         .unwrap()
         .clear();
     assert!(serde_json::from_value::<CoreCheckpoint>(missing_active)
         .unwrap_err()
         .to_string()
-        .contains("missing from status order"));
+        .contains("missing from power order"));
+}
+
+#[test]
+fn checkpoint_rejects_stasis_power_without_its_held_card_payload() {
+    let mut engine = active_combat_run();
+    {
+        let combat = engine.debug_combat_engine_mut();
+        let card = combat.state.draw_pile.pop().expect("fixture draw card");
+        combat.state.enemies[0].set_stasis_card(card);
+    }
+    let checkpoint = CoreCheckpoint::capture(&engine).unwrap();
+    let mut value = serde_json::to_value(checkpoint).unwrap();
+    value["engine"]["combat_engine"]["state"]["enemies"][0]["stasis_card"] =
+        serde_json::Value::Null;
+
+    let error = serde_json::from_value::<CoreCheckpoint>(value).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("Stasis card and power presence disagree"));
+}
+
+#[test]
+fn checkpoint_rejects_the_bomb_power_without_its_dynamic_payload() {
+    let mut engine = active_combat_run();
+    {
+        let combat = engine.debug_combat_engine_mut();
+        combat.restore_the_bomb_id_offset(19);
+        combat.schedule_the_bomb(3, 40);
+    }
+    CoreCheckpoint::capture(&engine).expect("consistent The Bomb state");
+
+    engine.debug_combat_engine_mut().state.pending_bombs.clear();
+    let error = CoreCheckpoint::capture(&engine).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("The Bomb power order/payload state disagrees"));
+}
+
+#[test]
+fn checkpoint_rejects_pen_nib_counter_without_its_semantic_power() {
+    let mut engine = active_combat_run();
+    {
+        let combat = engine.debug_combat_engine_mut();
+        combat.state.relics.push("Pen Nib".to_string());
+        combat.rebuild_effect_runtime();
+        let owner = crate::effects::runtime::EffectOwner::PlayerRelic {
+            slot: (combat.state.relics.len() - 1) as u16,
+        };
+        assert!(combat.set_hidden_effect_value("Pen Nib", owner, 0, 9));
+        combat
+            .state
+            .player
+            .set_status(crate::status_ids::sid::PEN_NIB_COUNTER, 9);
+        combat
+            .state
+            .player
+            .set_status(crate::status_ids::sid::PEN_NIB_POWER, 1);
+    }
+    CoreCheckpoint::capture(&engine).expect("consistent Pen Nib state");
+
+    engine
+        .debug_combat_engine_mut()
+        .state
+        .player
+        .set_status(crate::status_ids::sid::PEN_NIB_POWER, 0);
+    let error = CoreCheckpoint::capture(&engine).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("Pen Nib counter/power state disagrees"));
 }
 
 #[test]

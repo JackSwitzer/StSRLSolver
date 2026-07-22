@@ -13,6 +13,19 @@ fn event(name: &str, options: Vec<TypedEventOption>) -> TypedEventDef {
     }
 }
 
+fn bonfire_choose_event() -> TypedEventDef {
+    event(
+        "Bonfire Elementals (choose)",
+        vec![supported(
+            "Offer (remove a card, reward based on rarity)",
+            vec![EventProgramOp::deck_selection(
+                "deck_selection_bonfire_offer",
+            )],
+            EventEffect::RemoveCard,
+        )],
+    )
+}
+
 fn face_trader_main_event() -> TypedEventDef {
     event(
         "FaceTrader",
@@ -27,7 +40,11 @@ fn face_trader_main_event() -> TypedEventDef {
                 vec![EventProgramOp::obtain_random_face()],
                 EventEffect::GainRelic,
             ),
-            supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+            supported(
+                "Leave",
+                vec![EventProgramOp::nothing()],
+                EventEffect::Nothing,
+            ),
         ],
     )
 }
@@ -56,7 +73,11 @@ fn note_for_yourself_choose_state() -> TypedEventDef {
 fn nloth_complete_event() -> TypedEventDef {
     event(
         "N'loth (complete)",
-        vec![supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing)],
+        vec![supported(
+            "Leave",
+            vec![EventProgramOp::nothing()],
+            EventEffect::Nothing,
+        )],
     )
 }
 
@@ -92,36 +113,37 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
                     ],
                     EventEffect::GainRelic,
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
             "Bonfire Elementals",
-            vec![
-                supported(
-                    "Offer (remove a card, reward based on rarity)",
-                    vec![EventProgramOp::deck_selection("deck_selection_bonfire_offer")],
-                    EventEffect::RemoveCard,
-                ),
-            ],
+            vec![supported(
+                "Approach the spirits",
+                vec![
+                    // Bonfire.java INTRO only advances the dialog to CHOOSE;
+                    // the following CHOOSE click opens gridSelectScreen.
+                    // Java: decompiled/java-src/com/megacrit/cardcrawl/events/shrines/Bonfire.java
+                    EventProgramOp::continue_event(bonfire_choose_event()),
+                ],
+                EventEffect::Nothing,
+            )],
         ),
         event(
             "Designer",
             vec![
                 supported(
                     "Adjustment (pay gold, upgrade 1-2 cards)",
-                    vec![
-                        EventProgramOp::gold(-75),
-                        EventProgramOp::upgrade_card(2),
-                    ],
+                    vec![EventProgramOp::gold(-75), EventProgramOp::upgrade_card(2)],
                     EventEffect::UpgradeCard,
                 ),
                 supported(
                     "Clean Up (pay gold, remove or transform cards)",
-                    vec![
-                        EventProgramOp::gold(-75),
-                        EventProgramOp::remove_card(1),
-                    ],
+                    vec![EventProgramOp::gold(-75), EventProgramOp::remove_card(1)],
                     EventEffect::RemoveCard,
                 ),
                 supported(
@@ -150,7 +172,11 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
                     )],
                     EventEffect::DuplicateCard,
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
@@ -174,7 +200,11 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
                     vec![EventProgramOp::remove_all_removable_curses()],
                     EventEffect::RemoveCard,
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
@@ -195,51 +225,47 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
                     ],
                     EventEffect::GoldAndCurse(275),
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
-            ],
-        ),
-        event(
-            "Match and Keep!",
-            vec![
                 supported(
-                    "Hear the rules",
+                    "Leave",
                     vec![EventProgramOp::nothing()],
                     EventEffect::Nothing,
                 ),
             ],
         ),
         event(
+            "Match and Keep!",
+            vec![supported(
+                "Hear the rules",
+                vec![EventProgramOp::nothing()],
+                EventEffect::Nothing,
+            )],
+        ),
+        event(
             "Wheel of Change",
-            vec![
-                supported(
-                    "Spin (random outcome)",
-                    vec![EventProgramOp::random_outcome_table(vec![
-                        vec![EventProgramOp::gold_by_act(100, 200, 300)],
-                        vec![EventProgramOp::gain_relic("random relic")],
-                        vec![EventProgramOp::heal_to_full()],
-                        vec![EventProgramOp::Reward(EventReward::Curse {
-                            label: "Decay".to_string(),
-                        })],
-                        vec![EventProgramOp::deck_selection("deck_selection_purge")],
-                        vec![EventProgramOp::adjust_hp_percent_by_ascension(
-                            false,
-                            10,
-                            15,
-                        )],
-                    ])],
-                    EventEffect::Nothing,
-                ),
-            ],
+            vec![supported(
+                "Spin (random outcome)",
+                vec![EventProgramOp::random_outcome_table(vec![
+                    vec![EventProgramOp::gold_by_act(100, 200, 300)],
+                    vec![EventProgramOp::gain_relic("random relic")],
+                    vec![EventProgramOp::heal_to_full()],
+                    vec![EventProgramOp::Reward(EventReward::Curse {
+                        label: "Decay".to_string(),
+                    })],
+                    vec![EventProgramOp::deck_selection("deck_selection_purge")],
+                    vec![EventProgramOp::adjust_hp_percent_by_ascension(
+                        false, 10, 15,
+                    )],
+                ])],
+                EventEffect::Nothing,
+            )],
         ),
         event(
             "Lab",
-            vec![
-                supported(
-                    "Search (gain 3 random potions)",
-                    vec![EventProgramOp::gain_potion(3)],
-                    EventEffect::GainPotion,
-                ),
-            ],
+            vec![supported(
+                "Search (gain 3 random potions)",
+                vec![EventProgramOp::gain_potion(3)],
+                EventEffect::GainPotion,
+            )],
         ),
         event(
             "N'loth",
@@ -254,18 +280,22 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
                     vec![EventProgramOp::nothing()],
                     EventEffect::GainRelic,
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
             "NoteForYourself",
-            vec![
-                supported(
-                    "Read the note",
-                    vec![EventProgramOp::continue_event(note_for_yourself_choose_state())],
-                    EventEffect::Nothing,
-                ),
-            ],
+            vec![supported(
+                "Read the note",
+                vec![EventProgramOp::continue_event(
+                    note_for_yourself_choose_state(),
+                )],
+                EventEffect::Nothing,
+            )],
         ),
         event(
             "Purifier",
@@ -277,7 +307,11 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
                     )],
                     EventEffect::RemoveCard,
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
@@ -290,7 +324,11 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
                     )],
                     EventEffect::TransformCard,
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
@@ -303,7 +341,11 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
                     )],
                     EventEffect::UpgradeCard,
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
@@ -324,7 +366,11 @@ pub fn typed_shrine_events() -> Vec<TypedEventDef> {
                     vec![EventProgramOp::gain_potion(1)],
                     EventEffect::GainPotion,
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(

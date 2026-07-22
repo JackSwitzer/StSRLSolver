@@ -37,6 +37,35 @@ mod silent_wave2 {
             .collect()
     }
 
+    fn install_stasis_card(engine: &mut CombatEngine, enemy_idx: usize, card_id: &str) {
+        let mut card = engine.card_registry.make_card(card_id);
+        card.instance_id = engine.state.allocate_card_instance_id();
+        engine.state.enemies[enemy_idx].set_stasis_card(card);
+    }
+
+    fn normalize_live_instance_ids(engine: &mut CombatEngine) {
+        let mut next = engine
+            .state
+            .master_deck
+            .iter()
+            .map(|card| card.instance_id)
+            .max()
+            .unwrap_or(0)
+            .saturating_add(1);
+        for card in engine
+            .state
+            .hand
+            .iter_mut()
+            .chain(&mut engine.state.draw_pile)
+            .chain(&mut engine.state.discard_pile)
+            .chain(&mut engine.state.exhaust_pile)
+        {
+            card.instance_id = next;
+            next = next.checked_add(1).expect("test card identity overflow");
+        }
+        engine.state.next_card_instance_id = u64::from(next);
+    }
+
     #[test]
     fn silent_wave2_cards_export_declarative_runtime_data() {
         let reg = global_registry();
@@ -44,9 +73,9 @@ mod silent_wave2 {
         let backflip = reg.get("Backflip").expect("Backflip should exist");
         assert_eq!(
             backflip.effect_data,
-            &[Effect::Simple(crate::effects::declarative::SimpleEffect::DrawCards(
-                A::Magic,
-            ))]
+            &[Effect::Simple(
+                crate::effects::declarative::SimpleEffect::DrawCards(A::Magic,)
+            )]
         );
 
         let blade_dance = reg.get("Blade Dance").expect("Blade Dance should exist");
@@ -62,7 +91,9 @@ mod silent_wave2 {
             ]
         );
 
-        let deadly_poison = reg.get("Deadly Poison").expect("Deadly Poison should exist");
+        let deadly_poison = reg
+            .get("Deadly Poison")
+            .expect("Deadly Poison should exist");
         assert_eq!(deadly_poison.base_magic, 5);
 
         let flying_knee = reg.get("Flying Knee").expect("Flying Knee should exist");
@@ -79,7 +110,9 @@ mod silent_wave2 {
         let quick_slash = reg.get("Quick Slash").expect("Quick Slash should exist");
         assert_eq!(quick_slash.effect_data.len(), 1);
 
-        let sneaky_strike = reg.get("Sneaky Strike").expect("Sneaky Strike should exist");
+        let sneaky_strike = reg
+            .get("Sneaky Strike")
+            .expect("Sneaky Strike should exist");
         assert_eq!(sneaky_strike.effect_data.len(), 1);
     }
 
@@ -157,12 +190,130 @@ mod silent_wave2 {
     }
 
     #[test]
+    fn quick_slash_draw_claims_tenth_slot_before_stasis_overflows() {
+        // QuickSlash queues DrawCardAction before UseCardAction. A lethal hit
+        // queues Stasis' MakeTempCardInHandAction behind both, so the ordinary
+        // draw claims slot ten and the held card overflows to discard.
+        // Java: QuickSlash.java, StasisPower.java, MakeTempCardInHandAction.java.
+        let mut engine = engine_for(
+            &[
+                "Quick Slash",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+            ],
+            &["Strike"],
+            &[],
+            vec![
+                enemy_no_intent("BronzeOrb", 8, 8),
+                enemy_no_intent("Cultist", 40, 40),
+            ],
+            3,
+        );
+        normalize_live_instance_ids(&mut engine);
+        install_stasis_card(&mut engine, 0, "Omniscience");
+
+        assert!(play_on_enemy(&mut engine, "Quick Slash", 0));
+
+        assert_eq!(engine.state.hand.len(), 10);
+        assert_eq!(hand_count(&engine, "Strike"), 1);
+        assert_eq!(discard_prefix_count(&engine, "Omniscience"), 1);
+        assert_eq!(discard_prefix_count(&engine, "Quick Slash"), 1);
+        assert!(engine.state.enemies[0].stasis_card.is_none());
+        assert!(engine.deferred_combat_ops.is_empty());
+    }
+
+    #[test]
+    fn dagger_throw_choice_and_checkpoint_precede_stasis_return() {
+        // Dagger Throw pauses for its discard after drawing but before
+        // UseCardAction. The queued Stasis card must remain outside every pile
+        // at that checkpoint and return only after the discard frees a slot.
+        // Java: DaggerThrow.java, StasisPower.java, UseCardAction.java.
+        let mut engine = engine_for(
+            &[
+                "Dagger Throw",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+            ],
+            &["Strike"],
+            &[],
+            vec![
+                enemy_no_intent("BronzeOrb", 9, 9),
+                enemy_no_intent("Cultist", 40, 40),
+            ],
+            3,
+        );
+        normalize_live_instance_ids(&mut engine);
+        install_stasis_card(&mut engine, 0, "Omniscience");
+
+        assert!(play_on_enemy(&mut engine, "Dagger Throw", 0));
+        assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
+        assert_eq!(hand_count(&engine, "Strike"), 1);
+        assert_eq!(hand_count(&engine, "Omniscience"), 0);
+        assert_eq!(discard_prefix_count(&engine, "Omniscience"), 0);
+        assert_eq!(engine.deferred_combat_ops.len(), 1);
+        engine.validate_checkpoint_boundary().unwrap();
+
+        let encoded = serde_json::to_vec(&engine).unwrap();
+        let mut restored: CombatEngine = serde_json::from_slice(&encoded).unwrap();
+        restored.validate_checkpoint_boundary().unwrap();
+        let discard_idx = restored
+            .state
+            .hand
+            .iter()
+            .position(|card| restored.card_registry.card_name(card.def_id) == "Defend")
+            .unwrap();
+        restored.execute_action(&Action::Choose(discard_idx));
+
+        assert_eq!(restored.phase, CombatPhase::PlayerTurn);
+        assert_eq!(restored.state.hand.len(), 10);
+        assert_eq!(hand_count(&restored, "Strike"), 1);
+        assert_eq!(hand_count(&restored, "Omniscience"), 1);
+        assert_eq!(discard_prefix_count(&restored, "Dagger Throw"), 1);
+        assert!(restored.deferred_combat_ops.is_empty());
+    }
+
+    #[test]
+    fn terminal_quick_slash_clears_pending_stasis_return() {
+        // The final lethal DamageAction clears later non-post-combat actions,
+        // including both Quick Slash's draw and Stasis' queued card return.
+        // Java: GameActionManager.java::clearPostCombatActions.
+        let mut engine = engine_for(
+            &["Quick Slash"],
+            &["Strike"],
+            &[],
+            vec![enemy_no_intent("BronzeOrb", 8, 8)],
+            3,
+        );
+        install_stasis_card(&mut engine, 0, "Omniscience");
+
+        assert!(play_on_enemy(&mut engine, "Quick Slash", 0));
+
+        assert!(engine.state.combat_over);
+        assert_eq!(hand_count(&engine, "Strike"), 0);
+        assert_eq!(hand_count(&engine, "Omniscience"), 0);
+        assert_eq!(discard_prefix_count(&engine, "Omniscience"), 0);
+        assert!(engine.deferred_combat_ops.is_empty());
+    }
+
+    #[test]
     fn backflip_uses_source_block_upgrade_and_draw_count() {
         // Source: Backflip.java queues GainBlockAction(this.block), followed by
         // DrawCardAction(p, 2); upgradeBlock(3) changes 5 block to 8.
-        for (card_id, dexterity, expected_block) in
-            [("Backflip", 0, 5), ("Backflip+", 2, 10)]
-        {
+        for (card_id, dexterity, expected_block) in [("Backflip", 0, 5), ("Backflip+", 2, 10)] {
             let mut engine = engine_for(
                 &[card_id],
                 &["Strike", "Defend", "Neutralize"],
@@ -349,7 +500,10 @@ mod silent_wave2 {
         );
         mid_fight.state.relics.push("StrikeDummy".to_string());
         mid_fight.state.player.set_status(sid::STRENGTH, 1);
-        mid_fight.state.player.set_status(sid::DISCARDED_THIS_TURN, 1);
+        mid_fight
+            .state
+            .player
+            .set_status(sid::DISCARDED_THIS_TURN, 1);
 
         assert!(play_on_enemy(&mut mid_fight, "Sneaky Strike+", 0));
         assert_eq!(mid_fight.state.enemies[0].entity.hp, 0);
@@ -364,7 +518,10 @@ mod silent_wave2 {
         );
         final_kill.state.relics.push("StrikeDummy".to_string());
         final_kill.state.player.set_status(sid::STRENGTH, 1);
-        final_kill.state.player.set_status(sid::DISCARDED_THIS_TURN, 1);
+        final_kill
+            .state
+            .player
+            .set_status(sid::DISCARDED_THIS_TURN, 1);
 
         assert!(play_on_enemy(&mut final_kill, "Sneaky Strike+", 0));
         assert_eq!(final_kill.state.enemies[0].entity.hp, 0);
@@ -383,11 +540,30 @@ mod silent_wave2 {
             ]
         );
         assert_eq!(reg.get("Blade Dance+").expect("Blade Dance+").base_magic, 4);
-        assert_eq!(reg.get("Deadly Poison+").expect("Deadly Poison+").base_magic, 7);
-        assert_eq!(reg.get("Flying Knee+").expect("Flying Knee+").base_damage, 11);
-        assert_eq!(reg.get("Quick Slash+").expect("Quick Slash+").base_damage, 12);
-        assert_eq!(reg.get("Dagger Throw+").expect("Dagger Throw+").base_damage, 12);
-        assert_eq!(reg.get("Sneaky Strike+").expect("Sneaky Strike+").base_damage, 16);
+        assert_eq!(
+            reg.get("Deadly Poison+")
+                .expect("Deadly Poison+")
+                .base_magic,
+            7
+        );
+        assert_eq!(
+            reg.get("Flying Knee+").expect("Flying Knee+").base_damage,
+            11
+        );
+        assert_eq!(
+            reg.get("Quick Slash+").expect("Quick Slash+").base_damage,
+            12
+        );
+        assert_eq!(
+            reg.get("Dagger Throw+").expect("Dagger Throw+").base_damage,
+            12
+        );
+        assert_eq!(
+            reg.get("Sneaky Strike+")
+                .expect("Sneaky Strike+")
+                .base_damage,
+            16
+        );
 
         let upgraded_backflip = reg.get("Backflip+").expect("Backflip+");
         assert_eq!(upgraded_backflip.base_block, 8);

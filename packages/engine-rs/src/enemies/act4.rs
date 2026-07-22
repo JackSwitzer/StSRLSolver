@@ -112,7 +112,10 @@ pub(super) fn roll_corrupt_heart(enemy: &mut EnemyCombatState, _num: i32, ai_rng
     // one additional aiRng boolean to choose between the two attacks.
     if enemy.entity.status(sid::IS_FIRST_MOVE) > 0 {
         enemy.entity.set_status(sid::IS_FIRST_MOVE, 0);
-        enemy.set_move(move_ids::HEART_DEBILITATE, 0, 0, 0);
+        enemy.set_move_with_intent(
+            move_ids::HEART_DEBILITATE,
+            Intent::StrongDebuff { effects: 0 },
+        );
         enemy.add_effect(mfx::VULNERABLE, 2);
         enemy.add_effect(mfx::WEAK, 2);
         enemy.add_effect(mfx::FRAIL, 2);

@@ -6,14 +6,12 @@
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 
-static TRIGGERS: [TriggeredEffect; 1] = [
-    TriggeredEffect {
-        trigger: Trigger::OnPoisonApplied,
-        condition: TriggerCondition::Always,
-        effects: &[], // Handled inline in Poison application
-        counter: None,
-    },
-];
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::OnPoisonApplied,
+    condition: TriggerCondition::Always,
+    effects: &[], // Handled inline in Poison application
+    counter: None,
+}];
 
 pub static DEF: EntityDef = EntityDef {
     // SneckoSkull.java declares the canonical relic ID "Snake Skull".

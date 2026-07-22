@@ -1,22 +1,21 @@
 //! Blood Vial: Heal 2 HP at combat start.
 //! Source: decompiled/java-src/com/megacrit/cardcrawl/relics/BloodVial.java.
 
-use crate::effects::declarative::{Effect, SimpleEffect, Target, AmountSource};
+use crate::effects::declarative::{AmountSource, Effect, SimpleEffect, Target};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 
-static EFFECTS: [Effect; 1] = [
-    Effect::Simple(SimpleEffect::HealHp(Target::Player, AmountSource::Fixed(2))),
-];
+static EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::HealHp(
+    Target::Player,
+    AmountSource::Fixed(2),
+))];
 
-static TRIGGERS: [TriggeredEffect; 1] = [
-    TriggeredEffect {
-        trigger: Trigger::CombatStart,
-        condition: TriggerCondition::Always,
-        effects: &EFFECTS,
-        counter: None,
-    },
-];
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::CombatStartTop,
+    condition: TriggerCondition::Always,
+    effects: &EFFECTS,
+    counter: None,
+}];
 
 pub static DEF: EntityDef = EntityDef {
     id: "Blood Vial",

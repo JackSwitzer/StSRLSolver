@@ -25,15 +25,31 @@ fn build_deck(names: &[&str]) -> Vec<CardInstance> {
 
 fn starter_watcher_deck() -> Vec<CardInstance> {
     build_deck(&[
-        "Strike", "Strike", "Strike", "Strike", "Defend", "Defend", "Defend", "Defend",
-        "Eruption", "Vigilance",
+        "Strike",
+        "Strike",
+        "Strike",
+        "Strike",
+        "Defend",
+        "Defend",
+        "Defend",
+        "Defend",
+        "Eruption",
+        "Vigilance",
     ])
 }
 
 fn early_elite_deck() -> Vec<CardInstance> {
     build_deck(&[
-        "Strike+", "Strike", "Strike", "Defend", "Defend", "Eruption", "Vigilance",
-        "CutThroughFate", "Tantrum", "BowlingBash",
+        "Strike+",
+        "Strike",
+        "Strike",
+        "Defend",
+        "Defend",
+        "Eruption",
+        "Vigilance",
+        "CutThroughFate",
+        "Tantrum",
+        "BowlingBash",
     ])
 }
 
@@ -60,7 +76,10 @@ fn scenarios() -> Vec<Scenario> {
         Scenario {
             name: "two_louse_starter",
             deck: starter_watcher_deck(),
-            enemies: vec![enemy("FuzzyLouseNormal", 13, 6, 1), enemy("FuzzyLouseDefensive", 15, 5, 1)],
+            enemies: vec![
+                enemy("FuzzyLouseNormal", 13, 6, 1),
+                enemy("FuzzyLouseDefensive", 15, 5, 1),
+            ],
             seed: 44,
         },
         Scenario {
@@ -121,13 +140,17 @@ fn play_three_turn_window(engine: &mut CombatEngine) {
 fn bench_real_world_turn_windows(c: &mut Criterion) {
     let mut group = c.benchmark_group("real_world_turn_windows");
     for scenario in scenarios() {
-        group.bench_with_input(BenchmarkId::from_parameter(scenario.name), &scenario, |b, scenario| {
-            b.iter(|| {
-                let mut engine = make_engine(scenario);
-                play_three_turn_window(&mut engine);
-                black_box(&engine);
-            });
-        });
+        group.bench_with_input(
+            BenchmarkId::from_parameter(scenario.name),
+            &scenario,
+            |b, scenario| {
+                b.iter(|| {
+                    let mut engine = make_engine(scenario);
+                    play_three_turn_window(&mut engine);
+                    black_box(&engine);
+                });
+            },
+        );
     }
     group.finish();
 }
@@ -136,12 +159,16 @@ fn bench_real_world_clone_for_branch_simulation(c: &mut Criterion) {
     let mut group = c.benchmark_group("real_world_clone_for_branch_simulation");
     for scenario in scenarios() {
         let engine = make_engine(&scenario);
-        group.bench_with_input(BenchmarkId::from_parameter(scenario.name), &engine, |b, engine| {
-            b.iter(|| {
-                let cloned = engine.clone_state();
-                black_box(cloned);
-            });
-        });
+        group.bench_with_input(
+            BenchmarkId::from_parameter(scenario.name),
+            &engine,
+            |b, engine| {
+                b.iter(|| {
+                    let cloned = engine.clone_state();
+                    black_box(cloned);
+                });
+            },
+        );
     }
     group.finish();
 }

@@ -38,7 +38,10 @@ fn sadistic_nature_runtime_skips_artifact_blocked_debuffs() {
 #[test]
 fn sadistic_nature_def_uses_debuff_applied_trigger() {
     assert_eq!(DEF_SADISTIC_NATURE.triggers.len(), 1);
-    assert_eq!(DEF_SADISTIC_NATURE.triggers[0].trigger, Trigger::OnDebuffApplied);
+    assert_eq!(
+        DEF_SADISTIC_NATURE.triggers[0].trigger,
+        Trigger::OnDebuffApplied
+    );
 }
 
 #[test]
@@ -79,7 +82,9 @@ fn time_warp_def_uses_after_use_card_runtime_trigger() {
 fn time_warp_runtime_snapshot_installs_enemy_power_when_active() {
     let mut engine = engine_with(make_deck_n("Strike", 10), 250, 0);
     engine.state.enemies[0].entity.set_status(sid::TIME_WARP, 5);
-    engine.state.enemies[0].entity.set_status(sid::TIME_WARP_ACTIVE, 1);
+    engine.state.enemies[0]
+        .entity
+        .set_status(sid::TIME_WARP_ACTIVE, 1);
     engine.rebuild_effect_runtime();
 
     assert!(engine
@@ -98,8 +103,12 @@ fn time_warp_twelfth_card_ends_turn_resets_counter_and_buffs_all_monsters() {
         vec![EnemyCombatState::new("TimeEater", 250, 250), second_enemy],
         3,
     );
-    engine.state.enemies[0].entity.set_status(sid::TIME_WARP_ACTIVE, 1);
-    engine.state.enemies[0].entity.set_status(sid::TIME_WARP, 11);
+    engine.state.enemies[0]
+        .entity
+        .set_status(sid::TIME_WARP_ACTIVE, 1);
+    engine.state.enemies[0]
+        .entity
+        .set_status(sid::TIME_WARP, 11);
     engine.rebuild_effect_runtime();
     engine.clear_event_log();
     ensure_in_hand(&mut engine, "Strike");
@@ -109,7 +118,10 @@ fn time_warp_twelfth_card_ends_turn_resets_counter_and_buffs_all_monsters() {
     assert_eq!(engine.state.enemies[0].entity.status(sid::TIME_WARP), 0);
     assert_eq!(engine.state.enemies[0].entity.strength(), 2);
     assert_eq!(engine.state.enemies[1].entity.strength(), 3);
-    assert_eq!(engine.state.turn, 2, "Time Warp should call the early end-turn sequence");
+    assert_eq!(
+        engine.state.turn, 2,
+        "Time Warp should call the early end-turn sequence"
+    );
 
     let time_warp_hook_seen = engine.event_log.iter().any(|record| {
         record.phase == EventRecordPhase::Handled
@@ -117,5 +129,8 @@ fn time_warp_twelfth_card_ends_turn_resets_counter_and_buffs_all_monsters() {
             && record.execution == Some(EffectExecutionPhase::Hook)
             && record.event == Trigger::OnAfterUseCard
     });
-    assert!(time_warp_hook_seen, "time_warp should execute through the runtime hook path");
+    assert!(
+        time_warp_hook_seen,
+        "time_warp should execute through the runtime hook path"
+    );
 }

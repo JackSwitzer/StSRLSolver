@@ -8,7 +8,10 @@ use super::support::{
     make_deck, make_deck_n, play_on_enemy, play_self,
 };
 
-fn engine_with_relic_and_attacks(relic_id: &str, attack_count: usize) -> crate::engine::CombatEngine {
+fn engine_with_relic_and_attacks(
+    relic_id: &str,
+    attack_count: usize,
+) -> crate::engine::CombatEngine {
     let mut state = combat_state_with(
         make_deck_n("Strike", attack_count.max(12)),
         vec![enemy_no_intent("JawWorm", 120, 120)],
@@ -28,9 +31,7 @@ fn ornamental_fan_triggers_on_third_attack_and_resets_each_turn() {
     // Only ATTACK cards increment the counter; the third grants 4 Block, and
     // atTurnStart resets partial progress.
     let mut engine = engine_with_relic_and_attacks("Ornamental Fan", 5);
-    engine.state.hand = make_deck(&[
-        "Miracle", "Strike", "Strike", "Strike", "Strike", "Strike",
-    ]);
+    engine.state.hand = make_deck(&["Miracle", "Strike", "Strike", "Strike", "Strike", "Strike"]);
 
     assert!(play_self(&mut engine, "Miracle"));
     assert_eq!(
@@ -286,7 +287,8 @@ fn incense_burner_persists_turn_counter_across_combats() {
 
 #[test]
 fn sundial_persists_two_shuffles_and_triggers_on_third_shuffle() {
-    let mut first_engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    let mut first_engine =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     first_engine.state.relics.push("Sundial".to_string());
     first_engine.rebuild_effect_runtime();
 
@@ -303,7 +305,8 @@ fn sundial_persists_two_shuffles_and_triggers_on_third_shuffle() {
     );
 
     let persisted = first_engine.export_persisted_effects();
-    let mut next_engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    let mut next_engine =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     next_engine.state.relics.push("Sundial".to_string());
     next_engine.load_persisted_effects(persisted);
     next_engine.state.hand.clear();

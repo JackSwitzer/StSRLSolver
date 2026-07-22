@@ -121,7 +121,10 @@ fn declarative_potions_drop_hooks_and_apply_runtime_effects() {
     equip_potion(&mut capacity, 0, "Potion of Capacity");
     let orb_slots_before = capacity.state.player.status(sid::ORB_SLOTS);
     use_potion(&mut capacity, 0, -1);
-    assert_eq!(capacity.state.player.status(sid::ORB_SLOTS), orb_slots_before + 4);
+    assert_eq!(
+        capacity.state.player.status(sid::ORB_SLOTS),
+        orb_slots_before + 4
+    );
     assert_eq!(capacity.state.orb_slots.max_slots, 7);
 
     let mut miracle = engine_with_state(combat_state_with(
@@ -202,7 +205,13 @@ fn bottled_miracle_scales_with_bark_master_reality_and_hand_overflow() {
 
     use_potion(&mut engine, 0, -1);
 
-    assert_eq!(hand_names(&engine).iter().filter(|name| **name == "Miracle+").count(), 2);
+    assert_eq!(
+        hand_names(&engine)
+            .iter()
+            .filter(|name| **name == "Miracle+")
+            .count(),
+        2
+    );
     assert_eq!(
         engine
             .state
@@ -212,7 +221,13 @@ fn bottled_miracle_scales_with_bark_master_reality_and_hand_overflow() {
             .count(),
         2
     );
-    assert_eq!(hand_names(&engine).iter().filter(|name| **name == "Miracle").count(), 0);
+    assert_eq!(
+        hand_names(&engine)
+            .iter()
+            .filter(|name| **name == "Miracle")
+            .count(),
+        0
+    );
 }
 
 #[test]
@@ -274,8 +289,15 @@ fn random_generation_potions_pick_the_right_card_families() {
         assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
         let choice = engine.choice.as_ref().expect("generated potion choice");
         assert_eq!(choice.reason, ChoiceReason::DiscoverCard);
-        assert_eq!(choice.aux_count, 1, "{potion_id} should resolve one generated copy");
-        assert_eq!(choice.options.len(), 3, "{potion_id} should present three generated options");
+        assert_eq!(
+            choice.aux_count, 1,
+            "{potion_id} should resolve one generated copy"
+        );
+        assert_eq!(
+            choice.options.len(),
+            3,
+            "{potion_id} should present three generated options"
+        );
         for option in &choice.options {
             let ChoiceOption::GeneratedCard(card) = option else {
                 panic!("{potion_id} should open generated-card options");
@@ -285,7 +307,10 @@ fn random_generation_potions_pick_the_right_card_families() {
                 expected_type,
                 "{potion_id} should generate one card of the requested type"
             );
-            assert_eq!(card.cost, 0, "{potion_id} should zero generated card cost this turn");
+            assert_eq!(
+                card.cost, 0,
+                "{potion_id} should zero generated card cost this turn"
+            );
         }
 
         engine.execute_action(&Action::Choose(0));
@@ -295,7 +320,11 @@ fn random_generation_potions_pick_the_right_card_families() {
             .iter()
             .map(|card| engine.card_registry.card_def_by_id(card.def_id).card_type)
             .collect::<Vec<_>>();
-        assert_eq!(generated, vec![expected_type], "{potion_id} should add the chosen card to hand");
+        assert_eq!(
+            generated,
+            vec![expected_type],
+            "{potion_id} should add the chosen card to hand"
+        );
     }
 
     engine.state.hand.clear();

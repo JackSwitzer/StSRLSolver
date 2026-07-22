@@ -7,50 +7,50 @@
 mod prelude;
 
 // --- Simple potions (pure declarative effects) ---
-pub mod strength_potion;
-pub mod dexterity_potion;
-pub mod focus_potion;
-pub mod block_potion;
-pub mod swift_potion;
-pub mod energy_potion;
-pub mod weak_potion;
-pub mod fear_potion;
-pub mod poison_potion;
-pub mod speed_potion;
-pub mod flex_potion;
 pub mod artifact_potion;
-pub mod regen_potion;
-pub mod essence_of_steel;
-pub mod liquid_bronze;
-pub mod heart_of_iron;
+pub mod block_potion;
 pub mod blood_potion;
-pub mod fruit_juice;
-pub mod smoke_bomb;
-pub mod fire_potion;
-pub mod explosive_potion;
 pub mod cultist_potion;
-pub mod ghost_in_a_jar;
+pub mod dexterity_potion;
 pub mod duplication_potion;
+pub mod energy_potion;
+pub mod essence_of_steel;
+pub mod explosive_potion;
+pub mod fear_potion;
+pub mod fire_potion;
+pub mod flex_potion;
+pub mod focus_potion;
+pub mod fruit_juice;
+pub mod ghost_in_a_jar;
+pub mod heart_of_iron;
+pub mod liquid_bronze;
+pub mod poison_potion;
+pub mod regen_potion;
+pub mod smoke_bomb;
+pub mod speed_potion;
+pub mod strength_potion;
+pub mod swift_potion;
+pub mod weak_potion;
 
 // --- Complex potions (need fn pointer hooks) ---
-pub mod snecko_oil;
-pub mod elixir;
-pub mod gamblers_brew;
-pub mod entropic_brew;
-pub mod fairy_in_a_bottle;
-pub mod bottled_miracle;
-pub mod cunning_potion;
 pub mod ambrosia;
-pub mod stance_potion;
-pub mod blessing_of_forge;
-pub mod liquid_memories;
-pub mod distilled_chaos;
-pub mod essence_of_darkness;
 pub mod attack_potion;
-pub mod skill_potion;
-pub mod power_potion;
+pub mod blessing_of_forge;
+pub mod bottled_miracle;
 pub mod colorless_potion;
+pub mod cunning_potion;
+pub mod distilled_chaos;
+pub mod elixir;
+pub mod entropic_brew;
+pub mod essence_of_darkness;
+pub mod fairy_in_a_bottle;
+pub mod gamblers_brew;
+pub mod liquid_memories;
 pub mod potion_of_capacity;
+pub mod power_potion;
+pub mod skill_potion;
+pub mod snecko_oil;
+pub mod stance_potion;
 
 use crate::effects::entity_def::EntityDef;
 use crate::effects::trigger::Trigger;
@@ -123,8 +123,7 @@ pub fn potion_def_by_runtime_id(id: &str) -> Option<&'static EntityDef> {
     POTION_DEFS
         .iter()
         .find(|def| {
-            normalize_potion_key(def.id) == wanted
-                || normalize_potion_key(def.name) == wanted
+            normalize_potion_key(def.id) == wanted || normalize_potion_key(def.name) == wanted
         })
         .copied()
 }
@@ -197,29 +196,50 @@ mod tests {
     #[test]
     fn test_all_potions_are_potion_kind() {
         for def in POTION_DEFS.iter() {
-            assert_eq!(def.kind, EntityKind::Potion, "non-Potion kind for {}", def.id);
+            assert_eq!(
+                def.kind,
+                EntityKind::Potion,
+                "non-Potion kind for {}",
+                def.id
+            );
         }
     }
 
     #[test]
     fn test_simple_potions_have_manual_activation_trigger() {
         let simple_ids = [
-            "StrengthPotion", "DexterityPotion", "FocusPotion", "BlockPotion",
-            "SwiftPotion", "EnergyPotion", "WeakenPotion", "FearPotion",
-            "PoisonPotion", "AncientPotion",
-            "RegenPotion", "EssenceOfSteel", "LiquidBronze", "HeartOfIron",
-            "BloodPotion", "SmokeBomb", "FirePotion",
+            "StrengthPotion",
+            "DexterityPotion",
+            "FocusPotion",
+            "BlockPotion",
+            "SwiftPotion",
+            "EnergyPotion",
+            "WeakenPotion",
+            "FearPotion",
+            "PoisonPotion",
+            "AncientPotion",
+            "RegenPotion",
+            "EssenceOfSteel",
+            "LiquidBronze",
+            "HeartOfIron",
+            "BloodPotion",
+            "SmokeBomb",
+            "FirePotion",
             "ExplosivePotion",
-            "CultistPotion", "GhostInAJar", "DuplicationPotion",
+            "CultistPotion",
+            "GhostInAJar",
+            "DuplicationPotion",
         ];
         for id in &simple_ids {
-            let def = potion_def_by_id(id)
-                .unwrap_or_else(|| panic!("missing potion def: {}", id));
+            let def = potion_def_by_id(id).unwrap_or_else(|| panic!("missing potion def: {}", id));
             assert!(!def.triggers.is_empty(), "no triggers for {}", id);
-            assert_eq!(def.triggers[0].trigger, Trigger::ManualActivation,
-                "wrong trigger for {}", id);
+            assert_eq!(
+                def.triggers[0].trigger,
+                Trigger::ManualActivation,
+                "wrong trigger for {}",
+                id
+            );
         }
-
     }
 
     #[test]
@@ -243,8 +263,7 @@ mod tests {
             "ColorlessPotion",
         ];
         for id in &hook_backed_ids {
-            let def = potion_def_by_id(id)
-                .unwrap_or_else(|| panic!("missing potion def: {}", id));
+            let def = potion_def_by_id(id).unwrap_or_else(|| panic!("missing potion def: {}", id));
             assert!(def.complex_hook.is_some(), "no complex_hook for {}", id);
         }
 
@@ -255,9 +274,12 @@ mod tests {
             "PotionOfCapacity",
         ];
         for id in &declarative_ids {
-            let def = potion_def_by_id(id)
-                .unwrap_or_else(|| panic!("missing potion def: {}", id));
-            assert!(def.complex_hook.is_none(), "unexpected complex_hook for {}", id);
+            let def = potion_def_by_id(id).unwrap_or_else(|| panic!("missing potion def: {}", id));
+            assert!(
+                def.complex_hook.is_none(),
+                "unexpected complex_hook for {}",
+                id
+            );
             assert!(
                 def.triggers
                     .iter()
@@ -293,10 +315,21 @@ mod tests {
     #[test]
     fn test_runtime_manual_activation_lookup_covers_migrated_complex_potions() {
         let migrated_ids = [
-            "AttackPotion", "SkillPotion", "PowerPotion", "ColorlessPotion",
-            "Elixir", "GamblersBrew", "EntropicBrew", "BottledMiracle",
-            "CunningPotion", "Ambrosia", "StancePotion", "BlessingOfTheForge",
-            "LiquidMemories", "DistilledChaos", "EssenceOfDarkness",
+            "AttackPotion",
+            "SkillPotion",
+            "PowerPotion",
+            "ColorlessPotion",
+            "Elixir",
+            "GamblersBrew",
+            "EntropicBrew",
+            "BottledMiracle",
+            "CunningPotion",
+            "Ambrosia",
+            "StancePotion",
+            "BlessingOfTheForge",
+            "LiquidMemories",
+            "DistilledChaos",
+            "EssenceOfDarkness",
             "PotionOfCapacity",
         ];
         for id in migrated_ids {

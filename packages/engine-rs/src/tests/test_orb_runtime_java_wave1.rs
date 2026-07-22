@@ -46,11 +46,7 @@ fn effective_cost(engine: &crate::engine::CombatEngine, card: CardInstance) -> i
 
 #[test]
 fn orb_wave1_streamline_reduces_only_the_played_instance_cost() {
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 60, 60)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 60, 60)], 3);
     force_player_turn(&mut engine);
     engine.state.hand = vec![engine.card_registry.make_card("Streamline")];
     engine.state.draw_pile = vec![engine.card_registry.make_card("Streamline")];
@@ -71,22 +67,14 @@ fn orb_wave1_streamline_reduces_only_the_played_instance_cost() {
 
 #[test]
 fn orb_wave1_chaos_and_barrage_follow_java_orb_count_behavior() {
-    let mut chaos = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 60, 60)],
-        3,
-    );
+    let mut chaos = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 60, 60)], 3);
     force_player_turn(&mut chaos);
     chaos.init_defect_orbs(3);
     chaos.state.hand = make_deck(&["Chaos+"]);
     assert!(play_self(&mut chaos, "Chaos+"));
     assert_eq!(chaos.state.orb_slots.occupied_count(), 2);
 
-    let mut barrage = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 60, 60)],
-        3,
-    );
+    let mut barrage = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 60, 60)], 3);
     force_player_turn(&mut barrage);
     barrage.init_defect_orbs(3);
     barrage.channel_orb(OrbType::Lightning);
@@ -104,11 +92,7 @@ fn orb_wave1_fission_variants_match_remove_vs_evoke_behavior() {
     // both variants, and upgrading changes no card stat.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/blue/Fission.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/FissionAction.java
-    let mut fission = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 80, 80)],
-        3,
-    );
+    let mut fission = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 80, 80)], 3);
     force_player_turn(&mut fission);
     fission.init_defect_orbs(3);
     fission.channel_orb(OrbType::Lightning);
@@ -128,11 +112,8 @@ fn orb_wave1_fission_variants_match_remove_vs_evoke_behavior() {
         "Fission"
     );
 
-    let mut fission_plus = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 80, 80)],
-        3,
-    );
+    let mut fission_plus =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 80, 80)], 3);
     force_player_turn(&mut fission_plus);
     fission_plus.init_defect_orbs(3);
     fission_plus.channel_orb(OrbType::Lightning);
@@ -192,8 +173,14 @@ fn orb_wave1_liquid_memories_returns_top_discard_cards_at_cost_zero_in_order() {
 
     use_potion(&mut engine, 0, -1);
     assert_eq!(engine.phase, crate::engine::CombatPhase::AwaitingChoice);
-    let choice = engine.choice.as_ref().expect("Sacred Bark Liquid Memories should open a 2-pick choice");
-    assert_eq!(choice.reason, crate::engine::ChoiceReason::ReturnFromDiscard);
+    let choice = engine
+        .choice
+        .as_ref()
+        .expect("Sacred Bark Liquid Memories should open a 2-pick choice");
+    assert_eq!(
+        choice.reason,
+        crate::engine::ChoiceReason::ReturnFromDiscard
+    );
     assert_eq!(choice.options.len(), 3);
     engine.execute_action(&Action::Choose(2));
     engine.execute_action(&Action::Choose(1));
@@ -207,50 +194,45 @@ fn orb_wave1_liquid_memories_returns_top_discard_cards_at_cost_zero_in_order() {
 
 #[test]
 fn orb_wave1_cracked_core_and_frozen_core_follow_current_runtime_path() {
-    let mut cracked = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut cracked = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     cracked.init_defect_orbs(3);
     cracked.state.relics.push("Cracked Core".to_string());
     cracked.start_combat();
     assert_eq!(cracked.state.orb_slots.occupied_count(), 1);
-    assert_eq!(cracked.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
+    assert_eq!(
+        cracked.state.orb_slots.slots[0].orb_type,
+        OrbType::Lightning
+    );
 
     // CrackedCore.java and SymbioticVirus.java channel synchronously during
     // atPreBattle. Ownership order therefore determines which full-slot orb is
     // evoked and which remains, rather than a fixed orb-type order. Lightning
     // evokes for eight and Dark for six (orbs/Lightning.java and Dark.java).
-    let mut lightning_then_dark = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut lightning_then_dark =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     lightning_then_dark.init_defect_orbs(1);
     lightning_then_dark.state.relics =
         vec!["Cracked Core".to_string(), "Symbiotic Virus".to_string()];
     lightning_then_dark.start_combat();
-    assert_eq!(lightning_then_dark.state.orb_slots.slots[0].orb_type, OrbType::Dark);
+    assert_eq!(
+        lightning_then_dark.state.orb_slots.slots[0].orb_type,
+        OrbType::Dark
+    );
     assert_eq!(lightning_then_dark.state.enemies[0].entity.hp, 32);
 
-    let mut dark_then_lightning = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut dark_then_lightning =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     dark_then_lightning.init_defect_orbs(1);
     dark_then_lightning.state.relics =
         vec!["Symbiotic Virus".to_string(), "Cracked Core".to_string()];
     dark_then_lightning.start_combat();
-    assert_eq!(dark_then_lightning.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
+    assert_eq!(
+        dark_then_lightning.state.orb_slots.slots[0].orb_type,
+        OrbType::Lightning
+    );
     assert_eq!(dark_then_lightning.state.enemies[0].entity.hp, 34);
 
-    let mut frozen = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut frozen = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     frozen.init_defect_orbs(3);
     frozen.state.relics.push("FrozenCore".to_string());
     frozen.start_combat();
@@ -258,7 +240,12 @@ fn orb_wave1_cracked_core_and_frozen_core_follow_current_runtime_path() {
     let occupied_before = frozen.state.orb_slots.occupied_count();
     frozen.execute_action(&Action::EndTurn);
     assert_eq!(frozen.state.orb_slots.occupied_count(), occupied_before + 1);
-    assert!(frozen.state.orb_slots.slots.iter().any(|orb| orb.orb_type == OrbType::Frost));
+    assert!(frozen
+        .state
+        .orb_slots
+        .slots
+        .iter()
+        .any(|orb| orb.orb_type == OrbType::Frost));
 }
 
 #[test]
@@ -266,11 +253,7 @@ fn symbiotic_virus_channels_exactly_one_dark_orb_prebattle() {
     // SymbioticVirus.java::atPreBattle synchronously calls channelOrb(new
     // Dark()) exactly once. Filling an empty slot selects no target and
     // consumes no cardRandomRng value.
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     engine.init_defect_orbs(3);
     engine.state.relics.push("Symbiotic Virus".to_string());
     let card_random_before = engine.rng_counters()["cardRandom"];
@@ -287,11 +270,7 @@ fn nuclear_battery_channels_plasma_prebattle_in_relic_ownership_order() {
     // Source: reference/extracted/methods/relic/NuclearBattery.java,
     // CrackedCore.java, and Plasma.java. atPreBattle channels synchronously;
     // Plasma then grants one Energy at the first turn start.
-    let mut battery = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut battery = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     battery.init_defect_orbs(3);
     battery.state.relics.push("Nuclear Battery".to_string());
     battery.start_combat();
@@ -299,29 +278,35 @@ fn nuclear_battery_channels_plasma_prebattle_in_relic_ownership_order() {
     assert_eq!(battery.state.orb_slots.slots[0].orb_type, OrbType::Plasma);
     assert_eq!(battery.state.energy, 4);
 
-    let mut plasma_then_lightning = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut plasma_then_lightning =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     plasma_then_lightning.init_defect_orbs(2);
     plasma_then_lightning.state.relics =
         vec!["Nuclear Battery".to_string(), "Cracked Core".to_string()];
     plasma_then_lightning.start_combat();
-    assert_eq!(plasma_then_lightning.state.orb_slots.slots[0].orb_type, OrbType::Plasma);
-    assert_eq!(plasma_then_lightning.state.orb_slots.slots[1].orb_type, OrbType::Lightning);
-
-    let mut lightning_then_plasma = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
+    assert_eq!(
+        plasma_then_lightning.state.orb_slots.slots[0].orb_type,
+        OrbType::Plasma
     );
+    assert_eq!(
+        plasma_then_lightning.state.orb_slots.slots[1].orb_type,
+        OrbType::Lightning
+    );
+
+    let mut lightning_then_plasma =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     lightning_then_plasma.init_defect_orbs(2);
     lightning_then_plasma.state.relics =
         vec!["Cracked Core".to_string(), "Nuclear Battery".to_string()];
     lightning_then_plasma.start_combat();
-    assert_eq!(lightning_then_plasma.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
-    assert_eq!(lightning_then_plasma.state.orb_slots.slots[1].orb_type, OrbType::Plasma);
+    assert_eq!(
+        lightning_then_plasma.state.orb_slots.slots[0].orb_type,
+        OrbType::Lightning
+    );
+    assert_eq!(
+        lightning_then_plasma.state.orb_slots.slots[1].orb_type,
+        OrbType::Plasma
+    );
 }
 
 #[test]
@@ -329,36 +314,36 @@ fn runic_capacitor_adds_three_live_slots_on_first_turn_up_to_ten() {
     // Source: reference/extracted/methods/relic/RunicCapacitor.java and
     // IncreaseMaxOrbAction.java. The first turn requests three live slots;
     // AbstractPlayer refuses each remaining gain after maxOrbs reaches ten.
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     engine.init_defect_orbs(3);
     engine.state.relics.push("Runic Capacitor".to_string());
     engine.start_combat();
     assert_eq!(engine.state.orb_slots.get_slot_count(), 6);
-    assert_eq!(engine.state.player.status(crate::status_ids::sid::ORB_SLOTS), 3);
-
-    let mut capped = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
+    assert_eq!(
+        engine
+            .state
+            .player
+            .status(crate::status_ids::sid::ORB_SLOTS),
+        3
     );
+
+    let mut capped = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     capped.init_defect_orbs(9);
     capped.state.relics.push("Runic Capacitor".to_string());
     capped.start_combat();
     assert_eq!(capped.state.orb_slots.get_slot_count(), 10);
-    assert_eq!(capped.state.player.status(crate::status_ids::sid::ORB_SLOTS), 1);
+    assert_eq!(
+        capped
+            .state
+            .player
+            .status(crate::status_ids::sid::ORB_SLOTS),
+        1
+    );
 }
 
 #[test]
 fn orb_wave1_emotion_chip_pulses_front_orb_on_next_turn_start_like_java() {
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy("JawWorm", 40, 40, 1, 5, 1)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy("JawWorm", 40, 40, 1, 5, 1)], 3);
     engine.init_defect_orbs(1);
     engine.state.relics.push("Emotion Chip".to_string());
     engine.channel_orb(OrbType::Lightning);
@@ -372,16 +357,18 @@ fn orb_wave1_emotion_chip_pulses_front_orb_on_next_turn_start_like_java() {
         hp_before - 6,
         "Java Emotion Chip should pulse the front orb passive on the following turn start"
     );
-    assert_eq!(engine.state.player.status(crate::status_ids::sid::EMOTION_CHIP_TRIGGER), 0);
+    assert_eq!(
+        engine
+            .state
+            .player
+            .status(crate::status_ids::sid::EMOTION_CHIP_TRIGGER),
+        0
+    );
 }
 
 #[test]
 fn orb_wave1_emotion_chip_replays_all_orb_passives_on_next_turn_start() {
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy("JawWorm", 40, 40, 1, 5, 1)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy("JawWorm", 40, 40, 1, 5, 1)], 3);
     engine.init_defect_orbs(2);
     engine.state.relics.push("Emotion Chip".to_string());
     engine.channel_orb(OrbType::Lightning);
@@ -393,7 +380,13 @@ fn orb_wave1_emotion_chip_replays_all_orb_passives_on_next_turn_start() {
 
     assert_eq!(engine.state.enemies[0].entity.hp, hp_before - 6);
     assert_eq!(engine.state.player.block, 2);
-    assert_eq!(engine.state.player.status(crate::status_ids::sid::EMOTION_CHIP_TRIGGER), 0);
+    assert_eq!(
+        engine
+            .state
+            .player
+            .status(crate::status_ids::sid::EMOTION_CHIP_TRIGGER),
+        0
+    );
 }
 
 #[test]
@@ -401,11 +394,7 @@ fn emotion_chip_coalesces_repeated_hp_loss_into_one_impulse() {
     // Source: reference/extracted/methods/relic/EmotionChip.java and full
     // EmotionChip.java::wasHPLost. Its boolean pulse is only set once, and
     // ImpulseAction invokes one onEndOfTurn callback for this Dark orb.
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     engine.init_defect_orbs(1);
     engine.state.relics.push("Emotion Chip".to_string());
     engine.channel_orb(OrbType::Dark);
@@ -417,16 +406,18 @@ fn emotion_chip_coalesces_repeated_hp_loss_into_one_impulse() {
 
     // Six base + six normal end-of-turn + six from one ImpulseAction.
     assert_eq!(engine.state.orb_slots.slots[0].evoke_amount, 18);
-    assert_eq!(engine.state.player.status(crate::status_ids::sid::EMOTION_CHIP_TRIGGER), 0);
+    assert_eq!(
+        engine
+            .state
+            .player
+            .status(crate::status_ids::sid::EMOTION_CHIP_TRIGGER),
+        0
+    );
 }
 
 #[test]
 fn orb_wave1_emotion_chip_and_cables_replay_front_orb_twice_like_java() {
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy("JawWorm", 40, 40, 1, 5, 1)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy("JawWorm", 40, 40, 1, 5, 1)], 3);
     engine.init_defect_orbs(2);
     engine.state.relics.push("Emotion Chip".to_string());
     engine.state.relics.push("Cables".to_string());
@@ -439,7 +430,13 @@ fn orb_wave1_emotion_chip_and_cables_replay_front_orb_twice_like_java() {
 
     assert_eq!(engine.state.enemies[0].entity.hp, hp_before - 12);
     assert_eq!(engine.state.player.block, 2);
-    assert_eq!(engine.state.player.status(crate::status_ids::sid::EMOTION_CHIP_TRIGGER), 0);
+    assert_eq!(
+        engine
+            .state
+            .player
+            .status(crate::status_ids::sid::EMOTION_CHIP_TRIGGER),
+        0
+    );
 }
 
 #[test]
@@ -448,11 +445,7 @@ fn orb_wave1_cables_repeats_front_plasma_at_normal_turn_start() {
     // checks ID "Cables" and repeats the front non-empty orb's start callback.
     // Plasma is the orb whose normal start callback grants one energy.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     engine.init_defect_orbs(2);
     engine.state.relics.push("Cables".to_string());
     engine.channel_orb(OrbType::Plasma);
@@ -465,11 +458,7 @@ fn orb_wave1_cables_repeats_front_plasma_at_normal_turn_start() {
 
 #[test]
 fn orb_wave1_reboot_should_shuffle_hand_and_discard_before_drawing() {
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Reboot", "Strike", "Defend"]);
     engine.state.discard_pile = make_deck(&["Zap", "Dualcast", "Cold Snap"]);
@@ -478,7 +467,9 @@ fn orb_wave1_reboot_should_shuffle_hand_and_discard_before_drawing() {
     assert_eq!(engine.state.hand.len(), 4);
     assert_eq!(engine.state.exhaust_pile.len(), 1);
     assert_eq!(
-        engine.card_registry.card_name(engine.state.exhaust_pile[0].def_id),
+        engine
+            .card_registry
+            .card_name(engine.state.exhaust_pile[0].def_id),
         "Reboot"
     );
     assert_eq!(engine.state.discard_pile.len(), 0);

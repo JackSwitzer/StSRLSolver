@@ -2,7 +2,7 @@
 #![allow(unused_imports)]
 
 pub use crate::effects::declarative::{
-    Effect as E, SimpleEffect as SE, Target as T, AmountSource as A,
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
 };
 pub use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 pub use crate::effects::trigger::{Trigger, TriggerCondition};

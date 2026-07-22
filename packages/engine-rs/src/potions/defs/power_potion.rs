@@ -1,6 +1,6 @@
 use super::prelude::*;
-use crate::engine::CombatEngine;
 use crate::effects::declarative::{GeneratedCardPool, GeneratedCostRule, GeneratedUpgradeRule};
+use crate::engine::CombatEngine;
 
 static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::ManualActivation,

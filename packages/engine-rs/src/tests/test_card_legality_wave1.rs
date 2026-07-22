@@ -12,11 +12,11 @@ use crate::effects::declarative::{
     Target as T,
 };
 use crate::engine::{ChoiceReason, CombatEngine, CombatPhase};
+use crate::state::Stance;
 use crate::tests::support::{
     combat_state_with, enemy_no_intent, force_player_turn, make_deck, play_on_enemy, play_self,
     set_stance, TEST_SEED,
 };
-use crate::state::Stance;
 
 fn engine_for(hand: &[&str], draw: &[&str], discard: &[&str], energy: i32) -> CombatEngine {
     let mut state = combat_state_with(
@@ -85,7 +85,12 @@ fn secret_technique_still_uses_declarative_skill_search_and_finds_only_skills() 
         }]
     );
 
-    let mut engine = engine_for(&["Secret Technique"], &["Strike", "Shrug It Off", "Bash"], &[], 3);
+    let mut engine = engine_for(
+        &["Secret Technique"],
+        &["Strike", "Shrug It Off", "Bash"],
+        &[],
+        3,
+    );
     assert!(play_self(&mut engine, "Secret Technique"));
     // Java SkillFromDeckToHandAction auto-moves a singleton eligible Skill.
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);

@@ -22,7 +22,9 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/TheBombPower.java
 
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::status_ids::sid;
 use crate::tests::support::*;
 
@@ -86,11 +88,8 @@ fn thinking_ahead_draws_before_put_on_deck_and_auto_moves_a_singleton() {
     // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/ThinkingAhead.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/PutOnDeckAction.java
     for (card_id, should_exhaust) in [("Thinking Ahead", true), ("Thinking Ahead+", false)] {
-        let mut singleton = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            0,
-        );
+        let mut singleton =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 0);
         force_player_turn(&mut singleton);
         singleton.state.hand = make_deck(&[card_id]);
         singleton.state.draw_pile = make_deck(&["Strike"]);
@@ -109,15 +108,18 @@ fn thinking_ahead_draws_before_put_on_deck_and_auto_moves_a_singleton() {
             "Strike"
         );
         assert_eq!(singleton.card_random_rng.counter, card_random_before + 1);
-        assert_eq!(exhaust_prefix_count(&singleton, "Thinking Ahead"), should_exhaust as usize);
-        assert_eq!(discard_prefix_count(&singleton, "Thinking Ahead"), (!should_exhaust) as usize);
+        assert_eq!(
+            exhaust_prefix_count(&singleton, "Thinking Ahead"),
+            should_exhaust as usize
+        );
+        assert_eq!(
+            discard_prefix_count(&singleton, "Thinking Ahead"),
+            (!should_exhaust) as usize
+        );
     }
 
-    let mut selection = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        0,
-    );
+    let mut selection =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 0);
     force_player_turn(&mut selection);
     selection.state.hand = make_deck(&["Thinking Ahead"]);
     selection.state.draw_pile = make_deck(&["Strike", "Defend"]);
@@ -155,8 +157,12 @@ fn trip_base_targets_one_enemy_while_upgrade_applies_two_to_all() {
     let mut upgraded = engine_without_start(Vec::new(), enemies, 0);
     force_player_turn(&mut upgraded);
     upgraded.state.hand = make_deck(&["Trip+"]);
-    upgraded.state.enemies[0].entity.set_status(sid::VULNERABLE, 1);
-    upgraded.state.enemies[1].entity.set_status(sid::ARTIFACT, 1);
+    upgraded.state.enemies[0]
+        .entity
+        .set_status(sid::VULNERABLE, 1);
+    upgraded.state.enemies[1]
+        .entity
+        .set_status(sid::ARTIFACT, 1);
 
     assert!(play_self(&mut upgraded, "Trip+"));
     assert_eq!(upgraded.state.energy, 0);
@@ -172,11 +178,8 @@ fn jax_source_loses_fixed_three_hp_then_gains_two_or_three_strength() {
     // can prevent the HP loss and its Rupture trigger while block is untouched.
     // Java: cards/colorless/JAX.java and actions/common/LoseHPAction.java.
     for (card_id, card_strength) in [("J.A.X.", 2), ("J.A.X.+", 3)] {
-        let mut engine = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            0,
-        );
+        let mut engine =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 0);
         force_player_turn(&mut engine);
         engine.state.hand = make_deck(&[card_id]);
         engine.state.player.set_status(sid::RUPTURE, 2);
@@ -189,11 +192,8 @@ fn jax_source_loses_fixed_three_hp_then_gains_two_or_three_strength() {
         assert_eq!(engine.state.energy, 0);
         assert_eq!(discard_prefix_count(&engine, "J.A.X."), 1);
 
-        let mut buffered = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            0,
-        );
+        let mut buffered =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 0);
         force_player_turn(&mut buffered);
         buffered.state.hand = make_deck(&[card_id]);
         buffered.state.player.block = 9;
@@ -219,11 +219,7 @@ fn sadistic_nature_plus_deals_unmodified_thorns_damage_for_applied_debuffs() {
     // Java: reference/extracted/methods/card/SadisticNature.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/SadisticPower.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/FlightPower.java
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("Byrd", 30, 30)],
-        0,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("Byrd", 30, 30)], 0);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Sadistic Nature+", "Trip"]);
     engine.state.enemies[0].entity.set_status(sid::FLIGHT, 3);
@@ -251,11 +247,7 @@ fn panacea_base_and_upgrade_stack_three_artifact_for_free_and_exhaust() {
     assert_eq!(upgraded.base_magic, 2);
     assert!(base.exhaust && upgraded.exhaust);
 
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        0,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 0);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Panacea", "Panacea+"]);
 
@@ -272,11 +264,7 @@ fn panic_button_blocks_future_block_for_two_rounds_unless_artifact_stops_it() {
     // PanicButton.java queues block 30 before NoBlockPower(2), costs zero, and
     // exhausts; upgrade changes only block to 40. NoBlockPower is a DEBUFF,
     // returns zero from modifyBlockLast, and reduces at each round end.
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 80, 80)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 80, 80)], 3);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["PanicButton", "Defend"]);
 
@@ -299,11 +287,8 @@ fn panic_button_blocks_future_block_for_two_rounds_unless_artifact_stops_it() {
     assert!(play_self(&mut engine, "Defend"));
     assert_eq!(engine.state.player.block, 5);
 
-    let mut artifact = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 80, 80)],
-        3,
-    );
+    let mut artifact =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 80, 80)], 3);
     force_player_turn(&mut artifact);
     artifact.state.player.set_status(sid::ARTIFACT, 1);
     artifact.state.hand = make_deck(&["PanicButton+", "Defend"]);
@@ -337,22 +322,34 @@ fn colorless_wave1_registry_exports_match_typed_surface() {
         .expect("Good Instincts should exist");
     assert_eq!(good_instincts.card_type, CardType::Skill);
     assert_eq!(good_instincts.target, CardTarget::SelfTarget);
-    assert_eq!(good_instincts.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
+    assert_eq!(
+        good_instincts.effect_data,
+        &[E::Simple(SE::GainBlock(A::Block))]
+    );
 
     let finesse = registry.get("Finesse").expect("Finesse should exist");
     assert_eq!(finesse.base_magic, -1);
-    assert_eq!(finesse.effect_data, &[E::Simple(SE::DrawCards(A::Fixed(1)))]);
+    assert_eq!(
+        finesse.effect_data,
+        &[E::Simple(SE::DrawCards(A::Fixed(1)))]
+    );
 
     let flash = registry
         .get("Flash of Steel")
         .expect("Flash of Steel should exist");
-    assert_eq!((flash.cost, flash.base_damage, flash.base_magic), (0, 3, -1));
+    assert_eq!(
+        (flash.cost, flash.base_damage, flash.base_magic),
+        (0, 3, -1)
+    );
     assert_eq!(flash.effect_data, &[E::Simple(SE::DrawCards(A::Fixed(1)))]);
 
     let swift_strike = registry
         .get("Swift Strike")
         .expect("Swift Strike should exist");
-    assert_eq!(swift_strike.effect_data, &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]);
+    assert_eq!(
+        swift_strike.effect_data,
+        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+    );
 
     let magnetism = registry.get("Magnetism").expect("Magnetism should exist");
     let magnetism_plus = registry.get("Magnetism+").expect("Magnetism+ should exist");
@@ -360,7 +357,11 @@ fn colorless_wave1_registry_exports_match_typed_surface() {
     assert_eq!((magnetism_plus.cost, magnetism_plus.base_magic), (1, 1));
     assert_eq!(
         magnetism.effect_data,
-        &[E::Simple(SE::AddStatus(T::Player, sid::MAGNETISM, A::Magic))]
+        &[E::Simple(SE::AddStatus(
+            T::Player,
+            sid::MAGNETISM,
+            A::Magic
+        ))]
     );
 
     let mayhem = registry.get("Mayhem").expect("Mayhem should exist");
@@ -392,11 +393,7 @@ fn finesse_gains_modified_block_and_draws_exactly_one() {
     // Finesse.java queues GainBlockAction(this.block) and DrawCardAction(1);
     // the upgrade adds two Block and does not change the draw amount.
     // Java: reference/extracted/methods/card/Finesse.java
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        0,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 0);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Finesse", "Finesse+"]);
     engine.state.draw_pile = make_deck(&["Strike", "Defend"]);
@@ -419,11 +416,7 @@ fn flash_of_steel_variants_deal_card_damage_then_draw_exactly_one() {
     // DrawCardAction(1); upgrading adds three damage and does not add or alter
     // a magic stat.
     // Java: reference/extracted/methods/card/FlashOfSteel.java
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 60, 60)],
-        0,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 60, 60)], 0);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Flash of Steel", "Flash of Steel+"]);
     engine.state.draw_pile = make_deck(&["Strike", "Defend"]);
@@ -444,11 +437,7 @@ fn good_instincts_variants_gain_one_modified_block_amount_for_zero_energy() {
     // upgrade changes only block by +3. Dexterity and Frail therefore apply
     // once to the complete amount.
     // Java: reference/extracted/methods/card/GoodInstincts.java
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        0,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 0);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Good Instincts", "Good Instincts+"]);
     engine.state.player.set_status(sid::DEXTERITY, 2);
@@ -467,7 +456,10 @@ fn good_instincts_variants_gain_one_modified_block_amount_for_zero_energy() {
 fn colorless_wave1_attack_and_block_cards_follow_java_oracle_on_engine_path() {
     let mut engine = engine_without_start(
         Vec::new(),
-        vec![enemy_no_intent("JawWorm", 50, 50), enemy_no_intent("Cultist", 40, 40)],
+        vec![
+            enemy_no_intent("JawWorm", 50, 50),
+            enemy_no_intent("Cultist", 40, 40),
+        ],
         10,
     );
     force_player_turn(&mut engine);
@@ -507,11 +499,7 @@ fn swift_strike_is_free_and_carries_the_source_strike_tag() {
     // STRIKE tag. StrikeDummy.atDamageModify adds 3 to each tagged attack.
     // Java: reference/extracted/methods/card/SwiftStrike.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/StrikeDummy.java
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 30, 30)],
-        0,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 30, 30)], 0);
     force_player_turn(&mut engine);
     engine.state.relics.push("StrikeDummy".to_string());
     engine.state.hand = make_deck(&["Swift Strike", "Swift Strike+"]);
@@ -554,11 +542,7 @@ fn dramatic_entrance_deals_one_free_aoe_hit_and_exhausts() {
 fn bandage_up_heals_four_or_six_for_free_then_exhausts() {
     // Source: BandageUp.java queues HealAction for magicNumber 4, costs 0,
     // Exhausts, and upgradeMagicNumber(2) raises the heal to 6.
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.state.player.hp = 60;
 
@@ -578,11 +562,8 @@ fn bite_variants_heal_after_both_nonlethal_and_final_lethal_damage() {
     // by one. Although DamageAction performs post-combat cleanup after a final
     // kill, GameActionManager.java lines 124-130 explicitly preserve HealAction.
     for (card_id, damage, healing) in [("Bite", 7, 2), ("Bite+", 8, 3)] {
-        let mut nonlethal = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            3,
-        );
+        let mut nonlethal =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
         force_player_turn(&mut nonlethal);
         nonlethal.state.player.hp = 50;
         nonlethal.state.hand = make_deck(&[card_id]);
@@ -632,7 +613,9 @@ fn blind_targets_one_enemy_while_blind_plus_targets_every_living_enemy() {
         0,
     );
     force_player_turn(&mut upgraded);
-    upgraded.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+    upgraded.state.enemies[0]
+        .entity
+        .set_status(sid::ARTIFACT, 1);
     upgraded.state.hand = make_deck(&["Blind+"]);
     assert!(play_self(&mut upgraded, "Blind+"));
     assert_eq!(upgraded.state.enemies[0].entity.status(sid::ARTIFACT), 0);
@@ -645,11 +628,7 @@ fn blind_targets_one_enemy_while_blind_plus_targets_every_living_enemy() {
 fn dark_shackles_temporarily_removes_strength_unless_artifact_blocks_it() {
     // Source: DarkShackles.java applies StrengthPower(-9), then a matching
     // GainStrengthPower(9) only when Artifact is absent; upgrading adds 6.
-    let mut base = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        0,
-    );
+    let mut base = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 0);
     force_player_turn(&mut base);
     base.state.enemies[0].entity.set_status(sid::STRENGTH, 5);
     base.state.hand = make_deck(&["Dark Shackles"]);
@@ -669,11 +648,7 @@ fn dark_shackles_temporarily_removes_strength_unless_artifact_blocks_it() {
         0
     );
 
-    let mut blocked = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        0,
-    );
+    let mut blocked = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 0);
     force_player_turn(&mut blocked);
     blocked.state.enemies[0].entity.set_status(sid::STRENGTH, 5);
     blocked.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
@@ -683,7 +658,9 @@ fn dark_shackles_temporarily_removes_strength_unless_artifact_blocks_it() {
     assert_eq!(blocked.state.enemies[0].entity.status(sid::ARTIFACT), 0);
     assert_eq!(blocked.state.enemies[0].entity.status(sid::STRENGTH), 5);
     assert_eq!(
-        blocked.state.enemies[0].entity.status(sid::TEMP_STRENGTH_LOSS),
+        blocked.state.enemies[0]
+            .entity
+            .status(sid::TEMP_STRENGTH_LOSS),
         0
     );
     assert_eq!(exhaust_prefix_count(&blocked, "Dark Shackles"), 1);
@@ -744,41 +721,28 @@ fn deep_breath_only_shuffles_a_nonempty_discard_and_consumes_two_shuffle_ticks()
 
 #[test]
 fn colorless_wave1_power_cards_install_runtime_owned_statuses() {
-    let mut magnetism = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 50, 50)],
-        10,
-    );
+    let mut magnetism =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 50, 50)], 10);
     force_player_turn(&mut magnetism);
     ensure_in_hand(&mut magnetism, "Magnetism");
     assert!(play_self(&mut magnetism, "Magnetism"));
     assert_eq!(magnetism.state.player.status(sid::MAGNETISM), 1);
 
-    let mut mayhem = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 50, 50)],
-        10,
-    );
+    let mut mayhem = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 50, 50)], 10);
     force_player_turn(&mut mayhem);
     ensure_in_hand(&mut mayhem, "Mayhem+");
     assert!(play_self(&mut mayhem, "Mayhem+"));
     assert_eq!(mayhem.state.player.status(sid::MAYHEM), 1);
 
-    let mut panache = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 50, 50)],
-        10,
-    );
+    let mut panache =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 50, 50)], 10);
     force_player_turn(&mut panache);
     ensure_in_hand(&mut panache, "Panache+");
     assert!(play_self(&mut panache, "Panache+"));
     assert_eq!(panache.state.player.status(sid::PANACHE), 14);
 
-    let mut sadistic = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 50, 50)],
-        10,
-    );
+    let mut sadistic =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 50, 50)], 10);
     force_player_turn(&mut sadistic);
     ensure_in_hand(&mut sadistic, "Sadistic Nature");
     assert!(play_self(&mut sadistic, "Sadistic Nature"));

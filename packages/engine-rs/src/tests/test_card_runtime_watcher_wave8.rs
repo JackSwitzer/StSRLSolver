@@ -12,7 +12,9 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/FearNoEvil.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::state::Stance;
 use crate::tests::support::*;
 
@@ -26,13 +28,23 @@ fn one_enemy_engine(enemy_id: &str, hp: i32, dmg: i32) -> crate::engine::CombatE
 fn watcher_wave8_registry_exports_match_typed_surface() {
     let registry = global_registry();
 
-    let strike = registry.get("Strike").expect("Strike_P should be registered");
-    assert_eq!(strike.effect_data, &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]);
+    let strike = registry
+        .get("Strike")
+        .expect("Strike_P should be registered");
+    assert_eq!(
+        strike.effect_data,
+        &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
+    );
 
-    let prostrate = registry.get("Prostrate").expect("Prostrate should be registered");
+    let prostrate = registry
+        .get("Prostrate")
+        .expect("Prostrate should be registered");
     assert_eq!(
         prostrate.effect_data,
-        &[E::Simple(SE::GainMantra(A::Magic)), E::Simple(SE::GainBlock(A::Block))]
+        &[
+            E::Simple(SE::GainMantra(A::Magic)),
+            E::Simple(SE::GainBlock(A::Block))
+        ]
     );
 
     let pray = registry.get("Pray").expect("Pray should be registered");
@@ -44,24 +56,38 @@ fn watcher_wave8_registry_exports_match_typed_surface() {
         ]
     );
 
-    let empty_body = registry.get("EmptyBody").expect("EmptyBody should be registered");
+    let empty_body = registry
+        .get("EmptyBody")
+        .expect("EmptyBody should be registered");
     assert_eq!(
         empty_body.effect_data,
-        &[E::Simple(SE::GainBlock(A::Block)), E::Simple(SE::ChangeStance(Stance::Neutral))]
+        &[
+            E::Simple(SE::GainBlock(A::Block)),
+            E::Simple(SE::ChangeStance(Stance::Neutral))
+        ]
     );
 
-    let evaluate = registry.get("Evaluate").expect("Evaluate should be registered");
-    assert_eq!(
-        evaluate.effect_data,
-        &[E::Simple(SE::GainBlock(A::Block))]
-    );
+    let evaluate = registry
+        .get("Evaluate")
+        .expect("Evaluate should be registered");
+    assert_eq!(evaluate.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
     assert!(evaluate.complex_hook.is_some());
 
-    let follow_up = registry.get("FollowUp").expect("FollowUp should be registered");
-    assert_eq!(follow_up.effect_data[0], E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)));
+    let follow_up = registry
+        .get("FollowUp")
+        .expect("FollowUp should be registered");
+    assert_eq!(
+        follow_up.effect_data[0],
+        E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))
+    );
 
-    let fear_no_evil = registry.get("FearNoEvil").expect("FearNoEvil should be registered");
-    assert_eq!(fear_no_evil.effect_data[0], E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)));
+    let fear_no_evil = registry
+        .get("FearNoEvil")
+        .expect("FearNoEvil should be registered");
+    assert_eq!(
+        fear_no_evil.effect_data[0],
+        E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))
+    );
 }
 
 #[test]

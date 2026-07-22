@@ -10,7 +10,8 @@ fn typed_event(act: i32, name: &str) -> crate::events::TypedEventDef {
 }
 
 #[test]
-fn test_event_runtime_wave7_mind_bloom_war_enters_scripted_boss_combat_and_opens_rare_relic_reward() {
+fn test_event_runtime_wave7_mind_bloom_war_enters_scripted_boss_combat_and_opens_rare_relic_reward()
+{
     let mut engine = RunEngine::new(73, 20);
     let mind_bloom = typed_event(3, "Mind Bloom");
     assert!(matches!(
@@ -32,7 +33,9 @@ fn test_event_runtime_wave7_mind_bloom_war_enters_scripted_boss_combat_and_opens
     engine.debug_resolve_current_combat_outcome();
     assert_eq!(engine.current_phase(), RunPhase::CardReward);
 
-    let screen = engine.current_reward_screen().expect("mind bloom reward screen");
+    let screen = engine
+        .current_reward_screen()
+        .expect("mind bloom reward screen");
     assert_eq!(screen.source, RewardScreenSource::Event);
     assert_eq!(screen.items.len(), 1);
     assert_eq!(screen.items[0].kind, RewardItemKind::Relic);

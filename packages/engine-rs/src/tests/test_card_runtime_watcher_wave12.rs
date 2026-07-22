@@ -7,7 +7,9 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/OmegaPower.java
 
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::status_ids::sid;
 use crate::tests::support::*;
 
@@ -34,31 +36,45 @@ fn two_enemy_engine(a: (&str, i32, i32), b: (&str, i32, i32)) -> crate::engine::
 fn watcher_wave12_registry_exports_match_typed_surface() {
     let registry = global_registry();
 
-    let conclude = registry.get("Conclude").expect("Conclude should be registered");
+    let conclude = registry
+        .get("Conclude")
+        .expect("Conclude should be registered");
     assert_eq!(conclude.card_type, CardType::Attack);
     assert_eq!(conclude.target, CardTarget::AllEnemy);
-    assert_eq!(conclude.effect_data, &[E::Simple(SE::DealDamage(T::AllEnemies, A::Damage))]);
-    assert!(conclude
-        .runtime_triggers()
-        .iter()
-        .any(|trigger| matches!(trigger, crate::effects::types::CardRuntimeTrigger::PostPlay(crate::effects::types::PostPlayRule::EndTurn))));
+    assert_eq!(
+        conclude.effect_data,
+        &[E::Simple(SE::DealDamage(T::AllEnemies, A::Damage))]
+    );
+    assert!(conclude.runtime_triggers().iter().any(|trigger| matches!(
+        trigger,
+        crate::effects::types::CardRuntimeTrigger::PostPlay(
+            crate::effects::types::PostPlayRule::EndTurn
+        )
+    )));
 
-    let holy_water = registry.get("HolyWater").expect("Holy Water should be registered");
+    let holy_water = registry
+        .get("HolyWater")
+        .expect("Holy Water should be registered");
     assert_eq!(holy_water.card_type, CardType::Skill);
     assert_eq!(holy_water.target, CardTarget::SelfTarget);
-    assert_eq!(holy_water.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
+    assert_eq!(
+        holy_water.effect_data,
+        &[E::Simple(SE::GainBlock(A::Block))]
+    );
     assert!(holy_water.runtime_traits().retain);
 
     let omega = registry.get("Omega").expect("Omega should be registered");
     assert_eq!(omega.card_type, CardType::Power);
     assert_eq!(omega.target, CardTarget::SelfTarget);
-    assert_eq!(omega.effect_data, &[E::Simple(SE::AddStatus(T::Player, sid::OMEGA, A::Magic))]);
-
-    let judgement = registry.get("Judgement").expect("Judgement should be registered");
     assert_eq!(
-        judgement.effect_data,
-        &[E::Simple(SE::Judgement(A::Magic))]
+        omega.effect_data,
+        &[E::Simple(SE::AddStatus(T::Player, sid::OMEGA, A::Magic))]
     );
+
+    let judgement = registry
+        .get("Judgement")
+        .expect("Judgement should be registered");
+    assert_eq!(judgement.effect_data, &[E::Simple(SE::Judgement(A::Magic))]);
     assert!(judgement.complex_hook.is_none());
 }
 

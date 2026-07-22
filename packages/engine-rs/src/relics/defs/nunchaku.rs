@@ -4,23 +4,21 @@
 //! Source: `reference/extracted/methods/relic/Nunchaku.java` (`onUseCard`
 //! counts only ATTACK cards, resets at ten, and queues GainEnergyAction(1)).
 
-use crate::effects::declarative::{Effect, SimpleEffect, AmountSource};
+use crate::effects::declarative::{AmountSource, Effect, SimpleEffect};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::status_ids::sid;
 
-static EFFECTS: [Effect; 1] = [
-    Effect::Simple(SimpleEffect::GainEnergy(AmountSource::Fixed(1))),
-];
+static EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::GainEnergy(
+    AmountSource::Fixed(1),
+))];
 
-static TRIGGERS: [TriggeredEffect; 1] = [
-    TriggeredEffect {
-        trigger: Trigger::OnAttackPlayed,
-        condition: TriggerCondition::CounterReached,
-        effects: &EFFECTS,
-        counter: Some((sid::NUNCHAKU_COUNTER, 10)),
-    },
-];
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::OnAttackPlayed,
+    condition: TriggerCondition::CounterReached,
+    effects: &EFFECTS,
+    counter: Some((sid::NUNCHAKU_COUNTER, 10)),
+}];
 
 pub static DEF: EntityDef = EntityDef {
     id: "Nunchaku",

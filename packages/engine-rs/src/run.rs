@@ -669,6 +669,18 @@ const WATCHER_BOSS_RELICS: &[&str] = &[
     "VioletLotus",
 ];
 
+fn canonical_relic_pool_tier(relic_id: &str) -> Option<RelicTier> {
+    [
+        (RelicTier::Common, WATCHER_COMMON_RELICS),
+        (RelicTier::Uncommon, WATCHER_UNCOMMON_RELICS),
+        (RelicTier::Rare, WATCHER_RARE_RELICS),
+        (RelicTier::Shop, WATCHER_SHOP_RELICS),
+        (RelicTier::Boss, WATCHER_BOSS_RELICS),
+    ]
+    .into_iter()
+    .find_map(|(tier, pool)| pool.contains(&relic_id).then_some(tier))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PotionRarity {
     Common,
@@ -1612,6 +1624,12 @@ impl RunState {
         }
 
         let max_hp = if ascension >= 14 { 68 } else { 72 };
+        let current_hp = if ascension >= 6 {
+            ((max_hp as f32) * 0.9).round() as i32
+        } else {
+            max_hp
+        };
+        let max_potions = if ascension >= 11 { 2 } else { 3 };
 
         let relics = vec!["PureWater".to_string()];
         let mut relic_flags = crate::relic_flags::RelicFlags::default();
@@ -1630,7 +1648,7 @@ impl RunState {
         let next_card_instance_id = deck.len() as u64 + 1;
 
         Self {
-            current_hp: max_hp,
+            current_hp,
             max_hp,
             gold: 99,
             floor: 0,
@@ -1641,8 +1659,8 @@ impl RunState {
             deck_card_states,
             next_card_instance_id,
             relics,
-            potions: vec!["".to_string(); 3],
-            max_potions: 3,
+            potions: vec!["".to_string(); max_potions],
+            max_potions,
             bottled_flame_card_instance_id: None,
             bottled_lightning_card_instance_id: None,
             bottled_tornado_card_instance_id: None,
@@ -1769,6 +1787,42 @@ impl StepOutcome {
 struct PendingEventCombat {
     enemies: Vec<String>,
     on_win: crate::events::EventProgram,
+    /// Rewards inserted into the EventRoom before combat begins. Mysterious
+    /// Sphere owns its gold and rare relic this way, then the shared room
+    /// victory path appends the ordinary event-combat potion/card rewards.
+    #[serde(default)]
+    precombat_rewards: Vec<RewardItem>,
+    #[serde(default)]
+    append_event_combat_rewards: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+enum MysteriousSphereScreen {
+    Intro,
+    PreCombat,
+    End,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct MysteriousSphereState {
+    screen: MysteriousSphereScreen,
+    /// MysteriousSphere's constructor installs the two Orb Walkers before the
+    /// first dialog click, so their HP rolls already belong to the event-entry
+    /// checkpoint and must not be repeated when combat starts.
+    enemies: Vec<EnemyCombatState>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+enum WindingHallsScreen {
+    Intro,
+    Choice,
+    End,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct WindingHallsState {
+    screen: WindingHallsScreen,
+    choices: Vec<crate::events::TypedEventOption>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -1995,6 +2049,8 @@ pub struct RunEngine {
     floor_rngs: crate::seed::FloorRngs,
     ambient_math_rng: crate::seed::AmbientMathRng,
     java_collections_rng: crate::seed::JavaCollectionsRng,
+    /// Java's process-global `TheBombPower.bombIdOffset`.
+    the_bomb_id_offset: i32,
     neow_rng: crate::seed::StsRandom,
     map_rng: crate::seed::StsRandom,
     card_pools: CardPools,
@@ -2033,6 +2089,8 @@ pub struct RunEngine {
     pending_event_combat: Option<PendingEventCombat>,
 
     // Dynamic event runtime sidecars for stateful event flows.
+    mysterious_sphere_state: Option<MysteriousSphereState>,
+    winding_halls_state: Option<WindingHallsState>,
     match_and_keep_state: Option<MatchAndKeepState>,
     scrap_ooze_state: Option<ScrapOozeState>,
     spire_heart_state: Option<SpireHeartState>,
@@ -2161,6 +2219,19 @@ impl RunEngine {
         self.java_collections_rng.restore_state(state);
         if let Some(combat) = self.combat_engine.as_mut() {
             combat.restore_java_collections_rng_state(state);
+        }
+    }
+
+    pub fn the_bomb_id_offset(&self) -> i32 {
+        self.combat_engine
+            .as_ref()
+            .map_or(self.the_bomb_id_offset, CombatEngine::the_bomb_id_offset)
+    }
+
+    pub fn restore_the_bomb_id_offset(&mut self, value: i32) {
+        self.the_bomb_id_offset = value;
+        if let Some(combat) = self.combat_engine.as_mut() {
+            combat.restore_the_bomb_id_offset(value);
         }
     }
 
@@ -2393,6 +2464,7 @@ impl RunEngine {
             floor_rngs,
             ambient_math_rng: crate::seed::AmbientMathRng::new(ambient_seed),
             java_collections_rng: crate::seed::JavaCollectionsRng::deterministic_default(),
+            the_bomb_id_offset: 0,
             neow_rng: crate::seed::StsRandom::new(seed),
             map_rng,
             card_pools,
@@ -2416,6 +2488,8 @@ impl RunEngine {
             decision_stack: DecisionStack::new(),
             current_event: None,
             pending_event_combat: None,
+            mysterious_sphere_state: None,
+            winding_halls_state: None,
             match_and_keep_state: None,
             scrap_ooze_state: None,
             spire_heart_state: None,
@@ -2446,9 +2520,11 @@ impl RunEngine {
         let profile = self.profile.clone();
         let ambient_math_state = self.ambient_math_rng_state();
         let java_collections_state = self.java_collections_rng_state();
+        let the_bomb_id_offset = self.the_bomb_id_offset();
         *self = Self::new_with_profile(seed, ascension, profile);
         self.restore_ambient_math_rng_state(ambient_math_state);
         self.restore_java_collections_rng_state(java_collections_state);
+        self.restore_the_bomb_id_offset(the_bomb_id_offset);
     }
 
     /// Immutable inputs supplied when this simulation root was created.
@@ -2530,6 +2606,12 @@ impl RunEngine {
             RunContinuation::ActThreeSecondBoss => {
                 self.run_state.floor += 1;
                 self.reset_floor_rngs();
+                // ProceedButton installs a fresh MonsterRoomBoss and routes it
+                // through nextRoomTransition. Relic onEnterRoom callbacks run
+                // after the floor RNG reset and before the room is entered.
+                // Java: AbstractDungeon.java::nextRoomTransition and
+                // ProceedButton.java::goToDoubleBoss.
+                self.apply_on_enter_room_relics(RoomType::Boss);
                 self.boss_id = self
                     .boss_sequence
                     .front()
@@ -2540,6 +2622,11 @@ impl RunEngine {
             RunContinuation::SpireHeart => {
                 self.run_state.floor += 1;
                 self.reset_floor_rngs();
+                // VictoryRoom extends AbstractRoom (not EventRoom), so only
+                // room-agnostic callbacks such as Maw Bank apply here.
+                // Java: ProceedButton.java::goToVictoryRoomOrTheDoor and
+                // AbstractDungeon.java::nextRoomTransition.
+                self.apply_on_enter_room_relics(RoomType::None);
                 self.enter_spire_heart_event();
             }
             RunContinuation::NextAct => self.transition_to_next_act(),
@@ -2551,6 +2638,12 @@ impl RunEngine {
                 self.run_state.map_y = 4;
                 self.run_state.floor += 1;
                 self.reset_floor_rngs();
+                // TrueVictoryRoom is also entered through nextRoomTransition.
+                // Preserve functional room-agnostic relic callbacks before
+                // replacing the room with the terminal headless state.
+                // Java: ProceedButton.java::goToTrueVictoryRoom and
+                // AbstractDungeon.java::nextRoomTransition.
+                self.apply_on_enter_room_relics(RoomType::None);
                 self.resolve_terminal_run_victory();
             }
         }
@@ -2599,6 +2692,8 @@ impl RunEngine {
 
         self.current_event = None;
         self.pending_event_combat = None;
+        self.mysterious_sphere_state = None;
+        self.winding_halls_state = None;
         self.match_and_keep_state = None;
         self.scrap_ooze_state = None;
         self.spire_heart_state = None;
@@ -2644,6 +2739,11 @@ impl RunEngine {
         // Java: decompiled/java-src/com/megacrit/cardcrawl/rooms/TreasureRoomBoss.java:57-65
         self.run_state.floor += 1;
         self.reset_floor_rngs();
+        // TreasureRoomBoss is a real nextRoomTransition destination, so relic
+        // onEnterRoom callbacks fire before its boss chest is constructed.
+        // Java: AbstractDungeon.java::nextRoomTransition and
+        // ProceedButton.java::goToTreasureRoom.
+        self.apply_on_enter_room_relics(RoomType::Treasure);
     }
 
     fn build_neow_options(&mut self) -> Vec<NeowChoiceOption> {
@@ -3488,11 +3588,14 @@ impl RunEngine {
                 .collect();
         }
 
-        // MapGenerator does not contain the standard boss. After the top-row
-        // room, Java's map exposes one synthetic boss click at `(-1, 15)`.
-        // Act 4 reaches `(3, 4)` through the Heart room's Proceed button.
-        // Java: decompiled/java-src/com/megacrit/cardcrawl/ui/buttons/ProceedButton.java
-        if self.run_state.act <= 3 && self.run_state.map_y as usize >= self.map.height - 1 {
+        // DungeonMap's boss icon always installs a synthetic `(-1, 15)` boss
+        // room. Standard acts expose it after y=14; The Ending exposes it from
+        // the elite at (3,2), despite its visual map containing a (3,3) node.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/map/DungeonMap.java::update
+        let standard_boss_available =
+            self.run_state.act <= 3 && self.run_state.map_y as usize >= self.map.height - 1;
+        let heart_boss_available = self.run_state.act == 4 && self.run_state.map_y == 2;
+        if standard_boss_available || heart_boss_available {
             return vec![(-1, 15, RoomType::Boss, false)];
         }
 
@@ -3752,7 +3855,10 @@ impl RunEngine {
                 .options
                 .iter()
                 .enumerate()
-                .map(|(i, _)| GameAction::EventChoice(i))
+                .filter_map(|(i, option)| {
+                    matches!(&option.status, EventRuntimeStatus::Supported)
+                        .then_some(GameAction::EventChoice(i))
+                })
                 .collect()
         } else {
             Vec::new()
@@ -3846,6 +3952,84 @@ impl RunEngine {
                 Vec::new()
             },
         }
+    }
+
+    /// Project a combat callback state before the room's later update advances
+    /// to rewards/transition. Legacy Java recordings commit at useCard and
+    /// potion-use call sites, including lethal cards and Smoke Bomb before its
+    /// escape timer; canonical `step_game` still settles to the next decision.
+    ///
+    /// Java: characters/AbstractPlayer.java::useCard and
+    /// rooms/AbstractRoom.java::update.
+    pub(crate) fn project_combat_callback_action(
+        &self,
+        action: &crate::actions::Action,
+    ) -> Option<Self> {
+        if self.phase != RunPhase::Combat {
+            return None;
+        }
+        let mut projected = self.clone();
+        let combat = projected.combat_engine.as_mut()?;
+        let pre_action_enemies = combat.state.enemies.clone();
+        let pen_nib_visible_at_use_card = matches!(action, crate::actions::Action::PlayCard { .. })
+            && combat
+                .state
+                .player
+                .status(crate::status_ids::sid::PEN_NIB_POWER)
+                > 0;
+        combat.clear_event_log();
+        combat.execute_action(action);
+        if pen_nib_visible_at_use_card {
+            // PenNibPower.onUseCard queues RemoveSpecificPowerAction at the
+            // bottom of the action manager. AbstractPlayer.useCard callbacks
+            // therefore still expose the active power after the attack and
+            // lethal damage have resolved; canonical settlement removes it.
+            // Java: PenNibPower.java::onUseCard and
+            // AbstractPlayer.java::useCard.
+            combat
+                .state
+                .player
+                .set_status(crate::status_ids::sid::PEN_NIB_POWER, 1);
+        }
+        let awakened_one_died = combat.state.enemies.iter().any(|enemy| {
+            enemy.entity.is_dead()
+                && matches!(enemy.id.as_str(), "AwakenedOne" | "Awakened One")
+                && enemy.entity.status(crate::status_ids::sid::REBIRTH_PENDING) == 0
+        });
+        let queued_cleanup_owner_died = combat.state.enemies.iter().any(|enemy| {
+            enemy.entity.is_dead()
+                && matches!(
+                    enemy.id.as_str(),
+                    "GremlinLeader"
+                        | "Gremlin Leader"
+                        | "TheCollector"
+                        | "Collector"
+                        | "Reptomancer"
+                        | "AwakenedOne"
+                        | "Awakened One"
+                )
+        });
+        if queued_cleanup_owner_died {
+            // These bosses queue EscapeAction/SuicideAction for their living
+            // minions from `die()`. The legacy useCard callback can observe
+            // the dead owner before those queued cleanup actions execute.
+            // Canonical combat settlement still removes them; only this
+            // callback projection restores the source-order frame.
+            // Java: GremlinLeader/TheCollector/Reptomancer/AwakenedOne.java::die.
+            for (current, before) in combat
+                .state
+                .enemies
+                .iter_mut()
+                .zip(pre_action_enemies.into_iter())
+            {
+                if before.is_alive()
+                    && (before.is_minion() || (awakened_one_died && before.id == "Cultist"))
+                {
+                    *current = before;
+                }
+            }
+        }
+        Some(projected)
     }
 
     fn apply_game_action(&mut self, action: &GameAction) -> bool {
@@ -3998,6 +4182,13 @@ impl RunEngine {
         self.run_state.floor += 1;
         self.reset_floor_rngs();
 
+        // nextRoomTransition calls every relic's onEnterRoom with the map
+        // node's original room before an EventRoom resolves into its concrete
+        // room. Stateful headless callbacks therefore run before room
+        // construction, event eligibility, or combat setup.
+        // Java: AbstractDungeon.java:1737-1789.
+        self.apply_on_enter_room_relics(room_type);
+
         // Enter the room
         match room_type {
             RoomType::Monster => self.enter_combat(false, false),
@@ -4019,9 +4210,9 @@ impl RunEngine {
                 self.phase = RunPhase::MapChoice;
             }
         }
+    }
 
-        // MawBank.java::onEnterRoom triggers for every room, including shops,
-        // until onSpendGold marks the relic used up.
+    fn apply_on_enter_room_relics(&mut self, room_type: RoomType) {
         if self
             .run_state
             .relic_flags
@@ -4029,6 +4220,25 @@ impl RunEngine {
             && self.run_state.relic_flags.counters[crate::relic_flags::counter::MAW_BANK_GOLD] != -2
         {
             self.adjust_run_gold(12);
+        }
+
+        if room_type == RoomType::Event
+            && self
+                .run_state
+                .relic_flags
+                .has(crate::relic_flags::flag::SSSERPENT_HEAD)
+        {
+            self.adjust_run_gold(50);
+        }
+
+        if room_type == RoomType::Rest
+            && self
+                .run_state
+                .relic_flags
+                .has(crate::relic_flags::flag::ETERNAL_FEATHER)
+        {
+            let heal = (self.run_state.deck.len() / 5 * 3) as i32;
+            self.heal_run_player(heal);
         }
     }
 
@@ -4390,13 +4600,22 @@ impl RunEngine {
     }
 
     fn start_specific_combat(&mut self, encounter: Vec<String>, room_type: RoomType) {
+        self.start_specific_combat_with_preconstructed(encounter, room_type, HashMap::new());
+    }
+
+    fn start_specific_combat_with_preconstructed(
+        &mut self,
+        encounter: Vec<String>,
+        room_type: RoomType,
+        mut preconstructed: HashMap<usize, EnemyCombatState>,
+    ) {
         self.active_combat_room_type = Some(room_type);
+        let jaw_worm_horde = encounter.iter().any(|id| id == "Jaw Worm Horde");
 
         // Expand composite encounters. MonsterHelper constructs Gremlin Leader
         // with two independent weighted miscRng gremlins before the Leader.
         // Source: decompiled/java-src/com/megacrit/cardcrawl/helpers/MonsterHelper.java.
         let mut expanded = Vec::new();
-        let mut preconstructed = HashMap::<usize, EnemyCombatState>::new();
         for id in &encounter {
             match id.as_str() {
                 "Jaw Worm" => expanded.push("JawWorm".to_string()),
@@ -4625,7 +4844,7 @@ impl RunEngine {
                         | "GremlinTsundere"
                 )
             }) {
-                enemy.is_minion = true;
+                enemy.set_minion(true);
             }
         }
 
@@ -4637,7 +4856,7 @@ impl RunEngine {
                 .iter_mut()
                 .filter(|enemy| enemy.id != "Reptomancer")
             {
-                enemy.is_minion = true;
+                enemy.set_minion(true);
             }
         }
 
@@ -4665,8 +4884,9 @@ impl RunEngine {
             );
         }
 
-        // Source: reference/extracted/methods/monster/JawWorm.java (constructor).
-        // Ascension is only known here, so patch the fields and opening CHOMP.
+        // Source: reference/extracted/methods/monster/JawWorm.java (constructor
+        // and usePreBattleAction). Ascension and the horde-only hardMode
+        // constructor flag are known only at this run spawn site.
         for enemy in enemy_states.iter_mut().filter(|e| e.id == "JawWorm") {
             let chomp_damage = if self.run_state.ascension >= 2 {
                 12
@@ -4691,6 +4911,18 @@ impl RunEngine {
                 .entity
                 .set_status(crate::status_ids::sid::BLOCK_AMT, bellow_block);
             enemy.set_move(crate::enemies::move_ids::JW_CHOMP, chomp_damage, 1, 0);
+            if jaw_worm_horde {
+                // MonsterHelper constructs all three horde members with
+                // JawWorm(..., true): firstMove is false, and pre-battle queues
+                // Bellow's Strength and block before combat becomes playable.
+                enemy
+                    .entity
+                    .set_status(crate::status_ids::sid::FIRST_MOVE, 0);
+                enemy
+                    .entity
+                    .add_status(crate::status_ids::sid::STRENGTH, strength);
+                enemy.entity.block += bellow_block;
+            }
         }
 
         // Source: reference/extracted/methods/monster/FungiBeast.java.
@@ -4809,7 +5041,12 @@ impl RunEngine {
             enemy
                 .entity
                 .set_status(crate::status_ids::sid::BLOCK_AMT, dexterity_down);
-            enemy.set_move(crate::enemies::move_ids::BEAR_HUG, 0, 0, 0);
+            enemy.set_move_with_intent(
+                crate::enemies::move_ids::BEAR_HUG,
+                crate::combat_types::Intent::StrongDebuff {
+                    effects: crate::combat_types::fx::DEX_DOWN,
+                },
+            );
             enemy.move_effects.clear();
             enemy.add_effect(crate::combat_types::mfx::DEX_DOWN, dexterity_down as i16);
         }
@@ -5210,6 +5447,15 @@ impl RunEngine {
                     34
                 },
             );
+            // SurroundedPower is applied before either Artifact action and
+            // immediately inserts BackAttack on the Shield.
+            // Java: SpireShield.java::usePreBattleAction and
+            // SurroundedPower.java::onInitialApplication.
+            // The compact enemy factory carries the settled A0 Artifact
+            // amount, so remove that placeholder before replaying application
+            // order at the run combat-entry boundary.
+            enemy.entity.set_status(crate::status_ids::sid::ARTIFACT, 0);
+            enemy.set_back_attack(true);
             enemy.entity.set_status(
                 crate::status_ids::sid::ARTIFACT,
                 if self.run_state.ascension >= 18 { 2 } else { 1 },
@@ -5221,7 +5467,6 @@ impl RunEngine {
             enemy
                 .entity
                 .set_status(crate::status_ids::sid::MOVE_COUNT, 0);
-            enemy.back_attack = true;
         }
         // Source: reference/extracted/methods/monster/SpireSpear.java
         // (constructor and `usePreBattleAction`). Burn Strike and Skewer change
@@ -5258,7 +5503,7 @@ impl RunEngine {
                 .iter_mut()
                 .filter(|enemy| matches!(enemy.id.as_str(), "SpireSpear" | "Spire Spear"))
             {
-                enemy.back_attack = false;
+                enemy.set_back_attack(false);
             }
         }
 
@@ -5306,7 +5551,14 @@ impl RunEngine {
                 crate::status_ids::sid::HIGH_ASCENSION_AI,
                 if self.run_state.ascension >= 19 { 1 } else { 0 },
             );
-            enemy.set_move(crate::enemies::move_ids::DECA_BEAM, beam, 2, 0);
+            enemy.set_move_with_intent(
+                crate::enemies::move_ids::DECA_BEAM,
+                crate::combat_types::Intent::AttackDebuff {
+                    damage: beam as i16,
+                    hits: 2,
+                    effects: crate::combat_types::fx::DAZE,
+                },
+            );
             enemy.add_effect(crate::combat_types::mfx::DAZE, 2);
         }
 
@@ -5660,7 +5912,10 @@ impl RunEngine {
             enemy
                 .entity
                 .set_status(crate::status_ids::sid::BLOCK_AMT, weak);
-            enemy.set_move(crate::enemies::move_ids::BANDIT_MOCK, 0, 0, 0);
+            enemy.set_move_with_intent(
+                crate::enemies::move_ids::BANDIT_MOCK,
+                crate::combat_types::Intent::Unknown,
+            );
         }
 
         // Source: reference/extracted/methods/monster/BookOfStabbing.java.
@@ -5685,7 +5940,7 @@ impl RunEngine {
             );
             enemy
                 .entity
-                .set_status(crate::status_ids::sid::STAB_COUNT, 0);
+                .set_status(crate::status_ids::sid::STAB_COUNT, 1);
             enemy
                 .entity
                 .set_status(crate::status_ids::sid::PAINFUL_STABS, 1);
@@ -5789,7 +6044,14 @@ impl RunEngine {
                     0
                 },
             );
-            enemy.set_move(crate::enemies::move_ids::AS_CORROSIVE_SPIT, wound, 1, 0);
+            enemy.set_move_with_intent(
+                crate::enemies::move_ids::AS_CORROSIVE_SPIT,
+                crate::combat_types::Intent::AttackDebuff {
+                    damage: wound as i16,
+                    hits: 1,
+                    effects: crate::combat_types::fx::SLIMED,
+                },
+            );
             enemy.add_effect(crate::combat_types::mfx::SLIMED, 1);
         }
 
@@ -5814,7 +6076,14 @@ impl RunEngine {
                     0
                 },
             );
-            enemy.set_move(crate::enemies::move_ids::AS_CORROSIVE_SPIT, wound, 1, 0);
+            enemy.set_move_with_intent(
+                crate::enemies::move_ids::AS_CORROSIVE_SPIT,
+                crate::combat_types::Intent::AttackDebuff {
+                    damage: wound as i16,
+                    hits: 1,
+                    effects: crate::combat_types::fx::SLIMED,
+                },
+            );
             enemy.add_effect(crate::combat_types::mfx::SLIMED, 2);
         }
 
@@ -5841,7 +6110,14 @@ impl RunEngine {
                     0
                 },
             );
-            enemy.set_move(crate::enemies::move_ids::SS_TACKLE, damage, 1, 0);
+            enemy.set_move_with_intent(
+                crate::enemies::move_ids::SS_TACKLE,
+                crate::combat_types::Intent::AttackDebuff {
+                    damage: damage as i16,
+                    hits: 1,
+                    effects: crate::combat_types::fx::SLIMED,
+                },
+            );
             enemy.add_effect(crate::combat_types::mfx::SLIMED, 1);
         }
 
@@ -5867,7 +6143,14 @@ impl RunEngine {
                     0
                 },
             );
-            enemy.set_move(crate::enemies::move_ids::SS_TACKLE, damage, 1, 0);
+            enemy.set_move_with_intent(
+                crate::enemies::move_ids::SS_TACKLE,
+                crate::combat_types::Intent::AttackDebuff {
+                    damage: damage as i16,
+                    hits: 1,
+                    effects: crate::combat_types::fx::SLIMED,
+                },
+            );
             enemy.add_effect(crate::combat_types::mfx::SLIMED, 2);
         }
 
@@ -5889,6 +6172,14 @@ impl RunEngine {
                 .set_status(crate::status_ids::sid::BLOCK_AMT, 6);
             enemy.entity.set_status(
                 crate::status_ids::sid::TURN_COUNT,
+                if self.run_state.ascension >= 17 {
+                    20
+                } else {
+                    15
+                },
+            );
+            enemy.entity.set_status(
+                crate::status_ids::sid::THIEVERY,
                 if self.run_state.ascension >= 17 {
                     20
                 } else {
@@ -5928,6 +6219,14 @@ impl RunEngine {
                     15
                 },
             );
+            enemy.entity.set_status(
+                crate::status_ids::sid::THIEVERY,
+                if self.run_state.ascension >= 17 {
+                    20
+                } else {
+                    15
+                },
+            );
             enemy
                 .entity
                 .set_status(crate::status_ids::sid::ATTACK_COUNT, 0);
@@ -5948,7 +6247,18 @@ impl RunEngine {
                     0
                 },
             );
-            enemy.set_move(crate::enemies::move_ids::GREMLIN_FAT_SMASH, damage, 1, 0);
+            let mut intent_effects = crate::combat_types::fx::WEAK;
+            if self.run_state.ascension >= 17 {
+                intent_effects |= crate::combat_types::fx::FRAIL;
+            }
+            enemy.set_move_with_intent(
+                crate::enemies::move_ids::GREMLIN_FAT_SMASH,
+                crate::combat_types::Intent::AttackDebuff {
+                    damage: damage as i16,
+                    hits: 1,
+                    effects: intent_effects,
+                },
+            );
             enemy.add_effect(crate::combat_types::mfx::WEAK, 1);
             if self.run_state.ascension >= 17 {
                 enemy.add_effect(crate::combat_types::mfx::FRAIL, 1);
@@ -5996,7 +6306,10 @@ impl RunEngine {
                     0
                 },
             );
-            enemy.set_move(crate::enemies::move_ids::GREMLIN_PROTECT, 0, 0, 0);
+            enemy.set_move_with_intent(
+                crate::enemies::move_ids::GREMLIN_PROTECT,
+                crate::combat_types::Intent::Unknown,
+            );
         }
 
         // Source: reference/extracted/methods/monster/GremlinTsundere.java.
@@ -6018,7 +6331,13 @@ impl RunEngine {
             enemy
                 .entity
                 .set_status(crate::status_ids::sid::BLOCK_AMT, block);
-            enemy.set_move(crate::enemies::move_ids::GREMLIN_TSUNDERE_PROTECT, 0, 0, 0);
+            enemy.set_move_with_intent(
+                crate::enemies::move_ids::GREMLIN_TSUNDERE_PROTECT,
+                crate::combat_types::Intent::Block {
+                    amount: 0,
+                    effects: 0,
+                },
+            );
             enemy.add_effect(crate::combat_types::mfx::BLOCK_RANDOM_OTHER, block as i16);
         }
 
@@ -6027,7 +6346,7 @@ impl RunEngine {
         // SummonGremlinAction construction; the Leader's Stab is always 6x3.
         let alive_gremlins = enemy_states
             .iter()
-            .filter(|enemy| enemy.is_minion && enemy.is_alive())
+            .filter(|enemy| enemy.is_minion() && enemy.is_alive())
             .count() as i32;
         for enemy in enemy_states
             .iter_mut()
@@ -6172,7 +6491,10 @@ impl RunEngine {
                 enemy
                     .entity
                     .set_status(crate::status_ids::sid::METALLICIZE, 0);
-                enemy.set_move(crate::enemies::move_ids::LAGA_SIPHON, 0, 0, 0);
+                enemy.set_move_with_intent(
+                    crate::enemies::move_ids::LAGA_SIPHON,
+                    crate::combat_types::Intent::StrongDebuff { effects: 0 },
+                );
             } else {
                 enemy.entity.block = 8;
                 enemy
@@ -6187,7 +6509,10 @@ impl RunEngine {
                 enemy
                     .entity
                     .set_status(crate::status_ids::sid::METALLICIZE, 8);
-                enemy.set_move(crate::enemies::move_ids::LAGA_SLEEP, 0, 0, 0);
+                enemy.set_move_with_intent(
+                    crate::enemies::move_ids::LAGA_SLEEP,
+                    crate::combat_types::Intent::Sleep,
+                );
             }
         }
 
@@ -6209,7 +6534,12 @@ impl RunEngine {
                 crate::enemies::move_ids::SENTRY_BOLT,
             );
             enemy.entity.set_status(crate::status_ids::sid::ARTIFACT, 1);
-            enemy.set_move(crate::enemies::move_ids::SENTRY_BOLT, 0, 0, 0);
+            enemy.set_move_with_intent(
+                crate::enemies::move_ids::SENTRY_BOLT,
+                crate::combat_types::Intent::Debuff {
+                    effects: crate::combat_types::fx::DAZE,
+                },
+            );
             enemy.add_effect(crate::combat_types::mfx::DAZE, daze as i16);
         }
 
@@ -6297,7 +6627,12 @@ impl RunEngine {
                 crate::status_ids::sid::STR_AMT,
                 if self.run_state.ascension >= 19 { 5 } else { 3 },
             );
-            enemy.set_move(crate::enemies::move_ids::SB_STICKY, 0, 0, 0);
+            enemy.set_move_with_intent(
+                crate::enemies::move_ids::SB_STICKY,
+                crate::combat_types::Intent::StrongDebuff {
+                    effects: crate::combat_types::fx::SLIMED,
+                },
+            );
             enemy.add_effect(
                 crate::combat_types::mfx::SLIMED,
                 if self.run_state.ascension >= 19 { 5 } else { 3 },
@@ -6483,6 +6818,19 @@ impl RunEngine {
             deck_instances,
             combat_energy,
         );
+        if combat_state
+            .enemies
+            .iter()
+            .any(|enemy| matches!(enemy.id.as_str(), "SpireShield" | "Spire Shield"))
+            && combat_state
+                .enemies
+                .iter()
+                .any(|enemy| matches!(enemy.id.as_str(), "SpireSpear" | "Spire Spear"))
+        {
+            combat_state
+                .player
+                .set_status(crate::status_ids::sid::SURROUNDED_POWER, 1);
+        }
         if self
             .run_state
             .relic_flags
@@ -6545,6 +6893,7 @@ impl RunEngine {
                 self.java_collections_rng.clone(),
             ),
         );
+        engine.restore_the_bomb_id_offset(self.the_bomb_id_offset);
         engine.load_persisted_effects(self.run_state.persisted_effect_states.clone());
         engine.start_combat();
 
@@ -7151,6 +7500,14 @@ impl RunEngine {
 
         engine.clear_event_log();
         engine.execute_action(&combat_action);
+        if escaped_with_smoke_bomb && engine.is_combat_over() {
+            // AbstractPlayer.updateEscapeAnimation calls room.endBattle after
+            // the timer, and AbstractRoom.endBattle invokes player.onVictory
+            // even for a smoked room.
+            // Java: AbstractPlayer.java::updateEscapeAnimation and
+            // AbstractRoom.java::endBattle.
+            engine.apply_player_on_victory();
+        }
         // cardRng and potionRng remain persistent; the other five streams are
         // floor-owned. Return the complete combat snapshot atomically.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java:397,422,1737-1741
@@ -7159,6 +7516,7 @@ impl RunEngine {
             combat_rngs.absorb_into(&mut self.persistent_rngs, &mut self.floor_rngs);
         self.ambient_math_rng = ambient_math_rng;
         self.java_collections_rng = java_collections_rng;
+        self.the_bomb_id_offset = engine.the_bomb_id_offset();
         self.run_state.gold = engine.state.run_gold;
 
         if engine.is_combat_over() {
@@ -7168,9 +7526,13 @@ impl RunEngine {
                 .expect("active combat must retain its resolved room type");
             if escaped_with_smoke_bomb {
                 // SmokeBomb marks the room smoked and the player escaping; it
-                // is neither a victory nor player death and grants no combat
-                // rewards. Persist the live combat state, then return to map.
-                // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/SmokeBomb.java
+                // is neither a victory nor player death. Java still constructs
+                // the room's gold/relic/potion rewards before opening the
+                // smoke-only screen, which consumes their RNG and pool entries;
+                // CombatRewardScreen deliberately never exposes those items.
+                // Persist the live combat state, then return to map.
+                // Java: SmokeBomb.java, AbstractRoom.java::update, and
+                // CombatRewardScreen.java::openCombat(String, boolean).
                 self.run_state.current_hp = engine.state.player.hp;
                 self.run_state.max_hp = engine.state.player.max_hp;
                 self.run_state.potions = engine.state.potions.clone();
@@ -7192,6 +7554,7 @@ impl RunEngine {
                 self.last_combat_events = engine.take_event_log();
                 self.pending_event_combat = None;
                 self.combat_engine = None;
+                self.consume_smoked_combat_rewards(completed_room_type);
                 self.phase = RunPhase::MapChoice;
                 self.refresh_decision_stack();
                 return;
@@ -7234,7 +7597,8 @@ impl RunEngine {
                 self.last_combat_events = engine.take_event_log();
 
                 if let Some(branch) = self.pending_event_combat.take() {
-                    let mut reward_items = Vec::new();
+                    let append_event_combat_rewards = branch.append_event_combat_rewards;
+                    let mut reward_items = branch.precombat_rewards;
                     let mut died = false;
                     let mut run_won = false;
                     let mut next_event = None;
@@ -7290,6 +7654,9 @@ impl RunEngine {
                         self.current_event = None;
                         self.pending_event_combat = None;
                         self.start_final_act();
+                    } else if append_event_combat_rewards {
+                        self.build_event_combat_reward_screen(reward_items);
+                        self.phase = RunPhase::CardReward;
                     } else if !reward_items.is_empty() {
                         self.build_event_reward_screen(reward_items);
                         self.phase = RunPhase::CardReward;
@@ -7370,6 +7737,50 @@ impl RunEngine {
             }
         } else {
             self.last_combat_events = engine.take_event_log();
+        }
+    }
+
+    fn consume_smoked_combat_rewards(&mut self, room_type: RoomType) {
+        // AbstractRoom constructs room-owned rewards before the smoked combat
+        // screen skips setupItemReward. Card rewards are screen-owned and are
+        // therefore not generated at all on this path.
+        let mut pre_potion_reward_count = 0usize;
+        match room_type {
+            RoomType::Monster => {
+                let _ = self.persistent_rngs.treasure.random_int_range(10, 20);
+                pre_potion_reward_count = 1; // hidden gold RewardItem
+            }
+            RoomType::Elite => {
+                let _ = self.persistent_rngs.treasure.random_int_range(25, 35);
+                pre_potion_reward_count = 1; // hidden gold RewardItem
+                let _ = self.roll_reward_relic_id();
+                pre_potion_reward_count += 1;
+                if self
+                    .run_state
+                    .relic_flags
+                    .has(crate::relic_flags::flag::BLACK_STAR)
+                {
+                    let _ = self.roll_noncamp_reward_relic_id();
+                    pre_potion_reward_count += 1;
+                }
+                if self.active_combat_has_emerald_key {
+                    pre_potion_reward_count += 1;
+                }
+            }
+            RoomType::Event => {
+                // EventRoom contributes no default gold or relic before the
+                // shared potion-reward roll.
+            }
+            // SmokeBomb.canUse rejects every boss encounter. Other room types
+            // cannot own a standard combat reward path.
+            RoomType::Boss
+            | RoomType::Rest
+            | RoomType::Shop
+            | RoomType::Treasure
+            | RoomType::None => return,
+        }
+        if self.should_offer_potion_reward(room_type, pre_potion_reward_count) {
+            let _ = self.roll_reward_potion_id();
         }
     }
 
@@ -7527,6 +7938,53 @@ impl RunEngine {
             choices.push(RewardChoice::Card { index, card_id });
         }
         choices
+    }
+
+    fn generate_library_card_choices(&mut self) -> Vec<RewardChoice> {
+        // TheLibrary.java rolls 20 unique cards directly. Each attempt consumes
+        // one rarity draw and one working-pool selection draw; duplicates retry
+        // both. Unlike AbstractDungeon.getRewardCards, this path neither
+        // mutates cardBlizzRandomizer nor performs natural-upgrade rolls.
+        // CardGroup.addToBottom inserts at index zero, reversing generation
+        // order in the displayed grid. Relic preview upgrades happen only
+        // after the base-ID duplicate check.
+        let base_rare = if self
+            .run_state
+            .relics
+            .iter()
+            .any(|relic| relic == "Nloth's Gift")
+        {
+            9
+        } else {
+            3
+        };
+        let mut generated = Vec::<String>::new();
+        while generated.len() < 20 {
+            let roll =
+                self.persistent_rngs.card.random_int(99) + self.run_state.card_blizz_randomizer;
+            let rarity = if roll < base_rare {
+                EventCardRarity::Rare
+            } else if roll < base_rare + 37 {
+                EventCardRarity::Uncommon
+            } else {
+                EventCardRarity::Common
+            };
+            let pool = self.card_pools.working(rarity);
+            let candidate = pool[self.persistent_rngs.card.random_index(pool.len())].clone();
+            if generated.iter().any(|existing| existing == &candidate) {
+                continue;
+            }
+            generated.push(candidate);
+        }
+        generated.reverse();
+        generated
+            .into_iter()
+            .enumerate()
+            .map(|(index, card_id)| RewardChoice::Card {
+                index,
+                card_id: self.upgrade_reward_card_if_needed(&card_id),
+            })
+            .collect()
     }
 
     fn build_dream_catcher_reward_screen(&mut self) {
@@ -8252,6 +8710,7 @@ impl RunEngine {
         let bottled_lightning_card_pick = item_label == "deck_selection_bottled_lightning";
         let bottled_tornado_card_pick = item_label == "deck_selection_bottled_tornado";
         let empty_cage_card_pick = item_label == "deck_selection_empty_cage";
+        let calling_bell_curse_pick = item_label == "calling_bell_curse";
         let neow_deck_card_pick = matches!(
             item_label.as_str(),
             "deck_selection_neow_remove"
@@ -8308,7 +8767,7 @@ impl RunEngine {
                 self.run_state.current_hp += 2;
             }
             (RewardItemKind::Relic, RewardChoice::Named { label, .. }) => {
-                self.pending_relic_followup_source = screen_source;
+                self.pending_relic_followup_source = screen_source.clone();
                 self.add_relic_reward(&label);
             }
             (RewardItemKind::Potion, RewardChoice::Named { label, .. }) => {
@@ -8346,6 +8805,8 @@ impl RunEngine {
             self.build_astrolabe_selection_screen();
         } else if chose_calling_bell && self.pending_calling_bell_rewards {
             self.build_calling_bell_reward_screen();
+        } else if calling_bell_curse_pick && self.pending_calling_bell_rewards {
+            self.build_calling_bell_relic_reward_screen(screen_source);
         } else if chose_tiny_house {
             self.build_tiny_house_reward_screen();
         } else if chose_empty_cage && self.pending_empty_cage_removals > 0 {
@@ -9137,6 +9598,18 @@ impl RunEngine {
                 .iter()
                 .map(|card| (*card).to_string())
                 .collect::<Vec<_>>(),
+            EventCardColor::Purple => {
+                // returnTrulyRandomCardFromAvailable concatenates the mutable
+                // common pool with the *source* uncommon and rare pools. The
+                // source pools were copied through CardGroup.addToBottom and
+                // therefore have reverse working-pool order. This ordering is
+                // causal for miscRng transforms.
+                // Java: AbstractDungeon.java:1006-1035.
+                let mut candidates = self.card_pools.common.clone();
+                candidates.extend(self.card_pools.source_uncommon.iter().cloned());
+                candidates.extend(self.card_pools.source_rare.iter().cloned());
+                candidates
+            }
             _ => {
                 let colors = if self
                     .run_state
@@ -9376,32 +9849,61 @@ impl RunEngine {
     }
 
     fn build_calling_bell_reward_screen(&mut self) {
-        // CallingBell.java opens one mandatory Curse of the Bell confirmation,
-        // then one screenless COMMON, UNCOMMON, and RARE relic reward.
-        let common = self.draw_relic_from_pool(RelicTier::Common, false, false);
-        let uncommon = self.draw_relic_from_pool(RelicTier::Uncommon, false, false);
-        let rare = self.draw_relic_from_pool(RelicTier::Rare, false, false);
+        // CallingBell.java first opens only the mandatory Curse of the Bell
+        // confirmation grid. Its update creates the relic rewards after that
+        // overlay closes, so neither the phantom card reward RNG nor relic-pool
+        // mutation may happen at boss-relic selection time.
         let mut screen = RewardScreen {
             source: self.pending_relic_followup_source.clone(),
             ordered: true,
             active_item: None,
+            items: vec![RewardItem {
+                index: 0,
+                kind: RewardItemKind::CardChoice,
+                state: RewardItemState::Available,
+                label: "calling_bell_curse".to_string(),
+                claimable: true,
+                active: false,
+                skip_allowed: false,
+                skip_label: None,
+                choices: vec![RewardChoice::Card {
+                    index: 0,
+                    card_id: "CurseOfTheBell".to_string(),
+                }],
+            }],
+        };
+        Self::refresh_reward_screen(&mut screen);
+        self.reward_screen = Some(screen);
+    }
+
+    fn build_calling_bell_relic_reward_screen(&mut self, source: RewardScreenSource) {
+        // CallingBell.java then opens one screenless COMMON, UNCOMMON, and
+        // RARE relic reward.
+        // Its update first calls CombatRewardScreen.open(), whose
+        // setupItemReward constructs an ordinary boss card RewardItem, and
+        // only then clears that list before installing the three relics. Those
+        // discarded card choices still consume cardRng and update the blizzard
+        // rarity offset. Java: CallingBell.java::update,
+        // CombatRewardScreen.java::open/setupItemReward, RewardItem::<init>.
+        let discarded_card_count = self.card_reward_choice_count();
+        // Calling Bell is chosen in TreasureRoomBoss, which extends
+        // AbstractRoom directly (not MonsterRoomBoss or TreasureRoom), so the
+        // phantom RewardItem uses ordinary rarity chances.
+        let _discarded_card_reward =
+            self.generate_card_reward_choices(discarded_card_count, CardRewardContext::Standard);
+        let common = self.draw_relic_from_pool(RelicTier::Common, false, false);
+        let uncommon = self.draw_relic_from_pool(RelicTier::Uncommon, false, false);
+        let rare = self.draw_relic_from_pool(RelicTier::Rare, false, false);
+        let mut screen = RewardScreen {
+            source,
+            // CombatRewardScreen remains open after its last RewardItem is
+            // claimed; Java waits for the Proceed button. The three items are
+            // independently clickable, not an auto-closing typed sequence.
+            ordered: false,
+            active_item: None,
             items: vec![
                 RewardItem {
                     index: 0,
-                    kind: RewardItemKind::CardChoice,
-                    state: RewardItemState::Available,
-                    label: "calling_bell_curse".to_string(),
-                    claimable: true,
-                    active: false,
-                    skip_allowed: false,
-                    skip_label: None,
-                    choices: vec![RewardChoice::Card {
-                        index: 0,
-                        card_id: "CurseOfTheBell".to_string(),
-                    }],
-                },
-                RewardItem {
-                    index: 1,
                     kind: RewardItemKind::Relic,
                     state: RewardItemState::Available,
                     label: common,
@@ -9412,7 +9914,7 @@ impl RunEngine {
                     choices: Vec::new(),
                 },
                 RewardItem {
-                    index: 2,
+                    index: 1,
                     kind: RewardItemKind::Relic,
                     state: RewardItemState::Available,
                     label: uncommon,
@@ -9423,7 +9925,7 @@ impl RunEngine {
                     choices: Vec::new(),
                 },
                 RewardItem {
-                    index: 3,
+                    index: 2,
                     kind: RewardItemKind::Relic,
                     state: RewardItemState::Available,
                     label: rare,
@@ -9528,6 +10030,28 @@ impl RunEngine {
         // MagicFlower.java only modifies healing in RoomPhase.COMBAT; all
         // RunEngine healing paths represented here occur outside combat.
         self.run_state.current_hp = (self.run_state.current_hp + amount).min(self.run_state.max_hp);
+    }
+
+    fn apply_run_normal_damage(&mut self, amount: i32) {
+        // Event DamageInfo(NORMAL) still traverses AbstractPlayer.damage's
+        // relic callbacks outside combat. Torii changes a 2..=5 unblocked hit
+        // to one, then Tungsten Rod's onLoseHpLast removes one HP loss.
+        // Java: core/AbstractPlayer.java::damage, relics/Torii.java::onAttacked,
+        // relics/TungstenRod.java::onLoseHpLast.
+        let mut hp_loss = amount.max(0);
+        if self.run_state.relics.iter().any(|relic| relic == "Torii") && (2..=5).contains(&hp_loss)
+        {
+            hp_loss = 1;
+        }
+        if self
+            .run_state
+            .relics
+            .iter()
+            .any(|relic| matches!(relic.as_str(), "TungstenRod" | "Tungsten Rod"))
+        {
+            hp_loss = (hp_loss - 1).max(0);
+        }
+        self.run_state.current_hp = (self.run_state.current_hp - hp_loss).max(0);
     }
 
     fn add_potion_reward(&mut self, potion_id: &str) {
@@ -9761,6 +10285,213 @@ impl RunEngine {
         }
     }
 
+    /// Reconstruct one legacy recorder omission without changing production
+    /// run generation. The old bundles captured the relic the game awarded,
+    /// but not the realized ordered relic pools that causally selected it.
+    /// Preserve pool cardinality by swapping the recorded same-tier identity
+    /// with the pending reward's generated identity. Callers must keep the
+    /// resulting replay explicitly uncertified.
+    pub(crate) fn reconcile_legacy_recorded_relic_reward(
+        &mut self,
+        expected: &str,
+    ) -> Result<Option<String>, String> {
+        if self.reward_screen.as_ref().is_some_and(|screen| {
+            screen.items.iter().any(|item| {
+                item.kind == RewardItemKind::Relic
+                    && item.state == RewardItemState::Available
+                    && item.label == expected
+            })
+        }) {
+            // Multiple-relic screens (Black Star, Calling Bell) are not
+            // ordered agent commitments. If the recorded identity already
+            // exists anywhere, mapping resolves its exact item later and no
+            // pool reconstruction is warranted.
+            return Ok(None);
+        }
+        let item_index = self
+            .reward_screen
+            .as_ref()
+            .ok_or_else(|| "recorded relic claim has no reward screen".to_string())?
+            .items
+            .iter()
+            .position(|item| {
+                item.kind == RewardItemKind::Relic && item.state == RewardItemState::Available
+            })
+            .ok_or_else(|| "recorded relic claim has no available relic reward".to_string())?;
+        let actual = self
+            .reward_screen
+            .as_ref()
+            .and_then(|screen| screen.items.get(item_index))
+            .map(|item| item.label.clone())
+            .ok_or_else(|| "recorded relic reward index became invalid".to_string())?;
+        if actual == expected {
+            return Ok(None);
+        }
+
+        let expected_tier = canonical_relic_pool_tier(expected).ok_or_else(|| {
+            format!("recorded relic {expected:?} is not in a canonical Watcher pool")
+        })?;
+        let actual_tier = canonical_relic_pool_tier(&actual).ok_or_else(|| {
+            format!("generated relic {actual:?} is not in a canonical Watcher pool")
+        })?;
+        if expected_tier != actual_tier {
+            return Err(format!(
+                "recorded relic {expected:?} is {expected_tier:?}, but generated {actual:?} is {actual_tier:?}"
+            ));
+        }
+        let pool = self.relic_pools.pool_mut(expected_tier);
+        let expected_position = pool.iter().position(|id| id == expected).ok_or_else(|| {
+            format!(
+                "recorded relic {expected:?} is absent from the remaining {expected_tier:?} pool"
+            )
+        })?;
+        pool[expected_position] = actual.clone();
+        self.reward_screen
+            .as_mut()
+            .and_then(|screen| screen.items.get_mut(item_index))
+            .expect("validated reward item must remain present")
+            .label = expected.to_string();
+        Ok(Some(actual))
+    }
+
+    /// Diagnostic-only bridge for a legacy bundle that proves Java generated
+    /// a potion reward which the source-normal release path would suppress.
+    /// The adapter must record this as a reconstruction: a missing runtime
+    /// input (or recorder/game instrumentation difference), not production
+    /// simulator behavior.
+    pub(crate) fn reconcile_legacy_missing_potion_reward(
+        &mut self,
+        expected_id: &str,
+        expected_counter: i32,
+    ) -> Result<bool, String> {
+        let screen = self
+            .reward_screen
+            .as_ref()
+            .ok_or_else(|| "recorded potion reward has no reward screen".to_string())?;
+        if screen.items.iter().any(|item| {
+            item.kind == RewardItemKind::Potion && item.state == RewardItemState::Available
+        }) {
+            return Ok(false);
+        }
+
+        let actual_id = self.roll_reward_potion_id();
+        if actual_id != expected_id {
+            return Err(format!(
+                "forced legacy potion roll produced {actual_id:?}, not recorded {expected_id:?}"
+            ));
+        }
+        if self.persistent_rngs.potion.counter != expected_counter {
+            return Err(format!(
+                "forced legacy potion roll reached counter {}, not recorded {expected_counter}",
+                self.persistent_rngs.potion.counter
+            ));
+        }
+        // The normal release path already recorded the failed chance roll and
+        // raised pity by ten. The observed reward proves the corresponding
+        // success branch, which lowers it by ten instead.
+        self.run_state.potion_blizz_randomizer -= 20;
+
+        let insert_at = self
+            .reward_screen
+            .as_ref()
+            .and_then(|screen| {
+                screen
+                    .items
+                    .iter()
+                    .position(|item| item.kind == RewardItemKind::CardChoice)
+            })
+            .unwrap_or_else(|| {
+                self.reward_screen
+                    .as_ref()
+                    .map_or(0, |screen| screen.items.len())
+            });
+        let screen = self
+            .reward_screen
+            .as_mut()
+            .expect("validated reward screen");
+        screen.items.insert(
+            insert_at,
+            RewardItem {
+                index: insert_at,
+                kind: RewardItemKind::Potion,
+                state: RewardItemState::Available,
+                label: expected_id.to_string(),
+                claimable: false,
+                active: false,
+                skip_allowed: true,
+                skip_label: Some("Skip".to_string()),
+                choices: Vec::new(),
+            },
+        );
+        for (index, item) in screen.items.iter_mut().enumerate() {
+            item.index = index;
+        }
+        Self::refresh_reward_screen(screen);
+        Ok(true)
+    }
+
+    /// Diagnostic-only bridge for legacy bundles that omitted the raw state
+    /// of `java.util.Collections`' process-global default `Random`. The exact
+    /// engine phase/order remains source-derived; this may only permute a
+    /// trailing all-Ethereal exhaust suffix when the recording proves the same
+    /// card multiset in a different order. It deliberately does not invent an
+    /// RNG state, so callers must record an uncertified reconstruction.
+    pub(crate) fn reconcile_legacy_ethereal_exhaust_order(
+        &mut self,
+        expected: &[String],
+    ) -> Option<Vec<String>> {
+        let combat = self.combat_engine.as_mut()?;
+        let actual = combat
+            .state
+            .exhaust_pile
+            .iter()
+            .map(|card| combat.card_registry.card_name(card.def_id).to_string())
+            .collect::<Vec<_>>();
+        let first_difference = actual
+            .iter()
+            .zip(expected)
+            .position(|(actual, expected)| actual != expected)?;
+        if actual.len() != expected.len()
+            || actual[..first_difference] != expected[..first_difference]
+        {
+            return None;
+        }
+
+        let mut actual_counts = std::collections::BTreeMap::<&str, usize>::new();
+        let mut expected_counts = std::collections::BTreeMap::<&str, usize>::new();
+        for name in &actual[first_difference..] {
+            *actual_counts.entry(name).or_default() += 1;
+        }
+        for name in &expected[first_difference..] {
+            *expected_counts.entry(name).or_default() += 1;
+        }
+        if actual_counts != expected_counts
+            || combat.state.exhaust_pile[first_difference..]
+                .iter()
+                .any(|card| {
+                    !combat
+                        .card_registry
+                        .card_def_by_id(card.def_id)
+                        .runtime_traits()
+                        .ethereal
+                })
+        {
+            return None;
+        }
+
+        let mut remaining = std::mem::take(&mut combat.state.exhaust_pile);
+        let mut reordered = Vec::with_capacity(remaining.len());
+        for name in expected {
+            let position = remaining
+                .iter()
+                .position(|card| combat.card_registry.card_name(card.def_id) == name)?;
+            reordered.push(remaining.remove(position));
+        }
+        debug_assert!(remaining.is_empty());
+        combat.state.exhaust_pile = reordered;
+        Some(actual)
+    }
+
     fn roll_reward_relic_id(&mut self) -> String {
         let tier = self.roll_relic_tier();
         self.draw_relic_from_pool(tier, false, false)
@@ -9894,6 +10625,8 @@ impl RunEngine {
 
     fn resolve_terminal_run_victory(&mut self) {
         self.current_event = None;
+        self.mysterious_sphere_state = None;
+        self.winding_halls_state = None;
         self.spire_heart_state = None;
         self.pending_event_combat = None;
         self.reward_screen = None;
@@ -9935,7 +10668,15 @@ impl RunEngine {
             .extend(std::iter::repeat_n(ACT4_ELITE_ENCOUNTER.to_string(), 3));
         self.elite_encounter_queue
             .extend(std::iter::repeat_n(ACT4_ELITE_ENCOUNTER.to_string(), 3));
+        // dungeonTransitionSetup clears eventList and shrineList. TheEnding's
+        // empty initializers leave both empty, while specialOneTimeEventList is
+        // process-persistent and survives the transition.
+        // Java: AbstractDungeon.java:2552-2568; TheEnding.java:200-214.
+        self.event_pools.regular.clear();
+        self.event_pools.shrines.clear();
         self.current_event = None;
+        self.mysterious_sphere_state = None;
+        self.winding_halls_state = None;
         self.spire_heart_state = None;
         self.pending_event_combat = None;
         self.reward_screen = None;
@@ -9995,6 +10736,13 @@ impl RunEngine {
             self.run_state.relic_flags.counters[crate::relic_flags::counter::ANCIENT_TEA_SET] = 1;
         }
         self.phase = RunPhase::Campfire;
+        // CampfireUI immediately completes the room when every option is
+        // unusable. Check the campfire set specifically; potion actions do not
+        // keep the campfire screen alive.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/rooms/CampfireUI.java
+        if self.get_campfire_actions().is_empty() {
+            self.phase = RunPhase::MapChoice;
+        }
     }
 
     fn step_campfire(&mut self, action: &GameAction) {
@@ -10760,6 +11508,51 @@ impl RunEngine {
             };
             let damage = (self.run_state.max_hp * percent + 50) / 100;
             event.options[0].text = format!("Enter (upgrade 2 random cards, take {damage} damage)");
+        } else if event.name == "Forgotten Altar" && event.options.len() == 3 {
+            // ForgottenAltar computes hpLoss in its constructor, before the
+            // Shed Blood branch increases max HP by five. Every branch then
+            // calls showProceedScreen and waits for a second Leave click.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/events/city/ForgottenAltar.java
+            let percent = if self.run_state.ascension >= 15 {
+                35
+            } else {
+                25
+            };
+            let hp_loss = (self.run_state.max_hp * percent + 50) / 100;
+            event.options[1].text = format!("Shed blood (gain 5 max HP, take {hp_loss} damage)");
+            event.options[1].program.ops[1] = crate::events::EventProgramOp::hp(-hp_loss);
+
+            let has_golden_idol = self
+                .run_state
+                .relics
+                .iter()
+                .any(|relic| relic == "Golden Idol");
+            if !has_golden_idol {
+                event.options[0].status = EventRuntimeStatus::Blocked {
+                    reason: "requires Golden Idol".to_string(),
+                };
+            } else if self
+                .run_state
+                .relics
+                .iter()
+                .any(|relic| relic == "Bloody Idol")
+            {
+                // Java grants Circlet without removing Golden Idol when the
+                // unique Bloody Idol is already owned.
+                event.options[0].program.ops = vec![
+                    crate::events::EventProgramOp::obtain_relic("Circlet"),
+                    crate::events::EventProgramOp::continue_event(crate::events::TypedEventDef {
+                        name: "Forgotten Altar".to_string(),
+                        options: vec![crate::events::TypedEventOption::supported(
+                            "Leave",
+                            crate::events::EventProgram::from_ops(vec![
+                                crate::events::EventProgramOp::nothing(),
+                            ]),
+                            crate::events::EventEffect::Nothing,
+                        )],
+                    }),
+                ];
+            }
         } else if event.name == "Falling" && event.options.len() == 1 {
             let choice = self.build_falling_choice_event();
             event.options[0].program = crate::events::EventProgram::from_ops(vec![
@@ -10946,9 +11739,9 @@ impl RunEngine {
             {
                 event.options[1].status = EventRuntimeStatus::Supported;
             } else {
-                event.options[1].status = EventRuntimeStatus::Blocked {
-                    reason: "requires Blood Vial".to_string(),
-                };
+                // Vampires.java does not add a disabled Blood Vial button; it
+                // omits the option, so Refuse shifts from index 2 to index 1.
+                event.options.remove(1);
             }
         } else if event.name == "N'loth" && event.options.len() == 3 {
             // Nloth.java copies and shuffles the player's relic list, then
@@ -11428,6 +12221,53 @@ impl RunEngine {
         });
     }
 
+    fn event_nothing_option(text: &str) -> crate::events::TypedEventOption {
+        crate::events::TypedEventOption::supported(
+            text,
+            crate::events::EventProgram::from_ops(vec![crate::events::EventProgramOp::nothing()]),
+            crate::events::EventEffect::Nothing,
+        )
+    }
+
+    fn sync_mysterious_sphere_event(&mut self) {
+        let Some(screen) = self
+            .mysterious_sphere_state
+            .as_ref()
+            .map(|state| state.screen)
+        else {
+            return;
+        };
+        let options = match screen {
+            MysteriousSphereScreen::Intro => vec![
+                Self::event_nothing_option("Open"),
+                Self::event_nothing_option("Leave"),
+            ],
+            MysteriousSphereScreen::PreCombat => {
+                vec![Self::event_nothing_option("Fight")]
+            }
+            MysteriousSphereScreen::End => vec![Self::event_nothing_option("Leave")],
+        };
+        self.current_event = Some(TypedEventDef {
+            name: "Mysterious Sphere".to_string(),
+            options,
+        });
+    }
+
+    fn sync_winding_halls_event(&mut self) {
+        let Some(state) = self.winding_halls_state.as_ref() else {
+            return;
+        };
+        let options = match state.screen {
+            WindingHallsScreen::Intro => vec![Self::event_nothing_option("Continue")],
+            WindingHallsScreen::Choice => state.choices.clone(),
+            WindingHallsScreen::End => vec![Self::event_nothing_option("Leave")],
+        };
+        self.current_event = Some(TypedEventDef {
+            name: "Winding Halls".to_string(),
+            options,
+        });
+    }
+
     fn sync_spire_heart_event(&mut self) {
         let Some(screen) = self.spire_heart_state.map(|state| state.screen) else {
             return;
@@ -11465,11 +12305,38 @@ impl RunEngine {
     }
 
     fn initialize_dynamic_event_state(&mut self) {
+        self.mysterious_sphere_state = None;
+        self.winding_halls_state = None;
         self.match_and_keep_state = None;
         self.scrap_ooze_state = None;
         self.spire_heart_state = None;
         if let Some(event_name) = self.current_event.as_ref().map(|event| event.name.clone()) {
-            if event_name == "Match and Keep!" {
+            if event_name == "Mysterious Sphere" {
+                // MysteriousSphere's constructor installs the encounter in
+                // the EventRoom immediately. OrbWalker constructors consume
+                // both HP rolls now, before the INTRO dialog is advanced.
+                // Java: events/beyond/MysteriousSphere.java::<init>.
+                let enemies = vec![
+                    self.construct_enemy_for_run("Orb Walker"),
+                    self.construct_enemy_for_run("Orb Walker"),
+                ];
+                self.mysterious_sphere_state = Some(MysteriousSphereState {
+                    screen: MysteriousSphereScreen::Intro,
+                    enemies,
+                });
+                self.sync_mysterious_sphere_event();
+            } else if event_name == "Winding Halls" {
+                let choices = self
+                    .current_event
+                    .as_ref()
+                    .map(|event| event.options.clone())
+                    .unwrap_or_default();
+                self.winding_halls_state = Some(WindingHallsState {
+                    screen: WindingHallsScreen::Intro,
+                    choices,
+                });
+                self.sync_winding_halls_event();
+            } else if event_name == "Match and Keep!" {
                 self.match_and_keep_state = Some(MatchAndKeepState {
                     screen: MatchAndKeepScreen::Intro,
                     board: self.build_match_and_keep_board(),
@@ -11494,19 +12361,6 @@ impl RunEngine {
     }
 
     fn enter_mystery_room(&mut self) {
-        if self
-            .run_state
-            .relic_flags
-            .has(crate::relic_flags::flag::SSSERPENT_HEAD)
-        {
-            // SsserpentHead.java::onEnterRoom gains 50 gold whenever the map
-            // room is an EventRoom. This fires before EventRoom.onPlayerEntry
-            // reveals whether the mystery room becomes combat, shop, treasure,
-            // or an event.
-            // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/SsserpentHead.java
-            self.adjust_run_gold(50);
-        }
-
         // EventHelper.java::roll fills a 100-entry table in this order:
         // MONSTER, SHOP, TREASURE, then EVENT. (Elite entries require the
         // Deadly Events modifier, which the standard run engine does not use.)
@@ -11927,6 +12781,191 @@ impl RunEngine {
         self.refresh_decision_stack();
     }
 
+    fn step_mysterious_sphere(&mut self, choice_idx: usize) {
+        let Some(screen) = self
+            .mysterious_sphere_state
+            .as_ref()
+            .map(|state| state.screen)
+        else {
+            return;
+        };
+
+        match screen {
+            MysteriousSphereScreen::Intro => {
+                if choice_idx == 0 {
+                    if let Some(state) = self.mysterious_sphere_state.as_mut() {
+                        state.screen = MysteriousSphereScreen::PreCombat;
+                    }
+                } else {
+                    if let Some(state) = self.mysterious_sphere_state.as_mut() {
+                        state.screen = MysteriousSphereScreen::End;
+                    }
+                }
+                self.sync_mysterious_sphere_event();
+                self.phase = RunPhase::Event;
+            }
+            MysteriousSphereScreen::PreCombat => {
+                if choice_idx != 0 {
+                    self.refresh_decision_stack();
+                    return;
+                }
+
+                // PRE_COMBAT first inserts event-owned gold and a screenless
+                // rare relic, then enters the already-constructed encounter.
+                // AbstractRoom's EventRoom victory path later appends potion
+                // and card rewards, but no ordinary monster-room gold.
+                // Java: events/beyond/MysteriousSphere.java::buttonEffect;
+                // rooms/AbstractRoom.java::update/addPotionToRewards.
+                let gold = if self.profile.is_daily_run {
+                    self.floor_rngs.misc.random_int(50)
+                } else {
+                    self.floor_rngs.misc.random_int_range(45, 55)
+                };
+                let relic = self.roll_rare_screenless_event_relic_id();
+                let precombat_rewards = vec![
+                    RewardItem {
+                        index: 0,
+                        kind: RewardItemKind::Gold,
+                        state: RewardItemState::Available,
+                        label: gold.to_string(),
+                        claimable: false,
+                        active: false,
+                        skip_allowed: false,
+                        skip_label: None,
+                        choices: Vec::new(),
+                    },
+                    RewardItem {
+                        index: 1,
+                        kind: RewardItemKind::Relic,
+                        state: RewardItemState::Available,
+                        label: relic,
+                        claimable: false,
+                        active: false,
+                        skip_allowed: false,
+                        skip_label: None,
+                        choices: Vec::new(),
+                    },
+                ];
+                let state = self
+                    .mysterious_sphere_state
+                    .take()
+                    .expect("validated Mysterious Sphere state");
+                let encounter = state
+                    .enemies
+                    .iter()
+                    .map(|enemy| enemy.id.clone())
+                    .collect::<Vec<_>>();
+                let preconstructed = state
+                    .enemies
+                    .into_iter()
+                    .enumerate()
+                    .collect::<HashMap<_, _>>();
+                self.pending_event_combat = Some(PendingEventCombat {
+                    enemies: encounter.clone(),
+                    on_win: crate::events::EventProgram::from_ops(Vec::new()),
+                    precombat_rewards,
+                    append_event_combat_rewards: true,
+                });
+                self.current_event = None;
+                self.start_specific_combat_with_preconstructed(
+                    encounter,
+                    RoomType::Event,
+                    preconstructed,
+                );
+            }
+            MysteriousSphereScreen::End => {
+                self.current_event = None;
+                self.mysterious_sphere_state = None;
+                self.phase = RunPhase::MapChoice;
+            }
+        }
+        self.refresh_decision_stack();
+    }
+
+    fn step_winding_halls(&mut self, choice_idx: usize) {
+        let Some(screen) = self.winding_halls_state.as_ref().map(|state| state.screen) else {
+            return;
+        };
+        match screen {
+            WindingHallsScreen::Intro => {
+                if let Some(state) = self.winding_halls_state.as_mut() {
+                    state.screen = WindingHallsScreen::Choice;
+                }
+                self.sync_winding_halls_event();
+                self.phase = RunPhase::Event;
+            }
+            WindingHallsScreen::Choice => {
+                let valid_choice = self
+                    .winding_halls_state
+                    .as_ref()
+                    .is_some_and(|state| choice_idx < state.choices.len());
+                if !valid_choice {
+                    self.refresh_decision_stack();
+                    return;
+                }
+                // WindingHalls computes all three constructor amounts with
+                // MathUtils.round. Its Madness/Writhe gains are deferred
+                // ShowCardAndObtainEffects, not selectable reward screens.
+                // Java: events/beyond/WindingHalls.java::<init>/buttonEffect.
+                match choice_idx {
+                    0 => {
+                        let damage = if self.run_state.ascension >= 15 {
+                            (self.run_state.max_hp * 18 + 50) / 100
+                        } else {
+                            // Exact integer form of
+                            // MathUtils.round(maxHealth * 0.125f).
+                            (self.run_state.max_hp + 4) / 8
+                        };
+                        self.apply_run_normal_damage(damage);
+                        if self.run_state.current_hp > 0 {
+                            obtain_master_deck_card_state(
+                                &mut self.run_state,
+                                "Madness".to_string(),
+                            );
+                            obtain_master_deck_card_state(
+                                &mut self.run_state,
+                                "Madness".to_string(),
+                            );
+                        }
+                    }
+                    1 => {
+                        let percent = if self.run_state.ascension >= 15 {
+                            20
+                        } else {
+                            25
+                        };
+                        let heal = (self.run_state.max_hp * percent + 50) / 100;
+                        self.heal_run_player(heal);
+                        obtain_master_deck_card_state(&mut self.run_state, "Writhe".to_string());
+                    }
+                    2 => {
+                        let loss = (self.run_state.max_hp * 5 + 50) / 100;
+                        self.run_state.max_hp = (self.run_state.max_hp - loss).max(1);
+                        self.run_state.current_hp =
+                            self.run_state.current_hp.min(self.run_state.max_hp);
+                    }
+                    _ => unreachable!("validated Winding Halls option"),
+                }
+                if let Some(state) = self.winding_halls_state.as_mut() {
+                    state.screen = WindingHallsScreen::End;
+                }
+                self.sync_winding_halls_event();
+                self.phase = if self.run_state.current_hp <= 0 {
+                    self.run_state.run_over = true;
+                    RunPhase::GameOver
+                } else {
+                    RunPhase::Event
+                };
+            }
+            WindingHallsScreen::End => {
+                self.current_event = None;
+                self.winding_halls_state = None;
+                self.phase = RunPhase::MapChoice;
+            }
+        }
+        self.refresh_decision_stack();
+    }
+
     fn step_event(&mut self, action: &GameAction) {
         let choice_idx = match action {
             GameAction::EventChoice(idx) => *idx,
@@ -11935,6 +12974,12 @@ impl RunEngine {
 
         if self.spire_heart_state.is_some() {
             return self.step_spire_heart(choice_idx);
+        }
+        if self.mysterious_sphere_state.is_some() {
+            return self.step_mysterious_sphere(choice_idx);
+        }
+        if self.winding_halls_state.is_some() {
+            return self.step_winding_halls(choice_idx);
         }
         if self.scrap_ooze_state.is_some() {
             return self.step_scrap_ooze(choice_idx);
@@ -12082,6 +13127,8 @@ impl RunEngine {
                 EventProgramFlow::StartCombat(PendingEventCombat {
                     enemies: enemies.clone(),
                     on_win,
+                    precombat_rewards: Vec::new(),
+                    append_event_combat_rewards: false,
                 })
             }
             EventProgramOp::PrepareCombatBranch {
@@ -12700,6 +13747,19 @@ impl RunEngine {
                     });
                 }
             }
+            EventReward::LibraryCard => {
+                reward_items.push(RewardItem {
+                    index: reward_items.len(),
+                    kind: RewardItemKind::CardChoice,
+                    state: RewardItemState::Available,
+                    label: "event_library_card_reward".to_string(),
+                    claimable: reward_items.is_empty(),
+                    active: false,
+                    skip_allowed: false,
+                    skip_label: None,
+                    choices: self.generate_library_card_choices(),
+                });
+            }
             EventReward::ColorlessCard { count } => {
                 for _ in 0..*count {
                     reward_items.push(RewardItem {
@@ -12816,6 +13876,22 @@ impl RunEngine {
         self.draw_relic_from_pool(RelicTier::Rare, false, false)
     }
 
+    fn roll_rare_screenless_event_relic_id(&mut self) -> String {
+        // AbstractDungeon.returnRandomScreenlessRelic permanently consumes
+        // each rejected pool entry and retries the same tier. Mysterious
+        // Sphere uses this entry point rather than returnRandomRelic.
+        // Java: dungeons/AbstractDungeon.java::returnRandomScreenlessRelic.
+        loop {
+            let relic = self.draw_relic_from_pool(RelicTier::Rare, false, false);
+            if !matches!(
+                relic.as_str(),
+                "Bottled Flame" | "Bottled Lightning" | "Bottled Tornado" | "Whetstone"
+            ) {
+                return relic;
+            }
+        }
+    }
+
     fn roll_cursed_tome_book_id(&mut self) -> String {
         const CURSED_TOME_BOOKS: &[&str] = &["Necronomicon", "Enchiridion", "Nilry's Codex"];
 
@@ -12846,6 +13922,50 @@ impl RunEngine {
         let mut screen = RewardScreen {
             source: RewardScreenSource::Event,
             ordered: true,
+            active_item: None,
+            items,
+        };
+        Self::refresh_reward_screen(&mut screen);
+        self.reward_screen = Some(screen);
+    }
+
+    fn build_event_combat_reward_screen(&mut self, mut items: Vec<RewardItem>) {
+        // EventRoom is neither MonsterRoom nor MonsterRoomElite: it contributes
+        // no default gold/relic in AbstractRoom.update. The room's preinserted
+        // rewards remain first, followed by the shared potion roll and the
+        // CombatRewardScreen card item. Prayer Wheel is MonsterRoom-only.
+        // Java: rooms/AbstractRoom.java::update/dropReward/addPotionToRewards;
+        // events/beyond/MysteriousSphere.java::buttonEffect.
+        if self.should_offer_potion_reward(RoomType::Event, items.len()) {
+            items.push(RewardItem {
+                index: items.len(),
+                kind: RewardItemKind::Potion,
+                state: RewardItemState::Available,
+                label: self.roll_reward_potion_id(),
+                claimable: false,
+                active: false,
+                skip_allowed: true,
+                skip_label: Some("Skip".to_string()),
+                choices: Vec::new(),
+            });
+        }
+        items.push(RewardItem {
+            index: items.len(),
+            kind: RewardItemKind::CardChoice,
+            state: RewardItemState::Available,
+            label: "card_reward".to_string(),
+            claimable: false,
+            active: false,
+            skip_allowed: true,
+            skip_label: Some("Skip".to_string()),
+            choices: self.generate_card_reward_choices(
+                self.card_reward_choice_count(),
+                CardRewardContext::Standard,
+            ),
+        });
+        let mut screen = RewardScreen {
+            source: RewardScreenSource::Combat,
+            ordered: false,
             active_item: None,
             items,
         };
@@ -12914,6 +14034,36 @@ impl RunEngine {
     /// Inspect the current canonical combat state.
     pub fn get_combat_engine(&self) -> Option<&CombatEngine> {
         self.combat_engine.as_ref()
+    }
+
+    /// Advance only the active combat's cardRandom stream to a recorder-proved
+    /// endpoint. This is intentionally crate-private trace-adapter support,
+    /// not a canonical agent action: DiscoveryAction regenerates and discards
+    /// choices on every UI update while its card grid is open, so human click
+    /// latency consumes an otherwise unobservable number of equal-bound rolls.
+    ///
+    /// Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/DiscoveryAction.java
+    pub(crate) fn reconcile_discovery_idle_card_random(
+        &mut self,
+        expected_counter: i32,
+        max_inclusive: i32,
+    ) -> Result<usize, String> {
+        let combat = self
+            .combat_engine
+            .as_mut()
+            .ok_or_else(|| "Discovery RNG reconciliation requires active combat".to_string())?;
+        let actual_counter = combat.card_random_rng.counter;
+        if expected_counter < actual_counter {
+            return Err(format!(
+                "recorded cardRandom counter {expected_counter} precedes canonical Discovery counter {actual_counter}"
+            ));
+        }
+        let rolls = usize::try_from(expected_counter - actual_counter)
+            .map_err(|_| "Discovery RNG reconciliation overflowed".to_string())?;
+        for _ in 0..rolls {
+            combat.card_random_rng.random_int(max_inclusive);
+        }
+        Ok(rolls)
     }
 
     /// RNG stream counters currently tracked by this run, keyed by the
@@ -13049,6 +14199,49 @@ impl RunEngine {
             states.insert("misc".to_string(), combat.misc_rng.state_tuple());
         }
         states
+    }
+
+    /// Canonical post-generation witness consumed by the offline Java bundle
+    /// comparator before action zero. Keeping this projection beside the
+    /// private generation state prevents trace intake from treating arbitrary
+    /// recorder arrays as proof of the pools/queues the simulator generated.
+    pub(crate) fn recording_initialization_witness(&self) -> serde_json::Value {
+        let raw_states = self
+            .rng_state_tuples()
+            .into_iter()
+            .map(|(name, (seed0, seed1, counter))| {
+                (
+                    name,
+                    serde_json::json!({
+                        "seed0": format!("{seed0:016x}"),
+                        "seed1": format!("{seed1:016x}"),
+                        "counter": counter,
+                    }),
+                )
+            })
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let mut rng = serde_json::Map::new();
+        for (stream, counter) in self.rng_counters() {
+            rng.insert(stream, serde_json::json!(counter));
+        }
+        rng.insert(
+            "rawStates".to_string(),
+            serde_json::to_value(raw_states).expect("raw RNG witness must serialize"),
+        );
+
+        serde_json::json!({
+            "rng": rng,
+            "realized_generation": {
+                "card_pools": &self.card_pools,
+                "relic_pools": &self.relic_pools,
+                "event_pools": &self.event_pools,
+                "boss_sequence": &self.boss_sequence,
+                "monster_encounter_queue": &self.monster_encounter_queue,
+                "elite_encounter_queue": &self.elite_encounter_queue,
+                "map": &self.map,
+                "neow_options": &self.neow_options,
+            }
+        })
     }
 
     pub fn current_combat_context(&self) -> Option<CombatContext> {
@@ -13307,6 +14500,8 @@ impl RunEngine {
     #[cfg(test)]
     pub(crate) fn debug_clear_event_state(&mut self) {
         self.current_event = None;
+        self.mysterious_sphere_state = None;
+        self.winding_halls_state = None;
         self.match_and_keep_state = None;
         self.scrap_ooze_state = None;
         self.spire_heart_state = None;
@@ -13358,6 +14553,7 @@ impl RunEngine {
 
     #[cfg(test)]
     pub(crate) fn debug_enter_mystery_room(&mut self) {
+        self.apply_on_enter_room_relics(RoomType::Event);
         self.enter_mystery_room();
         self.refresh_decision_stack();
     }
@@ -13783,6 +14979,26 @@ mod tests {
     }
 
     #[test]
+    fn watcher_transform_uses_working_common_then_reversed_source_pools() {
+        // AbstractDungeon.returnTrulyRandomCardFromAvailable concatenates
+        // commonCardPool, srcUncommonCardPool, and srcRareCardPool in that
+        // exact order before its one inclusive miscRng draw.
+        let mut engine = RunEngine::new(17, 0);
+        let mut oracle_rng = engine.floor_rngs.misc.clone();
+        let mut candidates = engine.card_pools.common.clone();
+        candidates.extend(engine.card_pools.source_uncommon.iter().cloned());
+        candidates.extend(engine.card_pools.source_rare.iter().cloned());
+        candidates.retain(|card| card != "Strike_P");
+        let expected = candidates[oracle_rng.random_index(candidates.len())].clone();
+
+        assert_eq!(
+            engine.transform_card_with_misc("Strike_P", false),
+            Some(expected)
+        );
+        assert_eq!(engine.floor_rngs.misc.counter, oracle_rng.counter);
+    }
+
+    #[test]
     fn watcher_relic_pools_shuffle_once_and_persist() {
         // RelicLibrary supplies 33/30/27/17/21 all-unlocked Watcher entries,
         // then initializeRelicList consumes exactly five randomLong calls in
@@ -13804,6 +15020,31 @@ mod tests {
         assert_eq!(first.relic_pools.rare.len(), 27);
         assert_eq!(first.relic_pools.shop.len(), 17);
         assert_eq!(first.relic_pools.boss.len(), 21);
+    }
+
+    #[test]
+    fn all_unlocked_legacy_seed_keeps_the_base_java_rare_pool_oracle() {
+        // The shipped libGDX RandomXS128 plus JRE 8 Collections.shuffle gives
+        // this third startup seed and rare-pool head for the base-game
+        // RelicLibrary HashMap order. The legacy recording instead observed
+        // Turnip, proving that its missing realized-pool/environment witness
+        // cannot be repaired by changing source-faithful production setup.
+        // Java: AbstractDungeon.java:388-401,1211-1231;
+        // RelicLibrary.java:628-662.
+        let seed = (-5_884_681_071_377_138_867_i64) as u64;
+        let mut relic_rng = crate::seed::StsRandom::new(seed);
+        assert_eq!(
+            relic_rng.random_long_unbounded(),
+            -6_596_923_313_256_120_421
+        );
+        assert_eq!(relic_rng.random_long_unbounded(), 3_543_556_515_660_441_962);
+        assert_eq!(relic_rng.random_long_unbounded(), 2_739_823_420_992_478_113);
+
+        let engine = RunEngine::new_with_profile(seed, 0, ProfileSnapshot::all_unlocked());
+        assert_eq!(
+            engine.relic_pools.rare.first().map(String::as_str),
+            Some("StoneCalendar")
+        );
     }
 
     #[test]
@@ -14001,6 +15242,127 @@ mod tests {
         assert_eq!(engine.persistent_rngs.potion.counter, 3);
     }
 
+    #[test]
+    fn legacy_missing_potion_reconstruction_is_explicit_and_preserves_java_rng() {
+        let mut engine = RunEngine::new(42, 0);
+        engine.persistent_rngs.potion = crate::seed::StsRandom::new(52_510);
+        engine.run_state.potion_blizz_randomizer = 10;
+        engine.debug_set_reward_screen(crate::decision::RewardScreen {
+            source: crate::decision::RewardScreenSource::Combat,
+            ordered: false,
+            active_item: None,
+            items: vec![crate::decision::RewardItem {
+                index: 0,
+                kind: crate::decision::RewardItemKind::CardChoice,
+                state: crate::decision::RewardItemState::Available,
+                label: "card_reward".to_string(),
+                claimable: true,
+                active: false,
+                skip_allowed: true,
+                skip_label: Some("Skip".to_string()),
+                choices: Vec::new(),
+            }],
+        });
+
+        assert!(engine
+            .reconcile_legacy_missing_potion_reward("BottledMiracle", 3)
+            .unwrap());
+        assert_eq!(engine.persistent_rngs.potion.counter, 3);
+        assert_eq!(engine.run_state.potion_blizz_randomizer, -10);
+        let screen = engine.current_reward_screen().unwrap();
+        assert_eq!(
+            screen.items[0].kind,
+            crate::decision::RewardItemKind::Potion
+        );
+        assert_eq!(screen.items[0].label, "BottledMiracle");
+        assert_eq!(
+            screen.items[1].kind,
+            crate::decision::RewardItemKind::CardChoice
+        );
+    }
+
+    #[test]
+    fn legacy_ethereal_order_reconstruction_is_suffix_and_trait_bounded() {
+        let mut engine = RunEngine::new(42, 0);
+        engine.debug_enter_specific_combat(&["JawWorm"]);
+        let registry = crate::cards::global_registry();
+        engine.debug_combat_engine_mut().state.exhaust_pile = ["Purity", "Dazed", "Void"]
+            .into_iter()
+            .map(|id| registry.make_card(id))
+            .collect();
+
+        assert_eq!(
+            engine.reconcile_legacy_ethereal_exhaust_order(&[
+                "Purity".to_string(),
+                "Void".to_string(),
+                "Dazed".to_string(),
+            ]),
+            Some(vec![
+                "Purity".to_string(),
+                "Dazed".to_string(),
+                "Void".to_string(),
+            ])
+        );
+        let reordered = engine
+            .get_combat_engine()
+            .unwrap()
+            .state
+            .exhaust_pile
+            .iter()
+            .map(|card| registry.card_name(card.def_id))
+            .collect::<Vec<_>>();
+        assert_eq!(reordered, ["Purity", "Void", "Dazed"]);
+
+        engine.debug_combat_engine_mut().state.exhaust_pile = ["Strike", "Defend"]
+            .into_iter()
+            .map(|id| registry.make_card(id))
+            .collect();
+        assert_eq!(
+            engine.reconcile_legacy_ethereal_exhaust_order(&[
+                "Defend".to_string(),
+                "Strike".to_string(),
+            ]),
+            None,
+            "a non-Ethereal order mismatch remains a real divergence"
+        );
+    }
+
+    #[test]
+    fn legacy_relic_reconciliation_searches_the_whole_multi_relic_screen() {
+        let mut engine = RunEngine::new(42, 0);
+        engine.debug_set_reward_screen(crate::decision::RewardScreen {
+            source: crate::decision::RewardScreenSource::Combat,
+            ordered: false,
+            active_item: None,
+            items: ["War Paint", "Blood Vial"]
+                .into_iter()
+                .enumerate()
+                .map(|(index, label)| crate::decision::RewardItem {
+                    index,
+                    kind: crate::decision::RewardItemKind::Relic,
+                    state: crate::decision::RewardItemState::Available,
+                    label: label.to_string(),
+                    claimable: true,
+                    active: false,
+                    skip_allowed: false,
+                    skip_label: None,
+                    choices: Vec::new(),
+                })
+                .collect(),
+        });
+
+        assert_eq!(
+            engine
+                .reconcile_legacy_recorded_relic_reward("Blood Vial")
+                .unwrap(),
+            None
+        );
+        assert_eq!(
+            engine.current_reward_screen().unwrap().items[0].label,
+            "War Paint"
+        );
+    }
+
     fn resolve_opening_neow(engine: &mut RunEngine) {
         if engine.current_phase() == RunPhase::Neow {
             let intro = engine.step_game(&GameAction::Proceed);
@@ -14045,7 +15407,7 @@ mod tests {
     #[test]
     fn test_run_engine_creation() {
         let engine = RunEngine::new(42, 20);
-        assert_eq!(engine.run_state.current_hp, 68); // A14+ = 68
+        assert_eq!(engine.run_state.current_hp, 61); // A14+ max 68, A6+ starts at rounded 90%
         assert_eq!(engine.run_state.deck.len(), 11); // 10 base + AscendersBane (A10+)
         assert_eq!(engine.phase, RunPhase::Neow);
         assert_eq!(engine.current_decision_kind(), DecisionKind::Proceed);
@@ -14150,6 +15512,9 @@ mod tests {
         engine.debug_set_typed_event_state(portal);
 
         assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
+        assert_eq!(engine.phase, RunPhase::Event);
+        assert_eq!(engine.run_state.floor, 42);
+        assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
         assert_eq!(engine.phase, RunPhase::Combat);
         assert_eq!(engine.run_state.floor, 43);
 
@@ -14205,6 +15570,26 @@ mod tests {
     }
 
     #[test]
+    fn act_four_elite_routes_through_java_synthetic_heart_boss_node() {
+        // TheEnding renders a boss icon above (3,2), but DungeonMap.update
+        // enters a newly allocated MapRoomNode(-1, 15), not map[3][3].
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/map/DungeonMap.java:71-93.
+        let mut engine = RunEngine::new(73, 0);
+        engine.start_final_act();
+        engine.run_state.map_x = 3;
+        engine.run_state.map_y = 2;
+        engine.run_state.floor = 54;
+        engine.phase = RunPhase::MapChoice;
+
+        let path = &engine.map_decision_context().paths[0];
+        assert_eq!((path.x, path.y, path.room_type.as_str()), (-1, 15, "Boss"));
+        assert!(engine.step_game(&GameAction::ChoosePath(0)).accepted());
+        assert_eq!((engine.run_state.map_x, engine.run_state.map_y), (-1, 15));
+        assert_eq!(engine.run_state.floor, 55);
+        assert_eq!(engine.current_phase(), RunPhase::Combat);
+    }
+
+    #[test]
     fn dream_catcher_overlay_returns_to_the_same_synthetic_boss_click() {
         // CampfireSleepEffect opens Dream Catcher's CardRewardScreen first;
         // closing that overlay returns to the map, not directly to the boss.
@@ -14257,6 +15642,91 @@ mod tests {
         assert_eq!(engine.floor_rngs.shuffle.state_tuple(), expected);
         assert_eq!(engine.floor_rngs.card_random.state_tuple(), expected);
         assert_eq!(engine.floor_rngs.misc.state_tuple(), expected);
+    }
+
+    #[test]
+    fn on_enter_room_gold_and_heal_precede_mystery_event_eligibility() {
+        // nextRoomTransition invokes onEnterRoom before EventRoom resolves and
+        // EventRoom.onPlayerEntry selects an eligible event. Maw Bank's gain
+        // therefore triggers Bloody Idol first, making Knowing Skull eligible
+        // when the player rises from 8 to 13 HP.
+        // Java: AbstractDungeon.java:1737-1790; MawBank.java::onEnterRoom;
+        // BloodyIdol.java::onGainGold; AbstractDungeon.java::getShrine.
+        let mut engine = RunEngine::new(73, 0);
+        resolve_opening_neow(&mut engine);
+        engine.run_state.act = 2;
+        let (x, y, _, _) = engine.available_map_destinations()[0];
+        engine.map.rows[y as usize][x as usize].room_type = RoomType::Event;
+        engine
+            .run_state
+            .relics
+            .extend(["MawBank".to_string(), "Bloody Idol".to_string()]);
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
+        engine.run_state.current_hp = 8;
+        engine.run_state.gold = 0;
+        engine.event_pools.regular.clear();
+        engine.event_pools.shrines.clear();
+        engine.event_pools.one_time_shrines = vec!["Knowing Skull".to_string()];
+        engine.debug_force_event_rolls(&[99]);
+
+        assert!(engine.step_game(&GameAction::ChoosePath(0)).accepted());
+
+        assert_eq!(engine.run_state.gold, 12);
+        assert_eq!(engine.run_state.current_hp, 13);
+        assert_eq!(engine.current_phase(), RunPhase::Event);
+        assert_eq!(
+            engine
+                .current_event
+                .as_ref()
+                .map(|event| event.name.as_str()),
+            Some("Knowing Skull")
+        );
+    }
+
+    #[test]
+    fn synthetic_next_room_transitions_fire_room_entry_relics() {
+        // These off-map destinations all pass through nextRoomTransition just
+        // like an ordinary map edge. MawBank.onEnterRoom is room-agnostic, so
+        // each destination grants 12 gold before its onPlayerEntry callback.
+        // Java: AbstractDungeon.java::nextRoomTransition;
+        // ProceedButton.java::goToTreasureRoom, goToDoubleBoss,
+        // goToVictoryRoomOrTheDoor, and goToTrueVictoryRoom.
+        fn with_maw_bank() -> RunEngine {
+            let mut engine = RunEngine::new(73, 0);
+            engine.run_state.relics.push("MawBank".to_string());
+            engine
+                .run_state
+                .relic_flags
+                .rebuild(&engine.run_state.relics);
+            engine.run_state.gold = 0;
+            engine
+        }
+
+        let mut boss_treasure = with_maw_bank();
+        boss_treasure.enter_boss_treasure_room();
+        assert_eq!(boss_treasure.run_state.gold, 12);
+
+        let mut second_boss = with_maw_bank();
+        second_boss.wait_for_continuation(RunContinuation::ActThreeSecondBoss);
+        second_boss.step_transition(&GameAction::Proceed);
+        assert_eq!(second_boss.run_state.gold, 12);
+        assert_eq!(second_boss.phase, RunPhase::Combat);
+
+        let mut spire_heart = with_maw_bank();
+        spire_heart.wait_for_continuation(RunContinuation::SpireHeart);
+        spire_heart.step_transition(&GameAction::Proceed);
+        assert_eq!(spire_heart.run_state.gold, 12);
+        assert_eq!(spire_heart.phase, RunPhase::Event);
+
+        let mut true_victory = with_maw_bank();
+        true_victory.wait_for_continuation(RunContinuation::TrueVictory);
+        true_victory.step_transition(&GameAction::Proceed);
+        assert_eq!(true_victory.run_state.gold, 12);
+        assert_eq!(true_victory.phase, RunPhase::GameOver);
+        assert!(true_victory.run_state.run_won);
     }
 
     #[test]
@@ -14373,6 +15843,25 @@ mod tests {
         assert_eq!(pools.regular, ACT_THREE_EVENTS);
         assert_eq!(pools.shrines, LATER_ACT_SHRINES);
         assert!(!pools.one_time_shrines.iter().any(|event| event == "Lab"));
+    }
+
+    #[test]
+    fn act_four_clears_regular_and_shrine_pools_but_preserves_one_time_pool() {
+        // dungeonTransitionSetup clears eventList and shrineList before
+        // TheEnding's empty initializers run; specialOneTimeEventList survives.
+        // Java: AbstractDungeon.java:2552-2568; TheEnding.java:200-214.
+        let mut engine = RunEngine::new(42, 0);
+        engine
+            .event_pools
+            .one_time_shrines
+            .retain(|event| event != "Lab");
+        let expected_one_time = engine.event_pools.one_time_shrines.clone();
+
+        engine.start_final_act();
+
+        assert!(engine.event_pools.regular.is_empty());
+        assert!(engine.event_pools.shrines.is_empty());
+        assert_eq!(engine.event_pools.one_time_shrines, expected_one_time);
     }
 
     #[test]
@@ -15065,6 +16554,12 @@ mod tests {
         // Java: decompiled/java-src/com/megacrit/cardcrawl/potions/SmokeBomb.java
         let mut engine = RunEngine::new(42, 20);
         resolve_opening_neow(&mut engine);
+        engine.run_state.relics.push("Burning Blood".to_string());
+        engine
+            .run_state
+            .relic_flags
+            .rebuild(&engine.run_state.relics);
+        engine.run_state.current_hp -= 20;
         let max_before = engine.run_state.max_hp;
         let hp_before = engine.run_state.current_hp;
         engine.run_state.potions[0] = "FruitJuice".to_string();
@@ -15080,6 +16575,22 @@ mod tests {
             potion_idx: 1,
             target_idx: -1,
         });
+        let projected = engine
+            .project_combat_callback_action(match &smoke {
+                GameAction::CombatAction(action) => action,
+                _ => unreachable!(),
+            })
+            .expect("Smoke Bomb has a combat callback frame");
+        let projected_combat = projected
+            .get_combat_engine()
+            .expect("escape timer has not advanced the callback room yet");
+        assert_eq!(projected.current_phase(), RunPhase::Combat);
+        assert!(projected_combat.state.potions[1].is_empty());
+        assert!(projected_combat.state.combat_over);
+
+        let treasure_before = engine.persistent_rngs.treasure.counter;
+        let potion_before = engine.persistent_rngs.potion.counter;
+        let card_before = engine.persistent_rngs.card.counter;
         let result = engine.step_game(&smoke);
 
         assert!(result.accepted());
@@ -15088,7 +16599,17 @@ mod tests {
         assert!(!engine.run_state.run_over);
         assert_eq!(engine.run_state.combats_won, 0);
         assert_eq!(engine.run_state.max_hp, max_before + 5);
-        assert_eq!(engine.run_state.current_hp, hp_before + 5);
+        assert_eq!(
+            engine.run_state.current_hp,
+            hp_before + 5 + 6,
+            "AbstractRoom.endBattle still calls BurningBlood.onVictory after an escape"
+        );
+        assert_eq!(engine.persistent_rngs.treasure.counter, treasure_before + 1);
+        assert!(engine.persistent_rngs.potion.counter > potion_before);
+        assert_eq!(
+            engine.persistent_rngs.card.counter, card_before,
+            "smoked CombatRewardScreen skips setupItemReward card generation"
+        );
         assert!(engine.run_state.potions[0].is_empty());
         assert!(engine.run_state.potions[1].is_empty());
         assert!(engine.combat_engine.is_none());
@@ -15129,6 +16650,20 @@ mod tests {
             assert_eq!(
                 enemy.entity.status(crate::status_ids::sid::BLOCK_AMT),
                 block
+            );
+        }
+
+        let mut horde = RunEngine::new(42, 0);
+        horde.enter_specific_combat(vec!["Jaw Worm Horde".to_string()]);
+        let enemies = &horde.combat_engine.as_ref().unwrap().state.enemies;
+        assert_eq!(enemies.len(), 3);
+        for enemy in enemies {
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::STRENGTH), 3);
+            assert_eq!(enemy.entity.block, 6);
+            assert_eq!(
+                enemy.entity.status(crate::status_ids::sid::FIRST_MOVE),
+                0,
+                "hardMode disables Jaw Worm's forced opening Chomp"
             );
         }
     }
@@ -15314,6 +16849,10 @@ mod tests {
                 combat.state.enemies[0].move_id,
                 crate::enemies::move_ids::BEAR_HUG
             );
+            assert!(matches!(
+                combat.state.enemies[0].intent,
+                crate::combat_types::Intent::StrongDebuff { .. }
+            ));
             assert_eq!(
                 combat.state.enemies[0].effect(crate::combat_types::mfx::DEX_DOWN),
                 Some(dexterity_down as i16)
@@ -15420,6 +16959,10 @@ mod tests {
             assert_eq!(
                 combat.state.enemies[0].move_id,
                 crate::enemies::move_ids::BANDIT_MOCK
+            );
+            assert_eq!(
+                combat.state.enemies[0].intent,
+                crate::combat_types::Intent::Unknown
             );
 
             let hp_before = combat.state.player.hp;
@@ -15979,6 +17522,10 @@ mod tests {
             );
             assert_eq!(enemy.entity.status(crate::status_ids::sid::FIRST_MOVE), 0);
             assert_eq!(enemy.move_id, crate::enemies::move_ids::SNECKO_GLARE);
+            assert!(matches!(
+                enemy.intent,
+                crate::combat_types::Intent::StrongDebuff { .. }
+            ));
             assert_eq!(enemy.effect(crate::combat_types::mfx::CONFUSED), Some(1));
             assert_eq!(combat.ai_rng.counter, 1);
         }
@@ -16270,12 +17817,22 @@ mod tests {
         let mut run = RunEngine::new(42, 19);
         run.enter_specific_combat(vec!["BronzeAutomaton".to_string()]);
         let combat = run.combat_engine.as_mut().unwrap();
+        let automaton_instance_id = combat.state.enemies[0].runtime_instance_id;
         combat.execute_action(&crate::actions::Action::EndTurn);
         assert_eq!(combat.state.enemies.len(), 3);
-        assert!(combat.state.enemies[1].is_minion);
-        assert!(combat.state.enemies[2].is_minion);
         assert_eq!(
-            combat.state.enemies[1]
+            combat
+                .state
+                .enemies
+                .iter()
+                .map(|enemy| enemy.id.as_str())
+                .collect::<Vec<_>>(),
+            ["BronzeOrb", "BronzeAutomaton", "BronzeOrb"]
+        );
+        assert!(combat.state.enemies[0].is_minion());
+        assert!(combat.state.enemies[2].is_minion());
+        assert_eq!(
+            combat.state.enemies[0]
                 .entity
                 .status(crate::status_ids::sid::COUNT),
             0
@@ -16287,7 +17844,11 @@ mod tests {
             1
         );
         assert_eq!(
-            combat.state.enemies[0].move_id,
+            combat.state.enemies[1].runtime_instance_id,
+            automaton_instance_id
+        );
+        assert_eq!(
+            combat.state.enemies[1].move_id,
             crate::enemies::move_ids::BA_FLAIL
         );
         assert_eq!(combat.ai_rng.counter, 4);
@@ -16327,7 +17888,7 @@ mod tests {
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ApplyStasisAction.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/StasisPower.java
         let mut run = RunEngine::new(42, 0);
-        run.enter_specific_combat(vec!["BronzeOrb".to_string()]);
+        run.enter_specific_combat(vec!["BronzeOrb".to_string(), "Cultist".to_string()]);
         let combat = run.combat_engine.as_mut().unwrap();
         combat.state.draw_pile = [
             "Strike",
@@ -16346,6 +17907,12 @@ mod tests {
         let held = combat.state.enemies[0]
             .stasis_card
             .expect("Stasis should hold one card");
+        assert_eq!(
+            combat.state.enemies[0]
+                .entity
+                .status(crate::status_ids::sid::STASIS_POWER),
+            1
+        );
         assert_eq!(combat.card_registry.card_name(held.def_id), "Omniscience");
         assert_eq!(combat.card_random_rng.counter, card_random_before + 1);
         assert!(!combat
@@ -16363,6 +17930,12 @@ mod tests {
             .iter()
             .any(|card| combat.card_registry.card_name(card.def_id) == "Omniscience"));
         assert!(combat.state.enemies[0].stasis_card.is_none());
+        assert_eq!(
+            combat.state.enemies[0]
+                .entity
+                .status(crate::status_ids::sid::STASIS_POWER),
+            0
+        );
     }
 
     #[test]
@@ -16568,7 +18141,14 @@ mod tests {
         let combat = fell_run.combat_engine.as_mut().unwrap();
         combat.state.player.hp = 500;
         combat.state.player.max_hp = 500;
-        combat.state.enemies[0].set_move(crate::enemies::move_ids::SP_FELL, 21, 1, 0);
+        combat.state.enemies[0].set_move_with_intent(
+            crate::enemies::move_ids::SP_FELL,
+            crate::combat_types::Intent::AttackDebuff {
+                damage: 21,
+                hits: 1,
+                effects: crate::combat_types::fx::FRAIL,
+            },
+        );
         combat.state.enemies[0].move_effects.clear();
         combat.state.enemies[0].add_effect(crate::combat_types::mfx::FRAIL, 2);
         crate::combat_hooks::do_enemy_turns(combat);
@@ -17989,8 +19569,19 @@ mod tests {
         assert_eq!(normal.move_id, crate::enemies::move_ids::CHOSEN_POKE);
         crate::enemies::roll_next_move_with_num(&mut normal, 99);
         assert_eq!(normal.move_id, crate::enemies::move_ids::CHOSEN_HEX);
+        assert!(matches!(
+            normal.intent,
+            crate::combat_types::Intent::StrongDebuff { effects: 0 }
+        ));
         crate::enemies::roll_next_move_with_num(&mut normal, 49);
         assert_eq!(normal.move_id, crate::enemies::move_ids::CHOSEN_DEBILITATE);
+        assert!(matches!(
+            normal.intent,
+            crate::combat_types::Intent::AttackDebuff {
+                effects: crate::combat_types::fx::VULNERABLE,
+                ..
+            }
+        ));
         assert_eq!(normal.effect(crate::combat_types::mfx::VULNERABLE), Some(2));
         crate::enemies::roll_next_move_with_num(&mut normal, 39);
         assert_eq!(normal.move_id, crate::enemies::move_ids::CHOSEN_ZAP);
@@ -18004,6 +19595,12 @@ mod tests {
         crate::enemies::roll_next_move_with_num(&mut drain, 99);
         crate::enemies::roll_next_move_with_num(&mut drain, 50);
         assert_eq!(drain.move_id, crate::enemies::move_ids::CHOSEN_DRAIN);
+        assert!(matches!(
+            drain.intent,
+            crate::combat_types::Intent::Debuff {
+                effects: crate::combat_types::fx::WEAK
+            }
+        ));
         assert_eq!(drain.effect(crate::combat_types::mfx::WEAK), Some(3));
         assert_eq!(drain.effect(crate::combat_types::mfx::STRENGTH), Some(3));
         crate::enemies::roll_next_move_with_num(&mut drain, 40);
@@ -18087,6 +19684,10 @@ mod tests {
                 beat
             );
             assert_eq!(enemy.move_id, crate::enemies::move_ids::HEART_DEBILITATE);
+            assert!(matches!(
+                enemy.intent,
+                crate::combat_types::Intent::StrongDebuff { .. }
+            ));
             assert_eq!(enemy.entity.status(crate::status_ids::sid::MOVE_COUNT), 0);
             assert_eq!(
                 combat.ai_rng.counter, 1,
@@ -18215,6 +19816,194 @@ mod tests {
     }
 
     #[test]
+    fn lethal_heart_card_callback_precedes_room_victory_transition() {
+        // AbstractPlayer.useCard is observable while the dead Heart and combat
+        // piles still exist. AbstractRoom.update waits for the endBattleTimer
+        // before rolling hidden boss gold and exposing the next transition.
+        // Java: characters/AbstractPlayer.java::useCard and
+        // rooms/AbstractRoom.java:277-331.
+        let mut run = RunEngine::new(42, 0);
+        run.run_state.act = 4;
+        run.enter_specific_combat(vec!["CorruptHeart".to_string()]);
+        run.active_combat_room_type = Some(RoomType::Boss);
+        let combat = run.combat_engine.as_mut().unwrap();
+        combat.state.enemies[0].entity.hp = 1;
+        combat.state.relics.push("Pen Nib".to_string());
+        combat.rebuild_effect_runtime();
+        combat
+            .state
+            .player
+            .set_status(crate::status_ids::sid::PEN_NIB_COUNTER, 9);
+        combat
+            .state
+            .player
+            .set_status(crate::status_ids::sid::PEN_NIB_POWER, 1);
+        combat.state.hand = crate::tests::support::make_deck(&["Strike"]);
+        combat.state.draw_pile.clear();
+        combat.state.discard_pile.clear();
+        combat.state.energy = 3;
+        let callback = crate::actions::Action::PlayCard {
+            card_idx: 0,
+            target_idx: 0,
+        };
+
+        let projected = run
+            .project_combat_callback_action(&callback)
+            .expect("active combat callback projection");
+        assert_eq!(projected.phase, RunPhase::Combat);
+        assert!(projected.combat_engine.as_ref().unwrap().state.enemies[0]
+            .entity
+            .is_dead());
+        assert_eq!(
+            projected
+                .combat_engine
+                .as_ref()
+                .unwrap()
+                .state
+                .player
+                .status(crate::status_ids::sid::PEN_NIB_POWER),
+            1,
+            "the useCard callback precedes queued Pen Nib power removal"
+        );
+        assert_eq!(projected.floor_rngs.misc.counter, 0);
+
+        assert!(run
+            .step_game(&GameAction::CombatAction(callback))
+            .accepted());
+        assert_eq!(run.phase, RunPhase::Transition);
+        assert!(run.combat_engine.is_none());
+        assert_eq!(run.floor_rngs.misc.counter, 1);
+    }
+
+    #[test]
+    fn lethal_gremlin_leader_callback_precedes_queued_minion_escape() {
+        let mut run = RunEngine::new(42, 0);
+        run.enter_specific_combat(vec!["GremlinLeader".to_string()]);
+        let combat = run.combat_engine.as_mut().unwrap();
+        let leader_idx = combat
+            .state
+            .enemies
+            .iter()
+            .position(|enemy| enemy.id == "GremlinLeader")
+            .unwrap();
+        combat.state.enemies[leader_idx].entity.hp = 1;
+        combat.state.hand = crate::tests::support::make_deck(&["Strike"]);
+        combat.state.draw_pile.clear();
+        combat.state.discard_pile.clear();
+        combat.state.energy = 3;
+        let callback = crate::actions::Action::PlayCard {
+            card_idx: 0,
+            target_idx: leader_idx as i32,
+        };
+
+        let projected = run
+            .project_combat_callback_action(&callback)
+            .expect("active combat callback projection");
+        let projected_combat = projected.combat_engine.as_ref().unwrap();
+        assert!(projected_combat.state.enemies[leader_idx].entity.is_dead());
+        assert!(projected_combat
+            .state
+            .enemies
+            .iter()
+            .enumerate()
+            .filter(|(idx, _)| *idx != leader_idx)
+            .all(|(_, enemy)| enemy.is_minion() && enemy.is_alive()));
+
+        assert!(run
+            .step_game(&GameAction::CombatAction(callback))
+            .accepted());
+        assert_eq!(run.phase, RunPhase::CardReward);
+        assert!(run.combat_engine.is_none());
+    }
+
+    #[test]
+    fn gremlin_leader_minion_death_does_not_call_other_gremlins_death_react() {
+        // Gremlin deathReact changes that gremlin to Escape, but ordinary
+        // monster death does not broadcast deathReact. BanditBear.die is the
+        // concrete Java caller, and the Gremlin Leader encounter contains no
+        // Bandit Bear. Killing one summoned Gremlin therefore leaves its live
+        // sibling's attack intent intact.
+        // Java: BanditBear.java::die and GremlinThief.java::deathReact.
+        let mut run = RunEngine::new(42, 0);
+        run.enter_specific_combat(vec!["GremlinLeader".to_string()]);
+        let combat = run.combat_engine.as_mut().unwrap();
+        let minions = combat
+            .state
+            .enemies
+            .iter()
+            .enumerate()
+            .filter(|(_, enemy)| enemy.is_minion())
+            .map(|(idx, _)| idx)
+            .collect::<Vec<_>>();
+        assert_eq!(minions.len(), 2);
+        let survivor = minions[0];
+        let victim = minions[1];
+        combat.state.enemies[survivor].set_move(crate::enemies::move_ids::GREMLIN_ATTACK, 6, 1, 0);
+
+        assert!(combat.instant_kill_enemy(victim));
+        assert_eq!(
+            combat.state.enemies[survivor].move_id,
+            crate::enemies::move_ids::GREMLIN_ATTACK
+        );
+        assert_ne!(
+            combat.state.enemies[survivor].intent,
+            crate::combat_types::Intent::Escape
+        );
+    }
+
+    #[test]
+    fn lethal_awakened_one_callback_precedes_queued_cultist_escape() {
+        // AwakenedOne.die queues Cultist EscapeActions after the lethal
+        // DamageAction. The recorder's useCard callback therefore observes
+        // the dead final form alongside the still-live Cultists, while
+        // canonical settlement completes the encounter.
+        // Java: reference/extracted/methods/monster/AwakenedOne.java::die.
+        let mut run = RunEngine::new(42, 0);
+        run.enter_specific_combat(vec![
+            "Cultist".to_string(),
+            "Cultist".to_string(),
+            "AwakenedOne".to_string(),
+        ]);
+        let combat = run.combat_engine.as_mut().unwrap();
+        let boss_idx = combat
+            .state
+            .enemies
+            .iter()
+            .position(|enemy| enemy.id == "AwakenedOne")
+            .unwrap();
+        combat.state.enemies[boss_idx]
+            .entity
+            .set_status(crate::status_ids::sid::PHASE, 2);
+        combat.state.enemies[boss_idx].entity.hp = 1;
+        combat.state.hand = crate::tests::support::make_deck(&["Strike"]);
+        combat.state.draw_pile.clear();
+        combat.state.discard_pile.clear();
+        combat.state.energy = 3;
+        let callback = crate::actions::Action::PlayCard {
+            card_idx: 0,
+            target_idx: boss_idx as i32,
+        };
+
+        let projected = run
+            .project_combat_callback_action(&callback)
+            .expect("active combat callback projection");
+        let projected_combat = projected.combat_engine.as_ref().unwrap();
+        assert!(projected_combat.state.enemies[boss_idx].entity.is_dead());
+        assert!(projected_combat
+            .state
+            .enemies
+            .iter()
+            .filter(|enemy| enemy.id == "Cultist")
+            .all(|enemy| enemy.is_alive()));
+
+        assert!(run
+            .step_game(&GameAction::CombatAction(callback))
+            .accepted());
+        assert_ne!(run.phase, RunPhase::Combat);
+        assert!(run.combat_engine.is_none());
+    }
+
+    #[test]
     fn snake_dagger_hp_init_wound_suicide_and_spawn_rng_match_java() {
         // Source: reference/extracted/methods/monster/SnakeDagger.java.
         let mut hp_values = std::collections::HashSet::new();
@@ -18283,8 +20072,8 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["Dagger", "Reptomancer", "Dagger"]
         );
-        assert!(combat.state.enemies[0].is_minion);
-        assert!(combat.state.enemies[2].is_minion);
+        assert!(combat.state.enemies[0].is_minion());
+        assert!(combat.state.enemies[2].is_minion());
         // Keep only the left dagger active so this SnakeDagger test isolates
         // its queued grouped RollMoveAction from Reptomancer's random AI.
         combat.state.enemies[1].move_id = -1;
@@ -18359,8 +20148,8 @@ mod tests {
                 assert_eq!(repto.entity.status(crate::status_ids::sid::FIRST_MOVE), 0);
                 assert_eq!(repto.move_id, crate::enemies::move_ids::REPTO_SPAWN);
                 assert!(matches!(repto.intent, crate::combat_types::Intent::Unknown));
-                assert!(combat.state.enemies[0].is_minion);
-                assert!(combat.state.enemies[2].is_minion);
+                assert!(combat.state.enemies[0].is_minion());
+                assert!(combat.state.enemies[2].is_minion());
                 assert_eq!(combat.ai_rng.counter, 3);
             }
             assert_eq!(hp_values, hp_range.collect());
@@ -18386,13 +20175,14 @@ mod tests {
         );
         assert_eq!(
             combat.state.enemies[2].move_id,
-            crate::enemies::move_ids::SD_EXPLODE
+            crate::enemies::move_ids::SD_WOUND,
+            "new slot-2 Dagger is inserted before the original right Dagger and waits"
         );
         assert_eq!(
             combat.state.enemies[3].move_id,
-            crate::enemies::move_ids::SD_WOUND
+            crate::enemies::move_ids::SD_EXPLODE
         );
-        assert!(combat.state.enemies[3].is_minion);
+        assert!(combat.state.enemies[2].is_minion());
         assert_eq!(
             combat
                 .state
@@ -18416,18 +20206,26 @@ mod tests {
             ai_before + 5,
             "A18 initializes two spawned daggers before Reptomancer rolls"
         );
-        assert!(combat.state.enemies[3..]
-            .iter()
-            .all(|enemy| enemy.id == "Dagger" && enemy.is_minion));
+        assert_eq!(
+            combat
+                .state
+                .enemies
+                .iter()
+                .map(|enemy| enemy.id.as_str())
+                .collect::<Vec<_>>(),
+            ["Dagger", "Dagger", "Reptomancer", "Dagger", "Dagger"]
+        );
+        assert!(combat.state.enemies[0].is_minion());
+        assert!(combat.state.enemies[3].is_minion());
 
         // All four tracked slots are occupied, so another explicit summon
         // creates nothing even though takeTurn still queues a normal roll.
         for (idx, enemy) in combat.state.enemies.iter_mut().enumerate() {
-            if idx != 1 {
+            if idx != 2 {
                 enemy.move_id = -1;
             }
         }
-        combat.state.enemies[1].set_move(crate::enemies::move_ids::REPTO_SPAWN, 0, 0, 0);
+        combat.state.enemies[2].set_move(crate::enemies::move_ids::REPTO_SPAWN, 0, 0, 0);
         let ai_before = combat.ai_rng.counter;
         crate::combat_hooks::do_enemy_turns(combat);
         assert_eq!(combat.state.enemies.len(), 5);
@@ -18435,8 +20233,8 @@ mod tests {
 
         // Source: full Reptomancer.java `die`: every surviving group member
         // receives HideHealthBarAction followed by SuicideAction.
-        let repto_hp = combat.state.enemies[1].entity.hp;
-        combat.deal_damage_to_enemy(1, repto_hp);
+        let repto_hp = combat.state.enemies[2].entity.hp;
+        combat.deal_damage_to_enemy(2, repto_hp);
         assert!(combat
             .state
             .enemies
@@ -18577,6 +20375,7 @@ mod tests {
         let stored_chomp = combat.state.enemies[0]
             .entity
             .status(crate::status_ids::sid::STARTING_DMG);
+        let opening_move = combat.state.enemies[0].move_id;
         combat.state.enemies[0]
             .entity
             .set_status(crate::status_ids::sid::STRENGTH, 5);
@@ -18597,6 +20396,15 @@ mod tests {
         assert_eq!(
             combat.state.enemies[0].move_id,
             crate::enemies::move_ids::DARK_WAIT
+        );
+        assert_eq!(
+            combat.state.enemies[0].intent,
+            crate::combat_types::Intent::Unknown
+        );
+        assert_eq!(
+            combat.state.enemies[0].move_history,
+            [opening_move, crate::enemies::move_ids::DARK_WAIT],
+            "current projection supplies Darkling.damage's second COUNT entry"
         );
         assert!(!combat.state.enemies[0].is_targetable());
         for status in [
@@ -18681,6 +20489,13 @@ mod tests {
                 high_ai
             );
             assert_eq!(deca.move_id, crate::enemies::move_ids::DECA_BEAM);
+            assert!(matches!(
+                deca.intent,
+                crate::combat_types::Intent::AttackDebuff {
+                    effects: crate::combat_types::fx::DAZE,
+                    ..
+                }
+            ));
             assert_eq!((deca.move_damage(), deca.move_hits()), (beam, 2));
             assert_eq!(deca.effect(crate::combat_types::mfx::DAZE), Some(2));
             assert_eq!(combat.ai_rng.counter, 1);
@@ -19018,6 +20833,19 @@ mod tests {
                 initial,
                 crate::enemies::move_ids::AS_S_TACKLE | crate::enemies::move_ids::AS_S_LICK
             ));
+            assert!(match initial {
+                crate::enemies::move_ids::AS_S_TACKLE => matches!(
+                    combat.state.enemies[0].intent,
+                    crate::combat_types::Intent::Attack { .. }
+                ),
+                crate::enemies::move_ids::AS_S_LICK => matches!(
+                    combat.state.enemies[0].intent,
+                    crate::combat_types::Intent::Debuff {
+                        effects: crate::combat_types::fx::WEAK
+                    }
+                ),
+                _ => false,
+            });
             assert_eq!(
                 combat.state.enemies[0]
                     .entity
@@ -19034,6 +20862,19 @@ mod tests {
                 crate::enemies::move_ids::AS_S_TACKLE
             };
             assert_eq!(combat.state.enemies[0].move_id, expected);
+            assert!(match expected {
+                crate::enemies::move_ids::AS_S_TACKLE => matches!(
+                    combat.state.enemies[0].intent,
+                    crate::combat_types::Intent::Attack { .. }
+                ),
+                crate::enemies::move_ids::AS_S_LICK => matches!(
+                    combat.state.enemies[0].intent,
+                    crate::combat_types::Intent::Debuff {
+                        effects: crate::combat_types::fx::WEAK
+                    }
+                ),
+                _ => false,
+            });
             assert_eq!(
                 combat.ai_rng.counter, initial_ticks,
                 "takeTurn directly sets the next move without RollMoveAction"
@@ -19251,7 +21092,14 @@ mod tests {
             let combat = engine.combat_engine.as_mut().unwrap();
             let enemy = &mut combat.state.enemies[0];
             enemy.move_history.clear();
-            enemy.set_move(crate::enemies::move_ids::SS_TACKLE, 8, 1, 0);
+            enemy.set_move_with_intent(
+                crate::enemies::move_ids::SS_TACKLE,
+                crate::combat_types::Intent::AttackDebuff {
+                    damage: 8,
+                    hits: 1,
+                    effects: crate::combat_types::fx::SLIMED,
+                },
+            );
             enemy.move_effects.clear();
             enemy.add_effect(crate::combat_types::mfx::SLIMED, 1);
             combat.ai_rng.counter
@@ -19314,7 +21162,14 @@ mod tests {
             let combat = engine.combat_engine.as_mut().unwrap();
             let enemy = &mut combat.state.enemies[0];
             enemy.move_history.clear();
-            enemy.set_move(crate::enemies::move_ids::SS_TACKLE, 16, 1, 0);
+            enemy.set_move_with_intent(
+                crate::enemies::move_ids::SS_TACKLE,
+                crate::combat_types::Intent::AttackDebuff {
+                    damage: 16,
+                    hits: 1,
+                    effects: crate::combat_types::fx::SLIMED,
+                },
+            );
             enemy.move_effects.clear();
             enemy.add_effect(crate::combat_types::mfx::SLIMED, 2);
             combat.ai_rng.counter
@@ -19397,6 +21252,15 @@ mod tests {
             assert_eq!(
                 enemy.entity.status(crate::status_ids::sid::TURN_COUNT),
                 gold
+            );
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::THIEVERY), gold);
+            assert_eq!(
+                crate::trace::build_post_state(&engine).enemies[0].powers,
+                vec![crate::trace::PowerPostState {
+                    id: "Thievery".to_string(),
+                    amt: gold,
+                }],
+                "Looter.usePreBattleAction applies ThieveryPower after initialization"
             );
             assert_eq!(combat.ai_rng.counter, 1);
         }
@@ -19524,6 +21388,15 @@ mod tests {
             assert_eq!(
                 enemy.entity.status(crate::status_ids::sid::TURN_COUNT),
                 gold
+            );
+            assert_eq!(enemy.entity.status(crate::status_ids::sid::THIEVERY), gold);
+            assert_eq!(
+                crate::trace::build_post_state(&engine).enemies[0].powers,
+                vec![crate::trace::PowerPostState {
+                    id: "Thievery".to_string(),
+                    amt: gold,
+                }],
+                "Mugger.usePreBattleAction applies ThieveryPower after initialization"
             );
             assert_eq!(
                 combat.ai_rng.counter, 1,
@@ -19693,7 +21566,7 @@ mod tests {
             assert_eq!(combat.state.enemies.len(), 3);
             assert!(combat.state.enemies[..2]
                 .iter()
-                .all(|enemy| enemy.is_minion));
+                .all(|enemy| enemy.is_minion()));
             assert!(combat.state.enemies[..2].iter().all(|enemy| matches!(
                 enemy.id.as_str(),
                 "GremlinWarrior"
@@ -19787,16 +21660,16 @@ mod tests {
         let ai_before = combat.ai_rng.counter;
         crate::combat_hooks::do_enemy_turns(combat);
         assert_eq!(combat.state.enemies.len(), 5);
-        let summons = &combat.state.enemies[3..];
+        let summons = [&combat.state.enemies[0], &combat.state.enemies[2]];
         assert!(summons
             .iter()
-            .all(|enemy| enemy.is_minion && enemy.is_alive()));
+            .all(|enemy| enemy.is_minion() && enemy.is_alive()));
         assert!(summons.iter().all(|enemy| matches!(
             enemy.id.as_str(),
             "GremlinWarrior" | "GremlinThief" | "GremlinFat" | "GremlinTsundere" | "GremlinWizard"
         )));
         assert_eq!(
-            combat.state.enemies[2]
+            combat.state.enemies[4]
                 .entity
                 .status(crate::status_ids::sid::COUNT),
             2
@@ -19819,9 +21692,10 @@ mod tests {
     }
 
     #[test]
-    fn gremlin_fat_stats_debuffs_ai_ticks_and_ally_death_escape_match_java() {
-        // Source: reference/extracted/methods/monster/GremlinFat.java and the
-        // full source's `deathReact`/`takeTurn` escape case.
+    fn gremlin_fat_stats_debuffs_ai_ticks_and_ordinary_ally_death_match_java() {
+        // Source: reference/extracted/methods/monster/GremlinFat.java.
+        // `deathReact` is not a generic ally-death callback:
+        // BanditBear.die is its concrete caller.
         let mut low_hp = std::collections::HashSet::new();
         let mut high_hp = std::collections::HashSet::new();
         for seed in 1..=256 {
@@ -19840,6 +21714,10 @@ mod tests {
             let enemy = &combat.state.enemies[0];
             assert_eq!(enemy.move_id, crate::enemies::move_ids::GREMLIN_FAT_SMASH);
             assert_eq!(enemy.move_damage(), damage);
+            assert!(matches!(
+                enemy.intent,
+                crate::combat_types::Intent::AttackDebuff { .. }
+            ));
             assert_eq!(enemy.effect(crate::combat_types::mfx::WEAK), Some(1));
             assert_eq!(
                 enemy.effect(crate::combat_types::mfx::FRAIL),
@@ -19869,17 +21747,16 @@ mod tests {
         combat.deal_damage_to_enemy(1, 1);
         assert_eq!(
             combat.state.enemies[0].move_id,
-            crate::enemies::move_ids::GREMLIN_ESCAPE
+            crate::enemies::move_ids::GREMLIN_FAT_SMASH
         );
-        crate::combat_hooks::do_enemy_turns(combat);
-        assert!(combat.state.enemies[0].is_escaping);
-        assert_eq!(combat.state.enemies[0].entity.hp, 0);
+        assert!(!combat.state.enemies[0].is_escaping);
     }
 
     #[test]
-    fn gremlin_thief_stats_direct_repeat_and_ally_death_escape_match_java() {
-        // Source: reference/extracted/methods/monster/GremlinThief.java and the
-        // full source's `deathReact`/`takeTurn` escape case.
+    fn gremlin_thief_stats_direct_repeat_and_ordinary_ally_death_match_java() {
+        // Source: reference/extracted/methods/monster/GremlinThief.java.
+        // BanditBear.die, not ordinary monster death, is the concrete caller
+        // of `deathReact`.
         let mut low_hp = std::collections::HashSet::new();
         let mut high_hp = std::collections::HashSet::new();
         for seed in 1..=256 {
@@ -19921,17 +21798,15 @@ mod tests {
         combat.deal_damage_to_enemy(1, 1);
         assert_eq!(
             combat.state.enemies[0].move_id,
-            crate::enemies::move_ids::GREMLIN_ESCAPE
+            crate::enemies::move_ids::GREMLIN_ATTACK
         );
-        crate::combat_hooks::do_enemy_turns(combat);
-        assert!(combat.state.enemies[0].is_escaping);
-        assert_eq!(combat.state.enemies[0].entity.hp, 0);
+        assert!(!combat.state.enemies[0].is_escaping);
     }
 
     #[test]
-    fn gremlin_warrior_stats_angry_direct_repeat_and_escape_match_java() {
+    fn gremlin_warrior_stats_angry_direct_repeat_and_ordinary_ally_death_match_java() {
         // Source: reference/extracted/methods/monster/GremlinWarrior.java and
-        // the full source's `deathReact` escape behavior.
+        // BanditBear.java::die, the concrete caller of `deathReact`.
         let mut low_hp = std::collections::HashSet::new();
         let mut high_hp = std::collections::HashSet::new();
         for seed in 1..=256 {
@@ -19987,17 +21862,15 @@ mod tests {
         combat.deal_damage_to_enemy(1, 1);
         assert_eq!(
             combat.state.enemies[0].move_id,
-            crate::enemies::move_ids::GREMLIN_ESCAPE
+            crate::enemies::move_ids::GREMLIN_ATTACK
         );
-        crate::combat_hooks::do_enemy_turns(combat);
-        assert!(combat.state.enemies[0].is_escaping);
-        assert_eq!(combat.state.enemies[0].entity.hp, 0);
+        assert!(!combat.state.enemies[0].is_escaping);
     }
 
     #[test]
-    fn gremlin_wizard_charge_cycle_a17_repeat_and_escape_match_java() {
+    fn gremlin_wizard_charge_cycle_a17_repeat_and_ordinary_ally_death_match_java() {
         // Source: reference/extracted/methods/monster/GremlinWizard.java and
-        // the full source's initial charge and `deathReact` fields.
+        // BanditBear.java::die, the concrete caller of `deathReact`.
         let mut low_hp = std::collections::HashSet::new();
         let mut high_hp = std::collections::HashSet::new();
         for seed in 1..=256 {
@@ -20015,6 +21888,7 @@ mod tests {
             let combat = engine.combat_engine.as_ref().unwrap();
             let enemy = &combat.state.enemies[0];
             assert_eq!(enemy.move_id, crate::enemies::move_ids::GREMLIN_PROTECT);
+            assert_eq!(enemy.intent, crate::combat_types::Intent::Unknown);
             assert_eq!(
                 enemy.entity.status(crate::status_ids::sid::STARTING_DMG),
                 damage
@@ -20079,17 +21953,16 @@ mod tests {
         combat.deal_damage_to_enemy(1, 1);
         assert_eq!(
             combat.state.enemies[0].move_id,
-            crate::enemies::move_ids::GREMLIN_ESCAPE
+            crate::enemies::move_ids::GREMLIN_PROTECT
         );
-        crate::combat_hooks::do_enemy_turns(combat);
-        assert!(combat.state.enemies[0].is_escaping);
-        assert_eq!(combat.state.enemies[0].entity.hp, 0);
+        assert!(!combat.state.enemies[0].is_escaping);
     }
 
     #[test]
-    fn gremlin_tsundere_random_protect_solo_bash_and_escape_match_java() {
+    fn gremlin_tsundere_random_protect_solo_bash_and_ordinary_ally_death_match_java() {
         // Source: reference/extracted/methods/monster/GremlinTsundere.java and
-        // decompiled GainBlockRandomMonsterAction.java.
+        // decompiled GainBlockRandomMonsterAction.java. BanditBear.die is the
+        // concrete caller of the gremlin's `deathReact` method.
         let mut low_hp = std::collections::HashSet::new();
         let mut high_hp = std::collections::HashSet::new();
         for seed in 1..=256 {
@@ -20110,6 +21983,10 @@ mod tests {
                 enemy.move_id,
                 crate::enemies::move_ids::GREMLIN_TSUNDERE_PROTECT
             );
+            assert!(matches!(
+                enemy.intent,
+                crate::combat_types::Intent::Block { .. }
+            ));
             assert_eq!(
                 enemy.entity.status(crate::status_ids::sid::STARTING_DMG),
                 damage
@@ -20174,11 +22051,9 @@ mod tests {
         combat.deal_damage_to_enemy(1, 1);
         assert_eq!(
             combat.state.enemies[0].move_id,
-            crate::enemies::move_ids::GREMLIN_ESCAPE
+            crate::enemies::move_ids::GREMLIN_TSUNDERE_PROTECT
         );
-        crate::combat_hooks::do_enemy_turns(combat);
-        assert!(combat.state.enemies[0].is_escaping);
-        assert_eq!(combat.state.enemies[0].entity.hp, 0);
+        assert!(!combat.state.enemies[0].is_escaping);
     }
 
     #[test]
@@ -20283,6 +22158,7 @@ mod tests {
             let combat = engine.combat_engine.as_ref().unwrap();
             let enemy = &combat.state.enemies[0];
             assert_eq!(enemy.move_id, crate::enemies::move_ids::LAGA_SLEEP);
+            assert_eq!(enemy.intent, crate::combat_types::Intent::Sleep);
             assert_eq!(enemy.entity.block, 8);
             assert_eq!(enemy.entity.status(crate::status_ids::sid::METALLICIZE), 8);
             assert_eq!(
@@ -20408,6 +22284,12 @@ mod tests {
             let enemy = &combat.state.enemies[0];
             assert_eq!(enemy.move_id, crate::enemies::move_ids::SENTRY_BOLT);
             assert_eq!(enemy.move_damage(), 0);
+            assert!(matches!(
+                enemy.intent,
+                crate::combat_types::Intent::Debuff {
+                    effects: crate::combat_types::fx::DAZE
+                }
+            ));
             assert_eq!(
                 enemy.effect(crate::combat_types::mfx::DAZE),
                 Some(daze as i16)
@@ -20935,6 +22817,12 @@ mod tests {
             assert_eq!(enemy.entity.status(crate::status_ids::sid::SLAP_DMG), slam);
             assert_eq!(enemy.entity.status(crate::status_ids::sid::STR_AMT), slimed);
             assert_eq!(enemy.move_id, crate::enemies::move_ids::SB_STICKY);
+            assert!(matches!(
+                enemy.intent,
+                crate::combat_types::Intent::StrongDebuff {
+                    effects: crate::combat_types::fx::SLIMED
+                }
+            ));
             assert_eq!(
                 enemy.effect(crate::combat_types::mfx::SLIMED),
                 Some(slimed as i16)
@@ -20995,6 +22883,20 @@ mod tests {
             combat.state.enemies[0].intent,
             crate::combat_types::Intent::Unknown,
             "SlimeBoss.damage assigns Java's UNKNOWN Split intent"
+        );
+        assert_eq!(
+            combat.state.enemies[0]
+                .move_history
+                .iter()
+                .copied()
+                .chain(std::iter::once(combat.state.enemies[0].move_id))
+                .collect::<Vec<_>>(),
+            vec![
+                crate::enemies::move_ids::SB_STICKY,
+                crate::enemies::move_ids::SB_SPLIT,
+                crate::enemies::move_ids::SB_SPLIT,
+            ],
+            "damage's direct setMove and queued SetMoveAction both append Split in Java"
         );
         assert_eq!(
             combat.state.enemies.len(),
@@ -21141,7 +23043,7 @@ mod tests {
         engine.run_state.current_hp = 10;
         engine.reset(99);
         let fresh = RunEngine::new(99, 20);
-        assert_eq!(engine.run_state.current_hp, 68);
+        assert_eq!(engine.run_state.current_hp, 61);
         assert_eq!(engine.seed, 99);
         assert_eq!(engine.ambient_math_rng_state(), ambient_state);
         assert_eq!(engine.java_collections_rng_state(), collections_state);
@@ -21308,10 +23210,11 @@ mod tests {
             .run_state
             .relic_flags
             .rebuild(&engine.run_state.relics);
-        engine.current_event = crate::events::typed_events_for_act(2)
+        let event = crate::events::typed_events_for_act(2)
             .into_iter()
-            .find(|event| event.name == "Forgotten Altar");
-        engine.phase = RunPhase::Event;
+            .find(|event| event.name == "Forgotten Altar")
+            .expect("Forgotten Altar event");
+        engine.debug_set_typed_event_state(event.clone());
 
         assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
         assert!(!engine
@@ -21320,13 +23223,24 @@ mod tests {
             .iter()
             .any(|relic| relic == "Golden Idol"));
         assert!(engine
-            .step_game(&GameAction::SelectRewardItem(0))
-            .accepted());
-        assert!(engine
             .run_state
             .relics
             .iter()
             .any(|relic| relic == "Bloody Idol"));
+        assert_eq!(engine.current_phase(), RunPhase::Event);
+        assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
+        assert_eq!(engine.current_phase(), RunPhase::MapChoice);
+
+        let mut sacrifice = RunEngine::new(43, 0);
+        sacrifice.run_state.current_hp = 65;
+        sacrifice.run_state.max_hp = 65;
+        sacrifice.debug_set_typed_event_state(event);
+        assert!(sacrifice.step_game(&GameAction::EventChoice(1)).accepted());
+        assert_eq!(sacrifice.run_state.max_hp, 70);
+        assert_eq!(sacrifice.run_state.current_hp, 54);
+        assert_eq!(sacrifice.current_phase(), RunPhase::Event);
+        assert!(sacrifice.step_game(&GameAction::EventChoice(0)).accepted());
+        assert_eq!(sacrifice.current_phase(), RunPhase::MapChoice);
 
         engine.run_state.current_hp = 40;
         let gold = engine.run_state.gold;
@@ -22066,11 +23980,11 @@ mod tests {
         assert_eq!(engine.roll_uncommon_event_relic_id(), "Sundial");
         assert_eq!(engine.persistent_rngs.relic, relic_rng);
 
-        engine.build_calling_bell_reward_screen();
+        engine.build_calling_bell_relic_reward_screen(RewardScreenSource::BossRelic);
         let screen = engine.reward_screen.as_ref().expect("Calling Bell rewards");
-        assert_eq!(screen.items[1].label, "Boot");
-        assert_eq!(screen.items[2].label, "Kunai");
-        assert_eq!(screen.items[3].label, "Mango");
+        assert_eq!(screen.items[0].label, "Boot");
+        assert_eq!(screen.items[1].label, "Kunai");
+        assert_eq!(screen.items[2].label, "Mango");
         assert_eq!(engine.persistent_rngs.relic, relic_rng);
         assert!(engine.relic_pools.common.is_empty());
         assert!(engine.relic_pools.uncommon.is_empty());

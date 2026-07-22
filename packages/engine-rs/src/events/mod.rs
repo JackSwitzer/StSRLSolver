@@ -2,9 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
-mod exordium;
-mod city;
 mod beyond;
+mod city;
+mod exordium;
 mod shrines;
 
 pub(crate) use exordium::{dead_adventurer_event_with_state, DeadAdventurerReward};
@@ -73,22 +73,44 @@ pub enum EventDeckMutation {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EventReward {
-    Gold { amount: i32 },
-    GoldReward { amount: i32 },
-    MaxHp { amount: i32 },
-    Relic { label: String },
-    UniqueRelicOrCirclet { label: String },
-    Potion { count: usize },
-    Card { count: usize },
-    ColorlessCard { count: usize },
+    Gold {
+        amount: i32,
+    },
+    GoldReward {
+        amount: i32,
+    },
+    MaxHp {
+        amount: i32,
+    },
+    Relic {
+        label: String,
+    },
+    UniqueRelicOrCirclet {
+        label: String,
+    },
+    Potion {
+        count: usize,
+    },
+    Card {
+        count: usize,
+    },
+    /// The Library's bespoke 20-unique-card grid.
+    LibraryCard,
+    ColorlessCard {
+        count: usize,
+    },
     StoredNoteCard,
-    SpecificCards { labels: Vec<String> },
+    SpecificCards {
+        labels: Vec<String>,
+    },
     SpecificCardCopiesByAscension {
         label: String,
         base_count: usize,
         asc15_count: usize,
     },
-    Curse { label: String },
+    Curse {
+        label: String,
+    },
     Nothing,
 }
 
@@ -129,12 +151,16 @@ pub enum EventProgramOp {
         city: i32,
         beyond: i32,
     },
-    AdjustHp { amount: i32 },
+    AdjustHp {
+        amount: i32,
+    },
     AdjustHpByAscension {
         base: i32,
         asc15: i32,
     },
-    HealPercentHp { percent: i32 },
+    HealPercentHp {
+        percent: i32,
+    },
     AdjustHpPercentByAscension {
         heal: bool,
         base_percent: i32,
@@ -146,33 +172,62 @@ pub enum EventProgramOp {
         asc15_percent: i32,
     },
     ConsumeMiscLong,
-    ConsumeAmbientIntPerCurrentGold { max_inclusive: i32 },
-    AdjustGold { amount: i32 },
-    AdjustMaxHp { amount: i32 },
-    AdjustMaxHpPercent { percent: i32 },
-    LoseMaxHpPercentCeil { percent: i32 },
+    ConsumeAmbientIntPerCurrentGold {
+        max_inclusive: i32,
+    },
+    AdjustGold {
+        amount: i32,
+    },
+    AdjustMaxHp {
+        amount: i32,
+    },
+    AdjustMaxHpPercent {
+        percent: i32,
+    },
+    LoseMaxHpPercentCeil {
+        percent: i32,
+    },
     AdjustMaxHpPercentByAscension {
         base_percent: i32,
         asc15_percent: i32,
         minimum_loss: i32,
     },
-    DamageAndGold { damage: i32, gold: i32 },
-    LosePercentHp { percent: i32 },
-    ResolveJoustBet { bet_on_owner: bool },
+    DamageAndGold {
+        damage: i32,
+        gold: i32,
+    },
+    LosePercentHp {
+        percent: i32,
+    },
+    ResolveJoustBet {
+        bet_on_owner: bool,
+    },
     ResolveFaceTraderTouch,
     ObtainRandomFace,
     ReplaceStarterStrikes {
         replacement: String,
         count: usize,
     },
-    RemoveRelic { label: String },
-    ObtainRelic { label: String },
+    RemoveRelic {
+        label: String,
+    },
+    ObtainRelic {
+        label: String,
+    },
     DeckMutation(EventDeckMutation),
-    UpgradeRandomCards { count: usize },
-    RemoveDeckCardInstance { instance_id: u32 },
-    RemoveOfferedDeckCardInstance { instance_id: u32 },
+    UpgradeRandomCards {
+        count: usize,
+    },
+    RemoveDeckCardInstance {
+        instance_id: u32,
+    },
+    RemoveOfferedDeckCardInstance {
+        instance_id: u32,
+    },
     RemoveAllRemovableCurses,
-    RemovePotionSlot { slot: usize },
+    RemovePotionSlot {
+        slot: usize,
+    },
     ObtainRandomScreenlessRelic,
     Reward(EventReward),
     Nothing,
@@ -236,10 +291,7 @@ impl EventProgramOp {
 
     pub fn random_outcome_table(outcomes: Vec<Vec<EventProgramOp>>) -> Self {
         Self::RandomOutcomeTable {
-            outcomes: outcomes
-                .into_iter()
-                .map(EventProgram::from_ops)
-                .collect(),
+            outcomes: outcomes.into_iter().map(EventProgram::from_ops).collect(),
         }
     }
 
@@ -312,10 +364,7 @@ impl EventProgramOp {
         Self::HealToFull
     }
 
-    pub fn lose_hp_percent_rounded_by_ascension(
-        base_percent: i32,
-        asc15_percent: i32,
-    ) -> Self {
+    pub fn lose_hp_percent_rounded_by_ascension(base_percent: i32, asc15_percent: i32) -> Self {
         Self::LoseHpPercentRoundedByAscension {
             base_percent,
             asc15_percent,
@@ -434,7 +483,9 @@ impl EventProgramOp {
     }
 
     pub fn gain_relic(label: impl Into<String>) -> Self {
-        Self::Reward(EventReward::Relic { label: label.into() })
+        Self::Reward(EventReward::Relic {
+            label: label.into(),
+        })
     }
 
     pub fn gain_unique_relic_or_circlet(label: impl Into<String>) -> Self {
@@ -463,6 +514,10 @@ impl EventProgramOp {
         Self::Reward(EventReward::Card { count })
     }
 
+    pub fn gain_library_card_reward() -> Self {
+        Self::Reward(EventReward::LibraryCard)
+    }
+
     pub fn gain_colorless_card_reward(count: usize) -> Self {
         Self::Reward(EventReward::ColorlessCard { count })
     }
@@ -486,13 +541,14 @@ impl EventProgramOp {
     }
 
     pub fn curse(label: impl Into<String>) -> Self {
-        Self::Reward(EventReward::Curse { label: label.into() })
+        Self::Reward(EventReward::Curse {
+            label: label.into(),
+        })
     }
 
     pub fn nothing() -> Self {
         Self::Nothing
     }
-
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -604,9 +660,9 @@ impl EventEffect {
             Self::TransformCard => vec![EventProgramOp::transform_card(1)],
             Self::DuplicateCard => vec![EventProgramOp::duplicate_card(1)],
             Self::GainPotion => vec![EventProgramOp::gain_potion(1)],
-            Self::LosePercentHp(percent) => vec![EventProgramOp::LosePercentHp {
-                percent: *percent,
-            }],
+            Self::LosePercentHp(percent) => {
+                vec![EventProgramOp::LosePercentHp { percent: *percent }]
+            }
             Self::GoldAndCurse(amount) => vec![
                 EventProgramOp::AdjustGold { amount: *amount },
                 EventProgramOp::Reward(EventReward::Curse {

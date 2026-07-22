@@ -73,21 +73,19 @@ mod silent_wave4 {
         );
         assert!(calculated_gamble.complex_hook.is_none());
 
-    let concentrate = reg.get("Concentrate").expect("Concentrate");
-    assert_eq!(
-        concentrate.effect_data,
-        &[
-            E::ChooseCards {
+        let concentrate = reg.get("Concentrate").expect("Concentrate");
+        assert_eq!(
+            concentrate.effect_data,
+            &[E::ChooseCards {
                 source: P::Hand,
                 filter: CardFilter::All,
                 action: ChoiceAction::DiscardForEffect,
                 min_picks: A::Magic,
                 max_picks: A::Magic,
                 post_choice_draw: crate::effects::declarative::AmountSource::Fixed(0),
-            }
-        ]
-    );
-    assert!(concentrate.complex_hook.is_none());
+            }]
+        );
+        assert!(concentrate.complex_hook.is_none());
 
         let dash = reg.get("Dash").expect("Dash");
         assert_eq!(dash.card_type, CardType::Attack);
@@ -251,12 +249,7 @@ mod silent_wave4 {
 
     #[test]
     fn silent_wave4_dash_combines_damage_and_block_on_the_engine_path() {
-        let mut engine = engine_for(
-            &["Dash"],
-            &[],
-            vec![enemy("JawWorm", 50, 50, 1, 0, 1)],
-            3,
-        );
+        let mut engine = engine_for(&["Dash"], &[], vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 3);
         let hp_before = engine.state.enemies[0].entity.hp;
         let block_before = engine.state.player.block;
 
@@ -268,12 +261,7 @@ mod silent_wave4 {
 
     #[test]
     fn silent_wave4_defend_and_deflect_grant_their_expected_block_values() {
-        let mut defend = engine_for(
-            &["Defend"],
-            &[],
-            vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
-            3,
-        );
+        let mut defend = engine_for(&["Defend"], &[], vec![enemy("JawWorm", 40, 40, 1, 0, 1)], 3);
         assert!(play_self(&mut defend, "Defend"));
         assert!(defend.state.player.block >= 5);
 
@@ -318,8 +306,16 @@ mod silent_wave4 {
         // second Block even though the last hand card is the drawn Defend.
         let mut full_replay = engine_for(
             &[
-                "Escape Plan", "Strike", "Strike", "Strike", "Strike",
-                "Strike", "Strike", "Strike", "Strike", "Strike",
+                "Escape Plan",
+                "Strike",
+                "Strike",
+                "Strike",
+                "Strike",
+                "Strike",
+                "Strike",
+                "Strike",
+                "Strike",
+                "Strike",
             ],
             &["Defend"],
             vec![enemy("JawWorm", 40, 40, 1, 0, 1)],

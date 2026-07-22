@@ -7,9 +7,12 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/StormOfSteel.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/unique/BladeFuryAction.java
 
-use crate::cards::global_registry;
 use crate::actions::Action;
-use crate::effects::declarative::{AmountSource as A, BulkAction, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE};
+use crate::cards::global_registry;
+use crate::effects::declarative::{
+    AmountSource as A, BulkAction, CardFilter, ChoiceAction, Effect as E, Pile as P,
+    SimpleEffect as SE,
+};
 use crate::status_ids::sid;
 use crate::tests::support::*;
 
@@ -61,7 +64,8 @@ fn silent_wave14_calculated_gamble_is_declarative_and_uses_hand_size_at_play() {
     );
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Calculated Gamble", "Strike", "Strike", "Strike"]);
-    engine.state.draw_pile = make_deck(&["Strike", "Strike", "Strike", "Strike", "Strike", "Strike"]);
+    engine.state.draw_pile =
+        make_deck(&["Strike", "Strike", "Strike", "Strike", "Strike", "Strike"]);
 
     assert!(play_self(&mut engine, "Calculated Gamble"));
 
@@ -72,7 +76,9 @@ fn silent_wave14_calculated_gamble_is_declarative_and_uses_hand_size_at_play() {
 #[test]
 fn silent_wave14_concentrate_is_declarative_discard_for_effect() {
     let registry = global_registry();
-    let concentrate = registry.get("Concentrate").expect("Concentrate should exist");
+    let concentrate = registry
+        .get("Concentrate")
+        .expect("Concentrate should exist");
     assert_eq!(
         concentrate.effect_data,
         &[E::ChooseCards {
@@ -86,7 +92,9 @@ fn silent_wave14_concentrate_is_declarative_discard_for_effect() {
     );
     assert!(concentrate.complex_hook.is_none());
 
-    let concentrate_plus = registry.get("Concentrate+").expect("Concentrate+ should exist");
+    let concentrate_plus = registry
+        .get("Concentrate+")
+        .expect("Concentrate+ should exist");
     assert_eq!(
         concentrate_plus.effect_data,
         &[E::ChooseCards {
@@ -130,7 +138,9 @@ fn silent_wave14_storm_of_steel_bulk_discards_hand_and_adds_shivs() {
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/BladeFuryAction.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Reflex.java
     let registry = global_registry();
-    let storm = registry.get("Storm of Steel").expect("Storm of Steel should exist");
+    let storm = registry
+        .get("Storm of Steel")
+        .expect("Storm of Steel should exist");
     assert_eq!(
         storm.effect_data,
         &[
@@ -144,7 +154,9 @@ fn silent_wave14_storm_of_steel_bulk_discards_hand_and_adds_shivs() {
     );
     assert!(storm.complex_hook.is_none());
 
-    let storm_plus = registry.get("Storm of Steel+").expect("Storm of Steel+ should exist");
+    let storm_plus = registry
+        .get("Storm of Steel+")
+        .expect("Storm of Steel+ should exist");
     assert_eq!(
         storm_plus.effect_data,
         &[
@@ -179,8 +191,16 @@ fn silent_wave14_storm_of_steel_bulk_discards_hand_and_adds_shivs() {
     );
     force_player_turn(&mut capped);
     capped.state.hand = make_deck(&[
-        "Storm of Steel+", "Reflex", "Strike", "Strike", "Strike",
-        "Defend", "Defend", "Defend", "Neutralize", "Survivor",
+        "Storm of Steel+",
+        "Reflex",
+        "Strike",
+        "Strike",
+        "Strike",
+        "Defend",
+        "Defend",
+        "Defend",
+        "Neutralize",
+        "Survivor",
     ]);
     capped.state.draw_pile = make_deck(&["Strike", "Defend"]);
     assert!(play_self(&mut capped, "Storm of Steel+"));

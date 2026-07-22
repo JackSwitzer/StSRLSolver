@@ -16,10 +16,13 @@ use crate::effects::declarative::{
     AmountSource as A, Condition as Cond, Effect as E, SimpleEffect as SE, Target as T,
 };
 use crate::status_ids::sid;
-use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self};
+use crate::tests::support::{
+    enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self,
+};
 
 fn one_enemy_engine(hp: i32, energy: i32) -> crate::engine::CombatEngine {
-    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", hp, hp)], energy);
+    let mut engine =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", hp, hp)], energy);
     force_player_turn(&mut engine);
     engine
 }
@@ -52,7 +55,10 @@ fn defect_wave11_registry_exports_promote_ftl_steam_and_streamline_to_typed_prim
             E::Simple(SE::ModifyPlayedCardBlock(A::Fixed(-1))),
         ]
     );
-    assert!(steam.complex_hook.is_none(), "Steam Barrier is now on the played-instance block decrement surface");
+    assert!(
+        steam.complex_hook.is_none(),
+        "Steam Barrier is now on the played-instance block decrement surface"
+    );
     assert_eq!(steam.card_type, CardType::Skill);
     assert_eq!(steam.target, CardTarget::SelfTarget);
 
@@ -64,18 +70,22 @@ fn defect_wave11_registry_exports_promote_ftl_steam_and_streamline_to_typed_prim
             E::Simple(SE::ModifyPlayedCardCost(A::Fixed(-1))),
         ]
     );
-    assert!(streamline.complex_hook.is_none(), "Streamline is now on the played-card cost mutation surface");
+    assert!(
+        streamline.complex_hook.is_none(),
+        "Streamline is now on the played-card cost mutation surface"
+    );
 
     let blizzard = reg.get("Blizzard").expect("Blizzard");
     assert_eq!(
         blizzard.effect_data,
-        &[E::Simple(SE::DealDamage(T::AllEnemies, A::StatusValueTimesMagic(sid::FROST_CHANNELED)))]
+        &[E::Simple(SE::DealDamage(
+            T::AllEnemies,
+            A::StatusValueTimesMagic(sid::FROST_CHANNELED)
+        ))]
     );
     assert!(blizzard.complex_hook.is_none());
 
-    let genetic = reg
-        .get("Genetic Algorithm")
-        .expect("Genetic Algorithm");
+    let genetic = reg.get("Genetic Algorithm").expect("Genetic Algorithm");
     assert_eq!(
         genetic.effect_data,
         &[
@@ -161,7 +171,10 @@ fn defect_wave11_blizzard_uses_the_typed_frost_count_damage_scaling_surface() {
     let blizzard = global_registry().get("Blizzard").expect("Blizzard");
     assert_eq!(
         blizzard.effect_data,
-        &[E::Simple(SE::DealDamage(T::AllEnemies, A::StatusValueTimesMagic(sid::FROST_CHANNELED)))]
+        &[E::Simple(SE::DealDamage(
+            T::AllEnemies,
+            A::StatusValueTimesMagic(sid::FROST_CHANNELED)
+        ))]
     );
     assert!(blizzard.complex_hook.is_none());
 }

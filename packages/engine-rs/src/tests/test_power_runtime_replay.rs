@@ -1,5 +1,5 @@
 use crate::status_ids::sid;
-use crate::tests::support::{engine_with, ensure_in_hand, play_on_enemy, play_self, make_deck_n};
+use crate::tests::support::{engine_with, ensure_in_hand, make_deck_n, play_on_enemy, play_self};
 
 #[test]
 // Java oracle:

@@ -1,22 +1,48 @@
 use crate::cards::prelude::*;
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // Source: cards/blue/AutoShields.java sets cost 1 and base block 11;
-        // use() queues that block only while the player's current block is 0.
-    insert(cards, CardDef {
-                id: "Auto Shields", name: "Auto-Shields", card_type: CardType::Skill,
-                target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 11,
-                base_magic: -1, exhaust: false, enter_stance: None,
-                effect_data: &[
-                    E::Conditional(Cond::NoBlock, &[E::Simple(SE::GainBlock(A::Block))], &[]),
-                ], complex_hook: None,
-            });
-    insert(cards, CardDef {
-                id: "Auto Shields+", name: "Auto-Shields+", card_type: CardType::Skill,
-                target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: 15,
-                base_magic: -1, exhaust: false, enter_stance: None,
-                effect_data: &[
-                    E::Conditional(Cond::NoBlock, &[E::Simple(SE::GainBlock(A::Block))], &[]),
-                ], complex_hook: None,
-            });
+    // Source: cards/blue/AutoShields.java sets cost 1 and base block 11;
+    // use() queues that block only while the player's current block is 0.
+    insert(
+        cards,
+        CardDef {
+            id: "Auto Shields",
+            name: "Auto-Shields",
+            card_type: CardType::Skill,
+            target: CardTarget::SelfTarget,
+            cost: 1,
+            base_damage: -1,
+            base_block: 11,
+            base_magic: -1,
+            exhaust: false,
+            enter_stance: None,
+            effect_data: &[E::Conditional(
+                Cond::NoBlock,
+                &[E::Simple(SE::GainBlock(A::Block))],
+                &[],
+            )],
+            complex_hook: None,
+        },
+    );
+    insert(
+        cards,
+        CardDef {
+            id: "Auto Shields+",
+            name: "Auto-Shields+",
+            card_type: CardType::Skill,
+            target: CardTarget::SelfTarget,
+            cost: 1,
+            base_damage: -1,
+            base_block: 15,
+            base_magic: -1,
+            exhaust: false,
+            enter_stance: None,
+            effect_data: &[E::Conditional(
+                Cond::NoBlock,
+                &[E::Simple(SE::GainBlock(A::Block))],
+                &[],
+            )],
+            complex_hook: None,
+        },
+    );
 }

@@ -8,7 +8,9 @@
 // This test proves the canonical engine path still retains Runic Pyramid hand
 // cards and auto-draws for Unceasing Top when the hand is empty.
 
-use crate::tests::support::{combat_state_with, end_turn, enemy_no_intent, engine_with_state, make_deck, play_on_enemy};
+use crate::tests::support::{
+    combat_state_with, end_turn, enemy_no_intent, engine_with_state, make_deck, play_on_enemy,
+};
 
 #[test]
 fn relic_dead_helper_cleanup_wave22_runic_pyramid_and_unceasing_top_are_inline_on_engine_path() {
@@ -17,15 +19,18 @@ fn relic_dead_helper_cleanup_wave22_runic_pyramid_and_unceasing_top_are_inline_o
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     );
-    state.relics = vec![
-        "Runic Pyramid".to_string(),
-        "Unceasing Top".to_string(),
-    ];
+    state.relics = vec!["Runic Pyramid".to_string(), "Unceasing Top".to_string()];
 
     let mut engine = engine_with_state(state);
     engine.state.hand.clear();
-    engine.state.hand.push(engine.card_registry.make_card("Strike"));
-    engine.state.hand.push(engine.card_registry.make_card("Defend"));
+    engine
+        .state
+        .hand
+        .push(engine.card_registry.make_card("Strike"));
+    engine
+        .state
+        .hand
+        .push(engine.card_registry.make_card("Defend"));
 
     end_turn(&mut engine);
 
@@ -55,8 +60,14 @@ fn relic_dead_helper_cleanup_wave22_runic_pyramid_and_unceasing_top_are_inline_o
     top_engine.state.hand.clear();
     top_engine.state.draw_pile.clear();
     top_engine.state.discard_pile.clear();
-    top_engine.state.hand.push(top_engine.card_registry.make_card("Strike"));
-    top_engine.state.draw_pile.push(top_engine.card_registry.make_card("Defend"));
+    top_engine
+        .state
+        .hand
+        .push(top_engine.card_registry.make_card("Strike"));
+    top_engine
+        .state
+        .draw_pile
+        .push(top_engine.card_registry.make_card("Defend"));
 
     let enemy_hp_before = top_engine.state.enemies[0].entity.hp;
     assert!(play_on_enemy(&mut top_engine, "Strike", 0));

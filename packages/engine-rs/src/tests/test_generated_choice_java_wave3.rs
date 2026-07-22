@@ -15,16 +15,52 @@ use crate::actions::Action;
 use crate::cards::CardType;
 use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
 use crate::status_ids::sid;
-use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_state, make_deck, play_self};
+use crate::tests::support::{
+    combat_state_with, enemy_no_intent, engine_with_state, make_deck, play_self,
+};
 
 const COLORLESS_CHOICES: &[&str] = &[
-    "Apotheosis", "Bandage Up", "Bite", "Blind", "Chrysalis", "Dark Shackles", "Deep Breath",
-    "Defend", "Discovery", "Dramatic Entrance", "Enlightenment", "Finesse", "Flash of Steel",
-    "Forethought", "Ghostly", "Good Instincts", "HandOfGreed", "Impatience", "J.A.X.",
-    "Jack Of All Trades", "Madness", "Magnetism", "Master of Strategy", "Mayhem",
-    "Metamorphosis", "Mind Blast", "Panacea", "Panache", "PanicButton", "Purity",
-    "RitualDagger", "Sadistic Nature", "Secret Technique", "Secret Weapon", "Strike",
-    "Swift Strike", "The Bomb", "Thinking Ahead", "Transmutation", "Trip", "Violence",
+    "Apotheosis",
+    "Bandage Up",
+    "Bite",
+    "Blind",
+    "Chrysalis",
+    "Dark Shackles",
+    "Deep Breath",
+    "Defend",
+    "Discovery",
+    "Dramatic Entrance",
+    "Enlightenment",
+    "Finesse",
+    "Flash of Steel",
+    "Forethought",
+    "Ghostly",
+    "Good Instincts",
+    "HandOfGreed",
+    "Impatience",
+    "J.A.X.",
+    "Jack Of All Trades",
+    "Madness",
+    "Magnetism",
+    "Master of Strategy",
+    "Mayhem",
+    "Metamorphosis",
+    "Mind Blast",
+    "Panacea",
+    "Panache",
+    "PanicButton",
+    "Purity",
+    "RitualDagger",
+    "Sadistic Nature",
+    "Secret Technique",
+    "Secret Weapon",
+    "Strike",
+    "Swift Strike",
+    "The Bomb",
+    "Thinking Ahead",
+    "Transmutation",
+    "Trip",
+    "Violence",
 ];
 
 const COLORLESS_POTION_CHOICES: &[&str] = &[
@@ -82,23 +118,76 @@ fn colorless_generation_pool_matches_java_source_pool_order() {
 }
 
 const WATCHER_SKILL_POOL_IN_JAVA_ORDER: &[&str] = &[
-    "Prostrate", "Evaluate", "PathToVictory", "EmptyBody", "ClearTheMind", "Crescendo",
-    "ThirdEye", "Protect", "Halt", "Pray", "EmptyMind", "Worship", "Swivel",
-    "Perseverance", "Meditate", "WaveOfTheHand", "DeceiveReality", "InnerPeace", "Collect",
-    "WreathOfFlame", "ForeignInfluence", "Indignation", "Sanctity", "Vengeance", "Judgement",
-    "ConjureBlade", "Blasphemy", "Scrawl", "Vault", "Alpha", "Omniscience", "SpiritShield",
+    "Prostrate",
+    "Evaluate",
+    "PathToVictory",
+    "EmptyBody",
+    "ClearTheMind",
+    "Crescendo",
+    "ThirdEye",
+    "Protect",
+    "Halt",
+    "Pray",
+    "EmptyMind",
+    "Worship",
+    "Swivel",
+    "Perseverance",
+    "Meditate",
+    "WaveOfTheHand",
+    "DeceiveReality",
+    "InnerPeace",
+    "Collect",
+    "WreathOfFlame",
+    "ForeignInfluence",
+    "Indignation",
+    "Sanctity",
+    "Vengeance",
+    "Judgement",
+    "ConjureBlade",
+    "Blasphemy",
+    "Scrawl",
+    "Vault",
+    "Alpha",
+    "Omniscience",
+    "SpiritShield",
     "DeusExMachina",
 ];
 
 const DEFECT_POWER_POOL_IN_JAVA_ORDER: &[&str] = &[
-    "Defragment", "Capacitor", "Heatsinks", "Static Discharge", "Loop", "Hello World", "Storm",
-    "Biased Cognition", "Machine Learning", "Electrodynamics", "Buffer", "Echo Form", "Creative AI",
+    "Defragment",
+    "Capacitor",
+    "Heatsinks",
+    "Static Discharge",
+    "Loop",
+    "Hello World",
+    "Storm",
+    "Biased Cognition",
+    "Machine Learning",
+    "Electrodynamics",
+    "Buffer",
+    "Echo Form",
+    "Creative AI",
 ];
 
 const DEFECT_COMMON_POOL_IN_JAVA_ORDER: &[&str] = &[
-    "Steam", "Cold Snap", "Leap", "Beam Cell", "Hologram", "Conserve Battery",
-    "Sweeping Beam", "Turbo", "Coolheaded", "Gash", "Rebound", "Stack", "Barrage",
-    "Compile Driver", "Redo", "Streamline", "Ball Lightning", "Go for the Eyes",
+    "Steam",
+    "Cold Snap",
+    "Leap",
+    "Beam Cell",
+    "Hologram",
+    "Conserve Battery",
+    "Sweeping Beam",
+    "Turbo",
+    "Coolheaded",
+    "Gash",
+    "Rebound",
+    "Stack",
+    "Barrage",
+    "Compile Driver",
+    "Redo",
+    "Streamline",
+    "Ball Lightning",
+    "Go for the Eyes",
 ];
 
 #[test]
@@ -182,11 +271,30 @@ const WATCHER_ATTACK_CHOICES: &[&str] = &[
 ];
 
 const WATCHER_ATTACK_POOL_IN_JAVA_ORDER: &[&str] = &[
-    "EmptyFist", "CrushJoints", "FollowUp", "CutThroughFate", "SashWhip",
-    "FlurryOfBlows", "JustLucky", "FlyingSleeves", "BowlingBash", "Consecrate",
-    "SignatureMove", "Weave", "Tantrum", "Conclude", "SandsOfTime", "FearNoEvil",
-    "ReachHeaven", "Wallop", "CarveReality", "WindmillStrike", "TalkToTheHand",
-    "WheelKick", "Brilliance", "Ragnarok",
+    "EmptyFist",
+    "CrushJoints",
+    "FollowUp",
+    "CutThroughFate",
+    "SashWhip",
+    "FlurryOfBlows",
+    "JustLucky",
+    "FlyingSleeves",
+    "BowlingBash",
+    "Consecrate",
+    "SignatureMove",
+    "Weave",
+    "Tantrum",
+    "Conclude",
+    "SandsOfTime",
+    "FearNoEvil",
+    "ReachHeaven",
+    "Wallop",
+    "CarveReality",
+    "WindmillStrike",
+    "TalkToTheHand",
+    "WheelKick",
+    "Brilliance",
+    "Ragnarok",
 ];
 
 #[test]
@@ -229,7 +337,10 @@ fn chrysalis_generates_zero_cost_skills_into_draw_pile() {
     for card in &engine.state.draw_pile {
         let def = engine.card_registry.card_def_by_id(card.def_id);
         assert_eq!(def.card_type, CardType::Skill);
-        assert!(card.cost <= 0, "generated Chrysalis cards should be free this turn");
+        assert!(
+            card.cost <= 0,
+            "generated Chrysalis cards should be free this turn"
+        );
     }
 }
 
@@ -249,7 +360,10 @@ fn metamorphosis_generates_zero_cost_attacks_into_draw_pile() {
     for card in &engine.state.draw_pile {
         let def = engine.card_registry.card_def_by_id(card.def_id);
         assert_eq!(def.card_type, CardType::Attack);
-        assert!(card.cost <= 0, "generated Metamorphosis cards should be free this turn");
+        assert!(
+            card.cost <= 0,
+            "generated Metamorphosis cards should be free this turn"
+        );
     }
 }
 
@@ -316,16 +430,25 @@ fn discovery_potions_open_java_style_choice_and_track_copy_count() {
         use_potion(&mut engine, 0, -1);
 
         assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
-        let choice = engine.choice.as_ref().expect("potion should open a discovery choice");
+        let choice = engine
+            .choice
+            .as_ref()
+            .expect("potion should open a discovery choice");
         assert_eq!(choice.reason, ChoiceReason::DiscoverCard);
-        assert_eq!(choice.aux_count, 1, "{potion} should default to one generated copy");
+        assert_eq!(
+            choice.aux_count, 1,
+            "{potion} should default to one generated copy"
+        );
         assert_eq!(choice.options.len(), 3);
         for option in &choice.options {
             let ChoiceOption::GeneratedCard(card) = option else {
                 panic!("{potion} should offer generated cards");
             };
             if let Some(card_type) = expected_type {
-                assert_eq!(engine.card_registry.card_def_by_id(card.def_id).card_type, card_type);
+                assert_eq!(
+                    engine.card_registry.card_def_by_id(card.def_id).card_type,
+                    card_type
+                );
             }
             if expect_colorless {
                 let name = engine.card_registry.card_name(card.def_id);
@@ -375,7 +498,9 @@ fn attack_potion_uses_watcher_pool_and_card_random_rng_tick_for_tick() {
         })
         .collect();
     assert_eq!(names.len(), 3);
-    assert!(names.iter().all(|name| WATCHER_ATTACK_CHOICES.contains(name)));
+    assert!(names
+        .iter()
+        .all(|name| WATCHER_ATTACK_CHOICES.contains(name)));
     // The shipped RandomXS128 sequence reaches three unique cards in three
     // draws for this seed; the old four-draw expectation used a 31-bit RNG.
     assert_eq!(card_random_oracle.counter, card_random_before + 3);
@@ -397,8 +522,7 @@ fn power_potion_uses_watcher_power_pool_rng_and_bark_copy_count() {
         3,
     ));
     engine.state.hand = make_deck(&[
-        "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend",
-        "Defend",
+        "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend",
     ]);
     engine.state.relics.push("SacredBark".to_string());
     engine.state.player.set_status(sid::MASTER_REALITY, 1);
@@ -434,7 +558,11 @@ fn power_potion_uses_watcher_power_pool_rng_and_bark_copy_count() {
     assert_eq!(engine.state.hand.len(), 10);
     assert_eq!(engine.state.discard_pile.len(), 1);
     let hand_copy = engine.state.hand.last().expect("first selected copy");
-    let discard_copy = engine.state.discard_pile.last().expect("second selected copy");
+    let discard_copy = engine
+        .state
+        .discard_pile
+        .last()
+        .expect("second selected copy");
     assert!(hand_copy.is_upgraded());
     assert!(discard_copy.is_upgraded());
     assert_eq!(hand_copy.cost, 0);
@@ -455,8 +583,7 @@ fn skill_potion_uses_watcher_skill_pool_rng_and_bark_copy_count() {
         3,
     ));
     engine.state.hand = make_deck(&[
-        "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend",
-        "Defend",
+        "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend",
     ]);
     engine.state.relics.push("SacredBark".to_string());
     engine.state.player.set_status(sid::MASTER_REALITY, 1);
@@ -492,7 +619,11 @@ fn skill_potion_uses_watcher_skill_pool_rng_and_bark_copy_count() {
     assert_eq!(engine.state.hand.len(), 10);
     assert_eq!(engine.state.discard_pile.len(), 1);
     let hand_copy = engine.state.hand.last().expect("first selected copy");
-    let discard_copy = engine.state.discard_pile.last().expect("second selected copy");
+    let discard_copy = engine
+        .state
+        .discard_pile
+        .last()
+        .expect("second selected copy");
     assert!(hand_copy.is_upgraded());
     assert!(discard_copy.is_upgraded());
     assert_eq!(hand_copy.cost, 0);
@@ -538,7 +669,9 @@ fn colorless_potion_uses_normal_pool_base_previews_and_exact_card_rng() {
             _ => panic!("Colorless Potion must generate card choices"),
         })
         .collect();
-    assert!(names.iter().all(|name| COLORLESS_POTION_CHOICES.contains(name)));
+    assert!(names
+        .iter()
+        .all(|name| COLORLESS_POTION_CHOICES.contains(name)));
     assert_eq!(engine.card_random_rng.counter, card_random_oracle.counter);
     assert_eq!(engine.shuffle_rng.counter, general_before);
 
@@ -561,7 +694,10 @@ fn master_reality_upgrades_resolved_generated_discovery_card() {
 
     use_potion(&mut engine, 0, -1);
 
-    let choice = engine.choice.as_ref().expect("Attack Potion should open a choice");
+    let choice = engine
+        .choice
+        .as_ref()
+        .expect("Attack Potion should open a choice");
     assert_eq!(choice.reason, ChoiceReason::DiscoverCard);
 
     engine.execute_action(&Action::Choose(0));
@@ -586,7 +722,10 @@ fn sacred_bark_discovery_choice_needs_copy_count_resolution() {
 
     use_potion(&mut engine, 0, -1);
 
-    let choice = engine.choice.as_ref().expect("Skill Potion should open a choice");
+    let choice = engine
+        .choice
+        .as_ref()
+        .expect("Skill Potion should open a choice");
     assert_eq!(choice.aux_count, 2);
     engine.execute_action(&Action::Choose(0));
     assert_eq!(engine.state.hand.len(), 2);

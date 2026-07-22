@@ -8,10 +8,10 @@
 //! Only ~10 irreducible effects need fn pointers (Pressure Points,
 //! Judgement, Fiend Fire, Havoc, Madness, Reboot, etc.).
 
+use crate::cards::CardType;
 use crate::ids::StatusId;
 use crate::orbs::OrbType;
 use crate::state::Stance;
-use crate::cards::CardType;
 use serde::{Deserialize, Serialize};
 
 // ===========================================================================

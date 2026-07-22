@@ -15,12 +15,7 @@ use crate::tests::support::{
     make_deck, play_on_enemy, play_self, TEST_SEED,
 };
 
-fn engine_for(
-    hand: &[&str],
-    draw: &[&str],
-    discard: &[&str],
-    energy: i32,
-) -> CombatEngine {
+fn engine_for(hand: &[&str], draw: &[&str], discard: &[&str], energy: i32) -> CombatEngine {
     let mut state = combat_state_with(
         make_deck(draw),
         vec![enemy_no_intent("JawWorm", 50, 50)],
@@ -45,12 +40,7 @@ fn hand_names(engine: &CombatEngine) -> Vec<String> {
 
 #[test]
 fn seek_plus_moves_two_chosen_cards_from_draw_pile_to_hand() {
-    let mut engine = engine_for(
-        &["Seek+"],
-        &["Zap", "Defend", "Strike"],
-        &[],
-        3,
-    );
+    let mut engine = engine_for(&["Seek+"], &["Zap", "Defend", "Strike"], &[], 3);
 
     assert!(play_self(&mut engine, "Seek+"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
@@ -81,15 +71,20 @@ fn seek_plus_moves_two_chosen_cards_from_draw_pile_to_hand() {
     assert_eq!(hand_count(&engine, "Zap"), 1);
     assert_eq!(hand_count(&engine, "Strike"), 1);
     assert_eq!(engine.state.draw_pile.len(), 1);
-    assert_eq!(engine.card_registry.card_name(engine.state.draw_pile[0].def_id), "Defend");
+    assert_eq!(
+        engine
+            .card_registry
+            .card_name(engine.state.draw_pile[0].def_id),
+        "Defend"
+    );
 }
 
 #[test]
 fn seek_plus_auto_moves_a_short_draw_pile_and_discards_hand_overflow() {
     let mut engine = engine_for(
         &[
-            "Seek+", "Defend", "Defend", "Defend", "Defend",
-            "Defend", "Defend", "Defend", "Defend", "Defend",
+            "Seek+", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend", "Defend",
+            "Defend", "Defend",
         ],
         &["Zap", "Strike"],
         &[],
@@ -130,12 +125,7 @@ fn seek_is_playable_as_a_no_op_with_an_empty_draw_pile() {
 
 #[test]
 fn headbutt_moves_a_chosen_discard_card_to_the_top_of_draw() {
-    let mut engine = engine_for(
-        &["Headbutt"],
-        &["Shrug It Off"],
-        &["Strike", "Defend"],
-        3,
-    );
+    let mut engine = engine_for(&["Headbutt"], &["Shrug It Off"], &["Strike", "Defend"], 3);
 
     assert!(play_on_enemy(&mut engine, "Headbutt", 0));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
@@ -143,7 +133,10 @@ fn headbutt_moves_a_chosen_discard_card_to_the_top_of_draw() {
     assert_eq!(choice.reason, ChoiceReason::PickFromDiscard);
 
     let selected_name = match choice.options[1] {
-        ChoiceOption::DiscardCard(idx) => engine.card_registry.card_name(engine.state.discard_pile[idx].def_id).to_string(),
+        ChoiceOption::DiscardCard(idx) => engine
+            .card_registry
+            .card_name(engine.state.discard_pile[idx].def_id)
+            .to_string(),
         _ => panic!("headbutt should expose discard-pile options"),
     };
     assert_eq!(selected_name, "Defend");
@@ -152,7 +145,9 @@ fn headbutt_moves_a_chosen_discard_card_to_the_top_of_draw() {
 
     assert_eq!(engine.phase, CombatPhase::PlayerTurn);
     assert_eq!(
-        engine.card_registry.card_name(engine.state.draw_pile.last().expect("top draw").def_id),
+        engine
+            .card_registry
+            .card_name(engine.state.draw_pile.last().expect("top draw").def_id),
         "Defend"
     );
     assert_eq!(hand_count(&engine, "Defend"), 0);
@@ -160,12 +155,7 @@ fn headbutt_moves_a_chosen_discard_card_to_the_top_of_draw() {
 
 #[test]
 fn dual_wield_only_offers_attack_and_power_cards_then_copies_the_selected_card() {
-    let mut engine = engine_for(
-        &["Dual Wield+", "Strike", "Defend", "Inflame"],
-        &[],
-        &[],
-        3,
-    );
+    let mut engine = engine_for(&["Dual Wield+", "Strike", "Defend", "Inflame"], &[], &[], 3);
 
     assert!(play_self(&mut engine, "Dual Wield+"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
@@ -179,7 +169,10 @@ fn dual_wield_only_offers_attack_and_power_cards_then_copies_the_selected_card()
         .options
         .iter()
         .map(|option| match option {
-            ChoiceOption::HandCard(idx) => engine.card_registry.card_name(engine.state.hand[*idx].def_id).to_string(),
+            ChoiceOption::HandCard(idx) => engine
+                .card_registry
+                .card_name(engine.state.hand[*idx].def_id)
+                .to_string(),
             _ => panic!("dual wield should expose hand-card options"),
         })
         .collect();
@@ -208,8 +201,16 @@ fn dual_wield_auto_selects_one_eligible_card_and_discards_overflow_copies() {
     // puts the second in discard when the first fills the hand to ten.
     let mut engine = engine_for(
         &[
-            "Dual Wield+", "Strike", "Defend", "Defend", "Defend",
-            "Defend", "Defend", "Defend", "Defend", "Defend",
+            "Dual Wield+",
+            "Strike",
+            "Defend",
+            "Defend",
+            "Defend",
+            "Defend",
+            "Defend",
+            "Defend",
+            "Defend",
+            "Defend",
         ],
         &[],
         &[],
@@ -228,12 +229,7 @@ fn dual_wield_auto_selects_one_eligible_card_and_discards_overflow_copies() {
 
 #[test]
 fn true_grit_plus_exhausts_the_selected_card_instead_of_a_random_one() {
-    let mut engine = engine_for(
-        &["True Grit+", "Strike", "Defend"],
-        &[],
-        &[],
-        3,
-    );
+    let mut engine = engine_for(&["True Grit+", "Strike", "Defend"], &[], &[], 3);
 
     assert!(play_self(&mut engine, "True Grit+"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);

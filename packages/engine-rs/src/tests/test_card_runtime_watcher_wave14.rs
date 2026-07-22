@@ -8,9 +8,14 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Scrawl.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::status_ids::sid;
-use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_state, ensure_in_hand, force_player_turn, make_deck, play_on_enemy, play_self};
+use crate::tests::support::{
+    combat_state_with, enemy_no_intent, engine_with_state, ensure_in_hand, force_player_turn,
+    make_deck, play_on_enemy, play_self,
+};
 
 fn one_enemy_engine(enemy_hp: i32, enemy_block: i32) -> crate::engine::CombatEngine {
     let mut engine = engine_with_state(combat_state_with(
@@ -51,7 +56,9 @@ fn watcher_wave14_registry_exports_match_typed_surface() {
     assert!(spirit_shield_plus.effect_data.is_empty());
     assert!(spirit_shield_plus.complex_hook.is_some());
 
-    let ragnarok = registry.get("Ragnarok").expect("Ragnarok should be registered");
+    let ragnarok = registry
+        .get("Ragnarok")
+        .expect("Ragnarok should be registered");
     assert_eq!(
         ragnarok.effect_data,
         &[
@@ -65,10 +72,15 @@ fn watcher_wave14_registry_exports_match_typed_surface() {
     assert!(ragnarok.complex_hook.is_none());
 
     let scrawl = registry.get("Scrawl").expect("Scrawl should be registered");
-    assert_eq!(scrawl.effect_data, &[E::Simple(SE::DrawCards(A::Fixed(10)))]);
+    assert_eq!(
+        scrawl.effect_data,
+        &[E::Simple(SE::DrawCards(A::Fixed(10)))]
+    );
     assert!(scrawl.complex_hook.is_none());
 
-    let judgement = registry.get("Judgement").expect("Judgement should be registered");
+    let judgement = registry
+        .get("Judgement")
+        .expect("Judgement should be registered");
     assert_eq!(judgement.effect_data, &[E::Simple(SE::Judgement(A::Magic))]);
     assert!(judgement.complex_hook.is_none());
 }
@@ -114,9 +126,19 @@ fn watcher_wave14_pressure_points_spirit_shield_ragnarok_and_scrawl_follow_engin
     ));
     force_player_turn(&mut ragnarok);
     ragnarok.state.hand = make_deck(&["Ragnarok"]);
-    let hp_before: i32 = ragnarok.state.enemies.iter().map(|enemy| enemy.entity.hp).sum();
+    let hp_before: i32 = ragnarok
+        .state
+        .enemies
+        .iter()
+        .map(|enemy| enemy.entity.hp)
+        .sum();
     assert!(play_on_enemy(&mut ragnarok, "Ragnarok", 0));
-    let hp_after: i32 = ragnarok.state.enemies.iter().map(|enemy| enemy.entity.hp).sum();
+    let hp_after: i32 = ragnarok
+        .state
+        .enemies
+        .iter()
+        .map(|enemy| enemy.entity.hp)
+        .sum();
     assert_eq!(hp_before - hp_after, 25);
 
     let mut ragnarok_plus = engine_with_state(combat_state_with(
@@ -130,22 +152,33 @@ fn watcher_wave14_pressure_points_spirit_shield_ragnarok_and_scrawl_follow_engin
     ));
     force_player_turn(&mut ragnarok_plus);
     ragnarok_plus.state.hand = make_deck(&["Ragnarok+"]);
-    let hp_before_plus: i32 = ragnarok_plus.state.enemies.iter().map(|enemy| enemy.entity.hp).sum();
+    let hp_before_plus: i32 = ragnarok_plus
+        .state
+        .enemies
+        .iter()
+        .map(|enemy| enemy.entity.hp)
+        .sum();
     assert!(play_on_enemy(&mut ragnarok_plus, "Ragnarok+", 0));
-    let hp_after_plus: i32 = ragnarok_plus.state.enemies.iter().map(|enemy| enemy.entity.hp).sum();
+    let hp_after_plus: i32 = ragnarok_plus
+        .state
+        .enemies
+        .iter()
+        .map(|enemy| enemy.entity.hp)
+        .sum();
     assert_eq!(hp_before_plus - hp_after_plus, 36);
 
     let mut scrawl = engine_with_state(combat_state_with(
         make_deck(&[
-            "Scrawl", "Strike", "Defend", "Strike", "Defend", "Strike", "Defend",
-            "Strike", "Defend", "Strike", "Defend",
+            "Scrawl", "Strike", "Defend", "Strike", "Defend", "Strike", "Defend", "Strike",
+            "Defend", "Strike", "Defend",
         ]),
         vec![enemy_no_intent("JawWorm", 40, 40)],
         10,
     ));
     force_player_turn(&mut scrawl);
     scrawl.state.hand = make_deck(&["Scrawl", "Strike", "Defend", "Strike", "Defend"]);
-    scrawl.state.draw_pile = make_deck(&["Strike", "Defend", "Strike", "Defend", "Strike", "Defend"]);
+    scrawl.state.draw_pile =
+        make_deck(&["Strike", "Defend", "Strike", "Defend", "Strike", "Defend"]);
     assert!(play_self(&mut scrawl, "Scrawl"));
     assert_eq!(scrawl.state.hand.len(), 10);
     assert!(scrawl

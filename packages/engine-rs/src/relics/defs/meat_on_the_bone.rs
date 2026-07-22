@@ -3,28 +3,19 @@
 //! Source: `reference/extracted/methods/relic/MeatOnTheBone.java` (`onTrigger`
 //! requires positive HP at or below maxHealth / 2.0, then calls `heal(12)`).
 
-use crate::effects::declarative::{Effect, SimpleEffect, Target, AmountSource};
-use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
-use crate::effects::trigger::{Trigger, TriggerCondition};
+use crate::effects::entity_def::{EntityDef, EntityKind};
 
-static EFFECTS: [Effect; 1] = [
-    Effect::Simple(SimpleEffect::HealHp(Target::Player, AmountSource::Fixed(12))),
-];
-
-static TRIGGERS: [TriggeredEffect; 1] = [
-    TriggeredEffect {
-        trigger: Trigger::CombatVictory,
-        condition: TriggerCondition::HpBelow(50),
-        effects: &EFFECTS,
-        counter: None,
-    },
-];
+// Meat on the Bone is not an AbstractRelic.onVictory callback. AbstractRoom
+// invokes its standalone onTrigger before AbstractPlayer dispatches onVictory,
+// so CombatEngine::apply_player_on_victory owns the ordering-sensitive heal.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/rooms/AbstractRoom.java
+// (`endBattle`) and relics/MeatOnTheBone.java (`onTrigger`).
 
 pub static DEF: EntityDef = EntityDef {
     id: "Meat on the Bone",
     name: "Meat on the Bone",
     kind: EntityKind::Relic,
-    triggers: &TRIGGERS,
+    triggers: &[],
     complex_hook: None,
     status_guard: None,
 };

@@ -27,17 +27,25 @@ pub(super) fn roll_chosen(enemy: &mut EnemyCombatState, num: i32) {
 
     if enemy.entity.status(sid::FIRST_MOVE) == 0 {
         enemy.entity.set_status(sid::FIRST_MOVE, 1);
-        enemy.set_move(move_ids::CHOSEN_HEX, 0, 0, 0);
+        enemy.set_move_with_intent(move_ids::CHOSEN_HEX, Intent::StrongDebuff { effects: 0 });
         enemy.add_effect(mfx::HEX, 1);
         return;
     }
 
     if !last_move(enemy, move_ids::CHOSEN_DEBILITATE) && !last_move(enemy, move_ids::CHOSEN_DRAIN) {
         if num < 50 {
-            enemy.set_move(move_ids::CHOSEN_DEBILITATE, debilitate_damage, 1, 0);
+            enemy.set_move_with_intent(
+                move_ids::CHOSEN_DEBILITATE,
+                Intent::AttackDebuff {
+                    damage: debilitate_damage as i16,
+                    hits: 1,
+                    effects: fx::VULNERABLE,
+                },
+            );
             enemy.add_effect(mfx::VULNERABLE, 2);
         } else {
-            enemy.set_move(move_ids::CHOSEN_DRAIN, 0, 0, 0);
+            enemy
+                .set_move_with_intent(move_ids::CHOSEN_DRAIN, Intent::Debuff { effects: fx::WEAK });
             enemy.add_effect(mfx::WEAK, 3);
             enemy.add_effect(mfx::STRENGTH, 3);
         }
@@ -79,7 +87,13 @@ pub fn advance_mugger_after_turn(
             enemy.entity.set_status(sid::ATTACK_COUNT, slash_count + 1);
             if slash_count + 1 == 2 {
                 if ai_rng.random_f32() < 0.5 {
-                    enemy.set_move(move_ids::MUGGER_SMOKE_BOMB, 0, 0, escape_block);
+                    enemy.set_move_with_intent(
+                        move_ids::MUGGER_SMOKE_BOMB,
+                        Intent::Block {
+                            amount: escape_block as i16,
+                            effects: 0,
+                        },
+                    );
                 } else {
                     enemy.set_move(move_ids::MUGGER_BIG_SWIPE, big_swipe, 1, 0);
                 }
@@ -90,15 +104,21 @@ pub fn advance_mugger_after_turn(
         move_ids::MUGGER_BIG_SWIPE => {
             let _ = ai_rng.random_int(2); // playSfx
             enemy.entity.add_status(sid::ATTACK_COUNT, 1);
-            enemy.set_move(move_ids::MUGGER_SMOKE_BOMB, 0, 0, escape_block);
+            enemy.set_move_with_intent(
+                move_ids::MUGGER_SMOKE_BOMB,
+                Intent::Block {
+                    amount: escape_block as i16,
+                    effects: 0,
+                },
+            );
         }
         move_ids::MUGGER_SMOKE_BOMB => {
-            enemy.set_move(move_ids::MUGGER_ESCAPE, 0, 0, 0);
+            enemy.set_move_with_intent(move_ids::MUGGER_ESCAPE, Intent::Escape);
         }
         move_ids::MUGGER_ESCAPE => {
             enemy.is_escaping = true;
             enemy.entity.hp = 0;
-            enemy.set_move(move_ids::MUGGER_ESCAPE, 0, 0, 0);
+            enemy.set_move_with_intent(move_ids::MUGGER_ESCAPE, Intent::Escape);
         }
         _ => {}
     }
@@ -259,7 +279,12 @@ pub(super) fn roll_snake_plant(enemy: &mut EnemyCombatState, num: i32) {
     if choose_chomp {
         enemy.set_move(move_ids::SNAKE_CHOMP, chomp_damage, 3, 0);
     } else {
-        enemy.set_move(move_ids::SNAKE_SPORES, 0, 0, 0);
+        enemy.set_move_with_intent(
+            move_ids::SNAKE_SPORES,
+            Intent::StrongDebuff {
+                effects: fx::FRAIL | fx::WEAK,
+            },
+        );
         enemy.add_effect(mfx::FRAIL, 2);
         enemy.add_effect(mfx::WEAK, 2);
     }
@@ -277,7 +302,13 @@ pub(super) fn roll_centurion(enemy: &mut EnemyCombatState, num: i32) {
     };
     let protect_or_fury = |enemy: &mut EnemyCombatState| {
         if has_ally {
-            enemy.set_move(move_ids::CENT_PROTECT, 0, 0, 0);
+            enemy.set_move_with_intent(
+                move_ids::CENT_PROTECT,
+                Intent::Block {
+                    amount: 0,
+                    effects: 0,
+                },
+            );
             enemy.add_effect(mfx::BLOCK_RANDOM_OTHER, block as i16);
         } else {
             enemy.set_move(move_ids::CENT_FURY, fury_damage, fury_hits, 0);
@@ -317,14 +348,28 @@ pub(super) fn roll_healer(enemy: &mut EnemyCombatState, num: i32) {
             !last_two_moves(enemy, move_ids::MYSTIC_ATTACK)
         }
     {
-        enemy.set_move(move_ids::MYSTIC_ATTACK, damage, 1, 0);
+        enemy.set_move_with_intent(
+            move_ids::MYSTIC_ATTACK,
+            Intent::AttackDebuff {
+                damage: damage as i16,
+                hits: 1,
+                effects: fx::FRAIL,
+            },
+        );
         enemy.add_effect(mfx::FRAIL, 2);
     } else if !last_two_moves(enemy, move_ids::MYSTIC_BUFF) {
         enemy.set_move(move_ids::MYSTIC_BUFF, 0, 0, 0);
         enemy.add_effect(mfx::STRENGTH, strength);
         enemy.add_effect(mfx::STRENGTH_ALL_ALLIES, strength);
     } else {
-        enemy.set_move(move_ids::MYSTIC_ATTACK, damage, 1, 0);
+        enemy.set_move_with_intent(
+            move_ids::MYSTIC_ATTACK,
+            Intent::AttackDebuff {
+                damage: damage as i16,
+                hits: 1,
+                effects: fx::FRAIL,
+            },
+        );
         enemy.add_effect(mfx::FRAIL, 2);
     }
 }
@@ -362,10 +407,16 @@ pub(super) fn roll_gremlin_leader(
     let strength = enemy.entity.status(sid::STR_AMT).max(3) as i16;
     let block = enemy.entity.status(sid::BLOCK_AMT).max(6) as i16;
     let rally = |enemy: &mut EnemyCombatState| {
-        enemy.set_move(move_ids::GL_RALLY, 0, 0, 0);
+        enemy.set_move_with_intent(move_ids::GL_RALLY, Intent::Unknown);
     };
     let encourage = |enemy: &mut EnemyCombatState| {
-        enemy.set_move(move_ids::GL_ENCOURAGE, 0, 0, 0);
+        enemy.set_move_with_intent(
+            move_ids::GL_ENCOURAGE,
+            Intent::DefendBuff {
+                block: 0,
+                effects: fx::STRENGTH,
+            },
+        );
         enemy.add_effect(mfx::STRENGTH, strength);
         enemy.add_effect(mfx::STRENGTH_ALL_ALLIES, strength);
         enemy.add_effect(mfx::BLOCK_ALL_ALLIES, block);
@@ -444,7 +495,14 @@ pub(super) fn roll_spheric_guardian(enemy: &mut EnemyCombatState) {
         enemy.set_move(move_ids::SPHER_INITIAL_BLOCK, 0, 0, activate_block);
     } else if enemy.entity.status(sid::FIRST_TURN) > 0 {
         enemy.entity.set_status(sid::FIRST_TURN, 0);
-        enemy.set_move(move_ids::SPHER_FRAIL_ATTACK, damage, 1, 0);
+        enemy.set_move_with_intent(
+            move_ids::SPHER_FRAIL_ATTACK,
+            Intent::AttackDebuff {
+                damage: damage as i16,
+                hits: 1,
+                effects: fx::FRAIL,
+            },
+        );
         enemy.add_effect(mfx::FRAIL, 5);
     } else if last_move(enemy, move_ids::SPHER_BIG_ATTACK) {
         let harden_block = enemy.entity.status(sid::STR_AMT).max(15);
@@ -460,11 +518,22 @@ pub(super) fn roll_snecko(enemy: &mut EnemyCombatState, num: i32) {
     // use Bite unless two consecutive Bites force Tail.
     if enemy.entity.status(sid::FIRST_MOVE) > 0 {
         enemy.entity.set_status(sid::FIRST_MOVE, 0);
-        enemy.set_move(move_ids::SNECKO_GLARE, 0, 0, 0);
+        enemy.set_move_with_intent(move_ids::SNECKO_GLARE, Intent::StrongDebuff { effects: 0 });
         enemy.add_effect(mfx::CONFUSED, 1);
     } else if num < 40 || last_two_moves(enemy, move_ids::SNECKO_BITE) {
         let tail_damage = enemy.entity.status(sid::STR_AMT).max(8);
-        enemy.set_move(move_ids::SNECKO_TAIL, tail_damage, 1, 0);
+        let mut effects = fx::VULNERABLE;
+        if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
+            effects |= fx::WEAK;
+        }
+        enemy.set_move_with_intent(
+            move_ids::SNECKO_TAIL,
+            Intent::AttackDebuff {
+                damage: tail_damage as i16,
+                hits: 1,
+                effects,
+            },
+        );
         if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
             enemy.add_effect(mfx::WEAK, 2);
         }
@@ -479,7 +548,7 @@ pub(super) fn roll_bear(enemy: &mut EnemyCombatState, _num: i32) {
     // BanditBear.getMove always selects the one-time Bear Hug opener. Later
     // intents are installed directly by takeTurn and never call rollMove.
     // Java: reference/extracted/methods/monster/BanditBear.java
-    enemy.set_move(move_ids::BEAR_HUG, 0, 0, 0);
+    enemy.set_move_with_intent(move_ids::BEAR_HUG, Intent::StrongDebuff { effects: 0 });
     enemy.add_effect(mfx::DEX_DOWN, enemy.entity.status(sid::BLOCK_AMT) as i16);
 }
 
@@ -535,7 +604,7 @@ pub(super) fn roll_bandit_leader(enemy: &mut EnemyCombatState, _num: i32) {
     // BanditLeader.getMove always selects the one-time Mock opener. All later
     // intents are installed by takeTurn through SetMoveAction.
     // Java: reference/extracted/methods/monster/BanditLeader.java
-    enemy.set_move(move_ids::BANDIT_MOCK, 0, 0, 0);
+    enemy.set_move_with_intent(move_ids::BANDIT_MOCK, Intent::Unknown);
 }
 
 pub(crate) fn advance_bandit_leader_after_turn(enemy: &mut EnemyCombatState) {
@@ -552,11 +621,14 @@ pub(crate) fn advance_bandit_leader_after_turn(enemy: &mut EnemyCombatState) {
                 || enemy.entity.status(sid::BLOCK_AMT) < 3
                 || last_two_moves(enemy, move_ids::BANDIT_CROSS_SLASH) =>
         {
-            enemy.set_move(
+            let damage = enemy.entity.status(sid::STR_AMT);
+            enemy.set_move_with_intent(
                 move_ids::BANDIT_AGONIZE,
-                enemy.entity.status(sid::STR_AMT),
-                1,
-                0,
+                Intent::AttackDebuff {
+                    damage: damage as i16,
+                    hits: 1,
+                    effects: fx::WEAK,
+                },
             );
             enemy.add_effect(mfx::WEAK, enemy.entity.status(sid::BLOCK_AMT) as i16);
         }
@@ -581,7 +653,7 @@ pub(super) fn roll_bronze_automaton(enemy: &mut EnemyCombatState, _num: i32) {
     let block = enemy.entity.status(sid::BLOCK_AMT);
     if enemy.entity.status(sid::FIRST_TURN) > 0 {
         enemy.entity.set_status(sid::FIRST_TURN, 0);
-        enemy.set_move(move_ids::BA_SPAWN_ORBS, 0, 0, 0);
+        enemy.set_move_with_intent(move_ids::BA_SPAWN_ORBS, Intent::Unknown);
         return;
     }
     let num_turns = enemy.entity.status(sid::NUM_TURNS);
@@ -592,10 +664,16 @@ pub(super) fn roll_bronze_automaton(enemy: &mut EnemyCombatState, _num: i32) {
     }
     if last_move(enemy, move_ids::BA_HYPER_BEAM) {
         if enemy.entity.status(sid::HIGH_ASCENSION_AI) > 0 {
-            enemy.set_move(move_ids::BA_BOOST, 0, 0, block);
+            enemy.set_move_with_intent(
+                move_ids::BA_BOOST,
+                Intent::DefendBuff {
+                    block: block as i16,
+                    effects: fx::STRENGTH,
+                },
+            );
             enemy.add_effect(mfx::STRENGTH, strength as i16);
         } else {
-            enemy.set_move(move_ids::BA_STUNNED, 0, 0, 0);
+            enemy.set_move_with_intent(move_ids::BA_STUNNED, Intent::Stun);
         }
         return;
     }
@@ -605,7 +683,13 @@ pub(super) fn roll_bronze_automaton(enemy: &mut EnemyCombatState, _num: i32) {
     {
         enemy.set_move(move_ids::BA_FLAIL, flail, 2, 0);
     } else {
-        enemy.set_move(move_ids::BA_BOOST, 0, 0, block);
+        enemy.set_move_with_intent(
+            move_ids::BA_BOOST,
+            Intent::DefendBuff {
+                block: block as i16,
+                effects: fx::STRENGTH,
+            },
+        );
         enemy.add_effect(mfx::STRENGTH, strength as i16);
     }
     enemy.entity.set_status(sid::NUM_TURNS, num_turns + 1);
@@ -615,7 +699,7 @@ pub(super) fn roll_bronze_orb(enemy: &mut EnemyCombatState, num: i32) {
     // Java: reference/extracted/methods/monster/BronzeOrb.java (`getMove`).
     if enemy.entity.status(sid::FIRST_MOVE) == 0 && num >= 25 {
         enemy.entity.set_status(sid::FIRST_MOVE, 1);
-        enemy.set_move(move_ids::BO_STASIS, 0, 0, 0);
+        enemy.set_move_with_intent(move_ids::BO_STASIS, Intent::StrongDebuff { effects: 0 });
         enemy.add_effect(mfx::STASIS, 1);
     } else if num >= 70 && !last_two_moves(enemy, move_ids::BO_SUPPORT) {
         enemy.set_move(move_ids::BO_SUPPORT, 0, 0, 12);
@@ -659,7 +743,12 @@ pub(super) fn roll_champ(enemy: &mut EnemyCombatState, num: i32) {
     }
 
     if num_turns == 4 && enemy.entity.status(sid::THRESHOLD_REACHED) == 0 {
-        enemy.set_move(move_ids::CHAMP_TAUNT, 0, 0, 0);
+        enemy.set_move_with_intent(
+            move_ids::CHAMP_TAUNT,
+            Intent::Debuff {
+                effects: fx::VULNERABLE | fx::WEAK,
+            },
+        );
         enemy.add_effect(mfx::VULNERABLE, 2);
         enemy.add_effect(mfx::WEAK, 2);
         enemy.entity.set_status(sid::NUM_TURNS, 0);
@@ -674,7 +763,13 @@ pub(super) fn roll_champ(enemy: &mut EnemyCombatState, num: i32) {
     };
     if !last_move(enemy, move_ids::CHAMP_DEFENSIVE) && forge_times < 2 && num <= forge_roll_max {
         enemy.entity.set_status(sid::FORGE_TIMES, forge_times + 1);
-        enemy.set_move(move_ids::CHAMP_DEFENSIVE, 0, 0, block_amt);
+        enemy.set_move_with_intent(
+            move_ids::CHAMP_DEFENSIVE,
+            Intent::DefendBuff {
+                block: block_amt as i16,
+                effects: 0,
+            },
+        );
         enemy.add_effect(mfx::METALLICIZE, forge_amt as i16);
     } else if !last_move(enemy, move_ids::CHAMP_GLOAT)
         && !last_move(enemy, move_ids::CHAMP_DEFENSIVE)
@@ -683,13 +778,27 @@ pub(super) fn roll_champ(enemy: &mut EnemyCombatState, num: i32) {
         enemy.set_move(move_ids::CHAMP_GLOAT, 0, 0, 0);
         enemy.add_effect(mfx::STRENGTH, str_amt as i16);
     } else if !last_move(enemy, move_ids::CHAMP_FACE_SLAP) && num <= 55 {
-        enemy.set_move(move_ids::CHAMP_FACE_SLAP, slap_dmg, 1, 0);
+        enemy.set_move_with_intent(
+            move_ids::CHAMP_FACE_SLAP,
+            Intent::AttackDebuff {
+                damage: slap_dmg as i16,
+                hits: 1,
+                effects: fx::FRAIL | fx::VULNERABLE,
+            },
+        );
         enemy.add_effect(mfx::FRAIL, 2);
         enemy.add_effect(mfx::VULNERABLE, 2);
     } else if !last_move(enemy, move_ids::CHAMP_HEAVY_SLASH) {
         enemy.set_move(move_ids::CHAMP_HEAVY_SLASH, slash_dmg, 1, 0);
     } else {
-        enemy.set_move(move_ids::CHAMP_FACE_SLAP, slap_dmg, 1, 0);
+        enemy.set_move_with_intent(
+            move_ids::CHAMP_FACE_SLAP,
+            Intent::AttackDebuff {
+                damage: slap_dmg as i16,
+                hits: 1,
+                effects: fx::FRAIL | fx::VULNERABLE,
+            },
+        );
         enemy.add_effect(mfx::FRAIL, 2);
         enemy.add_effect(mfx::VULNERABLE, 2);
     }
@@ -729,7 +838,7 @@ pub(super) fn roll_collector(enemy: &mut EnemyCombatState, num: i32) {
         && enemy.entity.status(sid::USED_MEGA_DEBUFF) == 0
     {
         enemy.set_move(move_ids::COLL_MEGA_DEBUFF, 0, 0, 0);
-        enemy.intent = crate::combat_types::Intent::Debuff { effects: 0 };
+        enemy.intent = crate::combat_types::Intent::StrongDebuff { effects: 0 };
         enemy.add_effect(mfx::WEAK, mega as i16);
         enemy.add_effect(mfx::VULNERABLE, mega as i16);
         enemy.add_effect(mfx::FRAIL, mega as i16);

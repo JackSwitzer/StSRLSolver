@@ -4,9 +4,9 @@ mod silent_card_java_parity_tests {
     // /tmp/sts-decompiled/com/megacrit/cardcrawl/cards/green/*.java
 
     use crate::actions::Action;
+    use crate::cards::{CardRegistry, CardTarget, CardType};
     use crate::effects::declarative::{AmountSource, CardFilter, ChoiceAction, Effect, Pile};
     use crate::status_ids::sid;
-    use crate::cards::{CardRegistry, CardTarget, CardType};
     use crate::tests::support::*;
 
     fn reg() -> &'static CardRegistry {
@@ -83,21 +83,97 @@ mod silent_card_java_parity_tests {
     // Exact Java parity for every Silent card in /cards/green
     // ---------------------------------------------------------------------
 
-    card_pair_test!(strike_g,
-        "Strike", 1, 6, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &[],
-        "Strike+", 1, 9, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &[],
+    card_pair_test!(
+        strike_g,
+        "Strike",
+        1,
+        6,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &[],
+        "Strike+",
+        1,
+        9,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &[],
     );
-    card_pair_test!(defend_g,
-        "Defend", 1, -1, 5, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &[],
-        "Defend+", 1, -1, 8, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &[],
+    card_pair_test!(
+        defend_g,
+        "Defend",
+        1,
+        -1,
+        5,
+        -1,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &[],
+        "Defend+",
+        1,
+        -1,
+        8,
+        -1,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &[],
     );
-    card_pair_test!(neutralize,
-        "Neutralize", 0, 3, -1, 1, CardType::Attack, CardTarget::Enemy, false, None, &["weak"],
-        "Neutralize+", 0, 4, -1, 2, CardType::Attack, CardTarget::Enemy, false, None, &["weak"],
+    card_pair_test!(
+        neutralize,
+        "Neutralize",
+        0,
+        3,
+        -1,
+        1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["weak"],
+        "Neutralize+",
+        0,
+        4,
+        -1,
+        2,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["weak"],
     );
-    card_pair_test!(survivor,
-        "Survivor", 1, -1, 8, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["discard"],
-        "Survivor+", 1, -1, 11, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["discard"],
+    card_pair_test!(
+        survivor,
+        "Survivor",
+        1,
+        -1,
+        8,
+        -1,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["discard"],
+        "Survivor+",
+        1,
+        -1,
+        11,
+        -1,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["discard"],
     );
 
     #[test]
@@ -107,11 +183,8 @@ mod silent_card_java_parity_tests {
         // more than one card remains, but auto-discards a singleton hand.
         // Java: reference/extracted/methods/card/Survivor.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DiscardAction.java
-        let mut selected = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            1,
-        );
+        let mut selected =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 1);
         force_player_turn(&mut selected);
         selected.state.hand = make_deck(&["Survivor", "Strike", "Defend"]);
         assert!(play_self(&mut selected, "Survivor"));
@@ -123,19 +196,18 @@ mod silent_card_java_parity_tests {
             .expect("Survivor discard choice")
             .options
             .iter()
-            .position(|option| matches!(option, crate::engine::ChoiceOption::HandCard(index)
-                if selected.card_registry.card_name(selected.state.hand[*index].def_id) == "Strike"))
+            .position(|option| {
+                matches!(option, crate::engine::ChoiceOption::HandCard(index)
+                if selected.card_registry.card_name(selected.state.hand[*index].def_id) == "Strike")
+            })
             .expect("Strike discard option");
         selected.execute_action(&Action::Choose(strike_option));
         assert_eq!(selected.phase, crate::engine::CombatPhase::PlayerTurn);
         assert_eq!(hand_count(&selected, "Defend"), 1);
         assert_eq!(discard_prefix_count(&selected, "Strike"), 1);
 
-        let mut automatic = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            1,
-        );
+        let mut automatic =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 1);
         force_player_turn(&mut automatic);
         automatic.state.hand = make_deck(&["Survivor+", "Strike"]);
         assert!(play_self(&mut automatic, "Survivor+"));
@@ -144,9 +216,28 @@ mod silent_card_java_parity_tests {
         assert!(automatic.state.hand.is_empty());
         assert_eq!(discard_prefix_count(&automatic, "Strike"), 1);
     }
-    card_pair_test!(acrobatics,
-        "Acrobatics", 1, -1, -1, 3, CardType::Skill, CardTarget::None, false, None, &["draw", "discard"],
-        "Acrobatics+", 1, -1, -1, 4, CardType::Skill, CardTarget::None, false, None, &["draw", "discard"],
+    card_pair_test!(
+        acrobatics,
+        "Acrobatics",
+        1,
+        -1,
+        -1,
+        3,
+        CardType::Skill,
+        CardTarget::None,
+        false,
+        None,
+        &["draw", "discard"],
+        "Acrobatics+",
+        1,
+        -1,
+        -1,
+        4,
+        CardType::Skill,
+        CardTarget::None,
+        false,
+        None,
+        &["draw", "discard"],
     );
 
     #[test]
@@ -157,19 +248,10 @@ mod silent_card_java_parity_tests {
         // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Acrobatics.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Tactician.java
         for (card_id, draw_count) in [("Acrobatics", 3), ("Acrobatics+", 4)] {
-            let state = combat_state_with(
-                Vec::new(),
-                vec![enemy_no_intent("JawWorm", 40, 40)],
-                3,
-            );
+            let state = combat_state_with(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
             let mut engine = engine_with_state(state);
             engine.state.hand = make_deck(&[card_id, "Tactician"]);
-            engine.state.draw_pile = make_deck(&[
-                "Strike",
-                "Defend",
-                "Neutralize",
-                "Survivor",
-            ]);
+            engine.state.draw_pile = make_deck(&["Strike", "Defend", "Neutralize", "Survivor"]);
             engine.state.discard_pile.clear();
             engine.state.energy = 3;
 
@@ -189,30 +271,127 @@ mod silent_card_java_parity_tests {
             assert_eq!(engine.phase, crate::engine::CombatPhase::PlayerTurn);
             assert_eq!(engine.state.hand.len(), draw_count);
             assert_eq!(engine.state.energy, 3);
-            assert!(engine.state.discard_pile.iter().any(|card| {
-                engine.card_registry.card_name(card.def_id) == "Tactician"
-            }));
+            assert!(engine
+                .state
+                .discard_pile
+                .iter()
+                .any(|card| { engine.card_registry.card_name(card.def_id) == "Tactician" }));
         }
     }
-    card_pair_test!(backflip,
-        "Backflip", 1, -1, 5, 2, CardType::Skill, CardTarget::SelfTarget, false, None, &["draw"],
-        "Backflip+", 1, -1, 8, 2, CardType::Skill, CardTarget::SelfTarget, false, None, &["draw"],
+    card_pair_test!(
+        backflip,
+        "Backflip",
+        1,
+        -1,
+        5,
+        2,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["draw"],
+        "Backflip+",
+        1,
+        -1,
+        8,
+        2,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["draw"],
     );
-    card_pair_test!(bane,
-        "Bane", 1, 7, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["double_if_poisoned"],
-        "Bane+", 1, 10, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["double_if_poisoned"],
+    card_pair_test!(
+        bane,
+        "Bane",
+        1,
+        7,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["double_if_poisoned"],
+        "Bane+",
+        1,
+        10,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["double_if_poisoned"],
     );
-    card_pair_test!(blade_dance,
-        "Blade Dance", 1, -1, -1, 3, CardType::Skill, CardTarget::None, false, None, &["add_shivs"],
-        "Blade Dance+", 1, -1, -1, 4, CardType::Skill, CardTarget::None, false, None, &["add_shivs"],
+    card_pair_test!(
+        blade_dance,
+        "Blade Dance",
+        1,
+        -1,
+        -1,
+        3,
+        CardType::Skill,
+        CardTarget::None,
+        false,
+        None,
+        &["add_shivs"],
+        "Blade Dance+",
+        1,
+        -1,
+        -1,
+        4,
+        CardType::Skill,
+        CardTarget::None,
+        false,
+        None,
+        &["add_shivs"],
     );
-    card_pair_test!(cloak_and_dagger,
-        "Cloak and Dagger", 1, -1, 6, 1, CardType::Skill, CardTarget::SelfTarget, false, None, &["add_shivs"],
-        "Cloak and Dagger+", 1, -1, 6, 2, CardType::Skill, CardTarget::SelfTarget, false, None, &["add_shivs"],
+    card_pair_test!(
+        cloak_and_dagger,
+        "Cloak and Dagger",
+        1,
+        -1,
+        6,
+        1,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["add_shivs"],
+        "Cloak and Dagger+",
+        1,
+        -1,
+        6,
+        2,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["add_shivs"],
     );
-    card_pair_test!(dagger_spray,
-        "Dagger Spray", 1, 4, -1, 2, CardType::Attack, CardTarget::AllEnemy, false, None, &["multi_hit"],
-        "Dagger Spray+", 1, 6, -1, 2, CardType::Attack, CardTarget::AllEnemy, false, None, &["multi_hit"],
+    card_pair_test!(
+        dagger_spray,
+        "Dagger Spray",
+        1,
+        4,
+        -1,
+        2,
+        CardType::Attack,
+        CardTarget::AllEnemy,
+        false,
+        None,
+        &["multi_hit"],
+        "Dagger Spray+",
+        1,
+        6,
+        -1,
+        2,
+        CardType::Attack,
+        CardTarget::AllEnemy,
+        false,
+        None,
+        &["multi_hit"],
     );
 
     #[test]
@@ -241,13 +420,51 @@ mod silent_card_java_parity_tests {
         assert_eq!(engine.state.energy, 0);
     }
 
-    card_pair_test!(dagger_throw,
-        "Dagger Throw", 1, 9, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["draw", "discard"],
-        "Dagger Throw+", 1, 12, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["draw", "discard"],
+    card_pair_test!(
+        dagger_throw,
+        "Dagger Throw",
+        1,
+        9,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["draw", "discard"],
+        "Dagger Throw+",
+        1,
+        12,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["draw", "discard"],
     );
-    card_pair_test!(deadly_poison,
-        "Deadly Poison", 1, -1, -1, 5, CardType::Skill, CardTarget::Enemy, false, None, &["poison"],
-        "Deadly Poison+", 1, -1, -1, 7, CardType::Skill, CardTarget::Enemy, false, None, &["poison"],
+    card_pair_test!(
+        deadly_poison,
+        "Deadly Poison",
+        1,
+        -1,
+        -1,
+        5,
+        CardType::Skill,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["poison"],
+        "Deadly Poison+",
+        1,
+        -1,
+        -1,
+        7,
+        CardType::Skill,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["poison"],
     );
 
     #[test]
@@ -256,24 +473,21 @@ mod silent_card_java_parity_tests {
         // adds 2. PoisonPower is a debuff, so Artifact consumes one stack and
         // prevents the application.
         for (card_id, expected_poison) in [("Deadly Poison", 5), ("Deadly Poison+", 7)] {
-            let mut engine = engine_without_start(
-                Vec::new(),
-                vec![enemy_no_intent("JawWorm", 40, 40)],
-                1,
-            );
+            let mut engine =
+                engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 1);
             force_player_turn(&mut engine);
             engine.state.hand = make_deck(&[card_id]);
 
             assert!(play_on_enemy(&mut engine, card_id, 0));
-            assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), expected_poison);
+            assert_eq!(
+                engine.state.enemies[0].entity.status(sid::POISON),
+                expected_poison
+            );
             assert_eq!(engine.state.energy, 0);
         }
 
-        let mut blocked = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            1,
-        );
+        let mut blocked =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 1);
         force_player_turn(&mut blocked);
         blocked.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
         blocked.state.hand = make_deck(&["Deadly Poison+"]);
@@ -282,9 +496,28 @@ mod silent_card_java_parity_tests {
         assert_eq!(blocked.state.enemies[0].entity.status(sid::ARTIFACT), 0);
         assert_eq!(blocked.state.enemies[0].entity.status(sid::POISON), 0);
     }
-    card_pair_test!(deflect,
-        "Deflect", 0, -1, 4, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &[],
-        "Deflect+", 0, -1, 7, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &[],
+    card_pair_test!(
+        deflect,
+        "Deflect",
+        0,
+        -1,
+        4,
+        -1,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &[],
+        "Deflect+",
+        0,
+        -1,
+        7,
+        -1,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &[],
     );
 
     #[test]
@@ -292,11 +525,8 @@ mod silent_card_java_parity_tests {
         // Deflect.java queues GainBlockAction(this.block), using base Block 4
         // or 7 after upgradeBlock(3). Two Dexterity therefore makes 6 or 9.
         for (card_id, expected_block) in [("Deflect", 6), ("Deflect+", 9)] {
-            let mut engine = engine_without_start(
-                Vec::new(),
-                vec![enemy_no_intent("JawWorm", 40, 40)],
-                0,
-            );
+            let mut engine =
+                engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 0);
             force_player_turn(&mut engine);
             engine.state.player.set_status(sid::DEXTERITY, 2);
             engine.state.hand = make_deck(&[card_id]);
@@ -306,9 +536,28 @@ mod silent_card_java_parity_tests {
             assert_eq!(engine.state.energy, 0);
         }
     }
-    card_pair_test!(dodge_and_roll,
-        "Dodge and Roll", 1, -1, 4, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["next_turn_block"],
-        "Dodge and Roll+", 1, -1, 6, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["next_turn_block"],
+    card_pair_test!(
+        dodge_and_roll,
+        "Dodge and Roll",
+        1,
+        -1,
+        4,
+        -1,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["next_turn_block"],
+        "Dodge and Roll+",
+        1,
+        -1,
+        6,
+        -1,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["next_turn_block"],
     );
 
     #[test]
@@ -317,60 +566,250 @@ mod silent_card_java_parity_tests {
         // NextTurnBlockPower. With two Dexterity, base grants/stores 6 and the
         // upgraded card grants/stores 8 after upgradeBlock(2).
         for (card_id, expected_block) in [("Dodge and Roll", 6), ("Dodge and Roll+", 8)] {
-            let mut engine = engine_without_start(
-                Vec::new(),
-                vec![enemy_no_intent("JawWorm", 40, 40)],
-                1,
-            );
+            let mut engine =
+                engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 1);
             force_player_turn(&mut engine);
             engine.state.player.set_status(sid::DEXTERITY, 2);
             engine.state.hand = make_deck(&[card_id]);
 
             assert!(play_self(&mut engine, card_id));
             assert_eq!(engine.state.player.block, expected_block);
-            assert_eq!(engine.state.player.status(sid::NEXT_TURN_BLOCK), expected_block);
+            assert_eq!(
+                engine.state.player.status(sid::NEXT_TURN_BLOCK),
+                expected_block
+            );
             assert_eq!(engine.state.energy, 0);
         }
     }
-    card_pair_test!(flying_knee,
-        "Flying Knee", 1, 8, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["next_turn_energy"],
-        "Flying Knee+", 1, 11, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["next_turn_energy"],
+    card_pair_test!(
+        flying_knee,
+        "Flying Knee",
+        1,
+        8,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["next_turn_energy"],
+        "Flying Knee+",
+        1,
+        11,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["next_turn_energy"],
     );
-    card_pair_test!(outmaneuver,
-        "Outmaneuver", 1, -1, -1, 2, CardType::Skill, CardTarget::None, false, None, &["next_turn_energy"],
-        "Outmaneuver+", 1, -1, -1, 3, CardType::Skill, CardTarget::None, false, None, &["next_turn_energy"],
+    card_pair_test!(
+        outmaneuver,
+        "Outmaneuver",
+        1,
+        -1,
+        -1,
+        2,
+        CardType::Skill,
+        CardTarget::None,
+        false,
+        None,
+        &["next_turn_energy"],
+        "Outmaneuver+",
+        1,
+        -1,
+        -1,
+        3,
+        CardType::Skill,
+        CardTarget::None,
+        false,
+        None,
+        &["next_turn_energy"],
     );
-    card_pair_test!(piercing_wail,
-        "Piercing Wail", 1, -1, -1, 6, CardType::Skill, CardTarget::AllEnemy, true, None, &["reduce_strength_all_temp"],
-        "Piercing Wail+", 1, -1, -1, 8, CardType::Skill, CardTarget::AllEnemy, true, None, &["reduce_strength_all_temp"],
+    card_pair_test!(
+        piercing_wail,
+        "Piercing Wail",
+        1,
+        -1,
+        -1,
+        6,
+        CardType::Skill,
+        CardTarget::AllEnemy,
+        true,
+        None,
+        &["reduce_strength_all_temp"],
+        "Piercing Wail+",
+        1,
+        -1,
+        -1,
+        8,
+        CardType::Skill,
+        CardTarget::AllEnemy,
+        true,
+        None,
+        &["reduce_strength_all_temp"],
     );
-    card_pair_test!(poisoned_stab,
-        "Poisoned Stab", 1, 6, -1, 3, CardType::Attack, CardTarget::Enemy, false, None, &["poison"],
-        "Poisoned Stab+", 1, 8, -1, 4, CardType::Attack, CardTarget::Enemy, false, None, &["poison"],
+    card_pair_test!(
+        poisoned_stab,
+        "Poisoned Stab",
+        1,
+        6,
+        -1,
+        3,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["poison"],
+        "Poisoned Stab+",
+        1,
+        8,
+        -1,
+        4,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["poison"],
     );
-    card_pair_test!(prepared,
-        "Prepared", 0, -1, -1, 1, CardType::Skill, CardTarget::None, false, None, &["draw", "discard"],
-        "Prepared+", 0, -1, -1, 2, CardType::Skill, CardTarget::None, false, None, &["draw", "discard"],
+    card_pair_test!(
+        prepared,
+        "Prepared",
+        0,
+        -1,
+        -1,
+        1,
+        CardType::Skill,
+        CardTarget::None,
+        false,
+        None,
+        &["draw", "discard"],
+        "Prepared+",
+        0,
+        -1,
+        -1,
+        2,
+        CardType::Skill,
+        CardTarget::None,
+        false,
+        None,
+        &["draw", "discard"],
     );
-    card_pair_test!(quick_slash,
-        "Quick Slash", 1, 8, -1, 1, CardType::Attack, CardTarget::Enemy, false, None, &["draw"],
-        "Quick Slash+", 1, 12, -1, 1, CardType::Attack, CardTarget::Enemy, false, None, &["draw"],
+    card_pair_test!(
+        quick_slash,
+        "Quick Slash",
+        1,
+        8,
+        -1,
+        1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["draw"],
+        "Quick Slash+",
+        1,
+        12,
+        -1,
+        1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["draw"],
     );
-    card_pair_test!(slice,
-        "Slice", 0, 6, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &[],
-        "Slice+", 0, 9, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &[],
+    card_pair_test!(
+        slice,
+        "Slice",
+        0,
+        6,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &[],
+        "Slice+",
+        0,
+        9,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &[],
     );
-    card_pair_test!(sneaky_strike,
-        "Sneaky Strike", 2, 12, -1, 2, CardType::Attack, CardTarget::Enemy, false, None, &["refund_energy_on_discard"],
-        "Sneaky Strike+", 2, 16, -1, 2, CardType::Attack, CardTarget::Enemy, false, None, &["refund_energy_on_discard"],
+    card_pair_test!(
+        sneaky_strike,
+        "Sneaky Strike",
+        2,
+        12,
+        -1,
+        2,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["refund_energy_on_discard"],
+        "Sneaky Strike+",
+        2,
+        16,
+        -1,
+        2,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["refund_energy_on_discard"],
     );
-    card_pair_test!(sucker_punch,
-        "Sucker Punch", 1, 7, -1, 1, CardType::Attack, CardTarget::Enemy, false, None, &["weak"],
-        "Sucker Punch+", 1, 9, -1, 2, CardType::Attack, CardTarget::Enemy, false, None, &["weak"],
+    card_pair_test!(
+        sucker_punch,
+        "Sucker Punch",
+        1,
+        7,
+        -1,
+        1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["weak"],
+        "Sucker Punch+",
+        1,
+        9,
+        -1,
+        2,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["weak"],
     );
-    card_pair_test!(accuracy,
-        "Accuracy", 1, -1, -1, 4, CardType::Power, CardTarget::SelfTarget, false, None, &["accuracy"],
-        "Accuracy+", 1, -1, -1, 6, CardType::Power, CardTarget::SelfTarget, false, None, &["accuracy"],
+    card_pair_test!(
+        accuracy,
+        "Accuracy",
+        1,
+        -1,
+        -1,
+        4,
+        CardType::Power,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["accuracy"],
+        "Accuracy+",
+        1,
+        -1,
+        -1,
+        6,
+        CardType::Power,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["accuracy"],
     );
 
     #[test]
@@ -380,11 +819,7 @@ mod silent_card_java_parity_tests {
         // upgraded Shiv damage is 6 before the shared Accuracy amount.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Accuracy.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/AccuracyPower.java
-        let state = combat_state_with(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 100, 100)],
-            5,
-        );
+        let state = combat_state_with(Vec::new(), vec![enemy_no_intent("JawWorm", 100, 100)], 5);
         let mut engine = engine_with_state(state);
         engine.state.hand = make_deck(&["Accuracy", "Shiv", "Accuracy+", "Shiv+"]);
         engine.state.draw_pile.clear();
@@ -400,46 +835,236 @@ mod silent_card_java_parity_tests {
         assert!(play_on_enemy(&mut engine, "Shiv+", 0));
         assert_eq!(engine.state.enemies[0].entity.hp, 76);
     }
-    card_pair_test!(all_out_attack,
-        "All Out Attack", 1, 10, -1, -1, CardType::Attack, CardTarget::AllEnemy, false, None, &["discard_random"],
-        "All Out Attack+", 1, 14, -1, -1, CardType::Attack, CardTarget::AllEnemy, false, None, &["discard_random"],
+    card_pair_test!(
+        all_out_attack,
+        "All Out Attack",
+        1,
+        10,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::AllEnemy,
+        false,
+        None,
+        &["discard_random"],
+        "All Out Attack+",
+        1,
+        14,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::AllEnemy,
+        false,
+        None,
+        &["discard_random"],
     );
-    card_pair_test!(backstab,
-        "Backstab", 0, 11, -1, -1, CardType::Attack, CardTarget::Enemy, true, None, &["innate"],
-        "Backstab+", 0, 15, -1, -1, CardType::Attack, CardTarget::Enemy, true, None, &["innate"],
+    card_pair_test!(
+        backstab,
+        "Backstab",
+        0,
+        11,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        true,
+        None,
+        &["innate"],
+        "Backstab+",
+        0,
+        15,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        true,
+        None,
+        &["innate"],
     );
-    card_pair_test!(blur,
-        "Blur", 1, -1, 5, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["retain_block"],
-        "Blur+", 1, -1, 8, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["retain_block"],
+    card_pair_test!(
+        blur,
+        "Blur",
+        1,
+        -1,
+        5,
+        -1,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["retain_block"],
+        "Blur+",
+        1,
+        -1,
+        8,
+        -1,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["retain_block"],
     );
-    card_pair_test!(bouncing_flask,
-        "Bouncing Flask", 2, -1, -1, 3, CardType::Skill, CardTarget::AllEnemy, false, None, &["poison_random_multi"],
-        "Bouncing Flask+", 2, -1, -1, 4, CardType::Skill, CardTarget::AllEnemy, false, None, &["poison_random_multi"],
+    card_pair_test!(
+        bouncing_flask,
+        "Bouncing Flask",
+        2,
+        -1,
+        -1,
+        3,
+        CardType::Skill,
+        CardTarget::AllEnemy,
+        false,
+        None,
+        &["poison_random_multi"],
+        "Bouncing Flask+",
+        2,
+        -1,
+        -1,
+        4,
+        CardType::Skill,
+        CardTarget::AllEnemy,
+        false,
+        None,
+        &["poison_random_multi"],
     );
-    card_pair_test!(calculated_gamble,
-        "Calculated Gamble", 0, -1, -1, -1, CardType::Skill, CardTarget::None, true, None, &["calculated_gamble"],
-        "Calculated Gamble+", 0, -1, -1, -1, CardType::Skill, CardTarget::None, false, None, &["calculated_gamble"],
+    card_pair_test!(
+        calculated_gamble,
+        "Calculated Gamble",
+        0,
+        -1,
+        -1,
+        -1,
+        CardType::Skill,
+        CardTarget::None,
+        true,
+        None,
+        &["calculated_gamble"],
+        "Calculated Gamble+",
+        0,
+        -1,
+        -1,
+        -1,
+        CardType::Skill,
+        CardTarget::None,
+        false,
+        None,
+        &["calculated_gamble"],
     );
-    card_pair_test!(caltrops,
-        "Caltrops", 1, -1, -1, 3, CardType::Power, CardTarget::SelfTarget, false, None, &["thorns"],
-        "Caltrops+", 1, -1, -1, 5, CardType::Power, CardTarget::SelfTarget, false, None, &["thorns"],
+    card_pair_test!(
+        caltrops,
+        "Caltrops",
+        1,
+        -1,
+        -1,
+        3,
+        CardType::Power,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["thorns"],
+        "Caltrops+",
+        1,
+        -1,
+        -1,
+        5,
+        CardType::Power,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["thorns"],
     );
-    card_pair_test!(catalyst,
-        "Catalyst", 1, -1, -1, 2, CardType::Skill, CardTarget::Enemy, true, None, &["catalyst_double"],
-        "Catalyst+", 1, -1, -1, 3, CardType::Skill, CardTarget::Enemy, true, None, &["catalyst_triple"],
+    card_pair_test!(
+        catalyst,
+        "Catalyst",
+        1,
+        -1,
+        -1,
+        2,
+        CardType::Skill,
+        CardTarget::Enemy,
+        true,
+        None,
+        &["catalyst_double"],
+        "Catalyst+",
+        1,
+        -1,
+        -1,
+        3,
+        CardType::Skill,
+        CardTarget::Enemy,
+        true,
+        None,
+        &["catalyst_triple"],
     );
-    card_pair_test!(choke,
-        "Choke", 2, 12, -1, 3, CardType::Attack, CardTarget::Enemy, false, None, &["choke"],
-        "Choke+", 2, 12, -1, 5, CardType::Attack, CardTarget::Enemy, false, None, &["choke"],
+    card_pair_test!(
+        choke,
+        "Choke",
+        2,
+        12,
+        -1,
+        3,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["choke"],
+        "Choke+",
+        2,
+        12,
+        -1,
+        5,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["choke"],
     );
-    card_pair_test!(concentrate,
+    card_pair_test!(
+        concentrate,
         // Source: Concentrate.java declares CardTarget.SELF, not NONE.
-        "Concentrate", 0, -1, -1, 3, CardType::Skill, CardTarget::SelfTarget, false, None, &["discard_gain_energy"],
-        "Concentrate+", 0, -1, -1, 2, CardType::Skill, CardTarget::SelfTarget, false, None, &["discard_gain_energy"],
+        "Concentrate",
+        0,
+        -1,
+        -1,
+        3,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["discard_gain_energy"],
+        "Concentrate+",
+        0,
+        -1,
+        -1,
+        2,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["discard_gain_energy"],
     );
-    card_pair_test!(crippling_cloud,
-        "Crippling Cloud", 2, -1, -1, 4, CardType::Skill, CardTarget::AllEnemy, true, None, &["poison_all", "weak_all"],
-        "Crippling Cloud+", 2, -1, -1, 7, CardType::Skill, CardTarget::AllEnemy, true, None, &["poison_all", "weak_all"],
+    card_pair_test!(
+        crippling_cloud,
+        "Crippling Cloud",
+        2,
+        -1,
+        -1,
+        4,
+        CardType::Skill,
+        CardTarget::AllEnemy,
+        true,
+        None,
+        &["poison_all", "weak_all"],
+        "Crippling Cloud+",
+        2,
+        -1,
+        -1,
+        7,
+        CardType::Skill,
+        CardTarget::AllEnemy,
+        true,
+        None,
+        &["poison_all", "weak_all"],
     );
 
     #[test]
@@ -469,21 +1094,97 @@ mod silent_card_java_parity_tests {
         assert_eq!(engine.state.exhaust_pile.len(), 1);
     }
 
-    card_pair_test!(dash,
-        "Dash", 2, 10, 10, -1, CardType::Attack, CardTarget::Enemy, false, None, &[],
-        "Dash+", 2, 13, 13, -1, CardType::Attack, CardTarget::Enemy, false, None, &[],
+    card_pair_test!(
+        dash,
+        "Dash",
+        2,
+        10,
+        10,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &[],
+        "Dash+",
+        2,
+        13,
+        13,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &[],
     );
-    card_pair_test!(distraction,
-        "Distraction", 1, -1, -1, -1, CardType::Skill, CardTarget::None, true, None, &["random_skill_to_hand"],
-        "Distraction+", 0, -1, -1, -1, CardType::Skill, CardTarget::None, true, None, &["random_skill_to_hand"],
+    card_pair_test!(
+        distraction,
+        "Distraction",
+        1,
+        -1,
+        -1,
+        -1,
+        CardType::Skill,
+        CardTarget::None,
+        true,
+        None,
+        &["random_skill_to_hand"],
+        "Distraction+",
+        0,
+        -1,
+        -1,
+        -1,
+        CardType::Skill,
+        CardTarget::None,
+        true,
+        None,
+        &["random_skill_to_hand"],
     );
-    card_pair_test!(endless_agony,
-        "Endless Agony", 0, 4, -1, -1, CardType::Attack, CardTarget::Enemy, true, None, &["copy_on_draw"],
-        "Endless Agony+", 0, 6, -1, -1, CardType::Attack, CardTarget::Enemy, true, None, &["copy_on_draw"],
+    card_pair_test!(
+        endless_agony,
+        "Endless Agony",
+        0,
+        4,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        true,
+        None,
+        &["copy_on_draw"],
+        "Endless Agony+",
+        0,
+        6,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        true,
+        None,
+        &["copy_on_draw"],
     );
-    card_pair_test!(envenom,
-        "Envenom", 2, -1, -1, -1, CardType::Power, CardTarget::SelfTarget, false, None, &["envenom"],
-        "Envenom+", 1, -1, -1, -1, CardType::Power, CardTarget::SelfTarget, false, None, &["envenom"],
+    card_pair_test!(
+        envenom,
+        "Envenom",
+        2,
+        -1,
+        -1,
+        -1,
+        CardType::Power,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["envenom"],
+        "Envenom+",
+        1,
+        -1,
+        -1,
+        -1,
+        CardType::Power,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["envenom"],
     );
 
     #[test]
@@ -492,11 +1193,8 @@ mod silent_card_java_parity_tests {
         // onAttack hook applies its stacked amount after positive NORMAL damage.
         // Java: reference/extracted/methods/card/Envenom.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/EnvenomPower.java
-        let mut engine = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            4,
-        );
+        let mut engine =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 4);
         force_player_turn(&mut engine);
         engine.state.hand = make_deck(&["Envenom", "Envenom+", "Strike"]);
 
@@ -509,33 +1207,166 @@ mod silent_card_java_parity_tests {
         assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 2);
         assert_eq!(engine.state.energy, 0);
     }
-    card_pair_test!(escape_plan,
-        "Escape Plan", 0, -1, 3, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["block_if_skill"],
-        "Escape Plan+", 0, -1, 5, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["block_if_skill"],
+    card_pair_test!(
+        escape_plan,
+        "Escape Plan",
+        0,
+        -1,
+        3,
+        -1,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["block_if_skill"],
+        "Escape Plan+",
+        0,
+        -1,
+        5,
+        -1,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["block_if_skill"],
     );
-    card_pair_test!(eviscerate,
-        "Eviscerate", 3, 7, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["multi_hit", "cost_reduce_on_discard"],
-        "Eviscerate+", 3, 9, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["multi_hit", "cost_reduce_on_discard"],
+    card_pair_test!(
+        eviscerate,
+        "Eviscerate",
+        3,
+        7,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["multi_hit", "cost_reduce_on_discard"],
+        "Eviscerate+",
+        3,
+        9,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["multi_hit", "cost_reduce_on_discard"],
     );
-    card_pair_test!(expertise,
-        "Expertise", 1, -1, -1, 6, CardType::Skill, CardTarget::None, false, None, &["draw_to_n"],
-        "Expertise+", 1, -1, -1, 7, CardType::Skill, CardTarget::None, false, None, &["draw_to_n"],
+    card_pair_test!(
+        expertise,
+        "Expertise",
+        1,
+        -1,
+        -1,
+        6,
+        CardType::Skill,
+        CardTarget::None,
+        false,
+        None,
+        &["draw_to_n"],
+        "Expertise+",
+        1,
+        -1,
+        -1,
+        7,
+        CardType::Skill,
+        CardTarget::None,
+        false,
+        None,
+        &["draw_to_n"],
     );
-    card_pair_test!(finisher,
-        "Finisher", 1, 6, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["finisher"],
-        "Finisher+", 1, 8, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["finisher"],
+    card_pair_test!(
+        finisher,
+        "Finisher",
+        1,
+        6,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["finisher"],
+        "Finisher+",
+        1,
+        8,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["finisher"],
     );
-    card_pair_test!(flechettes,
-        "Flechettes", 1, 4, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["flechettes"],
-        "Flechettes+", 1, 6, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["flechettes"],
+    card_pair_test!(
+        flechettes,
+        "Flechettes",
+        1,
+        4,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["flechettes"],
+        "Flechettes+",
+        1,
+        6,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["flechettes"],
     );
-    card_pair_test!(footwork,
-        "Footwork", 1, -1, -1, 2, CardType::Power, CardTarget::SelfTarget, false, None, &["gain_dexterity"],
-        "Footwork+", 1, -1, -1, 3, CardType::Power, CardTarget::SelfTarget, false, None, &["gain_dexterity"],
+    card_pair_test!(
+        footwork,
+        "Footwork",
+        1,
+        -1,
+        -1,
+        2,
+        CardType::Power,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["gain_dexterity"],
+        "Footwork+",
+        1,
+        -1,
+        -1,
+        3,
+        CardType::Power,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["gain_dexterity"],
     );
-    card_pair_test!(heel_hook,
-        "Heel Hook", 1, 5, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["if_weak_energy_draw"],
-        "Heel Hook+", 1, 8, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["if_weak_energy_draw"],
+    card_pair_test!(
+        heel_hook,
+        "Heel Hook",
+        1,
+        5,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["if_weak_energy_draw"],
+        "Heel Hook+",
+        1,
+        8,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["if_weak_energy_draw"],
     );
 
     #[test]
@@ -567,28 +1398,48 @@ mod silent_card_java_parity_tests {
         );
         surviving_fight.state.hand = make_deck(&["Heel Hook+"]);
         surviving_fight.state.draw_pile = make_deck(&["Defend"]);
-        surviving_fight.state.enemies[0].entity.set_status(sid::WEAKENED, 1);
+        surviving_fight.state.enemies[0]
+            .entity
+            .set_status(sid::WEAKENED, 1);
         assert!(play_on_enemy(&mut surviving_fight, "Heel Hook+", 0));
         assert!(surviving_fight.state.enemies[0].entity.is_dead());
         assert_eq!(surviving_fight.state.energy, 1);
         assert_eq!(hand_count(&surviving_fight, "Defend"), 1);
 
-        let mut final_kill = engine_with_enemies(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 8, 8)],
-            1,
-        );
+        let mut final_kill =
+            engine_with_enemies(Vec::new(), vec![enemy_no_intent("JawWorm", 8, 8)], 1);
         final_kill.state.hand = make_deck(&["Heel Hook+"]);
         final_kill.state.draw_pile = make_deck(&["Defend"]);
-        final_kill.state.enemies[0].entity.set_status(sid::WEAKENED, 1);
+        final_kill.state.enemies[0]
+            .entity
+            .set_status(sid::WEAKENED, 1);
         assert!(play_on_enemy(&mut final_kill, "Heel Hook+", 0));
         assert!(final_kill.state.enemies[0].entity.is_dead());
         assert_eq!(final_kill.state.energy, 0);
         assert_eq!(hand_count(&final_kill, "Defend"), 0);
     }
-    card_pair_test!(infinite_blades,
-        "Infinite Blades", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["infinite_blades"],
-        "Infinite Blades+", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["infinite_blades", "innate"],
+    card_pair_test!(
+        infinite_blades,
+        "Infinite Blades",
+        1,
+        -1,
+        -1,
+        1,
+        CardType::Power,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["infinite_blades"],
+        "Infinite Blades+",
+        1,
+        -1,
+        -1,
+        1,
+        CardType::Power,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["infinite_blades", "innate"],
     );
 
     #[test]
@@ -596,15 +1447,10 @@ mod silent_card_java_parity_tests {
         // InfiniteBlades.java upgrades only isInnate and applies one power stack.
         // InfiniteBladesPower.java::stackPower adds amounts; atStartOfTurn makes
         // exactly that many base Shivs before the ordinary turn draw.
-        let mut engine = engine_with_enemies(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            3,
-        );
+        let mut engine =
+            engine_with_enemies(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
         engine.state.hand = make_deck(&["Infinite Blades", "Infinite Blades+"]);
-        engine.state.draw_pile = make_deck(&[
-            "Defend", "Defend", "Defend", "Defend", "Defend",
-        ]);
+        engine.state.draw_pile = make_deck(&["Defend", "Defend", "Defend", "Defend", "Defend"]);
 
         assert!(play_self(&mut engine, "Infinite Blades"));
         assert!(play_self(&mut engine, "Infinite Blades+"));
@@ -618,9 +1464,28 @@ mod silent_card_java_parity_tests {
         assert_eq!(hand_count(&engine, "Defend"), 5);
         assert_eq!(engine.state.player.status(sid::INFINITE_BLADES), 2);
     }
-    card_pair_test!(leg_sweep,
-        "Leg Sweep", 2, -1, 11, 2, CardType::Skill, CardTarget::Enemy, false, None, &["weak"],
-        "Leg Sweep+", 2, -1, 14, 3, CardType::Skill, CardTarget::Enemy, false, None, &["weak"],
+    card_pair_test!(
+        leg_sweep,
+        "Leg Sweep",
+        2,
+        -1,
+        11,
+        2,
+        CardType::Skill,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["weak"],
+        "Leg Sweep+",
+        2,
+        -1,
+        14,
+        3,
+        CardType::Skill,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["weak"],
     );
 
     #[test]
@@ -629,11 +1494,8 @@ mod silent_card_java_parity_tests {
         // With one Artifact and Wave of the Hand, Leg Sweep's own Weak is
         // blocked first; the later Block gain then applies exactly one Weak.
         for (card_id, block) in [("Leg Sweep", 11), ("Leg Sweep+", 14)] {
-            let mut engine = engine_with_enemies(
-                Vec::new(),
-                vec![enemy_no_intent("JawWorm", 40, 40)],
-                2,
-            );
+            let mut engine =
+                engine_with_enemies(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 2);
             engine.state.hand = make_deck(&[card_id]);
             engine.state.player.set_status(sid::WAVE_OF_THE_HAND, 1);
             engine.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
@@ -646,29 +1508,143 @@ mod silent_card_java_parity_tests {
             assert_eq!(engine.state.energy, 0);
         }
     }
-    card_pair_test!(masterful_stab,
-        "Masterful Stab", 0, 12, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["cost_increase_on_hp_loss"],
-        "Masterful Stab+", 0, 16, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["cost_increase_on_hp_loss"],
+    card_pair_test!(
+        masterful_stab,
+        "Masterful Stab",
+        0,
+        12,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["cost_increase_on_hp_loss"],
+        "Masterful Stab+",
+        0,
+        16,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["cost_increase_on_hp_loss"],
     );
-    card_pair_test!(noxious_fumes,
-        "Noxious Fumes", 1, -1, -1, 2, CardType::Power, CardTarget::SelfTarget, false, None, &["noxious_fumes"],
-        "Noxious Fumes+", 1, -1, -1, 3, CardType::Power, CardTarget::SelfTarget, false, None, &["noxious_fumes"],
+    card_pair_test!(
+        noxious_fumes,
+        "Noxious Fumes",
+        1,
+        -1,
+        -1,
+        2,
+        CardType::Power,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["noxious_fumes"],
+        "Noxious Fumes+",
+        1,
+        -1,
+        -1,
+        3,
+        CardType::Power,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["noxious_fumes"],
     );
-    card_pair_test!(predator,
-        "Predator", 2, 15, -1, 2, CardType::Attack, CardTarget::Enemy, false, None, &["draw_next_turn"],
-        "Predator+", 2, 20, -1, 2, CardType::Attack, CardTarget::Enemy, false, None, &["draw_next_turn"],
+    card_pair_test!(
+        predator,
+        "Predator",
+        2,
+        15,
+        -1,
+        2,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["draw_next_turn"],
+        "Predator+",
+        2,
+        20,
+        -1,
+        2,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["draw_next_turn"],
     );
-    card_pair_test!(reflex,
-        "Reflex", -2, -1, -1, 2, CardType::Skill, CardTarget::None, false, None, &["unplayable", "draw_on_discard"],
-        "Reflex+", -2, -1, -1, 3, CardType::Skill, CardTarget::None, false, None, &["unplayable", "draw_on_discard"],
+    card_pair_test!(
+        reflex,
+        "Reflex",
+        -2,
+        -1,
+        -1,
+        2,
+        CardType::Skill,
+        CardTarget::None,
+        false,
+        None,
+        &["unplayable", "draw_on_discard"],
+        "Reflex+",
+        -2,
+        -1,
+        -1,
+        3,
+        CardType::Skill,
+        CardTarget::None,
+        false,
+        None,
+        &["unplayable", "draw_on_discard"],
     );
-    card_pair_test!(riddle_with_holes,
-        "Riddle With Holes", 2, 3, -1, 5, CardType::Attack, CardTarget::Enemy, false, None, &["multi_hit"],
-        "Riddle With Holes+", 2, 4, -1, 5, CardType::Attack, CardTarget::Enemy, false, None, &["multi_hit"],
+    card_pair_test!(
+        riddle_with_holes,
+        "Riddle With Holes",
+        2,
+        3,
+        -1,
+        5,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["multi_hit"],
+        "Riddle With Holes+",
+        2,
+        4,
+        -1,
+        5,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["multi_hit"],
     );
-    card_pair_test!(setup,
-        "Setup", 1, -1, -1, -1, CardType::Skill, CardTarget::None, false, None, &["setup"],
-        "Setup+", 0, -1, -1, -1, CardType::Skill, CardTarget::None, false, None, &["setup"],
+    card_pair_test!(
+        setup,
+        "Setup",
+        1,
+        -1,
+        -1,
+        -1,
+        CardType::Skill,
+        CardTarget::None,
+        false,
+        None,
+        &["setup"],
+        "Setup+",
+        0,
+        -1,
+        -1,
+        -1,
+        CardType::Skill,
+        CardTarget::None,
+        false,
+        None,
+        &["setup"],
     );
 
     #[test]
@@ -689,11 +1665,21 @@ mod silent_card_java_parity_tests {
         assert_eq!(engine.phase, crate::engine::CombatPhase::PlayerTurn);
         assert!(engine.choice.is_none());
         assert!(engine.state.hand.is_empty());
-        assert_eq!(engine.card_registry.card_name(engine.state.draw_pile.last().unwrap().def_id), "Strike");
+        assert_eq!(
+            engine
+                .card_registry
+                .card_name(engine.state.draw_pile.last().unwrap().def_id),
+            "Strike"
+        );
         assert!(engine.state.draw_pile.last().unwrap().is_free());
         assert_eq!(engine.state.draw_pile.last().unwrap().cost, -1);
 
-        engine.state.draw_pile.last_mut().unwrap().reset_cost_for_turn();
+        engine
+            .state
+            .draw_pile
+            .last_mut()
+            .unwrap()
+            .reset_cost_for_turn();
         engine.draw_cards(1);
         assert!(play_on_enemy(&mut engine, "Strike", 0));
         assert_eq!(engine.state.enemies[0].entity.hp, 34);
@@ -711,11 +1697,8 @@ mod silent_card_java_parity_tests {
             ("Skewer", None, false, -1),
             ("Dash", Some(0), true, 2),
         ] {
-            let mut engine = engine_without_start(
-                Vec::new(),
-                vec![enemy_no_intent("JawWorm", 40, 40)],
-                0,
-            );
+            let mut engine =
+                engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 0);
             force_player_turn(&mut engine);
             engine.state.hand = make_deck(&["Setup+", card_id, "Defend"]);
             if let Some(cost) = turn_cost {
@@ -735,11 +1718,8 @@ mod silent_card_java_parity_tests {
 
     #[test]
     fn setup_is_playable_as_a_no_op_when_it_is_the_only_card_in_hand() {
-        let mut engine = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            1,
-        );
+        let mut engine =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 1);
         force_player_turn(&mut engine);
         engine.state.hand = make_deck(&["Setup"]);
 
@@ -751,13 +1731,51 @@ mod silent_card_java_parity_tests {
         assert!(engine.state.draw_pile.is_empty());
         assert_eq!(discard_prefix_count(&engine, "Setup"), 1);
     }
-    card_pair_test!(skewer,
-        "Skewer", -1, 7, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["x_cost"],
-        "Skewer+", -1, 10, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["x_cost"],
+    card_pair_test!(
+        skewer,
+        "Skewer",
+        -1,
+        7,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["x_cost"],
+        "Skewer+",
+        -1,
+        10,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["x_cost"],
     );
-    card_pair_test!(tactician,
-        "Tactician", -2, -1, -1, 1, CardType::Skill, CardTarget::None, false, None, &["unplayable", "energy_on_discard"],
-        "Tactician+", -2, -1, -1, 2, CardType::Skill, CardTarget::None, false, None, &["unplayable", "energy_on_discard"],
+    card_pair_test!(
+        tactician,
+        "Tactician",
+        -2,
+        -1,
+        -1,
+        1,
+        CardType::Skill,
+        CardTarget::None,
+        false,
+        None,
+        &["unplayable", "energy_on_discard"],
+        "Tactician+",
+        -2,
+        -1,
+        -1,
+        2,
+        CardType::Skill,
+        CardTarget::None,
+        false,
+        None,
+        &["unplayable", "energy_on_discard"],
     );
 
     #[test]
@@ -765,11 +1783,8 @@ mod silent_card_java_parity_tests {
         // Tactician.java makes canUse() always return false; use() is empty, and
         // triggerOnManualDiscard gains magicNumber energy (1, upgraded to 2).
         // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Tactician.java
-        let mut unplayable = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            3,
-        );
+        let mut unplayable =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
         force_player_turn(&mut unplayable);
         unplayable.state.hand = make_deck(&["Tactician+"]);
 
@@ -780,11 +1795,8 @@ mod silent_card_java_parity_tests {
         assert_eq!(discard_prefix_count(&unplayable, "Tactician"), 0);
 
         for (card_id, expected_energy) in [("Tactician", 1), ("Tactician+", 2)] {
-            let mut engine = engine_without_start(
-                Vec::new(),
-                vec![enemy_no_intent("JawWorm", 40, 40)],
-                1,
-            );
+            let mut engine =
+                engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 1);
             force_player_turn(&mut engine);
             engine.state.hand = make_deck(&["Survivor", card_id]);
 
@@ -797,13 +1809,51 @@ mod silent_card_java_parity_tests {
             assert_eq!(discard_prefix_count(&engine, "Tactician"), 1, "{card_id}");
         }
     }
-    card_pair_test!(terror,
-        "Terror", 1, -1, -1, 99, CardType::Skill, CardTarget::Enemy, true, None, &["vulnerable"],
-        "Terror+", 0, -1, -1, 99, CardType::Skill, CardTarget::Enemy, true, None, &["vulnerable"],
+    card_pair_test!(
+        terror,
+        "Terror",
+        1,
+        -1,
+        -1,
+        99,
+        CardType::Skill,
+        CardTarget::Enemy,
+        true,
+        None,
+        &["vulnerable"],
+        "Terror+",
+        0,
+        -1,
+        -1,
+        99,
+        CardType::Skill,
+        CardTarget::Enemy,
+        true,
+        None,
+        &["vulnerable"],
     );
-    card_pair_test!(well_laid_plans,
-        "Well Laid Plans", 1, -1, -1, 1, CardType::Power, CardTarget::None, false, None, &["well_laid_plans"],
-        "Well Laid Plans+", 1, -1, -1, 2, CardType::Power, CardTarget::None, false, None, &["well_laid_plans"],
+    card_pair_test!(
+        well_laid_plans,
+        "Well Laid Plans",
+        1,
+        -1,
+        -1,
+        1,
+        CardType::Power,
+        CardTarget::None,
+        false,
+        None,
+        &["well_laid_plans"],
+        "Well Laid Plans+",
+        1,
+        -1,
+        -1,
+        2,
+        CardType::Power,
+        CardTarget::None,
+        false,
+        None,
+        &["well_laid_plans"],
     );
 
     #[test]
@@ -815,11 +1865,8 @@ mod silent_card_java_parity_tests {
         // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/WellLaidPlans.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/RetainCardPower.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/RetainCardsAction.java
-        let mut base = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 100, 100)],
-            1,
-        );
+        let mut base =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 100, 100)], 1);
         force_player_turn(&mut base);
         base.state.hand = make_deck(&["Well Laid Plans", "Strike"]);
         base.state.draw_pile = make_deck_n("Defend", 5);
@@ -838,24 +1885,19 @@ mod silent_card_java_parity_tests {
         assert_eq!(base.phase, crate::engine::CombatPhase::PlayerTurn);
         assert_eq!(discard_prefix_count(&base, "Strike"), 1);
 
-        let mut upgraded = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 100, 100)],
-            1,
-        );
+        let mut upgraded =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 100, 100)], 1);
         force_player_turn(&mut upgraded);
-        upgraded.state.hand = make_deck(&[
-            "Well Laid Plans+",
-            "Strike",
-            "Defend",
-            "Void",
-        ]);
+        upgraded.state.hand = make_deck(&["Well Laid Plans+", "Strike", "Defend", "Void"]);
         upgraded.state.draw_pile = make_deck_n("Bash", 5);
 
         assert!(play_self(&mut upgraded, "Well Laid Plans+"));
         assert_eq!(upgraded.state.player.status(sid::RETAIN_CARDS), 2);
         end_turn(&mut upgraded);
-        let choice = upgraded.choice.as_ref().expect("upgraded Retain Cards choice");
+        let choice = upgraded
+            .choice
+            .as_ref()
+            .expect("upgraded Retain Cards choice");
         assert_eq!(choice.max_picks, 2);
         let strike_option = choice
             .options
@@ -884,11 +1926,8 @@ mod silent_card_java_parity_tests {
         assert_eq!(discard_prefix_count(&upgraded, "Defend"), 1);
         assert_eq!(exhaust_prefix_count(&upgraded, "Void"), 1);
 
-        let mut suppressed = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 100, 100)],
-            0,
-        );
+        let mut suppressed =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 100, 100)], 0);
         force_player_turn(&mut suppressed);
         suppressed.state.player.set_status(sid::RETAIN_CARDS, 2);
         suppressed.state.player.set_status(sid::EQUILIBRIUM, 1);
@@ -899,11 +1938,8 @@ mod silent_card_java_parity_tests {
         assert_eq!(hand_count(&suppressed, "Strike"), 1);
         assert_eq!(hand_count(&suppressed, "Defend"), 1);
 
-        let mut pyramid = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 100, 100)],
-            0,
-        );
+        let mut pyramid =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 100, 100)], 0);
         force_player_turn(&mut pyramid);
         pyramid.state.player.set_status(sid::RETAIN_CARDS, 1);
         pyramid.state.relics.push("Runic Pyramid".to_string());
@@ -913,9 +1949,28 @@ mod silent_card_java_parity_tests {
         assert!(pyramid.choice.is_none());
         assert_eq!(hand_count(&pyramid, "Strike"), 1);
     }
-    card_pair_test!(a_thousand_cuts,
-        "A Thousand Cuts", 2, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["thousand_cuts"],
-        "A Thousand Cuts+", 2, -1, -1, 2, CardType::Power, CardTarget::SelfTarget, false, None, &["thousand_cuts"],
+    card_pair_test!(
+        a_thousand_cuts,
+        "A Thousand Cuts",
+        2,
+        -1,
+        -1,
+        1,
+        CardType::Power,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["thousand_cuts"],
+        "A Thousand Cuts+",
+        2,
+        -1,
+        -1,
+        2,
+        CardType::Power,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["thousand_cuts"],
     );
 
     #[test]
@@ -934,12 +1989,7 @@ mod silent_card_java_parity_tests {
             8,
         );
         let mut engine = engine_with_state(state);
-        engine.state.hand = make_deck(&[
-            "A Thousand Cuts",
-            "Defend",
-            "A Thousand Cuts+",
-            "Defend",
-        ]);
+        engine.state.hand = make_deck(&["A Thousand Cuts", "Defend", "A Thousand Cuts+", "Defend"]);
         engine.state.draw_pile.clear();
         engine.state.discard_pile.clear();
 
@@ -961,9 +2011,28 @@ mod silent_card_java_parity_tests {
         assert_eq!(engine.state.enemies[0].entity.hp, 35);
         assert_eq!(engine.state.enemies[1].entity.hp, 30);
     }
-    card_pair_test!(adrenaline,
-        "Adrenaline", 0, -1, -1, 1, CardType::Skill, CardTarget::None, true, None, &["draw"],
-        "Adrenaline+", 0, -1, -1, 2, CardType::Skill, CardTarget::None, true, None, &["draw"],
+    card_pair_test!(
+        adrenaline,
+        "Adrenaline",
+        0,
+        -1,
+        -1,
+        1,
+        CardType::Skill,
+        CardTarget::None,
+        true,
+        None,
+        &["draw"],
+        "Adrenaline+",
+        0,
+        -1,
+        -1,
+        2,
+        CardType::Skill,
+        CardTarget::None,
+        true,
+        None,
+        &["draw"],
     );
 
     #[test]
@@ -973,17 +2042,19 @@ mod silent_card_java_parity_tests {
         // Adrenaline leaves one hand slot, so only one queued draw fits.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Adrenaline.java
         for (card_id, expected_energy) in [("Adrenaline", 1), ("Adrenaline+", 2)] {
-            let state = combat_state_with(
-                Vec::new(),
-                vec![enemy_no_intent("JawWorm", 40, 40)],
-                0,
-            );
+            let state = combat_state_with(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 0);
             let mut engine = engine_with_state(state);
             engine.state.hand = make_deck(&[
                 card_id,
-                "Strike", "Strike", "Strike",
-                "Defend", "Defend", "Defend",
-                "Neutralize", "Survivor", "Backflip",
+                "Strike",
+                "Strike",
+                "Strike",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Neutralize",
+                "Survivor",
+                "Backflip",
             ]);
             engine.state.draw_pile = make_deck(&["Strike", "Defend", "Neutralize"]);
             engine.state.discard_pile.clear();
@@ -993,14 +2064,35 @@ mod silent_card_java_parity_tests {
             assert_eq!(engine.state.energy, expected_energy);
             assert_eq!(engine.state.hand.len(), 10);
             assert_eq!(engine.state.draw_pile.len(), 2);
-            assert!(engine.state.exhaust_pile.iter().any(|card| {
-                engine.card_registry.card_name(card.def_id) == card_id
-            }));
+            assert!(engine
+                .state
+                .exhaust_pile
+                .iter()
+                .any(|card| { engine.card_registry.card_name(card.def_id) == card_id }));
         }
     }
-    card_pair_test!(after_image,
-        "After Image", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["after_image"],
-        "After Image+", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["after_image", "innate"],
+    card_pair_test!(
+        after_image,
+        "After Image",
+        1,
+        -1,
+        -1,
+        1,
+        CardType::Power,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["after_image"],
+        "After Image+",
+        1,
+        -1,
+        -1,
+        1,
+        CardType::Power,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["after_image", "innate"],
     );
 
     #[test]
@@ -1013,22 +2105,28 @@ mod silent_card_java_parity_tests {
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/AfterImagePower.java
         let opening_state = combat_state_with(
             make_deck(&[
-                "Strike", "Strike", "Strike", "Strike", "Strike",
-                "Strike", "Strike", "Strike", "Strike", "After Image+",
+                "Strike",
+                "Strike",
+                "Strike",
+                "Strike",
+                "Strike",
+                "Strike",
+                "Strike",
+                "Strike",
+                "Strike",
+                "After Image+",
             ]),
             vec![enemy_no_intent("JawWorm", 60, 60)],
             3,
         );
         let opening = engine_with_state(opening_state);
-        assert!(opening.state.hand.iter().any(|card| {
-            opening.card_registry.card_name(card.def_id) == "After Image+"
-        }));
+        assert!(opening
+            .state
+            .hand
+            .iter()
+            .any(|card| { opening.card_registry.card_name(card.def_id) == "After Image+" }));
 
-        let state = combat_state_with(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 60, 60)],
-            3,
-        );
+        let state = combat_state_with(Vec::new(), vec![enemy_no_intent("JawWorm", 60, 60)], 3);
         let mut engine = engine_with_state(state);
         engine.state.hand = make_deck(&["After Image", "After Image+", "Strike"]);
         engine.state.draw_pile.clear();
@@ -1050,17 +2148,74 @@ mod silent_card_java_parity_tests {
         assert_eq!(engine.state.player.block, 3);
         assert_eq!(engine.state.enemies[0].entity.hp, 54);
     }
-    card_pair_test!(alchemize,
-        "Alchemize", 1, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, true, None, &["alchemize"],
-        "Alchemize+", 0, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, true, None, &["alchemize"],
+    card_pair_test!(
+        alchemize,
+        "Alchemize",
+        1,
+        -1,
+        -1,
+        -1,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        true,
+        None,
+        &["alchemize"],
+        "Alchemize+",
+        0,
+        -1,
+        -1,
+        -1,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        true,
+        None,
+        &["alchemize"],
     );
-    card_pair_test!(bullet_time,
-        "Bullet Time", 3, -1, -1, -1, CardType::Skill, CardTarget::None, false, None, &["bullet_time"],
-        "Bullet Time+", 2, -1, -1, -1, CardType::Skill, CardTarget::None, false, None, &["bullet_time"],
+    card_pair_test!(
+        bullet_time,
+        "Bullet Time",
+        3,
+        -1,
+        -1,
+        -1,
+        CardType::Skill,
+        CardTarget::None,
+        false,
+        None,
+        &["bullet_time"],
+        "Bullet Time+",
+        2,
+        -1,
+        -1,
+        -1,
+        CardType::Skill,
+        CardTarget::None,
+        false,
+        None,
+        &["bullet_time"],
     );
-    card_pair_test!(burst,
-        "Burst", 1, -1, -1, 1, CardType::Skill, CardTarget::SelfTarget, false, None, &["burst"],
-        "Burst+", 1, -1, -1, 2, CardType::Skill, CardTarget::SelfTarget, false, None, &["burst"],
+    card_pair_test!(
+        burst,
+        "Burst",
+        1,
+        -1,
+        -1,
+        1,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["burst"],
+        "Burst+",
+        1,
+        -1,
+        -1,
+        2,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["burst"],
     );
 
     #[test]
@@ -1070,11 +2225,8 @@ mod silent_card_java_parity_tests {
         // charge per original Skill, and removes all unused charges at turn end.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Burst.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BurstPower.java
-        let mut upgraded = engine_with_enemies(
-            Vec::new(),
-            vec![enemy("JawWorm", 80, 80, 1, 0, 1)],
-            4,
-        );
+        let mut upgraded =
+            engine_with_enemies(Vec::new(), vec![enemy("JawWorm", 80, 80, 1, 0, 1)], 4);
         upgraded.state.hand = make_deck(&["Burst+", "Defend", "Backflip"]);
         upgraded.state.draw_pile = make_deck(&["Strike", "Strike", "Strike", "Strike"]);
         upgraded.state.energy = 4;
@@ -1089,11 +2241,8 @@ mod silent_card_java_parity_tests {
         assert_eq!(upgraded.state.player.status(sid::BURST), 0);
         assert_eq!(upgraded.state.hand.len(), 4);
 
-        let mut expires = engine_with_enemies(
-            Vec::new(),
-            vec![enemy("JawWorm", 80, 80, 1, 0, 1)],
-            1,
-        );
+        let mut expires =
+            engine_with_enemies(Vec::new(), vec![enemy("JawWorm", 80, 80, 1, 0, 1)], 1);
         expires.state.hand = make_deck(&["Burst"]);
         expires.state.energy = 1;
         assert!(play_self(&mut expires, "Burst"));
@@ -1101,11 +2250,8 @@ mod silent_card_java_parity_tests {
         expires.execute_action(&Action::EndTurn);
         assert_eq!(expires.state.player.status(sid::BURST), 0);
 
-        let mut x_skill = engine_with_enemies(
-            Vec::new(),
-            vec![enemy("JawWorm", 80, 80, 1, 0, 1)],
-            4,
-        );
+        let mut x_skill =
+            engine_with_enemies(Vec::new(), vec![enemy("JawWorm", 80, 80, 1, 0, 1)], 4);
         x_skill.state.hand = make_deck(&["Burst", "Malaise"]);
         x_skill.state.energy = 4;
         assert!(play_self(&mut x_skill, "Burst"));
@@ -1115,9 +2261,28 @@ mod silent_card_java_parity_tests {
         assert_eq!(x_skill.state.energy, 0);
         assert_eq!(x_skill.state.player.status(sid::BURST), 0);
     }
-    card_pair_test!(corpse_explosion,
-        "Corpse Explosion", 2, -1, -1, 6, CardType::Skill, CardTarget::Enemy, false, None, &["corpse_explosion"],
-        "Corpse Explosion+", 2, -1, -1, 9, CardType::Skill, CardTarget::Enemy, false, None, &["corpse_explosion"],
+    card_pair_test!(
+        corpse_explosion,
+        "Corpse Explosion",
+        2,
+        -1,
+        -1,
+        6,
+        CardType::Skill,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["corpse_explosion"],
+        "Corpse Explosion+",
+        2,
+        -1,
+        -1,
+        9,
+        CardType::Skill,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["corpse_explosion"],
     );
 
     #[test]
@@ -1140,7 +2305,10 @@ mod silent_card_java_parity_tests {
         assert!(play_on_enemy(&mut engine, "Corpse Explosion", 0));
         assert!(play_on_enemy(&mut engine, "Corpse Explosion+", 0));
         assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 15);
-        assert_eq!(engine.state.enemies[0].entity.status(sid::CORPSE_EXPLOSION), 2);
+        assert_eq!(
+            engine.state.enemies[0].entity.status(sid::CORPSE_EXPLOSION),
+            2
+        );
 
         engine.state.enemies[0].entity.hp = 1;
         engine.deal_damage_to_enemy(0, 1);
@@ -1156,11 +2324,8 @@ mod silent_card_java_parity_tests {
         // CorpseExplosion.java queues two ApplyPowerActions in order. Both
         // PoisonPower and CorpseExplosionPower are DEBUFF powers, so two
         // Artifact charges block both applications.
-        let mut engine = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            2,
-        );
+        let mut engine =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 2);
         force_player_turn(&mut engine);
         engine.state.enemies[0].entity.set_status(sid::ARTIFACT, 2);
         engine.state.hand = make_deck(&["Corpse Explosion+"]);
@@ -1169,28 +2334,126 @@ mod silent_card_java_parity_tests {
 
         assert_eq!(engine.state.enemies[0].entity.status(sid::ARTIFACT), 0);
         assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 0);
-        assert_eq!(engine.state.enemies[0].entity.status(sid::CORPSE_EXPLOSION), 0);
+        assert_eq!(
+            engine.state.enemies[0].entity.status(sid::CORPSE_EXPLOSION),
+            0
+        );
     }
 
-    card_pair_test!(die_die_die,
-        "Die Die Die", 1, 13, -1, -1, CardType::Attack, CardTarget::AllEnemy, true, None, &[],
-        "Die Die Die+", 1, 17, -1, -1, CardType::Attack, CardTarget::AllEnemy, true, None, &[],
+    card_pair_test!(
+        die_die_die,
+        "Die Die Die",
+        1,
+        13,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::AllEnemy,
+        true,
+        None,
+        &[],
+        "Die Die Die+",
+        1,
+        17,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::AllEnemy,
+        true,
+        None,
+        &[],
     );
-    card_pair_test!(doppelganger,
-        "Doppelganger", -1, -1, -1, -1, CardType::Skill, CardTarget::None, true, None, &["x_cost"],
-        "Doppelganger+", -1, -1, -1, -1, CardType::Skill, CardTarget::None, true, None, &["x_cost"],
+    card_pair_test!(
+        doppelganger,
+        "Doppelganger",
+        -1,
+        -1,
+        -1,
+        -1,
+        CardType::Skill,
+        CardTarget::None,
+        true,
+        None,
+        &["x_cost"],
+        "Doppelganger+",
+        -1,
+        -1,
+        -1,
+        -1,
+        CardType::Skill,
+        CardTarget::None,
+        true,
+        None,
+        &["x_cost"],
     );
-    card_pair_test!(glass_knife,
-        "Glass Knife", 1, 8, -1, 2, CardType::Attack, CardTarget::Enemy, false, None, &["multi_hit", "glass_knife"],
-        "Glass Knife+", 1, 12, -1, 2, CardType::Attack, CardTarget::Enemy, false, None, &["multi_hit", "glass_knife"],
+    card_pair_test!(
+        glass_knife,
+        "Glass Knife",
+        1,
+        8,
+        -1,
+        2,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["multi_hit", "glass_knife"],
+        "Glass Knife+",
+        1,
+        12,
+        -1,
+        2,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["multi_hit", "glass_knife"],
     );
-    card_pair_test!(grand_finale,
-        "Grand Finale", 0, 50, -1, -1, CardType::Attack, CardTarget::AllEnemy, false, None, &["only_empty_draw"],
-        "Grand Finale+", 0, 60, -1, -1, CardType::Attack, CardTarget::AllEnemy, false, None, &["only_empty_draw"],
+    card_pair_test!(
+        grand_finale,
+        "Grand Finale",
+        0,
+        50,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::AllEnemy,
+        false,
+        None,
+        &["only_empty_draw"],
+        "Grand Finale+",
+        0,
+        60,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::AllEnemy,
+        false,
+        None,
+        &["only_empty_draw"],
     );
-    card_pair_test!(malaise,
-        "Malaise", -1, -1, -1, 0, CardType::Skill, CardTarget::Enemy, true, None, &["x_cost"],
-        "Malaise+", -1, -1, -1, 1, CardType::Skill, CardTarget::Enemy, true, None, &["x_cost"],
+    card_pair_test!(
+        malaise,
+        "Malaise",
+        -1,
+        -1,
+        -1,
+        0,
+        CardType::Skill,
+        CardTarget::Enemy,
+        true,
+        None,
+        &["x_cost"],
+        "Malaise+",
+        -1,
+        -1,
+        -1,
+        1,
+        CardType::Skill,
+        CardTarget::Enemy,
+        true,
+        None,
+        &["x_cost"],
     );
     #[test]
     fn nightmare_java_parity() {
@@ -1205,7 +2468,11 @@ mod silent_card_java_parity_tests {
         }];
         for id in ["Night Terror", "Night Terror+"] {
             let card = reg.get(id).unwrap_or_else(|| panic!("missing card {id}"));
-            assert_eq!(card.cost, if id.ends_with('+') { 2 } else { 3 }, "{id} cost");
+            assert_eq!(
+                card.cost,
+                if id.ends_with('+') { 2 } else { 3 },
+                "{id} cost"
+            );
             assert_eq!(card.base_damage, -1, "{id} damage");
             assert_eq!(card.base_block, -1, "{id} block");
             assert_eq!(card.base_magic, 3, "{id} magic");
@@ -1218,17 +2485,74 @@ mod silent_card_java_parity_tests {
     }
     // Source: cards/green/PhantasmalKiller.java — SELF target, neither version
     // is Ethereal, and upgradeBaseCost changes only the cost from 1 to 0.
-    card_pair_test!(phantasmal_killer,
-        "Phantasmal Killer", 1, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["phantasmal_killer"],
-        "Phantasmal Killer+", 0, -1, -1, -1, CardType::Skill, CardTarget::SelfTarget, false, None, &["phantasmal_killer"],
+    card_pair_test!(
+        phantasmal_killer,
+        "Phantasmal Killer",
+        1,
+        -1,
+        -1,
+        -1,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["phantasmal_killer"],
+        "Phantasmal Killer+",
+        0,
+        -1,
+        -1,
+        -1,
+        CardType::Skill,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["phantasmal_killer"],
     );
-    card_pair_test!(storm_of_steel,
-        "Storm of Steel", 1, -1, -1, -1, CardType::Skill, CardTarget::None, false, None, &["storm_of_steel"],
-        "Storm of Steel+", 1, -1, -1, -1, CardType::Skill, CardTarget::None, false, None, &["storm_of_steel"],
+    card_pair_test!(
+        storm_of_steel,
+        "Storm of Steel",
+        1,
+        -1,
+        -1,
+        -1,
+        CardType::Skill,
+        CardTarget::None,
+        false,
+        None,
+        &["storm_of_steel"],
+        "Storm of Steel+",
+        1,
+        -1,
+        -1,
+        -1,
+        CardType::Skill,
+        CardTarget::None,
+        false,
+        None,
+        &["storm_of_steel"],
     );
-    card_pair_test!(tools_of_the_trade,
-        "Tools of the Trade", 1, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["tools_of_the_trade"],
-        "Tools of the Trade+", 0, -1, -1, 1, CardType::Power, CardTarget::SelfTarget, false, None, &["tools_of_the_trade"],
+    card_pair_test!(
+        tools_of_the_trade,
+        "Tools of the Trade",
+        1,
+        -1,
+        -1,
+        1,
+        CardType::Power,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["tools_of_the_trade"],
+        "Tools of the Trade+",
+        0,
+        -1,
+        -1,
+        1,
+        CardType::Power,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &["tools_of_the_trade"],
     );
 
     #[test]
@@ -1247,24 +2571,59 @@ mod silent_card_java_parity_tests {
             force_player_turn(&mut engine);
             engine.state.hand = make_deck(&[card_id]);
             engine.state.draw_pile = make_deck(&[
-                "Strike", "Defend", "Bash", "Survivor", "Neutralize", "Prepared",
+                "Strike",
+                "Defend",
+                "Bash",
+                "Survivor",
+                "Neutralize",
+                "Prepared",
             ]);
 
             assert!(play_self(&mut engine, card_id));
             assert_eq!(engine.state.energy, 0, "{card_id}");
-            assert_eq!(engine.state.player.status(sid::TOOLS_OF_THE_TRADE), 1, "{card_id}");
+            assert_eq!(
+                engine.state.player.status(sid::TOOLS_OF_THE_TRADE),
+                1,
+                "{card_id}"
+            );
 
             end_turn(&mut engine);
-            assert_eq!(engine.phase, crate::engine::CombatPhase::AwaitingChoice, "{card_id}");
+            assert_eq!(
+                engine.phase,
+                crate::engine::CombatPhase::AwaitingChoice,
+                "{card_id}"
+            );
             assert_eq!(engine.state.hand.len(), 6, "{card_id}");
-            let choice = engine.choice.as_ref().expect("Tools should require one discard");
+            let choice = engine
+                .choice
+                .as_ref()
+                .expect("Tools should require one discard");
             assert_eq!(choice.min_picks, 1);
             assert_eq!(choice.max_picks, 1);
         }
     }
-    card_pair_test!(unload,
-        "Unload", 1, 14, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["discard_non_attacks"],
-        "Unload+", 1, 18, -1, -1, CardType::Attack, CardTarget::Enemy, false, None, &["discard_non_attacks"],
+    card_pair_test!(
+        unload,
+        "Unload",
+        1,
+        14,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["discard_non_attacks"],
+        "Unload+",
+        1,
+        18,
+        -1,
+        -1,
+        CardType::Attack,
+        CardTarget::Enemy,
+        false,
+        None,
+        &["discard_non_attacks"],
     );
 
     #[test]
@@ -1277,11 +2636,8 @@ mod silent_card_java_parity_tests {
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/UnloadAction.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DiscardSpecificCardAction.java
         for (card_id, damage) in [("Unload", 14), ("Unload+", 18)] {
-            let mut engine = engine_without_start(
-                Vec::new(),
-                vec![enemy_no_intent("JawWorm", 200, 200)],
-                1,
-            );
+            let mut engine =
+                engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 200, 200)], 1);
             force_player_turn(&mut engine);
             engine.state.hand = make_deck(&[
                 card_id,
@@ -1298,7 +2654,11 @@ mod silent_card_java_parity_tests {
             assert_eq!(engine.state.energy, 1, "Tactician should refund one Energy");
             assert_eq!(engine.state.player.status(sid::DISCARDED_THIS_TURN), 4);
             for discarded in ["Defend", "Reflex", "Tactician", "Wraith Form v2"] {
-                assert_eq!(discard_prefix_count(&engine, discarded), 1, "{card_id}: {discarded}");
+                assert_eq!(
+                    discard_prefix_count(&engine, discarded),
+                    1,
+                    "{card_id}: {discarded}"
+                );
             }
             assert!(engine.state.hand.iter().all(|card| {
                 engine.card_registry.card_def_by_id(card.def_id).card_type == CardType::Attack
@@ -1306,9 +2666,28 @@ mod silent_card_java_parity_tests {
             assert_eq!(engine.state.hand.len(), 3, "Strike plus two Reflex draws");
         }
     }
-    card_pair_test!(wraith_form,
-        "Wraith Form v2", 3, -1, -1, 2, CardType::Power, CardTarget::SelfTarget, false, None, &[],
-        "Wraith Form v2+", 3, -1, -1, 3, CardType::Power, CardTarget::SelfTarget, false, None, &[],
+    card_pair_test!(
+        wraith_form,
+        "Wraith Form v2",
+        3,
+        -1,
+        -1,
+        2,
+        CardType::Power,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &[],
+        "Wraith Form v2+",
+        3,
+        -1,
+        -1,
+        3,
+        CardType::Power,
+        CardTarget::SelfTarget,
+        false,
+        None,
+        &[],
     );
 
     // ---------------------------------------------------------------------
@@ -1384,11 +2763,8 @@ mod silent_card_java_parity_tests {
         // Slice.java constructs a zero-cost 6-damage Attack and queues one
         // DamageAction. upgradeDamage(3) makes Slice+ deal 9; it gains no
         // exhaust, retain, or other destination-changing flag.
-        let mut engine = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            0,
-        );
+        let mut engine =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 0);
         force_player_turn(&mut engine);
         engine.state.energy = 0;
         engine.state.hand = make_deck(&["Slice+"]);
@@ -1463,7 +2839,11 @@ mod silent_card_java_parity_tests {
         ensure_in_hand(&mut engine, "Catalyst");
         assert!(play_on_enemy(&mut engine, "Catalyst", 0));
         assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 10);
-        assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Catalyst"));
+        assert!(engine
+            .state
+            .exhaust_pile
+            .iter()
+            .any(|c| engine.card_registry.card_name(c.def_id) == "Catalyst"));
     }
 
     #[test]
@@ -1481,7 +2861,11 @@ mod silent_card_java_parity_tests {
         ensure_in_hand(&mut engine, "Terror");
         assert!(play_on_enemy(&mut engine, "Terror", 0));
         assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 99);
-        assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Terror"));
+        assert!(engine
+            .state
+            .exhaust_pile
+            .iter()
+            .any(|c| engine.card_registry.card_name(c.def_id) == "Terror"));
     }
 
     #[test]
@@ -1542,10 +2926,7 @@ mod silent_card_java_parity_tests {
         // and triggers manual-discard callbacks; with one card it consumes no RNG.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/AllOutAttack.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DiscardAction.java
-        let enemies = vec![
-            enemy("A", 50, 50, 1, 0, 1),
-            enemy("B", 50, 50, 1, 0, 1),
-        ];
+        let enemies = vec![enemy("A", 50, 50, 1, 0, 1), enemy("B", 50, 50, 1, 0, 1)];
         let mut engine = engine_with_enemies(Vec::new(), enemies, 1);
         engine.state.hand = make_deck(&["All Out Attack", "Tactician", "Strike", "Defend"]);
         engine.state.draw_pile.clear();
@@ -1562,11 +2943,16 @@ mod silent_card_java_parity_tests {
         assert_eq!(engine.state.enemies[1].entity.hp, 40);
         assert_eq!(engine.rng_counters()["cardRandom"], card_random_before + 1);
         assert_eq!(engine.rng_counters()["shuffle"], card_before);
-        assert!(engine.state.discard_pile.iter().any(|card| {
-            engine.card_registry.card_name(card.def_id) == expected_discard
-        }));
+        assert!(engine
+            .state
+            .discard_pile
+            .iter()
+            .any(|card| { engine.card_registry.card_name(card.def_id) == expected_discard }));
         assert_eq!(engine.state.player.status(sid::DISCARDED_THIS_TURN), 1);
-        assert_eq!(engine.state.energy, i32::from(expected_discard == "Tactician"));
+        assert_eq!(
+            engine.state.energy,
+            i32::from(expected_discard == "Tactician")
+        );
 
         let mut upgraded = engine_with_enemies(
             Vec::new(),
@@ -1587,16 +2973,17 @@ mod silent_card_java_parity_tests {
 
     #[test]
     fn die_die_die_hits_all_enemies() {
-        let enemies = vec![
-            enemy("A", 50, 50, 1, 0, 1),
-            enemy("B", 50, 50, 1, 0, 1),
-        ];
+        let enemies = vec![enemy("A", 50, 50, 1, 0, 1), enemy("B", 50, 50, 1, 0, 1)];
         let mut engine = engine_with_enemies(make_deck_n("Die Die Die", 8), enemies, 3);
         ensure_in_hand(&mut engine, "Die Die Die");
         assert!(play_self(&mut engine, "Die Die Die"));
         assert_eq!(engine.state.enemies[0].entity.hp, 37);
         assert_eq!(engine.state.enemies[1].entity.hp, 37);
-        assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Die Die Die"));
+        assert!(engine
+            .state
+            .exhaust_pile
+            .iter()
+            .any(|c| engine.card_registry.card_name(c.def_id) == "Die Die Die"));
     }
 
     #[test]
@@ -1608,7 +2995,11 @@ mod silent_card_java_parity_tests {
         assert!(play_self(&mut engine, "Adrenaline"));
         assert_eq!(engine.state.energy, energy + 1);
         assert_eq!(engine.state.hand.len(), hand_before + 1);
-        assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Adrenaline"));
+        assert!(engine
+            .state
+            .exhaust_pile
+            .iter()
+            .any(|c| engine.card_registry.card_name(c.def_id) == "Adrenaline"));
     }
 
     #[test]
@@ -1623,23 +3014,26 @@ mod silent_card_java_parity_tests {
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ApplyBulletTimeAction.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/AbstractCard.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/NoDrawPower.java
-        let mut engine = engine_with_enemies(
-            Vec::new(),
-            vec![enemy("JawWorm", 50, 50, 1, 0, 1)],
-            4,
-        );
+        let mut engine =
+            engine_with_enemies(Vec::new(), vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 4);
         engine.state.hand = make_deck(&["Bullet Time", "Strike", "Skewer"]);
         engine.state.energy = 4;
 
         assert!(play_self(&mut engine, "Bullet Time"));
         assert_eq!(engine.state.player.status(sid::NO_DRAW), 1);
         assert_eq!(engine.state.player.status(sid::BULLET_TIME), 0);
-        let strike = engine.state.hand.iter().find(|card| {
-            engine.card_registry.card_name(card.def_id) == "Strike"
-        }).expect("Strike in hand");
-        let skewer = engine.state.hand.iter().find(|card| {
-            engine.card_registry.card_name(card.def_id) == "Skewer"
-        }).expect("Skewer in hand");
+        let strike = engine
+            .state
+            .hand
+            .iter()
+            .find(|card| engine.card_registry.card_name(card.def_id) == "Strike")
+            .expect("Strike in hand");
+        let skewer = engine
+            .state
+            .hand
+            .iter()
+            .find(|card| engine.card_registry.card_name(card.def_id) == "Skewer")
+            .expect("Skewer in hand");
         assert_eq!(strike.cost, 0);
         assert_eq!(skewer.cost, -1);
         assert!(play_on_enemy(&mut engine, "Strike", 0));
@@ -1647,11 +3041,8 @@ mod silent_card_java_parity_tests {
         assert_eq!(engine.state.enemies[0].entity.hp, 37);
         assert_eq!(engine.state.energy, 0);
 
-        let mut artifact = engine_with_enemies(
-            Vec::new(),
-            vec![enemy("JawWorm", 50, 50, 1, 0, 1)],
-            2,
-        );
+        let mut artifact =
+            engine_with_enemies(Vec::new(), vec![enemy("JawWorm", 50, 50, 1, 0, 1)], 2);
         artifact.state.hand = make_deck(&["Bullet Time+", "Strike"]);
         artifact.state.draw_pile = make_deck(&["Bash"]);
         artifact.state.player.set_status(sid::ARTIFACT, 1);
@@ -1661,12 +3052,18 @@ mod silent_card_java_parity_tests {
         assert_eq!(artifact.state.player.status(sid::ARTIFACT), 0);
         assert_eq!(artifact.state.player.status(sid::NO_DRAW), 0);
         artifact.draw_cards(1);
-        let strike_idx = artifact.state.hand.iter().position(|card| {
-            artifact.card_registry.card_name(card.def_id) == "Strike"
-        }).expect("pre-existing Strike");
-        let bash_idx = artifact.state.hand.iter().position(|card| {
-            artifact.card_registry.card_name(card.def_id) == "Bash"
-        }).expect("later-drawn Bash");
+        let strike_idx = artifact
+            .state
+            .hand
+            .iter()
+            .position(|card| artifact.card_registry.card_name(card.def_id) == "Strike")
+            .expect("pre-existing Strike");
+        let bash_idx = artifact
+            .state
+            .hand
+            .iter()
+            .position(|card| artifact.card_registry.card_name(card.def_id) == "Bash")
+            .expect("later-drawn Bash");
         let legal = artifact.get_legal_actions();
         assert!(legal.iter().any(|action| matches!(
             action,
@@ -1699,11 +3096,16 @@ mod silent_card_java_parity_tests {
 
             assert!(play_self(&mut engine, card_id));
             assert_eq!(engine.state.player.status(sid::DOPPELGANGER_DRAW), expected);
-            assert_eq!(engine.state.player.status(sid::DOPPELGANGER_ENERGY), expected);
+            assert_eq!(
+                engine.state.player.status(sid::DOPPELGANGER_ENERGY),
+                expected
+            );
             assert_eq!(engine.state.energy, 0);
-            assert!(engine.state.exhaust_pile.iter().any(|c| {
-                engine.card_registry.card_name(c.def_id) == card_id
-            }));
+            assert!(engine
+                .state
+                .exhaust_pile
+                .iter()
+                .any(|c| { engine.card_registry.card_name(c.def_id) == card_id }));
         }
     }
 
@@ -1729,11 +3131,8 @@ mod silent_card_java_parity_tests {
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/WraithFormPower.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DexterityPower.java
         assert!(reg().get("Wraith Form").is_none());
-        let mut engine = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            6,
-        );
+        let mut engine =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 6);
         force_player_turn(&mut engine);
         engine.state.hand = make_deck(&["Wraith Form v2", "Wraith Form v2+"]);
         engine.state.player.set_status(sid::DEXTERITY, 3);
@@ -1743,27 +3142,18 @@ mod silent_card_java_parity_tests {
         assert_eq!(engine.state.player.status(sid::INTANGIBLE), 5);
         assert_eq!(engine.state.player.status(sid::WRAITH_FORM), 2);
 
-        engine.emit_event(crate::effects::runtime::GameEvent::empty(
-            crate::effects::trigger::Trigger::TurnEnd,
-        ));
+        let mut artifact_tick = engine.clone_state();
+        artifact_tick.state.player.set_status(sid::ARTIFACT, 1);
+
+        end_turn(&mut engine);
         assert_eq!(engine.state.player.status(sid::DEXTERITY), 1);
 
-        engine.state.player.set_status(sid::ARTIFACT, 1);
-        engine.emit_event(crate::effects::runtime::GameEvent::empty(
-            crate::effects::trigger::Trigger::TurnEnd,
-        ));
-        assert_eq!(engine.state.player.status(sid::DEXTERITY), 1);
-        assert_eq!(engine.state.player.status(sid::ARTIFACT), 0);
-        engine.emit_event(crate::effects::runtime::GameEvent::empty(
-            crate::effects::trigger::Trigger::TurnStart,
-        ));
-        assert_eq!(engine.state.player.status(sid::DEXTERITY), 1);
+        end_turn(&mut artifact_tick);
+        assert_eq!(artifact_tick.state.player.status(sid::DEXTERITY), 3);
+        assert_eq!(artifact_tick.state.player.status(sid::ARTIFACT), 0);
 
-        let mut protected = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            3,
-        );
+        let mut protected =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
         force_player_turn(&mut protected);
         protected.state.hand = make_deck(&["Wraith Form v2"]);
         protected.state.player.set_status(sid::ARTIFACT, 1);
@@ -1782,13 +3172,16 @@ mod silent_card_java_parity_tests {
         );
         let mut engine = engine_with_state(state);
         ensure_in_hand(&mut engine, "Grand Finale");
-        let grand_finale_idx = engine.state.hand.iter().position(|card| engine.card_registry.card_name(card.def_id) == "Grand Finale").expect("Grand Finale should be in hand");
-        assert!(
-            !engine.get_legal_actions().iter().any(|action| matches!(
-                action,
-                Action::PlayCard { card_idx, .. } if *card_idx == grand_finale_idx
-            ))
-        );
+        let grand_finale_idx = engine
+            .state
+            .hand
+            .iter()
+            .position(|card| engine.card_registry.card_name(card.def_id) == "Grand Finale")
+            .expect("Grand Finale should be in hand");
+        assert!(!engine.get_legal_actions().iter().any(|action| matches!(
+            action,
+            Action::PlayCard { card_idx, .. } if *card_idx == grand_finale_idx
+        )));
         assert_eq!(hand_count(&engine, "Grand Finale"), 1);
     }
 
@@ -1809,7 +3202,10 @@ mod silent_card_java_parity_tests {
         let hp = engine.state.enemies[0].entity.hp;
         assert!(play_on_enemy(&mut engine, "Backstab", 0));
         assert_eq!(engine.state.enemies[0].entity.hp, hp - 11);
-        assert!(engine.state.exhaust_pile.iter().any(|c| engine.card_registry.card_name(c.def_id) == "Backstab"));
+        assert!(engine
+            .state
+            .exhaust_pile
+            .iter()
+            .any(|c| engine.card_registry.card_name(c.def_id) == "Backstab"));
     }
-
 }

@@ -9,7 +9,9 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/WindmillStrike.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::state::Stance;
 use crate::tests::support::*;
 
@@ -23,14 +25,18 @@ fn one_enemy_engine(enemy_id: &str, hp: i32, dmg: i32) -> crate::engine::CombatE
 fn watcher_wave13_registry_exports_match_typed_surface() {
     let registry = global_registry();
 
-    let brilliance = registry.get("Brilliance").expect("Brilliance should be registered");
+    let brilliance = registry
+        .get("Brilliance")
+        .expect("Brilliance should be registered");
     assert_eq!(
         brilliance.effect_data,
         &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
     );
     assert!(brilliance.has_test_marker("damage_plus_mantra"));
 
-    let expunger = registry.get("Expunger").expect("Expunger should be registered");
+    let expunger = registry
+        .get("Expunger")
+        .expect("Expunger should be registered");
     assert_eq!(
         expunger.effect_data,
         &[
@@ -40,27 +46,37 @@ fn watcher_wave13_registry_exports_match_typed_surface() {
     );
     assert_eq!(expunger.declared_extra_hits(), Some(A::CardMisc));
 
-    let perseverance = registry.get("Perseverance").expect("Perseverance should be registered");
-    assert_eq!(perseverance.effect_data, &[E::Simple(SE::GainBlock(A::Block))]);
+    let perseverance = registry
+        .get("Perseverance")
+        .expect("Perseverance should be registered");
+    assert_eq!(
+        perseverance.effect_data,
+        &[E::Simple(SE::GainBlock(A::Block))]
+    );
 
-    let sands_of_time = registry.get("SandsOfTime").expect("Sands of Time should be registered");
+    let sands_of_time = registry
+        .get("SandsOfTime")
+        .expect("Sands of Time should be registered");
     assert_eq!(
         sands_of_time.effect_data,
         &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
     );
 
-    let tranquility = registry.get("ClearTheMind").expect("Tranquility should be registered");
+    let tranquility = registry
+        .get("ClearTheMind")
+        .expect("Tranquility should be registered");
     assert_eq!(
         tranquility.effect_data,
         &[E::Simple(SE::ChangeStance(Stance::Calm))]
     );
 
-    let windmill = registry.get("WindmillStrike").expect("Windmill Strike should be registered");
+    let windmill = registry
+        .get("WindmillStrike")
+        .expect("Windmill Strike should be registered");
     assert_eq!(
         windmill.effect_data,
         &[E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
     );
-
 }
 
 #[test]
@@ -118,7 +134,10 @@ fn watcher_wave13_typed_surface_cards_follow_engine_path() {
     let mut windmill = one_enemy_engine("JawWorm", 50, 0);
     ensure_in_hand(&mut windmill, "WindmillStrike");
     end_turn(&mut windmill);
-    let retained = windmill.state.hand.iter()
+    let retained = windmill
+        .state
+        .hand
+        .iter()
         .find(|card| windmill.card_registry.card_name(card.def_id) == "WindmillStrike")
         .expect("Windmill Strike retained");
     assert_eq!(retained.misc, 11);

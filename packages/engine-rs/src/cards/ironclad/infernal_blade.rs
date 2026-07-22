@@ -14,32 +14,38 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // cost 1; upgrade changes only its cost to 0.
     // Java: reference/extracted/methods/card/InfernalBlade.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/dungeons/AbstractDungeon.java
-    insert(cards, CardDef {
-        id: "Infernal Blade",
-        name: "Infernal Blade",
-        card_type: CardType::Skill,
-        target: CardTarget::None,
-        cost: 1,
-        base_damage: -1,
-        base_block: -1,
-        base_magic: -1,
-        exhaust: true,
-        enter_stance: None,
-                effect_data: &INFERNAL_BLADE,
-        complex_hook: None,
-    });
-    insert(cards, CardDef {
-        id: "Infernal Blade+",
-        name: "Infernal Blade+",
-        card_type: CardType::Skill,
-        target: CardTarget::None,
-        cost: 0,
-        base_damage: -1,
-        base_block: -1,
-        base_magic: -1,
-        exhaust: true,
-        enter_stance: None,
-                effect_data: &INFERNAL_BLADE,
-        complex_hook: None,
-    });
+    insert(
+        cards,
+        CardDef {
+            id: "Infernal Blade",
+            name: "Infernal Blade",
+            card_type: CardType::Skill,
+            target: CardTarget::None,
+            cost: 1,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: -1,
+            exhaust: true,
+            enter_stance: None,
+            effect_data: &INFERNAL_BLADE,
+            complex_hook: None,
+        },
+    );
+    insert(
+        cards,
+        CardDef {
+            id: "Infernal Blade+",
+            name: "Infernal Blade+",
+            card_type: CardType::Skill,
+            target: CardTarget::None,
+            cost: 0,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: -1,
+            exhaust: true,
+            enter_stance: None,
+            effect_data: &INFERNAL_BLADE,
+            complex_hook: None,
+        },
+    );
 }

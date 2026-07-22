@@ -9,7 +9,9 @@
 // extra block that Java would have lost. This test now asserts the
 // Java-matching subtract-15 behavior.
 
-use crate::tests::support::{combat_state_with, end_turn, enemy_no_intent, engine_with_state, make_deck};
+use crate::tests::support::{
+    combat_state_with, end_turn, enemy_no_intent, engine_with_state, make_deck,
+};
 
 #[test]
 fn calipers_subtracts_15_block_at_end_of_round() {
@@ -26,7 +28,10 @@ fn calipers_subtracts_15_block_at_end_of_round() {
     end_turn(&mut engine);
 
     // Java: 22 - 15 = 7. Pre-fix Rust incorrectly returned 15 (cap-at-15).
-    assert_eq!(engine.state.player.block, 7, "Calipers should subtract 15 block");
+    assert_eq!(
+        engine.state.player.block, 7,
+        "Calipers should subtract 15 block"
+    );
 }
 
 #[test]

@@ -57,12 +57,17 @@ omits nested selections and leave/skip actions, and sometimes captures before
 the action queue settles. Those omissions are reported as action-mapping or
 coupled-checkpoint gaps, never matches. The current operator handoff is
 `data/traces/requests/wave3-recorder-needs.md`; no agent may manufacture or
-write the protected Java corpus. The strongest current legacy-bundle prefix is
-`51/607`; it stops at a relic-pool identity that cannot be certified without
-the missing profile/unlock snapshot. Because all readable legacy bundles lack
-that initialization witness, their strict Java-certified prefix is `0`. Four
-other A0 terminal bundles have a two-action comparable prefix and then stop on
-omitted Neow grid-card identity.
+write the protected Java corpus. The diagnostic adapter now reaches all
+2,013/2,013 recorder actions across three non-empty Watcher A0 victories with
+no first divergence in the projected fields, but this does not promote any of
+them to a Java-certified replay: they still contain inferred decisions,
+coupled callbacks, unverified identities, or explicit reconstructions, and all
+use the recursively partial v1 checkpoint dialect. The exact original 48
+missing semantic actions and six later omissions are frozen in
+`docs/work_units/oracle-replay-wave3b-appendix.md`. The independently certified
+golden count remains `0/3` until the recorder supplies authoritative
+initialization, environment/lifecycle inputs, semantic action identity, and a
+distinct complete checkpoint schema.
 
 ## F10 — OPEN ORACLE INPUT: process-global ambient RNG state and draw witness
 
@@ -106,7 +111,8 @@ and unknown IDs fail closed instead of becoming a fabricated generic attack.
 Intent damage retains Java float ordering through the final floor, repeated
 Searing Blow upgrades validate against `misc`, unknown `?` rooms use settled
 recorder evidence instead of being forced to EVENT, Pandora keeps paired deck
-identity aligned, and checkpoint semantics revision v2 rejects older snapshots.
+identity aligned, and the current checkpoint semantics revision v7 rejects
+older causal snapshots.
 
 ## F14 — RESOLVED: mystery-combat room identity survives to rewards
 
@@ -132,49 +138,41 @@ complete semantic recorder script after F9 is fulfilled. It must replay twice
 to byte-identical transition envelopes and may not use debug state injection or
 forced combat outcomes.
 
-## F16 — OPEN PARITY: exact Java power-list mutation and dynamic identity
+## F16 — RESOLVED: exact Java power-list mutation and dynamic identity
 
 **Area:** parity / architecture
 **Severity:** critical
 **Confidence:** high
-**Scope:** merge-gating for Java-clean trace and continuation parity
+**Scope:** source-derived engine parity and causal continuation
 
 **Evidence:** `AbstractCreature.powers` is an ordered list. Java
 `ApplyPowerAction` appends a new power and stable-sorts by `priority`, while
 `AbstractCreature.addPower` and direct `powers.add` append without sorting.
-Rust now preserves a required canonical power order, validates it in
-checkpoints, maps the common static Java IDs/amounts, and rebuilds runtime
-handlers from that order. `set_status` implements stable priority-sorted
-`ApplyPowerAction`; `set_status_direct` implements unsorted direct append. The
-Java-audited Watcher A0 direct-add sites for large slimes, Slime Boss,
-Philosopher's Stone, spawned enemies, and battle-start Red Skull are migrated
-and source-tested.
+Rust now preserves that required power order, distinguishes stable sorted apply
+from unsorted direct append, and rebuilds runtime handlers from the same ordered
+state. Combat-start relic callbacks preserve Java's `addToTop`, `addToBot`, and
+direct mutation placement, including whole-batch ordering when one callback
+adds multiple top actions. The Java-audited Watcher A0 direct-add sites for
+large slimes, Slime Boss, Philosopher's Stone, spawned enemies, and battle-start
+Red Skull are migrated and source-tested.
 
-**Problem:** cross-relic combat-start ordering still flattens Java's
-`addToTop`, `addToBot`, and direct-add queue distinctions. Dynamic or non-status
-power instances are also incomplete in the language-neutral projection:
-independent The Bomb IDs use Java's process-global `bombIdOffset`, while Minion,
-BackAttack, Stasis, and Pen Nib are not canonical status-backed entries. Rust
-suppresses the incorrect aggregate Bomb projection rather than emitting false
-evidence, but a trace can still have the right combat scalar state and an
-incomplete or wrongly ordered power list.
+Dynamic and marker powers are no longer flattened into a misleading aggregate.
+Independent The Bomb and Night Terror instances retain ordered serialized
+identity and payloads; Minion, BackAttack, Stasis, and Pen Nib project their
+canonical Java identities. The Bomb's process-global offset is a causal witness
+rather than a guessed counter. Unified serializable combat-start, turn-start,
+post-draw, orb, and end-turn queues preserve choice suspension/resume and Java's
+post-lethal survivor classes.
 
-**Recommended fix:** add typed queue placement to combat-start relic effects so
-top, bottom, and immediate operations resolve in Java action-manager order.
-Represent dynamic power instances with serialized identity and order, and
-capture the initial/per-checkpoint Bomb ID offset in the Java witness rather
-than guessing it.
-
-**Test mapping:** sorted-apply/direct-add trace and runtime tests, the six
-source-confirmed Watcher A0 callsite proofs, and Bomb suppression/checkpoint
-tests are landed. Extend `test_trace_oracle` with relic-slot/addToTop ordering,
-multiple exact Bomb identities, Minion, BackAttack, Stasis, and Pen Nib
-projection; extend `test_core_checkpoint` with dynamic-power identity
-continuation tests.
-
-**Worker slice:** `powers-order-and-dynamic-trace` across `state.rs`,
-`effects/runtime.rs`, `trace.rs`, relic combat-start definitions, and the two
-owning test suites.
+Trace and core-checkpoint tests cover sorted/direct mutation, relic-slot and
+top/bottom ordering, multiple Bomb identities, dynamic Night Terror copies,
+marker powers, paused generated-card continuation, and duplicate hidden-card
+identity rejection. Checkpoint semantics revision v7 rejects v6 snapshots so
+external consumers cannot mistake the new continuation contract for the prior
+ruleset. The final Java-to-Rust closure review found no remaining P0/P1 engine
+gate in this scope. Broader character/ascension traces and complete recorder RNG
+witnesses remain coverage/oracle work under F9, F10, and F15 rather than an
+open F16 defect.
 
 ## F8 — April 2026 parity stack: unmerged fix quarry (tag `april-2026-parity-stack`)
 

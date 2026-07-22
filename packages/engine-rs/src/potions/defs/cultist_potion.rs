@@ -4,9 +4,11 @@ use super::prelude::*;
 // use() targets the player and applies player-controlled Ritual at potion
 // potency; sound and talk actions are cosmetic.
 
-static EFFECTS: [E; 1] = [
-    E::Simple(SE::AddStatus(T::Player, sid::RITUAL, A::PotionPotency)),
-];
+static EFFECTS: [E; 1] = [E::Simple(SE::AddStatus(
+    T::Player,
+    sid::RITUAL,
+    A::PotionPotency,
+))];
 
 static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::ManualActivation,

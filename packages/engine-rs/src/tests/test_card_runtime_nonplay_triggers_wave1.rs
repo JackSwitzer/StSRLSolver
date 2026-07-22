@@ -57,9 +57,10 @@ fn reflex_plus_is_unplayable_and_draws_three_through_a_manual_discard_action() {
     engine.state.hand = make_deck(&["Prepared", "Reflex+"]);
     engine.state.draw_pile = make_deck(&["Strike", "Defend", "Neutralize", "Survivor"]);
 
-    assert!(!engine.get_legal_actions().iter().any(|action| {
-        matches!(action, Action::PlayCard { card_idx: 1, .. })
-    }));
+    assert!(!engine
+        .get_legal_actions()
+        .iter()
+        .any(|action| { matches!(action, Action::PlayCard { card_idx: 1, .. }) }));
     assert!(play_self(&mut engine, "Prepared"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
 

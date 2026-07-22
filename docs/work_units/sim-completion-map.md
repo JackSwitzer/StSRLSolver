@@ -9,7 +9,7 @@
 ## 2026-07-20 stack update
 
 Layers 1-3 and the pure-core portion of Layer 6 have landed in the RNG through
-pure-sim stack. Current proof is 3,110 passing tests, zero ignored, native Java
+pure-sim stack. Current proof is 3,269 passing tests, zero ignored, native Java
 RNG/stream ownership, canonical full-run actions, causal checkpoints, and no
 active Python/observation/search/training dependency in `engine-rs`.
 
@@ -19,10 +19,12 @@ language-neutral oracle-state projection, and offline human-bundle adapter are
 complete. The live Layer 5 gate is a recorder remint with complete semantic
 actions, initial conditions, and settled causal checkpoints, followed by
 first-divergence burn-down. See
-[`watcher-a0-oracle-closure.md`](audit-reports/watcher-a0-oracle-closure.md).
-The current deepest comparable bundle prefix is `51/607`; exact profile inputs,
-settled semantic actions, ambient RNG witnesses, and the F16 power-order tail
-remain open.
+[`oracle-replay-wave3b-appendix.md`](oracle-replay-wave3b-appendix.md). Three
+non-empty Watcher A0 victories now reach 2,013/2,013 actions without a projected
+state divergence; 1,547 checkpoints are direct and 466 are recorder-callback
+couplings. Exact profile inputs, settled semantic actions, ambient RNG witnesses,
+and a required-field checkpoint schema remain open. F16's power-order/dynamic
+identity tail is resolved; independently certified goldens remain 0/3.
 
 This is the execution map from the completed 667-row source-verification sweep to a finished Watcher simulator. It is deliberately not a claim that “667 verified” means parity is complete. The ledger currently proves source-derived coverage for four item kinds; the corpus and missing content-domain evidence remain open. Known oracle findings remain owned by [`docs/goal/FINDINGS.md`](../goal/FINDINGS.md) and are referenced here rather than re-derived.
 
@@ -37,9 +39,9 @@ Effort estimates include implementation and engine-path tests, but not queue tim
 | Surface | Proven state | Evidence | What this does **not** prove |
 |---|---|---|---|
 | Source-verification ledger | All 667 current rows are `verified`: 370 cards, 68 monsters, 43 potions, 186 relics. | `docs/goal/ledger.json`; `scripts/ledger.sh status` reports no next unverified row. | The ledger has no event, Neow, map-generation, or power rows and no corpus-reachability stamp. |
-| Unit suite | 3,110 passing tests, zero ignored. | `./scripts/test_engine_rs.sh test --lib`; Rust tests are compiled with the library. | Tests alone do not replace the incomplete full-run Java corpus. |
+| Unit suite | 3,269 passing tests, zero ignored. | `./scripts/test_engine_rs.sh test --lib`; Rust tests are compiled with the library. | Tests alone do not replace the incomplete full-run Java corpus. |
 | Combat content registry | Card and gameplay registries are process-wide immutable values returned by `&'static` reference. | `packages/engine-rs/src/cards/mod.rs:1253-1258`; `packages/engine-rs/src/gameplay/registry.rs:102-105`; `CombatEngine` stores the card registry by static reference at `engine.rs:191-204`. | All state is not yet state-local: Note for Yourself uses a process-global mutex, and string IDs still allocate inside snapshots. |
-| Trace pipeline | V1 Java capture/Rust diff, canonical v2 Rust action replay, language-neutral state, and legacy bundle intake exist. Fourteen bundles are attempted; 13 are readable and one gzip is truncated. | `test_trace_oracle`; `test_trace_schema_v2`; `test_recording_bundles`. | Deepest prefix is `51/607`; repaired semantic/profile/ambient witnesses and full-run goldens remain open. |
+| Trace pipeline | V1 Java capture/Rust diff, canonical v2 Rust action replay, language-neutral state, and legacy bundle intake exist. Three non-empty Watcher A0 victories reach 2,013/2,013 comparable actions without a projected-state divergence. | `test_trace_oracle`; `test_trace_schema_v2`; `test_recording_bundles`; `oracle-replay-wave3b-appendix.md`. | All three remain uncertified until repaired semantic/profile/ambient witnesses and complete checkpoints are reminted. |
 | Performance baseline | Full turn 4.43-4.45 us, clone 620-624 ns, legal actions 92-93 ns on the audit host. | `packages/engine-rs/benches`; 2026-07-18 pure-core freeze run. | There is no batch API, allocation budget, or thread-scaling benchmark yet. |
 
 Finding IDs below resolve to the ranked register at

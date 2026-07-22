@@ -13,18 +13,24 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Violence.java
 
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::engine::CombatPhase;
 use crate::state::Stance;
 use crate::status_ids::sid;
-use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy};
+use crate::tests::support::{
+    enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy,
+};
 
 #[test]
 fn colorless_wave6_registry_exports_match_typed_surface_for_mind_blast() {
     let registry = global_registry();
 
     let mind_blast = registry.get("Mind Blast").expect("Mind Blast should exist");
-    let mind_blast_plus = registry.get("Mind Blast+").expect("Mind Blast+ should exist");
+    let mind_blast_plus = registry
+        .get("Mind Blast+")
+        .expect("Mind Blast+ should exist");
 
     // MindBlast.java constructor: cost 2, Attack/Enemy, Innate, baseDamage 0.
     assert_eq!(mind_blast.card_type, CardType::Attack);
@@ -46,11 +52,7 @@ fn colorless_wave6_registry_exports_match_typed_surface_for_mind_blast() {
 
 #[test]
 fn mind_blast_uses_live_draw_pile_size_as_normal_attack_base_damage() {
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 80, 80)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 80, 80)], 3);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Mind Blast"]);
     engine.state.draw_pile = make_deck(&[
@@ -58,7 +60,9 @@ fn mind_blast_uses_live_draw_pile_size_as_normal_attack_base_damage() {
     ]);
     engine.state.player.set_status(sid::STRENGTH, 2);
     engine.state.stance = Stance::Wrath;
-    engine.state.enemies[0].entity.set_status(sid::VULNERABLE, 1);
+    engine.state.enemies[0]
+        .entity
+        .set_status(sid::VULNERABLE, 1);
     engine.state.enemies[0].entity.block = 5;
 
     assert!(play_on_enemy(&mut engine, "Mind Blast", 0));

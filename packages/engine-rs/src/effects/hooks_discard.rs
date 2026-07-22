@@ -1,8 +1,8 @@
 //! on_discard hooks — fired when a card is manually discarded from hand.
 
+use super::types::OnDiscardEffect;
 use crate::combat_types::CardInstance;
 use crate::engine::CombatEngine;
-use super::types::OnDiscardEffect;
 
 /// Reflex.triggerOnManualDiscard draws its magic number (2, or 3 upgraded).
 /// Java: reference/extracted/methods/card/Reflex.java
@@ -15,7 +15,10 @@ pub fn hook_draw_on_discard(engine: &mut CombatEngine, card_inst: CardInstance) 
 }
 
 /// Tactician: gain energy when discarded.
-pub fn hook_energy_on_discard(engine: &mut CombatEngine, card_inst: CardInstance) -> OnDiscardEffect {
+pub fn hook_energy_on_discard(
+    engine: &mut CombatEngine,
+    card_inst: CardInstance,
+) -> OnDiscardEffect {
     let card_def = engine.card_registry.card_def_by_id(card_inst.def_id);
     OnDiscardEffect {
         draw: 0,

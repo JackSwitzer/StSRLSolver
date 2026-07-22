@@ -13,17 +13,23 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Madness.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/Violence.java
 
-use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, ChoiceAction, CardFilter, Effect as E, Pile as P, BulkAction};
 use crate::actions::Action;
+use crate::cards::{global_registry, CardTarget, CardType};
+use crate::effects::declarative::{
+    AmountSource as A, BulkAction, CardFilter, ChoiceAction, Effect as E, Pile as P,
+};
 use crate::engine::CombatPhase;
-use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_self};
+use crate::tests::support::{
+    enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_self,
+};
 
 #[test]
 fn colorless_wave5_registry_exports_match_typed_surface_for_supported_plus_cards() {
     let registry = global_registry();
 
-    let forethought_plus = registry.get("Forethought+").expect("Forethought+ should exist");
+    let forethought_plus = registry
+        .get("Forethought+")
+        .expect("Forethought+ should exist");
     assert_eq!(forethought_plus.card_type, CardType::Skill);
     assert_eq!(forethought_plus.target, CardTarget::None);
     assert_eq!(
@@ -39,7 +45,9 @@ fn colorless_wave5_registry_exports_match_typed_surface_for_supported_plus_cards
     );
     assert!(forethought_plus.complex_hook.is_none());
 
-    let enlightenment_plus = registry.get("Enlightenment+").expect("Enlightenment+ should exist");
+    let enlightenment_plus = registry
+        .get("Enlightenment+")
+        .expect("Enlightenment+ should exist");
     assert_eq!(enlightenment_plus.card_type, CardType::Skill);
     assert_eq!(enlightenment_plus.target, CardTarget::SelfTarget);
     assert_eq!(
@@ -55,11 +63,7 @@ fn colorless_wave5_registry_exports_match_typed_surface_for_supported_plus_cards
 
 #[test]
 fn forethought_plus_keeps_selected_positive_cost_cards_free_on_bottom() {
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Forethought+", "Strike", "Defend"]);
 
@@ -70,10 +74,18 @@ fn forethought_plus_keeps_selected_positive_cost_cards_free_on_bottom() {
     engine.execute_action(&Action::ConfirmSelection);
 
     assert_eq!(engine.state.hand.len(), 1);
-    assert_eq!(engine.card_registry.card_name(engine.state.draw_pile[0].def_id), "Strike");
+    assert_eq!(
+        engine
+            .card_registry
+            .card_name(engine.state.draw_pile[0].def_id),
+        "Strike"
+    );
     assert_eq!(engine.state.draw_pile[0].cost, -1);
     assert!(engine.state.draw_pile[0].is_free());
-    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Defend");
+    assert_eq!(
+        engine.card_registry.card_name(engine.state.hand[0].def_id),
+        "Defend"
+    );
 }
 
 #[test]
@@ -81,11 +93,7 @@ fn enlightenment_plus_sets_costs_in_hand_to_one() {
     // EnlightenmentAction.java changes only costs above 1. Mind Blast becomes
     // permanently 1; an ordinary 1-cost Strike remains unmodified.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/EnlightenmentAction.java
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Enlightenment+", "Mind Blast", "Strike"]);
 

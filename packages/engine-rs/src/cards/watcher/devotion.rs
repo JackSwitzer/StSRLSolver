@@ -6,20 +6,38 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Devotion.java
     // decompiled/java-src/com/megacrit/cardcrawl/powers/watcher/DevotionPower.java
     // ---- Rare: Devotion ---- (cost 1, power, gain 2 Mantra at start of each turn; +1 magic upgrade)
-    insert(cards, CardDef {
-        id: "Devotion", name: "Devotion", card_type: CardType::Power,
-        target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
-        base_magic: 2, exhaust: false, enter_stance: None,
-                effect_data: &[
-            E::Simple(SE::AddStatus(T::Player, sid::DEVOTION, A::Magic)),
-        ], complex_hook: None,
-    });
-    insert(cards, CardDef {
-        id: "Devotion+", name: "Devotion+", card_type: CardType::Power,
-        target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
-        base_magic: 3, exhaust: false, enter_stance: None,
-                effect_data: &[
-            E::Simple(SE::AddStatus(T::Player, sid::DEVOTION, A::Magic)),
-        ], complex_hook: None,
-    });
+    insert(
+        cards,
+        CardDef {
+            id: "Devotion",
+            name: "Devotion",
+            card_type: CardType::Power,
+            target: CardTarget::None,
+            cost: 1,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: 2,
+            exhaust: false,
+            enter_stance: None,
+            effect_data: &[E::Simple(SE::AddStatus(T::Player, sid::DEVOTION, A::Magic))],
+            complex_hook: None,
+        },
+    );
+    insert(
+        cards,
+        CardDef {
+            id: "Devotion+",
+            name: "Devotion+",
+            card_type: CardType::Power,
+            target: CardTarget::None,
+            cost: 1,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: 3,
+            exhaust: false,
+            enter_stance: None,
+            effect_data: &[E::Simple(SE::AddStatus(T::Player, sid::DEVOTION, A::Magic))],
+            complex_hook: None,
+        },
+    );
 }

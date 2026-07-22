@@ -91,9 +91,7 @@ fn swift_potion_keeps_three_potency_and_uses_normal_draw_rules() {
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
     ));
-    engine.state.hand = make_deck(&[
-        "Strike", "Defend", "Bash", "Strike", "Defend", "Bash",
-    ]);
+    engine.state.hand = make_deck(&["Strike", "Defend", "Bash", "Strike", "Defend", "Bash"]);
     engine.state.draw_pile = make_deck(&[
         "Strike", "Defend", "Bash", "Strike", "Defend", "Bash", "Strike", "Defend",
     ]);
@@ -157,7 +155,12 @@ fn wave7_status_potions_apply_expected_statuses_via_action_path() {
         ("LiquidBronze", sid::THORNS, 3, "LiquidBronze"),
         ("CultistPotion", sid::RITUAL, 1, "CultistPotion"),
         ("GhostInAJar", sid::INTANGIBLE, 1, "GhostInAJar"),
-        ("DuplicationPotion", sid::DUPLICATION, 1, "DuplicationPotion"),
+        (
+            "DuplicationPotion",
+            sid::DUPLICATION,
+            1,
+            "DuplicationPotion",
+        ),
     ];
 
     for (potion_id, status_id, status_amount, def_id) in cases {
@@ -179,7 +182,10 @@ fn wave7_status_potions_apply_expected_statuses_via_action_path() {
             status_amount,
             "{potion_id} should set the expected status via the runtime action path"
         );
-        assert!(engine.state.potions[1].is_empty(), "{potion_id} should consume its slot");
+        assert!(
+            engine.state.potions[1].is_empty(),
+            "{potion_id} should consume its slot"
+        );
         assert!(engine.event_log.iter().any(|record| {
             record.event == Trigger::ManualActivation
                 && record.def_id == Some(def_id)
@@ -217,11 +223,8 @@ fn liquid_bronze_keeps_three_potency_and_retaliates_per_attack_hit() {
     // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ThornsPower.java
     let mut attacker = enemy_no_intent("JawWorm", 40, 40);
     attacker.set_move(1, 1, 2, 0);
-    let mut engine = engine_with_state(combat_state_with(
-        make_deck(&["Strike"]),
-        vec![attacker],
-        3,
-    ));
+    let mut engine =
+        engine_with_state(combat_state_with(make_deck(&["Strike"]), vec![attacker], 3));
     engine.state.relics.push("SacredBark".to_string());
     engine.state.potions[0] = "LiquidBronze".to_string();
 
@@ -382,9 +385,10 @@ fn wave7_smoke_bomb_flees_combat_via_runtime_action_path() {
             && record.def_id == Some("SmokeBomb")
             && record.potion_slot == 2
     }));
-    assert!(engine.event_log.iter().any(|record| {
-        record.event == Trigger::OnPotionUsed && record.potion_slot == 2
-    }));
+    assert!(engine
+        .event_log
+        .iter()
+        .any(|record| { record.event == Trigger::OnPotionUsed && record.potion_slot == 2 }));
 }
 
 #[test]

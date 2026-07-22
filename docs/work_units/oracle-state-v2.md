@@ -1,6 +1,6 @@
 # Oracle State Schema v2
 
-**Schema identity:** `sts.oracle_state` major `2`, minor `1`
+**Schema identity:** `sts.oracle_state` major `2`, minor `2`
 
 **Rust owner:** `packages/engine-rs/src/trace/oracle_v2.rs`
 
@@ -12,7 +12,7 @@ private Rust continuation format and must never be required from a Java trace.
 
 ```json
 {
-  "schema": {"name": "sts.oracle_state", "major": 2, "minor": 1},
+  "schema": {"name": "sts.oracle_state", "major": 2, "minor": 2},
   "floor": 1,
   "act": 1,
   "turn": 1,
@@ -85,6 +85,9 @@ private Rust continuation format and must never be required from a Java trace.
       "neow": {"seed0": "0123456789abcdef", "seed1": "fedcba9876543210", "counter": 5}
     }
   },
+  "processGlobals": {
+    "theBombIdOffset": 0
+  },
   "neow": null
 }
 ```
@@ -103,21 +106,25 @@ to zero.
   ordered. Consumers must not sort these arrays before comparison.
 - Power entries use exact Java `AbstractPower.ID` strings and Java-visible
   amounts. Status-backed powers preserve serialized insertion order and are
-  stably ordered by Java priority for `ApplyPowerAction` semantics. Rust must
-  not infer an exact match for direct `powers.add`/`addPower` call sites or
-  dynamic power instances until F16 is closed.
+  stably ordered by Java priority for `ApplyPowerAction` semantics. Dynamic
+  `TheBomb{serial}` entries participate in that same order and expose their
+  independent remaining-turn amounts; their damage payload remains causal
+  checkpoint state rather than public oracle state.
 - Empty potion slots use Java's stable `Potion Slot` ID.
 - Stance names are `Neutral`, `Wrath`, `Calm`, or `Divinity`.
 - Phase values are `NEOW`, `MAP`, `CHEST`, `COMBAT`, `REWARD`, `CAMPFIRE`,
   `SHOP`, `EVENT`, `TRANSITION`, and `GAME_OVER`.
 - RNG state contains the seven persistent, five floor-local, and one map
-  stream counters plus both process-global generators. `rawStates` repeats each
+  stream counters plus both process-global RNG generators. `rawStates` repeats each
   counted stream with its two `RandomXS128` words and includes the separate
   Neow stream; this is required because rejection retries can advance raw state
   without adding wrapper counter ticks. Signed Java `int` counter values are
   preserved in `i64`. Raw `RandomXS128` and 48-bit Java LCG
   state use fixed-width lowercase hexadecimal strings so no JSON implementation
   can round their bit patterns through a floating-point number.
+- `processGlobals.theBombIdOffset` is Java's signed static constructor suffix
+  for the next `TheBombPower`. It is checkpoint-causal, persists across combat
+  and run resets in the same process, and increments with Java `int` wrapping.
 
 ## Neow Witness
 
@@ -159,6 +166,7 @@ producers emitted.
 
 `test_oracle_state_v2` proves mandatory name/major/minor validation, round-trip
 serialization, all 13 named counters and both required process-global states,
+the required Bomb constructor offset,
 projected semantic Neow selection,
 and one-field corruption across
 run identity, map/keys, player, powers/orbs, enemies/intents/history, piles,
@@ -169,18 +177,18 @@ deck, relics, potions, and RNG.
 The committed record-mode bundles already emit floor, act, turn, phase, map,
 player, enemies (including `dead`), ordered piles, deck, relic counters,
 potions, and all 13 counters. They do not emit key ownership, semantic Neow
-payloads, or either process-global RNG state. Profile/unlock inputs are also
+payloads, either process-global RNG state, or the Bomb constructor offset. Profile/unlock inputs are also
 absent from `meta.json`. Bundle replay therefore reports the missing values as
 unverified leaves; strict canonical-v2 intake rejects them rather than guessing
 seed zero.
 
 The Rust projection maps common static status-backed powers to Java IDs,
-filters private counters, derives compound amounts, and distinguishes green
-`Energized` from blue `EnergizedBlue`. It suppresses the lossy aggregate Bomb
-status rather than emitting a false Java power. Exact direct-add order and
-dynamic or non-status instances (including independent The Bomb IDs, Minion,
-BackAttack, Stasis, and Pen Nib) remain an explicit F16 boundary; those fields
-must not be credited as Java-certified when encountered.
+filters private counters, derives compound amounts, distinguishes green
+`Energized` from blue `EnergizedBlue`, and emits typed Minion, BackAttack,
+Stasis, Pen Nib, and independent `TheBomb{serial}` entries in canonical power
+order. Java certification still requires recorder-side Bomb offset capture and
+the remaining combat-start/action-queue ordering audit; fields absent from the
+legacy corpus must not be credited as Java-certified.
 
 ## Legacy Recording-Bundle Adapter
 
@@ -195,8 +203,10 @@ these explicit translations and reports coupled or semantically unverified
 actions separately from direct checkpoints:
 
 - A fresh run's three Neow commits are treated as intro, semantic selection,
-  and continue. If selection opened `GRID`, replay stops because the selected
-  card identity is absent. Semantic Neow payload coverage remains skipped.
+  and continue. For a `GRID`, the adapter opens the unique typed reward and
+  tests every legal card choice against the recorded ordered deck. A unique
+  result is inferred explicitly; equivalent duplicate removals remain marked
+  identity-uncertified. Semantic Neow payload coverage remains skipped.
 - Java room phases are mapped only when unambiguous. `COMPLETE` and
   `INCOMPLETE` are not coerced into decision phases.
 - `EnergyPanel.totalCount` outside combat is stale UI state and is skipped.

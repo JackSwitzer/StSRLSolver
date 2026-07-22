@@ -16,7 +16,7 @@
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerCondition};
-use crate::engine::CombatEngine;
+use crate::engine::{CombatEngine, EndTurnQueuedAction};
 use crate::status_ids::sid;
 
 // ===========================================================================
@@ -89,13 +89,22 @@ fn hook_time_warp(
 
     if crate::powers::increment_time_warp(&mut engine.state.enemies[enemy_idx].entity) {
         for idx in engine.state.living_enemy_indices() {
-            engine.state.enemies[idx].entity.add_status(sid::STRENGTH, 2);
+            engine.state.enemies[idx]
+                .entity
+                .add_status(sid::STRENGTH, 2);
         }
-        engine.end_turn();
+        // TimeWarpPower calls callEndTurnEarlySequence from onAfterUseCard.
+        // Java clears queued replay cards immediately, then the active
+        // UseCardAction moves its card before the end-turn discard/shuffle.
+        engine.runtime_force_end_turn_after_card = true;
     }
 }
 
-fn player_power_amount(engine: &CombatEngine, owner: EffectOwner, status_id: crate::ids::StatusId) -> i32 {
+fn player_power_amount(
+    engine: &CombatEngine,
+    owner: EffectOwner,
+    status_id: crate::ids::StatusId,
+) -> i32 {
     match owner {
         EffectOwner::PlayerPower => engine.state.player.status(status_id),
         EffectOwner::EnemyPower { enemy_idx } => {
@@ -283,7 +292,18 @@ fn hook_double_tap(
     event: &GameEvent,
     _state: &mut EffectState,
 ) {
-    if !engine.runtime_replay_window || event.kind != Trigger::OnAttackPlayed || engine.state.combat_over {
+    if event.kind == Trigger::TurnEnd {
+        if owner == EffectOwner::PlayerPower {
+            engine.queue_end_turn_action_bottom(EndTurnQueuedAction::RemovePlayerPower(
+                sid::DOUBLE_TAP,
+            ));
+        }
+        return;
+    }
+    if !engine.runtime_replay_window
+        || event.kind != Trigger::OnAttackPlayed
+        || engine.state.combat_over
+    {
         return;
     }
 
@@ -305,13 +325,18 @@ fn hook_double_tap(
         EffectOwner::EnemyPower { enemy_idx } => {
             let idx = enemy_idx as usize;
             if idx < engine.state.enemies.len() {
-                engine.state.enemies[idx].entity.add_status(sid::DOUBLE_TAP, -1);
+                engine.state.enemies[idx]
+                    .entity
+                    .add_status(sid::DOUBLE_TAP, -1);
             }
         }
         _ => return,
     }
 
-    let card = engine.card_registry.card_def_by_id(card_inst.def_id).clone();
+    let card = engine
+        .card_registry
+        .card_def_by_id(card_inst.def_id)
+        .clone();
     engine.execute_card_effects_with_enemy_on_use(&card, card_inst, event.target_idx);
 }
 
@@ -325,11 +350,14 @@ fn hook_burst(
         // BurstPower.atEndOfTurn removes every unused charge.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BurstPower.java
         if owner == EffectOwner::PlayerPower {
-            engine.state.player.set_status(sid::BURST, 0);
+            engine.queue_end_turn_action_bottom(EndTurnQueuedAction::RemovePlayerPower(sid::BURST));
         }
         return;
     }
-    if !engine.runtime_replay_window || event.kind != Trigger::OnSkillPlayed || engine.state.combat_over {
+    if !engine.runtime_replay_window
+        || event.kind != Trigger::OnSkillPlayed
+        || engine.state.combat_over
+    {
         return;
     }
 
@@ -357,7 +385,10 @@ fn hook_burst(
         _ => return,
     }
 
-    let card = engine.card_registry.card_def_by_id(card_inst.def_id).clone();
+    let card = engine
+        .card_registry
+        .card_def_by_id(card_inst.def_id)
+        .clone();
     if card.cost == -1 {
         // BurstPower copies the original energyOnUse into the queued free copy.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BurstPower.java
@@ -382,7 +413,7 @@ fn hook_amplify(
     if event.kind == Trigger::TurnEnd {
         // AmplifyPower.atEndOfTurn removes every unused charge.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/AmplifyPower.java
-        engine.state.player.set_status(sid::AMPLIFY, 0);
+        engine.queue_end_turn_action_bottom(EndTurnQueuedAction::RemovePlayerPower(sid::AMPLIFY));
         return;
     }
     if !engine.runtime_replay_window
@@ -406,7 +437,10 @@ fn hook_amplify(
     // charge per original Power card, and therefore cannot recurse on its copy.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/AmplifyPower.java
     engine.state.player.add_status(sid::AMPLIFY, -1);
-    let card = engine.card_registry.card_def_by_id(card_inst.def_id).clone();
+    let card = engine
+        .card_registry
+        .card_def_by_id(card_inst.def_id)
+        .clone();
     engine.execute_card_effects_with_enemy_on_use(&card, card_inst, event.target_idx);
 }
 
@@ -450,7 +484,10 @@ fn hook_duplication(
     // not recursively consume another charge.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DuplicationPower.java
     engine.state.player.add_status(sid::DUPLICATION, -1);
-    let card = engine.card_registry.card_def_by_id(card_inst.def_id).clone();
+    let card = engine
+        .card_registry
+        .card_def_by_id(card_inst.def_id)
+        .clone();
     engine.execute_card_effects_with_enemy_on_use(&card, card_inst, event.target_idx);
 }
 
@@ -460,7 +497,10 @@ fn hook_echo_form(
     event: &GameEvent,
     _state: &mut EffectState,
 ) {
-    if !engine.runtime_replay_window || event.kind != Trigger::OnCardPlayedPost || engine.state.combat_over {
+    if !engine.runtime_replay_window
+        || event.kind != Trigger::OnCardPlayedPost
+        || engine.state.combat_over
+    {
         return;
     }
 
@@ -473,7 +513,10 @@ fn hook_echo_form(
     }
 
     let echo_count = player_power_amount(engine, owner, sid::ECHO_FORM);
-    let card = engine.card_registry.card_def_by_id(card_inst.def_id).clone();
+    let card = engine
+        .card_registry
+        .card_def_by_id(card_inst.def_id)
+        .clone();
     // EchoPower.onUseCard accepts every non-purge card type, including Powers.
     // Echo Form's own ApplyPowerAction is not installed until after its
     // onUseCard window, so discount the stack added by the current card when
@@ -518,12 +561,20 @@ pub static DEF_DOUBLE_TAP: EntityDef = EntityDef {
     id: "double_tap",
     name: "Double Tap",
     kind: EntityKind::Power,
-    triggers: &[TriggeredEffect {
-        trigger: Trigger::OnAttackPlayed,
-        condition: TriggerCondition::Always,
-        effects: &[],
-        counter: None,
-    }],
+    triggers: &[
+        TriggeredEffect {
+            trigger: Trigger::OnAttackPlayed,
+            condition: TriggerCondition::Always,
+            effects: &[],
+            counter: None,
+        },
+        TriggeredEffect {
+            trigger: Trigger::TurnEnd,
+            condition: TriggerCondition::Always,
+            effects: &[],
+            counter: None,
+        },
+    ],
     complex_hook: Some(hook_double_tap),
     status_guard: Some(sid::DOUBLE_TAP),
 };
@@ -773,10 +824,15 @@ mod tests {
     #[test]
     fn test_all_complex_have_hooks() {
         let defs = [
-            &DEF_ECHO_FORM, &DEF_DOUBLE_TAP, &DEF_BURST,
-            &DEF_FLAME_BARRIER, &DEF_ENVENOM,
-            &DEF_SADISTIC_NATURE, &DEF_THOUSAND_CUTS,
-            &DEF_PANACHE, &DEF_TIME_WARP,
+            &DEF_ECHO_FORM,
+            &DEF_DOUBLE_TAP,
+            &DEF_BURST,
+            &DEF_FLAME_BARRIER,
+            &DEF_ENVENOM,
+            &DEF_SADISTIC_NATURE,
+            &DEF_THOUSAND_CUTS,
+            &DEF_PANACHE,
+            &DEF_TIME_WARP,
         ];
         for def in &defs {
             assert!(

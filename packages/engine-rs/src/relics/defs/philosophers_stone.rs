@@ -7,14 +7,12 @@ use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::engine::CombatEngine;
 use crate::status_ids::sid;
 
-static TRIGGERS: [TriggeredEffect; 1] = [
-    TriggeredEffect {
-        trigger: Trigger::CombatStart,
-        condition: TriggerCondition::Always,
-        effects: &[],
-        counter: None,
-    },
-];
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::CombatStartDirect,
+    condition: TriggerCondition::Always,
+    effects: &[],
+    counter: None,
+}];
 
 fn hook(
     engine: &mut CombatEngine,
@@ -22,7 +20,7 @@ fn hook(
     event: &GameEvent,
     _state: &mut EffectState,
 ) {
-    if event.kind != Trigger::CombatStart {
+    if event.kind != Trigger::CombatStartDirect {
         return;
     }
     // PhilosopherStone.atBattleStart calls AbstractMonster.addPower directly,

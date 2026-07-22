@@ -7,8 +7,12 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/common/ReduceCostAction.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
-use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
+use crate::tests::support::{
+    enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self,
+};
 
 fn single_enemy_engine() -> crate::engine::CombatEngine {
     let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
@@ -17,7 +21,8 @@ fn single_enemy_engine() -> crate::engine::CombatEngine {
 }
 
 #[test]
-fn instance_mutation_wave1_registry_exports_steam_and_streamline_on_typed_played_instance_mutation_surfaces() {
+fn instance_mutation_wave1_registry_exports_steam_and_streamline_on_typed_played_instance_mutation_surfaces(
+) {
     let steam = global_registry().get("Steam").expect("Steam");
     assert_eq!(
         steam.effect_data,
@@ -84,7 +89,10 @@ fn steam_barrier_updates_the_played_instance_block_and_future_plays_see_the_redu
 
     assert_eq!(played.decrementing_misc_or(6), -1);
     engine.card_registry.upgrade_card(&mut engine.state.hand[0]);
-    assert_eq!(engine.card_registry.card_name(engine.state.hand[0].def_id), "Steam+");
+    assert_eq!(
+        engine.card_registry.card_name(engine.state.hand[0].def_id),
+        "Steam+"
+    );
     engine.state.player.block = 0;
     assert!(play_self(&mut engine, "Steam+"));
     assert_eq!(engine.state.player.block, 1);
@@ -128,7 +136,10 @@ fn streamline_updates_the_played_instance_cost_and_future_plays_can_reuse_the_ch
     assert_eq!((played.cost, played.base_cost), (0, 0));
 
     let mut echoed = single_enemy_engine();
-    echoed.state.player.set_status(crate::status_ids::sid::ECHO_FORM, 1);
+    echoed
+        .state
+        .player
+        .set_status(crate::status_ids::sid::ECHO_FORM, 1);
     echoed.rebuild_effect_runtime();
     echoed.state.hand = make_deck(&["Streamline"]);
 
@@ -145,6 +156,8 @@ fn streamline_updates_the_played_instance_cost_and_future_plays_can_reuse_the_ch
     lethal.execute_card_effects_with_enemy_on_use(&lethal_def, lethal_card, 0);
 
     assert_eq!(lethal.state.enemies[0].entity.hp, 0);
-    let unmodified = lethal.runtime_played_card.expect("active lethal Streamline");
+    let unmodified = lethal
+        .runtime_played_card
+        .expect("active lethal Streamline");
     assert_eq!((unmodified.cost, unmodified.base_cost), (-1, 2));
 }

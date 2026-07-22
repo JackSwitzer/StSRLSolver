@@ -1,8 +1,10 @@
 use super::prelude::*;
 
-static EFFECTS: [E; 1] = [
-    E::Simple(SE::AddStatus(T::Player, sid::STRENGTH, A::PotionPotency)),
-];
+static EFFECTS: [E; 1] = [E::Simple(SE::AddStatus(
+    T::Player,
+    sid::STRENGTH,
+    A::PotionPotency,
+))];
 
 static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::ManualActivation,

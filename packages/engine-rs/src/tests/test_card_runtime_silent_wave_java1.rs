@@ -51,10 +51,9 @@ fn calculated_gamble_discards_the_remaining_hand_then_draws_the_same_count() {
 
     let names = hand_names(&engine);
     assert_eq!(names.len(), 2);
-    assert!(names.iter().all(|name| matches!(
-        name.as_str(),
-        "Neutralize" | "Survivor" | "Deflect"
-    )));
+    assert!(names
+        .iter()
+        .all(|name| matches!(name.as_str(), "Neutralize" | "Survivor" | "Deflect")));
     assert_eq!(hand_count(&engine, "Calculated Gamble"), 0);
     assert_eq!(hand_count(&engine, "Strike"), 0);
     assert_eq!(hand_count(&engine, "Defend"), 0);
@@ -93,10 +92,9 @@ fn calculated_gamble_plus_only_removes_exhaust_and_draws_the_same_count() {
 
     let names = hand_names(&engine);
     assert_eq!(names.len(), 2);
-    assert!(names.iter().all(|name| matches!(
-        name.as_str(),
-        "Neutralize" | "Survivor" | "Deflect"
-    )));
+    assert!(names
+        .iter()
+        .all(|name| matches!(name.as_str(), "Neutralize" | "Survivor" | "Deflect")));
     assert_eq!(hand_count(&engine, "Strike"), 0);
     assert_eq!(hand_count(&engine, "Defend"), 0);
     assert_eq!(engine.state.draw_pile.len(), 1);
@@ -127,7 +125,9 @@ fn caltrops_stacks_and_retaliates_after_buffer_with_thorns_damage_rules() {
     assert_eq!(engine.state.energy, 0);
 
     engine.state.player.set_status(sid::BUFFER, 1);
-    engine.state.enemies[0].entity.set_status(sid::INTANGIBLE, 1);
+    engine.state.enemies[0]
+        .entity
+        .set_status(sid::INTANGIBLE, 1);
     let player_hp = engine.state.player.hp;
     end_turn(&mut engine);
 
@@ -142,14 +142,8 @@ fn catalyst_applies_only_the_extra_poison_through_apply_power_action() {
     // TriplePoisonAction applies twice the current amount. Both use
     // ApplyPowerAction, whose constructor adds Snecko Skull's +1 and whose
     // update consumes Artifact instead of stacking the Poison debuff.
-    let make = |card_id: &str| {
-        engine_for(
-            &[card_id],
-            &[],
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            1,
-        )
-    };
+    let make =
+        |card_id: &str| engine_for(&[card_id], &[], vec![enemy_no_intent("JawWorm", 40, 40)], 1);
 
     let mut base = make("Catalyst");
     base.state.enemies[0].entity.set_status(sid::POISON, 5);
@@ -164,7 +158,9 @@ fn catalyst_applies_only_the_extra_poison_through_apply_power_action() {
 
     let mut artifact = make("Catalyst");
     artifact.state.enemies[0].entity.set_status(sid::POISON, 5);
-    artifact.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+    artifact.state.enemies[0]
+        .entity
+        .set_status(sid::ARTIFACT, 1);
     assert!(play_on_enemy(&mut artifact, "Catalyst", 0));
     assert_eq!(artifact.state.enemies[0].entity.status(sid::POISON), 5);
     assert_eq!(artifact.state.enemies[0].entity.status(sid::ARTIFACT), 0);
@@ -186,7 +182,10 @@ fn choke_uses_only_preexisting_stacks_then_stacks_the_upgraded_amount() {
     engine.state.enemies[0].entity.block = 30;
 
     assert!(play_on_enemy(&mut engine, "Choke", 0));
-    assert_eq!(engine.state.enemies[0].entity.hp, 40, "Choke must not trigger itself");
+    assert_eq!(
+        engine.state.enemies[0].entity.hp, 40,
+        "Choke must not trigger itself"
+    );
     assert_eq!(engine.state.enemies[0].entity.block, 18);
     assert_eq!(engine.state.enemies[0].entity.status(sid::CONSTRICTED), 3);
 
@@ -197,7 +196,10 @@ fn choke_uses_only_preexisting_stacks_then_stacks_the_upgraded_amount() {
 
     assert!(play_self(&mut engine, "Defend"));
     assert_eq!(engine.state.enemies[0].entity.hp, 29);
-    assert_eq!(engine.state.enemies[0].entity.block, 6, "HP_LOSS bypasses Block");
+    assert_eq!(
+        engine.state.enemies[0].entity.block, 6,
+        "HP_LOSS bypasses Block"
+    );
 }
 
 #[test]
@@ -214,7 +216,9 @@ fn choke_hp_loss_obeys_intangible_buffer_and_expires_at_enemy_turn_start() {
     );
 
     assert!(play_on_enemy(&mut engine, "Choke+", 0));
-    engine.state.enemies[0].entity.set_status(sid::INTANGIBLE, 1);
+    engine.state.enemies[0]
+        .entity
+        .set_status(sid::INTANGIBLE, 1);
     engine.state.enemies[0].entity.set_status(sid::BUFFER, 1);
     let hp_after_choke = engine.state.enemies[0].entity.hp;
 
@@ -233,14 +237,11 @@ fn choke_triggers_when_medical_kit_plays_a_status_card() {
     // MedicalKit.onUseCard marks a played Status for exhaust, but it is still a
     // normal UseCardAction and therefore still visits enemy ChokePower.onUseCard.
     // Java: relics/MedicalKit.java and actions/utility/UseCardAction.java.
-    let mut engine = engine_for(
-        &["Wound"],
-        &[],
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        0,
-    );
+    let mut engine = engine_for(&["Wound"], &[], vec![enemy_no_intent("JawWorm", 40, 40)], 0);
     engine.state.relics.push("Medical Kit".to_string());
-    engine.state.enemies[0].entity.set_status(sid::CONSTRICTED, 3);
+    engine.state.enemies[0]
+        .entity
+        .set_status(sid::CONSTRICTED, 3);
 
     assert!(play_self(&mut engine, "Wound"));
     assert_eq!(engine.state.enemies[0].entity.hp, 37);
@@ -259,14 +260,21 @@ fn choke_hp_loss_reaches_shifting_on_attacked() {
         vec![enemy_no_intent("Transient", 40, 40)],
         0,
     );
-    engine.state.enemies[0].entity.set_status(sid::CONSTRICTED, 3);
+    engine.state.enemies[0]
+        .entity
+        .set_status(sid::CONSTRICTED, 3);
     engine.state.enemies[0].entity.set_status(sid::SHIFTING, 1);
     engine.state.enemies[0].entity.set_status(sid::STRENGTH, 10);
 
     assert!(play_self(&mut engine, "Deflect"));
     assert_eq!(engine.state.enemies[0].entity.hp, 37);
     assert_eq!(engine.state.enemies[0].entity.status(sid::STRENGTH), 7);
-    assert_eq!(engine.state.enemies[0].entity.status(sid::TEMP_STRENGTH_LOSS), 3);
+    assert_eq!(
+        engine.state.enemies[0]
+            .entity
+            .status(sid::TEMP_STRENGTH_LOSS),
+        3
+    );
 }
 
 #[test]
@@ -289,12 +297,7 @@ fn cloak_and_dagger_creates_source_count_shivs_with_master_reality_and_overflow(
 
     let mut plus_hand = vec!["Cloak and Dagger+"];
     plus_hand.extend(std::iter::repeat("Defend").take(9));
-    let mut plus = engine_for(
-        &plus_hand,
-        &[],
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        1,
-    );
+    let mut plus = engine_for(&plus_hand, &[], vec![enemy_no_intent("JawWorm", 40, 40)], 1);
     plus.state.player.set_status(sid::MASTER_REALITY, 1);
 
     assert!(play_self(&mut plus, "Cloak and Dagger+"));
@@ -364,7 +367,7 @@ fn night_terror_delayed_copies_appear_before_next_turn_draw() {
 }
 
 #[test]
-fn night_terror_auto_selects_a_single_card_and_stacks_onto_first_selection() {
+fn night_terror_auto_selects_a_single_card_and_keeps_each_power_independent() {
     let mut singleton = engine_for(
         &["Night Terror", "Strike"],
         &["Defend", "Defend", "Defend", "Defend", "Defend"],
@@ -376,20 +379,130 @@ fn night_terror_auto_selects_a_single_card_and_stacks_onto_first_selection() {
     singleton.execute_action(&Action::EndTurn);
     assert_eq!(hand_count(&singleton, "Strike"), 3);
 
-    let mut stacked = engine_for(
+    let mut independent = engine_for(
         &["Night Terror", "Night Terror", "Strike", "Defend"],
         &["Neutralize", "Survivor", "Deflect", "Backflip", "Slice"],
         vec![enemy_no_intent("JawWorm", 80, 80)],
         6,
     );
-    assert!(play_self(&mut stacked, "Night Terror"));
-    stacked.execute_action(&Action::Choose(1)); // Strike
-    assert!(play_self(&mut stacked, "Night Terror"));
-    stacked.execute_action(&Action::Choose(1)); // Defend
-    stacked.execute_action(&Action::EndTurn);
+    assert!(play_self(&mut independent, "Night Terror"));
+    independent.execute_action(&Action::Choose(1)); // Strike
+    assert!(play_self(&mut independent, "Night Terror"));
+    independent.execute_action(&Action::Choose(1)); // Defend
 
-    // The second ApplyPowerAction stacks +3 onto the first NightmarePower;
-    // its stored Strike is unchanged, so six Strikes and no Defends are made.
-    assert_eq!(hand_count(&stacked, "Strike"), 6);
-    assert_eq!(hand_count(&stacked, "Defend"), 0);
+    // ApplyPowerAction deliberately excludes ID "Night Terror" from its
+    // same-ID stacking loop. The two NightmarePower objects therefore retain
+    // distinct cards and remain in stable application order at priority five.
+    // Java: actions/common/ApplyPowerAction.java and powers/NightmarePower.java.
+    let pending = independent
+        .nightmare_pending_copies
+        .iter()
+        .map(|(card, copies)| {
+            (
+                independent.card_registry.card_name(card.def_id),
+                *copies,
+                card.instance_id,
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        pending
+            .iter()
+            .map(|(name, copies, _)| (*name, *copies))
+            .collect::<Vec<_>>(),
+        [("Strike", 3), ("Defend", 3)]
+    );
+    assert_ne!(pending[0].2, pending[1].2);
+    assert_eq!(
+        independent
+            .state
+            .player
+            .power_order
+            .iter()
+            .filter_map(|entry| match entry {
+                crate::state::PowerOrderEntry::NightTerror(instance_id) => Some(*instance_id),
+                _ => None,
+            })
+            .collect::<Vec<_>>(),
+        [pending[0].2, pending[1].2]
+    );
+
+    // The ordered dynamic identities and their card payloads are causal state,
+    // so their association must survive checkpoint serialization exactly.
+    independent.validate_checkpoint_boundary().unwrap();
+    let encoded = serde_json::to_string(&independent).unwrap();
+    let mut restored: CombatEngine = serde_json::from_str(&encoded).unwrap();
+    restored.validate_checkpoint_boundary().unwrap();
+    assert_eq!(
+        restored
+            .nightmare_pending_copies
+            .iter()
+            .map(|(card, copies)| (
+                restored.card_registry.card_name(card.def_id),
+                *copies,
+                card.instance_id,
+            ))
+            .collect::<Vec<_>>(),
+        pending
+    );
+
+    restored.execute_action(&Action::EndTurn);
+
+    // Each atStartOfTurn callback independently makes three copies of its own
+    // stored card and then removes one same-ID power.
+    // Java: powers/NightmarePower.java::atStartOfTurn.
+    assert_eq!(hand_count(&restored, "Strike"), 3);
+    assert_eq!(hand_count(&restored, "Defend"), 3);
+    assert!(restored.nightmare_pending_copies.is_empty());
+    assert!(!restored
+        .state
+        .player
+        .power_order
+        .iter()
+        .any(|entry| matches!(entry, crate::state::PowerOrderEntry::NightTerror(_))));
+}
+
+#[test]
+fn night_terror_instances_project_and_checkpoint_in_java_power_order() {
+    // ApplyPowerAction appends both same-ID powers, and NightmarePower keeps
+    // the selected stat-equivalent card as per-instance payload.
+    // Java: actions/common/ApplyPowerAction.java:137-164 and
+    // powers/NightmarePower.java:23-45.
+    let mut run = crate::run::RunEngine::new(4, 0);
+    run.debug_enter_specific_combat(&["JawWorm"]);
+    {
+        let combat = run.debug_combat_engine_mut();
+        let strike = combat.card_registry.make_card("Strike");
+        let defend = combat.card_registry.make_card("Defend");
+        combat.store_nightmare_copies(strike, 3);
+        combat.store_nightmare_copies(defend, 3);
+        combat.validate_checkpoint_boundary().unwrap();
+    }
+
+    let projected = crate::trace::build_post_state(&run);
+    assert_eq!(
+        projected
+            .player
+            .powers
+            .iter()
+            .filter(|power| power.id == "Night Terror")
+            .map(|power| power.amt)
+            .collect::<Vec<_>>(),
+        [3, 3]
+    );
+
+    let mut restored = crate::checkpoint::CoreCheckpoint::capture(&run)
+        .unwrap()
+        .restore()
+        .unwrap();
+    assert_eq!(crate::trace::build_post_state(&restored), projected);
+    let combat = restored.debug_combat_engine_mut();
+    assert_eq!(
+        combat
+            .nightmare_pending_copies
+            .iter()
+            .map(|(card, _)| combat.card_registry.card_name(card.def_id))
+            .collect::<Vec<_>>(),
+        ["Strike", "Defend"]
+    );
 }

@@ -18,10 +18,7 @@ use crate::tests::support::{
     play_on_enemy, play_self,
 };
 
-fn engine_without_start_with_relics(
-    relics: &[&str],
-    deck: usize,
-) -> crate::engine::CombatEngine {
+fn engine_without_start_with_relics(relics: &[&str], deck: usize) -> crate::engine::CombatEngine {
     let mut engine = engine_without_start(
         make_deck_n("Strike", deck),
         vec![enemy_no_intent("JawWorm", 40, 40)],
@@ -42,7 +39,6 @@ fn dead_cleanup_wave9_runtime_combat_start_families_match_canonical_runtime() {
     ring.start_combat();
     assert_eq!(ring.state.player.status(sid::BAG_OF_PREP_DRAW), 0);
     assert_eq!(ring.state.hand.len(), 7);
-
 }
 
 #[test]
@@ -105,7 +101,10 @@ fn dead_cleanup_wave9_runtime_card_play_families_match_canonical_runtime() {
 
     let mut opener_state = combat_state_with(
         make_deck_n("Defend", 4),
-        vec![enemy_no_intent("JawWorm", 40, 40), enemy_no_intent("Cultist", 44, 44)],
+        vec![
+            enemy_no_intent("JawWorm", 40, 40),
+            enemy_no_intent("Cultist", 44, 44),
+        ],
         3,
     );
     opener_state.relics.push("Letter Opener".to_string());

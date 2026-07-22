@@ -17,7 +17,10 @@ use crate::status_ids::sid;
 #[test]
 fn defect_wave16_registry_exports_darkness_variants_on_the_typed_channel_surface() {
     let darkness = global_registry().get("Darkness").expect("Darkness");
-    assert_eq!(darkness.effect_data, &[E::Simple(SE::ChannelOrb(OrbType::Dark, A::Fixed(1)))]);
+    assert_eq!(
+        darkness.effect_data,
+        &[E::Simple(SE::ChannelOrb(OrbType::Dark, A::Fixed(1)))]
+    );
     assert!(darkness.complex_hook.is_none());
 
     let darkness_plus = global_registry().get("Darkness+").expect("Darkness+");

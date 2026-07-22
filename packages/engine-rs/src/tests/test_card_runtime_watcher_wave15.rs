@@ -7,12 +7,17 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Omniscience.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE,
+    Target as T,
+};
 use crate::engine::{ChoiceReason, CombatPhase};
-use crate::tests::support::{enemy, engine_without_start, ensure_in_hand, force_player_turn, make_deck, play_on_enemy, play_self};
+use crate::tests::support::{
+    enemy, engine_without_start, ensure_in_hand, force_player_turn, make_deck, play_on_enemy,
+    play_self,
+};
 
-static LESSON_LEARNED_KILL_BRANCH: [E; 1] =
-    [E::Simple(SE::UpgradeRandomMasterDeckCard)];
+static LESSON_LEARNED_KILL_BRANCH: [E; 1] = [E::Simple(SE::UpgradeRandomMasterDeckCard)];
 
 fn one_enemy_engine(enemy_hp: i32, enemy_block: i32) -> crate::engine::CombatEngine {
     let mut engine = engine_without_start(
@@ -39,7 +44,9 @@ fn watcher_wave15_registry_exports_match_typed_surface() {
     );
     assert!(wallop.complex_hook.is_none());
 
-    let wallop_plus = registry.get("Wallop+").expect("Wallop+ should be registered");
+    let wallop_plus = registry
+        .get("Wallop+")
+        .expect("Wallop+ should be registered");
     assert_eq!(
         wallop_plus.effect_data,
         &[
@@ -56,7 +63,11 @@ fn watcher_wave15_registry_exports_match_typed_surface() {
         lesson_learned.effect_data,
         &[
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
-            E::Conditional(crate::effects::declarative::Condition::EnemyKilledNonMinion, &LESSON_LEARNED_KILL_BRANCH, &[]),
+            E::Conditional(
+                crate::effects::declarative::Condition::EnemyKilledNonMinion,
+                &LESSON_LEARNED_KILL_BRANCH,
+                &[]
+            ),
         ]
     );
     assert!(lesson_learned.complex_hook.is_none());
@@ -68,16 +79,19 @@ fn watcher_wave15_registry_exports_match_typed_surface() {
         lesson_learned_plus.effect_data,
         &[
             E::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage)),
-            E::Conditional(crate::effects::declarative::Condition::EnemyKilledNonMinion, &LESSON_LEARNED_KILL_BRANCH, &[]),
+            E::Conditional(
+                crate::effects::declarative::Condition::EnemyKilledNonMinion,
+                &LESSON_LEARNED_KILL_BRANCH,
+                &[]
+            ),
         ]
     );
     assert!(lesson_learned_plus.complex_hook.is_none());
 
-    let judgement = registry.get("Judgement").expect("Judgement should be registered");
-    assert_eq!(
-        judgement.effect_data,
-        &[E::Simple(SE::Judgement(A::Magic))]
-    );
+    let judgement = registry
+        .get("Judgement")
+        .expect("Judgement should be registered");
+    assert_eq!(judgement.effect_data, &[E::Simple(SE::Judgement(A::Magic))]);
     assert!(judgement.complex_hook.is_none());
 
     let omniscience = registry
@@ -115,13 +129,15 @@ fn watcher_wave15_wallop_and_lesson_learned_follow_engine_path() {
     ensure_in_hand(&mut lesson_learned, "LessonLearned");
     assert!(play_on_enemy(&mut lesson_learned, "LessonLearned", 0));
     assert!(lesson_learned.state.enemies[0].entity.is_dead());
-    assert!(
-        lesson_learned.state.master_deck
-            .iter()
-            .any(|card| lesson_learned.card_registry.card_name(card.def_id) == "Wallop+")
-    );
+    assert!(lesson_learned
+        .state
+        .master_deck
+        .iter()
+        .any(|card| lesson_learned.card_registry.card_name(card.def_id) == "Wallop+"));
     assert_eq!(
-        lesson_learned.card_registry.card_name(lesson_learned.state.draw_pile[0].def_id),
+        lesson_learned
+            .card_registry
+            .card_name(lesson_learned.state.draw_pile[0].def_id),
         "Wallop"
     );
     assert!(lesson_learned
@@ -130,7 +146,6 @@ fn watcher_wave15_wallop_and_lesson_learned_follow_engine_path() {
         .iter()
         .any(|card| lesson_learned.card_registry.card_name(card.def_id) == "LessonLearned"));
 }
-
 
 #[test]
 fn watcher_wave15_omniscience_uses_the_typed_draw_pile_free_play_surface() {
@@ -141,7 +156,10 @@ fn watcher_wave15_omniscience_uses_the_typed_draw_pile_free_play_surface() {
 
     assert!(play_self(&mut engine, "Omniscience"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
-    assert_eq!(engine.choice.as_ref().expect("choice").reason, ChoiceReason::PlayCardFreeFromDraw);
+    assert_eq!(
+        engine.choice.as_ref().expect("choice").reason,
+        ChoiceReason::PlayCardFreeFromDraw
+    );
 
     engine.execute_action(&crate::actions::Action::Choose(0));
 
@@ -151,6 +169,10 @@ fn watcher_wave15_omniscience_uses_the_typed_draw_pile_free_play_surface() {
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/OmniscienceAction.java
     assert!(engine.state.hand.is_empty());
     assert_eq!(engine.state.player.block, 10);
-    assert!(engine.state.exhaust_pile.iter().any(|card| engine.card_registry.card_name(card.def_id) == "Defend"));
+    assert!(engine
+        .state
+        .exhaust_pile
+        .iter()
+        .any(|card| engine.card_registry.card_name(card.def_id) == "Defend"));
     assert_eq!(engine.state.draw_pile.len(), 1);
 }

@@ -8,10 +8,15 @@
 // - decompiled/java-src/com/megacrit/cardcrawl/cards/blue/GeneticAlgorithm.java
 // - decompiled/java-src/com/megacrit/cardcrawl/cards/colorless/RitualDagger.java
 
-use crate::tests::support::{combat_state_with, enemy_no_intent, engine_with_state, make_deck, play_on_enemy, play_self};
 use crate::actions::Action;
+use crate::tests::support::{
+    combat_state_with, enemy_no_intent, engine_with_state, make_deck, play_on_enemy, play_self,
+};
 
-fn effective_cost(engine: &crate::engine::CombatEngine, card: crate::combat_types::CardInstance) -> i32 {
+fn effective_cost(
+    engine: &crate::engine::CombatEngine,
+    card: crate::combat_types::CardInstance,
+) -> i32 {
     if card.cost >= 0 {
         card.cost as i32
     } else {
@@ -51,7 +56,12 @@ fn streamline_reduces_the_played_instance_cost_only() {
 
     assert!(play_on_enemy(&mut engine, "Streamline", 0));
 
-    let discard_last = engine.state.discard_pile.last().copied().expect("played card should discard");
+    let discard_last = engine
+        .state
+        .discard_pile
+        .last()
+        .copied()
+        .expect("played card should discard");
     assert_eq!(effective_cost(&engine, discard_last), 1);
     assert_eq!(effective_cost(&engine, engine.state.draw_pile[0]), 2);
     assert_eq!(effective_cost(&engine, engine.state.discard_pile[0]), 2);
@@ -70,7 +80,12 @@ fn rampage_only_scales_the_played_copy() {
 
     assert!(play_on_enemy(&mut engine, "Rampage", 0));
 
-    let played = engine.state.discard_pile.last().copied().expect("played Rampage should discard");
+    let played = engine
+        .state
+        .discard_pile
+        .last()
+        .copied()
+        .expect("played Rampage should discard");
     assert_eq!(effective_misc_or(&engine, played, 8), 13);
     assert_eq!(engine.state.draw_pile[0].misc, -1);
     assert_eq!(engine.state.discard_pile[0].misc, -1);
@@ -89,7 +104,12 @@ fn steam_barrier_only_reduces_the_played_copy_block() {
 
     assert!(play_self(&mut engine, "Steam"));
 
-    let played = engine.state.discard_pile.last().copied().expect("played Steam Barrier should discard");
+    let played = engine
+        .state
+        .discard_pile
+        .last()
+        .copied()
+        .expect("played Steam Barrier should discard");
     assert_eq!(effective_misc_or(&engine, played, 6), 5);
     assert_eq!(engine.state.draw_pile[0].misc, -1);
     assert_eq!(engine.state.discard_pile[0].misc, -1);
@@ -108,7 +128,12 @@ fn glass_knife_only_reduces_the_played_copy_damage() {
 
     assert!(play_on_enemy(&mut engine, "Glass Knife", 0));
 
-    let played = engine.state.discard_pile.last().copied().expect("played Glass Knife should discard");
+    let played = engine
+        .state
+        .discard_pile
+        .last()
+        .copied()
+        .expect("played Glass Knife should discard");
     assert_eq!(effective_misc_or(&engine, played, 8), 6);
     assert_eq!(engine.state.draw_pile[0].misc, -1);
     assert_eq!(engine.state.discard_pile[0].misc, -1);
@@ -122,8 +147,10 @@ fn genetic_algorithm_and_ritual_dagger_only_scale_the_played_copy() {
         3,
     ));
     genetic_engine.state.hand = vec![genetic_engine.card_registry.make_card("Genetic Algorithm")];
-    genetic_engine.state.draw_pile = vec![genetic_engine.card_registry.make_card("Genetic Algorithm")];
-    genetic_engine.state.discard_pile = vec![genetic_engine.card_registry.make_card("Genetic Algorithm")];
+    genetic_engine.state.draw_pile =
+        vec![genetic_engine.card_registry.make_card("Genetic Algorithm")];
+    genetic_engine.state.discard_pile =
+        vec![genetic_engine.card_registry.make_card("Genetic Algorithm")];
 
     assert!(play_self(&mut genetic_engine, "Genetic Algorithm"));
 
@@ -187,7 +214,10 @@ fn duplicate_equal_genetic_algorithms_update_the_matching_master_uuid_after_rest
 
     assert_eq!(restored.state.master_deck[0].misc, 7);
     assert_eq!(restored.state.master_deck[1].misc, 9);
-    assert_eq!(restored.state.master_deck[1].instance_id, second.instance_id);
+    assert_eq!(
+        restored.state.master_deck[1].instance_id,
+        second.instance_id
+    );
 }
 
 #[test]
@@ -312,9 +342,10 @@ fn ritual_dagger_kill_persists_to_master_deck_but_minion_kill_does_not_scale() {
         vec![enemy_no_intent("JawWorm", 15, 15)],
         3,
     ));
-    persistent.state.hand.retain(|card| {
-        persistent.card_registry.card_name(card.def_id) == "RitualDagger+"
-    });
+    persistent
+        .state
+        .hand
+        .retain(|card| persistent.card_registry.card_name(card.def_id) == "RitualDagger+");
 
     assert!(play_on_enemy(&mut persistent, "RitualDagger+", 0));
 
@@ -336,7 +367,7 @@ fn ritual_dagger_kill_persists_to_master_deck_but_minion_kill_does_not_scale() {
     assert_eq!(effective_misc_or(&persistent, master, 15), 20);
 
     let mut minion = enemy_no_intent("TorchHead", 15, 15);
-    minion.is_minion = true;
+    minion.set_minion(true);
     let mut ignored = engine_with_state(combat_state_with(
         make_deck(&["RitualDagger"]),
         vec![minion],

@@ -160,7 +160,13 @@ mod ironclad_wave4_card_runtime_tests {
         }));
 
         engine.player_lose_hp(1);
-        assert_eq!(engine.state.player.status(crate::status_ids::sid::HP_LOSS_THIS_COMBAT), 2);
+        assert_eq!(
+            engine
+                .state
+                .player
+                .status(crate::status_ids::sid::HP_LOSS_THIS_COMBAT),
+            2
+        );
         assert!(engine.get_legal_actions().iter().any(|action| {
             matches!(action, Action::PlayCard { card_idx: idx, .. } if *idx == card_idx)
         }));
@@ -308,7 +314,11 @@ mod ironclad_wave4_card_runtime_tests {
         engine.execute_action(&Action::Choose(0));
 
         assert_eq!(engine.state.enemies[0].entity.hp, hp_before - 9);
-        assert!(pile_contains(&engine, &engine.state.draw_pile, &selected_name));
+        assert!(pile_contains(
+            &engine,
+            &engine.state.draw_pile,
+            &selected_name
+        ));
         assert!(!pile_contains(
             &engine,
             &engine.state.discard_pile,

@@ -74,8 +74,45 @@ mod run_java_parity_tests {
     fn ascension_twenty_run_uses_java_hp_floor_and_bane() {
         let engine = RunEngine::new(42, 20);
         assert_eq!(engine.run_state.max_hp, 68);
-        assert_eq!(engine.run_state.current_hp, 68);
-        assert!(engine.run_state.deck.contains(&"AscendersBane".to_string()));
+        assert_eq!(engine.run_state.current_hp, 61);
+        assert_eq!(engine.run_state.max_potions, 2);
+        assert_eq!(engine.run_state.potions.len(), 2);
+        assert_eq!(
+            engine.run_state.deck.last().map(String::as_str),
+            Some("AscendersBane")
+        );
+    }
+
+    #[test]
+    fn watcher_run_start_ascension_thresholds_match_java_ordering() {
+        // AbstractDungeon.dungeonTransitionSetup applies the A14 max-HP loss
+        // before rounding A6 starting HP to 90%. AbstractPlayer's constructor
+        // removes one of three potion slots at A11. CardGroup.addToTop appends
+        // Ascender's Bane to the master-deck group at A10.
+        // Java: AbstractDungeon.java:2580-2589,
+        // AbstractPlayer.java:199-214, CardGroup.java:444-449.
+        let cases = [
+            (0, 72, 72, 3, false),
+            (5, 72, 72, 3, false),
+            (6, 72, 65, 3, false),
+            (10, 72, 65, 3, true),
+            (11, 72, 65, 2, true),
+            (13, 72, 65, 2, true),
+            (14, 68, 61, 2, true),
+            (20, 68, 61, 2, true),
+        ];
+        for (ascension, max_hp, current_hp, slots, bane) in cases {
+            let engine = RunEngine::new(42, ascension);
+            assert_eq!(engine.run_state.max_hp, max_hp, "A{ascension}");
+            assert_eq!(engine.run_state.current_hp, current_hp, "A{ascension}");
+            assert_eq!(engine.run_state.max_potions, slots, "A{ascension}");
+            assert_eq!(engine.run_state.potions.len(), slots, "A{ascension}");
+            assert_eq!(
+                engine.run_state.deck.last().map(String::as_str) == Some("AscendersBane"),
+                bane,
+                "A{ascension}"
+            );
+        }
     }
 
     #[test]
@@ -390,14 +427,9 @@ mod run_java_parity_tests {
 
         let context = engine.current_decision_context();
         let map = context.map.expect("map decision context");
-        assert!(map
-            .paths
-            .iter()
-            .any(|path| {
-                path.x == start_x as i32
-                    && path.y == start_y as i32
-                    && path.has_emerald_key
-            }));
+        assert!(map.paths.iter().any(|path| {
+            path.x == start_x as i32 && path.y == start_y as i32 && path.has_emerald_key
+        }));
     }
 
     #[test]
@@ -1133,6 +1165,8 @@ mod run_java_parity_tests {
             .expect("Secret Portal must be registered");
         engine.debug_set_typed_event_state(portal);
 
+        assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
+        assert_eq!(engine.current_phase(), RunPhase::Event);
         assert!(engine.step_game(&GameAction::EventChoice(0)).accepted());
 
         assert_eq!(engine.current_phase(), RunPhase::Combat);

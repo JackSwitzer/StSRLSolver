@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use super::CardSpec as CardDef;
+use std::collections::HashMap;
 
 mod adaptation;
 mod alpha;

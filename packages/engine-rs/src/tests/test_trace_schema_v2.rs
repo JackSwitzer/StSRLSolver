@@ -4,8 +4,8 @@ use crate::run::GameAction;
 use crate::run::RunEngine;
 use crate::trace::v2::{
     replay_action_script_v2, ActionOutcome, ActionScriptV2, Capabilities, EndV2, HeaderV2,
-    Producer, SchemaVersion, TraceEnvelopeV2, TracePayloadV2, TransitionV2,
-    TRACE_SCHEMA_MAJOR, TRACE_SCHEMA_MINOR, TRACE_SCHEMA_NAME,
+    Producer, SchemaVersion, TraceEnvelopeV2, TracePayloadV2, TransitionV2, TRACE_SCHEMA_MAJOR,
+    TRACE_SCHEMA_MINOR, TRACE_SCHEMA_NAME,
 };
 use serde_json::{json, Value};
 
@@ -225,8 +225,7 @@ fn rejected_transition_requires_identical_pre_and_post_checkpoint() {
         },
     );
     let mut encoded = serde_json::to_value(rejected).unwrap();
-    encoded["payload"]["data"]["post"] =
-        serde_json::to_value(checkpoint(42)).unwrap();
+    encoded["payload"]["data"]["post"] = serde_json::to_value(checkpoint(42)).unwrap();
 
     let error = serde_json::from_value::<TraceEnvelopeV2>(encoded).unwrap_err();
     assert!(error
@@ -250,10 +249,8 @@ fn header_seed_and_ascension_must_match_initial_checkpoint() {
             initial_checkpoint: checkpoint(1),
         }),
     );
-    let error = serde_json::from_value::<TraceEnvelopeV2>(
-        serde_json::to_value(header).unwrap(),
-    )
-    .unwrap_err();
+    let error = serde_json::from_value::<TraceEnvelopeV2>(serde_json::to_value(header).unwrap())
+        .unwrap_err();
     assert!(error.to_string().contains("trace header seed"));
 
     let header = TraceEnvelopeV2::new(
@@ -270,7 +267,10 @@ fn header_seed_and_ascension_must_match_initial_checkpoint() {
             initial_checkpoint: checkpoint(1),
         }),
     );
-    assert!(header.validate().unwrap_err().contains("trace header ascension"));
+    assert!(header
+        .validate()
+        .unwrap_err()
+        .contains("trace header ascension"));
 }
 
 #[test]
@@ -306,7 +306,10 @@ fn v2_action_script_replays_deterministically_with_causal_chain() {
     let second = replay_action_script_v2(&script).expect("v2 script must replay twice");
 
     assert_eq!(first.len(), script.actions.len() + 2);
-    assert_eq!(serde_json::to_vec(&first).unwrap(), serde_json::to_vec(&second).unwrap());
+    assert_eq!(
+        serde_json::to_vec(&first).unwrap(),
+        serde_json::to_vec(&second).unwrap()
+    );
 
     let TracePayloadV2::Header(header) = &first[0].payload else {
         panic!("first envelope must be a header");

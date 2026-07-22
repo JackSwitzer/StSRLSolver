@@ -17,14 +17,12 @@ static EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::AddCard(
     AmountSource::Fixed(1),
 ))];
 
-static TRIGGERS: [TriggeredEffect; 1] = [
-    TriggeredEffect {
-        trigger: Trigger::CombatStart,
-        condition: TriggerCondition::Always,
-        effects: &EFFECTS,
-        counter: None,
-    },
-];
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::CombatStartPreDraw,
+    condition: TriggerCondition::Always,
+    effects: &EFFECTS,
+    counter: None,
+}];
 
 pub static DEF: EntityDef = EntityDef {
     id: "PureWater",

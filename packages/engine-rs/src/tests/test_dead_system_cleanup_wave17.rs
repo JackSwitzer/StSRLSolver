@@ -8,7 +8,9 @@
 // helper-oracle parity.
 
 use crate::status_ids::sid;
-use crate::tests::support::{enemy_no_intent, ensure_in_hand, engine_without_start, make_deck, play_on_enemy};
+use crate::tests::support::{
+    enemy_no_intent, engine_without_start, ensure_in_hand, make_deck, play_on_enemy,
+};
 
 #[test]
 fn relic_dead_helper_cleanup_wave17_necronomicon_remains_on_live_bridge_path() {

@@ -1,12 +1,12 @@
 //! The Abacus: Gain 6 Block on shuffle.
 
-use crate::effects::declarative::{Effect, SimpleEffect, AmountSource};
+use crate::effects::declarative::{AmountSource, Effect, SimpleEffect};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 
-static EFFECTS: [Effect; 1] = [
-    Effect::Simple(SimpleEffect::GainBlock(AmountSource::Fixed(6))),
-];
+static EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::GainBlock(
+    AmountSource::Fixed(6),
+))];
 
 static TRIGGERS: [TriggeredEffect; 1] = [
     // Source: reference/extracted/methods/relic/Abacus.java

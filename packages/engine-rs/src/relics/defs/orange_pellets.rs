@@ -14,7 +14,7 @@ fn hook(
     // Source: reference/extracted/methods/relic/OrangePellets.java
     // ATTACK, SKILL, and POWER flags reset at turn start and after firing.
     match event.kind {
-        Trigger::CombatStart | Trigger::TurnStart => {
+        Trigger::CombatSetup | Trigger::TurnStart => {
             state.set(0, 0);
             state.set(1, 0);
             state.set(2, 0);
@@ -48,7 +48,7 @@ fn hook(
 
 static TRIGGERS: [TriggeredEffect; 3] = [
     TriggeredEffect {
-        trigger: Trigger::CombatStart,
+        trigger: Trigger::CombatSetup,
         condition: TriggerCondition::Always,
         effects: &[],
         counter: None,

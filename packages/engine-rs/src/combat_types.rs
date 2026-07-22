@@ -1,7 +1,7 @@
 //! Core combat types — CardInstance, Intent, effect bitfields, DamageSource.
 //! All types are Copy-friendly for deterministic state branching.
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
 // CardInstance — compact Copy-friendly state for deck/hand/discard entries.
@@ -27,26 +27,42 @@ pub struct CardInstance {
 }
 
 impl CardInstance {
-    pub const FLAG_RETAINED: u8  = 0x01;
-    pub const FLAG_ETHEREAL: u8  = 0x02;
-    pub const FLAG_UPGRADED: u8  = 0x04;
-    pub const FLAG_FREE: u8      = 0x08;
-    pub const FLAG_INNATE: u8    = 0x10;
-    pub const FLAG_PURGE: u8     = 0x20;
+    pub const FLAG_RETAINED: u8 = 0x01;
+    pub const FLAG_ETHEREAL: u8 = 0x02;
+    pub const FLAG_UPGRADED: u8 = 0x04;
+    pub const FLAG_FREE: u8 = 0x08;
+    pub const FLAG_INNATE: u8 = 0x10;
+    pub const FLAG_PURGE: u8 = 0x20;
     pub const FLAG_EXHAUST_ON_USE: u8 = 0x40;
     /// Transient: card is being autoplayed from outside the hand/normal piles.
     pub const FLAG_AUTOPLAY: u8 = 0x80;
 
     pub fn new(def_id: u16) -> Self {
-        Self { instance_id: 0, def_id, cost: -1, base_cost: -1, misc: -1, flags: 0 }
+        Self {
+            instance_id: 0,
+            def_id,
+            cost: -1,
+            base_cost: -1,
+            misc: -1,
+            flags: 0,
+        }
     }
     pub fn with_instance_id(mut self, instance_id: u32) -> Self {
         self.instance_id = instance_id;
         self
     }
-    pub fn with_cost(mut self, cost: i8) -> Self { self.cost = cost; self }
-    pub fn upgraded(mut self) -> Self { self.flags |= Self::FLAG_UPGRADED; self }
-    pub fn with_misc(mut self, misc: i32) -> Self { self.misc = misc; self }
+    pub fn with_cost(mut self, cost: i8) -> Self {
+        self.cost = cost;
+        self
+    }
+    pub fn upgraded(mut self) -> Self {
+        self.flags |= Self::FLAG_UPGRADED;
+        self
+    }
+    pub fn with_misc(mut self, misc: i32) -> Self {
+        self.misc = misc;
+        self
+    }
     pub fn decrementing_misc_or(&self, default: i32) -> i32 {
         match self.misc {
             -1 => default,
@@ -55,21 +71,41 @@ impl CardInstance {
         }
     }
     pub fn set_decrementing_misc(&mut self, value: i32) {
-        let encoded = if value < 0 { value.saturating_sub(1) } else { value };
+        let encoded = if value < 0 {
+            value.saturating_sub(1)
+        } else {
+            value
+        };
         self.misc = encoded;
     }
     pub fn set_free(mut self, v: bool) -> Self {
-        if v { self.flags |= Self::FLAG_FREE } else { self.flags &= !Self::FLAG_FREE }
+        if v {
+            self.flags |= Self::FLAG_FREE
+        } else {
+            self.flags &= !Self::FLAG_FREE
+        }
         self
     }
 
-    pub fn is_retained(&self) -> bool { self.flags & Self::FLAG_RETAINED != 0 }
-    pub fn is_ethereal(&self) -> bool { self.flags & Self::FLAG_ETHEREAL != 0 }
-    pub fn is_upgraded(&self) -> bool { self.flags & Self::FLAG_UPGRADED != 0 }
-    pub fn is_free(&self) -> bool { self.flags & Self::FLAG_FREE != 0 }
+    pub fn is_retained(&self) -> bool {
+        self.flags & Self::FLAG_RETAINED != 0
+    }
+    pub fn is_ethereal(&self) -> bool {
+        self.flags & Self::FLAG_ETHEREAL != 0
+    }
+    pub fn is_upgraded(&self) -> bool {
+        self.flags & Self::FLAG_UPGRADED != 0
+    }
+    pub fn is_free(&self) -> bool {
+        self.flags & Self::FLAG_FREE != 0
+    }
 
     pub fn set_retained(&mut self, v: bool) {
-        if v { self.flags |= Self::FLAG_RETAINED } else { self.flags &= !Self::FLAG_RETAINED }
+        if v {
+            self.flags |= Self::FLAG_RETAINED
+        } else {
+            self.flags &= !Self::FLAG_RETAINED
+        }
     }
 
     pub fn set_cost_for_turn(&mut self, cost: i8) {
@@ -92,15 +128,52 @@ impl CardInstance {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Intent {
-    Attack { damage: i16, hits: u8, effects: u16 },
-    Block { amount: i16, effects: u16 },
-    Buff { effects: u16 },
-    Debuff { effects: u16 },
-    StrongDebuff { effects: u16 },
-    AttackBlock { damage: i16, hits: u8, block: i16, effects: u16 },
-    AttackBuff { damage: i16, hits: u8, effects: u16 },
-    AttackDebuff { damage: i16, hits: u8, effects: u16 },
-    DefendBuff { block: i16, effects: u16 },
+    Attack {
+        damage: i16,
+        hits: u8,
+        effects: u16,
+    },
+    Block {
+        amount: i16,
+        effects: u16,
+    },
+    Buff {
+        effects: u16,
+    },
+    Debuff {
+        effects: u16,
+    },
+    StrongDebuff {
+        effects: u16,
+    },
+    AttackBlock {
+        damage: i16,
+        hits: u8,
+        block: i16,
+        effects: u16,
+    },
+    AttackBuff {
+        damage: i16,
+        hits: u8,
+        effects: u16,
+    },
+    AttackDebuff {
+        damage: i16,
+        hits: u8,
+        effects: u16,
+    },
+    DefendBuff {
+        block: i16,
+        effects: u16,
+    },
+    /// Java's `AbstractMonster.Intent.DEFEND_DEBUFF`: a non-attacking move
+    /// that both gains block and applies a debuff (for example Time Eater's
+    /// Ripple). Keep it distinct from `DefendBuff` because the intent name is
+    /// part of the recorder/oracle contract.
+    DefendDebuff {
+        block: i16,
+        effects: u16,
+    },
     Spawn,
     Escape,
     Sleep,
@@ -110,22 +183,22 @@ pub enum Intent {
 
 /// Effect bitfield for Intent.effects
 pub mod fx {
-    pub const WEAK: u16           = 1 << 0;
-    pub const VULNERABLE: u16     = 1 << 1;
-    pub const FRAIL: u16          = 1 << 2;
-    pub const STRENGTH: u16       = 1 << 3;
-    pub const RITUAL: u16         = 1 << 4;
-    pub const BLOCK_SELF: u16     = 1 << 5;
-    pub const ARTIFACT: u16       = 1 << 6;
-    pub const POISON: u16         = 1 << 7;
-    pub const ENTANGLE: u16       = 1 << 8;
-    pub const BURN: u16           = 1 << 9;
-    pub const DAZE: u16           = 1 << 10;
-    pub const SLIMED: u16         = 1 << 11;
-    pub const WOUND: u16          = 1 << 12;
+    pub const WEAK: u16 = 1 << 0;
+    pub const VULNERABLE: u16 = 1 << 1;
+    pub const FRAIL: u16 = 1 << 2;
+    pub const STRENGTH: u16 = 1 << 3;
+    pub const RITUAL: u16 = 1 << 4;
+    pub const BLOCK_SELF: u16 = 1 << 5;
+    pub const ARTIFACT: u16 = 1 << 6;
+    pub const POISON: u16 = 1 << 7;
+    pub const ENTANGLE: u16 = 1 << 8;
+    pub const BURN: u16 = 1 << 9;
+    pub const DAZE: u16 = 1 << 10;
+    pub const SLIMED: u16 = 1 << 11;
+    pub const WOUND: u16 = 1 << 12;
     pub const DRAW_REDUCTION: u16 = 1 << 13;
-    pub const STR_DOWN: u16       = 1 << 14;
-    pub const DEX_DOWN: u16       = 1 << 15;
+    pub const STR_DOWN: u16 = 1 << 14;
+    pub const DEX_DOWN: u16 = 1 << 15;
 }
 
 /// Move effect ID constants for EnemyCombatState.move_effects SmallVec.
@@ -220,7 +293,11 @@ mod tests {
 
     #[test]
     fn intent_is_copy() {
-        let i = Intent::Attack { damage: 12, hits: 3, effects: fx::WEAK | fx::VULNERABLE };
+        let i = Intent::Attack {
+            damage: 12,
+            hits: 3,
+            effects: fx::WEAK | fx::VULNERABLE,
+        };
         let i2 = i; // Copy
         assert_eq!(i, i2);
     }

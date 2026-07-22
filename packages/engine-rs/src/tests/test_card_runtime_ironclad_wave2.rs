@@ -90,9 +90,7 @@ mod ironclad_wave2_card_runtime_tests {
                     Target::SelectedEnemy,
                     AmountSource::Damage,
                 )),
-                Effect::Simple(SimpleEffect::ModifyPlayedCardDamage(
-                    AmountSource::Magic,
-                )),
+                Effect::Simple(SimpleEffect::ModifyPlayedCardDamage(AmountSource::Magic,)),
             ]
         );
         assert!(rampage.complex_hook.is_none());
@@ -155,18 +153,20 @@ mod ironclad_wave2_card_runtime_tests {
 
     #[test]
     fn power_through_flex_and_bloodletting_use_the_production_card_path() {
-        let mut engine = engine_for(
-            &["Power Through", "Flex", "Bloodletting"],
-            &[],
-            &[],
-            50,
-            3,
-        );
+        let mut engine = engine_for(&["Power Through", "Flex", "Bloodletting"], &[], &[], 50, 3);
 
         let block_before = engine.state.player.block;
         assert!(play_self(&mut engine, "Power Through"));
         assert_eq!(engine.state.player.block, block_before + 15);
-        assert_eq!(engine.state.hand.iter().filter(|c| engine.card_registry.card_name(c.def_id) == "Wound").count(), 2);
+        assert_eq!(
+            engine
+                .state
+                .hand
+                .iter()
+                .filter(|c| engine.card_registry.card_name(c.def_id) == "Wound")
+                .count(),
+            2
+        );
 
         assert!(play_self(&mut engine, "Flex"));
         assert_eq!(engine.state.player.strength(), 2);
@@ -242,7 +242,10 @@ mod ironclad_wave2_card_runtime_tests {
         assert!(play_on_enemy(&mut headbutt_engine, "Headbutt", 0));
         assert_eq!(headbutt_engine.phase, CombatPhase::AwaitingChoice);
         assert_eq!(
-            headbutt_engine.choice.as_ref().map(|choice| choice.reason.clone()),
+            headbutt_engine
+                .choice
+                .as_ref()
+                .map(|choice| choice.reason.clone()),
             Some(ChoiceReason::PickFromDiscard),
         );
         let selected_name = match headbutt_engine.choice.as_ref().unwrap().options[0] {
@@ -272,23 +275,38 @@ mod ironclad_wave2_card_runtime_tests {
         assert_eq!(pommel_engine.state.enemies[0].entity.hp, hp_before - 9);
         assert_eq!(pommel_engine.state.hand.len(), hand_before);
         assert_eq!(draw_prefix_count(&pommel_engine, "Strike_"), 0);
-        assert_eq!(pommel_engine.state.hand.iter().filter(|c| pommel_engine.card_registry.card_name(c.def_id) == "Strike").count(), 1);
-
-        let mut thunderclap_engine = engine_for(
-            &["Thunderclap"],
-            &[],
-            &[],
-            50,
-            3,
+        assert_eq!(
+            pommel_engine
+                .state
+                .hand
+                .iter()
+                .filter(|c| pommel_engine.card_registry.card_name(c.def_id) == "Strike")
+                .count(),
+            1
         );
-        thunderclap_engine.state.enemies.push(enemy("Cultist", 50, 50, 1, 0, 1));
+
+        let mut thunderclap_engine = engine_for(&["Thunderclap"], &[], &[], 50, 3);
+        thunderclap_engine
+            .state
+            .enemies
+            .push(enemy("Cultist", 50, 50, 1, 0, 1));
         let hp0 = thunderclap_engine.state.enemies[0].entity.hp;
         let hp1 = thunderclap_engine.state.enemies[1].entity.hp;
         assert!(play_on_enemy(&mut thunderclap_engine, "Thunderclap", 0));
         assert_eq!(thunderclap_engine.state.enemies[0].entity.hp, hp0 - 4);
         assert_eq!(thunderclap_engine.state.enemies[1].entity.hp, hp1 - 4);
-        assert_eq!(thunderclap_engine.state.enemies[0].entity.status(sid::VULNERABLE), 1);
-        assert_eq!(thunderclap_engine.state.enemies[1].entity.status(sid::VULNERABLE), 1);
+        assert_eq!(
+            thunderclap_engine.state.enemies[0]
+                .entity
+                .status(sid::VULNERABLE),
+            1
+        );
+        assert_eq!(
+            thunderclap_engine.state.enemies[1]
+                .entity
+                .status(sid::VULNERABLE),
+            1
+        );
     }
 
     #[test]
@@ -296,26 +314,14 @@ mod ironclad_wave2_card_runtime_tests {
         // PommelStrike.java queues DamageAction before DrawCardAction. Base is
         // 9 damage/draw 1; upgradeDamage(1) and upgradeMagicNumber(1) produce
         // 10 damage/draw 2. A lethal DamageAction clears the queued draw.
-        let mut upgraded = engine_for(
-            &["Pommel Strike+"],
-            &["Strike", "Defend"],
-            &[],
-            50,
-            3,
-        );
+        let mut upgraded = engine_for(&["Pommel Strike+"], &["Strike", "Defend"], &[], 50, 3);
         assert!(play_on_enemy(&mut upgraded, "Pommel Strike+", 0));
         assert_eq!(upgraded.state.enemies[0].entity.hp, 40);
         assert_eq!(upgraded.state.hand.len(), 2);
         assert_eq!(upgraded.state.draw_pile.len(), 0);
         assert_eq!(upgraded.state.energy, 2);
 
-        let mut lethal = engine_for(
-            &["Pommel Strike"],
-            &["Strike"],
-            &[],
-            9,
-            3,
-        );
+        let mut lethal = engine_for(&["Pommel Strike"], &["Strike"], &[], 9, 3);
         assert!(play_on_enemy(&mut lethal, "Pommel Strike", 0));
         assert!(lethal.state.combat_over);
         assert_eq!(lethal.state.draw_pile.len(), 1);
@@ -372,6 +378,9 @@ mod ironclad_wave2_card_runtime_tests {
         assert!(play_self(&mut bloodletting_engine, "Bloodletting"));
         assert_eq!(bloodletting_engine.state.player.hp, hp_before - 3);
         assert_eq!(bloodletting_engine.state.energy, energy_before + 2);
-        assert_eq!(discard_prefix_count(&bloodletting_engine, "Bloodletting"), 1);
+        assert_eq!(
+            discard_prefix_count(&bloodletting_engine, "Bloodletting"),
+            1
+        );
     }
 }

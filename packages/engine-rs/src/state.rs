@@ -66,6 +66,26 @@ impl Stance {
 // EntityState — shared between player and enemies
 // ---------------------------------------------------------------------------
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+pub enum PowerOrderEntry {
+    Status(StatusId),
+    TheBomb(i32),
+    /// `NightmarePower` deliberately does not stack in Java even though every
+    /// instance has the same `POWER_ID`. The stored card template's combat
+    /// identity distinguishes independent powers without inventing a Java ID.
+    NightTerror(u32),
+}
+
+impl PowerOrderEntry {
+    fn priority(self) -> i32 {
+        match self {
+            Self::Status(status) => crate::powers::registry::java_power_priority(status),
+            Self::TheBomb(_) | Self::NightTerror(_) => 5,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EntityState {
     pub hp: i32,
@@ -74,10 +94,10 @@ pub struct EntityState {
     /// All statuses as a flat array indexed by StatusId. Zero means absent.
     #[serde(with = "status_array_serde")]
     pub statuses: [i32; sid::MAX_STATUS_ID],
-    /// Canonical Java power-list order plus deterministic insertion order for
-    /// private backing statuses. Sorted applications reorder this list by
-    /// power priority; direct additions append without sorting.
-    pub status_order: SmallVec<[StatusId; 16]>,
+    /// Canonical Java `AbstractCreature.powers` order. Internal counters stay
+    /// in `statuses` but never appear here; payload-bearing powers use typed
+    /// dynamic references.
+    pub power_order: SmallVec<[PowerOrderEntry; 16]>,
 }
 
 mod status_array_serde {
@@ -113,7 +133,7 @@ impl EntityState {
             max_hp,
             block: 0,
             statuses: [0; sid::MAX_STATUS_ID],
-            status_order: SmallVec::new(),
+            power_order: SmallVec::new(),
         }
     }
 
@@ -170,18 +190,51 @@ impl EntityState {
         let is_present = value != 0;
         *slot = value;
 
-        match (was_present, is_present) {
-            (false, true) => {
-                self.status_order.push(id);
-                if sort_new_power && crate::powers::registry::is_java_power_status(id) {
-                    self.status_order.sort_by_key(|status| {
-                        crate::powers::registry::java_power_priority(*status)
-                    });
+        let is_java_power = crate::powers::registry::is_java_power_status(id);
+        match (was_present, is_present, is_java_power) {
+            (false, true, true) => {
+                self.power_order.push(PowerOrderEntry::Status(id));
+                if sort_new_power {
+                    self.power_order.sort_by_key(|entry| entry.priority());
                 }
             }
-            (true, false) => self.status_order.retain(|ordered| *ordered != id),
+            (true, false, true) => self
+                .power_order
+                .retain(|ordered| *ordered != PowerOrderEntry::Status(id)),
             _ => {}
         }
+    }
+
+    pub fn add_the_bomb_power(&mut self, java_serial: i32) {
+        let entry = PowerOrderEntry::TheBomb(java_serial);
+        assert!(
+            !self.power_order.contains(&entry),
+            "duplicate The Bomb serial {java_serial}"
+        );
+        self.power_order.push(entry);
+        self.power_order.sort_by_key(|entry| entry.priority());
+    }
+
+    pub fn remove_the_bomb_power(&mut self, java_serial: i32) {
+        self.power_order
+            .retain(|entry| *entry != PowerOrderEntry::TheBomb(java_serial));
+    }
+
+    pub fn add_night_terror_power(&mut self, template_instance_id: u32) {
+        let entry = PowerOrderEntry::NightTerror(template_instance_id);
+        assert!(
+            template_instance_id != 0 && !self.power_order.contains(&entry),
+            "duplicate or unassigned Night Terror template identity {template_instance_id}"
+        );
+        self.power_order.push(entry);
+        // AbstractPower.priority defaults to five and Collections.sort is
+        // stable, preserving application order among equal-priority powers.
+        self.power_order.sort_by_key(|entry| entry.priority());
+    }
+
+    pub fn remove_night_terror_power(&mut self, template_instance_id: u32) {
+        self.power_order
+            .retain(|entry| *entry != PowerOrderEntry::NightTerror(template_instance_id));
     }
 
     /// Add to a status value.
@@ -195,52 +248,70 @@ impl EntityState {
         self.set_status_direct(id, value);
     }
 
-    /// Return non-zero statuses in Java application order. Legacy/manual
-    /// states that predate `status_order` retain a deterministic numeric
-    /// fallback without duplicating entries already recorded in the order.
+    /// Return status-backed powers in Java application order.
     pub fn ordered_status_ids(&self) -> Vec<StatusId> {
-        let mut ordered = Vec::with_capacity(self.status_order.len());
-        for id in &self.status_order {
-            if (id.0 as usize) < sid::MAX_STATUS_ID
-                && self.status(*id) != 0
-                && !ordered.contains(id)
-            {
-                ordered.push(*id);
-            }
-        }
-        for (index, amount) in self.statuses.iter().enumerate() {
-            let id = StatusId(index as u16);
-            if *amount != 0 && !ordered.contains(&id) {
-                ordered.push(id);
-            }
-        }
-        ordered
+        self.power_order
+            .iter()
+            .filter_map(|entry| match entry {
+                PowerOrderEntry::Status(status) => Some(*status),
+                PowerOrderEntry::TheBomb(_) | PowerOrderEntry::NightTerror(_) => None,
+            })
+            .collect()
     }
 
     pub fn clear_statuses(&mut self) {
         self.statuses.fill(0);
-        self.status_order.clear();
+        self.power_order.clear();
     }
 
-    pub fn validate_status_order(&self) -> Result<(), String> {
+    pub fn validate_power_order(&self) -> Result<(), String> {
         let mut seen = [false; sid::MAX_STATUS_ID];
-        for id in &self.status_order {
-            let index = id.0 as usize;
-            if index >= sid::MAX_STATUS_ID {
-                return Err(format!("status order contains out-of-range id {}", id.0));
+        let mut bomb_serials = Vec::new();
+        for entry in &self.power_order {
+            match *entry {
+                PowerOrderEntry::Status(id) => {
+                    let index = id.0 as usize;
+                    if index >= sid::MAX_STATUS_ID {
+                        return Err(format!(
+                            "power order contains out-of-range status id {}",
+                            id.0
+                        ));
+                    }
+                    if !crate::powers::registry::is_java_power_status(id) {
+                        return Err(format!("power order contains internal status id {}", id.0));
+                    }
+                    if seen[index] {
+                        return Err(format!("power order contains duplicate status id {}", id.0));
+                    }
+                    if self.statuses[index] == 0 {
+                        return Err(format!("power order contains inactive status id {}", id.0));
+                    }
+                    seen[index] = true;
+                }
+                PowerOrderEntry::TheBomb(serial) => {
+                    if bomb_serials.contains(&serial) {
+                        return Err(format!(
+                            "power order contains duplicate The Bomb serial {serial}"
+                        ));
+                    }
+                    bomb_serials.push(serial);
+                }
+                PowerOrderEntry::NightTerror(template_instance_id) => {
+                    if template_instance_id == 0 {
+                        return Err(
+                            "power order contains an unassigned Night Terror template identity"
+                                .to_string(),
+                        );
+                    }
+                }
             }
-            if seen[index] {
-                return Err(format!("status order contains duplicate id {}", id.0));
-            }
-            if self.statuses[index] == 0 {
-                return Err(format!("status order contains inactive id {}", id.0));
-            }
-            seen[index] = true;
         }
         for (index, amount) in self.statuses.iter().enumerate() {
-            if *amount != 0 && !seen[index] {
+            let status = StatusId(index as u16);
+            if *amount != 0 && crate::powers::registry::is_java_power_status(status) && !seen[index]
+            {
                 return Err(format!(
-                    "active status id {index} is missing from status order"
+                    "active power status id {index} is missing from power order"
                 ));
             }
         }
@@ -257,15 +328,17 @@ pub struct EnemyCombatState {
     pub entity: EntityState,
     pub id: String,
     pub name: String,
+    /// Stable combat-local identity used by the enemy-turn queue when Java
+    /// inserts summoned monsters into the middle of `MonsterGroup.monsters`.
+    /// This is simulator-internal and deliberately absent from observations
+    /// and serialized checkpoints.
+    #[serde(skip, default)]
+    pub(crate) runtime_instance_id: u64,
     /// Canonical factory instances consume Java's `AbstractMonster.init`
     /// opening `rollMove` exactly once. Restored or manually assembled states
     /// may already contain their settled opening intent.
     #[serde(default)]
     pub needs_initial_move_roll: bool,
-    /// Java BackAttack legality bit for Smoke Bomb and similar checks.
-    pub back_attack: bool,
-    /// Whether this enemy currently carries Java's MinionPower.
-    pub is_minion: bool,
     /// Current intended move
     pub move_id: i32,
     pub intent: Intent,
@@ -284,9 +357,8 @@ impl EnemyCombatState {
             entity: EntityState::new(hp, max_hp),
             id: id.to_string(),
             name: id.to_string(),
+            runtime_instance_id: 0,
             needs_initial_move_roll: false,
-            back_attack: false,
-            is_minion: false,
             move_id: -1,
             intent: Intent::Unknown,
             move_effects: SmallVec::new(),
@@ -308,7 +380,31 @@ impl EnemyCombatState {
     }
 
     pub fn has_back_attack(&self) -> bool {
-        self.back_attack
+        self.entity.status(sid::BACK_ATTACK_POWER) > 0
+    }
+
+    pub fn set_back_attack(&mut self, active: bool) {
+        self.entity
+            .set_status(sid::BACK_ATTACK_POWER, i32::from(active));
+    }
+
+    pub fn is_minion(&self) -> bool {
+        self.entity.status(sid::MINION_POWER) > 0
+    }
+
+    pub fn set_minion(&mut self, active: bool) {
+        self.entity.set_status(sid::MINION_POWER, i32::from(active));
+    }
+
+    pub fn set_stasis_card(&mut self, card: CardInstance) {
+        self.stasis_card = Some(card);
+        self.entity.set_status(sid::STASIS_POWER, 1);
+    }
+
+    pub fn take_stasis_card(&mut self) -> Option<CardInstance> {
+        let card = self.stasis_card.take();
+        self.entity.set_status(sid::STASIS_POWER, 0);
+        card
     }
 
     pub fn is_attacking(&self) -> bool {
@@ -332,6 +428,7 @@ impl EnemyCombatState {
             | Intent::Debuff { .. }
             | Intent::StrongDebuff { .. }
             | Intent::DefendBuff { .. }
+            | Intent::DefendDebuff { .. }
             | Intent::Spawn
             | Intent::Escape
             | Intent::Sleep
@@ -353,6 +450,7 @@ impl EnemyCombatState {
             | Intent::Debuff { .. }
             | Intent::StrongDebuff { .. }
             | Intent::DefendBuff { .. }
+            | Intent::DefendDebuff { .. }
             | Intent::Spawn
             | Intent::Escape
             | Intent::Sleep
@@ -372,6 +470,7 @@ impl EnemyCombatState {
             | Intent::Debuff { .. }
             | Intent::StrongDebuff { .. }
             | Intent::DefendBuff { .. }
+            | Intent::DefendDebuff { .. }
             | Intent::Spawn
             | Intent::Escape
             | Intent::Sleep
@@ -384,7 +483,8 @@ impl EnemyCombatState {
         match self.intent {
             Intent::Block { amount, .. }
             | Intent::AttackBlock { block: amount, .. }
-            | Intent::DefendBuff { block: amount, .. } => amount as i32,
+            | Intent::DefendBuff { block: amount, .. }
+            | Intent::DefendDebuff { block: amount, .. } => amount as i32,
             Intent::Attack { .. }
             | Intent::Buff { .. }
             | Intent::Debuff { .. }
@@ -525,14 +625,21 @@ pub struct CombatState {
     /// Orb slots (Defect mechanic, also available for cross-character mods).
     pub orb_slots: OrbSlots,
 
-    /// Independent TheBombPower instances as (turns remaining, damage).
+    /// Independent Java TheBombPower instances.
     /// Java gives every application a unique power ID, so later plays must not
     /// merge damage or reset an older bomb's countdown.
-    pub pending_bombs: SmallVec<[(i16, i16); 4]>,
+    pub pending_bombs: SmallVec<[PendingBomb; 4]>,
 
     /// Cross-combat relic counters (Nunchaku, Incense Burner, Ink Bottle, Happy Flower, etc.)
     /// Indexed by relic_flags::counter::* constants. Synced from/to RunState.relic_flags.
     pub relic_counters: [i16; crate::relic_flags::counter::NUM_COUNTERS],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PendingBomb {
+    pub java_serial: i32,
+    pub turns: i16,
+    pub damage: i16,
 }
 
 impl CombatState {

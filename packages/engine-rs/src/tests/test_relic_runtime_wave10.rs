@@ -14,7 +14,7 @@
 
 use crate::effects::runtime::EffectOwner;
 use crate::engine::CombatPhase;
-use crate::state::Stance;
+use crate::state::{PowerOrderEntry, Stance};
 use crate::status_ids::sid;
 use crate::tests::support::{
     combat_state_with, end_turn, enemy, enemy_no_intent, engine_with_state, engine_without_start,
@@ -30,11 +30,17 @@ fn relic_wave10_delayed_turn_block_relics_follow_runtime_path() {
     );
     horn_state.relics.push("HornCleat".to_string());
     let mut horn = engine_with_state(horn_state);
-    assert_eq!(horn.hidden_effect_value("HornCleat", EffectOwner::PlayerRelic { slot: 0 }, 0), 1);
+    assert_eq!(
+        horn.hidden_effect_value("HornCleat", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        1
+    );
     end_turn(&mut horn);
     assert_eq!(horn.state.turn, 2);
     assert_eq!(horn.state.player.block, 14);
-    assert_eq!(horn.hidden_effect_value("HornCleat", EffectOwner::PlayerRelic { slot: 0 }, 0), -1);
+    assert_eq!(
+        horn.hidden_effect_value("HornCleat", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        -1
+    );
 
     let mut wheel_state = combat_state_with(
         make_deck_n("Defend", 5),
@@ -43,9 +49,15 @@ fn relic_wave10_delayed_turn_block_relics_follow_runtime_path() {
     );
     wheel_state.relics.push("CaptainsWheel".to_string());
     let mut wheel = engine_with_state(wheel_state);
-    assert_eq!(wheel.hidden_effect_value("CaptainsWheel", EffectOwner::PlayerRelic { slot: 0 }, 0), 1);
+    assert_eq!(
+        wheel.hidden_effect_value("CaptainsWheel", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        1
+    );
     end_turn(&mut wheel);
-    assert_eq!(wheel.hidden_effect_value("CaptainsWheel", EffectOwner::PlayerRelic { slot: 0 }, 0), 2);
+    assert_eq!(
+        wheel.hidden_effect_value("CaptainsWheel", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        2
+    );
     end_turn(&mut wheel);
     assert_eq!(wheel.state.turn, 3);
     assert_eq!(wheel.state.player.block, 18);
@@ -66,22 +78,30 @@ fn captains_wheel_resolves_before_turn_three_draw_and_foresight_choice() {
     );
     state.relics.push("CaptainsWheel".to_string());
     let mut engine = engine_with_state(state);
-    assert_eq!(engine.hidden_effect_value(
-        "CaptainsWheel", EffectOwner::PlayerRelic { slot: 0 }, 0), 1);
+    assert_eq!(
+        engine.hidden_effect_value("CaptainsWheel", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        1
+    );
 
     end_turn(&mut engine);
     assert_eq!(engine.state.turn, 2);
-    assert_eq!(engine.hidden_effect_value(
-        "CaptainsWheel", EffectOwner::PlayerRelic { slot: 0 }, 0), 2);
+    assert_eq!(
+        engine.hidden_effect_value("CaptainsWheel", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        2
+    );
 
     engine.state.player.set_status(sid::FORESIGHT, 1);
     end_turn(&mut engine);
     assert_eq!(engine.state.turn, 3);
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
-    assert_eq!(engine.state.player.block, 18,
-        "Captain's Wheel resolves before Foresight's post-draw scry choice");
-    assert_eq!(engine.hidden_effect_value(
-        "CaptainsWheel", EffectOwner::PlayerRelic { slot: 0 }, 0), -1);
+    assert_eq!(
+        engine.state.player.block, 18,
+        "Captain's Wheel resolves before Foresight's post-draw scry choice"
+    );
+    assert_eq!(
+        engine.hidden_effect_value("CaptainsWheel", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        -1
+    );
 }
 
 #[test]
@@ -96,15 +116,26 @@ fn damaru_gains_mantra_and_enters_divinity_before_post_draw_choices() {
     state.relics.push("Damaru".to_string());
     let mut engine = engine_with_state(state);
     assert_eq!(engine.state.mantra, 1);
+    assert_eq!(engine.state.player.status(sid::MANTRA), 1);
+    assert!(engine
+        .state
+        .player
+        .power_order
+        .contains(&PowerOrderEntry::Status(sid::MANTRA)));
 
     engine.state.mantra = 9;
+    engine.state.player.set_status(sid::MANTRA, 9);
     engine.state.player.set_status(sid::FORESIGHT, 1);
     end_turn(&mut engine);
     assert_eq!(engine.state.turn, 2);
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
     assert_eq!(engine.state.mantra, 0);
-    assert_eq!(engine.state.stance, Stance::Divinity,
-        "Damaru's tenth Mantra resolves before Foresight pauses after draw");
+    assert_eq!(engine.state.player.status(sid::MANTRA), 0);
+    assert_eq!(
+        engine.state.stance,
+        Stance::Divinity,
+        "Damaru's tenth Mantra resolves before Foresight pauses after draw"
+    );
 }
 
 #[test]
@@ -117,7 +148,15 @@ fn golden_eye_adds_exactly_two_cards_to_every_scry_action() {
         3,
     );
     plain.do_scry(1);
-    assert_eq!(plain.choice.as_ref().expect("plain Scry choice").options.len(), 1);
+    assert_eq!(
+        plain
+            .choice
+            .as_ref()
+            .expect("plain Scry choice")
+            .options
+            .len(),
+        1
+    );
 
     let mut golden = engine_without_start(
         make_deck_n("Defend", 5),
@@ -135,7 +174,10 @@ fn golden_eye_adds_exactly_two_cards_to_every_scry_action() {
 fn relic_wave10_turn_end_runtime_relics_match_java_timing() {
     let mut calendar_state = combat_state_with(
         make_deck_n("Defend", 10),
-        vec![enemy_no_intent("JawWorm", 120, 120), enemy_no_intent("Cultist", 120, 120)],
+        vec![
+            enemy_no_intent("JawWorm", 120, 120),
+            enemy_no_intent("Cultist", 120, 120),
+        ],
         3,
     );
     calendar_state.relics.push("StoneCalendar".to_string());
@@ -143,7 +185,10 @@ fn relic_wave10_turn_end_runtime_relics_match_java_timing() {
     for _ in 0..6 {
         end_turn(&mut calendar);
     }
-    assert_eq!(calendar.hidden_effect_value("StoneCalendar", EffectOwner::PlayerRelic { slot: 0 }, 0), 7);
+    assert_eq!(
+        calendar.hidden_effect_value("StoneCalendar", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        7
+    );
     let hp0 = calendar.state.enemies[0].entity.hp;
     let hp1 = calendar.state.enemies[1].entity.hp;
     end_turn(&mut calendar);
@@ -204,8 +249,11 @@ fn cloak_clasp_counts_the_current_hand_before_discard() {
     four.state.draw_pile.clear();
     let hp_before = four.state.player.hp;
     end_turn(&mut four);
-    assert_eq!(four.state.player.hp, hp_before - 1,
-        "four held cards grant four Block before the five-damage attack");
+    assert_eq!(
+        four.state.player.hp,
+        hp_before - 1,
+        "four held cards grant four Block before the five-damage attack"
+    );
 
     let mut empty_state = combat_state_with(
         make_deck_n("Defend", 5),
@@ -218,8 +266,11 @@ fn cloak_clasp_counts_the_current_hand_before_discard() {
     empty.state.draw_pile.clear();
     let hp_before = empty.state.player.hp;
     end_turn(&mut empty);
-    assert_eq!(empty.state.player.hp, hp_before - 5,
-        "an empty hand queues no block");
+    assert_eq!(
+        empty.state.player.hp,
+        hp_before - 5,
+        "an empty hand queues no block"
+    );
 }
 
 #[test]
@@ -234,7 +285,10 @@ fn relic_wave10_turn_progression_relics_follow_runtime_path() {
     end_turn(&mut art);
     assert_eq!(art.state.turn, 2);
     assert_eq!(art.state.energy, 4);
-    assert_eq!(art.hidden_effect_value("Art of War", EffectOwner::PlayerRelic { slot: 0 }, 0), 1);
+    assert_eq!(
+        art.hidden_effect_value("Art of War", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        1
+    );
 
     let mut damaru_state = combat_state_with(
         make_deck_n("Defend", 5),
@@ -256,11 +310,29 @@ fn relic_wave10_turn_progression_relics_follow_runtime_path() {
     );
     inserter_state.relics.push("Inserter".to_string());
     let mut inserter = engine_with_state(inserter_state);
-    assert_eq!(inserter.state.player.status(crate::status_ids::sid::ORB_SLOTS), 0);
-    assert_eq!(inserter.hidden_effect_value("Inserter", EffectOwner::PlayerRelic { slot: 0 }, 0), 1);
+    assert_eq!(
+        inserter
+            .state
+            .player
+            .status(crate::status_ids::sid::ORB_SLOTS),
+        0
+    );
+    assert_eq!(
+        inserter.hidden_effect_value("Inserter", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        1
+    );
     end_turn(&mut inserter);
-    assert_eq!(inserter.state.player.status(crate::status_ids::sid::ORB_SLOTS), 1);
-    assert_eq!(inserter.hidden_effect_value("Inserter", EffectOwner::PlayerRelic { slot: 0 }, 0), 0);
+    assert_eq!(
+        inserter
+            .state
+            .player
+            .status(crate::status_ids::sid::ORB_SLOTS),
+        1
+    );
+    assert_eq!(
+        inserter.hidden_effect_value("Inserter", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        0
+    );
 }
 
 #[test]
@@ -278,11 +350,17 @@ fn inserter_grows_live_orb_slots_every_second_turn_and_respects_the_cap() {
     engine.init_defect_orbs(3);
 
     assert_eq!(engine.state.orb_slots.get_slot_count(), 3);
-    assert_eq!(engine.hidden_effect_value("Inserter", EffectOwner::PlayerRelic { slot: 0 }, 0), 1);
+    assert_eq!(
+        engine.hidden_effect_value("Inserter", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        1
+    );
     end_turn(&mut engine);
     assert_eq!(engine.state.orb_slots.get_slot_count(), 4);
     assert_eq!(engine.state.player.status(sid::ORB_SLOTS), 1);
-    assert_eq!(engine.hidden_effect_value("Inserter", EffectOwner::PlayerRelic { slot: 0 }, 0), 0);
+    assert_eq!(
+        engine.hidden_effect_value("Inserter", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        0
+    );
 
     end_turn(&mut engine);
     assert_eq!(engine.state.orb_slots.get_slot_count(), 4);
@@ -301,5 +379,8 @@ fn inserter_grows_live_orb_slots_every_second_turn_and_respects_the_cap() {
     end_turn(&mut capped);
     assert_eq!(capped.state.orb_slots.get_slot_count(), 10);
     assert_eq!(capped.state.player.status(sid::ORB_SLOTS), 0);
-    assert_eq!(capped.hidden_effect_value("Inserter", EffectOwner::PlayerRelic { slot: 0 }, 0), 0);
+    assert_eq!(
+        capped.hidden_effect_value("Inserter", EffectOwner::PlayerRelic { slot: 0 }, 0),
+        0
+    );
 }

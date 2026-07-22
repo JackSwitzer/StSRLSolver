@@ -5,17 +5,24 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/PressurePoints.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{Effect as E, SimpleEffect as SE, AmountSource as A};
+use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE};
 use crate::tests::support::*;
 
 #[test]
 fn test_card_runtime_watcher_wave20_registry_promotes_judgement_to_typed_primary_surface() {
-    let judgement = global_registry().get("Judgement").expect("Judgement should exist");
+    let judgement = global_registry()
+        .get("Judgement")
+        .expect("Judgement should exist");
     assert_eq!(judgement.effect_data, &[E::Simple(SE::Judgement(A::Magic))]);
     assert!(judgement.complex_hook.is_none());
 
-    let judgement_plus = global_registry().get("Judgement+").expect("Judgement+ should exist");
-    assert_eq!(judgement_plus.effect_data, &[E::Simple(SE::Judgement(A::Magic))]);
+    let judgement_plus = global_registry()
+        .get("Judgement+")
+        .expect("Judgement+ should exist");
+    assert_eq!(
+        judgement_plus.effect_data,
+        &[E::Simple(SE::Judgement(A::Magic))]
+    );
     assert!(judgement_plus.complex_hook.is_none());
 }
 

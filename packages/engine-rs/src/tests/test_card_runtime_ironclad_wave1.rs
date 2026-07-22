@@ -66,7 +66,9 @@ mod ironclad_wave1_card_runtime_tests {
         let mut engine = engine_for(&["Body Slam+"], &[], &[], 40, 0);
         engine.state.player.block = 10;
         engine.state.player.set_status(sid::STRENGTH, 2);
-        engine.state.enemies[0].entity.set_status(sid::VULNERABLE, 1);
+        engine.state.enemies[0]
+            .entity
+            .set_status(sid::VULNERABLE, 1);
 
         assert!(play_on_enemy(&mut engine, "Body Slam+", 0));
 
@@ -76,7 +78,8 @@ mod ironclad_wave1_card_runtime_tests {
     }
 
     #[test]
-    fn true_grit_base_uses_the_typed_random_exhaust_surface_and_upgrade_uses_declarative_choice_data() {
+    fn true_grit_base_uses_the_typed_random_exhaust_surface_and_upgrade_uses_declarative_choice_data(
+    ) {
         let true_grit = card("True Grit");
         assert_eq!(true_grit.card_type, CardType::Skill);
         assert_eq!(
@@ -115,10 +118,16 @@ mod ironclad_wave1_card_runtime_tests {
     #[test]
     fn multi_hit_ironclad_cards_export_declarative_hit_metadata() {
         let pummel = card("Pummel");
-        assert_eq!(pummel.effect_data, &[Effect::ExtraHits(AmountSource::Magic)]);
+        assert_eq!(
+            pummel.effect_data,
+            &[Effect::ExtraHits(AmountSource::Magic)]
+        );
 
         let twin_strike = card("Twin Strike");
-        assert_eq!(twin_strike.effect_data, &[Effect::ExtraHits(AmountSource::Magic)]);
+        assert_eq!(
+            twin_strike.effect_data,
+            &[Effect::ExtraHits(AmountSource::Magic)]
+        );
     }
 
     #[test]

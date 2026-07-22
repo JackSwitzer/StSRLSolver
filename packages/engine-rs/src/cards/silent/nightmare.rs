@@ -15,16 +15,38 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // ID is "Night Terror". NightmareAction stores three copies for next turn;
     // upgrade changes only cost 3 -> 2.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/Nightmare.java
-    insert(cards, CardDef {
-                id: "Night Terror", name: "Nightmare", card_type: CardType::Skill,
-                target: CardTarget::None, cost: 3, base_damage: -1, base_block: -1,
-                base_magic: 3, exhaust: true, enter_stance: None,
-                effect_data: &NIGHTMARE_EFFECTS, complex_hook: None,
-            });
-    insert(cards, CardDef {
-                id: "Night Terror+", name: "Nightmare+", card_type: CardType::Skill,
-                target: CardTarget::None, cost: 2, base_damage: -1, base_block: -1,
-                base_magic: 3, exhaust: true, enter_stance: None,
-                effect_data: &NIGHTMARE_EFFECTS, complex_hook: None,
-            });
+    insert(
+        cards,
+        CardDef {
+            id: "Night Terror",
+            name: "Nightmare",
+            card_type: CardType::Skill,
+            target: CardTarget::None,
+            cost: 3,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: 3,
+            exhaust: true,
+            enter_stance: None,
+            effect_data: &NIGHTMARE_EFFECTS,
+            complex_hook: None,
+        },
+    );
+    insert(
+        cards,
+        CardDef {
+            id: "Night Terror+",
+            name: "Nightmare+",
+            card_type: CardType::Skill,
+            target: CardTarget::None,
+            cost: 2,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: 3,
+            exhaust: true,
+            enter_stance: None,
+            effect_data: &NIGHTMARE_EFFECTS,
+            complex_hook: None,
+        },
+    );
 }

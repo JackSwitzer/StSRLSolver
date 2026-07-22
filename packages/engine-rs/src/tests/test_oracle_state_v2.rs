@@ -84,7 +84,7 @@ fn oracle_intent_damage_keeps_java_float_order_until_final_floor() {
 
     {
         let combat = engine.debug_combat_engine_mut();
-        combat.state.enemies[0].back_attack = true;
+        combat.state.enemies[0].set_back_attack(true);
         combat
             .state
             .player
@@ -106,12 +106,14 @@ fn oracle_state_v2_rejects_a_missing_rng_stream() {
 fn oracle_state_v2_requires_and_round_trips_process_global_rng_states() {
     let ambient = (0x0123_4567_89AB_CDEF, 0xFEDC_BA98_7654_3210);
     let collections = 0x1234_5678_9ABC;
-    let engine = RunEngine::new_with_ambient_states(4, 0, ambient, collections);
+    let mut engine = RunEngine::new_with_ambient_states(4, 0, ambient, collections);
+    engine.restore_the_bomb_id_offset(73);
     let state = project_oracle_state(&engine).unwrap();
 
     assert_eq!(state.rng.ambient_math.seed0, "0123456789abcdef");
     assert_eq!(state.rng.ambient_math.seed1, "fedcba9876543210");
     assert_eq!(state.rng.java_collections, "123456789abc");
+    assert_eq!(state.process_globals.the_bomb_id_offset, 73);
 
     let encoded = serde_json::to_value(&state).unwrap();
     assert_eq!(
@@ -138,6 +140,16 @@ fn oracle_state_v2_requires_and_round_trips_process_global_rng_states() {
         .unwrap_err()
         .to_string()
         .contains("javaCollections"));
+
+    let mut missing_globals = serde_json::to_value(&state).unwrap();
+    missing_globals
+        .as_object_mut()
+        .unwrap()
+        .remove("processGlobals");
+    assert!(serde_json::from_value::<OracleStateV2>(missing_globals)
+        .unwrap_err()
+        .to_string()
+        .contains("processGlobals"));
 }
 
 #[test]
@@ -219,6 +231,11 @@ fn oracle_state_v2_diff_covers_every_required_state_family() {
         |state| {
             state.rng.raw_states.get_mut("card").unwrap().seed1 = "0000000000000000".to_string()
         },
+    );
+    assert_mutation_path(
+        "processGlobals.theBombIdOffset",
+        |_| {},
+        |state| state.process_globals.the_bomb_id_offset += 1,
     );
     assert_mutation_path("floor", |_| {}, |state| state.floor += 1);
     assert_mutation_path("act", |_| {}, |state| state.act += 1);

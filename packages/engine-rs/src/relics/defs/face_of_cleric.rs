@@ -3,22 +3,20 @@
 //! Source: `reference/extracted/methods/relic/FaceOfCleric.java` — `onVictory`
 //! calls `increaseMaxHp(1, true)`, which also attempts to heal one HP.
 
-use crate::effects::declarative::{Effect, SimpleEffect, AmountSource};
+use crate::effects::declarative::{AmountSource, Effect, SimpleEffect};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 
-static EFFECTS: [Effect; 1] = [
-    Effect::Simple(SimpleEffect::ModifyMaxHp(AmountSource::Fixed(1))),
-];
+static EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::ModifyMaxHp(
+    AmountSource::Fixed(1),
+))];
 
-static TRIGGERS: [TriggeredEffect; 1] = [
-    TriggeredEffect {
-        trigger: Trigger::CombatVictory,
-        condition: TriggerCondition::Always,
-        effects: &EFFECTS,
-        counter: None,
-    },
-];
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::CombatVictory,
+    condition: TriggerCondition::Always,
+    effects: &EFFECTS,
+    counter: None,
+}];
 
 pub static DEF: EntityDef = EntityDef {
     id: "FaceOfCleric",

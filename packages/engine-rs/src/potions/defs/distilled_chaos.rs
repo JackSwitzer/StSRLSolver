@@ -1,6 +1,5 @@
 use super::prelude::*;
-use crate::actions::Action;
-use crate::engine::CombatEngine;
+use crate::engine::{CombatEngine, DeferredCombatOp};
 
 static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::ManualActivation,
@@ -21,7 +20,11 @@ fn distilled_chaos_hook(
     // Distilled Chaos is a fixed 3-card top-of-draw play in Java, doubled by
     // Sacred Bark, so its exact action-path behavior stays local to this
     // hook instead of going through the generic potency table.
-    let potency = if engine.state.has_relic("SacredBark") { 6 } else { 3 };
+    let potency = if engine.state.has_relic("SacredBark") {
+        6
+    } else {
+        3
+    };
 
     // DistilledChaosPotion.java chooses every target while `use` is building
     // its PlayTopCardAction queue, so all cardRandomRng ticks happen before a
@@ -44,36 +47,13 @@ fn distilled_chaos_hook(
             .collect()
     };
 
-    let mut shuffles = 0;
     for target_idx in targets {
-        // PlayTopCardAction retries after EmptyDeckShuffleAction whenever the
-        // draw pile is empty but the discard pile still contains cards.
-        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/PlayTopCardAction.java
-        if engine.state.draw_pile.is_empty() && !engine.state.discard_pile.is_empty() {
-            engine.state.draw_pile = std::mem::take(&mut engine.state.discard_pile);
-            engine.shuffle_draw_pile();
-            shuffles += 1;
-        }
-
-        let Some(card) = engine.state.draw_pile.pop() else {
-            continue;
-        };
-
-        let free_card = card.set_free(true);
-        engine.state.hand.push(free_card);
-        let hand_idx = engine.state.hand.len() - 1;
-        engine.execute_action(&Action::PlayCard { card_idx: hand_idx, target_idx });
-    }
-
-    // EmptyDeckShuffleAction constructs relic onShuffle actions behind the
-    // already queued PlayTopCardActions, so dispatch after this potion's plays.
-    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/EmptyDeckShuffleAction.java
-    for _ in 0..shuffles {
-        let ctx = crate::effects::trigger::TriggerContext::empty();
-        engine.emit_event(crate::effects::runtime::GameEvent::from_trigger(
-            crate::effects::trigger::Trigger::OnShuffle,
-            &ctx,
-        ));
+        // Java's potion use queues these actions; it does not execute cards
+        // reentrantly inside AbstractPotion.use. Run them after the enclosing
+        // ManualActivation dispatch returns.
+        engine
+            .deferred_combat_ops
+            .push(DeferredCombatOp::PlayTopCard { target_idx });
     }
 }
 

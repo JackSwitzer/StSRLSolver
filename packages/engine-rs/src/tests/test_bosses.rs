@@ -15,11 +15,11 @@ mod boss_java_parity_tests {
 
     use crate::combat_hooks::do_enemy_turns;
     use crate::combat_types::mfx;
-    use crate::status_ids::sid;
-    use crate::engine::CombatEngine;
-    use crate::enemies::*;
     use crate::enemies::move_ids;
+    use crate::enemies::*;
+    use crate::engine::CombatEngine;
     use crate::run::RunEngine;
+    use crate::status_ids::sid;
     use crate::tests::support::*;
 
     fn boss_engine(id: &str, hp: i32, max_hp: i32) -> CombatEngine {
@@ -245,7 +245,11 @@ mod boss_java_parity_tests {
         assert_eq!(engine.state.enemies[1].entity.hp, 70);
         assert_eq!(engine.state.enemies[2].entity.hp, 70);
         assert!(slime_boss_should_split(&create_enemy("SlimeBoss", 70, 140)));
-        assert!(!slime_boss_should_split(&create_enemy("SlimeBoss", 71, 140)));
+        assert!(!slime_boss_should_split(&create_enemy(
+            "SlimeBoss",
+            71,
+            140
+        )));
     }
 
     // ---------------------------------------------------------------------
@@ -275,8 +279,7 @@ mod boss_java_parity_tests {
     #[test]
     fn bronze_automaton_cycle_matches_java_base_pattern() {
         let mut enemy = create_enemy("BronzeAutomaton", 300, 300);
-        roll_initial_move_with_num_and_rng(
-            &mut enemy, 0, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut enemy, 0, &mut crate::seed::StsRandom::new(0));
 
         roll_next_move(&mut enemy, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::BA_FLAIL);
@@ -337,8 +340,10 @@ mod boss_java_parity_tests {
             assert_eq!(collector.entity.status(sid::BLOCK_AMT), block);
             assert_eq!(collector.entity.status(sid::STARTING_DMG), mega);
             assert_eq!(collector.move_id, move_ids::COLL_SPAWN);
-            assert_eq!(combat.ai_rng.counter, 1,
-                "initialSpawn still consumes AbstractMonster.rollMove's integer");
+            assert_eq!(
+                combat.ai_rng.counter, 1,
+                "initialSpawn still consumes AbstractMonster.rollMove's integer"
+            );
         }
 
         let mut run = RunEngine::new(61, 0);
@@ -347,48 +352,79 @@ mod boss_java_parity_tests {
         let ai_before = combat.ai_rng.counter;
         do_enemy_turns(combat);
         assert_eq!(combat.state.enemies.len(), 3);
-        assert_eq!(combat.ai_rng.counter - ai_before, 3,
-            "two Torch Head init rolls, then Collector's RollMove");
-        assert_eq!(combat.state.enemies[0].entity.status(sid::FIRST_MOVE), 0);
-        assert_eq!(combat.state.enemies[0].entity.status(sid::TURN_COUNT), 1);
-        for torch in &combat.state.enemies[1..] {
+        assert_eq!(
+            combat.ai_rng.counter - ai_before,
+            3,
+            "two Torch Head init rolls, then Collector's RollMove"
+        );
+        assert_eq!(
+            combat
+                .state
+                .enemies
+                .iter()
+                .map(|enemy| enemy.id.as_str())
+                .collect::<Vec<_>>(),
+            ["TorchHead", "TorchHead", "TheCollector"]
+        );
+        assert_eq!(combat.state.enemies[2].entity.status(sid::FIRST_MOVE), 0);
+        assert_eq!(combat.state.enemies[2].entity.status(sid::TURN_COUNT), 1);
+        for torch in &combat.state.enemies[..2] {
             assert_eq!(torch.id, "TorchHead");
             assert!((38..=40).contains(&torch.entity.hp));
-            assert!(torch.is_minion);
+            assert!(torch.is_minion());
             assert_eq!(torch.move_id, move_ids::TORCH_TACKLE);
             assert_eq!(torch.move_damage(), 7);
+            assert_eq!(
+                torch.move_history,
+                [move_ids::TORCH_TACKLE],
+                "constructor setMove is retained before init's current Tackle"
+            );
         }
 
-        combat.state.enemies[0].set_move(move_ids::COLL_BUFF, 0, 0, 15);
-        combat.state.enemies[0].intent = crate::combat_types::Intent::DefendBuff {
-            block: 15, effects: 0,
+        combat.state.enemies[2].set_move(move_ids::COLL_BUFF, 0, 0, 15);
+        combat.state.enemies[2].intent = crate::combat_types::Intent::DefendBuff {
+            block: 15,
+            effects: 0,
         };
-        combat.state.enemies[0].add_effect(mfx::STRENGTH, 3);
-        combat.state.enemies[0].add_effect(mfx::STRENGTH_ALL_ALLIES, 3);
+        combat.state.enemies[2].add_effect(mfx::STRENGTH, 3);
+        combat.state.enemies[2].add_effect(mfx::STRENGTH_ALL_ALLIES, 3);
+        combat.state.enemies[0].move_id = -1;
         combat.state.enemies[1].move_id = -1;
-        combat.state.enemies[2].move_id = -1;
         do_enemy_turns(combat);
-        assert_eq!(combat.state.enemies[0].entity.block, 15);
-        assert!(combat.state.enemies.iter().all(|enemy| enemy.entity.strength() == 3));
+        assert_eq!(combat.state.enemies[2].entity.block, 15);
+        assert!(combat
+            .state
+            .enemies
+            .iter()
+            .all(|enemy| enemy.entity.strength() == 3));
 
         assert!(combat.instant_kill_enemy(1));
-        combat.state.enemies[0].set_move(move_ids::COLL_REVIVE, 0, 0, 0);
-        combat.state.enemies[0].intent = crate::combat_types::Intent::Unknown;
-        combat.state.enemies[2].move_id = -1;
+        combat.state.enemies[2].set_move(move_ids::COLL_REVIVE, 0, 0, 0);
+        combat.state.enemies[2].intent = crate::combat_types::Intent::Unknown;
+        combat.state.enemies[0].move_id = -1;
         let ai_before = combat.ai_rng.counter;
         do_enemy_turns(combat);
+        assert_eq!(combat.state.enemies.len(), 4);
         assert!(combat.state.enemies[1].is_alive());
         assert!((38..=40).contains(&combat.state.enemies[1].entity.hp));
-        assert!(combat.state.enemies[1].is_minion);
-        assert_eq!(combat.ai_rng.counter - ai_before, 2,
-            "revived Torch Head init plus Collector RollMove");
+        assert!(combat.state.enemies[1].is_minion());
+        assert!(
+            !combat.state.enemies[2].is_alive(),
+            "SpawnMonsterAction retains the dead Torch Head behind its same-slot replacement"
+        );
+        assert_eq!(combat.state.enemies[3].id, "TheCollector");
+        assert_eq!(
+            combat.ai_rng.counter - ai_before,
+            2,
+            "revived Torch Head init plus Collector RollMove"
+        );
 
         let mut high = RunEngine::new(62, 19);
         high.debug_enter_specific_combat(&["TheCollector"]);
         let combat = high.debug_combat_engine_mut();
         combat.state.player.set_status(sid::ARTIFACT, 1);
         combat.state.enemies[0].set_move(move_ids::COLL_MEGA_DEBUFF, 0, 0, 0);
-        combat.state.enemies[0].intent = crate::combat_types::Intent::Debuff { effects: 0 };
+        combat.state.enemies[0].intent = crate::combat_types::Intent::StrongDebuff { effects: 0 };
         combat.state.enemies[0].add_effect(mfx::WEAK, 5);
         combat.state.enemies[0].add_effect(mfx::VULNERABLE, 5);
         combat.state.enemies[0].add_effect(mfx::FRAIL, 5);
@@ -397,14 +433,17 @@ mod boss_java_parity_tests {
         assert_eq!(combat.state.player.status(sid::WEAKENED), 0);
         assert_eq!(combat.state.player.status(sid::VULNERABLE), 5);
         assert_eq!(combat.state.player.status(sid::FRAIL), 5);
-        assert_eq!(combat.state.enemies[0].entity.status(sid::USED_MEGA_DEBUFF), 1);
+        assert_eq!(
+            combat.state.enemies[0].entity.status(sid::USED_MEGA_DEBUFF),
+            1
+        );
 
         // Collector.die queues SuicideAction for every surviving minion.
         let mut death = RunEngine::new(63, 0);
         death.debug_enter_specific_combat(&["TheCollector"]);
         let combat = death.debug_combat_engine_mut();
         do_enemy_turns(combat);
-        assert!(combat.instant_kill_enemy(0));
+        assert!(combat.instant_kill_enemy(2));
         assert!(combat.state.enemies.iter().all(|enemy| !enemy.is_alive()));
     }
 
@@ -426,8 +465,7 @@ mod boss_java_parity_tests {
         // Source: reference/extracted/methods/monster/Champ.java (`getMove`).
         let mut enemy = create_enemy("Champ", 420, 420);
 
-        roll_initial_move_with_num_and_rng(
-            &mut enemy, 99, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut enemy, 99, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::CHAMP_HEAVY_SLASH);
 
         roll_next_move_with_num(&mut enemy, 99);
@@ -495,7 +533,12 @@ mod boss_java_parity_tests {
             run.debug_enter_specific_combat(&["AwakenedOne"]);
             let combat = run.get_combat_engine().expect("Awakened One combat");
             assert_eq!(
-                combat.state.enemies.iter().map(|enemy| enemy.id.as_str()).collect::<Vec<_>>(),
+                combat
+                    .state
+                    .enemies
+                    .iter()
+                    .map(|enemy| enemy.id.as_str())
+                    .collect::<Vec<_>>(),
                 ["Cultist", "Cultist", "AwakenedOne"],
                 "A{ascension} must preserve MonsterHelper's construction order"
             );
@@ -503,9 +546,21 @@ mod boss_java_parity_tests {
             assert_eq!(enemy.entity.hp, hp, "A{ascension}");
             assert_eq!(enemy.entity.max_hp, hp, "A{ascension}");
             assert_eq!(enemy.entity.status(sid::STRENGTH), strength, "A{ascension}");
-            assert_eq!(enemy.entity.status(sid::CURIOSITY), curiosity, "A{ascension}");
-            assert_eq!(enemy.entity.status(sid::REGENERATION), regen, "A{ascension}");
-            assert_eq!(combat.rng_counters()["ai"], 3, "three opening rolls at A{ascension}");
+            assert_eq!(
+                enemy.entity.status(sid::CURIOSITY),
+                curiosity,
+                "A{ascension}"
+            );
+            assert_eq!(
+                enemy.entity.status(sid::REGENERATION),
+                regen,
+                "A{ascension}"
+            );
+            assert_eq!(
+                combat.rng_counters()["ai"],
+                3,
+                "three opening rolls at A{ascension}"
+            );
             assert_eq!(enemy.move_id, move_ids::AO_SLASH);
         }
     }
@@ -513,18 +568,40 @@ mod boss_java_parity_tests {
     #[test]
     fn awakened_one_phase_two_rebirth_matches_java() {
         let mut engine = boss_engine("AwakenedOne", 300, 300);
-        engine.state.enemies[0].entity.set_status(sid::VULNERABLE, 2);
+        engine.state.enemies[0]
+            .entity
+            .set_status(sid::VULNERABLE, 2);
         engine.state.enemies[0].entity.set_status(sid::STRENGTH, -3);
-        engine.state.enemies[0].entity.set_status(sid::TEMP_STRENGTH_LOSS, 3);
+        engine.state.enemies[0]
+            .entity
+            .set_status(sid::TEMP_STRENGTH_LOSS, 3);
         engine.deal_damage_to_enemy(0, 300);
 
-        assert_eq!(engine.state.enemies[0].entity.status(sid::REBIRTH_PENDING), 1);
+        assert_eq!(
+            engine.state.enemies[0].entity.status(sid::REBIRTH_PENDING),
+            1
+        );
         assert_eq!(engine.state.enemies[0].entity.hp, 0);
         assert_eq!(engine.state.enemies[0].move_id, move_ids::AO_REBIRTH);
+        assert_eq!(
+            engine.state.enemies[0].move_history,
+            vec![move_ids::AO_SLASH, move_ids::AO_REBIRTH],
+            "Java damage() appends the interrupted Slash, immediate Rebirth, and queued Rebirth (projected as current move_id)"
+        );
+        assert_eq!(
+            engine.state.enemies[0].intent,
+            crate::combat_types::Intent::Unknown,
+            "AwakenedOne.damage installs Java's UNKNOWN rebirth intent"
+        );
         assert_eq!(engine.state.enemies[0].entity.status(sid::CURIOSITY), 0);
         assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 0);
         assert_eq!(engine.state.enemies[0].entity.status(sid::STRENGTH), 0);
-        assert_eq!(engine.state.enemies[0].entity.status(sid::TEMP_STRENGTH_LOSS), 0);
+        assert_eq!(
+            engine.state.enemies[0]
+                .entity
+                .status(sid::TEMP_STRENGTH_LOSS),
+            0
+        );
         let ai_before = engine.rng_counters()["ai"];
 
         do_enemy_turns(&mut engine);
@@ -533,8 +610,31 @@ mod boss_java_parity_tests {
         assert_eq!(engine.state.enemies[0].entity.hp, 300);
         assert_eq!(engine.state.enemies[0].move_id, move_ids::AO_DARK_ECHO);
         assert_eq!(engine.state.enemies[0].move_damage(), 40);
-        assert!(engine.state.enemies[0].move_history.is_empty());
+        assert_eq!(
+            engine.state.enemies[0].move_history,
+            vec![
+                move_ids::AO_SLASH,
+                move_ids::AO_REBIRTH,
+                move_ids::AO_REBIRTH,
+            ],
+            "Java preserves phase-one history and appends Dark Echo as the current move"
+        );
         assert_eq!(engine.rng_counters()["ai"], ai_before + 1);
+
+        engine.deal_damage_to_enemy(0, 300);
+        assert_eq!(engine.state.enemies[0].entity.hp, 0);
+        assert_eq!(engine.state.enemies[0].move_id, move_ids::AO_REBIRTH);
+        assert_eq!(
+            engine.state.enemies[0].move_history,
+            vec![
+                move_ids::AO_SLASH,
+                move_ids::AO_REBIRTH,
+                move_ids::AO_REBIRTH,
+                move_ids::AO_DARK_ECHO,
+                move_ids::AO_REBIRTH,
+            ],
+            "AwakenedOne.damage continues after final-form die() and appends Rebirth twice (the second is projected as current move_id)"
+        );
     }
 
     #[test]
@@ -558,11 +658,15 @@ mod boss_java_parity_tests {
         assert_eq!(engine.state.enemies[0].entity.hp, 260);
         assert_eq!(engine.card_random_rng.counter, oracle.counter);
         assert_eq!(
-            engine.card_registry.card_name(engine.state.draw_pile[expected_idx].def_id),
+            engine
+                .card_registry
+                .card_name(engine.state.draw_pile[expected_idx].def_id),
             "Void"
         );
         assert_eq!(
-            engine.card_registry.card_name(engine.state.draw_pile.last().unwrap().def_id),
+            engine
+                .card_registry
+                .card_name(engine.state.draw_pile.last().unwrap().def_id),
             "Bash"
         );
     }
@@ -630,7 +734,12 @@ mod boss_java_parity_tests {
         let combat = run.get_combat_engine().expect("Donu and Deca combat");
 
         assert_eq!(
-            combat.state.enemies.iter().map(|enemy| enemy.id.as_str()).collect::<Vec<_>>(),
+            combat
+                .state
+                .enemies
+                .iter()
+                .map(|enemy| enemy.id.as_str())
+                .collect::<Vec<_>>(),
             ["Deca", "Donu"]
         );
         assert_eq!(combat.state.enemies[0].move_id, move_ids::DECA_BEAM);
@@ -675,21 +784,24 @@ mod boss_java_parity_tests {
             assert_eq!(enemy.entity.status(sid::REVERB_DMG), reverb);
             assert_eq!(enemy.entity.status(sid::HEAD_SLAM_DMG), head);
             assert_eq!(enemy.entity.status(sid::HIGH_ASCENSION_AI), high_ai);
-            assert!(matches!(enemy.move_id,
-                move_ids::TE_REVERBERATE | move_ids::TE_HEAD_SLAM | move_ids::TE_RIPPLE));
+            assert!(matches!(
+                enemy.move_id,
+                move_ids::TE_REVERBERATE | move_ids::TE_HEAD_SLAM | move_ids::TE_RIPPLE
+            ));
             assert_eq!(combat.ai_rng.counter, 1);
         }
 
         let mut enemy = create_enemy("TimeEater", 456, 456);
         enemy.entity.hp = 228;
-        roll_initial_move_with_num_and_rng(
-            &mut enemy, 0, &mut crate::seed::StsRandom::new(0));
-        assert_eq!(enemy.move_id, move_ids::TE_REVERBERATE,
-            "exactly half HP does not trigger Haste");
+        roll_initial_move_with_num_and_rng(&mut enemy, 0, &mut crate::seed::StsRandom::new(0));
+        assert_eq!(
+            enemy.move_id,
+            move_ids::TE_REVERBERATE,
+            "exactly half HP does not trigger Haste"
+        );
         enemy.entity.hp = 227;
         enemy.entity.set_status(sid::USED_HASTE, 0);
-        roll_initial_move_with_num_and_rng(
-            &mut enemy, 99, &mut crate::seed::StsRandom::new(0));
+        roll_initial_move_with_num_and_rng(&mut enemy, 99, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::TE_HASTE);
         assert_eq!(enemy.effect(mfx::REMOVE_DEBUFFS), Some(1));
         assert_eq!(enemy.effect(mfx::HEAL_TO_HALF), Some(1));
@@ -706,7 +818,10 @@ mod boss_java_parity_tests {
         enemy.move_history = vec![move_ids::TE_REVERBERATE];
         let mut rng = crate::seed::StsRandom::new(0);
         roll_next_move_with_num_and_rng(&mut enemy, 0, &mut rng);
-        assert!(matches!(enemy.move_id, move_ids::TE_HEAD_SLAM | move_ids::TE_RIPPLE));
+        assert!(matches!(
+            enemy.move_id,
+            move_ids::TE_HEAD_SLAM | move_ids::TE_RIPPLE
+        ));
         assert_eq!(rng.counter, 1);
 
         // Repeated Head Slam consumes randomBoolean(0.66), selecting either
@@ -715,20 +830,28 @@ mod boss_java_parity_tests {
         enemy.move_history.clear();
         let mut rng = crate::seed::StsRandom::new(1);
         roll_next_move_with_num_and_rng(&mut enemy, 45, &mut rng);
-        assert!(matches!(enemy.move_id, move_ids::TE_REVERBERATE | move_ids::TE_RIPPLE));
+        assert!(matches!(
+            enemy.move_id,
+            move_ids::TE_REVERBERATE | move_ids::TE_RIPPLE
+        ));
         assert_eq!(rng.counter, 1);
         enemy.move_id = move_ids::TE_RIPPLE;
         enemy.move_history.clear();
         let mut rng = crate::seed::StsRandom::new(2);
         roll_next_move_with_num_and_rng(&mut enemy, 80, &mut rng);
-        assert!(matches!(enemy.move_id, move_ids::TE_REVERBERATE | move_ids::TE_HEAD_SLAM));
+        assert!(matches!(
+            enemy.move_id,
+            move_ids::TE_REVERBERATE | move_ids::TE_HEAD_SLAM
+        ));
         assert_eq!(rng.counter, 1);
 
         let mut high = RunEngine::new(71, 19);
         high.debug_enter_specific_combat(&["TimeEater"]);
         let combat = high.debug_combat_engine_mut();
         combat.state.enemies[0].entity.hp = 200;
-        combat.state.enemies[0].entity.set_status(sid::VULNERABLE, 2);
+        combat.state.enemies[0]
+            .entity
+            .set_status(sid::VULNERABLE, 2);
         combat.state.enemies[0].entity.set_status(sid::POISON, 5);
         combat.state.enemies[0].set_move(move_ids::TE_HASTE, 0, 0, 0);
         combat.state.enemies[0].add_effect(mfx::REMOVE_DEBUFFS, 1);
@@ -746,7 +869,15 @@ mod boss_java_parity_tests {
         ripple.debug_enter_specific_combat(&["TimeEater"]);
         let combat = ripple.debug_combat_engine_mut();
         combat.state.player.set_status(sid::ARTIFACT, 1);
-        combat.state.enemies[0].set_move(move_ids::TE_RIPPLE, 0, 0, 20);
+        combat.state.enemies[0].set_move_with_intent(
+            move_ids::TE_RIPPLE,
+            crate::combat_types::Intent::DefendDebuff {
+                block: 20,
+                effects: crate::combat_types::fx::VULNERABLE
+                    | crate::combat_types::fx::WEAK
+                    | crate::combat_types::fx::FRAIL,
+            },
+        );
         combat.state.enemies[0].add_effect(mfx::VULNERABLE, 1);
         combat.state.enemies[0].add_effect(mfx::WEAK, 1);
         combat.state.enemies[0].add_effect(mfx::FRAIL, 1);
@@ -761,29 +892,46 @@ mod boss_java_parity_tests {
         combat.state.player.set_status(sid::ARTIFACT, 1);
         combat.state.enemies[0].set_move(move_ids::TE_HEAD_SLAM, 32, 1, 0);
         combat.state.enemies[0].intent = crate::combat_types::Intent::AttackDebuff {
-            damage: 32, hits: 1, effects: 0,
+            damage: 32,
+            hits: 1,
+            effects: 0,
         };
         combat.state.enemies[0].add_effect(mfx::DRAW_REDUCTION, 1);
         combat.state.enemies[0].add_effect(mfx::SLIMED, 2);
         do_enemy_turns(combat);
         assert_eq!(combat.state.player.status(sid::ARTIFACT), 0);
         assert_eq!(combat.state.player.status(sid::DRAW_REDUCTION), 0);
-        assert_eq!(combat.state.discard_pile.iter().filter(|card|
-            combat.card_registry.card_name(card.def_id) == "Slimed").count(), 2);
+        assert_eq!(
+            combat
+                .state
+                .discard_pile
+                .iter()
+                .filter(|card| combat.card_registry.card_name(card.def_id) == "Slimed")
+                .count(),
+            2
+        );
 
         let mut lifetime = RunEngine::new(74, 0);
         lifetime.debug_enter_specific_combat(&["TimeEater"]);
         let combat = lifetime.debug_combat_engine_mut();
         combat.state.enemies[0].set_move(move_ids::TE_HEAD_SLAM, 26, 1, 0);
         combat.state.enemies[0].intent = crate::combat_types::Intent::AttackDebuff {
-            damage: 26, hits: 1, effects: 0,
+            damage: 26,
+            hits: 1,
+            effects: 0,
         };
         combat.state.enemies[0].add_effect(mfx::DRAW_REDUCTION, 1);
         do_enemy_turns(combat);
         assert_eq!(combat.state.player.status(sid::DRAW_REDUCTION), 1);
-        assert_eq!(combat.state.player.status(sid::DRAW_REDUCTION_JUST_APPLIED), 1);
+        assert_eq!(
+            combat.state.player.status(sid::DRAW_REDUCTION_JUST_APPLIED),
+            1
+        );
         crate::powers::decrement_debuffs(&mut combat.state.player);
-        assert_eq!(combat.state.player.status(sid::DRAW_REDUCTION_JUST_APPLIED), 0);
+        assert_eq!(
+            combat.state.player.status(sid::DRAW_REDUCTION_JUST_APPLIED),
+            0
+        );
         assert_eq!(combat.state.player.status(sid::DRAW_REDUCTION), 1);
         combat.state.enemies[0].set_move(move_ids::TE_REVERBERATE, 7, 3, 0);
         do_enemy_turns(combat);
@@ -839,6 +987,130 @@ mod boss_java_parity_tests {
     }
 
     #[test]
+    fn corrupt_heart_debilitate_preserves_java_artifact_order() {
+        // CorruptHeart.takeTurn queues Vulnerable, then Weak, then Frail.
+        // ApplyPowerAction consumes one Artifact on the first of those, so
+        // Vulnerable alone is blocked when the player begins with one stack.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/ending/CorruptHeart.java
+        let mut combat = boss_engine("CorruptHeart", 750, 750);
+        combat.state.player.set_status(sid::ARTIFACT, 1);
+
+        do_enemy_turns(&mut combat);
+
+        assert_eq!(combat.state.player.status(sid::ARTIFACT), 0);
+        assert_eq!(combat.state.player.status(sid::VULNERABLE), 0);
+        assert_eq!(combat.state.player.status(sid::WEAKENED), 2);
+        assert_eq!(combat.state.player.status(sid::FRAIL), 2);
+    }
+
+    #[test]
+    fn corrupt_heart_buff_atomically_offsets_negative_strength() {
+        // Java computes -current Strength + 2 and applies it once. It does not
+        // remove and reinstall the existing StrengthPower, so its application
+        // order relative to other equal-priority powers remains unchanged.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/ending/CorruptHeart.java
+        let mut combat = boss_engine("CorruptHeart", 750, 750);
+        combat.state.enemies[0].set_move(move_ids::HEART_BUFF, 0, 0, 0);
+        combat.state.enemies[0].entity.set_status(sid::STRENGTH, -5);
+        combat.state.enemies[0]
+            .entity
+            .set_status(sid::PAINFUL_STABS, 1);
+        let strength_before = combat.state.enemies[0]
+            .entity
+            .power_order
+            .iter()
+            .position(|entry| *entry == crate::state::PowerOrderEntry::Status(sid::STRENGTH))
+            .expect("negative Strength should be visible");
+        let painful_before = combat.state.enemies[0]
+            .entity
+            .power_order
+            .iter()
+            .position(|entry| *entry == crate::state::PowerOrderEntry::Status(sid::PAINFUL_STABS))
+            .expect("Painful Stabs should be visible");
+        assert!(strength_before < painful_before);
+
+        do_enemy_turns(&mut combat);
+
+        assert_eq!(combat.state.enemies[0].entity.strength(), 2);
+        let strength_after = combat.state.enemies[0]
+            .entity
+            .power_order
+            .iter()
+            .position(|entry| *entry == crate::state::PowerOrderEntry::Status(sid::STRENGTH))
+            .expect("positive Strength should remain visible");
+        let painful_after = combat.state.enemies[0]
+            .entity
+            .power_order
+            .iter()
+            .position(|entry| *entry == crate::state::PowerOrderEntry::Status(sid::PAINFUL_STABS))
+            .expect("Painful Stabs should remain visible");
+        assert!(strength_after < painful_after);
+
+        // Both the base +2 application and the later escalation use
+        // StrengthPower.stackPower, whose Java implementation caps at 999.
+        let mut capped = boss_engine("CorruptHeart", 750, 750);
+        capped.state.enemies[0].set_move(move_ids::HEART_BUFF, 0, 0, 0);
+        capped.state.enemies[0]
+            .entity
+            .set_status(sid::STRENGTH, 998);
+        capped.state.enemies[0]
+            .entity
+            .set_status(sid::BUFF_COUNT, 3);
+        do_enemy_turns(&mut capped);
+        assert_eq!(capped.state.enemies[0].entity.strength(), 999);
+    }
+
+    #[test]
+    fn corrupt_heart_painful_stabs_wounds_queue_behind_blood_shots() {
+        // PainfulStabsPower queues each Wound at the bottom, while Runic Cube
+        // queues its draw at the top. During Blood Shots, every Cube draw must
+        // therefore resolve before any generated Wound enters the discard.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/PainfulStabsPower.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/RunicCube.java
+        let mut combat = boss_engine("CorruptHeart", 750, 750);
+        combat.state.relics = vec!["Runic Cube".to_string()];
+        combat.rebuild_effect_runtime();
+        combat.state.hand.clear();
+        combat.state.draw_pile.clear();
+        combat.state.discard_pile.clear();
+        combat.state.enemies[0].set_move(move_ids::HEART_BLOOD_SHOTS, 2, 12, 0);
+        combat.state.enemies[0]
+            .entity
+            .set_status(sid::PAINFUL_STABS, 1);
+
+        do_enemy_turns(&mut combat);
+
+        assert!(combat.state.hand.is_empty());
+        assert_eq!(
+            combat
+                .state
+                .discard_pile
+                .iter()
+                .filter(|card| combat.card_registry.card_name(card.def_id) == "Wound")
+                .count(),
+            12
+        );
+    }
+
+    #[test]
+    fn corrupt_heart_blood_shots_stop_after_lethal_retaliation() {
+        // Blood Shots queues separate NORMAL DamageActions. After the first
+        // hit queues and resolves player Thorns, later DamageActions cancel
+        // because their Heart owner is dying.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/DamageAction.java
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/ThornsPower.java
+        let mut combat = boss_engine("CorruptHeart", 1, 1);
+        combat.state.enemies[0].set_move(move_ids::HEART_BLOOD_SHOTS, 2, 12, 0);
+        combat.state.player.set_status(sid::THORNS, 1);
+        let hp_before = combat.state.player.hp;
+
+        do_enemy_turns(&mut combat);
+
+        assert_eq!(combat.state.enemies[0].entity.hp, 0);
+        assert_eq!(combat.state.player.hp, hp_before - 2);
+    }
+
+    #[test]
     fn corrupt_heart_constructor_defaults_do_not_infer_ascension_from_hp() {
         // Source: reference/extracted/methods/monster/CorruptHeart.java.
         // create_enemy has no ascension input; the run spawn site applies the
@@ -867,7 +1139,10 @@ mod boss_java_parity_tests {
 
         roll_next_move(&mut enemy, &mut rng);
         assert_eq!(enemy.move_id, move_ids::HEART_BUFF);
-        assert_eq!(enemy.entity.status(sid::BUFF_COUNT), 0,
-            "CorruptHeart.takeTurn, not getMove, increments buffCount");
+        assert_eq!(
+            enemy.entity.status(sid::BUFF_COUNT),
+            0,
+            "CorruptHeart.takeTurn, not getMove, increments buffCount"
+        );
     }
 }

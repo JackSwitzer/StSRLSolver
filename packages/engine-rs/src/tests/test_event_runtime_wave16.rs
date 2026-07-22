@@ -21,5 +21,8 @@ fn dead_adventurer_is_supported_and_keeps_the_search_chain_skeleton() {
         dead_adventurer.options[0].program.ops.as_slice(),
         [EventProgramOp::Nothing]
     ));
-    assert_eq!(dead_adventurer.options[0].text, "Initialize Dead Adventurer");
+    assert_eq!(
+        dead_adventurer.options[0].text,
+        "Initialize Dead Adventurer"
+    );
 }

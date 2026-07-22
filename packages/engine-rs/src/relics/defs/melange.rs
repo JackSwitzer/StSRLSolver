@@ -7,9 +7,7 @@ use crate::effects::declarative::{AmountSource, Effect, SimpleEffect};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 
-static EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::Scry(
-    AmountSource::Fixed(3),
-))];
+static EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::Scry(AmountSource::Fixed(3)))];
 
 static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::OnShuffle,

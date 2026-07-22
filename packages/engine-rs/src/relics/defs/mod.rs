@@ -9,129 +9,129 @@ use crate::effects::entity_def::EntityDef;
 // ===========================================================================
 // Combat-start stat buffs (pure declarative)
 // ===========================================================================
-pub mod vajra;
-pub mod oddly_smooth_stone;
-pub mod data_disk;
 pub mod akabeko;
 pub mod anchor;
 pub mod bag_of_marbles;
-pub mod red_mask;
-pub mod thread_and_needle;
+pub mod blood_vial;
+pub mod bloody_idol;
 pub mod bronze_scales;
 pub mod busted_crown;
 pub mod calipers;
 pub mod calling_bell;
+pub mod chemical_x;
+pub mod clockwork_souvenir;
 pub mod coffee_dripper;
 pub mod cursed_key;
 pub mod darkstone_periapt;
+pub mod data_disk;
 pub mod dream_catcher;
 pub mod ectoplasm;
 pub mod eternal_feather;
-pub mod fusion_hammer;
-pub mod frozen_egg_2;
-pub mod molten_egg_2;
-pub mod toxic_egg_2;
-pub mod ice_cream;
-pub mod clockwork_souvenir;
 pub mod fossilized_helix;
-pub mod blood_vial;
-pub mod bloody_idol;
-pub mod twisted_funnel;
-pub mod mutagenic_strength;
-pub mod gremlin_mask;
-pub mod philosophers_stone;
-pub mod chemical_x;
+pub mod frozen_egg_2;
 pub mod frozen_eye;
+pub mod fusion_hammer;
+pub mod gremlin_mask;
+pub mod ice_cream;
+pub mod molten_egg_2;
+pub mod mutagenic_strength;
+pub mod oddly_smooth_stone;
+pub mod philosophers_stone;
+pub mod red_mask;
+pub mod thread_and_needle;
+pub mod toxic_egg_2;
+pub mod twisted_funnel;
+pub mod vajra;
 
 // ===========================================================================
 // Counter-based relics (OnAttackPlayed/OnSkillPlayed/OnAnyCardPlayed/etc.)
 // ===========================================================================
-pub mod ornamental_fan;
-pub mod kunai;
-pub mod shuriken;
-pub mod nunchaku;
-pub mod letter_opener;
-pub mod ink_bottle;
 pub mod happy_flower;
 pub mod incense_burner;
+pub mod ink_bottle;
+pub mod kunai;
+pub mod letter_opener;
+pub mod nunchaku;
+pub mod ornamental_fan;
+pub mod shuriken;
 pub mod sundial;
 
 // ===========================================================================
 // Turn-based relics
 // ===========================================================================
-pub mod mercury_hourglass;
-pub mod orichalcum;
-pub mod lantern;
 pub mod brimstone;
 pub mod cloak_clasp;
 pub mod damaru;
+pub mod lantern;
+pub mod mercury_hourglass;
+pub mod orichalcum;
 
 // ===========================================================================
 // Event-triggered relics (card play, exhaust, discard, death, victory, etc.)
 // ===========================================================================
 pub mod bird_faced_urn;
+pub mod black_blood;
 pub mod black_star;
+pub mod burning_blood;
 pub mod charons_ashes;
 pub mod dead_branch;
-pub mod tough_bandages;
-pub mod tingsha;
 pub mod gremlin_horn;
-pub mod burning_blood;
-pub mod black_blood;
-pub mod toy_ornithopter;
+pub mod melange;
 pub mod self_forming_clay;
 pub mod the_abacus;
-pub mod melange;
+pub mod tingsha;
+pub mod tough_bandages;
+pub mod toy_ornithopter;
 
 // ===========================================================================
 // Combat-start: stat buffs requiring complex_hook
 // ===========================================================================
 pub mod du_vu_doll;
 pub mod girya;
-pub mod sling;
 pub mod preserved_insect;
 pub mod slavers_collar;
+pub mod sling;
 
 // ===========================================================================
 // Combat-start: flag setting
 // ===========================================================================
 pub mod ginger;
-pub mod turnip;
-pub mod mark_of_bloom;
 pub mod magic_flower;
+pub mod mark_of_bloom;
 pub mod snecko_eye;
+pub mod turnip;
 
 // ===========================================================================
 // Combat-start: counter initialization
 // ===========================================================================
-pub mod velvet_choker_init;
-pub mod pocketwatch;
 pub mod art_of_war;
-pub mod orange_pellets;
-pub mod horn_cleat;
 pub mod captains_wheel;
+pub mod horn_cleat;
+pub mod orange_pellets;
+pub mod pocketwatch;
 pub mod stone_calendar;
+pub mod velvet_choker_init;
 
 // ===========================================================================
 // Combat-start: orb channeling (complex_hook)
 // ===========================================================================
-pub mod symbiotic_virus;
 pub mod cracked_core;
 pub mod nuclear_battery;
+pub mod symbiotic_virus;
 
 // ===========================================================================
 // Combat-start: card generation (declarative)
 // ===========================================================================
-pub mod pure_water;
-pub mod ninja_scroll;
 pub mod holy_water;
 pub mod mark_of_pain;
+pub mod ninja_scroll;
+pub mod pure_water;
 
 // ===========================================================================
 // Combat-start: other
 // ===========================================================================
-pub mod pantograph;
 pub mod neows_lament;
+pub mod pantograph;
 
 // ===========================================================================
 // Complex relics (use complex_hook or stub-only)
@@ -142,8 +142,8 @@ pub mod pen_nib;
 // Turn-start relics (draw, orb slots, counter resets)
 // ===========================================================================
 pub mod bag_of_prep;
-pub mod ring_of_snake;
 pub mod inserter;
+pub mod ring_of_snake;
 
 // ===========================================================================
 // Turn-end relics
@@ -155,16 +155,16 @@ pub mod frozen_core;
 // On-card-play relics
 // ===========================================================================
 pub mod mummified_hand;
-pub mod yang_duality;
 pub mod velvet_choker;
+pub mod yang_duality;
 // pocketwatch OnAnyCardPlayed trigger added to existing pocketwatch.rs
 
 // ===========================================================================
 // On-HP-loss relics
 // ===========================================================================
 pub mod centennial_puzzle;
-pub mod runic_cube;
 pub mod emotion_chip;
+pub mod runic_cube;
 
 // ===========================================================================
 // On-enemy-death relics
@@ -174,8 +174,8 @@ pub mod the_specimen;
 // ===========================================================================
 // On-victory relics
 // ===========================================================================
-pub mod meat_on_the_bone;
 pub mod face_of_cleric;
+pub mod meat_on_the_bone;
 
 // ===========================================================================
 // Stance-change relics
@@ -189,62 +189,62 @@ pub mod boot;
 pub mod bottled_flame;
 pub mod bottled_lightning;
 pub mod bottled_tornado;
-pub mod torii;
-pub mod tungsten_rod;
 pub mod champion_belt;
 pub mod hand_drill;
+pub mod torii;
+pub mod tungsten_rod;
 
 // ===========================================================================
 // Passive bonuses (called inline, not via dispatch_trigger)
 // ===========================================================================
+pub mod snecko_skull;
 pub mod strike_dummy;
 pub mod wrist_blade;
-pub mod snecko_skull;
 
 // ===========================================================================
 // Remaining combat relics
 // ===========================================================================
-pub mod runic_capacitor;
-pub mod ring_of_serpent;
-pub mod violet_lotus;
-pub mod red_skull;
+pub mod ancient_tea_set;
+pub mod astrolabe;
+pub mod blue_candle;
+pub mod cauldron;
+pub mod dollys_mirror;
+pub mod empty_cage;
 pub mod enchiridion;
-pub mod nilrys_codex;
-pub mod toolbox;
-pub mod prismatic_shard;
-pub mod warped_tongs;
 pub mod gambling_chip;
 pub mod hovering_kite;
+pub mod juzu_bracelet;
 pub mod lizard_tail;
 pub mod mango;
 pub mod matryoshka;
 pub mod maw_bank;
 pub mod meal_ticket;
-pub mod juzu_bracelet;
-pub mod waffle;
-pub mod membership_card;
-pub mod cauldron;
-pub mod dollys_mirror;
-pub mod orrery;
-pub mod ancient_tea_set;
-pub mod astrolabe;
 pub mod medical_kit;
-pub mod blue_candle;
-pub mod strange_spoon;
+pub mod membership_card;
+pub mod nilrys_codex;
 pub mod old_coin;
-pub mod smiling_mask;
-pub mod peace_pipe;
-pub mod pandoras_box;
-pub mod shovel;
-pub mod unceasing_top;
-pub mod tiny_chest;
 pub mod omamori;
+pub mod orrery;
+pub mod pandoras_box;
+pub mod peace_pipe;
+pub mod prismatic_shard;
+pub mod red_skull;
+pub mod ring_of_serpent;
+pub mod runic_capacitor;
 pub mod runic_dome;
 pub mod runic_pyramid;
 pub mod sacred_bark;
+pub mod shovel;
+pub mod smiling_mask;
 pub mod sozu;
+pub mod strange_spoon;
+pub mod tiny_chest;
 pub mod tiny_house;
-pub mod empty_cage;
+pub mod toolbox;
+pub mod unceasing_top;
+pub mod violet_lotus;
+pub mod waffle;
+pub mod warped_tongs;
 pub mod white_beast;
 
 // ===========================================================================
@@ -447,13 +447,22 @@ mod tests {
 
     #[test]
     fn test_relic_defs_count() {
-        assert!(RELIC_DEFS.len() >= 95, "Expected at least 95 relic defs, got {}", RELIC_DEFS.len());
+        assert!(
+            RELIC_DEFS.len() >= 95,
+            "Expected at least 95 relic defs, got {}",
+            RELIC_DEFS.len()
+        );
     }
 
     #[test]
     fn test_all_defs_are_relics() {
         for def in RELIC_DEFS.iter() {
-            assert_eq!(def.kind, EntityKind::Relic, "Expected EntityKind::Relic for {}", def.id);
+            assert_eq!(
+                def.kind,
+                EntityKind::Relic,
+                "Expected EntityKind::Relic for {}",
+                def.id
+            );
         }
     }
 
@@ -473,10 +482,13 @@ mod tests {
     }
 
     #[test]
-    fn test_vajra_has_combat_start_trigger() {
+    fn test_vajra_has_combat_start_top_trigger() {
         let def = relic_def_by_id("Vajra").unwrap();
         assert_eq!(def.triggers.len(), 1);
-        assert_eq!(def.triggers[0].trigger, crate::effects::trigger::Trigger::CombatStart);
+        assert_eq!(
+            def.triggers[0].trigger,
+            crate::effects::trigger::Trigger::CombatStartTop
+        );
     }
 
     #[test]
@@ -490,36 +502,66 @@ mod tests {
         assert_eq!(counter_id, crate::status_ids::sid::ORNAMENTAL_FAN_COUNTER);
         assert_eq!(threshold, 3);
         // Second trigger resets counter at turn start
-        assert_eq!(def.triggers[1].trigger, crate::effects::trigger::Trigger::TurnStart);
+        assert_eq!(
+            def.triggers[1].trigger,
+            crate::effects::trigger::Trigger::TurnStart
+        );
     }
 
     #[test]
     fn test_orichalcum_has_no_block_condition() {
         let def = relic_def_by_id("Orichalcum").unwrap();
-        assert_eq!(def.triggers[0].condition, crate::effects::trigger::TriggerCondition::NoBlock);
+        assert_eq!(
+            def.triggers[0].condition,
+            crate::effects::trigger::TriggerCondition::NoBlock
+        );
     }
 
     #[test]
     fn test_lantern_has_first_turn_condition() {
         let def = relic_def_by_id("Lantern").unwrap();
-        assert_eq!(def.triggers[0].condition, crate::effects::trigger::TriggerCondition::FirstTurn);
+        assert_eq!(
+            def.triggers[0].condition,
+            crate::effects::trigger::TriggerCondition::FirstTurn
+        );
     }
 
     #[test]
     fn test_simple_defs_have_no_complex_hook() {
-        // Mercury Hourglass intentionally uses a hook because Java resolves
-        // its pulse as THORNS rather than generic NORMAL damage.
-        let simple_relics = ["Vajra", "Anchor", "Orichalcum", "Kunai"];
+        // Mercury Hourglass and Orichalcum intentionally use hooks: Java
+        // resolves the former as THORNS damage and queues the latter's block
+        // at the top of the end-turn action queue.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Orichalcum.java
+        let simple_relics = ["Vajra", "Anchor", "Kunai"];
         for name in simple_relics {
             let def = relic_def_by_id(name).unwrap();
-            assert!(def.complex_hook.is_none(), "{} should not have a complex_hook", name);
+            assert!(
+                def.complex_hook.is_none(),
+                "{} should not have a complex_hook",
+                name
+            );
         }
+
+        assert!(relic_def_by_id("Orichalcum")
+            .unwrap()
+            .complex_hook
+            .is_some());
     }
 
     #[test]
-    fn test_brimstone_has_two_effects() {
+    fn test_brimstone_uses_ordered_turn_start_hook() {
+        // Brimstone.atTurnStart adds one bottom action, then front-inserts the
+        // player and per-monster ApplyPowerActions; a hook is required to
+        // preserve that Java ordering rather than flattening two effects.
+        // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/Brimstone.java
         let def = relic_def_by_id("Brimstone").unwrap();
-        assert_eq!(def.triggers[0].effects.len(), 2);
+        assert_eq!(def.triggers.len(), 1);
+        assert_eq!(
+            def.triggers[0].trigger,
+            crate::effects::trigger::Trigger::TurnStart
+        );
+        assert!(def.triggers[0].effects.is_empty());
+        assert!(def.complex_hook.is_some());
     }
 
     #[test]

@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod interaction_tests {
-    use crate::tests::support::*;
-    use crate::status_ids::sid;
     use crate::state::Stance;
+    use crate::status_ids::sid;
+    use crate::tests::support::*;
 
     // =========================================================================
     // 1. Strength + Multi-Hit: Pummel
@@ -14,8 +14,10 @@ mod interaction_tests {
         engine.state.player.set_status(sid::STRENGTH, 3);
         ensure_in_hand(&mut engine, "Pummel");
         play_on_enemy(&mut engine, "Pummel", 0);
-        assert_eq!(engine.state.enemies[0].entity.hp, 30,
-            "Pummel with 3 Str: 4 * (2+3) = 20 damage, 50-20 = 30");
+        assert_eq!(
+            engine.state.enemies[0].entity.hp, 30,
+            "Pummel with 3 Str: 4 * (2+3) = 20 damage, 50-20 = 30"
+        );
     }
 
     // =========================================================================
@@ -28,8 +30,10 @@ mod interaction_tests {
         engine.state.player.set_status(sid::STRENGTH, 3);
         ensure_in_hand(&mut engine, "Twin Strike");
         play_on_enemy(&mut engine, "Twin Strike", 0);
-        assert_eq!(engine.state.enemies[0].entity.hp, 34,
-            "Twin Strike with 3 Str: 2 * (5+3) = 16 damage, 50-16 = 34");
+        assert_eq!(
+            engine.state.enemies[0].entity.hp, 34,
+            "Twin Strike with 3 Str: 2 * (5+3) = 16 damage, 50-16 = 34"
+        );
     }
 
     // =========================================================================
@@ -40,11 +44,15 @@ mod interaction_tests {
     #[test]
     fn vulnerable_plus_multi_hit_twin_strike() {
         let mut engine = engine_with(make_deck_n("Twin Strike", 5), 50, 0);
-        engine.state.enemies[0].entity.set_status(sid::VULNERABLE, 2);
+        engine.state.enemies[0]
+            .entity
+            .set_status(sid::VULNERABLE, 2);
         ensure_in_hand(&mut engine, "Twin Strike");
         play_on_enemy(&mut engine, "Twin Strike", 0);
-        assert_eq!(engine.state.enemies[0].entity.hp, 36,
-            "Twin Strike + Vuln: 2 * floor(5*1.5) = 2*7 = 14 damage, 50-14 = 36");
+        assert_eq!(
+            engine.state.enemies[0].entity.hp, 36,
+            "Twin Strike + Vuln: 2 * floor(5*1.5) = 2*7 = 14 damage, 50-14 = 36"
+        );
     }
 
     // =========================================================================
@@ -55,11 +63,15 @@ mod interaction_tests {
     #[test]
     fn vulnerable_plus_multi_hit_pummel() {
         let mut engine = engine_with(make_deck_n("Pummel", 5), 50, 0);
-        engine.state.enemies[0].entity.set_status(sid::VULNERABLE, 2);
+        engine.state.enemies[0]
+            .entity
+            .set_status(sid::VULNERABLE, 2);
         ensure_in_hand(&mut engine, "Pummel");
         play_on_enemy(&mut engine, "Pummel", 0);
-        assert_eq!(engine.state.enemies[0].entity.hp, 38,
-            "Pummel + Vuln: 4 * floor(2*1.5) = 4*3 = 12 damage, 50-12 = 38");
+        assert_eq!(
+            engine.state.enemies[0].entity.hp, 38,
+            "Pummel + Vuln: 4 * floor(2*1.5) = 4*3 = 12 damage, 50-12 = 38"
+        );
     }
 
     // =========================================================================
@@ -71,11 +83,15 @@ mod interaction_tests {
     fn strength_vulnerable_multi_hit_twin_strike() {
         let mut engine = engine_with(make_deck_n("Twin Strike", 5), 50, 0);
         engine.state.player.set_status(sid::STRENGTH, 3);
-        engine.state.enemies[0].entity.set_status(sid::VULNERABLE, 2);
+        engine.state.enemies[0]
+            .entity
+            .set_status(sid::VULNERABLE, 2);
         ensure_in_hand(&mut engine, "Twin Strike");
         play_on_enemy(&mut engine, "Twin Strike", 0);
-        assert_eq!(engine.state.enemies[0].entity.hp, 26,
-            "Twin Strike + 3 Str + Vuln: 2 * floor((5+3)*1.5) = 2*12 = 24, 50-24 = 26");
+        assert_eq!(
+            engine.state.enemies[0].entity.hp, 26,
+            "Twin Strike + 3 Str + Vuln: 2 * floor((5+3)*1.5) = 2*12 = 24, 50-24 = 26"
+        );
     }
 
     // =========================================================================
@@ -87,11 +103,17 @@ mod interaction_tests {
         let mut engine = engine_with(make_deck_n("Strike", 5), 50, 0);
         engine.state.stance = Stance::Wrath;
         engine.state.relics.push("Pen Nib".to_string());
+        engine.rebuild_effect_runtime();
+        let owner = crate::effects::runtime::EffectOwner::PlayerRelic { slot: 0 };
+        assert!(engine.set_hidden_effect_value("Pen Nib", owner, 0, 9));
         engine.state.player.set_status(sid::PEN_NIB_COUNTER, 9);
+        engine.state.player.set_status(sid::PEN_NIB_POWER, 1);
         ensure_in_hand(&mut engine, "Strike");
         play_on_enemy(&mut engine, "Strike", 0);
-        assert_eq!(engine.state.enemies[0].entity.hp, 26,
-            "Strike in Wrath + Pen Nib: 6 * 2 * 2 = 24 damage, 50-24 = 26");
+        assert_eq!(
+            engine.state.enemies[0].entity.hp, 26,
+            "Strike in Wrath + Pen Nib: 6 * 2 * 2 = 24 damage, 50-24 = 26"
+        );
     }
 
     // =========================================================================
@@ -102,14 +124,25 @@ mod interaction_tests {
     #[test]
     fn corruption_skills_free_and_exhaust() {
         let mut engine = engine_with(
-            make_deck(&["Corruption", "Defend", "Defend", "Defend", "Defend", "Strike"]),
-            50, 0,
+            make_deck(&[
+                "Corruption",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Strike",
+            ]),
+            50,
+            0,
         );
         ensure_in_hand(&mut engine, "Corruption");
         // Corruption costs 3 energy
         play_self(&mut engine, "Corruption");
-        assert_eq!(engine.state.player.status(sid::CORRUPTION), 1,
-            "Corruption should set CORRUPTION status to 1");
+        assert_eq!(
+            engine.state.player.status(sid::CORRUPTION),
+            1,
+            "Corruption should set CORRUPTION status to 1"
+        );
         let energy_after_corruption = engine.state.energy; // 3 - 3 = 0
 
         // Add a Defend to hand and play it
@@ -117,16 +150,23 @@ mod interaction_tests {
         play_self(&mut engine, "Defend");
 
         // Defend should cost 0 (Corruption makes skills free)
-        assert_eq!(engine.state.energy, energy_after_corruption,
-            "Defend should cost 0 energy under Corruption");
+        assert_eq!(
+            engine.state.energy, energy_after_corruption,
+            "Defend should cost 0 energy under Corruption"
+        );
 
         // Player should have 5 block
-        assert_eq!(engine.state.player.block, 5,
-            "Defend should still give 5 block");
+        assert_eq!(
+            engine.state.player.block, 5,
+            "Defend should still give 5 block"
+        );
 
         // Defend should be in exhaust pile, not discard
-        assert_eq!(exhaust_prefix_count(&engine, "Defend"), 1,
-            "Defend should be exhausted under Corruption");
+        assert_eq!(
+            exhaust_prefix_count(&engine, "Defend"),
+            1,
+            "Defend should be exhausted under Corruption"
+        );
     }
 
     // =========================================================================
@@ -146,19 +186,18 @@ mod interaction_tests {
         end_turn(&mut engine);
 
         // Block should be retained (Barricade prevents block decay)
-        assert_eq!(engine.state.player.block, 10,
-            "Block should be retained with Barricade active");
+        assert_eq!(
+            engine.state.player.block, 10,
+            "Block should be retained with Barricade active"
+        );
     }
 
     #[test]
     fn barricade_card_installs_once_and_retains_block_across_turns() {
         // Source: Barricade.java applies BarricadePower only if no power with
         // ID "Barricade" exists; its upgrade changes only the cost from 3 to 2.
-        let mut engine = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 50, 50)],
-            10,
-        );
+        let mut engine =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 50, 50)], 10);
         force_player_turn(&mut engine);
         engine.state.hand = make_deck(&["Barricade", "Barricade+", "Defend"]);
 
@@ -186,32 +225,32 @@ mod interaction_tests {
         for (card_id, vulnerable_on_play, vulnerable_after_round) in
             [("Berserk", 2, 1), ("Berserk+", 1, 0)]
         {
-            let mut engine = engine_without_start(
-                Vec::new(),
-                vec![enemy_no_intent("JawWorm", 50, 50)],
-                3,
-            );
+            let mut engine =
+                engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 50, 50)], 3);
             force_player_turn(&mut engine);
             engine.state.hand = make_deck(&[card_id]);
 
             assert!(play_self(&mut engine, card_id));
-            assert_eq!(engine.state.player.status(sid::VULNERABLE), vulnerable_on_play);
+            assert_eq!(
+                engine.state.player.status(sid::VULNERABLE),
+                vulnerable_on_play
+            );
             assert_eq!(engine.state.player.status(sid::BERSERK), 1);
             assert_eq!(engine.state.energy, 3);
 
             end_turn(&mut engine);
 
-            assert_eq!(engine.state.player.status(sid::VULNERABLE), vulnerable_after_round);
+            assert_eq!(
+                engine.state.player.status(sid::VULNERABLE),
+                vulnerable_after_round
+            );
             assert_eq!(engine.state.player.status(sid::BERSERK), 1);
             assert_eq!(engine.state.energy, 4);
         }
 
         // VulnerablePower is a DEBUFF even when Berserk applies it to self.
-        let mut artifact = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 50, 50)],
-            3,
-        );
+        let mut artifact =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 50, 50)], 3);
         force_player_turn(&mut artifact);
         artifact.state.player.set_status(sid::ARTIFACT, 1);
         artifact.state.hand = make_deck(&["Berserk"]);
@@ -234,8 +273,10 @@ mod interaction_tests {
         end_turn(&mut engine);
 
         // Block should decay to 0 without Barricade
-        assert_eq!(engine.state.player.block, 0,
-            "Block should decay to 0 without Barricade");
+        assert_eq!(
+            engine.state.player.block, 0,
+            "Block should decay to 0 without Barricade"
+        );
     }
 
     // =========================================================================
@@ -249,11 +290,16 @@ mod interaction_tests {
         let hand_before = engine.state.hand.len();
         ensure_in_hand(&mut engine, "Strike");
         play_on_enemy(&mut engine, "Strike", 0);
-        assert_eq!(engine.state.enemies[0].entity.hp, 38,
-            "Echo Form + Strike: 6*2 = 12 damage, 50-12 = 38");
+        assert_eq!(
+            engine.state.enemies[0].entity.hp, 38,
+            "Echo Form + Strike: 6*2 = 12 damage, 50-12 = 38"
+        );
         // Only 1 card should be removed from hand
-        assert_eq!(engine.state.hand.len(), hand_before - 1,
-            "Echo Form should only consume 1 card from hand");
+        assert_eq!(
+            engine.state.hand.len(),
+            hand_before - 1,
+            "Echo Form should only consume 1 card from hand"
+        );
     }
 
     // =========================================================================
@@ -263,22 +309,38 @@ mod interaction_tests {
     #[test]
     fn double_tap_attack_replay() {
         let mut engine = engine_with(
-            make_deck(&["Double Tap", "Strike", "Strike", "Strike", "Strike", "Strike"]),
-            50, 0,
+            make_deck(&[
+                "Double Tap",
+                "Strike",
+                "Strike",
+                "Strike",
+                "Strike",
+                "Strike",
+            ]),
+            50,
+            0,
         );
         ensure_in_hand(&mut engine, "Double Tap");
         play_self(&mut engine, "Double Tap");
-        assert_eq!(engine.state.player.status(sid::DOUBLE_TAP), 1,
-            "Double Tap should set status to 1");
+        assert_eq!(
+            engine.state.player.status(sid::DOUBLE_TAP),
+            1,
+            "Double Tap should set status to 1"
+        );
 
         ensure_in_hand(&mut engine, "Strike");
         play_on_enemy(&mut engine, "Strike", 0);
-        assert_eq!(engine.state.enemies[0].entity.hp, 38,
-            "Double Tap + Strike: 6*2 = 12 damage, 50-12 = 38");
+        assert_eq!(
+            engine.state.enemies[0].entity.hp, 38,
+            "Double Tap + Strike: 6*2 = 12 damage, 50-12 = 38"
+        );
 
         // Double Tap status should be consumed
-        assert_eq!(engine.state.player.status(sid::DOUBLE_TAP), 0,
-            "Double Tap status should be consumed after use");
+        assert_eq!(
+            engine.state.player.status(sid::DOUBLE_TAP),
+            0,
+            "Double Tap status should be consumed after use"
+        );
     }
 
     // =========================================================================
@@ -301,8 +363,10 @@ mod interaction_tests {
         play_self(&mut engine, "True Grit");
 
         // True Grit gives 7 block + Feel No Pain triggers on exhaust = 3 more block
-        assert_eq!(engine.state.player.block, 10,
-            "True Grit (7) + Feel No Pain (3) = 10 total block");
+        assert_eq!(
+            engine.state.player.block, 10,
+            "True Grit (7) + Feel No Pain (3) = 10 total block"
+        );
     }
 
     // =========================================================================
@@ -329,8 +393,11 @@ mod interaction_tests {
         // Since there was no poison on the enemy before, poison tick during enemy turn does nothing.
         // At start of new player turn, Noxious Fumes applies 2 poison.
         // After full cycle: enemy has 2 poison, HP unchanged.
-        assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 2,
-            "Enemy should have 2 poison after first turn cycle with Noxious Fumes");
+        assert_eq!(
+            engine.state.enemies[0].entity.status(sid::POISON),
+            2,
+            "Enemy should have 2 poison after first turn cycle with Noxious Fumes"
+        );
         let hp_after_first = engine.state.enemies[0].entity.hp;
 
         // Give more block for second cycle
@@ -340,10 +407,16 @@ mod interaction_tests {
         // Second cycle:
         //   Enemy turn: poison ticks (2 dmg to enemy, poison decrements 2->1)
         //   New player turn: Noxious Fumes adds 2 more poison (1+2=3)
-        assert_eq!(engine.state.enemies[0].entity.hp, hp_after_first - 2,
-            "Enemy should take 2 poison damage during second turn");
-        assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 3,
-            "Enemy should have 3 poison (1 remaining + 2 from Noxious Fumes)");
+        assert_eq!(
+            engine.state.enemies[0].entity.hp,
+            hp_after_first - 2,
+            "Enemy should take 2 poison damage during second turn"
+        );
+        assert_eq!(
+            engine.state.enemies[0].entity.status(sid::POISON),
+            3,
+            "Enemy should have 3 poison (1 remaining + 2 from Noxious Fumes)"
+        );
     }
 
     // =========================================================================
@@ -365,12 +438,17 @@ mod interaction_tests {
 
         // Should have 3 Shivs in hand
         let shiv_count = hand_count(&engine, "Shiv");
-        assert!(shiv_count >= 1, "Should have at least 1 Shiv in hand after Blade Dance");
+        assert!(
+            shiv_count >= 1,
+            "Should have at least 1 Shiv in hand after Blade Dance"
+        );
 
         // Play a Shiv on enemy
         play_on_enemy(&mut engine, "Shiv", 0);
-        assert_eq!(engine.state.enemies[0].entity.hp, 42,
-            "Shiv + Accuracy: 4 + 4 = 8 damage, 50-8 = 42");
+        assert_eq!(
+            engine.state.enemies[0].entity.hp, 42,
+            "Shiv + Accuracy: 4 + 4 = 8 damage, 50-8 = 42"
+        );
     }
 
     // =========================================================================
@@ -381,16 +459,30 @@ mod interaction_tests {
     #[test]
     fn flurry_of_blows_return_on_stance_change() {
         let mut engine = engine_with(
-            make_deck(&["Eruption", "FlurryOfBlows", "Strike", "Strike", "Strike",
-                        "Defend", "Defend", "Defend", "Defend", "Defend"]),
-            50, 0,
+            make_deck(&[
+                "Eruption",
+                "FlurryOfBlows",
+                "Strike",
+                "Strike",
+                "Strike",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+                "Defend",
+            ]),
+            50,
+            0,
         );
         // Move FlurryOfBlows to discard pile manually
         let flurry_card = engine.card_registry.make_card("FlurryOfBlows");
         engine.state.discard_pile.push(flurry_card);
 
         let discard_flurry_before = discard_prefix_count(&engine, "FlurryOfBlows");
-        assert!(discard_flurry_before >= 1, "FlurryOfBlows should be in discard");
+        assert!(
+            discard_flurry_before >= 1,
+            "FlurryOfBlows should be in discard"
+        );
 
         // Play Eruption to enter Wrath (stance change)
         ensure_in_hand(&mut engine, "Eruption");
@@ -398,8 +490,10 @@ mod interaction_tests {
 
         // FlurryOfBlows should return from discard to hand
         let hand_flurry_after = hand_count(&engine, "FlurryOfBlows");
-        assert!(hand_flurry_after >= 1,
-            "FlurryOfBlows should return to hand from discard on stance change");
+        assert!(
+            hand_flurry_after >= 1,
+            "FlurryOfBlows should return to hand from discard on stance change"
+        );
     }
 
     // =========================================================================
@@ -408,20 +502,31 @@ mod interaction_tests {
     #[test]
     fn flurry_of_blows_two_return_on_stance_change() {
         let mut engine = engine_with(
-            make_deck(&["Eruption", "Strike", "Strike", "Strike", "Strike",
-                        "Defend", "Defend", "Defend", "Defend", "Defend"]),
-            50, 0,
+            make_deck(&[
+                "Eruption", "Strike", "Strike", "Strike", "Strike", "Defend", "Defend", "Defend",
+                "Defend", "Defend",
+            ]),
+            50,
+            0,
         );
         // Put 2 FlurryOfBlows in discard
-        engine.state.discard_pile.push(engine.card_registry.make_card("FlurryOfBlows"));
-        engine.state.discard_pile.push(engine.card_registry.make_card("FlurryOfBlows"));
+        engine
+            .state
+            .discard_pile
+            .push(engine.card_registry.make_card("FlurryOfBlows"));
+        engine
+            .state
+            .discard_pile
+            .push(engine.card_registry.make_card("FlurryOfBlows"));
 
         ensure_in_hand(&mut engine, "Eruption");
         play_on_enemy(&mut engine, "Eruption", 0);
 
         let hand_flurry = hand_count(&engine, "FlurryOfBlows");
-        assert_eq!(hand_flurry, 2,
-            "Both FlurryOfBlows should return to hand from discard");
+        assert_eq!(
+            hand_flurry, 2,
+            "Both FlurryOfBlows should return to hand from discard"
+        );
     }
 
     // =========================================================================
@@ -434,8 +539,10 @@ mod interaction_tests {
         engine.state.player.set_status(sid::STRENGTH, 4);
         ensure_in_hand(&mut engine, "Heavy Blade");
         play_on_enemy(&mut engine, "Heavy Blade", 0);
-        assert_eq!(engine.state.enemies[0].entity.hp, 24,
-            "Heavy Blade + 4 Str: 14 + (4*3) = 26 damage, 50-26 = 24");
+        assert_eq!(
+            engine.state.enemies[0].entity.hp, 24,
+            "Heavy Blade + 4 Str: 14 + (4*3) = 26 damage, 50-26 = 24"
+        );
     }
 
     // =========================================================================
@@ -449,8 +556,10 @@ mod interaction_tests {
         engine.state.energy = 5; // enough energy
         ensure_in_hand(&mut engine, "Heavy Blade+");
         play_on_enemy(&mut engine, "Heavy Blade+", 0);
-        assert_eq!(engine.state.enemies[0].entity.hp, 16,
-            "Heavy Blade+ + 4 Str: 14 + (4*5) = 34 damage, 50-34 = 16");
+        assert_eq!(
+            engine.state.enemies[0].entity.hp, 16,
+            "Heavy Blade+ + 4 Str: 14 + (4*5) = 34 damage, 50-34 = 16"
+        );
     }
 
     // =========================================================================
@@ -468,12 +577,18 @@ mod interaction_tests {
         play_on_enemy(&mut engine, "Whirlwind", 0);
 
         // X = 3 (all energy), energy drops to 0
-        assert_eq!(engine.state.energy, 0,
-            "Whirlwind should consume all energy");
-        assert_eq!(engine.state.enemies[0].entity.hp, 35,
-            "Whirlwind: each enemy takes 3 * 5 = 15 damage, 50-15 = 35");
-        assert_eq!(engine.state.enemies[1].entity.hp, 35,
-            "Whirlwind: second enemy also takes 15 damage");
+        assert_eq!(
+            engine.state.energy, 0,
+            "Whirlwind should consume all energy"
+        );
+        assert_eq!(
+            engine.state.enemies[0].entity.hp, 35,
+            "Whirlwind: each enemy takes 3 * 5 = 15 damage, 50-15 = 35"
+        );
+        assert_eq!(
+            engine.state.enemies[1].entity.hp, 35,
+            "Whirlwind: second enemy also takes 15 damage"
+        );
     }
 
     // =========================================================================
@@ -484,8 +599,16 @@ mod interaction_tests {
     #[test]
     fn corruption_attack_costs_normally() {
         let mut engine = engine_with(
-            make_deck(&["Corruption", "Strike", "Strike", "Strike", "Strike", "Strike"]),
-            50, 0,
+            make_deck(&[
+                "Corruption",
+                "Strike",
+                "Strike",
+                "Strike",
+                "Strike",
+                "Strike",
+            ]),
+            50,
+            0,
         );
         engine.state.energy = 5; // enough for Corruption (3) + Strike (1)
         ensure_in_hand(&mut engine, "Corruption");
@@ -496,14 +619,23 @@ mod interaction_tests {
         play_on_enemy(&mut engine, "Strike", 0);
 
         // Strike should cost 1 energy (Corruption only affects Skills)
-        assert_eq!(engine.state.energy, energy_after_corruption - 1,
-            "Strike should cost 1 energy even with Corruption active");
+        assert_eq!(
+            engine.state.energy,
+            energy_after_corruption - 1,
+            "Strike should cost 1 energy even with Corruption active"
+        );
 
         // Strike should go to discard, not exhaust
-        assert_eq!(discard_prefix_count(&engine, "Strike"), 1,
-            "Strike should go to discard pile, not exhaust");
-        assert_eq!(exhaust_prefix_count(&engine, "Strike"), 0,
-            "Strike should NOT be exhausted under Corruption");
+        assert_eq!(
+            discard_prefix_count(&engine, "Strike"),
+            1,
+            "Strike should go to discard pile, not exhaust"
+        );
+        assert_eq!(
+            exhaust_prefix_count(&engine, "Strike"),
+            0,
+            "Strike should NOT be exhausted under Corruption"
+        );
     }
 
     // =========================================================================
@@ -519,23 +651,32 @@ mod interaction_tests {
         // Set Demon Form status directly (avoids needing 3 energy for the card)
         engine.state.player.set_status(sid::DEMON_FORM, 2);
 
-        assert_eq!(engine.state.player.status(sid::STRENGTH), 0,
-            "Should start with 0 Strength");
+        assert_eq!(
+            engine.state.player.status(sid::STRENGTH),
+            0,
+            "Should start with 0 Strength"
+        );
 
         // Give block to survive any enemy damage
         engine.state.player.block = 100;
         end_turn(&mut engine);
 
         // After first turn cycle: Demon Form fires at start of player turn
-        assert_eq!(engine.state.player.status(sid::STRENGTH), 2,
-            "After 1 turn cycle, Demon Form should grant 2 Strength");
+        assert_eq!(
+            engine.state.player.status(sid::STRENGTH),
+            2,
+            "After 1 turn cycle, Demon Form should grant 2 Strength"
+        );
 
         engine.state.player.block = 100;
         end_turn(&mut engine);
 
         // After second turn cycle: cumulative 4 Strength
-        assert_eq!(engine.state.player.status(sid::STRENGTH), 4,
-            "After 2 turn cycles, Demon Form should grant 4 total Strength");
+        assert_eq!(
+            engine.state.player.status(sid::STRENGTH),
+            4,
+            "After 2 turn cycles, Demon Form should grant 4 total Strength"
+        );
     }
 
     // =========================================================================
@@ -563,8 +704,10 @@ mod interaction_tests {
         play_on_enemy(&mut engine, "Strike", 0);
 
         // After Image grants 1 block per card played = 3 block total
-        assert_eq!(engine.state.player.block, 3,
-            "After Image should grant 1 block per card played (3 cards = 3 block)");
+        assert_eq!(
+            engine.state.player.block, 3,
+            "After Image should grant 1 block per card played (3 cards = 3 block)"
+        );
     }
 
     // =========================================================================
@@ -575,28 +718,39 @@ mod interaction_tests {
     #[test]
     fn burst_replays_skill() {
         let mut engine = engine_with(
-            make_deck(&["Burst", "Backflip", "Strike", "Strike", "Strike",
-                        "Strike", "Strike", "Strike", "Strike", "Strike"]),
-            50, 0,
+            make_deck(&[
+                "Burst", "Backflip", "Strike", "Strike", "Strike", "Strike", "Strike", "Strike",
+                "Strike", "Strike",
+            ]),
+            50,
+            0,
         );
         engine.state.energy = 5;
 
         ensure_in_hand(&mut engine, "Burst");
         play_self(&mut engine, "Burst");
-        assert_eq!(engine.state.player.status(sid::BURST), 1,
-            "Burst should set BURST status to 1");
+        assert_eq!(
+            engine.state.player.status(sid::BURST),
+            1,
+            "Burst should set BURST status to 1"
+        );
 
         let _hand_before = engine.state.hand.len();
         ensure_in_hand(&mut engine, "Backflip");
         play_self(&mut engine, "Backflip");
 
         // Backflip: 5 block + draw 2, replayed by Burst: another 5 block + draw 2
-        assert_eq!(engine.state.player.block, 10,
-            "Burst + Backflip: 5 + 5 = 10 block");
+        assert_eq!(
+            engine.state.player.block, 10,
+            "Burst + Backflip: 5 + 5 = 10 block"
+        );
 
         // Burst status should be consumed
-        assert_eq!(engine.state.player.status(sid::BURST), 0,
-            "Burst status should be consumed after replaying a skill");
+        assert_eq!(
+            engine.state.player.status(sid::BURST),
+            0,
+            "Burst status should be consumed after replaying a skill"
+        );
     }
 
     // =========================================================================
@@ -620,10 +774,16 @@ mod interaction_tests {
         end_turn(&mut engine);
 
         // At start of new player turn, Noxious Fumes applies 2 poison to all enemies
-        assert_eq!(engine.state.enemies[0].entity.status(sid::POISON), 2,
-            "First enemy should have 2 poison from Noxious Fumes");
-        assert_eq!(engine.state.enemies[1].entity.status(sid::POISON), 2,
-            "Second enemy should have 2 poison from Noxious Fumes");
+        assert_eq!(
+            engine.state.enemies[0].entity.status(sid::POISON),
+            2,
+            "First enemy should have 2 poison from Noxious Fumes"
+        );
+        assert_eq!(
+            engine.state.enemies[1].entity.status(sid::POISON),
+            2,
+            "Second enemy should have 2 poison from Noxious Fumes"
+        );
     }
 
     // =========================================================================
@@ -637,8 +797,10 @@ mod interaction_tests {
         engine.state.stance = Stance::Wrath;
         ensure_in_hand(&mut engine, "Strike");
         play_on_enemy(&mut engine, "Strike", 0);
-        assert_eq!(engine.state.enemies[0].entity.hp, 38,
-            "Strike in Wrath: 6 * 2 = 12 damage, 50-12 = 38");
+        assert_eq!(
+            engine.state.enemies[0].entity.hp, 38,
+            "Strike in Wrath: 6 * 2 = 12 damage, 50-12 = 38"
+        );
     }
 
     // =========================================================================
@@ -652,7 +814,9 @@ mod interaction_tests {
         engine.state.stance = Stance::Divinity;
         ensure_in_hand(&mut engine, "Strike");
         play_on_enemy(&mut engine, "Strike", 0);
-        assert_eq!(engine.state.enemies[0].entity.hp, 32,
-            "Strike in Divinity: 6 * 3 = 18 damage, 50-18 = 32");
+        assert_eq!(
+            engine.state.enemies[0].entity.hp, 32,
+            "Strike in Divinity: 6 * 3 = 18 damage, 50-18 = 32"
+        );
     }
 }

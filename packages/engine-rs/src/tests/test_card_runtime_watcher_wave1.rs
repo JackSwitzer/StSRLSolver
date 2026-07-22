@@ -10,10 +10,7 @@ fn one_enemy_engine(enemy_id: &str, hp: i32, dmg: i32) -> crate::engine::CombatE
     engine
 }
 
-fn two_enemy_engine(
-    a: (&str, i32, i32),
-    b: (&str, i32, i32),
-) -> crate::engine::CombatEngine {
+fn two_enemy_engine(a: (&str, i32, i32), b: (&str, i32, i32)) -> crate::engine::CombatEngine {
     let mut engine = engine_without_start(
         Vec::new(),
         vec![
@@ -30,13 +27,23 @@ fn two_enemy_engine(
 fn tantrum_and_empty_body_now_declare_stance_changes_in_effect_data() {
     let registry = global_registry();
 
-    let tantrum = registry.get("Tantrum").expect("Tantrum should be registered");
+    let tantrum = registry
+        .get("Tantrum")
+        .expect("Tantrum should be registered");
     assert_eq!(tantrum.enter_stance, Some("Wrath"));
-    assert_eq!(tantrum.effect_data, &[E::Simple(SE::ChangeStance(Stance::Wrath))]);
+    assert_eq!(
+        tantrum.effect_data,
+        &[E::Simple(SE::ChangeStance(Stance::Wrath))]
+    );
 
-    let tantrum_plus = registry.get("Tantrum+").expect("Tantrum+ should be registered");
+    let tantrum_plus = registry
+        .get("Tantrum+")
+        .expect("Tantrum+ should be registered");
     assert_eq!(tantrum_plus.enter_stance, Some("Wrath"));
-    assert_eq!(tantrum_plus.effect_data, &[E::Simple(SE::ChangeStance(Stance::Wrath))]);
+    assert_eq!(
+        tantrum_plus.effect_data,
+        &[E::Simple(SE::ChangeStance(Stance::Wrath))]
+    );
 
     let empty_body = registry
         .get("EmptyBody")
@@ -45,7 +52,9 @@ fn tantrum_and_empty_body_now_declare_stance_changes_in_effect_data() {
     assert_eq!(
         empty_body.effect_data,
         &[
-            E::Simple(SE::GainBlock(crate::effects::declarative::AmountSource::Block)),
+            E::Simple(SE::GainBlock(
+                crate::effects::declarative::AmountSource::Block
+            )),
             E::Simple(SE::ChangeStance(Stance::Neutral)),
         ]
     );
@@ -57,7 +66,9 @@ fn tantrum_and_empty_body_now_declare_stance_changes_in_effect_data() {
     assert_eq!(
         empty_body_plus.effect_data,
         &[
-            E::Simple(SE::GainBlock(crate::effects::declarative::AmountSource::Block)),
+            E::Simple(SE::GainBlock(
+                crate::effects::declarative::AmountSource::Block
+            )),
             E::Simple(SE::ChangeStance(Stance::Neutral)),
         ]
     );
@@ -79,13 +90,11 @@ fn conclude_and_safety_cover_end_turn_and_retain_paths() {
     end_turn(&mut safety_engine);
     assert_eq!(safety_engine.state.turn, turn_before + 1);
     assert_eq!(hand_count(&safety_engine, "Safety"), 1);
-    assert!(
-        !safety_engine
-            .state
-            .discard_pile
-            .iter()
-            .any(|card| safety_engine.card_registry.card_name(card.def_id) == "Safety")
-    );
+    assert!(!safety_engine
+        .state
+        .discard_pile
+        .iter()
+        .any(|card| safety_engine.card_registry.card_name(card.def_id) == "Safety"));
 }
 
 #[test]

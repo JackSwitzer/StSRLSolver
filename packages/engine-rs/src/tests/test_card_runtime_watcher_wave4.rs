@@ -1,7 +1,9 @@
 #![cfg(test)]
 
 use crate::cards::{CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::state::Stance;
 use crate::status_ids::sid;
 use crate::tests::support::*;
@@ -28,7 +30,11 @@ fn assert_gameplay_card_export(
     assert_eq!(schema.target, Some(target), "{id} target");
     assert_eq!(schema.cost, Some(cost), "{id} cost");
     assert_eq!(schema.exhausts, exhausts, "{id} exhaust");
-    assert_eq!(schema.upgraded_from.as_deref(), upgraded_from, "{id} upgraded_from");
+    assert_eq!(
+        schema.upgraded_from.as_deref(),
+        upgraded_from,
+        "{id} upgraded_from"
+    );
     schema.clone()
 }
 
@@ -47,7 +53,11 @@ fn watcher_wave4_registry_exports_surface_declared_block_stance_and_power_instal
         .expect("Battle Hymn should be registered");
     assert_eq!(
         battle_hymn.effect_data,
-        &[E::Simple(SE::AddStatus(T::Player, sid::BATTLE_HYMN, A::Magic))]
+        &[E::Simple(SE::AddStatus(
+            T::Player,
+            sid::BATTLE_HYMN,
+            A::Magic
+        ))]
     );
 
     let defend = assert_gameplay_card_export(

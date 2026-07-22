@@ -20,10 +20,7 @@ fn steroid_potion_hook(
             if idx >= engine.state.potions.len() {
                 return;
             }
-            crate::potions::effective_potency_runtime(
-                &engine.state,
-                &engine.state.potions[idx],
-            )
+            crate::potions::effective_potency_runtime(&engine.state, &engine.state.potions[idx])
         }
         _ => return,
     };

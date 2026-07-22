@@ -8,7 +8,11 @@ fn legal_play_names(engine: &CombatEngine) -> Vec<&'static str> {
         .get_legal_actions()
         .into_iter()
         .filter_map(|action| match action {
-            Action::PlayCard { card_idx, .. } => Some(engine.card_registry.card_name(engine.state.hand[card_idx].def_id)),
+            Action::PlayCard { card_idx, .. } => Some(
+                engine
+                    .card_registry
+                    .card_name(engine.state.hand[card_idx].def_id),
+            ),
             _ => None,
         })
         .collect()
@@ -49,7 +53,10 @@ fn canonical_cost_helper_matches_runtime_scaling_rules() {
     engine.state.player.set_status(sid::HP_LOSS_THIS_COMBAT, 2);
     let blood_for_blood = registry.get("Blood for Blood").expect("Blood for Blood");
     let blood_for_blood_inst = registry.make_card("Blood for Blood");
-    assert_eq!(engine.effective_cost_inst(blood_for_blood, blood_for_blood_inst), 2);
+    assert_eq!(
+        engine.effective_cost_inst(blood_for_blood, blood_for_blood_inst),
+        2
+    );
 
     engine.state.power_cards_played_this_combat = 2;
     let force_field = registry.get("Force Field").expect("Force Field");
@@ -72,7 +79,10 @@ fn canonical_cost_helper_matches_runtime_scaling_rules() {
     engine.player_lose_hp(5);
     let masterful_stab = registry.get("Masterful Stab").expect("Masterful Stab");
     let masterful_stab_inst = engine.state.hand[0];
-    assert_eq!(engine.effective_cost_inst(masterful_stab, masterful_stab_inst), 3);
+    assert_eq!(
+        engine.effective_cost_inst(masterful_stab, masterful_stab_inst),
+        3
+    );
 }
 
 #[test]

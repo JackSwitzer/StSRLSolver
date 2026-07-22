@@ -6,30 +6,52 @@ pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // upgrade changes only those generated cards to Shiv+.
     // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/green/StormOfSteel.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/BladeFuryAction.java
-    insert(cards, CardDef {
-                id: "Storm of Steel", name: "Storm of Steel", card_type: CardType::Skill,
-                target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
-                base_magic: -1, exhaust: false, enter_stance: None,
-                effect_data: &[
-                    E::ForEachInPile {
-                        pile: P::Hand,
-                        filter: CardFilter::All,
-                        action: BulkAction::Discard,
-                    },
-                    E::Simple(SE::AddCard("Shiv", P::Hand, A::HandSizeAtPlay)),
-                ], complex_hook: None,
-            });
-    insert(cards, CardDef {
-                id: "Storm of Steel+", name: "Storm of Steel+", card_type: CardType::Skill,
-                target: CardTarget::None, cost: 1, base_damage: -1, base_block: -1,
-                base_magic: -1, exhaust: false, enter_stance: None,
-                effect_data: &[
-                    E::ForEachInPile {
-                        pile: P::Hand,
-                        filter: CardFilter::All,
-                        action: BulkAction::Discard,
-                    },
-                    E::Simple(SE::AddCard("Shiv+", P::Hand, A::HandSizeAtPlay)),
-                ], complex_hook: None,
-            });
+    insert(
+        cards,
+        CardDef {
+            id: "Storm of Steel",
+            name: "Storm of Steel",
+            card_type: CardType::Skill,
+            target: CardTarget::None,
+            cost: 1,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: -1,
+            exhaust: false,
+            enter_stance: None,
+            effect_data: &[
+                E::ForEachInPile {
+                    pile: P::Hand,
+                    filter: CardFilter::All,
+                    action: BulkAction::Discard,
+                },
+                E::Simple(SE::AddCard("Shiv", P::Hand, A::HandSizeAtPlay)),
+            ],
+            complex_hook: None,
+        },
+    );
+    insert(
+        cards,
+        CardDef {
+            id: "Storm of Steel+",
+            name: "Storm of Steel+",
+            card_type: CardType::Skill,
+            target: CardTarget::None,
+            cost: 1,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: -1,
+            exhaust: false,
+            enter_stance: None,
+            effect_data: &[
+                E::ForEachInPile {
+                    pile: P::Hand,
+                    filter: CardFilter::All,
+                    action: BulkAction::Discard,
+                },
+                E::Simple(SE::AddCard("Shiv+", P::Hand, A::HandSizeAtPlay)),
+            ],
+            complex_hook: None,
+        },
+    );
 }

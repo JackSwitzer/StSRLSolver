@@ -6,7 +6,7 @@ use crate::effects::declarative::{AmountSource, Effect, SimpleEffect, Target};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerCondition};
-use crate::engine::CombatEngine;
+use crate::engine::{CombatEngine, EndTurnQueuedAction};
 use crate::orbs::OrbType;
 use crate::status_ids::sid;
 
@@ -104,7 +104,8 @@ fn hook_rebound(
             engine.state.player.add_status(sid::REBOUND, -1);
         }
         Trigger::TurnEnd => {
-            engine.state.player.set_status(sid::REBOUND, 0);
+            engine
+                .queue_end_turn_action_bottom(EndTurnQueuedAction::RemovePlayerPower(sid::REBOUND));
         }
         _ => {}
     }
@@ -162,7 +163,9 @@ fn hook_storm(
     event: &GameEvent,
     _state: &mut EffectState,
 ) {
-    if event.kind == Trigger::OnPowerPlayed && event.card_type == Some(crate::cards::CardType::Power) {
+    if event.kind == Trigger::OnPowerPlayed
+        && event.card_type == Some(crate::cards::CardType::Power)
+    {
         // StormPower.onUseCard queues one ChannelAction per power amount.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/StormPower.java
         let amount = engine.state.player.status(sid::STORM).max(0);
@@ -208,27 +211,45 @@ pub static DEF_CURIOSITY: EntityDef = EntityDef {
 };
 
 // ===========================================================================
-// Beat of Death — OnAnyCardPlayed: deal damage to player per enemy stacks
+// Beat of Death — OnAnyCardPlayed: deal THORNS damage per enemy stacks.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BeatOfDeathPower.java
 // ===========================================================================
-
-static BEAT_OF_DEATH_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::DealDamage(
-    Target::Player,
-    AmountSource::StatusValue(sid::BEAT_OF_DEATH),
-))];
 
 static BEAT_OF_DEATH_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::OnAnyCardPlayed,
     condition: TriggerCondition::Always,
-    effects: &BEAT_OF_DEATH_EFFECTS,
+    effects: &[],
     counter: None,
 }];
+
+fn hook_beat_of_death(
+    engine: &mut CombatEngine,
+    owner: EffectOwner,
+    event: &GameEvent,
+    _state: &mut EffectState,
+) {
+    if event.kind != Trigger::OnAnyCardPlayed {
+        return;
+    }
+    let EffectOwner::EnemyPower { enemy_idx } = owner else {
+        return;
+    };
+    let amount = engine
+        .state
+        .enemies
+        .get(enemy_idx as usize)
+        .map_or(0, |enemy| enemy.entity.status(sid::BEAT_OF_DEATH));
+    if amount > 0 {
+        engine.deal_thorns_damage_to_player(amount);
+    }
+}
 
 pub static DEF_BEAT_OF_DEATH: EntityDef = EntityDef {
     id: "beat_of_death",
     name: "Beat of Death",
     kind: EntityKind::Power,
     triggers: &BEAT_OF_DEATH_TRIGGERS,
-    complex_hook: None,
+    complex_hook: Some(hook_beat_of_death),
     status_guard: Some(sid::BEAT_OF_DEATH),
 };
 
@@ -236,10 +257,7 @@ pub static DEF_BEAT_OF_DEATH: EntityDef = EntityDef {
 // Slow — OnAnyCardPlayed: increment counter (damage calc modifier)
 // ===========================================================================
 
-static SLOW_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::IncrementCounter(
-    sid::SLOW,
-    1,
-))];
+static SLOW_EFFECTS: [Effect; 1] = [Effect::Simple(SimpleEffect::IncrementCounter(sid::SLOW, 1))];
 
 static SLOW_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::OnAnyCardPlayed,
@@ -318,7 +336,10 @@ mod tests {
 
     #[test]
     fn test_after_image_fires_on_any_card() {
-        assert_eq!(DEF_AFTER_IMAGE.triggers[0].trigger, Trigger::OnCardPlayedPre);
+        assert_eq!(
+            DEF_AFTER_IMAGE.triggers[0].trigger,
+            Trigger::OnCardPlayedPre
+        );
     }
 
     #[test]
@@ -338,7 +359,11 @@ mod tests {
 
     #[test]
     fn test_beat_of_death_fires_on_any_card() {
-        assert_eq!(DEF_BEAT_OF_DEATH.triggers[0].trigger, Trigger::OnAnyCardPlayed);
+        assert_eq!(
+            DEF_BEAT_OF_DEATH.triggers[0].trigger,
+            Trigger::OnAnyCardPlayed
+        );
+        assert!(DEF_BEAT_OF_DEATH.complex_hook.is_some());
     }
 
     #[test]

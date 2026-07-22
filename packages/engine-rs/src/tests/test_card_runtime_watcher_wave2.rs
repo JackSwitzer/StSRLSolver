@@ -11,10 +11,7 @@ fn one_enemy_engine(enemy_id: &str, hp: i32, dmg: i32) -> crate::engine::CombatE
     engine
 }
 
-fn two_enemy_engine(
-    a: (&str, i32, i32),
-    b: (&str, i32, i32),
-) -> crate::engine::CombatEngine {
+fn two_enemy_engine(a: (&str, i32, i32), b: (&str, i32, i32)) -> crate::engine::CombatEngine {
     let mut engine = engine_without_start(
         Vec::new(),
         vec![
@@ -31,22 +28,35 @@ fn two_enemy_engine(
 fn bowling_bash_and_empty_fist_export_declarative_effect_data() {
     let registry = global_registry();
 
-    let bowling_bash = registry.get("BowlingBash").expect("Bowling Bash should be registered");
-    assert_eq!(bowling_bash.effect_data, &[E::ExtraHits(A::LivingEnemyCount)]);
+    let bowling_bash = registry
+        .get("BowlingBash")
+        .expect("Bowling Bash should be registered");
+    assert_eq!(
+        bowling_bash.effect_data,
+        &[E::ExtraHits(A::LivingEnemyCount)]
+    );
     assert!(bowling_bash.complex_hook.is_none());
 
     let bowling_bash_plus = registry
         .get("BowlingBash+")
         .expect("Bowling Bash+ should be registered");
-    assert_eq!(bowling_bash_plus.effect_data, &[E::ExtraHits(A::LivingEnemyCount)]);
+    assert_eq!(
+        bowling_bash_plus.effect_data,
+        &[E::ExtraHits(A::LivingEnemyCount)]
+    );
     assert!(bowling_bash_plus.complex_hook.is_none());
 
-    let empty_fist = registry.get("EmptyFist").expect("Empty Fist should be registered");
+    let empty_fist = registry
+        .get("EmptyFist")
+        .expect("Empty Fist should be registered");
     assert_eq!(empty_fist.enter_stance, Some("Neutral"));
     assert_eq!(
         empty_fist.effect_data,
         &[
-            E::Simple(SE::DealDamage(crate::effects::declarative::Target::SelectedEnemy, A::Damage)),
+            E::Simple(SE::DealDamage(
+                crate::effects::declarative::Target::SelectedEnemy,
+                A::Damage
+            )),
             E::Simple(SE::ChangeStance(Stance::Neutral)),
         ]
     );
@@ -58,7 +68,10 @@ fn bowling_bash_and_empty_fist_export_declarative_effect_data() {
     assert_eq!(
         empty_fist_plus.effect_data,
         &[
-            E::Simple(SE::DealDamage(crate::effects::declarative::Target::SelectedEnemy, A::Damage)),
+            E::Simple(SE::DealDamage(
+                crate::effects::declarative::Target::SelectedEnemy,
+                A::Damage
+            )),
             E::Simple(SE::ChangeStance(Stance::Neutral)),
         ]
     );
@@ -77,7 +90,9 @@ fn empty_fist_source_deals_wrath_damage_before_exiting_stance() {
     assert_eq!(engine.state.enemies[0].entity.hp, 32);
     assert_eq!(engine.state.stance, Stance::Neutral);
 
-    let plus = global_registry().get("EmptyFist+").expect("EmptyFist+ registered");
+    let plus = global_registry()
+        .get("EmptyFist+")
+        .expect("EmptyFist+ registered");
     assert_eq!((plus.cost, plus.base_damage), (1, 14));
 }
 
@@ -164,5 +179,10 @@ fn sash_whip_weakens_after_a_previous_attack() {
     ensure_in_hand(&mut engine, "SashWhip");
     assert!(play_on_enemy(&mut engine, "Strike", 0));
     assert!(play_on_enemy(&mut engine, "SashWhip", 0));
-    assert_eq!(engine.state.enemies[0].entity.status(crate::status_ids::sid::WEAKENED), 1);
+    assert_eq!(
+        engine.state.enemies[0]
+            .entity
+            .status(crate::status_ids::sid::WEAKENED),
+        1
+    );
 }

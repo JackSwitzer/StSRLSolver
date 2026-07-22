@@ -34,7 +34,11 @@ fn assert_gameplay_card_export(
     assert_eq!(schema.target, Some(target), "{id} target");
     assert_eq!(schema.cost, Some(cost), "{id} cost");
     assert_eq!(schema.exhausts, exhausts, "{id} exhaust");
-    assert_eq!(schema.upgraded_from.as_deref(), upgraded_from, "{id} upgraded_from");
+    assert_eq!(
+        schema.upgraded_from.as_deref(),
+        upgraded_from,
+        "{id} upgraded_from"
+    );
     (*schema).clone()
 }
 
@@ -162,35 +166,30 @@ fn test_card_runtime_defect_wave2_registry_exports_surface_declarative_hints() {
 }
 
 #[test]
-fn test_card_runtime_defect_wave2_ball_lightning_beam_cell_and_compile_driver_resolve_on_engine_path() {
-    let mut ball_lightning = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+fn test_card_runtime_defect_wave2_ball_lightning_beam_cell_and_compile_driver_resolve_on_engine_path(
+) {
+    let mut ball_lightning =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut ball_lightning);
     ball_lightning.init_defect_orbs(1);
     ball_lightning.state.hand = make_deck(&["Ball Lightning"]);
     assert!(play_on_enemy(&mut ball_lightning, "Ball Lightning", 0));
     assert_eq!(ball_lightning.state.enemies[0].entity.hp, 33);
-    assert_eq!(ball_lightning.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
-
-    let mut beam_cell = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
+    assert_eq!(
+        ball_lightning.state.orb_slots.slots[0].orb_type,
+        OrbType::Lightning
     );
+
+    let mut beam_cell =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut beam_cell);
     beam_cell.state.hand = make_deck(&["Beam Cell+"]);
     assert!(play_on_enemy(&mut beam_cell, "Beam Cell+", 0));
     assert_eq!(beam_cell.state.enemies[0].entity.hp, 36);
     assert_eq!(beam_cell.state.enemies[0].entity.status(sid::VULNERABLE), 2);
 
-    let mut compile_driver = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 50, 50)],
-        3,
-    );
+    let mut compile_driver =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 50, 50)], 3);
     force_player_turn(&mut compile_driver);
     compile_driver.init_defect_orbs(3);
     compile_driver.channel_orb(OrbType::Lightning);
@@ -208,11 +207,7 @@ fn compile_driver_plus_draws_once_per_distinct_non_empty_orb_type() {
     // Source: CompileDriver.java queues 7 damage then CompileDriverAction(1),
     // and upgradeDamage(3) changes only damage. CompileDriverAction ignores
     // Empty orbs and orb IDs already present in its list.
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 50, 50)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 50, 50)], 3);
     force_player_turn(&mut engine);
     engine.init_defect_orbs(5);
     engine.channel_orb(OrbType::Lightning);
@@ -231,11 +226,7 @@ fn compile_driver_plus_draws_once_per_distinct_non_empty_orb_type() {
 fn ball_lightning_plus_deals_ten_then_channels_one_lightning_into_a_full_slot() {
     // Source: BallLightning.java queues DamageAction for 7 damage before one
     // ChannelAction(new Lightning()); upgradeDamage(3) makes the attack 10.
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.init_defect_orbs(1);
     engine.channel_orb(OrbType::Frost);
@@ -254,14 +245,10 @@ fn ball_lightning_plus_deals_ten_then_channels_one_lightning_into_a_full_slot() 
 fn beam_cell_variants_deal_damage_before_vulnerable_for_zero_energy() {
     // Source: BeamCell.java queues DamageAction before ApplyPowerAction at
     // cost 0; its upgrade changes 3/1 damage/Vulnerable to 4/2.
-    for (card_id, expected_hp, expected_vulnerable) in
-        [("Beam Cell", 37, 1), ("Beam Cell+", 36, 2)]
+    for (card_id, expected_hp, expected_vulnerable) in [("Beam Cell", 37, 1), ("Beam Cell+", 36, 2)]
     {
-        let mut engine = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            0,
-        );
+        let mut engine =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 0);
         force_player_turn(&mut engine);
         engine.state.hand = make_deck(&[card_id]);
 
@@ -297,12 +284,10 @@ fn coolheaded_plus_channels_one_frost_then_draws_two() {
 }
 
 #[test]
-fn test_card_runtime_defect_wave2_coolheaded_fusion_darkness_and_rainbow_cover_channel_draw_and_exhaust_paths() {
-    let mut coolheaded = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+fn test_card_runtime_defect_wave2_coolheaded_fusion_darkness_and_rainbow_cover_channel_draw_and_exhaust_paths(
+) {
+    let mut coolheaded =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut coolheaded);
     coolheaded.init_defect_orbs(1);
     coolheaded.state.hand = make_deck(&["Coolheaded+"]);
@@ -311,11 +296,8 @@ fn test_card_runtime_defect_wave2_coolheaded_fusion_darkness_and_rainbow_cover_c
     assert_eq!(coolheaded.state.orb_slots.slots[0].orb_type, OrbType::Frost);
     assert_eq!(coolheaded.state.hand.len(), 2);
 
-    let mut darkness = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 50, 50)],
-        3,
-    );
+    let mut darkness =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 50, 50)], 3);
     force_player_turn(&mut darkness);
     darkness.init_defect_orbs(1);
     darkness.state.hand = make_deck(&["Darkness+"]);
@@ -323,32 +305,29 @@ fn test_card_runtime_defect_wave2_coolheaded_fusion_darkness_and_rainbow_cover_c
     assert_eq!(darkness.state.orb_slots.slots[0].orb_type, OrbType::Dark);
     assert_eq!(darkness.state.orb_slots.slots[0].evoke_amount, 12);
 
-    let mut fusion = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut fusion = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut fusion);
     fusion.init_defect_orbs(1);
     fusion.state.hand = make_deck(&["Fusion+"]);
     assert!(play_self(&mut fusion, "Fusion+"));
     assert_eq!(fusion.state.orb_slots.slots[0].orb_type, OrbType::Plasma);
 
-    let mut rainbow = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut rainbow = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut rainbow);
     rainbow.init_defect_orbs(3);
     rainbow.state.hand = make_deck(&["Rainbow"]);
     assert!(play_self(&mut rainbow, "Rainbow"));
-    assert_eq!(rainbow.state.orb_slots.slots[0].orb_type, OrbType::Lightning);
+    assert_eq!(
+        rainbow.state.orb_slots.slots[0].orb_type,
+        OrbType::Lightning
+    );
     assert_eq!(rainbow.state.orb_slots.slots[1].orb_type, OrbType::Frost);
     assert_eq!(rainbow.state.orb_slots.slots[2].orb_type, OrbType::Dark);
     assert_eq!(rainbow.state.exhaust_pile.len(), 1);
     assert_eq!(
-        rainbow.card_registry.card_name(rainbow.state.exhaust_pile[0].def_id),
+        rainbow
+            .card_registry
+            .card_name(rainbow.state.exhaust_pile[0].def_id),
         "Rainbow"
     );
 }
@@ -359,11 +338,7 @@ fn rainbow_source_channels_in_order_and_upgrade_only_removes_exhaust() {
     // holding that same sequence, the new channels evoke 8 damage, 5 Block,
     // then 6 damage in order and leave the new sequence behind. upgrade()
     // changes only exhaust to false.
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 50, 50)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 50, 50)], 3);
     force_player_turn(&mut engine);
     engine.init_defect_orbs(3);
     engine.channel_orb(OrbType::Lightning);
@@ -384,7 +359,9 @@ fn rainbow_source_channels_in_order_and_upgrade_only_removes_exhaust() {
     assert!(engine.state.exhaust_pile.is_empty());
     assert_eq!(engine.state.discard_pile.len(), 1);
     assert_eq!(
-        engine.card_registry.card_name(engine.state.discard_pile[0].def_id),
+        engine
+            .card_registry
+            .card_name(engine.state.discard_pile[0].def_id),
         "Rainbow+"
     );
 }
@@ -407,5 +384,9 @@ fn test_card_runtime_defect_wave2_rip_and_tear_hits_random_living_enemies_for_ex
     let total_after = total_enemy_hp(&engine);
 
     assert_eq!(total_before - total_after, 14);
-    assert!(engine.state.enemies.iter().all(|enemy| enemy.entity.hp >= 0));
+    assert!(engine
+        .state
+        .enemies
+        .iter()
+        .all(|enemy| enemy.entity.hp >= 0));
 }

@@ -29,7 +29,10 @@ fn relic_wave12_runtime_combat_start_buffs_and_debuffs_match_canonical_runtime()
     // OddlySmoothStone.java::atBattleStart applies exactly one Dexterity.
     let mut state = combat_state_with(
         Vec::new(),
-        vec![enemy_no_intent("Cultist", 24, 24), enemy_no_intent("JawWorm", 40, 40)],
+        vec![
+            enemy_no_intent("Cultist", 24, 24),
+            enemy_no_intent("JawWorm", 40, 40),
+        ],
         3,
     );
     state.relics = vec![
@@ -46,7 +49,40 @@ fn relic_wave12_runtime_combat_start_buffs_and_debuffs_match_canonical_runtime()
         .enemies
         .iter()
         .all(|enemy| enemy.entity.status(sid::WEAKENED) == 1));
-    assert!(engine.state.enemies.iter().all(|enemy| enemy.entity.strength() == 1));
+    assert!(engine
+        .state
+        .enemies
+        .iter()
+        .all(|enemy| enemy.entity.strength() == 1));
+}
+
+#[test]
+fn philosophers_stone_precedes_spawned_minion_power_at_equal_priority() {
+    // SpawnMonsterAction calls onSpawnMonster first, where Philosopher's Stone
+    // directly appends Strength, then queues ApplyPowerAction(MinionPower).
+    // Both powers have priority 5, so Java's stable sort preserves this order.
+    // Java: actions/common/SpawnMonsterAction.java:45-68 and
+    // relics/PhilosopherStone.java:49-52.
+    let mut engine = engine_without_start(
+        Vec::new(),
+        vec![enemy_no_intent("GremlinLeader", 140, 140)],
+        3,
+    );
+    engine.state.relics.push("Philosopher's Stone".to_string());
+    engine.add_spawned_minion(enemy_no_intent("GremlinFat", 14, 14));
+
+    let spawned = engine.state.enemies.last().unwrap();
+    assert_eq!(spawned.entity.strength(), 1);
+    assert!(spawned.is_minion());
+    assert_eq!(
+        spawned
+            .entity
+            .ordered_status_ids()
+            .into_iter()
+            .filter(|status| matches!(*status, sid::STRENGTH | sid::MINION_POWER))
+            .collect::<Vec<_>>(),
+        [sid::STRENGTH, sid::MINION_POWER]
+    );
 }
 
 #[test]
@@ -54,15 +90,9 @@ fn red_skull_uses_direct_add_only_at_battle_start() {
     // RedSkull.atBattleStart calls player.addPower directly; onBloodied uses
     // ApplyPowerAction and therefore restores sorted priority order.
     // Java: RedSkull.java:38-41, 54-57.
-    let mut state = combat_state_with(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut state = combat_state_with(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     state.player.hp = state.player.max_hp / 2;
-    state
-        .player
-        .set_status_direct(sid::TOOLS_OF_THE_TRADE, 1);
+    state.player.set_status_direct(sid::TOOLS_OF_THE_TRADE, 1);
     state.relics.push("Red Skull".to_string());
 
     let mut engine = engine_with_state(state);
@@ -70,19 +100,24 @@ fn red_skull_uses_direct_add_only_at_battle_start() {
         engine
             .state
             .player
-            .status_order
-            .iter()
-            .copied()
+            .ordered_status_ids()
+            .into_iter()
             .filter(|status| matches!(*status, sid::TOOLS_OF_THE_TRADE | sid::STRENGTH))
             .collect::<Vec<_>>()
     };
-    assert_eq!(relevant_order(&engine), [sid::TOOLS_OF_THE_TRADE, sid::STRENGTH]);
+    assert_eq!(
+        relevant_order(&engine),
+        [sid::TOOLS_OF_THE_TRADE, sid::STRENGTH]
+    );
 
     engine.heal_player(2);
     assert_eq!(engine.state.player.strength(), 0);
     engine.player_lose_hp(3);
     assert_eq!(engine.state.player.strength(), 3);
-    assert_eq!(relevant_order(&engine), [sid::STRENGTH, sid::TOOLS_OF_THE_TRADE]);
+    assert_eq!(
+        relevant_order(&engine),
+        [sid::STRENGTH, sid::TOOLS_OF_THE_TRADE]
+    );
 }
 
 #[test]
@@ -119,14 +154,7 @@ fn relic_wave12_runtime_hp_loss_families_match_canonical_runtime() {
 
     let mut engine = engine_with_state(state);
     engine.state.hand.clear();
-    engine.state.draw_pile = make_deck(&[
-        "Strike",
-        "Defend",
-        "Bash",
-        "Strike",
-        "Defend",
-        "Strike",
-    ]);
+    engine.state.draw_pile = make_deck(&["Strike", "Defend", "Bash", "Strike", "Defend", "Strike"]);
 
     engine.player_lose_hp(11);
 
@@ -185,11 +213,7 @@ fn self_forming_clay_stacks_three_block_per_hp_loss_for_the_next_turn() {
     // SelfFormingClay.java::wasHPLost applies three NextTurnBlockPower for
     // every positive loss event. NextTurnBlockPower.java grants the stacked
     // amount at turn start and then removes itself.
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.state.relics = vec!["Self Forming Clay".to_string()];
     engine.rebuild_effect_runtime();
@@ -226,7 +250,10 @@ fn relic_wave12_runtime_shuffle_and_enemy_death_families_match_canonical_runtime
 
     let mut state = combat_state_with(
         make_deck_n("Strike", 3),
-        vec![enemy_no_intent("JawWorm", 10, 10), enemy_no_intent("Cultist", 30, 30)],
+        vec![
+            enemy_no_intent("JawWorm", 10, 10),
+            enemy_no_intent("Cultist", 30, 30),
+        ],
         3,
     );
     state.relics = vec!["Gremlin Horn".to_string(), "The Specimen".to_string()];
@@ -246,11 +273,7 @@ fn relic_wave12_runtime_shuffle_and_enemy_death_families_match_canonical_runtime
 #[test]
 fn the_abacus_grants_exactly_six_block_on_one_shuffle() {
     // Source: reference/extracted/methods/relic/Abacus.java
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     engine.state.relics = vec!["TheAbacus".to_string()];
     engine.rebuild_effect_runtime();
     engine.state.draw_pile.clear();
@@ -287,8 +310,7 @@ fn melange_scries_after_the_shuffle_draw_and_composes_with_golden_eye() {
         .map(|card| baseline.card_registry.card_name(card.def_id))
         .collect();
 
-    let mut melange =
-        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    let mut melange = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     melange.state.relics.push("Melange".to_string());
     melange.rebuild_effect_runtime();
     melange.state.discard_pile = make_deck(&shuffled_cards);
@@ -305,13 +327,15 @@ fn melange_scries_after_the_shuffle_draw_and_composes_with_golden_eye() {
     assert_eq!(choice.reason, ChoiceReason::Scry);
     assert_eq!(choice.options.len(), 3);
 
-    let mut golden =
-        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    let mut golden = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     golden.state.relics = vec!["Melange".to_string(), "GoldenEye".to_string()];
     golden.rebuild_effect_runtime();
     golden.state.discard_pile = make_deck(&shuffled_cards);
     golden.draw_cards(2);
-    let choice = golden.choice.as_ref().expect("GoldenEye Melange Scry choice");
+    let choice = golden
+        .choice
+        .as_ref()
+        .expect("GoldenEye Melange Scry choice");
     assert_eq!(choice.options.len(), 5);
     assert_eq!(choice.max_picks, 5);
 }
@@ -357,8 +381,7 @@ fn relic_wave12_runtime_victory_families_match_canonical_runtime() {
 
     // BlackBlood.java guards its twelve-point heal with currentHealth > 0;
     // simultaneous zero player/enemy HP must not turn the relic into a revive.
-    let mut zero_state =
-        combat_state_with(Vec::new(), vec![enemy_no_intent("JawWorm", 1, 1)], 3);
+    let mut zero_state = combat_state_with(Vec::new(), vec![enemy_no_intent("JawWorm", 1, 1)], 3);
     zero_state.relics = vec!["Black Blood".to_string()];
     zero_state.player.hp = 0;
     zero_state.enemies[0].entity.hp = 0;

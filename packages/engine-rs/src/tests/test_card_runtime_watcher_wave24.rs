@@ -7,7 +7,10 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/Omniscience.java
 
 use crate::cards::global_registry;
-use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, CardFilter, ChoiceAction, Effect as E, Pile as P, SimpleEffect as SE,
+    Target as T,
+};
 use crate::engine::{ChoiceReason, CombatPhase};
 use crate::status_ids::sid;
 use crate::tests::support::{
@@ -22,14 +25,22 @@ fn watcher_wave24_registry_exports_match_typed_surface() {
     let collect = registry.get("Collect").expect("Collect should exist");
     assert_eq!(
         collect.effect_data,
-        &[E::Simple(SE::AddStatus(T::SelfEntity, sid::COLLECT_MIRACLES, A::XCostPlus(0)))]
+        &[E::Simple(SE::AddStatus(
+            T::SelfEntity,
+            sid::COLLECT_MIRACLES,
+            A::XCostPlus(0)
+        ))]
     );
     assert!(collect.complex_hook.is_none());
 
     let collect_plus = registry.get("Collect+").expect("Collect+ should exist");
     assert_eq!(
         collect_plus.effect_data,
-        &[E::Simple(SE::AddStatus(T::SelfEntity, sid::COLLECT_MIRACLES, A::XCostPlus(1)))]
+        &[E::Simple(SE::AddStatus(
+            T::SelfEntity,
+            sid::COLLECT_MIRACLES,
+            A::XCostPlus(1)
+        ))]
     );
     assert!(collect_plus.complex_hook.is_none());
 
@@ -81,7 +92,9 @@ fn watcher_wave24_registry_exports_match_typed_surface() {
     );
     assert!(fasting_plus.complex_hook.is_some());
 
-    let omniscience = registry.get("Omniscience").expect("Omniscience should exist");
+    let omniscience = registry
+        .get("Omniscience")
+        .expect("Omniscience should exist");
     assert_eq!(
         omniscience.effect_data,
         &[E::ChooseCards {
@@ -95,7 +108,9 @@ fn watcher_wave24_registry_exports_match_typed_surface() {
     );
     assert!(omniscience.complex_hook.is_none());
 
-    let omniscience_plus = registry.get("Omniscience+").expect("Omniscience+ should exist");
+    let omniscience_plus = registry
+        .get("Omniscience+")
+        .expect("Omniscience+ should exist");
     assert_eq!(
         omniscience_plus.effect_data,
         &[E::ChooseCards {
@@ -137,11 +152,7 @@ fn watcher_wave24_collect_and_fasting_follow_typed_effect_data() {
 
 #[test]
 fn watcher_wave24_collect_plus_free_uses_x_without_spending_energy() {
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.state.energy = 2;
     engine.state.hand = vec![engine.card_registry.make_card("Collect+").set_free(true)];
@@ -154,11 +165,7 @@ fn watcher_wave24_collect_plus_free_uses_x_without_spending_energy() {
 
 #[test]
 fn watcher_wave24_collect_resolves_miracles_before_next_turn_draw() {
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     let mut retained = make_deck_n("Defend", 9);
     for card in &mut retained {
@@ -175,7 +182,9 @@ fn watcher_wave24_collect_resolves_miracles_before_next_turn_draw() {
     assert_eq!(hand_count(&engine, "Strike"), 0);
     assert_eq!(engine.state.draw_pile.len(), 1);
     assert_eq!(
-        engine.card_registry.card_name(engine.state.draw_pile[0].def_id),
+        engine
+            .card_registry
+            .card_name(engine.state.draw_pile[0].def_id),
         "Strike"
     );
 }
@@ -192,7 +201,8 @@ fn watcher_wave24_conjure_blade_follow_the_typed_generated_card_surface() {
         .expect("Conjure Blade should add Expunger to draw pile");
     assert_eq!(expunger.misc, 3);
 
-    let mut conjure_blade_plus = engine_with(crate::tests::support::make_deck(&["ConjureBlade+"]), 40, 0);
+    let mut conjure_blade_plus =
+        engine_with(crate::tests::support::make_deck(&["ConjureBlade+"]), 40, 0);
     assert!(play_self(&mut conjure_blade_plus, "ConjureBlade+"));
     let expunger_plus = conjure_blade_plus
         .state
@@ -217,7 +227,10 @@ fn watcher_wave24_chemical_x_bonus_stamps_expunger_hit_count() {
         .find(|card| engine.card_registry.card_name(card.def_id) == "Expunger")
         .copied()
         .expect("Conjure Blade+ should add Expunger to draw pile");
-    assert_eq!(expunger.misc, 6, "Chemical X should add +2 before Conjure Blade+ adds its extra hit");
+    assert_eq!(
+        expunger.misc, 6,
+        "Chemical X should add +2 before Conjure Blade+ adds its extra hit"
+    );
 
     engine.state.draw_pile.retain(|card| {
         !(engine.card_registry.card_name(card.def_id) == "Expunger" && card.misc == expunger.misc)
@@ -225,7 +238,11 @@ fn watcher_wave24_chemical_x_bonus_stamps_expunger_hit_count() {
     engine.state.hand.push(expunger);
     engine.state.energy = 1;
 
-    assert!(crate::tests::support::play_on_enemy(&mut engine, "Expunger", 0));
+    assert!(crate::tests::support::play_on_enemy(
+        &mut engine,
+        "Expunger",
+        0
+    ));
     assert_eq!(engine.state.enemies[0].entity.hp, 36);
 }
 
@@ -257,7 +274,11 @@ fn watcher_wave24_omniscience_uses_the_typed_draw_pile_free_play_surface() {
     assert!(play_self(&mut engine, "Omniscience+"));
     assert_eq!(engine.phase, CombatPhase::AwaitingChoice);
     assert_eq!(
-        engine.choice.as_ref().expect("Omniscience+ should open a choice").reason,
+        engine
+            .choice
+            .as_ref()
+            .expect("Omniscience+ should open a choice")
+            .reason,
         ChoiceReason::PlayCardFreeFromDraw
     );
 
@@ -269,6 +290,10 @@ fn watcher_wave24_omniscience_uses_the_typed_draw_pile_free_play_surface() {
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/watcher/OmniscienceAction.java
     assert!(engine.state.hand.is_empty());
     assert_eq!(engine.state.player.block, 10);
-    assert!(engine.state.exhaust_pile.iter().any(|card| engine.card_registry.card_name(card.def_id) == "Defend"));
+    assert!(engine
+        .state
+        .exhaust_pile
+        .iter()
+        .any(|card| engine.card_registry.card_name(card.def_id) == "Defend"));
     assert_eq!(engine.state.draw_pile.len(), 1);
 }

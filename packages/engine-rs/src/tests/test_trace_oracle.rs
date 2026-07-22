@@ -17,7 +17,40 @@
 use std::fs;
 
 use crate::run::GameAction;
-use crate::trace::{diff_records, ActionScript, DivergenceStatus, ScriptStopCondition, TraceAction};
+use crate::trace::{
+    diff_records, ActionScript, DivergenceStatus, ScriptStopCondition, TraceAction,
+};
+
+#[test]
+fn oracle_projects_darkling_half_death_like_java() {
+    // Darkling.damage marks a lethal Darkling halfDead, clears its powers,
+    // calls setMove(COUNT), and queues a second SetMoveAction(COUNT). It does
+    // not set AbstractMonster.isDead while another Darkling remains alive.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/monsters/beyond/Darkling.java.
+    let mut run = crate::run::RunEngine::new(326, 0);
+    run.debug_enter_specific_combat(&["Darkling", "Darkling", "Darkling"]);
+    let opening_move = run.get_combat_engine().unwrap().state.enemies[0].move_id;
+    let hp = run.get_combat_engine().unwrap().state.enemies[0].entity.hp;
+    run.debug_combat_engine_mut().deal_damage_to_enemy(0, hp);
+    run.debug_combat_engine_mut().deal_damage_to_enemy(0, 22);
+    assert_eq!(
+        run.get_combat_engine().unwrap().state.enemies[0].entity.hp,
+        0,
+        "AbstractMonster.damage clamps repeated half-dead damage at zero"
+    );
+
+    let oracle = crate::trace::oracle_v2::project_oracle_state(&run).unwrap();
+    assert!(!oracle.enemies[0].dead);
+    assert_eq!(oracle.enemies[0].intent.name, "UNKNOWN");
+    assert_eq!(
+        oracle.enemies[0].move_history,
+        [
+            opening_move,
+            crate::enemies::move_ids::DARK_WAIT,
+            crate::enemies::move_ids::DARK_WAIT,
+        ]
+    );
+}
 
 #[test]
 fn run_trace_exposes_every_java_rng_counter_before_and_during_combat() {
@@ -32,7 +65,10 @@ fn run_trace_exposes_every_java_rng_counter_before_and_during_combat() {
 
     let before = run.rng_counters();
     assert_eq!(
-        before.keys().map(String::as_str).collect::<std::collections::BTreeSet<_>>(),
+        before
+            .keys()
+            .map(String::as_str)
+            .collect::<std::collections::BTreeSet<_>>(),
         expected_keys
     );
     assert_eq!(before["relic"], 5);
@@ -48,7 +84,10 @@ fn run_trace_exposes_every_java_rng_counter_before_and_during_combat() {
     assert!(run.step_game(&GameAction::ChoosePath(0)).accepted());
     let combat = run.rng_counters();
     assert_eq!(
-        combat.keys().map(String::as_str).collect::<std::collections::BTreeSet<_>>(),
+        combat
+            .keys()
+            .map(String::as_str)
+            .collect::<std::collections::BTreeSet<_>>(),
         expected_keys
     );
     assert_eq!(combat["relic"], 5);
@@ -100,9 +139,7 @@ fn trace_powers_keep_java_application_order_and_hide_ai_counters_after_restore()
         enemy
             .entity
             .set_status(crate::status_ids::sid::SPORE_CLOUD, 2);
-        enemy
-            .entity
-            .set_status(crate::status_ids::sid::STRENGTH, 3);
+        enemy.entity.set_status(crate::status_ids::sid::STRENGTH, 3);
         assert!(enemy.entity.status(crate::status_ids::sid::STARTING_DMG) != 0);
     }
 
@@ -149,9 +186,7 @@ fn power_order_distinguishes_sorted_apply_from_unsorted_direct_add() {
         ["Compulsive", "Malleable"]
     );
 
-    run.debug_combat_engine_mut()
-        .state
-        .enemies[0]
+    run.debug_combat_engine_mut().state.enemies[0]
         .entity
         .set_status(crate::status_ids::sid::STRENGTH, 2);
     let sorted = crate::trace::build_post_state(&run);
@@ -163,6 +198,187 @@ fn power_order_distinguishes_sorted_apply_from_unsorted_direct_add() {
             .collect::<Vec<_>>(),
         ["Malleable", "Strength", "Compulsive"]
     );
+}
+
+#[test]
+fn ordered_dynamic_marker_powers_survive_checkpoint_and_project_java_identity() {
+    // These powers carry gameplay payload in compact typed fields, but they
+    // still occupy AbstractCreature.powers and must participate in its stable
+    // priority ordering. Pen Nib alone has priority 6; the marker powers use
+    // Java's default priority 5 and expose amount -1.
+    // Sources: powers/{MinionPower,BackAttackPower,StasisPower,PenNibPower}.java.
+    let mut run = crate::run::RunEngine::new(4, 0);
+    run.debug_enter_specific_combat(&["JawWorm"]);
+    {
+        let combat = run.debug_combat_engine_mut();
+        combat
+            .state
+            .player
+            .set_status(crate::status_ids::sid::CONFUSION, 1);
+        combat
+            .state
+            .player
+            .set_status(crate::status_ids::sid::PEN_NIB_POWER, 1);
+
+        let held = combat.state.draw_pile.pop().expect("fixture draw card");
+        let enemy = &mut combat.state.enemies[0];
+        enemy.entity.set_status(crate::status_ids::sid::STRENGTH, 2);
+        enemy.set_minion(true);
+        enemy.set_back_attack(true);
+        enemy.set_stasis_card(held);
+    }
+
+    let before = crate::trace::build_post_state(&run);
+    assert_eq!(
+        before
+            .player
+            .powers
+            .iter()
+            .map(|power| (power.id.as_str(), power.amt))
+            .collect::<Vec<_>>(),
+        [("Confusion", -1), ("Pen Nib", 1)]
+    );
+    assert_eq!(
+        before.enemies[0]
+            .powers
+            .iter()
+            .map(|power| (power.id.as_str(), power.amt))
+            .collect::<Vec<_>>(),
+        [
+            ("Strength", 2),
+            ("Minion", -1),
+            ("BackAttack", -1),
+            ("Stasis", -1),
+        ]
+    );
+
+    let encoded = crate::checkpoint::CoreCheckpoint::capture(&run)
+        .unwrap()
+        .to_json()
+        .unwrap();
+    let restored = crate::checkpoint::CoreCheckpoint::from_json(&encoded)
+        .unwrap()
+        .restore()
+        .unwrap();
+    assert_eq!(crate::trace::build_post_state(&restored), before);
+}
+
+#[test]
+fn initial_minion_and_backattack_powers_precede_philosophers_strength() {
+    // AbstractPlayer.preBattlePrep queues monster pre-battle actions, then the
+    // room drains them before relic atBattleStart callbacks run. Philosopher's
+    // Stone therefore appends equal-priority Strength after settled markers.
+    // Sources: AbstractPlayer.java:1600-1605, AbstractRoom.java:228-245,
+    // GremlinLeader.java:92-97, and PhilosopherStone.java:38-42.
+    let cases: &[(&[&str], usize, &str)] = &[
+        (&["GremlinFat", "GremlinLeader"], 0, "Minion"),
+        (&["Dagger", "Reptomancer", "Dagger"], 0, "Minion"),
+        (&["SpireShield", "SpireSpear"], 0, "BackAttack"),
+    ];
+
+    for (encounter, target_idx, marker) in cases {
+        let mut run = crate::run::RunEngine::new(4, 0);
+        run.run_state.relics.push("Philosopher's Stone".to_string());
+        run.debug_enter_specific_combat(encounter);
+        let post = crate::trace::build_post_state(&run);
+        let ids = post.enemies[*target_idx]
+            .powers
+            .iter()
+            .map(|power| power.id.as_str())
+            .collect::<Vec<_>>();
+        let marker = ids.iter().position(|id| *id == *marker).unwrap();
+        let strength = ids.iter().position(|id| *id == "Strength").unwrap();
+        assert!(marker < strength, "{encounter:?} power order was {ids:?}");
+    }
+}
+
+#[test]
+fn shield_spear_settled_power_order_matches_java_at_a0_and_a18() {
+    // MonsterGroup initializes Shield then Spear. Surrounded applies first and
+    // inserts Shield BackAttack, Artifact actions resolve next, and
+    // Philosopher's Stone appends Strength during relic atBattleStart.
+    // Sources: SpireShield.java, SurroundedPower.java, AbstractRoom.java, and
+    // PhilosopherStone.java.
+    for ascension in [0, 18] {
+        for has_stone in [false, true] {
+            let mut run = crate::run::RunEngine::new(4, ascension);
+            if has_stone {
+                run.run_state.relics.push("Philosopher's Stone".to_string());
+            }
+            run.debug_enter_specific_combat(&["SpireShield", "SpireSpear"]);
+            let combat = run.get_combat_engine().expect("Shield/Spear combat");
+            assert_eq!(
+                combat
+                    .state
+                    .player
+                    .status(crate::status_ids::sid::SURROUNDED_POWER),
+                1
+            );
+            assert!(combat.state.player.power_order.contains(
+                &crate::state::PowerOrderEntry::Status(crate::status_ids::sid::SURROUNDED_POWER,)
+            ));
+            let post = crate::trace::build_post_state(&run);
+            let artifact = if ascension >= 18 { 2 } else { 1 };
+
+            assert_eq!(
+                post.player
+                    .powers
+                    .iter()
+                    .map(|power| (power.id.as_str(), power.amt))
+                    .collect::<Vec<_>>(),
+                vec![("Surrounded", -1)]
+            );
+
+            let mut expected_shield = vec![("BackAttack", -1), ("Artifact", artifact)];
+            let mut expected_spear = vec![("Artifact", artifact)];
+            if has_stone {
+                expected_shield.push(("Strength", 1));
+                expected_spear.push(("Strength", 1));
+            }
+            assert_eq!(
+                post.enemies[0]
+                    .powers
+                    .iter()
+                    .map(|power| (power.id.as_str(), power.amt))
+                    .collect::<Vec<_>>(),
+                expected_shield
+            );
+            assert_eq!(
+                post.enemies[1]
+                    .powers
+                    .iter()
+                    .map(|power| (power.id.as_str(), power.amt))
+                    .collect::<Vec<_>>(),
+                expected_spear
+            );
+        }
+    }
+}
+
+#[test]
+fn surrounded_owner_death_checkpoint_preserves_corpse_backattack() {
+    // SpireShield.die skips its dying owner while queuing Surrounded cleanup.
+    // At the next actionable boundary the player power is gone, but the
+    // corpse-owned BackAttack remains causal and keeps its exact power order.
+    let mut run = crate::run::RunEngine::new(4, 0);
+    run.debug_enter_specific_combat(&["SpireShield", "SpireSpear"]);
+    assert!(run.debug_combat_engine_mut().instant_kill_enemy(0));
+
+    let before = crate::trace::build_post_state(&run);
+    assert!(before
+        .player
+        .powers
+        .iter()
+        .all(|power| power.id != "Surrounded"));
+    assert!(before.enemies[0]
+        .powers
+        .iter()
+        .any(|power| power.id == "BackAttack"));
+    let restored = crate::checkpoint::CoreCheckpoint::capture(&run)
+        .unwrap()
+        .restore()
+        .unwrap();
+    assert_eq!(crate::trace::build_post_state(&restored), before);
 }
 
 #[test]
@@ -223,22 +439,45 @@ fn trace_power_projection_uses_java_ids_priorities_and_compound_amounts() {
 }
 
 #[test]
-fn trace_suppresses_the_bomb_until_dynamic_java_ids_are_checkpoint_causal() {
-    // Each TheBombPower exposes turns as amount and owns a process-global ID
-    // suffix. The aggregate Rust status stores damage, so projecting it as one
-    // `TheBomb` entry would be false evidence.
-    // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/TheBombPower.java:23-31.
+fn trace_projects_checkpoint_causal_the_bomb_instances_and_ids() {
+    // TheBombPower uses a process-global signed-int suffix, exposes turns as
+    // amount, and keeps each damage payload independent.
+    // Source: decompiled/java-src/com/megacrit/cardcrawl/powers/TheBombPower.java:23-44.
     let mut run = crate::run::RunEngine::new(4, 0);
+    run.restore_the_bomb_id_offset(41);
     run.debug_enter_specific_combat(&["JawWorm"]);
     {
         let combat = run.debug_combat_engine_mut();
         combat.schedule_the_bomb(3, 40);
         combat.schedule_the_bomb(2, 50);
-        assert_eq!(combat.state.pending_bombs.as_slice(), &[(3, 40), (2, 50)]);
+        assert_eq!(
+            combat.state.pending_bombs.as_slice(),
+            &[
+                crate::state::PendingBomb {
+                    java_serial: 41,
+                    turns: 3,
+                    damage: 40,
+                },
+                crate::state::PendingBomb {
+                    java_serial: 42,
+                    turns: 2,
+                    damage: 50,
+                },
+            ]
+        );
     }
 
     let post = crate::trace::build_post_state(&run);
-    assert!(post.player.powers.iter().all(|power| !power.id.starts_with("TheBomb")));
+    assert_eq!(
+        post.player
+            .powers
+            .iter()
+            .filter(|power| power.id.starts_with("TheBomb"))
+            .map(|power| (power.id.as_str(), power.amt))
+            .collect::<Vec<_>>(),
+        [("TheBomb41", 3), ("TheBomb42", 2)]
+    );
+    assert_eq!(run.the_bomb_id_offset(), 43);
 
     let encoded = crate::checkpoint::CoreCheckpoint::capture(&run)
         .unwrap()
@@ -248,15 +487,46 @@ fn trace_suppresses_the_bomb_until_dynamic_java_ids_are_checkpoint_causal() {
         .unwrap()
         .restore()
         .unwrap();
-    assert_eq!(
-        restored
-            .debug_combat_engine_mut()
-            .state
-            .pending_bombs
-            .as_slice(),
-        &[(3, 40), (2, 50)]
-    );
+    assert_eq!(restored.the_bomb_id_offset(), 43);
     assert_eq!(crate::trace::build_post_state(&restored), post);
+
+    assert!(restored
+        .step_game(&crate::run::GameAction::CombatAction(
+            crate::actions::Action::EndTurn,
+        ))
+        .accepted());
+    let after_turn = crate::trace::build_post_state(&restored);
+    assert_eq!(
+        after_turn
+            .player
+            .powers
+            .iter()
+            .filter(|power| power.id.starts_with("TheBomb"))
+            .map(|power| (power.id.as_str(), power.amt))
+            .collect::<Vec<_>>(),
+        [("TheBomb41", 2), ("TheBomb42", 1)]
+    );
+}
+
+#[test]
+fn the_bomb_process_global_uses_java_signed_int_wrapping() {
+    let mut run = crate::run::RunEngine::new(4, 0);
+    run.restore_the_bomb_id_offset(i32::MAX);
+    run.debug_enter_specific_combat(&["JawWorm"]);
+    {
+        let combat = run.debug_combat_engine_mut();
+        combat.schedule_the_bomb(3, 40);
+        combat.schedule_the_bomb(3, 40);
+    }
+    assert_eq!(run.the_bomb_id_offset(), i32::MIN.wrapping_add(1));
+    let ids = crate::trace::build_post_state(&run)
+        .player
+        .powers
+        .into_iter()
+        .filter(|power| power.id.starts_with("TheBomb"))
+        .map(|power| power.id)
+        .collect::<Vec<_>>();
+    assert_eq!(ids, ["TheBomb2147483647", "TheBomb-2147483648"]);
 }
 
 #[test]
@@ -264,16 +534,8 @@ fn trace_projects_constructor_and_prebattle_power_order_for_watcher_enemies() {
     // Sources: AcidSlime_L.java:93, SpikeSlime_L.java:85,
     // SlimeBoss.java:99, Transient.java:62-68, and AwakenedOne.java:138-150.
     let cases = [
-        (
-            "AcidSlime_L",
-            "AcidSlime_L",
-            vec![("Split", -1)],
-        ),
-        (
-            "SpikeSlime_L",
-            "SpikeSlime_L",
-            vec![("Split", -1)],
-        ),
+        ("AcidSlime_L", "AcidSlime_L", vec![("Split", -1)]),
+        ("SpikeSlime_L", "SpikeSlime_L", vec![("Split", -1)]),
         ("SlimeBoss", "SlimeBoss", vec![("Split", -1)]),
         (
             "Transient",
@@ -330,12 +592,12 @@ fn trace_emits_real_relic_counters_from_run_and_combat_runtime_state() {
     run.run_state.relic_flags.init_relic_counter("Matryoshka");
     run.run_state.relic_flags.counters[crate::relic_flags::counter::ANCIENT_TEA_SET] = 1;
     run.run_state.lizard_tail_used = true;
-    run.run_state.persisted_effect_states.push(
-        crate::effects::runtime::PersistedEffectState {
+    run.run_state
+        .persisted_effect_states
+        .push(crate::effects::runtime::PersistedEffectState {
             def_id: "Nunchaku".to_string(),
             values: vec![7],
-        },
-    );
+        });
 
     let outside = crate::trace::build_post_state(&run);
     assert_eq!(
@@ -376,12 +638,21 @@ fn trace_emits_real_relic_counters_from_run_and_combat_runtime_state() {
 #[test]
 fn trace_diff_reports_relic_counter_mismatches() {
     let script = tiny_fixture_script();
-    let rust_records = crate::trace::replay_script(&script).expect("fixture script must replay cleanly");
+    let rust_records =
+        crate::trace::replay_script(&script).expect("fixture script must replay cleanly");
     let mut java_records = rust_records.clone();
     java_records[0].post.relics[0].counter = 4;
 
-    let report = diff_records("relic-counter-doctored", &script.seed, &java_records, &rust_records, &[]);
-    let first = report.first_divergence.expect("counter mismatch must diverge");
+    let report = diff_records(
+        "relic-counter-doctored",
+        &script.seed,
+        &java_records,
+        &rust_records,
+        &[],
+    );
+    let first = report
+        .first_divergence
+        .expect("counter mismatch must diverge");
     assert_eq!(first.idx, 0);
     assert_eq!(first.path, "post.relics[0].counter");
     assert_eq!(first.java, serde_json::json!(4));
@@ -413,7 +684,9 @@ fn trace_diff_covers_record_identity_and_action() {
     assert_record_mutation_path("idx", 1, "idx", |java, _| java.idx += 1);
     assert_record_mutation_path("floor", 1, "floor", |java, _| java.floor += 1);
     assert_record_mutation_path("turn", 2, "turn", |java, _| java.turn += 1);
-    assert_record_mutation_path("phase", 2, "phase", |java, _| java.phase = "EVENT".to_string());
+    assert_record_mutation_path("phase", 2, "phase", |java, _| {
+        java.phase = "EVENT".to_string()
+    });
     assert_record_mutation_path("action", 2, "action", |java, _| {
         java.action = TraceAction::EndTurn;
     });
@@ -450,12 +723,9 @@ fn trace_diff_covers_every_nested_post_state_family() {
             java.post.player.orbs[0].passive_amount = 4;
         },
     );
-    assert_record_mutation_path(
-        "enemy-index",
-        2,
-        "post.enemies[0].idx",
-        |java, _| java.post.enemies[0].idx += 1,
-    );
+    assert_record_mutation_path("enemy-index", 2, "post.enemies[0].idx", |java, _| {
+        java.post.enemies[0].idx += 1
+    });
     assert_record_mutation_path(
         "intent-name",
         2,
@@ -493,11 +763,18 @@ fn tiny_fixture_script() -> ActionScript {
         seed: crate::seed::seed_to_string(4),
         character: "WATCHER".to_string(),
         ascension: 0,
-        stop: ScriptStopCondition { max_floor: None, max_actions: None },
+        stop: ScriptStopCondition {
+            max_floor: None,
+            max_actions: None,
+        },
         actions: vec![
             TraceAction::Neow { choice: 1 },
             TraceAction::Path { choice: 0 },
-            TraceAction::PlayCard { hand_idx: 3, target: -1, card_id: Some("Defend".to_string()) },
+            TraceAction::PlayCard {
+                hand_idx: 3,
+                target: -1,
+                card_id: Some("Defend".to_string()),
+            },
             TraceAction::EndTurn,
         ],
     }
@@ -506,8 +783,13 @@ fn tiny_fixture_script() -> ActionScript {
 #[test]
 fn synthetic_self_diff_matches() {
     let script = tiny_fixture_script();
-    let rust_records = crate::trace::replay_script(&script).expect("fixture script must replay cleanly");
-    assert_eq!(rust_records.len(), 4, "expected one record per scripted action");
+    let rust_records =
+        crate::trace::replay_script(&script).expect("fixture script must replay cleanly");
+    assert_eq!(
+        rust_records.len(),
+        4,
+        "expected one record per scripted action"
+    );
     assert_eq!(rust_records[0].action, TraceAction::Neow { choice: 1 });
     assert_eq!(rust_records[0].phase, "NEOW");
     assert_eq!(rust_records[1].phase, "COMBAT");
@@ -515,8 +797,18 @@ fn synthetic_self_diff_matches() {
     // Treat an identical clone as the "java" side.
     let java_records = rust_records.clone();
 
-    let report = diff_records("synthetic-fixture", &script.seed, &java_records, &rust_records, &[]);
-    assert_eq!(report.status, DivergenceStatus::Match, "identical traces must report match: {report:?}");
+    let report = diff_records(
+        "synthetic-fixture",
+        &script.seed,
+        &java_records,
+        &rust_records,
+        &[],
+    );
+    assert_eq!(
+        report.status,
+        DivergenceStatus::Match,
+        "identical traces must report match: {report:?}"
+    );
     assert_eq!(report.matched_actions, 4);
     assert_eq!(report.total_actions, 4);
     assert!(report.first_divergence.is_none());
@@ -527,8 +819,12 @@ fn synthetic_self_diff_matches() {
 #[test]
 fn doctored_hp_and_rng_are_reported_as_first_divergence() {
     let script = tiny_fixture_script();
-    let rust_records = crate::trace::replay_script(&script).expect("fixture script must replay cleanly");
-    assert!(rust_records.len() >= 3, "fixture must have a play-card record to doctor");
+    let rust_records =
+        crate::trace::replay_script(&script).expect("fixture script must replay cleanly");
+    assert!(
+        rust_records.len() >= 3,
+        "fixture must have a play-card record to doctor"
+    );
 
     // Doctor the "java" side at record index 2 (after PLAY_CARD): bump the
     // player's hp by 1 (an impossible value given the real replay) and the
@@ -539,10 +835,20 @@ fn doctored_hp_and_rng_are_reported_as_first_divergence() {
     let doctored = &mut java_records[2];
     let original_hp = doctored.post.player.hp;
     doctored.post.player.hp = original_hp + 1;
-    let original_ai = *doctored.post.rng.get("ai").expect("ai counter must be tracked");
+    let original_ai = *doctored
+        .post
+        .rng
+        .get("ai")
+        .expect("ai counter must be tracked");
     doctored.post.rng.insert("ai".to_string(), original_ai + 1);
 
-    let report = diff_records("synthetic-fixture-doctored", &script.seed, &java_records, &rust_records, &[]);
+    let report = diff_records(
+        "synthetic-fixture-doctored",
+        &script.seed,
+        &java_records,
+        &rust_records,
+        &[],
+    );
 
     assert_eq!(report.status, DivergenceStatus::Diverged);
     assert_eq!(
@@ -550,15 +856,23 @@ fn doctored_hp_and_rng_are_reported_as_first_divergence() {
         "NEOW and PATH records are undoctored and must still match"
     );
 
-    let first = report.first_divergence.expect("must report a first_divergence");
+    let first = report
+        .first_divergence
+        .expect("must report a first_divergence");
     assert_eq!(first.idx, 2);
     // RNG counters are diffed first in canonical order, so the `ai` counter
     // diff must be the reported path, not `post.player.hp` (also diffed,
     // but demoted to `secondary` since it's the same divergent record).
-    assert_eq!(first.path, "post.rng.ai", "rng counters must be diagnosed first: {first:?}");
+    assert_eq!(
+        first.path, "post.rng.ai",
+        "rng counters must be diagnosed first: {first:?}"
+    );
     assert_eq!(first.java, serde_json::json!(original_ai + 1));
     assert_eq!(first.rust, serde_json::json!(original_ai));
-    assert_eq!(first.rng_at_divergence.java.get("ai"), Some(&(original_ai + 1)));
+    assert_eq!(
+        first.rng_at_divergence.java.get("ai"),
+        Some(&(original_ai + 1))
+    );
     assert_eq!(first.rng_at_divergence.rust.get("ai"), Some(&original_ai));
 
     // The hp diff at the same record must still surface, just secondary.
@@ -578,11 +892,18 @@ fn truncated_trace_is_never_reported_as_match() {
     // silently reported as "match" even though every record it does have
     // matches exactly.
     let script = tiny_fixture_script();
-    let rust_records = crate::trace::replay_script(&script).expect("fixture script must replay cleanly");
+    let rust_records =
+        crate::trace::replay_script(&script).expect("fixture script must replay cleanly");
     assert!(rust_records.len() > 1);
 
     let java_records = rust_records[..1].to_vec();
-    let report = diff_records("synthetic-fixture-truncated", &script.seed, &java_records, &rust_records, &[]);
+    let report = diff_records(
+        "synthetic-fixture-truncated",
+        &script.seed,
+        &java_records,
+        &rust_records,
+        &[],
+    );
 
     assert_eq!(
         report.status,
@@ -629,14 +950,18 @@ fn replays_committed_goldens_if_any_exist() {
 
         let script_text = fs::read_to_string(&script_path).expect("script must be readable");
         let script: ActionScript = serde_json::from_str(&script_text).expect("script must parse");
-        script.check_version().expect("script version must be supported");
+        script
+            .check_version()
+            .expect("script version must be supported");
 
         let java_text = fs::read_to_string(&path).expect("golden must be readable");
         let mut lines = java_text.lines().filter(|l| !l.trim().is_empty());
         let header_line = lines.next().expect("golden must have a header line");
         let header: crate::trace::TraceHeader =
             serde_json::from_str(header_line).expect("golden header must parse");
-        header.check_version().expect("golden header version must be supported");
+        header
+            .check_version()
+            .expect("golden header version must be supported");
         let java_records: Vec<crate::trace::TraceRecord> = lines
             // Skip meta records: header/end sentinels carry a `kind`, data records do not.
             .filter(|line| {

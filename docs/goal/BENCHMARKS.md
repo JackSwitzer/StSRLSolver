@@ -2,7 +2,14 @@
 
 Six levels, B0→B5. Each level is a command (or short command set) that exits 0, so "where are we" is never a judgment call. Levels B1+ are fully offline — any agent can run them; only B0 minting needs the real game (human-attended). `docs/goal/GOAL.md` Definition of Done = B3+B4+B5 held simultaneously.
 
-**Current level: B1 achieved, B2 awaiting reminted oracle data** (2026-07-21). The native RNG, run generation, canonical actions, checkpoints, and pure-core stack are locally green at 3,110 tests with zero ignored. The language-neutral v2 state projection and offline adapter attempt all 14 human bundles; the deepest comparable prefix is 51/607, but the strict Java-certified prefix remains 0 because profile initialization is absent. See `docs/work_units/audit-reports/watcher-a0-oracle-closure.md`.
+**Current level: B1 achieved, B2 awaiting reminted oracle data** (2026-07-21).
+The native RNG, run generation, canonical actions, checkpoints, and pure-core
+stack are locally green at 3,269 tests with zero ignored. Three non-empty
+Watcher A0 victories reach all 2,013/2,013 recorder actions without a projected
+state divergence, but independently certified goldens remain 0/3 because the
+recordings omit semantic decisions, complete initialization/checkpoint state,
+and process-global RNG witnesses. See
+`docs/work_units/oracle-replay-wave3b-appendix.md`.
 
 ## B0 — Oracle online (infra proof, game-side)
 
@@ -36,7 +43,7 @@ Zero `unverified` ledger rows on the Watcher-reachable set: every Watcher-reacha
 The whole ladder is enforced inside the offline suite, so it can never silently regress:
 
 ```bash
-./scripts/test_engine_rs.sh test --lib     # 3110 green, includes oracle-state and recording-bundle tests
+./scripts/test_engine_rs.sh test --lib     # 3269 green, includes oracle-state and recording-bundle tests
 scripts/goal.sh check-arch                 # sim-core dependency direction holds (future tool — U03/U07)
 # rebuilt consumer suites run in their own branch/crate
 ```

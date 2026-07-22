@@ -1,5 +1,5 @@
 use crate::cards::prelude::*;
-use crate::effects::declarative::{AmountSource as A, ChoiceAction, CardFilter, Effect, Pile as P};
+use crate::effects::declarative::{AmountSource as A, CardFilter, ChoiceAction, Effect, Pile as P};
 
 static FORETHOUGHT_BASE: [Effect; 1] = [Effect::ChooseCards {
     source: P::Hand,
@@ -20,19 +20,41 @@ static FORETHOUGHT_PLUS: [Effect; 1] = [Effect::ChooseCards {
 }];
 
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
-        // ForethoughtAction marks positive-cost cards freeToPlayOnce before
-        // moving them to the bottom of the draw pile.
-        // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ForethoughtAction.java
-    insert(cards, CardDef {
-                id: "Forethought", name: "Forethought", card_type: CardType::Skill,
-                target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
-                base_magic: -1, exhaust: false, enter_stance: None,
-                effect_data: &FORETHOUGHT_BASE, complex_hook: None,
-            });
-    insert(cards, CardDef {
-                id: "Forethought+", name: "Forethought+", card_type: CardType::Skill,
-                target: CardTarget::None, cost: 0, base_damage: -1, base_block: -1,
-                base_magic: -1, exhaust: false, enter_stance: None,
-                effect_data: &FORETHOUGHT_PLUS, complex_hook: None,
-            });
+    // ForethoughtAction marks positive-cost cards freeToPlayOnce before
+    // moving them to the bottom of the draw pile.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/unique/ForethoughtAction.java
+    insert(
+        cards,
+        CardDef {
+            id: "Forethought",
+            name: "Forethought",
+            card_type: CardType::Skill,
+            target: CardTarget::None,
+            cost: 0,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: -1,
+            exhaust: false,
+            enter_stance: None,
+            effect_data: &FORETHOUGHT_BASE,
+            complex_hook: None,
+        },
+    );
+    insert(
+        cards,
+        CardDef {
+            id: "Forethought+",
+            name: "Forethought+",
+            card_type: CardType::Skill,
+            target: CardTarget::None,
+            cost: 0,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: -1,
+            exhaust: false,
+            enter_stance: None,
+            effect_data: &FORETHOUGHT_PLUS,
+            complex_hook: None,
+        },
+    );
 }

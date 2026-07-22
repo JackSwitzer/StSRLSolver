@@ -8,8 +8,10 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/green/Prepared.java
 use crate::actions::Action;
 use crate::cards::global_registry;
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
 use crate::status_ids::sid;
 use crate::tests::support::*;
 
@@ -23,7 +25,9 @@ fn one_enemy_engine(enemy_id: &str, hp: i32, dmg: i32) -> crate::engine::CombatE
 fn silent_wave7_registry_exports_match_typed_surface() {
     let registry = global_registry();
 
-    let adrenaline = registry.get("Adrenaline").expect("Adrenaline should be registered");
+    let adrenaline = registry
+        .get("Adrenaline")
+        .expect("Adrenaline should be registered");
     assert_eq!(
         adrenaline.effect_data,
         &[
@@ -33,7 +37,9 @@ fn silent_wave7_registry_exports_match_typed_surface() {
     );
     assert_eq!(adrenaline.base_magic, 1);
 
-    let adrenaline_plus = registry.get("Adrenaline+").expect("Adrenaline+ should be registered");
+    let adrenaline_plus = registry
+        .get("Adrenaline+")
+        .expect("Adrenaline+ should be registered");
     assert_eq!(adrenaline_plus.base_magic, 2);
 
     let blur = registry.get("Blur").expect("Blur should be registered");
@@ -42,15 +48,22 @@ fn silent_wave7_registry_exports_match_typed_surface() {
         &[E::Simple(SE::AddStatus(T::Player, sid::BLUR, A::Fixed(1)))]
     );
 
-    let footwork = registry.get("Footwork").expect("Footwork should be registered");
+    let footwork = registry
+        .get("Footwork")
+        .expect("Footwork should be registered");
     assert_eq!(
         footwork.effect_data,
-        &[E::Simple(SE::AddStatus(T::Player, sid::DEXTERITY, A::Magic))]
+        &[E::Simple(SE::AddStatus(
+            T::Player,
+            sid::DEXTERITY,
+            A::Magic
+        ))]
     );
 
-    let prepared = registry.get("Prepared").expect("Prepared should be registered");
+    let prepared = registry
+        .get("Prepared")
+        .expect("Prepared should be registered");
     assert_eq!(prepared.effect_data[0], E::Simple(SE::DrawCards(A::Magic)));
-
 }
 
 #[test]
@@ -146,8 +159,10 @@ fn piercing_wail_reduces_all_unprotected_attacks_then_restores_strength() {
 
     end_turn(&mut engine);
 
-    assert_eq!(engine.state.player.hp, 60,
-        "unprotected enemy deals 10-4 while Artifact enemy deals 10+4");
+    assert_eq!(
+        engine.state.player.hp, 60,
+        "unprotected enemy deals 10-4 while Artifact enemy deals 10+4"
+    );
     assert_eq!(engine.state.enemies[0].entity.status(sid::STRENGTH), 4);
     assert_eq!(
         engine.state.enemies[0]
@@ -171,7 +186,9 @@ fn poisoned_stab_deals_damage_before_applying_source_poison() {
     assert_eq!(stacked.state.energy, 1);
 
     let mut artifact = one_enemy_engine("JawWorm", 20, 0);
-    artifact.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+    artifact.state.enemies[0]
+        .entity
+        .set_status(sid::ARTIFACT, 1);
     artifact.state.hand = make_deck(&["Poisoned Stab+"]);
     assert!(play_on_enemy(&mut artifact, "Poisoned Stab+", 0));
     assert_eq!(artifact.state.enemies[0].entity.hp, 12);
@@ -182,8 +199,11 @@ fn poisoned_stab_deals_damage_before_applying_source_poison() {
     lethal.state.hand = make_deck(&["Poisoned Stab"]);
     assert!(play_on_enemy(&mut lethal, "Poisoned Stab", 0));
     assert_eq!(lethal.state.enemies[0].entity.hp, 0);
-    assert_eq!(lethal.state.enemies[0].entity.status(sid::POISON), 0,
-        "lethal DamageAction clears the queued ApplyPowerAction");
+    assert_eq!(
+        lethal.state.enemies[0].entity.status(sid::POISON),
+        0,
+        "lethal DamageAction clears the queued ApplyPowerAction"
+    );
 }
 
 #[test]
@@ -203,16 +223,22 @@ fn predator_stacks_shared_next_turn_draw_after_nonlethal_damage() {
     assert_eq!(stacked.state.energy, 0);
 
     end_turn(&mut stacked);
-    assert_eq!(stacked.state.hand.len(), 9,
-        "normal five-card draw is followed by four Draw Card stacks");
+    assert_eq!(
+        stacked.state.hand.len(),
+        9,
+        "normal five-card draw is followed by four Draw Card stacks"
+    );
     assert_eq!(stacked.state.player.status(sid::DRAW_CARD), 0);
 
     let mut lethal = one_enemy_engine("JawWorm", 15, 0);
     lethal.state.hand = make_deck(&["Predator"]);
     assert!(play_on_enemy(&mut lethal, "Predator", 0));
     assert_eq!(lethal.state.enemies[0].entity.hp, 0);
-    assert_eq!(lethal.state.player.status(sid::DRAW_CARD), 0,
-        "lethal DamageAction clears the queued ApplyPowerAction");
+    assert_eq!(
+        lethal.state.player.status(sid::DRAW_CARD),
+        0,
+        "lethal DamageAction clears the queued ApplyPowerAction"
+    );
 }
 
 #[test]

@@ -7,14 +7,12 @@
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 
-static TRIGGERS: [TriggeredEffect; 1] = [
-    TriggeredEffect {
-        trigger: Trigger::DamageResolved,
-        condition: TriggerCondition::Always,
-        effects: &[], // Handled inline in damage pipeline
-        counter: None,
-    },
-];
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::DamageResolved,
+    condition: TriggerCondition::Always,
+    effects: &[], // Handled inline in damage pipeline
+    counter: None,
+}];
 
 pub static DEF: EntityDef = EntityDef {
     id: "Boot",

@@ -405,7 +405,10 @@ impl StsRandom {
     }
 
     pub(crate) fn random_index(&mut self, len: usize) -> usize {
-        assert!(len > 0 && len <= i32::MAX as usize, "invalid random index length");
+        assert!(
+            len > 0 && len <= i32::MAX as usize,
+            "invalid random index length"
+        );
         self.random_int(len as i32 - 1) as usize
     }
 
@@ -475,7 +478,10 @@ impl JavaUtilRandom {
     }
 
     fn next_int(&mut self, bound: usize) -> usize {
-        assert!(bound > 0 && bound <= i32::MAX as usize, "invalid Java int bound");
+        assert!(
+            bound > 0 && bound <= i32::MAX as usize,
+            "invalid Java int bound"
+        );
         if bound.is_power_of_two() {
             return ((bound as u64 * self.next_bits(31) as u64) >> 31) as usize;
         }
@@ -875,11 +881,21 @@ mod tests {
             (0_u64, (0x8f78_0810_af31_a493, 0xd1f9_a22a_f8e8_3383)),
             (1_u64, (0xb456_bcfc_34c2_cb2c, 0x7d6e_4ac3_8b2b_1be2)),
             (u64::MAX, (0x64b5_720b_4b82_5f21, 0xfa60_5f44_aea3_667d)),
-            (i64::MIN as u64, (0x8f78_0810_af31_a493, 0xd1f9_a22a_f8e8_3383)),
-            (i64::MAX as u64, (0xabb9_3df0_a930_edea, 0xe723_0606_8b6e_596a)),
+            (
+                i64::MIN as u64,
+                (0x8f78_0810_af31_a493, 0xd1f9_a22a_f8e8_3383),
+            ),
+            (
+                i64::MAX as u64,
+                (0xabb9_3df0_a930_edea, 0xe723_0606_8b6e_596a),
+            ),
         ];
         for (seed, expected) in cases {
-            assert_eq!(RandomXs128::new(seed).state_tuple(), expected, "seed {seed}");
+            assert_eq!(
+                RandomXs128::new(seed).state_tuple(),
+                expected,
+                "seed {seed}"
+            );
         }
     }
 
@@ -1030,7 +1046,10 @@ mod tests {
         }))
         .is_err());
         assert_eq!(rng.counter, 1);
-        assert_eq!((rng.state_tuple().0, rng.state_tuple().1), (before.0, before.1));
+        assert_eq!(
+            (rng.state_tuple().0, rng.state_tuple().1),
+            (before.0, before.1)
+        );
 
         rng.counter = i32::MAX;
         assert_eq!(rng.random_int(0), 0);
@@ -1108,18 +1127,17 @@ mod tests {
 
     #[test]
     fn rng_state_serializes_and_restores_without_losing_signed_bits() {
-        let original = StsRandom::from_state(
-            i64::MIN as u64,
-            (-7_i64) as u64,
-            i32::MIN,
-        );
+        let original = StsRandom::from_state(i64::MIN as u64, (-7_i64) as u64, i32::MIN);
         let encoded = serde_json::to_string(&original).unwrap();
         let mut restored: StsRandom = serde_json::from_str(&encoded).unwrap();
         assert_eq!(restored, original);
 
         let mut direct = original.clone();
         for _ in 0..8 {
-            assert_eq!(restored.random_long_unbounded(), direct.random_long_unbounded());
+            assert_eq!(
+                restored.random_long_unbounded(),
+                direct.random_long_unbounded()
+            );
         }
 
         let all_zero = StsRandom::from_state(0, 0, i32::MAX);

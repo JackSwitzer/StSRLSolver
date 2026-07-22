@@ -31,11 +31,48 @@ fn colosseum_fight_prompt() -> TypedEventDef {
     )
 }
 
+fn drug_dealer_leave_event() -> TypedEventDef {
+    event(
+        "Drug Dealer",
+        vec![supported(
+            "Leave",
+            vec![EventProgramOp::nothing()],
+            EventEffect::Nothing,
+        )],
+    )
+}
+
+fn forgotten_altar_leave_event() -> TypedEventDef {
+    event(
+        "Forgotten Altar",
+        vec![supported(
+            "Leave",
+            vec![EventProgramOp::nothing()],
+            EventEffect::Nothing,
+        )],
+    )
+}
+
+fn council_of_ghosts_leave_event() -> TypedEventDef {
+    event(
+        "Council of Ghosts",
+        vec![supported(
+            "Leave",
+            vec![EventProgramOp::nothing()],
+            EventEffect::Nothing,
+        )],
+    )
+}
+
 fn colosseum_post_combat() -> TypedEventDef {
     event(
         "Colosseum",
         vec![
-            supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+            supported(
+                "Leave",
+                vec![EventProgramOp::nothing()],
+                EventEffect::Nothing,
+            ),
             supported(
                 "Continue (fight Nobs)",
                 vec![EventProgramOp::combat_branch(
@@ -124,11 +161,30 @@ pub fn typed_act2_events() -> Vec<TypedEventDef> {
                     "Offer Golden Idol (gain Bloody Idol)",
                     vec![
                         EventProgramOp::remove_relic("Golden Idol"),
-                        EventProgramOp::gain_relic("Bloody Idol"),
+                        EventProgramOp::obtain_relic("Bloody Idol"),
+                        EventProgramOp::continue_event(forgotten_altar_leave_event()),
                     ],
                     EventEffect::GainRelic,
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Shed blood (gain 5 max HP, take damage)",
+                    vec![
+                        // normalize_event_runtime_state replaces this damage
+                        // with the constructor-time max-HP percentage.
+                        EventProgramOp::max_hp(5),
+                        EventProgramOp::hp(0),
+                        EventProgramOp::continue_event(forgotten_altar_leave_event()),
+                    ],
+                    EventEffect::MaxHp(5),
+                ),
+                supported(
+                    "Smash the altar (gain Decay)",
+                    vec![
+                        EventProgramOp::curse("Decay"),
+                        EventProgramOp::continue_event(forgotten_altar_leave_event()),
+                    ],
+                    EventEffect::GainCard,
+                ),
             ],
         ),
         event(
@@ -138,15 +194,20 @@ pub fn typed_act2_events() -> Vec<TypedEventDef> {
                     "Accept (gain 5 Apparitions, lose max HP)",
                     vec![
                         EventProgramOp::lose_max_hp_percent_ceil(50),
-                        EventProgramOp::gain_specific_card_copies_by_ascension(
-                            "Apparition",
-                            5,
-                            3,
-                        ),
+                        // Apparition's Java card ID is "Ghostly".
+                        // Java: cards/colorless/Apparition.java::ID.
+                        EventProgramOp::gain_specific_card_copies_by_ascension("Ghostly", 5, 3),
+                        EventProgramOp::continue_event(council_of_ghosts_leave_event()),
                     ],
                     EventEffect::MaxHp(-5),
                 ),
-                supported("Refuse", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Refuse",
+                    vec![EventProgramOp::continue_event(
+                        council_of_ghosts_leave_event(),
+                    )],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
@@ -183,7 +244,11 @@ pub fn typed_act2_events() -> Vec<TypedEventDef> {
                     ],
                     EventEffect::DamageAndGold(-6, 90),
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
@@ -205,7 +270,11 @@ pub fn typed_act2_events() -> Vec<TypedEventDef> {
                     ],
                     EventEffect::RemoveCard,
                 ),
-                supported("Refuse", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Refuse",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
@@ -229,7 +298,11 @@ pub fn typed_act2_events() -> Vec<TypedEventDef> {
                     ],
                     EventEffect::GainRelic,
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
@@ -260,30 +333,34 @@ pub fn typed_act2_events() -> Vec<TypedEventDef> {
                     ],
                     EventEffect::RemoveCard,
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
             "Colosseum",
-            vec![
-                supported(
-                    "Enter",
-                    vec![EventProgramOp::continue_event(colosseum_fight_prompt())],
-                    EventEffect::Nothing,
-                ),
-            ],
+            vec![supported(
+                "Enter",
+                vec![EventProgramOp::continue_event(colosseum_fight_prompt())],
+                EventEffect::Nothing,
+            )],
         ),
         event(
             "Cursed Tome",
             vec![
                 supported(
                     "Read",
-                    vec![
-                        EventProgramOp::continue_event(cursed_tome_page_1()),
-                    ],
+                    vec![EventProgramOp::continue_event(cursed_tome_page_1())],
                     EventEffect::GainRelic,
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
         event(
@@ -306,8 +383,13 @@ pub fn typed_act2_events() -> Vec<TypedEventDef> {
                     "Inject mutagens (gain Mutagenic Strength relic)",
                     // DrugDealer.java immediately obtains the canonical relic ID
                     // and substitutes Circlet when MutagenicStrength is owned.
+                    // It then replaces the dialog with one Leave option; the
+                    // room does not open the map until that second buttonEffect.
                     // Java: decompiled/java-src/com/megacrit/cardcrawl/events/city/DrugDealer.java
-                    vec![EventProgramOp::obtain_relic("MutagenicStrength")],
+                    vec![
+                        EventProgramOp::obtain_relic("MutagenicStrength"),
+                        EventProgramOp::continue_event(drug_dealer_leave_event()),
+                    ],
                     EventEffect::GainRelic,
                 ),
             ],
@@ -350,7 +432,7 @@ pub fn typed_act2_events() -> Vec<TypedEventDef> {
             vec![
                 supported(
                     "Read (choose 1 of 20 cards)",
-                    vec![EventProgramOp::gain_card_reward(1)],
+                    vec![EventProgramOp::gain_library_card_reward()],
                     EventEffect::GainCard,
                 ),
                 supported(
@@ -377,7 +459,11 @@ pub fn typed_act2_events() -> Vec<TypedEventDef> {
                     )],
                     EventEffect::GainRelic,
                 ),
-                supported("Leave", vec![EventProgramOp::nothing()], EventEffect::Nothing),
+                supported(
+                    "Leave",
+                    vec![EventProgramOp::nothing()],
+                    EventEffect::Nothing,
+                ),
             ],
         ),
     ]

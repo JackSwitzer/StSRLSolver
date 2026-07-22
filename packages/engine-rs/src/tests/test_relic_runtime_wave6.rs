@@ -97,6 +97,57 @@ fn vajra_applies_exactly_one_strength_at_combat_start() {
 }
 
 #[test]
+fn vajra_top_action_precedes_damaru_turn_start_power_in_java_order() {
+    // Sources:
+    // - Vajra.java::atBattleStart uses addToTop(ApplyPowerAction(Strength, 1)).
+    // - Damaru.java::atTurnStart uses addToBot(ApplyPowerAction(Mantra, 1)).
+    // - AbstractRoom.java invokes atBattleStart before first-turn atTurnStart,
+    //   so Vajra's top action resolves first even when Damaru is owned first.
+    let mut engine = engine_without_start_with_relics(
+        &["Damaru", "Vajra"],
+        &["LikeWater", "Defend", "Defend", "Defend", "Defend"],
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        3,
+    );
+
+    engine.start_combat();
+    assert!(play_self(&mut engine, "LikeWater"));
+
+    assert_eq!(engine.state.player.strength(), 1);
+    assert_eq!(engine.state.player.status(sid::MANTRA), 1);
+    assert_eq!(engine.state.player.status(sid::LIKE_WATER), 5);
+    assert_eq!(
+        engine.state.player.ordered_status_ids(),
+        [sid::STRENGTH, sid::MANTRA, sid::LIKE_WATER]
+    );
+}
+
+#[test]
+fn later_owned_akabeko_top_action_precedes_vajra_then_damaru() {
+    // Akabeko and Vajra both queue ApplyPowerAction with addToTop during the
+    // relic-order atBattleStart loop. Akabeko is owned later here, so its
+    // Vigor resolves first; Damaru's first-turn addToBot Mantra resolves last.
+    // Java: Akabeko.java::atBattleStart; Vajra.java::atBattleStart;
+    // Damaru.java::atTurnStart; AbstractRoom.java::applyStartOfCombatLogic.
+    let mut engine = engine_without_start_with_relics(
+        &["Vajra", "Damaru", "Akabeko"],
+        &["Strike", "Strike", "Strike", "Strike", "Strike"],
+        vec![enemy_no_intent("JawWorm", 50, 50)],
+        3,
+    );
+
+    engine.start_combat();
+
+    assert_eq!(engine.state.player.status(sid::VIGOR), 8);
+    assert_eq!(engine.state.player.strength(), 1);
+    assert_eq!(engine.state.player.status(sid::MANTRA), 1);
+    assert_eq!(
+        engine.state.player.ordered_status_ids(),
+        [sid::VIGOR, sid::STRENGTH, sid::MANTRA]
+    );
+}
+
+#[test]
 fn thread_and_needle_applies_exactly_four_plated_armor_at_combat_start() {
     // Source: reference/extracted/methods/relic/ThreadAndNeedle.java
     let mut engine = engine_without_start_with_relics(
@@ -353,11 +404,8 @@ fn ginger_runtime_install_blocks_enemy_weak_application() {
     engine.start_combat();
 
     assert_eq!(engine.state.player.status(sid::HAS_GINGER), 1);
-    let applied = crate::powers::apply_debuff_from_enemy(
-        &mut engine.state.player,
-        sid::WEAKENED,
-        2,
-    );
+    let applied =
+        crate::powers::apply_debuff_from_enemy(&mut engine.state.player, sid::WEAKENED, 2);
     assert!(!applied);
     assert_eq!(engine.state.player.status(sid::WEAKENED), 0);
     assert_eq!(engine.state.player.status(sid::WEAKENED_JUST_APPLIED), 0);
@@ -457,11 +505,7 @@ fn lizard_tail_revive_uses_healing_rules_and_stays_consumed_next_combat() {
     // then uses itself up. The relic object persists, so the used state is run-wide.
     let mut lethal_enemy = enemy("JawWorm", 60, 60, 1, 200, 1);
     lethal_enemy.set_move(1, 200, 1, 0);
-    let mut first_state = combat_state_with(
-        make_deck_n("Strike", 10),
-        vec![lethal_enemy],
-        3,
-    );
+    let mut first_state = combat_state_with(make_deck_n("Strike", 10), vec![lethal_enemy], 3);
     first_state.relics = vec!["Lizard Tail".to_string(), "Magic Flower".to_string()];
     first_state.player.hp = 10;
     let mut first = engine_with_state(first_state);
@@ -469,17 +513,16 @@ fn lizard_tail_revive_uses_healing_rules_and_stays_consumed_next_combat() {
     end_turn(&mut first);
 
     assert_eq!(first.state.player.max_hp, 80);
-    assert_eq!(first.state.player.hp, 60, "40-point revive is boosted by 50%");
+    assert_eq!(
+        first.state.player.hp, 60,
+        "40-point revive is boosted by 50%"
+    );
     assert_eq!(first.state.player.status(sid::LIZARD_TAIL_USED), 1);
     assert!(!first.state.combat_over);
 
     let mut next_enemy = enemy("JawWorm", 60, 60, 1, 200, 1);
     next_enemy.set_move(1, 200, 1, 0);
-    let mut next_state = combat_state_with(
-        make_deck_n("Strike", 10),
-        vec![next_enemy],
-        3,
-    );
+    let mut next_state = combat_state_with(make_deck_n("Strike", 10), vec![next_enemy], 3);
     next_state.relics.push("Lizard Tail".to_string());
     next_state.player.set_status(sid::LIZARD_TAIL_USED, 1);
     next_state.player.hp = 10;

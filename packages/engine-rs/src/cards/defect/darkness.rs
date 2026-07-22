@@ -3,21 +3,41 @@ use crate::cards::prelude::*;
 pub fn register(cards: &mut HashMap<&'static str, CardDef>) {
     // Source: reference/extracted/methods/card/Darkness.java channels one Dark;
     // upgrading adds a DarkImpulseAction after the channel action.
-    insert(cards, CardDef {
-                id: "Darkness", name: "Darkness", card_type: CardType::Skill,
-                target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
-                base_magic: 1, exhaust: false, enter_stance: None,
-                effect_data: &[
-                    E::Simple(SE::ChannelOrb(OrbType::Dark, A::Fixed(1))),
-                ], complex_hook: None,
-            });
-    insert(cards, CardDef {
-                id: "Darkness+", name: "Darkness+", card_type: CardType::Skill,
-                target: CardTarget::SelfTarget, cost: 1, base_damage: -1, base_block: -1,
-                base_magic: 1, exhaust: false, enter_stance: None,
-                effect_data: &[
-                    E::Simple(SE::ChannelOrb(OrbType::Dark, A::Fixed(1))),
-                    E::Simple(SE::TriggerDarkPassive),
-                ], complex_hook: None,
-            });
+    insert(
+        cards,
+        CardDef {
+            id: "Darkness",
+            name: "Darkness",
+            card_type: CardType::Skill,
+            target: CardTarget::SelfTarget,
+            cost: 1,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: 1,
+            exhaust: false,
+            enter_stance: None,
+            effect_data: &[E::Simple(SE::ChannelOrb(OrbType::Dark, A::Fixed(1)))],
+            complex_hook: None,
+        },
+    );
+    insert(
+        cards,
+        CardDef {
+            id: "Darkness+",
+            name: "Darkness+",
+            card_type: CardType::Skill,
+            target: CardTarget::SelfTarget,
+            cost: 1,
+            base_damage: -1,
+            base_block: -1,
+            base_magic: 1,
+            exhaust: false,
+            enter_stance: None,
+            effect_data: &[
+                E::Simple(SE::ChannelOrb(OrbType::Dark, A::Fixed(1))),
+                E::Simple(SE::TriggerDarkPassive),
+            ],
+            complex_hook: None,
+        },
+    );
 }

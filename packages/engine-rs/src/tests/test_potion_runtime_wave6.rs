@@ -64,7 +64,10 @@ fn wave6_simple_self_buff_potions_use_runtime_action_path() {
         use_potion(&mut engine, 0, -1);
 
         if block_amount > 0 {
-            assert_eq!(engine.state.player.block, block_amount, "{potion_id} should grant block");
+            assert_eq!(
+                engine.state.player.block, block_amount,
+                "{potion_id} should grant block"
+            );
         } else {
             assert_eq!(
                 engine.state.player.status(status_id),
@@ -72,7 +75,10 @@ fn wave6_simple_self_buff_potions_use_runtime_action_path() {
                 "{potion_id} should add the expected status"
             );
         }
-        assert!(engine.state.potions[0].is_empty(), "{potion_id} should consume its slot");
+        assert!(
+            engine.state.potions[0].is_empty(),
+            "{potion_id} should consume its slot"
+        );
         assert!(engine.event_log.iter().any(|record| {
             record.event == Trigger::ManualActivation && record.def_id == Some(def_id)
         }));
@@ -230,7 +236,10 @@ fn weak_potion_keeps_three_potency_targets_one_enemy_and_uses_false_timing_flag(
 fn wave6_simple_targeted_potions_use_runtime_action_path() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike"]),
-        vec![enemy_no_intent("JawWorm", 40, 40), enemy_no_intent("Louse", 30, 30)],
+        vec![
+            enemy_no_intent("JawWorm", 40, 40),
+            enemy_no_intent("Louse", 30, 30),
+        ],
         3,
     ));
 
@@ -244,21 +253,29 @@ fn wave6_simple_targeted_potions_use_runtime_action_path() {
     for (potion_id, def_id) in cases {
         engine.state.enemies[0].entity.hp = engine.state.enemies[0].entity.max_hp;
         engine.state.enemies[0].entity.set_status(sid::WEAKENED, 0);
-        engine.state.enemies[0].entity.set_status(sid::VULNERABLE, 0);
+        engine.state.enemies[0]
+            .entity
+            .set_status(sid::VULNERABLE, 0);
         engine.state.enemies[0].entity.set_status(sid::POISON, 0);
         engine.state.potions = vec![String::new(); 3];
         engine.state.potions[1] = potion_id.to_string();
         engine.clear_event_log();
 
         let legal = engine.get_legal_actions();
-        assert!(legal.contains(&Action::UsePotion {
-            potion_idx: 1,
-            target_idx: 0,
-        }), "{potion_id} should enumerate targeted use");
-        assert!(!legal.contains(&Action::UsePotion {
-            potion_idx: 1,
-            target_idx: -1,
-        }), "{potion_id} should require a target");
+        assert!(
+            legal.contains(&Action::UsePotion {
+                potion_idx: 1,
+                target_idx: 0,
+            }),
+            "{potion_id} should enumerate targeted use"
+        );
+        assert!(
+            !legal.contains(&Action::UsePotion {
+                potion_idx: 1,
+                target_idx: -1,
+            }),
+            "{potion_id} should require a target"
+        );
 
         use_potion(&mut engine, 1, 0);
 
@@ -270,7 +287,10 @@ fn wave6_simple_targeted_potions_use_runtime_action_path() {
             _ => unreachable!(),
         }
 
-        assert!(engine.state.potions[1].is_empty(), "{potion_id} should consume its slot");
+        assert!(
+            engine.state.potions[1].is_empty(),
+            "{potion_id} should consume its slot"
+        );
         assert!(engine.event_log.iter().any(|record| {
             record.event == Trigger::ManualActivation
                 && record.def_id == Some(def_id)
@@ -280,10 +300,49 @@ fn wave6_simple_targeted_potions_use_runtime_action_path() {
 }
 
 #[test]
+fn targeted_potions_switch_surrounded_backattack_before_use() {
+    // PotionPopUp flips the player toward the selected monster before using
+    // Fire, Weak, Fear, or Poison Potion. AbstractMonster.applyBackAttack then
+    // moves the 1.5x damage modifier to the monster on the opposite side.
+    // Java: PotionPopUp.java:190-209 and AbstractMonster.java::applyBackAttack.
+    for potion_id in ["Fire Potion", "Weak Potion", "Fear Potion", "Poison Potion"] {
+        let mut shield = enemy_no_intent("SpireShield", 125, 125);
+        shield.set_back_attack(true);
+        let mut spear = enemy_no_intent("SpireSpear", 180, 180);
+        spear.set_move(1, 10, 1, 0);
+        let mut state = combat_state_with(make_deck(&["Strike"]), vec![shield, spear], 3);
+        state.player.set_status(sid::SURROUNDED_POWER, 1);
+        let mut engine = engine_with_state(state);
+        engine.state.potions[0] = potion_id.to_string();
+
+        use_potion(&mut engine, 0, 0);
+
+        assert!(
+            !engine.state.enemies[0].has_back_attack(),
+            "{potion_id} should face the Shield"
+        );
+        assert!(
+            engine.state.enemies[1].has_back_attack(),
+            "{potion_id} should move BackAttack to the Spear"
+        );
+        let hp_before = engine.state.player.hp;
+        engine.execute_action(&Action::EndTurn);
+        assert_eq!(
+            engine.state.player.hp,
+            hp_before - 15,
+            "{potion_id} should preserve Java's BackAttack damage side"
+        );
+    }
+}
+
+#[test]
 fn wave6_simple_all_enemy_potions_respect_sacred_bark_via_runtime_path() {
     let mut engine = engine_with_state(combat_state_with(
         make_deck(&["Strike"]),
-        vec![enemy_no_intent("JawWorm", 40, 40), enemy_no_intent("Louse", 30, 30)],
+        vec![
+            enemy_no_intent("JawWorm", 40, 40),
+            enemy_no_intent("Louse", 30, 30),
+        ],
         3,
     ));
     engine.state.relics.push("SacredBark".to_string());
@@ -320,8 +379,12 @@ fn explosive_potion_uses_java_pure_matrix_but_keeps_normal_hit_hooks() {
     engine.state.relics.push("SacredBark".to_string());
     engine.state.enemies[0].entity.set_status(sid::SLOW, 5);
     engine.state.enemies[0].entity.set_status(sid::FLIGHT, 3);
-    engine.state.enemies[0].entity.set_status(sid::VULNERABLE, 3);
-    engine.state.enemies[0].entity.set_status(sid::INTANGIBLE, 1);
+    engine.state.enemies[0]
+        .entity
+        .set_status(sid::VULNERABLE, 3);
+    engine.state.enemies[0]
+        .entity
+        .set_status(sid::INTANGIBLE, 1);
     engine.state.enemies[1].entity.block = 6;
     engine.state.potions[0] = "Explosive Potion".to_string();
 
@@ -366,7 +429,12 @@ fn fear_potion_keeps_three_potency_and_only_debuffs_its_target() {
 
     assert_eq!(engine.state.enemies[0].entity.status(sid::VULNERABLE), 0);
     assert_eq!(engine.state.enemies[1].entity.status(sid::VULNERABLE), 6);
-    assert_eq!(engine.state.enemies[1].entity.status(sid::VULNERABLE_JUST_APPLIED), 0);
+    assert_eq!(
+        engine.state.enemies[1]
+            .entity
+            .status(sid::VULNERABLE_JUST_APPLIED),
+        0
+    );
     assert!(engine.state.potions[0].is_empty());
 }
 
@@ -384,7 +452,9 @@ fn fire_potion_uses_target_only_thorns_damage_and_constant_potency() {
     ));
     engine.state.relics.push("SacredBark".to_string());
     engine.state.enemies[0].entity.set_status(sid::SLOW, 5);
-    engine.state.enemies[0].entity.set_status(sid::VULNERABLE, 3);
+    engine.state.enemies[0]
+        .entity
+        .set_status(sid::VULNERABLE, 3);
     engine.state.enemies[0].entity.set_status(sid::FLIGHT, 3);
     engine.state.enemies[0].entity.set_status(sid::CURL_UP, 8);
     engine.state.enemies[0].entity.set_status(sid::MALLEABLE, 3);
@@ -402,7 +472,9 @@ fn fire_potion_uses_target_only_thorns_damage_and_constant_potency() {
         vec![enemy_no_intent("Nemesis", 50, 50)],
         3,
     ));
-    intangible.state.enemies[0].entity.set_status(sid::INTANGIBLE, 1);
+    intangible.state.enemies[0]
+        .entity
+        .set_status(sid::INTANGIBLE, 1);
     intangible.state.potions[0] = "Fire Potion".to_string();
     use_potion(&mut intangible, 0, 0);
     assert_eq!(intangible.state.enemies[0].entity.hp, 49);

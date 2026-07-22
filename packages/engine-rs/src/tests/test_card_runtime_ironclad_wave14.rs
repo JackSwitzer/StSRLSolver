@@ -78,14 +78,17 @@ fn ironclad_wave14_registry_keeps_the_remaining_blockers_explicit() {
             },
         ]
     );
-    assert!(headbutt.complex_hook.is_none(), "Headbutt should now be fully typed");
+    assert!(
+        headbutt.complex_hook.is_none(),
+        "Headbutt should now be fully typed"
+    );
 
     let havoc = global_registry().get("Havoc").expect("Havoc");
-    assert_eq!(
-        havoc.effect_data,
-        &[E::Simple(SE::PlayTopCardOfDraw)]
+    assert_eq!(havoc.effect_data, &[E::Simple(SE::PlayTopCardOfDraw)]);
+    assert!(
+        havoc.complex_hook.is_none(),
+        "Havoc should now be fully typed"
     );
-    assert!(havoc.complex_hook.is_none(), "Havoc should now be fully typed");
 
     let true_grit = global_registry().get("True Grit").expect("True Grit");
     assert_eq!(
@@ -101,7 +104,10 @@ fn ironclad_wave14_registry_keeps_the_remaining_blockers_explicit() {
             ),
         ]
     );
-    assert!(true_grit.complex_hook.is_none(), "True Grit base should now be fully typed");
+    assert!(
+        true_grit.complex_hook.is_none(),
+        "True Grit base should now be fully typed"
+    );
 }
 
 #[test]

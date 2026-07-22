@@ -5,8 +5,10 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/PerfectedStrike.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/red/Sentinel.java
 
-use crate::cards::{CardTarget, CardType, global_registry};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::cards::{global_registry, CardTarget, CardType};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::status_ids::sid;
 use crate::tests::support::*;
 
@@ -18,7 +20,12 @@ fn one_enemy_engine(enemy_id: &str, hp: i32) -> crate::engine::CombatEngine {
 
 #[test]
 fn ironclad_wave9_registry_moves_low_risk_cards_off_empty_programs() {
-    for card_id in ["Heavy Blade", "Heavy Blade+", "Perfected Strike", "Perfected Strike+"] {
+    for card_id in [
+        "Heavy Blade",
+        "Heavy Blade+",
+        "Perfected Strike",
+        "Perfected Strike+",
+    ] {
         let card = global_registry()
             .get(card_id)
             .unwrap_or_else(|| panic!("{card_id} should exist"));

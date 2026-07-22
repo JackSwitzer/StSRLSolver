@@ -5,7 +5,7 @@
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerCondition};
-use crate::engine::{ChoiceOption, ChoiceReason, CombatEngine};
+use crate::engine::{ChoiceOption, ChoiceReason, CombatEngine, TurnStartQueuedAction};
 use crate::status_ids::sid;
 
 fn hook(
@@ -14,6 +14,10 @@ fn hook(
     _event: &GameEvent,
     _state: &mut EffectState,
 ) {
+    if engine.is_collecting_turn_start_actions() {
+        engine.queue_turn_start_action_bottom(TurnStartQueuedAction::GamblingChip);
+        return;
+    }
     if engine.state.hand.is_empty() {
         return;
     }
@@ -26,14 +30,12 @@ fn hook(
     engine.state.player.set_status(sid::GAMBLING_CHIP_ACTIVE, 1);
 }
 
-static TRIGGERS: [TriggeredEffect; 1] = [
-    TriggeredEffect {
-        trigger: Trigger::TurnStartPostDrawLate,
-        condition: TriggerCondition::FirstTurn,
-        effects: &[],
-        counter: None,
-    },
-];
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::TurnStartPostDraw,
+    condition: TriggerCondition::FirstTurn,
+    effects: &[],
+    counter: None,
+}];
 
 pub static DEF: EntityDef = EntityDef {
     id: "Gambling Chip",

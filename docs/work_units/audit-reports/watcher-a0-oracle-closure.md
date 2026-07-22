@@ -1,5 +1,11 @@
 # Watcher A0 Oracle Closure Scorecard (90% Engine-Ready)
 
+> **Historical Wave 3 snapshot.** This file preserves the state before the
+> Wave 3b systemic replay work. Its 3,110-test and 51/607-prefix figures are not
+> current. Use [`../oracle-replay-wave3b-appendix.md`](../oracle-replay-wave3b-appendix.md)
+> for the live 3,269-test, 2,013-action, exact-omission, assumption, and
+> certification scorecard.
+
 **Branch:** `codex/oracle-loop-wave3`
 
 **Authority:** decompiled Java for behavior; human-minted Java traces for

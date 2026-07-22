@@ -4,9 +4,14 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/tempCards/Expunger.java
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/cards/purple/ConjureBlade.java
 
-use crate::cards::{CardTarget, CardType, global_registry};
-use crate::effects::declarative::{AmountSource as A, Effect as E, Pile as P, SimpleEffect as SE, Target as T};
-use crate::tests::support::{enemy_no_intent, engine_without_start, ensure_in_hand, force_player_turn, play_on_enemy, play_self};
+use crate::cards::{global_registry, CardTarget, CardType};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, Pile as P, SimpleEffect as SE, Target as T,
+};
+use crate::tests::support::{
+    enemy_no_intent, engine_without_start, ensure_in_hand, force_player_turn, play_on_enemy,
+    play_self,
+};
 
 fn one_enemy_engine(hp: i32, energy: i32) -> crate::engine::CombatEngine {
     let mut engine =
@@ -96,7 +101,13 @@ fn xcount_wave3_conjure_blade_stamps_generated_expunger_misc() {
         .expect("generated Expunger");
 
     assert_eq!(engine.state.energy, 0);
-    assert_eq!(engine.state.player.status(crate::status_ids::sid::EXPUNGER_HITS), 0);
+    assert_eq!(
+        engine
+            .state
+            .player
+            .status(crate::status_ids::sid::EXPUNGER_HITS),
+        0
+    );
     assert_eq!(expunger.misc, 4);
 }
 

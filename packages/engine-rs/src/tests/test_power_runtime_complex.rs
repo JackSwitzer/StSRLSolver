@@ -83,8 +83,11 @@ fn panache_runtime_hook_counts_cards_and_resets_after_five() {
 
 #[test]
 fn double_tap_def_is_wired_to_attack_play_events() {
-    assert_eq!(DEF_DOUBLE_TAP.triggers.len(), 1);
+    // DoubleTapPower handles both onUseCard replay and atEndOfTurn removal.
+    // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/DoubleTapPower.java
+    assert_eq!(DEF_DOUBLE_TAP.triggers.len(), 2);
     assert_eq!(DEF_DOUBLE_TAP.triggers[0].trigger, Trigger::OnAttackPlayed);
+    assert_eq!(DEF_DOUBLE_TAP.triggers[1].trigger, Trigger::TurnEnd);
     assert!(DEF_DOUBLE_TAP.complex_hook.is_some());
 }
 

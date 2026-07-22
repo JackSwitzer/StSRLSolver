@@ -1,8 +1,8 @@
 //! Red Skull: +3 Strength when HP <= 50% at combat start.
 
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
-use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
+use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::engine::CombatEngine;
 use crate::status_ids::sid;
 

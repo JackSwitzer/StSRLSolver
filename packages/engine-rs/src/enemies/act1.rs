@@ -21,6 +21,10 @@ pub(super) fn roll_jaw_worm(enemy: &mut EnemyCombatState, num: i32, ai_rng: &mut
     };
     let bellow = |enemy: &mut EnemyCombatState| {
         enemy.set_move(move_ids::JW_BELLOW, 0, 0, bellow_block);
+        enemy.intent = Intent::DefendBuff {
+            block: bellow_block as i16,
+            effects: fx::STRENGTH,
+        };
         enemy.add_effect(mfx::STRENGTH, strength);
     };
     let thrash = |enemy: &mut EnemyCombatState| {
@@ -165,7 +169,14 @@ pub(super) fn roll_blue_slaver(enemy: &mut EnemyCombatState, num: i32) {
     if choose_stab {
         enemy.set_move(move_ids::BS_STAB, stab, 1, 0);
     } else {
-        enemy.set_move(move_ids::BS_RAKE, rake, 1, 0);
+        enemy.set_move_with_intent(
+            move_ids::BS_RAKE,
+            Intent::AttackDebuff {
+                damage: rake as i16,
+                hits: 1,
+                effects: fx::WEAK,
+            },
+        );
         enemy.add_effect(mfx::WEAK, weak);
     }
 }
@@ -186,19 +197,38 @@ pub(super) fn roll_red_slaver(enemy: &mut EnemyCombatState, num: i32) {
         .any(|&m| m == move_ids::RS_ENTANGLE);
 
     if num >= 75 && !used_entangle {
-        enemy.set_move(move_ids::RS_ENTANGLE, 0, 0, 0);
+        enemy.set_move_with_intent(
+            move_ids::RS_ENTANGLE,
+            Intent::StrongDebuff {
+                effects: fx::ENTANGLE,
+            },
+        );
         enemy.add_effect(mfx::ENTANGLE, 1);
     } else if num >= 55 && used_entangle && !last_two_moves(enemy, move_ids::RS_STAB) {
         enemy.set_move(move_ids::RS_STAB, stab, 1, 0);
     } else if vulnerable >= 2 {
         if !last_move(enemy, move_ids::RS_SCRAPE) {
-            enemy.set_move(move_ids::RS_SCRAPE, scrape, 1, 0);
+            enemy.set_move_with_intent(
+                move_ids::RS_SCRAPE,
+                Intent::AttackDebuff {
+                    damage: scrape as i16,
+                    hits: 1,
+                    effects: fx::VULNERABLE,
+                },
+            );
             enemy.add_effect(mfx::VULNERABLE, vulnerable);
         } else {
             enemy.set_move(move_ids::RS_STAB, stab, 1, 0);
         }
     } else if !last_two_moves(enemy, move_ids::RS_SCRAPE) {
-        enemy.set_move(move_ids::RS_SCRAPE, scrape, 1, 0);
+        enemy.set_move_with_intent(
+            move_ids::RS_SCRAPE,
+            Intent::AttackDebuff {
+                damage: scrape as i16,
+                hits: 1,
+                effects: fx::VULNERABLE,
+            },
+        );
         enemy.add_effect(mfx::VULNERABLE, vulnerable);
     } else {
         enemy.set_move(move_ids::RS_STAB, stab, 1, 0);
@@ -216,7 +246,7 @@ pub(super) fn roll_acid_slime_s(enemy: &mut EnemyCombatState, _num: i32, ai_rng:
     if tackle {
         enemy.set_move(move_ids::AS_S_TACKLE, damage, 1, 0);
     } else {
-        enemy.set_move(move_ids::AS_S_LICK, 0, 0, 0);
+        enemy.set_move_with_intent(move_ids::AS_S_LICK, Intent::Debuff { effects: fx::WEAK });
         enemy.add_effect(mfx::WEAK, 1);
     }
 }
@@ -226,7 +256,7 @@ pub(crate) fn advance_acid_slime_s_after_turn(enemy: &mut EnemyCombatState) {
     enemy.move_history.push(enemy.move_id);
     enemy.move_effects.clear();
     if enemy.move_id == move_ids::AS_S_TACKLE {
-        enemy.set_move(move_ids::AS_S_LICK, 0, 0, 0);
+        enemy.set_move_with_intent(move_ids::AS_S_LICK, Intent::Debuff { effects: fx::WEAK });
         enemy.add_effect(mfx::WEAK, 1);
     } else {
         let damage = enemy.entity.status(sid::STARTING_DMG).max(3);
@@ -240,14 +270,21 @@ pub(super) fn roll_acid_slime_m(enemy: &mut EnemyCombatState, num: i32, ai_rng: 
     let normal_damage = enemy.entity.status(sid::STR_AMT).max(10);
     let a17 = enemy.entity.status(sid::BLOCK_AMT) >= 17;
     let wound = |enemy: &mut EnemyCombatState| {
-        enemy.set_move(move_ids::AS_CORROSIVE_SPIT, wound_damage, 1, 0);
+        enemy.set_move_with_intent(
+            move_ids::AS_CORROSIVE_SPIT,
+            Intent::AttackDebuff {
+                damage: wound_damage as i16,
+                hits: 1,
+                effects: fx::SLIMED,
+            },
+        );
         enemy.add_effect(mfx::SLIMED, 1);
     };
     let normal = |enemy: &mut EnemyCombatState| {
         enemy.set_move(move_ids::AS_TACKLE, normal_damage, 1, 0);
     };
     let lick = |enemy: &mut EnemyCombatState| {
-        enemy.set_move(move_ids::AS_LICK, 0, 0, 0);
+        enemy.set_move_with_intent(move_ids::AS_LICK, Intent::Debuff { effects: fx::WEAK });
         enemy.add_effect(mfx::WEAK, 1);
     };
 
@@ -318,14 +355,21 @@ pub(super) fn roll_acid_slime_l(enemy: &mut EnemyCombatState, num: i32, ai_rng: 
     let normal_damage = enemy.entity.status(sid::STR_AMT).max(16);
     let a17 = enemy.entity.status(sid::BLOCK_AMT) >= 17;
     let wound = |enemy: &mut EnemyCombatState| {
-        enemy.set_move(move_ids::AS_CORROSIVE_SPIT, wound_damage, 1, 0);
+        enemy.set_move_with_intent(
+            move_ids::AS_CORROSIVE_SPIT,
+            Intent::AttackDebuff {
+                damage: wound_damage as i16,
+                hits: 1,
+                effects: fx::SLIMED,
+            },
+        );
         enemy.add_effect(mfx::SLIMED, 2);
     };
     let normal = |enemy: &mut EnemyCombatState| {
         enemy.set_move(move_ids::AS_TACKLE, normal_damage, 1, 0);
     };
     let lick = |enemy: &mut EnemyCombatState| {
-        enemy.set_move(move_ids::AS_LICK, 0, 0, 0);
+        enemy.set_move_with_intent(move_ids::AS_LICK, Intent::Debuff { effects: fx::WEAK });
         enemy.add_effect(mfx::WEAK, 2);
     };
     if a17 {
@@ -407,10 +451,17 @@ pub(super) fn roll_spike_slime_m(enemy: &mut EnemyCombatState, num: i32) {
         last_two_moves(enemy, move_ids::SS_LICK)
     };
     if choose_tackle {
-        enemy.set_move(move_ids::SS_TACKLE, damage, 1, 0);
+        enemy.set_move_with_intent(
+            move_ids::SS_TACKLE,
+            Intent::AttackDebuff {
+                damage: damage as i16,
+                hits: 1,
+                effects: fx::SLIMED,
+            },
+        );
         enemy.add_effect(mfx::SLIMED, 1);
     } else {
-        enemy.set_move(move_ids::SS_LICK, 0, 0, 0);
+        enemy.set_move_with_intent(move_ids::SS_LICK, Intent::Debuff { effects: fx::FRAIL });
         enemy.add_effect(mfx::FRAIL, 1);
     }
 }
@@ -428,10 +479,17 @@ pub(super) fn roll_spike_slime_l(enemy: &mut EnemyCombatState, num: i32) {
         last_two_moves(enemy, move_ids::SS_LICK)
     };
     if choose_tackle {
-        enemy.set_move(move_ids::SS_TACKLE, damage, 1, 0);
+        enemy.set_move_with_intent(
+            move_ids::SS_TACKLE,
+            Intent::AttackDebuff {
+                damage: damage as i16,
+                hits: 1,
+                effects: fx::SLIMED,
+            },
+        );
         enemy.add_effect(mfx::SLIMED, 2);
     } else {
-        enemy.set_move(move_ids::SS_LICK, 0, 0, 0);
+        enemy.set_move_with_intent(move_ids::SS_LICK, Intent::Debuff { effects: fx::FRAIL });
         enemy.add_effect(mfx::FRAIL, frail);
     }
 }
@@ -462,7 +520,13 @@ pub fn advance_looter_after_turn(
             enemy.entity.set_status(sid::ATTACK_COUNT, slash_count + 1);
             if slash_count + 1 == 2 {
                 if ai_rng.random_f32() < 0.5 {
-                    enemy.set_move(move_ids::LOOTER_SMOKE_BOMB, 0, 0, escape_block);
+                    enemy.set_move_with_intent(
+                        move_ids::LOOTER_SMOKE_BOMB,
+                        Intent::Block {
+                            amount: escape_block as i16,
+                            effects: 0,
+                        },
+                    );
                 } else {
                     enemy.set_move(move_ids::LOOTER_LUNGE, lunge, 1, 0);
                 }
@@ -472,15 +536,21 @@ pub fn advance_looter_after_turn(
         }
         move_ids::LOOTER_LUNGE => {
             enemy.entity.add_status(sid::ATTACK_COUNT, 1);
-            enemy.set_move(move_ids::LOOTER_SMOKE_BOMB, 0, 0, escape_block);
+            enemy.set_move_with_intent(
+                move_ids::LOOTER_SMOKE_BOMB,
+                Intent::Block {
+                    amount: escape_block as i16,
+                    effects: 0,
+                },
+            );
         }
         move_ids::LOOTER_SMOKE_BOMB => {
-            enemy.set_move(move_ids::LOOTER_ESCAPE, 0, 0, 0);
+            enemy.set_move_with_intent(move_ids::LOOTER_ESCAPE, Intent::Escape);
         }
         move_ids::LOOTER_ESCAPE => {
             enemy.is_escaping = true;
             enemy.entity.hp = 0;
-            enemy.set_move(move_ids::LOOTER_ESCAPE, 0, 0, 0);
+            enemy.set_move_with_intent(move_ids::LOOTER_ESCAPE, Intent::Escape);
         }
         _ => {}
     }
@@ -489,7 +559,18 @@ pub fn advance_looter_after_turn(
 pub(super) fn roll_gremlin_fat(enemy: &mut EnemyCombatState) {
     // Source: reference/extracted/methods/monster/GremlinFat.java.
     let damage = enemy.entity.status(sid::STARTING_DMG).max(4);
-    enemy.set_move(move_ids::GREMLIN_FAT_SMASH, damage, 1, 0);
+    let mut effects = fx::WEAK;
+    if enemy.entity.status(sid::BLOCK_AMT) >= 17 {
+        effects |= fx::FRAIL;
+    }
+    enemy.set_move_with_intent(
+        move_ids::GREMLIN_FAT_SMASH,
+        Intent::AttackDebuff {
+            damage: damage as i16,
+            hits: 1,
+            effects,
+        },
+    );
     enemy.add_effect(mfx::WEAK, 1);
     if enemy.entity.status(sid::BLOCK_AMT) >= 17 {
         enemy.add_effect(mfx::FRAIL, 1);
@@ -510,7 +591,7 @@ pub(super) fn roll_gremlin_warrior(enemy: &mut EnemyCombatState) {
 
 pub(super) fn roll_gremlin_wizard(enemy: &mut EnemyCombatState) {
     // Source: reference/extracted/methods/monster/GremlinWizard.java (`getMove`).
-    enemy.set_move(move_ids::GREMLIN_PROTECT, 0, 0, 0);
+    enemy.set_move_with_intent(move_ids::GREMLIN_PROTECT, Intent::Unknown);
 }
 
 pub fn advance_gremlin_wizard_after_turn(enemy: &mut EnemyCombatState) {
@@ -526,7 +607,7 @@ pub fn advance_gremlin_wizard_after_turn(enemy: &mut EnemyCombatState) {
             if charge == 3 {
                 enemy.set_move(move_ids::GREMLIN_ATTACK, damage, 1, 0);
             } else {
-                enemy.set_move(move_ids::GREMLIN_PROTECT, 0, 0, 0);
+                enemy.set_move_with_intent(move_ids::GREMLIN_PROTECT, Intent::Unknown);
             }
         }
         move_ids::GREMLIN_ATTACK => {
@@ -534,7 +615,7 @@ pub fn advance_gremlin_wizard_after_turn(enemy: &mut EnemyCombatState) {
             if a17 {
                 enemy.set_move(move_ids::GREMLIN_ATTACK, damage, 1, 0);
             } else {
-                enemy.set_move(move_ids::GREMLIN_PROTECT, 0, 0, 0);
+                enemy.set_move_with_intent(move_ids::GREMLIN_PROTECT, Intent::Unknown);
             }
         }
         _ => {}
@@ -544,7 +625,13 @@ pub fn advance_gremlin_wizard_after_turn(enemy: &mut EnemyCombatState) {
 pub(super) fn roll_gremlin_tsundere(enemy: &mut EnemyCombatState) {
     // Source: reference/extracted/methods/monster/GremlinTsundere.java (`getMove`).
     let block = enemy.entity.status(sid::BLOCK_AMT).max(7) as i16;
-    enemy.set_move(move_ids::GREMLIN_TSUNDERE_PROTECT, 0, 0, 0);
+    enemy.set_move_with_intent(
+        move_ids::GREMLIN_TSUNDERE_PROTECT,
+        Intent::Block {
+            amount: 0,
+            effects: 0,
+        },
+    );
     enemy.add_effect(mfx::BLOCK_RANDOM_OTHER, block);
 }
 
@@ -555,7 +642,13 @@ pub fn advance_gremlin_tsundere_after_turn(enemy: &mut EnemyCombatState, alive_c
     enemy.move_history.push(enemy.move_id);
     enemy.move_effects.clear();
     if enemy.move_id == move_ids::GREMLIN_TSUNDERE_PROTECT && alive_count > 1 {
-        enemy.set_move(move_ids::GREMLIN_TSUNDERE_PROTECT, 0, 0, 0);
+        enemy.set_move_with_intent(
+            move_ids::GREMLIN_TSUNDERE_PROTECT,
+            Intent::Block {
+                amount: 0,
+                effects: 0,
+            },
+        );
         enemy.add_effect(mfx::BLOCK_RANDOM_OTHER, block);
     } else {
         enemy.set_move(move_ids::GREMLIN_TSUNDERE_BASH, damage, 1, 0);
@@ -588,7 +681,14 @@ pub(super) fn roll_gremlin_nob(enemy: &mut EnemyCombatState, num: i32) {
         num < 33 || last_two_moves(enemy, move_ids::NOB_RUSH)
     };
     if choose_bash {
-        enemy.set_move(move_ids::NOB_SKULL_BASH, bash, 1, 0);
+        enemy.set_move_with_intent(
+            move_ids::NOB_SKULL_BASH,
+            Intent::AttackDebuff {
+                damage: bash as i16,
+                hits: 1,
+                effects: fx::VULNERABLE,
+            },
+        );
         enemy.add_effect(mfx::VULNERABLE, 2);
     } else {
         enemy.set_move(move_ids::NOB_RUSH, rush, 1, 0);
@@ -602,7 +702,7 @@ pub(super) fn roll_lagavulin(enemy: &mut EnemyCombatState) {
     if enemy.entity.status(sid::FIRST_MOVE) > 0 {
         enemy.entity.set_status(sid::FIRST_MOVE, 0);
         let debuff = enemy.entity.status(sid::STR_AMT).max(1) as i16;
-        enemy.set_move(move_ids::LAGA_SIPHON, 0, 0, 0);
+        enemy.set_move_with_intent(move_ids::LAGA_SIPHON, Intent::StrongDebuff { effects: 0 });
         enemy.add_effect(mfx::SIPHON_STR, debuff);
         enemy.add_effect(mfx::SIPHON_DEX, debuff);
         return;
@@ -613,14 +713,14 @@ pub(super) fn roll_lagavulin(enemy: &mut EnemyCombatState) {
             || last_two_moves(enemy, move_ids::LAGA_ATTACK)
         {
             let debuff = enemy.entity.status(sid::STR_AMT).max(1) as i16;
-            enemy.set_move(move_ids::LAGA_SIPHON, 0, 0, 0);
+            enemy.set_move_with_intent(move_ids::LAGA_SIPHON, Intent::StrongDebuff { effects: 0 });
             enemy.add_effect(mfx::SIPHON_STR, debuff);
             enemy.add_effect(mfx::SIPHON_DEX, debuff);
         } else {
             enemy.set_move(move_ids::LAGA_ATTACK, damage, 1, 0);
         }
     } else {
-        enemy.set_move(move_ids::LAGA_SLEEP, 0, 0, 0);
+        enemy.set_move_with_intent(move_ids::LAGA_SLEEP, Intent::Sleep);
     }
 }
 
@@ -628,10 +728,13 @@ pub(super) fn roll_lagavulin(enemy: &mut EnemyCombatState) {
 pub fn lagavulin_wake_up(enemy: &mut EnemyCombatState) {
     // Source: Lagavulin.java `damage`: HP loss while dormant changes intent to
     // OPEN/STUN, then OPEN removes Metallicize before the stunned turn.
+    // Java setMove(STUN) appends to moveHistory; Rust projects the current
+    // move separately, so preserve the displaced Sleep first.
+    enemy.move_history.push(enemy.move_id);
     enemy.entity.set_status(sid::IS_FIRST_MOVE, 1);
     enemy.entity.set_status(sid::SLEEP_TURNS, 0);
     enemy.entity.set_status(sid::METALLICIZE, 0);
-    enemy.set_move(move_ids::LAGA_STUN, 0, 0, 0);
+    enemy.set_move_with_intent(move_ids::LAGA_STUN, Intent::Stun);
 }
 
 pub fn advance_lagavulin_after_turn(
@@ -644,12 +747,20 @@ pub fn advance_lagavulin_after_turn(
             let idle = enemy.entity.status(sid::COUNT) + 1;
             enemy.entity.set_status(sid::COUNT, idle);
             if idle >= 3 {
+                // Java's queued SetMoveAction appends the new attack while
+                // the current Sleep is already present in moveHistory. Rust
+                // stores the current move separately, so retire it first.
+                enemy.move_history.push(enemy.move_id);
                 enemy.entity.set_status(sid::IS_FIRST_MOVE, 1);
                 enemy.entity.set_status(sid::SLEEP_TURNS, 0);
                 enemy.entity.set_status(sid::METALLICIZE, 0);
                 let damage = enemy.entity.status(sid::STARTING_DMG).max(18);
                 enemy.set_move(move_ids::LAGA_ATTACK, damage, 1, 0);
             } else {
+                // Lagavulin.java::takeTurn calls setMove(SLEEP) directly and
+                // then queues RollMoveAction, whose getMove calls setMove a
+                // second time. Both calls append to Java moveHistory.
+                enemy.move_history.push(enemy.move_id);
                 crate::enemies::roll_next_move(enemy, ai_rng);
             }
         }
@@ -681,10 +792,7 @@ pub(super) fn roll_sentry(enemy: &mut EnemyCombatState) {
         move_ids::SENTRY_BEAM
     };
     if move_id == move_ids::SENTRY_BOLT {
-        enemy.set_move_with_intent(
-            move_ids::SENTRY_BOLT,
-            Intent::Debuff { effects: fx::DAZE },
-        );
+        enemy.set_move_with_intent(move_ids::SENTRY_BOLT, Intent::Debuff { effects: fx::DAZE });
         enemy.add_effect(mfx::DAZE, daze);
     } else {
         enemy.set_move(move_ids::SENTRY_BEAM, damage, 1, 0);
@@ -717,7 +825,12 @@ pub fn advance_guardian_after_turn(enemy: &mut EnemyCombatState) {
             enemy.set_move(move_ids::GUARD_FIERCE_BASH, damage, 1, 0);
         }
         move_ids::GUARD_FIERCE_BASH => {
-            enemy.set_move(move_ids::GUARD_VENT_STEAM, 0, 0, 0);
+            enemy.set_move_with_intent(
+                move_ids::GUARD_VENT_STEAM,
+                Intent::StrongDebuff {
+                    effects: fx::WEAK | fx::VULNERABLE,
+                },
+            );
             enemy.add_effect(mfx::WEAK, 2);
             enemy.add_effect(mfx::VULNERABLE, 2);
         }
@@ -733,7 +846,14 @@ pub fn advance_guardian_after_turn(enemy: &mut EnemyCombatState) {
             enemy.set_move(move_ids::GUARD_ROLL_ATTACK, roll, 1, 0);
         }
         move_ids::GUARD_ROLL_ATTACK => {
-            enemy.set_move(move_ids::GUARD_TWIN_SLAM, 8, 2, 0);
+            enemy.set_move_with_intent(
+                move_ids::GUARD_TWIN_SLAM,
+                Intent::AttackBuff {
+                    damage: 8,
+                    hits: 2,
+                    effects: 0,
+                },
+            );
         }
         move_ids::GUARD_TWIN_SLAM => {
             // Twin Smash queues Offensive Mode before its two damage actions,
@@ -766,7 +886,7 @@ pub fn guardian_check_mode_shift(enemy: &mut EnemyCombatState, damage_dealt: i32
         enemy.entity.set_status(sid::DAMAGE_TAKEN_THIS_MODE, 0);
         enemy.entity.set_status(sid::MODE_SHIFT, threshold + 10);
         enemy.entity.block += enemy.entity.status(sid::TURN_COUNT).max(20);
-        enemy.set_move(move_ids::GUARD_CLOSE_UP, 0, 0, 0);
+        enemy.set_move_with_intent(move_ids::GUARD_CLOSE_UP, Intent::Buff { effects: 0 });
         enemy.add_effect(
             mfx::SHARP_HIDE,
             enemy.entity.status(sid::STR_AMT).max(3) as i16,
@@ -800,13 +920,20 @@ pub(super) fn roll_hexaghost(enemy: &mut EnemyCombatState) {
     // Source: reference/extracted/methods/monster/Hexaghost.java (`getMove`).
     if enemy.entity.status(sid::IS_FIRST_MOVE) == 0 {
         enemy.entity.set_status(sid::IS_FIRST_MOVE, 1);
-        enemy.set_move(move_ids::HEX_ACTIVATE, 0, 0, 0);
+        enemy.set_move_with_intent(move_ids::HEX_ACTIVATE, Intent::Unknown);
         return;
     }
 
     match enemy.entity.status(sid::COUNT) {
         0 | 2 | 5 => {
-            enemy.set_move(move_ids::HEX_SEAR, 6, 1, 0);
+            enemy.set_move_with_intent(
+                move_ids::HEX_SEAR,
+                Intent::AttackDebuff {
+                    damage: 6,
+                    hits: 1,
+                    effects: fx::BURN,
+                },
+            );
             let burn_count = enemy.entity.status(sid::SEAR_BURN_COUNT).max(1) as i16;
             if enemy.entity.status(sid::BUFF_COUNT) > 0 {
                 enemy.add_effect(mfx::BURN_PLUS, burn_count);
@@ -819,7 +946,13 @@ pub(super) fn roll_hexaghost(enemy: &mut EnemyCombatState) {
             enemy.set_move(move_ids::HEX_TACKLE, damage, 2, 0);
         }
         3 => {
-            enemy.set_move(move_ids::HEX_INFLAME, 0, 0, 12);
+            enemy.set_move_with_intent(
+                move_ids::HEX_INFLAME,
+                Intent::DefendBuff {
+                    block: 12,
+                    effects: fx::STRENGTH,
+                },
+            );
             enemy.add_effect(
                 mfx::STRENGTH,
                 enemy.entity.status(sid::STR_AMT).max(2) as i16,
@@ -827,7 +960,14 @@ pub(super) fn roll_hexaghost(enemy: &mut EnemyCombatState) {
         }
         6 => {
             let damage = enemy.entity.status(sid::INFERNO_DMG).max(2);
-            enemy.set_move(move_ids::HEX_INFERNO, damage, 6, 0);
+            enemy.set_move_with_intent(
+                move_ids::HEX_INFERNO,
+                Intent::AttackDebuff {
+                    damage: damage as i16,
+                    hits: 6,
+                    effects: fx::BURN,
+                },
+            );
             enemy.add_effect(mfx::BURN_UPGRADE, 1);
         }
         _ => unreachable!("Hexaghost orb count must stay in 0..=6"),
@@ -889,9 +1029,7 @@ pub fn advance_slime_boss_after_turn(enemy: &mut EnemyCombatState) {
     enemy.move_history.push(enemy.move_id);
     enemy.move_effects.clear();
     match enemy.move_id {
-        move_ids::SB_STICKY => {
-            enemy.set_move_with_intent(move_ids::SB_PREP_SLAM, Intent::Unknown)
-        }
+        move_ids::SB_STICKY => enemy.set_move_with_intent(move_ids::SB_PREP_SLAM, Intent::Unknown),
         move_ids::SB_PREP_SLAM => enemy.set_move(
             move_ids::SB_SLAM,
             enemy.entity.status(sid::SLAP_DMG).max(35),
@@ -919,7 +1057,10 @@ pub(super) fn roll_apology_slime(
     if ai_rng.random_bool() {
         enemy.set_move(move_ids::APOLOGY_TACKLE, 3, 1, 0);
     } else {
-        enemy.set_move(move_ids::APOLOGY_DEBUFF, 0, 0, 0);
+        enemy.set_move_with_intent(
+            move_ids::APOLOGY_DEBUFF,
+            Intent::Debuff { effects: fx::WEAK },
+        );
         enemy.add_effect(mfx::WEAK, 1);
     }
 }
@@ -929,7 +1070,10 @@ pub fn advance_apology_slime_after_turn(enemy: &mut EnemyCombatState) {
     enemy.move_history.push(enemy.move_id);
     enemy.move_effects.clear();
     if enemy.move_id == move_ids::APOLOGY_TACKLE {
-        enemy.set_move(move_ids::APOLOGY_DEBUFF, 0, 0, 0);
+        enemy.set_move_with_intent(
+            move_ids::APOLOGY_DEBUFF,
+            Intent::Debuff { effects: fx::WEAK },
+        );
         enemy.add_effect(mfx::WEAK, 1);
     } else {
         enemy.set_move(move_ids::APOLOGY_TACKLE, 3, 1, 0);
@@ -937,8 +1081,18 @@ pub fn advance_apology_slime_after_turn(enemy: &mut EnemyCombatState) {
 }
 
 pub fn set_slime_boss_split(enemy: &mut EnemyCombatState) {
-    // Source: SlimeBoss.java `damage` and `takeTurn` case 3.
+    // SlimeBoss.damage calls setMove(SPLIT) immediately, then queues a
+    // SetMoveAction(SPLIT). Java's AbstractMonster.setMove appends on both
+    // calls. Rust stores completed/overwritten moves in `move_history` and the
+    // current move separately, so preserve the interrupted current move plus
+    // the first Split assignment; trace projection appends the second/current
+    // Split. Sources: SlimeBoss.java::damage, SetMoveAction.java::update, and
+    // AbstractMonster.java::setMove.
+    if enemy.move_id >= 0 {
+        enemy.move_history.push(enemy.move_id);
+    }
     enemy.set_move_with_intent(move_ids::SB_SPLIT, Intent::Unknown);
+    enemy.move_history.push(move_ids::SB_SPLIT);
 }
 
 /// Check if Slime Boss should split (HP <= 50%).

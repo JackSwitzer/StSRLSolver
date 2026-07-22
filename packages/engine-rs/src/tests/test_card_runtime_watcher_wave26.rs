@@ -29,7 +29,11 @@ fn watcher_wave26_scrawl_plus_draws_to_ten_for_hand_sizes_three_through_eight() 
         assert!(play_self(&mut engine, "Scrawl+"));
 
         let expected_draws = 11 - initial_hand_size;
-        assert_eq!(engine.state.hand.len(), 10, "initial hand size {initial_hand_size}");
+        assert_eq!(
+            engine.state.hand.len(),
+            10,
+            "initial hand size {initial_hand_size}"
+        );
         assert_eq!(
             draw_prefix_count(&engine, "Defend"),
             10 - expected_draws,
@@ -58,9 +62,21 @@ fn watcher_wave26_scrawl_plus_handles_deus_ex_machina_plus_as_next_draw() {
         assert!(play_self(&mut engine, "Scrawl+"));
 
         let expected_followup_draws = 8 - initial_hand_size;
-        assert_eq!(engine.state.hand.len(), 10, "initial hand size {initial_hand_size}");
-        assert_eq!(hand_count(&engine, "Miracle"), 3, "initial hand size {initial_hand_size}");
-        assert_eq!(hand_count(&engine, "DeusExMachina+"), 0, "initial hand size {initial_hand_size}");
+        assert_eq!(
+            engine.state.hand.len(),
+            10,
+            "initial hand size {initial_hand_size}"
+        );
+        assert_eq!(
+            hand_count(&engine, "Miracle"),
+            3,
+            "initial hand size {initial_hand_size}"
+        );
+        assert_eq!(
+            hand_count(&engine, "DeusExMachina+"),
+            0,
+            "initial hand size {initial_hand_size}"
+        );
         assert_eq!(
             draw_prefix_count(&engine, "Defend"),
             filler_count - expected_followup_draws,
@@ -83,13 +99,21 @@ fn watcher_wave26_deus_ex_machina_plus_respects_hand_limit_when_drawn_late() {
 
         engine.draw_cards(1);
 
-        assert_eq!(engine.state.hand.len(), 10, "starting hand size {starting_hand_size}");
+        assert_eq!(
+            engine.state.hand.len(),
+            10,
+            "starting hand size {starting_hand_size}"
+        );
         assert_eq!(
             hand_count(&engine, "Miracle"),
             expected_miracles,
             "starting hand size {starting_hand_size}"
         );
-        assert_eq!(hand_count(&engine, "DeusExMachina+"), 0, "starting hand size {starting_hand_size}");
+        assert_eq!(
+            hand_count(&engine, "DeusExMachina+"),
+            0,
+            "starting hand size {starting_hand_size}"
+        );
         assert_eq!(exhaust_prefix_count(&engine, "DeusExMachina+"), 1);
     }
 }

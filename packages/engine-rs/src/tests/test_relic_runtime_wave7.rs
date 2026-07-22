@@ -70,14 +70,7 @@ fn snecko_eye_confuses_and_draws_two_extra_cards_on_runtime_path() {
     let mut engine = engine_without_start_with_relics(
         &["Snecko Eye"],
         &[
-            "Strike",
-            "Strike",
-            "Strike",
-            "Strike",
-            "Strike",
-            "Defend",
-            "Defend",
-            "Defend",
+            "Strike", "Strike", "Strike", "Strike", "Strike", "Defend", "Defend", "Defend",
         ],
         vec![enemy_no_intent("JawWorm", 40, 40)],
         3,
@@ -100,11 +93,7 @@ fn snecko_eye_randomizes_on_draw_with_card_random_and_uses_the_drawn_cost() {
     let deck = (0..8)
         .map(|_| registry.make_card("Defend").set_free(true))
         .collect();
-    let mut engine = engine_without_start(
-        deck,
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(deck, vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     engine.state.relics.push("Snecko Eye".to_string());
     let card_random_before = engine.card_random_rng.counter;
 

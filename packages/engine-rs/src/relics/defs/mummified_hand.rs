@@ -9,14 +9,12 @@ use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerCondition};
 use crate::engine::CombatEngine;
 
-static TRIGGERS: [TriggeredEffect; 1] = [
-    TriggeredEffect {
-        trigger: Trigger::OnPowerPlayed,
-        condition: TriggerCondition::Always,
-        effects: &[],
-        counter: None,
-    },
-];
+static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
+    trigger: Trigger::OnPowerPlayed,
+    condition: TriggerCondition::Always,
+    effects: &[],
+    counter: None,
+}];
 
 fn hook(
     engine: &mut CombatEngine,
@@ -31,7 +29,11 @@ fn hook(
         .enumerate()
         .filter_map(|(idx, card)| {
             let def = engine.card_registry.card_def_by_id(card.def_id);
-            let base_cost = if card.base_cost >= 0 { card.base_cost } else { def.cost as i8 };
+            let base_cost = if card.base_cost >= 0 {
+                card.base_cost
+            } else {
+                def.cost as i8
+            };
             let turn_cost = if card.cost >= 0 { card.cost } else { base_cost };
             (base_cost > 0 && turn_cost > 0 && !card.is_free()).then_some(idx)
         })

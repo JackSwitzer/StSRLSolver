@@ -6,8 +6,8 @@
 use crate::cards::{CardDef, CardTarget, CardType};
 use crate::combat_types::CardInstance;
 use crate::damage;
-use crate::engine::CombatEngine;
 use crate::effects::types::DamageModifier;
+use crate::engine::CombatEngine;
 use crate::status_ids::sid;
 
 fn consume_pen_nib_for_attack(engine: &mut CombatEngine) -> bool {
@@ -23,12 +23,20 @@ fn consume_pen_nib_for_attack(engine: &mut CombatEngine) -> bool {
     let counter = engine
         .hidden_effect_value("Pen Nib", owner, 0)
         .max(engine.state.player.status(sid::PEN_NIB_COUNTER));
-    let next = if counter >= 9 { 0 } else { counter + 1 };
+    let pen_nib_active = engine.state.player.status(sid::PEN_NIB_POWER) > 0;
+    let next = if pen_nib_active { 0 } else { counter + 1 };
     let _ = engine.set_hidden_effect_value("Pen Nib", owner, 0, next);
     engine.state.player.set_status(sid::PEN_NIB_COUNTER, next);
-    if counter >= 9 {
+    if pen_nib_active {
+        engine.state.player.set_status(sid::PEN_NIB_POWER, 0);
         true
     } else {
+        if next == 9 {
+            // PenNib.onUseCard queues ApplyPowerAction(PenNibPower(1)). The
+            // compact engine resolves the queue within the same card step.
+            // Java: decompiled/java-src/com/megacrit/cardcrawl/relics/PenNib.java.
+            engine.state.player.set_status(sid::PEN_NIB_POWER, 1);
+        }
         false
     }
 }
@@ -156,7 +164,8 @@ pub(crate) fn execute_primary_attack(
             if idx >= 0 && (idx as usize) < engine.state.enemies.len() {
                 let tidx = idx as usize;
                 let enemy_vuln = engine.state.enemies[tidx].entity.is_vulnerable();
-                let enemy_intangible = engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
+                let enemy_intangible =
+                    engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
                 let vuln_paper_frog = engine.state.has_relic("Paper Frog");
                 let dmg = damage::calculate_damage_full(
                     effective_base_damage,
@@ -186,7 +195,10 @@ pub(crate) fn execute_primary_attack(
             let living = engine.state.living_enemy_indices();
             for enemy_idx in living {
                 let enemy_vuln = engine.state.enemies[enemy_idx].entity.is_vulnerable();
-                let enemy_intangible = engine.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) > 0;
+                let enemy_intangible = engine.state.enemies[enemy_idx]
+                    .entity
+                    .status(sid::INTANGIBLE)
+                    > 0;
                 let vuln_paper_frog = engine.state.has_relic("Paper Frog");
                 let dmg = damage::calculate_damage_full(
                     effective_base_damage,
@@ -218,7 +230,10 @@ pub(crate) fn execute_primary_attack(
                     break;
                 };
                 let enemy_vuln = engine.state.enemies[enemy_idx].entity.is_vulnerable();
-                let enemy_intangible = engine.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) > 0;
+                let enemy_intangible = engine.state.enemies[enemy_idx]
+                    .entity
+                    .status(sid::INTANGIBLE)
+                    > 0;
                 let vuln_paper_frog = engine.state.has_relic("Paper Frog");
                 let dmg = damage::calculate_damage_full(
                     effective_base_damage,
@@ -234,14 +249,15 @@ pub(crate) fn execute_primary_attack(
                     false,
                     enemy_intangible,
                 );
-            let hp_dmg = engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
-            total_unblocked_damage += hp_dmg;
+                let hp_dmg = engine.deal_player_attack_hit_to_enemy(enemy_idx, dmg);
+                total_unblocked_damage += hp_dmg;
                 if engine.state.enemies[enemy_idx].entity.is_dead() {
                     enemy_killed = true;
                 }
             }
         }
-        crate::effects::declarative::Target::Player | crate::effects::declarative::Target::SelfEntity => {
+        crate::effects::declarative::Target::Player
+        | crate::effects::declarative::Target::SelfEntity => {
             for _ in 0..hits {
                 engine.player_lose_hp_from_damage(effective_base_damage);
             }
@@ -255,7 +271,12 @@ pub(crate) fn execute_primary_attack(
 /// Execute all effects for a card that was just played.
 ///
 /// Called from `CombatEngine::play_card()` after energy payment and hand removal.
-pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst: CardInstance, target_idx: i32) {
+pub fn execute_card_effects(
+    engine: &mut CombatEngine,
+    card: &CardDef,
+    card_inst: CardInstance,
+    target_idx: i32,
+) {
     let card_id = engine.card_registry.card_name(card_inst.def_id);
     // ---- X-cost: consume all remaining energy as X value + Chemical X bonus ----
     // Sources: ChemicalX.java defines BOOST 2; CollectAction.java and
@@ -345,10 +366,17 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     // Track damage dealt for Wallop (block_from_damage) and Reaper (heal)
     let mut total_unblocked_damage = 0i32;
     let mut enemy_killed = false;
+    let target_was_attacking = target_idx >= 0
+        && engine
+            .state
+            .enemies
+            .get(target_idx as usize)
+            .is_some_and(|enemy| enemy.is_attacking());
     let pre_damage_ctx = crate::effects::types::CardPlayContext {
         card,
         card_inst,
         target_idx,
+        target_was_attacking,
         x_value,
         pen_nib_active,
         vigor,
@@ -412,7 +440,8 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
                 if target_idx >= 0 && (target_idx as usize) < engine.state.enemies.len() {
                     let tidx = target_idx as usize;
                     let enemy_vuln = engine.state.enemies[tidx].entity.is_vulnerable();
-                    let enemy_intangible = engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
+                    let enemy_intangible =
+                        engine.state.enemies[tidx].entity.status(sid::INTANGIBLE) > 0;
                     let vuln_paper_frog = engine.state.has_relic("Paper Frog");
                     let dmg = damage::calculate_damage_full(
                         effective_base_damage,
@@ -443,7 +472,10 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
                 let mut damage_by_enemy = Vec::with_capacity(living.len());
                 for enemy_idx in living {
                     let enemy_vuln = engine.state.enemies[enemy_idx].entity.is_vulnerable();
-                    let enemy_intangible = engine.state.enemies[enemy_idx].entity.status(sid::INTANGIBLE) > 0;
+                    let enemy_intangible = engine.state.enemies[enemy_idx]
+                        .entity
+                        .status(sid::INTANGIBLE)
+                        > 0;
                     let vuln_paper_frog = engine.state.has_relic("Paper Frog");
                     let dmg = damage::calculate_damage_full(
                         effective_base_damage,
@@ -487,7 +519,8 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
     // This runs BEFORE the interpreter fallthrough because block from base_block
     // is a preamble operation, not a post-damage effect.
     if card.base_block >= 0 && !has_typed_primary_block {
-        let block_multiplier = if card.has_block_hint(crate::effects::types::CardBlockHint::XTimes) {
+        let block_multiplier = if card.has_block_hint(crate::effects::types::CardBlockHint::XTimes)
+        {
             x_value
         } else {
             1
@@ -495,22 +528,21 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         if !card.has_block_hint(crate::effects::types::CardBlockHint::IfSkill)
             && !card.has_block_hint(crate::effects::types::CardBlockHint::IfNoBlock)
             && !card.has_block_hint(crate::effects::types::CardBlockHint::BulkCountTimesBaseBlock)
+            && !card.has_block_hint(crate::effects::types::CardBlockHint::ChoicePayloadOnly)
         {
-            let current_base_block = if card.has_block_hint(crate::effects::types::CardBlockHint::UsesCardMisc) {
-                if card_inst.misc >= 0 {
-                    card_inst.misc as i32
+            let current_base_block =
+                if card.has_block_hint(crate::effects::types::CardBlockHint::UsesCardMisc) {
+                    if card_inst.misc >= 0 {
+                        card_inst.misc as i32
+                    } else {
+                        card.base_block
+                    }
                 } else {
                     card.base_block
-                }
-            } else {
-                card.base_block
-            };
+                };
             let dex = engine.state.player.dexterity();
             let frail = engine.state.player.is_frail();
-            let block = damage::calculate_block(
-                current_base_block.max(0),
-                dex, frail,
-            );
+            let block = damage::calculate_block(current_base_block.max(0), dex, frail);
             engine.gain_block_player(block * block_multiplier);
         }
     }
@@ -520,6 +552,7 @@ pub fn execute_card_effects(engine: &mut CombatEngine, card: &CardDef, card_inst
         card,
         card_inst,
         target_idx,
+        target_was_attacking,
         x_value,
         pen_nib_active,
         vigor,
@@ -568,7 +601,14 @@ mod test_runtime_inline_cutover_wave3 {
                 target_idx: 0,
             });
             assert_eq!(engine.state.enemies[0].entity.hp, hp_before - 6);
-            assert_eq!(engine.state.player.status(sid::PEN_NIB_COUNTER), expected_counter);
+            assert_eq!(
+                engine.state.player.status(sid::PEN_NIB_COUNTER),
+                expected_counter
+            );
+            assert_eq!(
+                engine.state.player.status(sid::PEN_NIB_POWER),
+                i32::from(expected_counter == 9)
+            );
         }
 
         let hp_before_tenth = engine.state.enemies[0].entity.hp;
@@ -578,6 +618,7 @@ mod test_runtime_inline_cutover_wave3 {
         });
         assert_eq!(engine.state.enemies[0].entity.hp, hp_before_tenth - 12);
         assert_eq!(engine.state.player.status(sid::PEN_NIB_COUNTER), 0);
+        assert_eq!(engine.state.player.status(sid::PEN_NIB_POWER), 0);
 
         engine.state.hand = make_deck_n("Strike", 1);
         let hp_before_eleventh = engine.state.enemies[0].entity.hp;

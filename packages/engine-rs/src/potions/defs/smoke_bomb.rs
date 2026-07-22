@@ -1,8 +1,6 @@
 use super::prelude::*;
 
-static EFFECTS: [E; 1] = [
-    E::Simple(SE::FleeCombat),
-];
+static EFFECTS: [E; 1] = [E::Simple(SE::FleeCombat)];
 
 static TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
     trigger: Trigger::ManualActivation,

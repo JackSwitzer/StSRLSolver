@@ -23,48 +23,81 @@ fn support_wave1_registry_keeps_shared_support_cards_typed_runtime_metadata() {
     let registry = global_registry();
 
     for card_id in [
-        "Slimed", "Wound", "Dazed", "Burn", "Burn+", "Void", "Decay", "Regret", "Doubt",
-        "Shame", "AscendersBane", "Clumsy", "CurseOfTheBell", "Injury", "Necronomicurse",
-        "Normality", "Pain", "Parasite", "Pride", "Writhe",
+        "Slimed",
+        "Wound",
+        "Dazed",
+        "Burn",
+        "Burn+",
+        "Void",
+        "Decay",
+        "Regret",
+        "Doubt",
+        "Shame",
+        "AscendersBane",
+        "Clumsy",
+        "CurseOfTheBell",
+        "Injury",
+        "Necronomicurse",
+        "Normality",
+        "Pain",
+        "Parasite",
+        "Pride",
+        "Writhe",
     ] {
-        let card = registry.get(card_id).unwrap_or_else(|| panic!("{card_id} should exist"));
-        assert!(card.complex_hook.is_none(), "{card_id} should stay non-bespoke");
+        let card = registry
+            .get(card_id)
+            .unwrap_or_else(|| panic!("{card_id} should exist"));
+        assert!(
+            card.complex_hook.is_none(),
+            "{card_id} should stay non-bespoke"
+        );
     }
 
     let burn = registry.get("Burn").unwrap();
     assert!(burn.runtime_traits().unplayable);
-    assert!(burn
+    assert!(burn.runtime_triggers().iter().any(|trigger| matches!(
+        trigger,
+        CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Damage)
+    )));
+
+    let void = registry.get("Void").unwrap();
+    assert!(void.runtime_traits().ethereal);
+    assert!(void.runtime_triggers().iter().any(|trigger| matches!(
+        trigger,
+        CardRuntimeTrigger::OnDraw(crate::effects::types::OnDrawRule::LoseEnergy)
+    )));
+    assert!(!void
         .runtime_triggers()
         .iter()
-        .any(|trigger| matches!(trigger, CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Damage))));
+        .any(|trigger| matches!(trigger, CardRuntimeTrigger::EndTurnInHand(_))));
 
     let regret = registry.get("Regret").unwrap();
     assert!(regret.runtime_traits().unplayable);
-    assert!(regret
-        .runtime_triggers()
-        .iter()
-        .any(|trigger| matches!(trigger, CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Regret))));
+    assert!(regret.runtime_triggers().iter().any(|trigger| matches!(
+        trigger,
+        CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Regret)
+    )));
 
     let doubt = registry.get("Doubt").unwrap();
     assert!(doubt.runtime_traits().unplayable);
-    assert!(doubt
-        .runtime_triggers()
-        .iter()
-        .any(|trigger| matches!(trigger, CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Weak))));
+    assert!(doubt.runtime_triggers().iter().any(|trigger| matches!(
+        trigger,
+        CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Weak)
+    )));
 
     let shame = registry.get("Shame").unwrap();
     assert!(shame.runtime_traits().unplayable);
-    assert!(shame
-        .runtime_triggers()
-        .iter()
-        .any(|trigger| matches!(trigger, CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Frail))));
+    assert!(shame.runtime_triggers().iter().any(|trigger| matches!(
+        trigger,
+        CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Frail)
+    )));
 
     let pain = registry.get("Pain").unwrap();
     assert!(pain.runtime_traits().unplayable);
-    assert!(pain
-        .runtime_triggers()
-        .iter()
-        .any(|trigger| matches!(trigger, CardRuntimeTrigger::WhileInHand(WhileInHandRule::PainOnOtherCardPlayed))));
+    assert!(pain.runtime_triggers().iter().any(|trigger| matches!(
+        trigger,
+        CardRuntimeTrigger::WhileInHand(WhileInHandRule::PainOnOtherCardPlayed)
+    )));
 
     let void = registry.get("Void").unwrap();
     assert!(void.runtime_traits().unplayable);
@@ -74,7 +107,13 @@ fn support_wave1_registry_keeps_shared_support_cards_typed_runtime_metadata() {
         .iter()
         .any(|trigger| matches!(trigger, CardRuntimeTrigger::OnDraw(OnDrawRule::LoseEnergy))));
 
-    assert!(registry.get("Parasite").unwrap().runtime_traits().unplayable);
+    assert!(
+        registry
+            .get("Parasite")
+            .unwrap()
+            .runtime_traits()
+            .unplayable
+    );
     assert!(registry.get("Dazed").unwrap().runtime_traits().ethereal);
     assert!(registry.get("Wound").unwrap().runtime_traits().unplayable);
 }
@@ -90,11 +129,7 @@ fn slimed_is_a_one_cost_self_targeted_no_op_that_exhausts() {
     assert!(slimed.exhaust);
     assert!(registry.get("Slimed+").is_none());
 
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        1,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 1);
     force_player_turn(&mut engine);
     engine.state.energy = 1;
     engine.state.hand = make_deck(&["Slimed"]);
@@ -129,9 +164,10 @@ fn wound_is_unplayable_unupgradable_non_ethereal_and_discards_normally() {
     );
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Wound"]);
-    assert!(!engine.get_legal_actions().iter().any(|action| {
-        matches!(action, Action::PlayCard { card_idx: 0, .. })
-    }));
+    assert!(!engine
+        .get_legal_actions()
+        .iter()
+        .any(|action| { matches!(action, Action::PlayCard { card_idx: 0, .. }) }));
 
     end_turn(&mut engine);
 
@@ -152,16 +188,13 @@ fn curse_of_the_bell_is_unplayable_unupgradable_non_ethereal_and_unremovable() {
     assert!(!card.runtime_traits().ethereal);
     assert!(registry.get("CurseOfTheBell+").is_none());
 
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["CurseOfTheBell"]);
-    assert!(!engine.get_legal_actions().iter().any(|action| {
-        matches!(action, Action::PlayCard { card_idx: 0, .. })
-    }));
+    assert!(!engine
+        .get_legal_actions()
+        .iter()
+        .any(|action| { matches!(action, Action::PlayCard { card_idx: 0, .. }) }));
 
     end_turn(&mut engine);
 
@@ -179,18 +212,22 @@ fn necronomicurse_is_unplayable_unremovable_and_returns_after_exhaust() {
     assert!(!card.runtime_traits().ethereal);
     assert!(registry.get("Necronomicurse+").is_none());
 
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.state.relics.push("Blue Candle".to_string());
     engine.state.player.set_status(sid::DARK_EMBRACE, 1);
     engine.rebuild_effect_runtime();
     engine.state.hand = make_deck(&[
-        "Necronomicurse", "Defend", "Defend", "Defend", "Defend",
-        "Defend", "Defend", "Defend", "Defend", "Defend",
+        "Necronomicurse",
+        "Defend",
+        "Defend",
+        "Defend",
+        "Defend",
+        "Defend",
+        "Defend",
+        "Defend",
+        "Defend",
+        "Defend",
     ]);
     engine.state.draw_pile = make_deck(&["Strike"]);
 
@@ -218,21 +255,16 @@ fn injury_is_unplayable_unupgradable_non_ethereal_and_inert() {
     assert!(!injury.runtime_traits().ethereal);
     assert!(registry.get("Injury+").is_none());
 
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Injury"]);
-    engine.state.draw_pile = make_deck(&[
-        "Defend", "Defend", "Defend", "Defend", "Defend",
-    ]);
+    engine.state.draw_pile = make_deck(&["Defend", "Defend", "Defend", "Defend", "Defend"]);
     let hp_before = engine.state.player.hp;
 
-    assert!(!engine.get_legal_actions().iter().any(|action| {
-        matches!(action, Action::PlayCard { card_idx: 0, .. })
-    }));
+    assert!(!engine
+        .get_legal_actions()
+        .iter()
+        .any(|action| { matches!(action, Action::PlayCard { card_idx: 0, .. }) }));
     end_turn(&mut engine);
 
     assert_eq!(engine.state.player.hp, hp_before);
@@ -259,9 +291,10 @@ fn parasite_is_unplayable_unupgradable_non_ethereal_and_inert_in_combat() {
     );
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Parasite"]);
-    assert!(!engine.get_legal_actions().iter().any(|action| {
-        matches!(action, Action::PlayCard { .. })
-    }));
+    assert!(!engine
+        .get_legal_actions()
+        .iter()
+        .any(|action| { matches!(action, Action::PlayCard { .. }) }));
 
     let hp_before = engine.state.player.hp;
     end_turn(&mut engine);
@@ -283,38 +316,33 @@ fn normality_blocks_every_card_from_the_fourth_play_only_while_in_hand() {
     assert!(!normality.runtime_traits().ethereal);
     assert!(registry.get("Normality+").is_none());
 
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        99,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 99);
     force_player_turn(&mut engine);
     engine.state.relics.push("Blue Candle".to_string());
     engine.state.hand = make_deck(&["Normality", "Strike", "Defend"]);
 
     engine.state.cards_played_this_turn = 2;
-    assert!(engine.get_legal_actions().iter().any(|action| {
-        matches!(action, Action::PlayCard { card_idx: 1, .. })
-    }));
+    assert!(engine
+        .get_legal_actions()
+        .iter()
+        .any(|action| { matches!(action, Action::PlayCard { card_idx: 1, .. }) }));
 
     engine.state.cards_played_this_turn = 3;
-    assert!(!engine.get_legal_actions().iter().any(|action| {
-        matches!(action, Action::PlayCard { .. })
-    }));
+    assert!(!engine
+        .get_legal_actions()
+        .iter()
+        .any(|action| { matches!(action, Action::PlayCard { .. }) }));
 
     engine.state.hand.remove(0);
-    assert!(engine.get_legal_actions().iter().any(|action| {
-        matches!(action, Action::PlayCard { card_idx: 0, .. })
-    }));
+    assert!(engine
+        .get_legal_actions()
+        .iter()
+        .any(|action| { matches!(action, Action::PlayCard { card_idx: 0, .. }) }));
 }
 
 #[test]
 fn support_wave1_end_turn_curse_and_status_hooks_fire_on_the_runtime_path() {
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Burn", "Regret", "Doubt", "Shame", "Pride"]);
 
@@ -328,7 +356,12 @@ fn support_wave1_end_turn_curse_and_status_hooks_fire_on_the_runtime_path() {
         .iter()
         .chain(engine.state.draw_pile.iter())
         .chain(engine.state.discard_pile.iter())
-        .filter(|card| engine.card_registry.card_name(card.def_id).starts_with("Pride"))
+        .filter(|card| {
+            engine
+                .card_registry
+                .card_name(card.def_id)
+                .starts_with("Pride")
+        })
         .count();
     assert_eq!(
         pride_count, 2,
@@ -347,20 +380,15 @@ fn support_wave1_end_turn_curse_and_status_hooks_fire_on_the_runtime_path() {
 }
 
 #[test]
-fn rng_collections_001_ordinary_actions_resolve_before_shuffled_card_queue() {
-    // DiscardAtEndOfTurnAction clones the non-retained hand, calls the
-    // no-argument Collections.shuffle, then triggers that shuffled snapshot.
-    // JDK 8 Collections uses its separate static java.util.Random; an internal
-    // state of 0x5DEECE66D (the post-constructor state for Java seed 0) shuffles
-    // [Pride, Shame, Regret, Burn] to [Burn, Pride, Shame, Regret] and ends at
-    // 0x3D93CB7AB84E after exactly three nextInt calls.
-    // Sources: actions/common/DiscardAtEndOfTurnAction.java:21-45 and JDK 8
-    // java.util.Collections.shuffle/java.util.Random.
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+fn end_turn_status_callbacks_use_original_hand_order_before_discard_shuffle() {
+    // callEndOfTurnActions visits the original hand without a shuffle. Pride's
+    // ordinary AddCardToDeckAction resolves before the card queue; Shame then
+    // applies Frail and Regret's four-card HP loss kills the player before Burn.
+    // Because lethal status autoplay stops before DiscardAtEndOfTurnAction, the
+    // process-global Collections RNG must remain untouched.
+    // Sources: GameActionManager.java::callEndOfTurnActions/getNextAction,
+    // Pride.java, Shame.java, Regret.java, and DiscardAtEndOfTurnAction.java.
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.state.player.hp = 2;
     engine.state.hand = make_deck(&["Pride", "Shame", "Regret", "Burn"]);
@@ -370,9 +398,12 @@ fn rng_collections_001_ordinary_actions_resolve_before_shuffled_card_queue() {
 
     end_turn(&mut engine);
 
-    assert!(engine.state.combat_over, "shuffled Burn should be the first card-queue item");
+    assert!(
+        engine.state.combat_over,
+        "Regret should be lethal in original hand order"
+    );
     assert_eq!(engine.state.player.hp, 0);
-    assert_eq!(engine.state.player.status(sid::FRAIL), 0);
+    assert_eq!(engine.state.player.status(sid::FRAIL), 1);
     let pride_count = engine
         .state
         .hand
@@ -385,8 +416,58 @@ fn rng_collections_001_ordinary_actions_resolve_before_shuffled_card_queue() {
         pride_count, 2,
         "Pride's ordinary action resolves before every card-queue item"
     );
-    assert_eq!(engine.java_collections_rng_state(), 0x3D93CB7AB84E);
+    assert_eq!(engine.java_collections_rng_state(), 0x5DEECE66D);
     assert_eq!(engine.rng_counters(), dungeon_rngs_before);
+}
+
+#[test]
+fn rng_collections_001_ethereal_actions_reverse_the_shuffled_callback_order() {
+    // Burn is autoplayed from the original hand first. DiscardAtEndOfTurnAction
+    // then removes the explicitly retained Strike before shuffling only
+    // [Dazed, Void]. With Java Random's post-constructor seed-0 state that one
+    // nextInt(2) leaves the snapshot in order; Ethereal callbacks use addToTop,
+    // so ExhaustSpecificCardAction executes Void before Dazed.
+    // Sources: DiscardAtEndOfTurnAction.java,
+    // AbstractCard.java::triggerOnEndOfPlayerTurn, and JDK 8 Collections.shuffle.
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    force_player_turn(&mut engine);
+    engine.state.relics.push("Runic Pyramid".to_string());
+    let registry = global_registry();
+    let mut retained_strike = registry.make_card("Strike");
+    retained_strike.set_retained(true);
+    let retained_id = retained_strike.instance_id;
+    engine.state.hand = vec![
+        registry.make_card("Dazed"),
+        retained_strike,
+        registry.make_card("Void"),
+        registry.make_card("Burn"),
+    ];
+    engine.state.draw_pile = make_deck(&["Defend", "Defend", "Defend", "Defend", "Defend"]);
+    engine.restore_java_collections_rng_state(0x5DEECE66D);
+
+    end_turn(&mut engine);
+
+    let exhausted = engine
+        .state
+        .exhaust_pile
+        .iter()
+        .map(|card| engine.card_registry.card_name(card.def_id))
+        .collect::<Vec<_>>();
+    assert_eq!(exhausted, ["Void", "Dazed"]);
+    assert!(
+        engine
+            .state
+            .hand
+            .iter()
+            .any(|card| card.instance_id == retained_id),
+        "the retained card is restored but excluded from the callback shuffle"
+    );
+    assert!(engine
+        .state
+        .discard_pile
+        .iter()
+        .any(|card| engine.card_registry.card_name(card.def_id) == "Burn"));
+    assert_eq!(engine.java_collections_rng_state(), 0xBB20B4600A74);
 }
 
 #[test]
@@ -409,12 +490,15 @@ fn rng_collections_001_run_carries_state_across_combat_boundaries() {
 
     let state_after_first_shuffle = {
         let combat = run.debug_combat_engine_mut();
-        combat.state.hand = make_deck(&["Strike", "Defend", "Eruption", "Burn"]);
+        force_player_turn(combat);
+        combat.state.relics.push("Runic Pyramid".to_string());
+        combat.state.hand = make_deck(&["Dazed", "Void"]);
+        combat.state.draw_pile = make_deck(&["Strike", "Strike", "Strike", "Strike", "Strike"]);
         assert_eq!(combat.java_collections_rng_state(), 0x5DEECE66D);
-        assert!(!crate::status_effects::process_end_turn_hand_cards(combat));
+        end_turn(combat);
         combat.java_collections_rng_state()
     };
-    assert_eq!(state_after_first_shuffle, 0x3D93CB7AB84E);
+    assert_eq!(state_after_first_shuffle, 0xBB20B4600A74);
 
     run.debug_force_current_combat_outcome(true);
     run.debug_resolve_current_combat_outcome();
@@ -440,11 +524,7 @@ fn shame_applies_one_frail_that_survives_its_application_round() {
     assert_eq!(shame.base_magic, -1);
     assert!(registry.get("Shame+").is_none());
 
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Shame"]);
 
@@ -455,17 +535,14 @@ fn shame_applies_one_frail_that_survives_its_application_round() {
 }
 
 #[test]
-fn regret_uses_the_hand_size_after_explicitly_retained_cards_leave_hand() {
-    // DiscardAtEndOfTurnAction moves retained cards to limbo before calling
-    // triggerOnEndOfPlayerTurn. Regret then snapshots player.hand.size(), so
-    // the retained Strike neither counts nor prevents HP_LOSS bypassing Block.
-    // Sources: actions/common/DiscardAtEndOfTurnAction.java,
+fn regret_uses_the_full_hand_size_before_explicitly_retained_cards_leave_hand() {
+    // callEndOfTurnActions invokes Regret while the retained Strike is still in
+    // hand. DiscardAtEndOfTurnAction moves retained cards to limbo only later,
+    // so Regret snapshots all three cards while HP_LOSS still bypasses Block.
+    // Sources: actions/GameActionManager.java::callEndOfTurnActions,
+    // actions/common/DiscardAtEndOfTurnAction.java,
     // cards/curses/Regret.java, and actions/common/LoseHPAction.java.
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     let registry = global_registry();
     let mut retained_strike = registry.make_card("Strike");
@@ -478,9 +555,11 @@ fn regret_uses_the_hand_size_after_explicitly_retained_cards_leave_hand() {
     engine.state.player.block = 20;
     let hp_before = engine.state.player.hp;
 
-    assert!(!crate::status_effects::process_end_turn_hand_cards(&mut engine));
+    assert!(!crate::status_effects::process_end_turn_hand_cards(
+        &mut engine
+    ));
 
-    assert_eq!(engine.state.player.hp, hp_before - 2);
+    assert_eq!(engine.state.player.hp, hp_before - 3);
     assert_eq!(engine.state.player.block, 20);
 }
 
@@ -489,11 +568,7 @@ fn end_turn_discards_non_retained_cards_from_hand_top_to_bottom() {
     // DiscardAtEndOfTurnAction queues DiscardAction, whose all-cards branch
     // repeatedly moves CardGroup.getTopCard() to the discard pile.
     // Java: actions/common/{DiscardAtEndOfTurnAction,DiscardAction}.java.
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     let registry = global_registry();
     let mut retained = registry.make_card("Miracle");
@@ -504,9 +579,8 @@ fn end_turn_discards_non_retained_cards_from_hand_top_to_bottom() {
         registry.make_card("Defend_P"),
         registry.make_card("Vigilance"),
     ];
-    engine.state.draw_pile = make_deck(&[
-        "Strike_P", "Strike_P", "Defend_P", "Defend_P", "Eruption",
-    ]);
+    engine.state.draw_pile =
+        make_deck(&["Strike_P", "Strike_P", "Defend_P", "Defend_P", "Eruption"]);
 
     end_turn(&mut engine);
 
@@ -517,6 +591,44 @@ fn end_turn_discards_non_retained_cards_from_hand_top_to_bottom() {
         .map(|card| engine.card_registry.card_name(card.def_id))
         .collect();
     assert_eq!(discarded, ["Vigilance", "Defend_P", "Strike_P"]);
+}
+
+#[test]
+fn runic_pyramid_restores_self_retaining_cards_after_blanket_kept_hand() {
+    // DiscardAtEndOfTurnAction moves retain/selfRetain cards to limbo before
+    // Runic Pyramid suppresses ordinary discards. RestoreRetainedCardsAction
+    // appends the limbo cards to the hand in iteration order.
+    // Java: actions/common/DiscardAtEndOfTurnAction.java and
+    // actions/unique/RestoreRetainedCardsAction.java.
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
+    force_player_turn(&mut engine);
+    engine.state.relics.push("Runic Pyramid".to_string());
+    engine.state.hand = make_deck(&[
+        "Miracle",
+        "Strike_P",
+        "Ghostly+",
+        "Defend_P",
+        "ClearTheMind",
+    ]);
+
+    end_turn(&mut engine);
+
+    let hand: Vec<_> = engine
+        .state
+        .hand
+        .iter()
+        .map(|card| engine.card_registry.card_name(card.def_id))
+        .collect();
+    assert_eq!(
+        hand,
+        [
+            "Strike_P",
+            "Ghostly+",
+            "Defend_P",
+            "Miracle",
+            "ClearTheMind"
+        ]
+    );
 }
 
 #[test]
@@ -533,11 +645,7 @@ fn pride_is_playable_or_copies_itself_to_the_top_without_rng() {
     assert!(!pride.runtime_traits().unplayable);
     assert!(registry.get("Pride+").is_none());
 
-    let mut played = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut played = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut played);
     played.state.hand = make_deck(&["Pride"]);
     assert!(play_self(&mut played, "Pride"));
@@ -545,11 +653,7 @@ fn pride_is_playable_or_copies_itself_to_the_top_without_rng() {
     assert_eq!(exhaust_prefix_count(&played, "Pride"), 1);
     assert_eq!(draw_prefix_count(&played, "Pride"), 0);
 
-    let mut held = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut held = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut held);
     held.state.draw_pile = make_deck(&["Strike", "Defend"]);
     let mut pride_instance = registry.make_card("Pride");
@@ -557,7 +661,9 @@ fn pride_is_playable_or_copies_itself_to_the_top_without_rng() {
     held.state.hand = vec![pride_instance];
     let card_random_before = held.rng_counters()["cardRandom"];
 
-    assert!(!crate::status_effects::process_end_turn_hand_cards(&mut held));
+    assert!(!crate::status_effects::process_end_turn_hand_cards(
+        &mut held
+    ));
 
     let copied = held.state.draw_pile.last().expect("Pride copy");
     assert_eq!(copied.def_id, pride_instance.def_id);
@@ -587,11 +693,7 @@ fn writhe_is_an_unplayable_unupgradable_innate_non_ethereal_curse() {
 
     let mut deck = make_deck_n("Defend", 9);
     deck.push(registry.make_card("Writhe"));
-    let mut engine = engine_without_start(
-        deck,
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(deck, vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     engine.start_combat();
 
     let writhe_idx = engine
@@ -617,11 +719,7 @@ fn decay_has_no_magic_stat_and_deals_two_thorns_damage_at_end_of_turn() {
     assert!(decay.runtime_traits().unplayable);
     assert!(registry.get("Decay+").is_none());
 
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.state.player.block = 1;
     engine.state.hand = make_deck(&["Decay"]);
@@ -630,6 +728,42 @@ fn decay_has_no_magic_stat_and_deals_two_thorns_damage_at_end_of_turn() {
     end_turn(&mut engine);
 
     assert_eq!(engine.state.player.hp, hp_before - 1);
+}
+
+#[test]
+fn end_turn_autoplayed_burn_enters_discard_before_remaining_hand() {
+    // Burn is removed by AbstractPlayer.useCard and its UseCardAction moves it
+    // to discard. Only afterward does DiscardAtEndOfTurnAction discard the
+    // remaining hand from top to bottom.
+    // Java: cards/status/Burn.java, characters/AbstractPlayer.java::useCard,
+    // actions/utility/UseCardAction.java, and DiscardAtEndOfTurnAction.java.
+    let mut engine = engine_without_start(
+        make_deck_n("Defend", 10),
+        vec![enemy_no_intent("JawWorm", 40, 40)],
+        3,
+    );
+    force_player_turn(&mut engine);
+    engine.state.discard_pile = make_deck(&["Consecrate"]);
+    engine.state.hand = make_deck(&["Burn", "Void", "Wound"]);
+
+    end_turn(&mut engine);
+
+    let discarded = engine
+        .state
+        .discard_pile
+        .iter()
+        .map(|card| engine.card_registry.card_name(card.def_id))
+        .collect::<Vec<_>>();
+    assert_eq!(discarded, vec!["Consecrate", "Burn", "Wound"]);
+    assert_eq!(
+        engine
+            .state
+            .exhaust_pile
+            .iter()
+            .map(|card| engine.card_registry.card_name(card.def_id))
+            .collect::<Vec<_>>(),
+        vec!["Void"]
+    );
 }
 
 #[test]
@@ -644,16 +778,17 @@ fn doubt_has_no_magic_stat_and_applies_one_weak_at_end_of_turn() {
     assert!(doubt.runtime_traits().unplayable);
     assert!(registry.get("Doubt+").is_none());
 
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Doubt"]);
 
-    assert!(!crate::status_effects::process_end_turn_hand_cards(&mut engine));
-    assert_eq!(engine.state.player.status(crate::status_ids::sid::WEAKENED), 1);
+    assert!(!crate::status_effects::process_end_turn_hand_cards(
+        &mut engine
+    ));
+    assert_eq!(
+        engine.state.player.status(crate::status_ids::sid::WEAKENED),
+        1
+    );
 }
 
 #[test]
@@ -664,33 +799,48 @@ fn burn_variants_use_thorns_block_then_buffer_order_at_end_of_turn() {
     // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/status/Burn.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/characters/AbstractPlayer.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/powers/BufferPower.java
-    let mut ordinary = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut ordinary =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut ordinary);
     ordinary.state.hand = make_deck(&["Burn", "Burn+"]);
     let hp_before = ordinary.state.player.hp;
     end_turn(&mut ordinary);
     assert_eq!(ordinary.state.player.hp, hp_before - 6);
-    assert_eq!(ordinary.state.player.status(crate::status_ids::sid::HP_LOSS_THIS_COMBAT), 2);
-
-    let mut mitigated = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
+    assert_eq!(
+        ordinary
+            .state
+            .player
+            .status(crate::status_ids::sid::HP_LOSS_THIS_COMBAT),
+        2
     );
+
+    let mut mitigated =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut mitigated);
     mitigated.state.hand = make_deck(&["Burn", "Burn+"]);
     mitigated.state.player.block = 3;
-    mitigated.state.player.set_status(crate::status_ids::sid::BUFFER, 1);
+    mitigated
+        .state
+        .player
+        .set_status(crate::status_ids::sid::BUFFER, 1);
     let hp_before = mitigated.state.player.hp;
     end_turn(&mut mitigated);
     assert_eq!(mitigated.state.player.hp, hp_before);
     assert_eq!(mitigated.state.player.block, 0);
-    assert_eq!(mitigated.state.player.status(crate::status_ids::sid::BUFFER), 0);
-    assert_eq!(mitigated.state.player.status(crate::status_ids::sid::HP_LOSS_THIS_COMBAT), 0);
+    assert_eq!(
+        mitigated
+            .state
+            .player
+            .status(crate::status_ids::sid::BUFFER),
+        0
+    );
+    assert_eq!(
+        mitigated
+            .state
+            .player
+            .status(crate::status_ids::sid::HP_LOSS_THIS_COMBAT),
+        0
+    );
 }
 
 #[test]
@@ -705,11 +855,7 @@ fn support_wave1_pain_triggers_when_any_other_card_is_played() {
     assert!(!pain.runtime_traits().ethereal);
     assert!(registry.get("Pain+").is_none());
 
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.state.hand = make_deck(&["Pain", "Strike"]);
 
@@ -720,11 +866,8 @@ fn support_wave1_pain_triggers_when_any_other_card_is_played() {
 
     // The Pain action resolves before Buffer's ApplyPowerAction, so the newly
     // installed Buffer survives and cannot prevent this HP loss.
-    let mut before_buffer = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut before_buffer =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut before_buffer);
     before_buffer.state.hand = make_deck(&["Pain", "Buffer"]);
     let hp_before = before_buffer.state.player.hp;
@@ -735,11 +878,8 @@ fn support_wave1_pain_triggers_when_any_other_card_is_played() {
 
     // CardGroup excludes the played card itself but leaves the other Pain to
     // trigger; Blue Candle then contributes its own separate LoseHPAction.
-    let mut blue_candle = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        0,
-    );
+    let mut blue_candle =
+        engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 0);
     force_player_turn(&mut blue_candle);
     blue_candle.state.relics.push("Blue Candle".to_string());
     blue_candle.state.hand = make_deck(&["Pain", "Pain"]);
@@ -800,17 +940,15 @@ fn ascenders_bane_is_unplayable_unupgradable_and_exhausts_as_ethereal() {
     // Source: cards/curses/AscendersBane.java sets cost to -2, sets
     // isEthereal, and implements neither use() nor upgrade().
     let registry = global_registry();
-    let bane = registry.get("AscendersBane").expect("Ascender's Bane is registered");
+    let bane = registry
+        .get("AscendersBane")
+        .expect("Ascender's Bane is registered");
     assert_eq!(bane.cost, -2);
     assert!(bane.runtime_traits().unplayable);
     assert!(bane.runtime_traits().ethereal);
     assert!(registry.get("AscendersBane+").is_none());
 
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.state.relics.push("Runic Pyramid".to_string());
     engine.state.hand = make_deck(&["AscendersBane", "Strike"]);
@@ -842,11 +980,7 @@ fn clumsy_is_unplayable_unupgradable_and_exhausts_as_ethereal() {
     assert!(clumsy.runtime_traits().ethereal);
     assert!(registry.get("Clumsy+").is_none());
 
-    let mut engine = engine_without_start(
-        Vec::new(),
-        vec![enemy_no_intent("JawWorm", 40, 40)],
-        3,
-    );
+    let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
     force_player_turn(&mut engine);
     engine.state.relics.push("Runic Pyramid".to_string());
     engine.state.hand = make_deck(&["Clumsy", "Strike"]);

@@ -3,8 +3,8 @@
 //!
 //! Extracted from engine.rs as a pure refactor.
 
-use crate::engine::CombatEngine;
 use crate::effects::types::{CardRuntimeTrigger, EndTurnHandRule, WhileInHandRule};
+use crate::engine::{CombatEngine, EndTurnQueuedAction};
 use crate::powers;
 use crate::status_ids::sid;
 
@@ -17,31 +17,45 @@ use crate::status_ids::sid;
 /// Regret is HP_LOSS (bypasses Block, affected by Intangible/Tungsten Rod).
 ///
 /// Returns `true` if the player died from status damage (combat should end).
-pub fn process_end_turn_hand_cards(engine: &mut CombatEngine) -> bool {
-    // DiscardAtEndOfTurnAction first moves retain/selfRetain cards to limbo,
-    // then snapshots the remaining hand for triggerOnEndOfPlayerTurn. Retained
-    // cards therefore neither fire end-turn card hooks nor count toward
-    // Regret's hand-size snapshot. Runic Pyramid and Equilibrium do not mark
-    // their blanket-kept cards retained, so those cards remain in this list.
-    // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/
-    // DiscardAtEndOfTurnAction.java
-    let mut hand: Vec<_> = engine
-        .state
-        .hand
-        .iter()
-        .copied()
-        .filter(|card_inst| {
-            let card = engine.card_registry.card_def_by_id(card_inst.def_id);
-            !card.runtime_traits().retain && !card_inst.is_retained()
-        })
-        .collect();
-    // DiscardAtEndOfTurnAction clones this filtered hand and invokes the
-    // no-argument Collections.shuffle before firing card-owned callbacks. That
-    // shuffle uses Java's separate static default java.util.Random, not any
-    // AbstractDungeon stream.
-    engine.shuffle_end_turn_trigger_snapshot(&mut hand);
+/// Queue the ordinary actions produced by end-turn hand callbacks.
+///
+/// `TriggerEndOfTurnOrbsAction` is already in the action list when Java walks
+/// the hand. Pride appends its `MakeTempCardInDrawPileAction` immediately after
+/// that trigger, while status/curse autoplay goes to `cardQueue` instead.
+/// When the orb trigger later executes, its child actions are therefore behind
+/// Pride. A pre-trigger lethal action clears Pride; lethal orb damage does not.
+/// Java: GameActionManager.java::callEndOfTurnActions,
+/// cards/curses/Pride.java, actions/defect/TriggerEndOfTurnOrbsAction.java.
+pub fn queue_end_turn_hand_ordinary_actions(engine: &mut CombatEngine) {
+    let hand = engine.state.hand.clone();
+    for card_inst in hand {
+        let card = engine.card_registry.card_def_by_id(card_inst.def_id);
+        if card.runtime_triggers().iter().any(|trigger| {
+            matches!(
+                trigger,
+                CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::AddCopy)
+            )
+        }) {
+            engine.queue_end_turn_action_bottom(
+                EndTurnQueuedAction::MakeStatEquivalentCopyInDrawPile(card_inst),
+            );
+        }
+    }
+}
+
+/// Drain the status/curse `CardQueueItem`s collected by Java's hand callbacks.
+/// Ordinary Pride actions must already have drained through the shared action
+/// queue before this function is called.
+pub fn process_end_turn_card_queue(engine: &mut CombatEngine) -> bool {
+    // GameActionManager.callEndOfTurnActions invokes
+    // triggerOnEndOfTurnForPlayingCard over the original, unshuffled hand.
+    // Retain/selfRetain cards are still in hand here and therefore count for
+    // Regret. DiscardAtEndOfTurnAction removes retained cards and performs its
+    // separate Collections.shuffle only after these card-queue items settle.
+    // Java: actions/GameActionManager.java::callEndOfTurnActions;
+    // actions/common/DiscardAtEndOfTurnAction.java; cards/curses/Regret.java.
+    let hand = engine.state.hand.clone();
     let hand_size = hand.len() as i32;
-    let mut ordinary_actions = Vec::new();
     let mut card_queue = Vec::new();
 
     // Card callbacks only enqueue work. GameActionManager drains ordinary
@@ -54,23 +68,27 @@ pub fn process_end_turn_hand_cards(engine: &mut CombatEngine) -> bool {
 
         for trigger in card.runtime_triggers() {
             if let CardRuntimeTrigger::EndTurnInHand(rule) = trigger {
-                if *rule == EndTurnHandRule::AddCopy {
-                    ordinary_actions.push(*card_inst);
-                } else {
+                if *rule != EndTurnHandRule::AddCopy {
                     card_queue.push((*card_inst, *rule, card.base_magic));
                 }
             }
         }
     }
 
-    for card_inst in ordinary_actions {
-        // Pride passes false for randomSpot, so the copied card is added to the
-        // top without consuming cardRandomRng.
-        let copy = engine.fresh_stat_copy(card_inst);
-        engine.state.draw_pile.push(copy);
-    }
+    for (card_inst, rule, base_magic) in card_queue {
+        // AbstractPlayer.useCard removes the autoplay CardQueueItem from hand
+        // before the card's queued effect resolves. This opens a hand slot for
+        // reactions such as Runic Cube's damage draw and remains true on a
+        // lethal Burn. Regret still uses the callback-time hand_size above.
+        // Java: AbstractPlayer.java::useCard, GameActionManager.java::getNextAction,
+        // and UseCardAction.java::update.
+        let auto_played = engine
+            .state
+            .hand
+            .iter()
+            .position(|candidate| *candidate == card_inst)
+            .map(|hand_idx| engine.state.hand.remove(hand_idx));
 
-    for (_card_inst, rule, base_magic) in card_queue {
         match rule {
             EndTurnHandRule::Damage => {
                 let raw = if base_magic > 0 { base_magic } else { 2 };
@@ -84,7 +102,11 @@ pub fn process_end_turn_hand_cards(engine: &mut CombatEngine) -> bool {
                 engine.player_lose_hp_from_damage(hand_size);
             }
             EndTurnHandRule::Weak => {
-                powers::apply_debuff(&mut engine.state.player, sid::WEAKENED, 1);
+                // Doubt constructs WeakPower(player, 1, true), so the debuff
+                // must keep its justApplied latch through the immediately
+                // following atEndOfRound pass.
+                // Java: cards/curses/Doubt.java::use.
+                powers::apply_debuff_from_enemy(&mut engine.state.player, sid::WEAKENED, 1);
             }
             EndTurnHandRule::Frail => {
                 // Shame constructs FrailPower(player, 1, true), whose
@@ -93,12 +115,36 @@ pub fn process_end_turn_hand_cards(engine: &mut CombatEngine) -> bool {
             }
             EndTurnHandRule::AddCopy => unreachable!("Pride is an ordinary action"),
         }
+        if let Some(auto_played) = auto_played {
+            engine.state.discard_pile.push(auto_played);
+        }
         if engine.state.combat_over {
             return true;
         }
     }
 
     false
+}
+
+/// Standalone compatibility helper used by focused card-runtime tests.
+/// Full end-turn sequencing queues Pride before draining the card queue via
+/// the two functions above.
+pub fn process_end_turn_hand_cards(engine: &mut CombatEngine) -> bool {
+    let hand = engine.state.hand.clone();
+    for card_inst in hand {
+        let card = engine.card_registry.card_def_by_id(card_inst.def_id);
+        if card.runtime_triggers().iter().any(|trigger| {
+            matches!(
+                trigger,
+                CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::AddCopy)
+            )
+        }) && !engine.state.is_victory()
+        {
+            let copy = engine.fresh_stat_copy(card_inst);
+            engine.state.draw_pile.push(copy);
+        }
+    }
+    process_end_turn_card_queue(engine)
 }
 
 /// Process Pain curse triggers when ANY card is played.

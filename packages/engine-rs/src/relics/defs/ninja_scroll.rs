@@ -14,7 +14,7 @@ static TRIGGERS: [TriggeredEffect; 1] = [
     // NinjaScroll.java declares ID "Ninja Scroll" and creates exactly three
     // unupgraded Shivs before the opening draw.
     TriggeredEffect {
-        trigger: Trigger::CombatStart,
+        trigger: Trigger::CombatStartPreDraw,
         condition: TriggerCondition::Always,
         effects: &EFFECTS,
         counter: None,

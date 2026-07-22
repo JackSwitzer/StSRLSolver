@@ -10,9 +10,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 use std::sync::OnceLock;
 
 pub const CORE_CHECKPOINT_SCHEMA: &str = "sts.core_checkpoint";
-pub const CORE_CHECKPOINT_MAJOR: u32 = 2;
+pub const CORE_CHECKPOINT_MAJOR: u32 = 3;
 pub const CORE_CHECKPOINT_MINOR: u32 = 0;
-pub const CORE_SEMANTICS_REVISION: &str = "java-rng-actions-v2-checkpoint-v3";
+pub const CORE_SEMANTICS_REVISION: &str = "java-rng-actions-v2-checkpoint-v7";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CheckpointVersion {

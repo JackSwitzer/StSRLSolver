@@ -3,13 +3,12 @@ mod ironclad_wave3_card_runtime_tests {
     use crate::actions::Action;
     use crate::cards::{CardDef, CardTarget, CardType};
     use crate::effects::declarative::{
-        AmountSource as A, CardFilter, ChoiceAction, Effect, Pile, SimpleEffect as SE,
-        Target as T,
+        AmountSource as A, CardFilter, ChoiceAction, Effect, Pile, SimpleEffect as SE, Target as T,
     };
     use crate::engine::{ChoiceOption, ChoiceReason, CombatPhase};
     use crate::status_ids::sid;
     use crate::tests::support::{
-        discard_prefix_count, draw_prefix_count, engine_without_start, enemy_no_intent,
+        discard_prefix_count, draw_prefix_count, enemy_no_intent, engine_without_start,
         exhaust_prefix_count, force_player_turn, make_deck, play_on_enemy, play_self,
     };
 
@@ -36,7 +35,10 @@ mod ironclad_wave3_card_runtime_tests {
         assert_eq!(body_slam.target, CardTarget::Enemy);
         assert_eq!(
             body_slam.effect_data,
-            &[Effect::Simple(SE::DealDamage(T::SelectedEnemy, A::PlayerBlock))]
+            &[Effect::Simple(SE::DealDamage(
+                T::SelectedEnemy,
+                A::PlayerBlock
+            ))]
         );
 
         let pummel = card("Pummel");
@@ -97,22 +99,17 @@ mod ironclad_wave3_card_runtime_tests {
             clash.effect_data,
             &[Effect::Simple(SE::DealDamage(T::SelectedEnemy, A::Damage))]
         );
-        assert!(
-            clash
-                .runtime_triggers()
-                .contains(&crate::effects::types::CardRuntimeTrigger::CanPlay(
-                    crate::effects::types::CanPlayRule::OnlyAttacksInHand,
-                ))
-        );
+        assert!(clash.runtime_triggers().contains(
+            &crate::effects::types::CardRuntimeTrigger::CanPlay(
+                crate::effects::types::CanPlayRule::OnlyAttacksInHand,
+            )
+        ));
     }
 
     #[test]
     fn body_slam_scales_from_current_block_on_the_engine_path() {
-        let mut engine = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            3,
-        );
+        let mut engine =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
         force_player_turn(&mut engine);
         engine.state.hand = make_deck(&["Body Slam"]);
         engine.state.player.block = 13;
@@ -125,11 +122,8 @@ mod ironclad_wave3_card_runtime_tests {
 
     #[test]
     fn pummel_and_twin_strike_keep_the_expected_multi_hit_engine_behavior() {
-        let mut pummel = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 60, 60)],
-            3,
-        );
+        let mut pummel =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 60, 60)], 3);
         force_player_turn(&mut pummel);
         pummel.state.hand = make_deck(&["Pummel"]);
         let hp_before = pummel.state.enemies[0].entity.hp;
@@ -139,11 +133,8 @@ mod ironclad_wave3_card_runtime_tests {
         assert_eq!(pummel.state.enemies[0].entity.hp, hp_before - 8);
         assert_eq!(exhaust_prefix_count(&pummel, "Pummel"), 1);
 
-        let mut twin_strike = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 60, 60)],
-            3,
-        );
+        let mut twin_strike =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 60, 60)], 3);
         force_player_turn(&mut twin_strike);
         twin_strike.state.hand = make_deck(&["Twin Strike"]);
         let hp_before = twin_strike.state.enemies[0].entity.hp;
@@ -159,11 +150,8 @@ mod ironclad_wave3_card_runtime_tests {
         // after upgradeMagicNumber(1). DamageInfo snapshots the Strength-adjusted
         // damage for each hit, so three Block absorbs exactly the first 3-damage hit.
         for (card_id, hits) in [("Pummel", 4), ("Pummel+", 5)] {
-            let mut engine = engine_without_start(
-                Vec::new(),
-                vec![enemy_no_intent("JawWorm", 60, 60)],
-                3,
-            );
+            let mut engine =
+                engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 60, 60)], 3);
             force_player_turn(&mut engine);
             engine.state.player.set_status(sid::STRENGTH, 1);
             engine.state.enemies[0].entity.block = 3;
@@ -184,11 +172,8 @@ mod ironclad_wave3_card_runtime_tests {
 
     #[test]
     fn battle_trance_draws_then_blocks_future_draws_on_the_engine_path() {
-        let mut engine = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            3,
-        );
+        let mut engine =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
         force_player_turn(&mut engine);
         engine.state.hand = make_deck(&["Battle Trance"]);
         engine.state.draw_pile = make_deck(&["Strike", "Defend"]);
@@ -204,12 +189,10 @@ mod ironclad_wave3_card_runtime_tests {
     }
 
     #[test]
-    fn true_grit_base_uses_the_typed_random_exhaust_surface_while_plus_uses_declared_exhaust_choice_data() {
-        let mut engine = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            3,
-        );
+    fn true_grit_base_uses_the_typed_random_exhaust_surface_while_plus_uses_declared_exhaust_choice_data(
+    ) {
+        let mut engine =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
         force_player_turn(&mut engine);
         engine.state.hand = make_deck(&["True Grit", "Strike", "Defend"]);
 
@@ -238,18 +221,18 @@ mod ironclad_wave3_card_runtime_tests {
             ]
         );
 
-        let mut plus_engine = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            3,
-        );
+        let mut plus_engine =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
         force_player_turn(&mut plus_engine);
         plus_engine.state.hand = make_deck(&["True Grit+", "Strike", "Defend"]);
 
         assert!(play_self(&mut plus_engine, "True Grit+"));
         assert_eq!(plus_engine.phase, CombatPhase::AwaitingChoice);
         assert_eq!(
-            plus_engine.choice.as_ref().map(|choice| choice.reason.clone()),
+            plus_engine
+                .choice
+                .as_ref()
+                .map(|choice| choice.reason.clone()),
             Some(ChoiceReason::ExhaustFromHand),
         );
 
@@ -284,11 +267,8 @@ mod ironclad_wave3_card_runtime_tests {
         // 9 Block and uses a non-random one-card selection instead.
         // Java: decompiled/java-src/com/megacrit/cardcrawl/cards/red/TrueGrit.java
         // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/common/ExhaustAction.java
-        let mut base = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            1,
-        );
+        let mut base =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 1);
         force_player_turn(&mut base);
         base.state.hand = make_deck(&["True Grit", "Strike", "Defend"]);
         let mut oracle = base.card_random_rng.clone();
@@ -300,18 +280,20 @@ mod ironclad_wave3_card_runtime_tests {
         assert_eq!(base.state.energy, 0);
         assert_eq!(base.state.player.block, 7);
         assert_eq!(
-            base.card_registry
-                .card_name(base.state.exhaust_pile.last().expect("randomly exhausted card").def_id),
+            base.card_registry.card_name(
+                base.state
+                    .exhaust_pile
+                    .last()
+                    .expect("randomly exhausted card")
+                    .def_id
+            ),
             expected
         );
         assert_eq!(base.card_random_rng.counter, oracle.counter);
         assert_eq!(base.shuffle_rng.counter, generic_before);
 
-        let mut singleton = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            1,
-        );
+        let mut singleton =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 1);
         force_player_turn(&mut singleton);
         singleton.state.hand = make_deck(&["True Grit", "Strike"]);
         let card_random_before = singleton.card_random_rng.counter;
@@ -321,11 +303,8 @@ mod ironclad_wave3_card_runtime_tests {
         assert_eq!(exhaust_prefix_count(&singleton, "Strike"), 1);
         assert_eq!(singleton.card_random_rng.counter, card_random_before);
 
-        let mut upgraded = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            1,
-        );
+        let mut upgraded =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 1);
         force_player_turn(&mut upgraded);
         upgraded.state.hand = make_deck(&["True Grit+", "Strike", "Defend"]);
         let card_random_before = upgraded.card_random_rng.counter;
@@ -397,11 +376,8 @@ mod ironclad_wave3_card_runtime_tests {
 
     #[test]
     fn clash_requires_an_attack_only_hand_to_be_legal() {
-        let mut blocked = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            3,
-        );
+        let mut blocked =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
         force_player_turn(&mut blocked);
         blocked.state.hand = make_deck(&["Clash", "Defend"]);
         let clash_idx = blocked
@@ -416,11 +392,8 @@ mod ironclad_wave3_card_runtime_tests {
             Action::PlayCard { card_idx, .. } if *card_idx == clash_idx
         )));
 
-        let mut allowed = engine_without_start(
-            Vec::new(),
-            vec![enemy_no_intent("JawWorm", 40, 40)],
-            3,
-        );
+        let mut allowed =
+            engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
         force_player_turn(&mut allowed);
         allowed.state.hand = make_deck(&["Clash", "Strike"]);
         let clash_idx = allowed

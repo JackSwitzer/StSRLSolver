@@ -14,8 +14,8 @@ use crate::actions::Action;
 use crate::effects::runtime::EffectOwner;
 use crate::status_ids::sid;
 use crate::tests::support::{
-    combat_state_with, end_turn, enemy, enemy_no_intent, engine_with_state, make_deck,
-    make_deck_n, play_on_enemy, play_self,
+    combat_state_with, end_turn, enemy, enemy_no_intent, engine_with_state, make_deck, make_deck_n,
+    play_on_enemy, play_self,
 };
 
 #[test]

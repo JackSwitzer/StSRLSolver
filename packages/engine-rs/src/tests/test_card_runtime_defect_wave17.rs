@@ -10,9 +10,13 @@
 // - /Users/jackswitzer/Desktop/SlayTheSpireRL/decompiled/java-src/com/megacrit/cardcrawl/actions/common/RemoveAllBlockAction.java
 
 use crate::cards::{global_registry, CardTarget, CardType};
-use crate::effects::declarative::{AmountSource as A, Effect as E, SimpleEffect as SE, Target as T};
+use crate::effects::declarative::{
+    AmountSource as A, Effect as E, SimpleEffect as SE, Target as T,
+};
 use crate::status_ids::sid;
-use crate::tests::support::{enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self};
+use crate::tests::support::{
+    enemy_no_intent, engine_without_start, force_player_turn, make_deck, play_on_enemy, play_self,
+};
 
 fn single_enemy_engine() -> crate::engine::CombatEngine {
     let mut engine = engine_without_start(Vec::new(), vec![enemy_no_intent("JawWorm", 40, 40)], 3);
@@ -30,7 +34,10 @@ fn defect_wave17_registry_exports_typed_double_energy_and_genetic_algorithm() {
     assert!(double_energy.complex_hook.is_none());
 
     let double_energy_plus = reg.get("Double Energy+").expect("Double Energy+");
-    assert_eq!(double_energy_plus.effect_data, &[E::Simple(SE::DoubleEnergy)]);
+    assert_eq!(
+        double_energy_plus.effect_data,
+        &[E::Simple(SE::DoubleEnergy)]
+    );
     assert!(double_energy_plus.complex_hook.is_none());
     assert_eq!(double_energy_plus.cost, 0);
 
@@ -58,7 +65,10 @@ fn defect_wave17_registry_exports_typed_double_energy_and_genetic_algorithm() {
     let blizzard = reg.get("Blizzard").expect("Blizzard");
     assert_eq!(
         blizzard.effect_data,
-        &[E::Simple(SE::DealDamage(T::AllEnemies, A::StatusValueTimesMagic(sid::FROST_CHANNELED)))]
+        &[E::Simple(SE::DealDamage(
+            T::AllEnemies,
+            A::StatusValueTimesMagic(sid::FROST_CHANNELED)
+        ))]
     );
     assert!(blizzard.complex_hook.is_none());
     assert_eq!(blizzard.card_type, CardType::Attack);
@@ -86,7 +96,10 @@ fn double_energy_doubles_current_energy_and_exhausts() {
     assert!(play_self(&mut engine, "Double Energy"));
     assert_eq!(engine.state.energy, 4);
     assert_eq!(engine.state.exhaust_pile.len(), 1);
-    assert_eq!(engine.state.exhaust_pile[0].def_id, engine.card_registry.card_id("Double Energy"));
+    assert_eq!(
+        engine.state.exhaust_pile[0].def_id,
+        engine.card_registry.card_id("Double Energy")
+    );
 }
 
 #[test]
@@ -96,10 +109,9 @@ fn genetic_algorithm_captures_current_block_then_scales_only_its_matching_copy()
     // leaves the initial misc/baseBlock at 1.
     // Java: reference/extracted/methods/card/GeneticAlgorithm.java
     // Java: decompiled/java-src/com/megacrit/cardcrawl/actions/defect/IncreaseMiscAction.java
-    for (card_id, first_misc, second_misc) in [
-        ("Genetic Algorithm", 3, 5),
-        ("Genetic Algorithm+", 4, 7),
-    ] {
+    for (card_id, first_misc, second_misc) in
+        [("Genetic Algorithm", 3, 5), ("Genetic Algorithm+", 4, 7)]
+    {
         let mut engine = single_enemy_engine();
         engine.state.hand = make_deck(&[card_id]);
         engine.state.master_deck = make_deck(&[card_id, card_id]);
@@ -148,7 +160,10 @@ fn blizzard_uses_the_typed_frost_count_aoe_primitive() {
     let blizzard = global_registry().get("Blizzard").expect("Blizzard");
     assert_eq!(
         blizzard.effect_data,
-        &[E::Simple(SE::DealDamage(T::AllEnemies, A::StatusValueTimesMagic(sid::FROST_CHANNELED)))]
+        &[E::Simple(SE::DealDamage(
+            T::AllEnemies,
+            A::StatusValueTimesMagic(sid::FROST_CHANNELED)
+        ))]
     );
     assert!(blizzard.complex_hook.is_none());
 }

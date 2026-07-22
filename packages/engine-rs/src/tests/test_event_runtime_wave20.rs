@@ -15,9 +15,7 @@ fn scrap_ooze_is_supported_in_the_typed_catalog() {
         scrap_ooze.options[0].status,
         EventRuntimeStatus::Supported
     ));
-    assert!(scrap_ooze.options[0]
-        .text
-        .contains("25% relic chance"));
+    assert!(scrap_ooze.options[0].text.contains("25% relic chance"));
 }
 
 #[test]
@@ -56,7 +54,11 @@ fn scrap_ooze_retries_with_escalating_damage_and_relic_chance_before_rewarding_a
         .last()
         .expect("scrap ooze should grant a relic immediately")
         .clone();
-    assert!(engine.run_state.relics.iter().any(|relic| relic == &relic_id));
+    assert!(engine
+        .run_state
+        .relics
+        .iter()
+        .any(|relic| relic == &relic_id));
 
     let leave = engine.step_game(&GameAction::EventChoice(0));
     assert!(leave.accepted());

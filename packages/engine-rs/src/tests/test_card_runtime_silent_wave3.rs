@@ -34,11 +34,17 @@ mod silent_wave3 {
         let reg = global_registry();
 
         let finisher = reg.get("Finisher").expect("Finisher");
-        assert_eq!(finisher.effect_data, &[E::ExtraHits(A::PriorAttacksThisTurn)]);
+        assert_eq!(
+            finisher.effect_data,
+            &[E::ExtraHits(A::PriorAttacksThisTurn)]
+        );
         assert!(finisher.complex_hook.is_none());
 
         let finisher_plus = reg.get("Finisher+").expect("Finisher+");
-        assert_eq!(finisher_plus.effect_data, &[E::ExtraHits(A::PriorAttacksThisTurn)]);
+        assert_eq!(
+            finisher_plus.effect_data,
+            &[E::ExtraHits(A::PriorAttacksThisTurn)]
+        );
         assert!(finisher_plus.complex_hook.is_none());
 
         let malaise = reg.get("Malaise").expect("Malaise");
@@ -160,12 +166,7 @@ mod silent_wave3 {
         assert_eq!(all_out.state.discard_pile.len(), 2);
         assert_eq!(all_out.state.player.status(sid::DISCARDED_THIS_TURN), 1);
 
-        let mut bane_dead = engine_for(
-            &["Bane"],
-            &[],
-            vec![enemy("JawWorm", 8, 8, 1, 0, 1)],
-            3,
-        );
+        let mut bane_dead = engine_for(&["Bane"], &[], vec![enemy("JawWorm", 8, 8, 1, 0, 1)], 3);
         bane_dead.state.enemies[0].entity.set_status(sid::POISON, 2);
         assert!(play_on_enemy(&mut bane_dead, "Bane", 0));
         assert!(bane_dead.state.enemies[0].entity.is_dead());
@@ -191,9 +192,14 @@ mod silent_wave3 {
             vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
             3,
         );
-        malaise_plus.state.enemies[0].entity.set_status(sid::STRENGTH, 7);
+        malaise_plus.state.enemies[0]
+            .entity
+            .set_status(sid::STRENGTH, 7);
         assert!(play_on_enemy(&mut malaise_plus, "Malaise+", 0));
-        assert_eq!(malaise_plus.state.enemies[0].entity.status(sid::WEAKENED), 4);
+        assert_eq!(
+            malaise_plus.state.enemies[0].entity.status(sid::WEAKENED),
+            4
+        );
         assert_eq!(malaise_plus.state.enemies[0].entity.strength(), 3);
     }
 
@@ -220,7 +226,9 @@ mod silent_wave3 {
             0,
         );
         chemical.state.relics.push("Chemical X".to_string());
-        chemical.state.enemies[0].entity.set_status(sid::STRENGTH, 5);
+        chemical.state.enemies[0]
+            .entity
+            .set_status(sid::STRENGTH, 5);
         assert!(play_on_enemy(&mut chemical, "Malaise", 0));
         assert_eq!(chemical.state.enemies[0].entity.strength(), 3);
         assert_eq!(chemical.state.enemies[0].entity.status(sid::WEAKENED), 2);
@@ -231,8 +239,12 @@ mod silent_wave3 {
             vec![enemy("JawWorm", 40, 40, 1, 0, 1)],
             2,
         );
-        artifact.state.enemies[0].entity.set_status(sid::STRENGTH, 5);
-        artifact.state.enemies[0].entity.set_status(sid::ARTIFACT, 1);
+        artifact.state.enemies[0]
+            .entity
+            .set_status(sid::STRENGTH, 5);
+        artifact.state.enemies[0]
+            .entity
+            .set_status(sid::ARTIFACT, 1);
         assert!(play_on_enemy(&mut artifact, "Malaise+", 0));
         assert_eq!(artifact.state.energy, 0);
         assert_eq!(artifact.state.enemies[0].entity.strength(), 5);

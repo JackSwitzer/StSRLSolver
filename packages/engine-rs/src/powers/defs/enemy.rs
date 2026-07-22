@@ -10,7 +10,7 @@ use crate::effects::declarative::{AmountSource, Effect, SimpleEffect, Target};
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerCondition};
-use crate::engine::CombatEngine;
+use crate::engine::{CombatEngine, EndTurnQueuedAction};
 use crate::status_ids::sid;
 
 // ===========================================================================
@@ -45,7 +45,7 @@ fn ritual_hook(
     match (owner, event.kind) {
         (EffectOwner::PlayerPower, Trigger::TurnEnd) => {
             let amount = engine.state.player.status(sid::RITUAL);
-            engine.state.player.add_status(sid::STRENGTH, amount);
+            engine.queue_end_turn_action_bottom(EndTurnQueuedAction::AddPlayerStrength(amount));
         }
         (EffectOwner::EnemyPower { enemy_idx }, Trigger::RoundEnd) => {
             if state.get(0) == 0 {
@@ -55,7 +55,9 @@ fn ritual_hook(
             let idx = enemy_idx as usize;
             if idx < engine.state.enemies.len() {
                 let amount = engine.state.enemies[idx].entity.status(sid::RITUAL);
-                engine.state.enemies[idx].entity.add_status(sid::STRENGTH, amount);
+                engine.state.enemies[idx]
+                    .entity
+                    .add_status(sid::STRENGTH, amount);
             }
         }
         _ => {}
@@ -106,9 +108,9 @@ static GROWTH_EFFECTS: [Effect; 2] = [
         sid::STRENGTH,
         AmountSource::StatusValue(sid::GROWTH),
     )),
-    Effect::Simple(SimpleEffect::GainBlock(
-        AmountSource::StatusValue(sid::GROWTH),
-    )),
+    Effect::Simple(SimpleEffect::GainBlock(AmountSource::StatusValue(
+        sid::GROWTH,
+    ))),
 ];
 
 static GROWTH_TRIGGERS: [TriggeredEffect; 1] = [TriggeredEffect {
@@ -192,7 +194,10 @@ mod tests {
 
     #[test]
     fn test_regeneration_always_fires() {
-        assert_eq!(DEF_REGENERATION.triggers[0].condition, TriggerCondition::Always);
+        assert_eq!(
+            DEF_REGENERATION.triggers[0].condition,
+            TriggerCondition::Always
+        );
         assert_eq!(DEF_REGENERATION.triggers[0].trigger, Trigger::EnemyTurnEnd);
     }
 

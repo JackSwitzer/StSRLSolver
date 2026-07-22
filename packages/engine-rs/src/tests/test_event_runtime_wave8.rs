@@ -22,11 +22,20 @@ fn typed_shrine_event(name: &str) -> TypedEventDef {
 #[test]
 fn wave8_supported_branches_are_no_longer_marked_blocked() {
     let dead_adventurer = typed_event(1, "Dead Adventurer");
-    assert!(matches!(dead_adventurer.options[0].status, EventRuntimeStatus::Supported));
+    assert!(matches!(
+        dead_adventurer.options[0].status,
+        EventRuntimeStatus::Supported
+    ));
 
     let secret_portal = typed_event(3, "Secret Portal");
-    assert!(matches!(secret_portal.options[0].status, EventRuntimeStatus::Supported));
+    assert!(matches!(
+        secret_portal.options[0].status,
+        EventRuntimeStatus::Supported
+    ));
 
     let wheel = typed_shrine_event("Wheel of Change");
-    assert!(matches!(wheel.options[0].status, EventRuntimeStatus::Supported));
+    assert!(matches!(
+        wheel.options[0].status,
+        EventRuntimeStatus::Supported
+    ));
 }

@@ -41,7 +41,10 @@ mod event_java_parity_tests {
             "Upgrade Shrine",
             "WeMeetAgain",
         ] {
-            assert!(names.contains(&expected.to_string()), "missing shrine event: {expected}");
+            assert!(
+                names.contains(&expected.to_string()),
+                "missing shrine event: {expected}"
+            );
         }
     }
 
@@ -124,14 +127,23 @@ mod event_java_parity_tests {
             dead_adventurer.options[0].program.ops.as_slice(),
             [EventProgramOp::Nothing]
         ));
-        assert_eq!(dead_adventurer.options[0].text, "Initialize Dead Adventurer");
+        assert_eq!(
+            dead_adventurer.options[0].text,
+            "Initialize Dead Adventurer"
+        );
     }
 
     #[test]
     fn typed_runtime_supported_branches_are_no_longer_marked_blocked() {
         let addict = typed_event(2, "Addict");
-        assert!(matches!(addict.options[0].status, EventRuntimeStatus::Supported));
-        assert!(matches!(addict.options[1].status, EventRuntimeStatus::Supported));
+        assert!(matches!(
+            addict.options[0].status,
+            EventRuntimeStatus::Supported
+        ));
+        assert!(matches!(
+            addict.options[1].status,
+            EventRuntimeStatus::Supported
+        ));
 
         let the_joust = typed_event(2, "The Joust");
         assert!(matches!(
@@ -220,9 +232,7 @@ mod event_java_parity_tests {
             scrap_ooze.options[0].status,
             EventRuntimeStatus::Supported
         ));
-        assert!(scrap_ooze.options[0]
-            .text
-            .contains("25% relic chance"));
+        assert!(scrap_ooze.options[0].text.contains("25% relic chance"));
 
         let spire_heart = typed_event(3, "Spire Heart");
         assert!(matches!(
@@ -231,7 +241,10 @@ mod event_java_parity_tests {
         ));
 
         let wheel = typed_shrine_event("Wheel of Change");
-        assert!(matches!(wheel.options[0].status, EventRuntimeStatus::Supported));
+        assert!(matches!(
+            wheel.options[0].status,
+            EventRuntimeStatus::Supported
+        ));
 
         let bonfire = typed_shrine_event("Bonfire Elementals");
         assert!(matches!(
@@ -256,9 +269,6 @@ mod event_java_parity_tests {
             .flat_map(|event| event.options.into_iter())
             .collect::<Vec<_>>();
         assert!(!options.is_empty());
-        assert!(options
-            .iter()
-            .all(|option| !option.program.ops.is_empty()));
+        assert!(options.iter().all(|option| !option.program.ops.is_empty()));
     }
-
 }

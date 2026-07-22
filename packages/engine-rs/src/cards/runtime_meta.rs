@@ -16,10 +16,11 @@ const GRAND_FINALE_TRIGGERS: &[CardRuntimeTrigger] =
     &[CardRuntimeTrigger::CanPlay(CanPlayRule::OnlyEmptyDraw)];
 const ENDLESS_AGONY_TRIGGERS: &[CardRuntimeTrigger] =
     &[CardRuntimeTrigger::OnDraw(OnDrawRule::CopySelf)];
-const VOID_TRIGGERS: &[CardRuntimeTrigger] = &[
-    CardRuntimeTrigger::OnDraw(OnDrawRule::LoseEnergy),
-    CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Damage),
-];
+// VoidCard only loses one energy when drawn. Its end-of-turn behavior is the
+// inherited Ethereal exhaust; unlike Burn/Decay it never enters cardQueue and
+// never deals damage.
+// Java: decompiled/java-src/com/megacrit/cardcrawl/cards/status/VoidCard.java.
+const VOID_TRIGGERS: &[CardRuntimeTrigger] = &[CardRuntimeTrigger::OnDraw(OnDrawRule::LoseEnergy)];
 const DEUS_EX_MACHINA_TRIGGERS: &[CardRuntimeTrigger] =
     &[CardRuntimeTrigger::OnDraw(OnDrawRule::DeusExMachina)];
 const REFLEX_TRIGGERS: &[CardRuntimeTrigger] =
@@ -36,16 +37,21 @@ const WINDMILL_STRIKE_TRIGGERS: &[CardRuntimeTrigger] = &[
 ];
 const SENTINEL_TRIGGERS: &[CardRuntimeTrigger] =
     &[CardRuntimeTrigger::OnExhaust(OnExhaustRule::GainEnergy)];
-const NECRONOMICURSE_TRIGGERS: &[CardRuntimeTrigger] =
-    &[CardRuntimeTrigger::OnExhaust(OnExhaustRule::ReturnCopyToHand)];
-const BLOOD_FOR_BLOOD_TRIGGERS: &[CardRuntimeTrigger] =
-    &[CardRuntimeTrigger::ModifyCost(CostModifierRule::ReduceOnHpLoss)];
-const FORCE_FIELD_TRIGGERS: &[CardRuntimeTrigger] =
-    &[CardRuntimeTrigger::ModifyCost(CostModifierRule::ReducePerPower)];
-const EVISCERATE_TRIGGERS: &[CardRuntimeTrigger] =
-    &[CardRuntimeTrigger::StatefulCost(StatefulCostRule::ReduceOnDiscard)];
-const MASTERFUL_STAB_TRIGGERS: &[CardRuntimeTrigger] =
-    &[CardRuntimeTrigger::ModifyCost(CostModifierRule::IncreaseOnHpLoss)];
+const NECRONOMICURSE_TRIGGERS: &[CardRuntimeTrigger] = &[CardRuntimeTrigger::OnExhaust(
+    OnExhaustRule::ReturnCopyToHand,
+)];
+const BLOOD_FOR_BLOOD_TRIGGERS: &[CardRuntimeTrigger] = &[CardRuntimeTrigger::ModifyCost(
+    CostModifierRule::ReduceOnHpLoss,
+)];
+const FORCE_FIELD_TRIGGERS: &[CardRuntimeTrigger] = &[CardRuntimeTrigger::ModifyCost(
+    CostModifierRule::ReducePerPower,
+)];
+const EVISCERATE_TRIGGERS: &[CardRuntimeTrigger] = &[CardRuntimeTrigger::StatefulCost(
+    StatefulCostRule::ReduceOnDiscard,
+)];
+const MASTERFUL_STAB_TRIGGERS: &[CardRuntimeTrigger] = &[CardRuntimeTrigger::ModifyCost(
+    CostModifierRule::IncreaseOnHpLoss,
+)];
 const TANTRUM_TRIGGERS: &[CardRuntimeTrigger] =
     &[CardRuntimeTrigger::PostPlay(PostPlayRule::ShuffleIntoDraw)];
 const CONCLUDE_TRIGGERS: &[CardRuntimeTrigger] =
@@ -54,25 +60,33 @@ const VAULT_TRIGGERS: &[CardRuntimeTrigger] =
     &[CardRuntimeTrigger::PostPlay(PostPlayRule::EndTurn)];
 const MEDITATE_TRIGGERS: &[CardRuntimeTrigger] =
     &[CardRuntimeTrigger::PostPlay(PostPlayRule::EndTurn)];
-const HEAVY_BLADE_TRIGGERS: &[CardRuntimeTrigger] =
-    &[CardRuntimeTrigger::ModifyDamage(DamageModifierRule::HeavyBlade)];
-const PERFECTED_STRIKE_TRIGGERS: &[CardRuntimeTrigger] =
-    &[CardRuntimeTrigger::ModifyDamage(DamageModifierRule::PerfectedStrike)];
-const RAMPAGE_TRIGGERS: &[CardRuntimeTrigger] =
-    &[CardRuntimeTrigger::ModifyDamage(DamageModifierRule::Rampage)];
-const GLASS_KNIFE_TRIGGERS: &[CardRuntimeTrigger] =
-    &[CardRuntimeTrigger::ModifyDamage(DamageModifierRule::GlassKnife)];
-const RITUAL_DAGGER_TRIGGERS: &[CardRuntimeTrigger] =
-    &[CardRuntimeTrigger::ModifyDamage(DamageModifierRule::RitualDagger)];
-const SEARING_BLOW_TRIGGERS: &[CardRuntimeTrigger] =
-    &[CardRuntimeTrigger::ModifyDamage(DamageModifierRule::SearingBlow)];
-const CLAW_TRIGGERS: &[CardRuntimeTrigger] =
-    &[CardRuntimeTrigger::ModifyDamage(DamageModifierRule::ClawScaling)];
-const MIND_BLAST_TRIGGERS: &[CardRuntimeTrigger] = &[
-    CardRuntimeTrigger::ModifyDamage(DamageModifierRule::DamageFromDrawPile),
-];
-const BRILLIANCE_TRIGGERS: &[CardRuntimeTrigger] =
-    &[CardRuntimeTrigger::ModifyDamage(DamageModifierRule::DamagePlusMantra)];
+const HEAVY_BLADE_TRIGGERS: &[CardRuntimeTrigger] = &[CardRuntimeTrigger::ModifyDamage(
+    DamageModifierRule::HeavyBlade,
+)];
+const PERFECTED_STRIKE_TRIGGERS: &[CardRuntimeTrigger] = &[CardRuntimeTrigger::ModifyDamage(
+    DamageModifierRule::PerfectedStrike,
+)];
+const RAMPAGE_TRIGGERS: &[CardRuntimeTrigger] = &[CardRuntimeTrigger::ModifyDamage(
+    DamageModifierRule::Rampage,
+)];
+const GLASS_KNIFE_TRIGGERS: &[CardRuntimeTrigger] = &[CardRuntimeTrigger::ModifyDamage(
+    DamageModifierRule::GlassKnife,
+)];
+const RITUAL_DAGGER_TRIGGERS: &[CardRuntimeTrigger] = &[CardRuntimeTrigger::ModifyDamage(
+    DamageModifierRule::RitualDagger,
+)];
+const SEARING_BLOW_TRIGGERS: &[CardRuntimeTrigger] = &[CardRuntimeTrigger::ModifyDamage(
+    DamageModifierRule::SearingBlow,
+)];
+const CLAW_TRIGGERS: &[CardRuntimeTrigger] = &[CardRuntimeTrigger::ModifyDamage(
+    DamageModifierRule::ClawScaling,
+)];
+const MIND_BLAST_TRIGGERS: &[CardRuntimeTrigger] = &[CardRuntimeTrigger::ModifyDamage(
+    DamageModifierRule::DamageFromDrawPile,
+)];
+const BRILLIANCE_TRIGGERS: &[CardRuntimeTrigger] = &[CardRuntimeTrigger::ModifyDamage(
+    DamageModifierRule::DamagePlusMantra,
+)];
 const BURN_TRIGGERS: &[CardRuntimeTrigger] =
     &[CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Damage)];
 const DECAY_TRIGGERS: &[CardRuntimeTrigger] =
@@ -85,8 +99,9 @@ const SHAME_TRIGGERS: &[CardRuntimeTrigger] =
     &[CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::Frail)];
 const PRIDE_TRIGGERS: &[CardRuntimeTrigger] =
     &[CardRuntimeTrigger::EndTurnInHand(EndTurnHandRule::AddCopy)];
-const PAIN_TRIGGERS: &[CardRuntimeTrigger] =
-    &[CardRuntimeTrigger::WhileInHand(WhileInHandRule::PainOnOtherCardPlayed)];
+const PAIN_TRIGGERS: &[CardRuntimeTrigger] = &[CardRuntimeTrigger::WhileInHand(
+    WhileInHandRule::PainOnOtherCardPlayed,
+)];
 
 pub fn runtime_traits_for_card(id: &str, cost: i32) -> CardRuntimeTraits {
     CardRuntimeTraits {
@@ -237,6 +252,10 @@ pub fn play_hints_for_card(id: &str, cost: i32, effects: &[Effect]) -> CardPlayH
             "Genetic Algorithm" | "Genetic Algorithm+" | "SteamBarrier" | "SteamBarrier+" => {
                 Some(CardBlockHint::UsesCardMisc)
             }
+            // Wish.use only opens ChooseOneAction. Its baseBlock is copied into
+            // Live Forever and is not granted when Wish itself is played.
+            // Java: cards/purple/Wish.java and cards/optionCards/LiveForever.java.
+            "Wish" | "Wish+" => Some(CardBlockHint::ChoicePayloadOnly),
             _ => None,
         },
         evoke_hint: derive_evoke_hint(effects),
@@ -276,7 +295,10 @@ fn effect_discards_cards(effects: &[Effect]) -> bool {
         Effect::Simple(SimpleEffect::DiscardRandomCardsFromPile(_, _)) => true,
         Effect::ChooseCards { source, action, .. } => {
             matches!(source, Pile::Hand)
-                && matches!(action, ChoiceAction::Discard | ChoiceAction::DiscardForEffect)
+                && matches!(
+                    action,
+                    ChoiceAction::Discard | ChoiceAction::DiscardForEffect
+                )
         }
         Effect::ForEachInPile { action, .. } => matches!(action, BulkAction::Discard),
         Effect::Conditional(_, then_effects, else_effects) => {

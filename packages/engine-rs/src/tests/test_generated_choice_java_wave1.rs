@@ -13,11 +13,7 @@ use crate::cards::CardType;
 use crate::engine::ChoiceOption;
 use crate::status_ids::sid;
 use crate::tests::support::{
-    combat_state_with,
-    enemy_no_intent,
-    engine_with_state,
-    make_deck,
-    play_self,
+    combat_state_with, enemy_no_intent, engine_with_state, make_deck, play_self,
 };
 
 fn use_potion(engine: &mut crate::engine::CombatEngine, potion_idx: usize, target_idx: i32) {
@@ -125,17 +121,30 @@ fn discovery_potions_open_zero_cost_generated_choice_and_consume_the_slot() {
 
         use_potion(&mut engine, 0, -1);
 
-        assert!(engine.state.potions[0].is_empty(), "{potion_id} should consume its slot");
+        assert!(
+            engine.state.potions[0].is_empty(),
+            "{potion_id} should consume its slot"
+        );
         assert_eq!(engine.phase, crate::engine::CombatPhase::AwaitingChoice);
-        let choice = engine.choice.as_ref().expect("potion should open a generated choice");
-        assert_eq!(choice.options.len(), 3, "{potion_id} should offer three choices");
+        let choice = engine
+            .choice
+            .as_ref()
+            .expect("potion should open a generated choice");
+        assert_eq!(
+            choice.options.len(),
+            3,
+            "{potion_id} should offer three choices"
+        );
         let mut seen = std::collections::HashSet::new();
         for option in &choice.options {
             let crate::engine::ChoiceOption::GeneratedCard(card) = option else {
                 panic!("{potion_id} should use generated-card options");
             };
             let generated_def = engine.card_registry.card_def_by_id(card.def_id);
-            assert_eq!(card.cost, 0, "{potion_id} should set generated cards to 0 cost for the turn");
+            assert_eq!(
+                card.cost, 0,
+                "{potion_id} should set generated cards to 0 cost for the turn"
+            );
             if is_colorless {
                 let generated_name = engine.card_registry.card_name(card.def_id);
                 assert!(
@@ -145,15 +154,18 @@ fn discovery_potions_open_zero_cost_generated_choice_and_consume_the_slot() {
                 assert!(seen.insert(generated_name));
             } else {
                 assert_eq!(
-                    generated_def.card_type,
-                    expected_type,
+                    generated_def.card_type, expected_type,
                     "{potion_id} should generate the requested card family"
                 );
                 assert!(seen.insert(engine.card_registry.card_name(card.def_id)));
             }
         }
         engine.execute_action(&Action::Choose(0));
-        assert_eq!(engine.state.hand.len(), 1, "{potion_id} should add the chosen card to hand");
+        assert_eq!(
+            engine.state.hand.len(),
+            1,
+            "{potion_id} should add the chosen card to hand"
+        );
         assert!(engine.event_log.iter().any(|record| {
             record.event == crate::effects::trigger::Trigger::ManualActivation
                 && record.def_id.is_some()

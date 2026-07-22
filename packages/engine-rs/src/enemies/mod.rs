@@ -347,9 +347,10 @@ pub mod move_ids {
     pub const GREMLIN_TSUNDERE_BASH: i32 = 2;
 
     // Gremlin Nob
-    pub const NOB_BELLOW: i32 = 1;
-    pub const NOB_RUSH: i32 = 2;
-    pub const NOB_SKULL_BASH: i32 = 3;
+    // Java: GremlinNob.java BULL_RUSH=1, SKULL_BASH=2, BELLOW=3.
+    pub const NOB_RUSH: i32 = 1;
+    pub const NOB_SKULL_BASH: i32 = 2;
+    pub const NOB_BELLOW: i32 = 3;
 
     // Lagavulin
     pub const LAGA_SIPHON: i32 = 1;
@@ -626,6 +627,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::STARTING_DMG, 11);
             enemy.entity.set_status(sid::STR_AMT, 3);
             enemy.entity.set_status(sid::BLOCK_AMT, 6);
+            enemy.entity.set_status(sid::FIRST_MOVE, 1);
             enemy.set_move(move_ids::JW_CHOMP, 11, 1, 0);
         }
         "Cultist" => {
@@ -678,7 +680,14 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::STARTING_DMG, 7);
             enemy.entity.set_status(sid::STR_AMT, 10);
             enemy.entity.set_status(sid::BLOCK_AMT, 0);
-            enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 7, 1, 0);
+            enemy.set_move_with_intent(
+                move_ids::AS_CORROSIVE_SPIT,
+                Intent::AttackDebuff {
+                    damage: 7,
+                    hits: 1,
+                    effects: fx::SLIMED,
+                },
+            );
             enemy.add_effect(mfx::SLIMED, 1);
         }
         "AcidSlime_L" => {
@@ -688,7 +697,14 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::STARTING_DMG, 11);
             enemy.entity.set_status(sid::STR_AMT, 16);
             enemy.entity.set_status(sid::BLOCK_AMT, 0);
-            enemy.set_move(move_ids::AS_CORROSIVE_SPIT, 11, 1, 0);
+            enemy.set_move_with_intent(
+                move_ids::AS_CORROSIVE_SPIT,
+                Intent::AttackDebuff {
+                    damage: 11,
+                    hits: 1,
+                    effects: fx::SLIMED,
+                },
+            );
             enemy.add_effect(mfx::SLIMED, 2);
         }
         "SpikeSlime_S" => {
@@ -698,7 +714,14 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         "SpikeSlime_M" => {
             enemy.entity.set_status(sid::STARTING_DMG, 8);
             enemy.entity.set_status(sid::BLOCK_AMT, 0);
-            enemy.set_move(move_ids::SS_TACKLE, 8, 1, 0);
+            enemy.set_move_with_intent(
+                move_ids::SS_TACKLE,
+                Intent::AttackDebuff {
+                    damage: 8,
+                    hits: 1,
+                    effects: fx::SLIMED,
+                },
+            );
             enemy.add_effect(mfx::SLIMED, 1);
         }
         "SpikeSlime_L" => {
@@ -708,7 +731,14 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::STARTING_DMG, 16);
             enemy.entity.set_status(sid::STR_AMT, 2);
             enemy.entity.set_status(sid::BLOCK_AMT, 0);
-            enemy.set_move(move_ids::SS_TACKLE, 16, 1, 0);
+            enemy.set_move_with_intent(
+                move_ids::SS_TACKLE,
+                Intent::AttackDebuff {
+                    damage: 16,
+                    hits: 1,
+                    effects: fx::SLIMED,
+                },
+            );
             enemy.add_effect(mfx::SLIMED, 2);
         }
         "Looter" => {
@@ -716,12 +746,24 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::STR_AMT, 12);
             enemy.entity.set_status(sid::BLOCK_AMT, 6);
             enemy.entity.set_status(sid::TURN_COUNT, 15);
+            // Looter.usePreBattleAction applies a Java-visible ThieveryPower;
+            // TURN_COUNT remains the private goldAmt backing value used by the
+            // attack/reward path.
+            // Source: Looter.java:59-85; ThieveryPower.java:13-27.
+            enemy.entity.set_status(sid::THIEVERY, 15);
             enemy.set_move(move_ids::LOOTER_MUG, 10, 1, 0);
         }
         "GremlinFat" => {
             enemy.entity.set_status(sid::STARTING_DMG, 4);
             enemy.entity.set_status(sid::BLOCK_AMT, 0);
-            enemy.set_move(move_ids::GREMLIN_FAT_SMASH, 4, 1, 0);
+            enemy.set_move_with_intent(
+                move_ids::GREMLIN_FAT_SMASH,
+                Intent::AttackDebuff {
+                    damage: 4,
+                    hits: 1,
+                    effects: fx::WEAK,
+                },
+            );
             enemy.add_effect(mfx::WEAK, 1);
         }
         "GremlinThief" => {
@@ -737,12 +779,18 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::STARTING_DMG, 25);
             enemy.entity.set_status(sid::COUNT, 1);
             enemy.entity.set_status(sid::BLOCK_AMT, 0);
-            enemy.set_move(move_ids::GREMLIN_PROTECT, 0, 0, 0);
+            enemy.set_move_with_intent(move_ids::GREMLIN_PROTECT, Intent::Unknown);
         }
         "GremlinTsundere" => {
             enemy.entity.set_status(sid::STARTING_DMG, 6);
             enemy.entity.set_status(sid::BLOCK_AMT, 7);
-            enemy.set_move(move_ids::GREMLIN_TSUNDERE_PROTECT, 0, 0, 0);
+            enemy.set_move_with_intent(
+                move_ids::GREMLIN_TSUNDERE_PROTECT,
+                Intent::Block {
+                    amount: 0,
+                    effects: 0,
+                },
+            );
             enemy.add_effect(mfx::BLOCK_RANDOM_OTHER, 7);
         }
         "GremlinNob" => {
@@ -761,7 +809,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::IS_FIRST_MOVE, 0);
             enemy.entity.set_status(sid::COUNT, 0);
             enemy.entity.set_status(sid::ATTACK_COUNT, 0);
-            enemy.set_move(move_ids::LAGA_SLEEP, 0, 0, 0);
+            enemy.set_move_with_intent(move_ids::LAGA_SLEEP, Intent::Sleep);
             enemy.entity.set_status(sid::METALLICIZE, 8);
             enemy.entity.set_status(sid::SLEEP_TURNS, 1);
         }
@@ -773,7 +821,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
                 .entity
                 .set_status(sid::IS_FIRST_MOVE, move_ids::SENTRY_BOLT);
             enemy.entity.set_status(sid::ARTIFACT, 1);
-            enemy.set_move(move_ids::SENTRY_BOLT, 0, 0, 0);
+            enemy.set_move_with_intent(move_ids::SENTRY_BOLT, Intent::Debuff { effects: fx::DAZE });
             enemy.add_effect(mfx::DAZE, 2);
         }
         "TheGuardian" => {
@@ -795,7 +843,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::SEAR_BURN_COUNT, 1);
             enemy.entity.set_status(sid::FIRE_TACKLE_DMG, 5);
             enemy.entity.set_status(sid::INFERNO_DMG, 2);
-            enemy.set_move(move_ids::HEX_ACTIVATE, 0, 0, 0);
+            enemy.set_move_with_intent(move_ids::HEX_ACTIVATE, Intent::Unknown);
         }
         "SlimeBoss" => {
             // SlimeBoss.java directly appends SplitPower in its constructor.
@@ -804,7 +852,12 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::FIRE_TACKLE_DMG, 9);
             enemy.entity.set_status(sid::SLAP_DMG, 35);
             enemy.entity.set_status(sid::STR_AMT, 3);
-            enemy.set_move(move_ids::SB_STICKY, 0, 0, 0);
+            enemy.set_move_with_intent(
+                move_ids::SB_STICKY,
+                Intent::StrongDebuff {
+                    effects: fx::SLIMED,
+                },
+            );
             enemy.add_effect(mfx::SLIMED, 3);
         }
         "Apology Slime" => {
@@ -832,6 +885,8 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::STR_AMT, 16);
             enemy.entity.set_status(sid::BLOCK_AMT, 11);
             enemy.entity.set_status(sid::TURN_COUNT, 15);
+            // Source: Mugger.java:60-87; ThieveryPower.java:13-27.
+            enemy.entity.set_status(sid::THIEVERY, 15);
             enemy.entity.set_status(sid::ATTACK_COUNT, 0);
         }
         "Byrd" => {
@@ -879,7 +934,14 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         "Healer" => {
             // Source: reference/extracted/methods/monster/Healer.java.
             // The real opener is rolled during combat initialization.
-            enemy.set_move(move_ids::MYSTIC_ATTACK, 8, 1, 0);
+            enemy.set_move_with_intent(
+                move_ids::MYSTIC_ATTACK,
+                Intent::AttackDebuff {
+                    damage: 8,
+                    hits: 1,
+                    effects: fx::FRAIL,
+                },
+            );
             enemy.add_effect(mfx::FRAIL, 2);
             enemy.entity.set_status(sid::STARTING_DMG, 8);
             enemy.entity.set_status(sid::STR_AMT, 2);
@@ -893,7 +955,9 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // Java: reference/extracted/methods/monster/BookOfStabbing.java
             enemy.entity.set_status(sid::STARTING_DMG, 6);
             enemy.entity.set_status(sid::STR_AMT, 21);
-            enemy.entity.set_status(sid::STAB_COUNT, 0);
+            // Java initializes stabCount to 1 as a field initializer; the
+            // first STAB getMove branch increments it before setMove.
+            enemy.entity.set_status(sid::STAB_COUNT, 1);
             enemy.entity.set_status(sid::BLOCK_AMT, 0);
             enemy.entity.set_status(sid::PAINFUL_STABS, 1);
             enemy.set_move(move_ids::BOOK_STAB, 6, 1, 0);
@@ -902,7 +966,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // Source: reference/extracted/methods/monster/GremlinLeader.java.
             // The encounter spawn site patches ascension and alive-gremlin
             // state before the opening roll.
-            enemy.set_move(move_ids::GL_RALLY, 0, 0, 0);
+            enemy.set_move_with_intent(move_ids::GL_RALLY, Intent::Unknown);
             enemy.entity.set_status(sid::STR_AMT, 3);
             enemy.entity.set_status(sid::BLOCK_AMT, 6);
             enemy.entity.set_status(sid::COUNT, 0);
@@ -939,7 +1003,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // Source: reference/extracted/methods/monster/Snecko.java.
             // Provisional intent matches the forced Glare opener and is
             // replaced through the ordinary source-rolled move path.
-            enemy.set_move(move_ids::SNECKO_GLARE, 0, 0, 0);
+            enemy.set_move_with_intent(move_ids::SNECKO_GLARE, Intent::StrongDebuff { effects: 0 });
             enemy.add_effect(mfx::CONFUSED, 1);
             enemy.entity.set_status(sid::FIRST_MOVE, 1);
             enemy.entity.set_status(sid::STARTING_DMG, 15);
@@ -953,7 +1017,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::STARTING_DMG, 18);
             enemy.entity.set_status(sid::STR_AMT, 9);
             enemy.entity.set_status(sid::BLOCK_AMT, 2);
-            enemy.set_move(move_ids::BEAR_HUG, 0, 0, 0);
+            enemy.set_move_with_intent(move_ids::BEAR_HUG, Intent::StrongDebuff { effects: 0 });
             enemy.add_effect(mfx::DEX_DOWN, 2);
         }
         "BanditLeader" => {
@@ -963,7 +1027,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             enemy.entity.set_status(sid::STARTING_DMG, 15);
             enemy.entity.set_status(sid::STR_AMT, 10);
             enemy.entity.set_status(sid::BLOCK_AMT, 2);
-            enemy.set_move(move_ids::BANDIT_MOCK, 0, 0, 0);
+            enemy.set_move_with_intent(move_ids::BANDIT_MOCK, Intent::Unknown);
         }
         "BanditChild" => {
             // The Java class is BanditPointy, but its canonical game ID is
@@ -976,7 +1040,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // A0 constructor/pre-battle values. Independent A4/A9/A19 gates
             // are patched at the RunEngine spawn site.
             // Java: reference/extracted/methods/monster/BronzeAutomaton.java
-            enemy.set_move(move_ids::BA_SPAWN_ORBS, 0, 0, 0);
+            enemy.set_move_with_intent(move_ids::BA_SPAWN_ORBS, Intent::Unknown);
             enemy.entity.set_status(sid::FLAIL_DMG, 7);
             enemy.entity.set_status(sid::BEAM_DMG, 45);
             enemy.entity.set_status(sid::STR_AMT, 3);
@@ -991,7 +1055,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // opening roll. FIRST_MOVE represents usedStasis.
             // Java: reference/extracted/methods/monster/BronzeOrb.java
             enemy.entity.set_status(sid::FIRST_MOVE, 0);
-            enemy.set_move(move_ids::BO_STASIS, 0, 0, 0);
+            enemy.set_move_with_intent(move_ids::BO_STASIS, Intent::StrongDebuff { effects: 0 });
             enemy.add_effect(mfx::STASIS, 1);
         }
         "TorchHead" => {
@@ -1003,7 +1067,14 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // patched at the run spawn site.
             // Java: reference/extracted/methods/monster/Champ.java.
             let (slash_dmg, slap_dmg, str_amt, forge_amt, block_amt) = (16, 12, 2, 5, 15);
-            enemy.set_move(move_ids::CHAMP_FACE_SLAP, slap_dmg, 1, 0);
+            enemy.set_move_with_intent(
+                move_ids::CHAMP_FACE_SLAP,
+                Intent::AttackDebuff {
+                    damage: slap_dmg as i16,
+                    hits: 1,
+                    effects: fx::FRAIL | fx::VULNERABLE,
+                },
+            );
             enemy.add_effect(mfx::FRAIL, 2);
             enemy.add_effect(mfx::VULNERABLE, 2);
             enemy.entity.set_status(sid::NUM_TURNS, 0);
@@ -1109,7 +1180,7 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // Source: reference/extracted/methods/monster/Maw.java. The
             // opening getMove increments constructor turnCount 1 to 2; the
             // run-time initial roll performs that transition and consumes RNG.
-            enemy.set_move(move_ids::MAW_ROAR, 0, 0, 0);
+            enemy.set_move_with_intent(move_ids::MAW_ROAR, Intent::StrongDebuff { effects: 0 });
             enemy.add_effect(mfx::WEAK, 3);
             enemy.add_effect(mfx::FRAIL, 3);
             enemy.entity.set_status(sid::TURN_COUNT, 1);
@@ -1160,6 +1231,11 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // Source: reference/extracted/methods/monster/SnakeDagger.java.
             enemy.set_move(move_ids::SD_WOUND, 9, 1, 0);
             enemy.add_effect(mfx::WOUND, 1);
+            enemy.intent = Intent::AttackDebuff {
+                damage: 9,
+                hits: 1,
+                effects: fx::WOUND,
+            };
             enemy.entity.set_status(sid::FIRST_MOVE, 1);
         }
         "AwakenedOne" => {
@@ -1185,7 +1261,14 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
         "Deca" => {
             // Source: reference/extracted/methods/monster/Deca.java. These are
             // A0 defaults; A4/A9/A19 are independent run-site thresholds.
-            enemy.set_move(move_ids::DECA_BEAM, 10, 2, 0);
+            enemy.set_move_with_intent(
+                move_ids::DECA_BEAM,
+                Intent::AttackDebuff {
+                    damage: 10,
+                    hits: 2,
+                    effects: fx::DAZE,
+                },
+            );
             enemy.add_effect(mfx::DAZE, 2);
             enemy.entity.set_status(sid::ARTIFACT, 2);
             enemy.entity.set_status(sid::BEAM_DMG, 10);
@@ -1244,7 +1327,10 @@ pub fn create_enemy(enemy_id: &str, hp: i32, max_hp: i32) -> EnemyCombatState {
             // Source: reference/extracted/methods/monster/CorruptHeart.java.
             // Ascension-dependent constructor/pre-battle values are patched at
             // the run spawn site because create_enemy has no ascension input.
-            enemy.set_move(move_ids::HEART_DEBILITATE, 0, 0, 0);
+            enemy.set_move_with_intent(
+                move_ids::HEART_DEBILITATE,
+                Intent::StrongDebuff { effects: 0 },
+            );
             enemy.add_effect(mfx::VULNERABLE, 2);
             enemy.add_effect(mfx::WEAK, 2);
             enemy.add_effect(mfx::FRAIL, 2);
@@ -1292,10 +1378,21 @@ pub fn roll_initial_move_with_num_and_rng(
     ai_rng: &mut crate::seed::StsRandom,
 ) {
     enemy.move_history.clear();
+    if enemy.id == "TorchHead" {
+        // TorchHead is unusual: its constructor calls setMove(TACKLE) before
+        // AbstractMonster.init calls rollMove(), and getMove then calls
+        // setMove(TACKLE) again. Rust stores prior Java setMove entries in
+        // move_history and projects the current move separately, so preserve
+        // the constructor entry here.
+        // Java: TorchHead.java::<init>/getMove and
+        // AbstractMonster.java::init/setMove.
+        enemy.move_history.push(move_ids::TORCH_TACKLE);
+    }
     enemy.move_effects.clear();
     if enemy.id == "Cultist" {
         act1::roll_cultist_initial(enemy);
-    } else if enemy.id == "JawWorm" {
+    } else if enemy.id == "JawWorm" && enemy.entity.status(sid::FIRST_MOVE) > 0 {
+        enemy.entity.set_status(sid::FIRST_MOVE, 0);
         act1::roll_jaw_worm_initial(enemy);
     } else {
         select_move(enemy, num, ai_rng);
@@ -1990,10 +2087,10 @@ mod tests {
         // Source: reference/extracted/methods/monster/BookOfStabbing.java.
         roll_initial_move_with_num_and_rng(&mut enemy, 99, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::BOOK_STAB);
-        assert_eq!(enemy.move_hits(), 1);
+        assert_eq!(enemy.move_hits(), 2);
         roll_next_move_with_num(&mut enemy, 99);
         assert_eq!(enemy.move_id, move_ids::BOOK_STAB);
-        assert_eq!(enemy.move_hits(), 2);
+        assert_eq!(enemy.move_hits(), 3);
     }
 
     #[test]
@@ -2061,6 +2158,10 @@ mod tests {
         enemy.entity.set_status(sid::TURN_COUNT, 3);
         roll_next_move_with_num(&mut enemy, 99);
         assert_eq!(enemy.move_id, move_ids::COLL_MEGA_DEBUFF);
+        assert_eq!(
+            enemy.intent,
+            crate::combat_types::Intent::StrongDebuff { effects: 0 }
+        );
         assert_eq!(enemy.effect(mfx::VULNERABLE), Some(3));
         assert_eq!(enemy.effect(mfx::WEAK), Some(3));
         assert_eq!(enemy.effect(mfx::FRAIL), Some(3));
@@ -2092,9 +2193,14 @@ mod tests {
         roll_next_move_with_num(&mut enemy, 10);
         assert_eq!(enemy.move_id, move_ids::AO_SOUL_STRIKE);
 
+        // damage() installs Rebirth and resets firstTurn; changeState then
+        // heals before the queued RollMoveAction selects Dark Echo.
+        enemy.set_move_with_intent(move_ids::AO_REBIRTH, Intent::Unknown);
+        enemy.entity.set_status(sid::FIRST_TURN, 1);
         awakened_one_rebirth(&mut enemy);
         assert_eq!(enemy.entity.status(sid::PHASE), 2);
         assert_eq!(enemy.entity.hp, 300);
+        roll_next_move_with_num(&mut enemy, 75);
         assert_eq!(enemy.move_id, move_ids::AO_DARK_ECHO);
         assert_eq!(enemy.move_damage(), 40);
 
@@ -2130,6 +2236,14 @@ mod tests {
         roll_initial_move_with_num_and_rng(&mut enemy, 80, &mut crate::seed::StsRandom::new(0));
         assert_eq!(enemy.move_id, move_ids::TE_RIPPLE);
         assert_eq!(enemy.move_block(), 20);
+        assert_eq!(
+            enemy.intent,
+            Intent::DefendDebuff {
+                block: 20,
+                effects: fx::VULNERABLE | fx::WEAK,
+            },
+            "TimeEater.java declares Ripple as DEFEND_DEBUFF"
+        );
 
         enemy.entity.hp = 227;
         enemy.entity.set_status(sid::USED_HASTE, 0);
@@ -2238,6 +2352,7 @@ mod tests {
     fn test_corrupt_heart_boss() {
         let mut enemy = create_enemy("CorruptHeart", 750, 750);
         assert_eq!(enemy.move_id, move_ids::HEART_DEBILITATE);
+        assert!(matches!(enemy.intent, Intent::StrongDebuff { .. }));
         assert_eq!(enemy.entity.status(sid::INVINCIBLE), 300);
         assert_eq!(enemy.entity.status(sid::BEAT_OF_DEATH), 1);
         assert_eq!(enemy.entity.status(sid::BLOOD_HIT_COUNT), 12);
@@ -2248,6 +2363,7 @@ mod tests {
         let mut rng = crate::seed::StsRandom::new(0);
         roll_next_move(&mut enemy, &mut rng);
         assert_eq!(enemy.move_id, move_ids::HEART_DEBILITATE);
+        assert!(matches!(enemy.intent, Intent::StrongDebuff { .. }));
         assert_eq!(enemy.entity.status(sid::MOVE_COUNT), 0);
 
         roll_next_move(&mut enemy, &mut rng);
@@ -2332,10 +2448,12 @@ mod tests {
         let mut enemy = create_enemy("SnakeDagger", 22, 22);
         assert_eq!(enemy.move_id, move_ids::SD_WOUND);
         assert_eq!(enemy.move_damage(), 9);
+        assert!(matches!(enemy.intent, Intent::AttackDebuff { .. }));
 
         let mut rng = crate::seed::StsRandom::new(0);
         roll_initial_move(&mut enemy, &mut rng);
         assert_eq!(enemy.move_id, move_ids::SD_WOUND);
+        assert!(matches!(enemy.intent, Intent::AttackDebuff { .. }));
         assert_eq!(enemy.entity.status(sid::FIRST_MOVE), 0);
 
         roll_next_move(&mut enemy, &mut rng);
@@ -2395,6 +2513,260 @@ mod tests {
         roll_next_move_with_num_and_rng(&mut enemy, 72, &mut rng);
         assert_eq!(enemy.move_id, move_ids::OW_CLAW);
         assert_eq!(enemy.move_damage(), 15);
+    }
+
+    fn java_intent_kind(intent: Intent) -> &'static str {
+        match intent {
+            Intent::Attack { .. } => "ATTACK",
+            Intent::Block { .. } => "DEFEND",
+            Intent::Buff { .. } => "BUFF",
+            Intent::Debuff { .. } => "DEBUFF",
+            Intent::StrongDebuff { .. } => "STRONG_DEBUFF",
+            Intent::AttackBlock { .. } => "ATTACK_DEFEND",
+            Intent::AttackBuff { .. } => "ATTACK_BUFF",
+            Intent::AttackDebuff { .. } => "ATTACK_DEBUFF",
+            Intent::DefendBuff { .. } => "DEFEND_BUFF",
+            Intent::DefendDebuff { .. } => "DEFEND_DEBUFF",
+            Intent::Spawn => "SPAWN",
+            Intent::Escape => "ESCAPE",
+            Intent::Sleep => "SLEEP",
+            Intent::Stun => "STUN",
+            Intent::Unknown => "UNKNOWN",
+        }
+    }
+
+    #[test]
+    fn acts_one_through_three_move_ids_match_java_constants() {
+        // Source: the `private static final byte` declarations in every class
+        // under decompiled/java-src/com/megacrit/cardcrawl/monsters/
+        // {exordium,city,beyond}. This guards the numeric trace contract rather
+        // than merely comparing Rust symbolic constants to other Rust code.
+        macro_rules! ids {
+            ($class:literal, [$($actual:expr),+ $(,)?] => [$($expected:expr),+ $(,)?]) => {
+                assert_eq!([$($actual),+], [$($expected),+], "{} move IDs", $class);
+            };
+        }
+
+        ids!("JawWorm", [move_ids::JW_CHOMP, move_ids::JW_BELLOW, move_ids::JW_THRASH] => [1, 2, 3]);
+        ids!("Cultist", [move_ids::CULT_DARK_STRIKE, move_ids::CULT_INCANTATION] => [1, 3]);
+        ids!("FungiBeast", [move_ids::FB_BITE, move_ids::FB_GROW] => [1, 2]);
+        ids!("Louse", [move_ids::LOUSE_BITE, move_ids::LOUSE_GROW, move_ids::LOUSE_SPIT_WEB] => [3, 4, 4]);
+        ids!("SlaverBlue", [move_ids::BS_STAB, move_ids::BS_RAKE] => [1, 4]);
+        ids!("SlaverRed", [move_ids::RS_STAB, move_ids::RS_ENTANGLE, move_ids::RS_SCRAPE] => [1, 2, 3]);
+        ids!("AcidSlime_S", [move_ids::AS_S_TACKLE, move_ids::AS_S_LICK] => [1, 2]);
+        ids!("AcidSlime_M/L", [move_ids::AS_CORROSIVE_SPIT, move_ids::AS_TACKLE, move_ids::AS_SPLIT, move_ids::AS_LICK] => [1, 2, 3, 4]);
+        ids!("SpikeSlime", [move_ids::SS_TACKLE, move_ids::SS_SPLIT, move_ids::SS_LICK] => [1, 3, 4]);
+        ids!("Looter", [move_ids::LOOTER_MUG, move_ids::LOOTER_SMOKE_BOMB, move_ids::LOOTER_ESCAPE, move_ids::LOOTER_LUNGE] => [1, 2, 3, 4]);
+        ids!("Gremlin", [move_ids::GREMLIN_ATTACK, move_ids::GREMLIN_PROTECT, move_ids::GREMLIN_ESCAPE] => [1, 2, 99]);
+        ids!("GremlinTsundere", [move_ids::GREMLIN_TSUNDERE_PROTECT, move_ids::GREMLIN_TSUNDERE_BASH] => [1, 2]);
+        ids!("GremlinNob", [move_ids::NOB_RUSH, move_ids::NOB_SKULL_BASH, move_ids::NOB_BELLOW] => [1, 2, 3]);
+        ids!("Lagavulin", [move_ids::LAGA_SIPHON, move_ids::LAGA_ATTACK, move_ids::LAGA_STUN, move_ids::LAGA_SLEEP, move_ids::LAGA_OPEN_NATURAL] => [1, 3, 4, 5, 6]);
+        ids!("Sentry", [move_ids::SENTRY_BOLT, move_ids::SENTRY_BEAM] => [3, 4]);
+        ids!("TheGuardian", [move_ids::GUARD_CLOSE_UP, move_ids::GUARD_FIERCE_BASH, move_ids::GUARD_ROLL_ATTACK, move_ids::GUARD_TWIN_SLAM, move_ids::GUARD_WHIRLWIND, move_ids::GUARD_CHARGING_UP, move_ids::GUARD_VENT_STEAM] => [1, 2, 3, 4, 5, 6, 7]);
+        ids!("Hexaghost", [move_ids::HEX_DIVIDER, move_ids::HEX_TACKLE, move_ids::HEX_INFLAME, move_ids::HEX_SEAR, move_ids::HEX_ACTIVATE, move_ids::HEX_INFERNO] => [1, 2, 3, 4, 5, 6]);
+        ids!("ApologySlime", [move_ids::APOLOGY_TACKLE, move_ids::APOLOGY_DEBUFF] => [1, 2]);
+        ids!("SlimeBoss", [move_ids::SB_SLAM, move_ids::SB_PREP_SLAM, move_ids::SB_SPLIT, move_ids::SB_STICKY] => [1, 2, 3, 4]);
+
+        ids!("Chosen", [move_ids::CHOSEN_ZAP, move_ids::CHOSEN_DRAIN, move_ids::CHOSEN_DEBILITATE, move_ids::CHOSEN_HEX, move_ids::CHOSEN_POKE] => [1, 2, 3, 4, 5]);
+        ids!("Mugger", [move_ids::MUGGER_MUG, move_ids::MUGGER_SMOKE_BOMB, move_ids::MUGGER_ESCAPE, move_ids::MUGGER_BIG_SWIPE] => [1, 2, 3, 4]);
+        ids!("Byrd", [move_ids::BYRD_PECK, move_ids::BYRD_FLY_UP, move_ids::BYRD_SWOOP, move_ids::BYRD_STUNNED, move_ids::BYRD_HEADBUTT, move_ids::BYRD_CAW] => [1, 2, 3, 4, 5, 6]);
+        ids!("ShelledParasite", [move_ids::SP_FELL, move_ids::SP_DOUBLE_STRIKE, move_ids::SP_LIFE_SUCK, move_ids::SP_STUNNED] => [1, 2, 3, 4]);
+        ids!("SnakePlant", [move_ids::SNAKE_CHOMP, move_ids::SNAKE_SPORES] => [1, 2]);
+        ids!("Centurion", [move_ids::CENT_SLASH, move_ids::CENT_PROTECT, move_ids::CENT_FURY] => [1, 2, 3]);
+        ids!("Healer", [move_ids::MYSTIC_ATTACK, move_ids::MYSTIC_HEAL, move_ids::MYSTIC_BUFF] => [1, 2, 3]);
+        ids!("BookOfStabbing", [move_ids::BOOK_STAB, move_ids::BOOK_BIG_STAB] => [1, 2]);
+        ids!("GremlinLeader", [move_ids::GL_RALLY, move_ids::GL_ENCOURAGE, move_ids::GL_STAB] => [2, 3, 4]);
+        ids!("Taskmaster", [move_ids::TASK_SCOURING_WHIP] => [2]);
+        ids!("SphericGuardian", [move_ids::SPHER_BIG_ATTACK, move_ids::SPHER_INITIAL_BLOCK, move_ids::SPHER_BLOCK_ATTACK, move_ids::SPHER_FRAIL_ATTACK] => [1, 2, 3, 4]);
+        ids!("Snecko", [move_ids::SNECKO_GLARE, move_ids::SNECKO_BITE, move_ids::SNECKO_TAIL] => [1, 2, 3]);
+        ids!("BanditBear", [move_ids::BEAR_MAUL, move_ids::BEAR_HUG, move_ids::BEAR_LUNGE] => [1, 2, 3]);
+        ids!("BanditLeader", [move_ids::BANDIT_CROSS_SLASH, move_ids::BANDIT_MOCK, move_ids::BANDIT_AGONIZE] => [1, 2, 3]);
+        ids!("BanditPointy", [move_ids::POINTY_STAB] => [1]);
+        ids!("BronzeAutomaton", [move_ids::BA_FLAIL, move_ids::BA_HYPER_BEAM, move_ids::BA_STUNNED, move_ids::BA_SPAWN_ORBS, move_ids::BA_BOOST] => [1, 2, 3, 4, 5]);
+        ids!("BronzeOrb", [move_ids::BO_BEAM, move_ids::BO_SUPPORT, move_ids::BO_STASIS] => [1, 2, 3]);
+        ids!("TorchHead", [move_ids::TORCH_TACKLE] => [1]);
+        ids!("Champ", [move_ids::CHAMP_HEAVY_SLASH, move_ids::CHAMP_DEFENSIVE, move_ids::CHAMP_EXECUTE, move_ids::CHAMP_FACE_SLAP, move_ids::CHAMP_GLOAT, move_ids::CHAMP_TAUNT, move_ids::CHAMP_ANGER] => [1, 2, 3, 4, 5, 6, 7]);
+        ids!("TheCollector", [move_ids::COLL_SPAWN, move_ids::COLL_FIREBALL, move_ids::COLL_BUFF, move_ids::COLL_MEGA_DEBUFF, move_ids::COLL_REVIVE] => [1, 2, 3, 4, 5]);
+
+        ids!("Darkling", [move_ids::DARK_CHOMP, move_ids::DARK_HARDEN, move_ids::DARK_NIP, move_ids::DARK_WAIT, move_ids::DARK_REINCARNATE] => [1, 2, 3, 4, 5]);
+        ids!("OrbWalker", [move_ids::OW_LASER, move_ids::OW_CLAW] => [1, 2]);
+        ids!("Spiker", [move_ids::SPIKER_ATTACK, move_ids::SPIKER_BUFF] => [1, 2]);
+        ids!("Repulsor", [move_ids::REPULSOR_DAZE, move_ids::REPULSOR_ATTACK] => [1, 2]);
+        ids!("Exploder", [move_ids::EXPLODER_ATTACK, move_ids::EXPLODER_EXPLODE] => [1, 2]);
+        ids!("WrithingMass", [move_ids::WM_BIG_HIT, move_ids::WM_MULTI_HIT, move_ids::WM_ATTACK_BLOCK, move_ids::WM_ATTACK_DEBUFF, move_ids::WM_MEGA_DEBUFF] => [0, 1, 2, 3, 4]);
+        ids!("SpireGrowth", [move_ids::SG_QUICK_TACKLE, move_ids::SG_CONSTRICT, move_ids::SG_SMASH] => [1, 2, 3]);
+        ids!("Maw", [move_ids::MAW_ROAR, move_ids::MAW_SLAM, move_ids::MAW_DROOL, move_ids::MAW_NOM] => [2, 3, 4, 5]);
+        ids!("Transient", [move_ids::TRANSIENT_ATTACK] => [1]);
+        ids!("GiantHead", [move_ids::GH_GLARE, move_ids::GH_IT_IS_TIME, move_ids::GH_COUNT] => [1, 2, 3]);
+        ids!("Nemesis", [move_ids::NEM_TRI_ATTACK, move_ids::NEM_SCYTHE, move_ids::NEM_BURN] => [2, 3, 4]);
+        ids!("Reptomancer", [move_ids::REPTO_SNAKE_STRIKE, move_ids::REPTO_SPAWN, move_ids::REPTO_BIG_BITE] => [1, 2, 3]);
+        ids!("SnakeDagger", [move_ids::SD_WOUND, move_ids::SD_EXPLODE] => [1, 2]);
+        ids!("AwakenedOne", [move_ids::AO_SLASH, move_ids::AO_SOUL_STRIKE, move_ids::AO_REBIRTH, move_ids::AO_DARK_ECHO, move_ids::AO_SLUDGE, move_ids::AO_TACKLE] => [1, 2, 3, 5, 6, 8]);
+        ids!("Donu", [move_ids::DONU_BEAM, move_ids::DONU_CIRCLE] => [0, 2]);
+        ids!("Deca", [move_ids::DECA_BEAM, move_ids::DECA_SQUARE] => [0, 2]);
+        ids!("TimeEater", [move_ids::TE_REVERBERATE, move_ids::TE_RIPPLE, move_ids::TE_HEAD_SLAM, move_ids::TE_HASTE] => [2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn source_special_intent_constructor_table_matches_java() {
+        // Numeric IDs and intent kinds come from each class's setMove call in
+        // decompiled/java-src/com/megacrit/cardcrawl/monsters/{exordium,city,beyond}.
+        // This table intentionally covers constructor/provisional moves whose
+        // Java intent cannot be inferred from positive damage or self Block.
+        let rows = [
+            ("AcidSlime_M", 1, "ATTACK_DEBUFF"),
+            ("AcidSlime_L", 1, "ATTACK_DEBUFF"),
+            ("SpikeSlime_M", 1, "ATTACK_DEBUFF"),
+            ("SpikeSlime_L", 1, "ATTACK_DEBUFF"),
+            ("GremlinFat", 2, "ATTACK_DEBUFF"),
+            ("GremlinNob", 3, "BUFF"),
+            ("GremlinWizard", 2, "UNKNOWN"),
+            ("GremlinTsundere", 1, "DEFEND"),
+            ("Lagavulin", 5, "SLEEP"),
+            ("Sentry", 3, "DEBUFF"),
+            ("Hexaghost", 5, "UNKNOWN"),
+            ("SlimeBoss", 4, "STRONG_DEBUFF"),
+            ("Healer", 1, "ATTACK_DEBUFF"),
+            ("GremlinLeader", 2, "UNKNOWN"),
+            ("SlaverBoss", 2, "ATTACK_DEBUFF"),
+            ("Snecko", 1, "STRONG_DEBUFF"),
+            ("BanditBear", 2, "STRONG_DEBUFF"),
+            ("BanditLeader", 2, "UNKNOWN"),
+            ("BronzeAutomaton", 4, "UNKNOWN"),
+            ("BronzeOrb", 3, "STRONG_DEBUFF"),
+            ("Champ", 4, "ATTACK_DEBUFF"),
+            ("TheCollector", 1, "UNKNOWN"),
+            ("Orb Walker", 1, "ATTACK_DEBUFF"),
+            ("Repulsor", 1, "DEBUFF"),
+            ("Maw", 2, "STRONG_DEBUFF"),
+            ("Reptomancer", 2, "UNKNOWN"),
+            ("Dagger", 1, "ATTACK_DEBUFF"),
+            ("Deca", 0, "ATTACK_DEBUFF"),
+        ];
+
+        for (enemy_id, move_id, expected_intent) in rows {
+            let enemy = create_enemy(enemy_id, 100, 100);
+            assert_eq!(enemy.move_id, move_id, "{enemy_id} Java move ID drifted");
+            assert_eq!(
+                java_intent_kind(enemy.intent),
+                expected_intent,
+                "{enemy_id} Java intent drifted"
+            );
+        }
+    }
+
+    #[test]
+    fn source_special_intent_roll_branches_match_java() {
+        // Source: getMove in SlaverBlue, SlaverRed, AcidSlime_M,
+        // SpikeSlime_M, GremlinNob, Lagavulin, Hexaghost, SnakePlant, Healer,
+        // GremlinLeader, SphericGuardian, BronzeAutomaton, BronzeOrb, Darkling,
+        // Exploder, WrithingMass, SpireGrowth, GiantHead, Nemesis,
+        // AwakenedOne, and Deca under the same Java monster directories.
+        macro_rules! check {
+            ($enemy:expr, $move_id:expr, $kind:literal) => {{
+                let enemy = &$enemy;
+                assert_eq!(enemy.move_id, $move_id);
+                assert_eq!(java_intent_kind(enemy.intent), $kind);
+            }};
+        }
+
+        let mut blue = create_enemy("SlaverBlue", 100, 100);
+        act1::roll_blue_slaver(&mut blue, 0);
+        check!(blue, move_ids::BS_RAKE, "ATTACK_DEBUFF");
+
+        let mut red = create_enemy("SlaverRed", 100, 100);
+        red.entity.set_status(sid::IS_FIRST_MOVE, 0);
+        act1::roll_red_slaver(&mut red, 75);
+        check!(red, move_ids::RS_ENTANGLE, "STRONG_DEBUFF");
+
+        let mut acid = create_enemy("AcidSlime_M", 100, 100);
+        act1::roll_acid_slime_m(&mut acid, 0, &mut crate::seed::StsRandom::new(0));
+        check!(acid, move_ids::AS_CORROSIVE_SPIT, "ATTACK_DEBUFF");
+
+        let mut spike = create_enemy("SpikeSlime_M", 100, 100);
+        act1::roll_spike_slime_m(&mut spike, 99);
+        check!(spike, move_ids::SS_LICK, "DEBUFF");
+
+        let mut nob = create_enemy("GremlinNob", 100, 100);
+        nob.entity.set_status(sid::IS_FIRST_MOVE, 1);
+        act1::roll_gremlin_nob(&mut nob, 0);
+        check!(nob, move_ids::NOB_SKULL_BASH, "ATTACK_DEBUFF");
+
+        let mut lagavulin = create_enemy("Lagavulin", 100, 100);
+        lagavulin.entity.set_status(sid::FIRST_MOVE, 1);
+        act1::roll_lagavulin(&mut lagavulin);
+        check!(lagavulin, move_ids::LAGA_SIPHON, "STRONG_DEBUFF");
+
+        let mut hexaghost = create_enemy("Hexaghost", 100, 100);
+        hexaghost.entity.set_status(sid::IS_FIRST_MOVE, 1);
+        act1::roll_hexaghost(&mut hexaghost);
+        check!(hexaghost, move_ids::HEX_SEAR, "ATTACK_DEBUFF");
+
+        let mut snake = create_enemy("SnakePlant", 100, 100);
+        act2::roll_snake_plant(&mut snake, 99);
+        check!(snake, move_ids::SNAKE_SPORES, "STRONG_DEBUFF");
+
+        let mut healer = create_enemy("Healer", 100, 100);
+        act2::roll_healer(&mut healer, 99);
+        check!(healer, move_ids::MYSTIC_ATTACK, "ATTACK_DEBUFF");
+
+        let mut leader = create_enemy("GremlinLeader", 100, 100);
+        leader.entity.set_status(sid::COUNT, 0);
+        act2::roll_gremlin_leader(&mut leader, 0, &mut crate::seed::StsRandom::new(0));
+        check!(leader, move_ids::GL_RALLY, "UNKNOWN");
+
+        let mut guardian = create_enemy("SphericGuardian", 100, 100);
+        guardian.entity.set_status(sid::FIRST_MOVE, 0);
+        guardian.entity.set_status(sid::FIRST_TURN, 1);
+        act2::roll_spheric_guardian(&mut guardian);
+        check!(guardian, move_ids::SPHER_FRAIL_ATTACK, "ATTACK_DEBUFF");
+
+        let mut automaton = create_enemy("BronzeAutomaton", 100, 100);
+        act2::roll_bronze_automaton(&mut automaton, 0);
+        check!(automaton, move_ids::BA_SPAWN_ORBS, "UNKNOWN");
+
+        let mut orb = create_enemy("BronzeOrb", 100, 100);
+        act2::roll_bronze_orb(&mut orb, 25);
+        check!(orb, move_ids::BO_STASIS, "STRONG_DEBUFF");
+
+        let mut darkling = create_enemy("Darkling", 100, 100);
+        darkling.entity.set_status(sid::HIGH_ASCENSION_AI, 1);
+        act3::roll_darkling(&mut darkling, 0, &mut crate::seed::StsRandom::new(0));
+        check!(darkling, move_ids::DARK_HARDEN, "DEFEND_BUFF");
+
+        let mut exploder = create_enemy("Exploder", 100, 100);
+        exploder.entity.set_status(sid::TURN_COUNT, 2);
+        act3::roll_exploder(&mut exploder, 0);
+        check!(exploder, move_ids::EXPLODER_EXPLODE, "UNKNOWN");
+
+        let mut mass = create_enemy("WrithingMass", 100, 100);
+        mass.entity.set_status(sid::FIRST_MOVE, 0);
+        act3::roll_writhing_mass(&mut mass, 10, &mut crate::seed::StsRandom::new(0));
+        check!(mass, move_ids::WM_MEGA_DEBUFF, "STRONG_DEBUFF");
+
+        let mut growth = create_enemy("Serpent", 100, 100);
+        growth.entity.set_status(sid::HIGH_ASCENSION_AI, 1);
+        act3::roll_spire_growth(&mut growth, 0);
+        check!(growth, move_ids::SG_CONSTRICT, "STRONG_DEBUFF");
+
+        let mut head = create_enemy("GiantHead", 100, 100);
+        act3::roll_giant_head(&mut head, 0);
+        check!(head, move_ids::GH_GLARE, "DEBUFF");
+
+        let mut nemesis = create_enemy("Nemesis", 100, 100);
+        act3::roll_nemesis(&mut nemesis, 99, &mut crate::seed::StsRandom::new(0));
+        check!(nemesis, move_ids::NEM_BURN, "DEBUFF");
+
+        let mut awakened = create_enemy("AwakenedOne", 100, 100);
+        awakened.entity.set_status(sid::PHASE, 2);
+        awakened.move_history.push(move_ids::AO_DARK_ECHO);
+        act3::roll_awakened_one(&mut awakened, 0);
+        check!(awakened, move_ids::AO_SLUDGE, "ATTACK_DEBUFF");
+
+        let mut deca = create_enemy("Deca", 100, 100);
+        deca.move_history.clear();
+        act3::roll_deca(&mut deca, 0);
+        check!(deca, move_ids::DECA_BEAM, "ATTACK_DEBUFF");
     }
 
     /// Test all enemy IDs can be created without panicking

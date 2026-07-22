@@ -4,7 +4,7 @@
 use crate::effects::entity_def::{EntityDef, EntityKind, TriggeredEffect};
 use crate::effects::runtime::{EffectOwner, EffectState, GameEvent};
 use crate::effects::trigger::{Trigger, TriggerCondition};
-use crate::engine::CombatEngine;
+use crate::engine::{CombatEngine, EndTurnQueuedAction};
 
 fn hook(
     engine: &mut CombatEngine,
@@ -13,17 +13,10 @@ fn hook(
     state: &mut EffectState,
 ) {
     match event.kind {
-        Trigger::CombatStart => state.set(0, 0),
+        Trigger::CombatSetup => state.set(0, 0),
         Trigger::TurnStart => state.add(0, 1),
-        Trigger::TurnEnd if state.get(0) == 7 => {
-            for idx in engine.state.living_enemy_indices() {
-                let enemy = &mut engine.state.enemies[idx];
-                let blocked = enemy.entity.block.min(52);
-                enemy.entity.block -= blocked;
-                let hp_damage = 52 - blocked;
-                enemy.entity.hp = (enemy.entity.hp - hp_damage).max(0);
-                engine.state.total_damage_dealt += hp_damage;
-            }
+        Trigger::TurnEndPreCard if state.get(0) == 7 => {
+            engine.queue_end_turn_action_bottom(EndTurnQueuedAction::DamageAllEnemies(52));
         }
         Trigger::CombatVictory => state.set(0, -1),
         _ => {}
@@ -32,7 +25,7 @@ fn hook(
 
 static TRIGGERS: [TriggeredEffect; 4] = [
     TriggeredEffect {
-        trigger: Trigger::CombatStart,
+        trigger: Trigger::CombatSetup,
         condition: TriggerCondition::Always,
         effects: &[],
         counter: None,
@@ -44,7 +37,7 @@ static TRIGGERS: [TriggeredEffect; 4] = [
         counter: None,
     },
     TriggeredEffect {
-        trigger: Trigger::TurnEnd,
+        trigger: Trigger::TurnEndPreCard,
         condition: TriggerCondition::Always,
         effects: &[],
         counter: None,
